@@ -631,6 +631,8 @@
 (async function() {
   const qs = (s) => document.querySelector(s);
   const projectId = window.location.pathname.split('/').pop();
+  const PROJECT_WORKSPACE_BASE = <%- JSON.stringify(typeof projectWorkspaceBase === 'string' ? projectWorkspaceBase : '/admin/projects').replace(/</g, '\\u003c') %>;
+  const PROJECT_INVENTORY_PARTS_PATH = <%- JSON.stringify(typeof projectInventoryPartsPath === 'string' ? projectInventoryPartsPath : '/admin/inventory/repair-parts').replace(/</g, '\\u003c') %>;
 
   const statusLabels = {
     pending_project_scheduling: { label: 'Pending Review', cls: 'status-pending_project_scheduling' },
@@ -1814,7 +1816,7 @@
     }
 
     let html = `
-      <a href="/admin/projects" class="text-decoration-none text-muted" style="font-size:0.82rem;">&larr; Back to Projects</a>
+      <a href="${PROJECT_WORKSPACE_BASE}" class="text-decoration-none text-muted" style="font-size:0.82rem;">&larr; Back to Projects</a>
 
       <!-- ══ 1. PROJECT HEADER ══ -->
       <div class="pd-hero mt-2">
@@ -4592,7 +4594,7 @@
           results.innerHTML = `
             <div style="padding:0.8rem;text-align:center;">
               <div style="font-size:0.85rem;color:#64748b;margin-bottom:0.4rem;"><i class="bi bi-search" style="font-size:1.2rem;display:block;margin-bottom:0.3rem;color:#cbd5e1;"></i>No matching tools found</div>
-              <div style="font-size:0.75rem;color:#94a3b8;">Try a different search term or <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(q)}&partQty=${encodeURIComponent(field.querySelector('.mat-qty').value)}" target="_blank" style="color:#4f46e5;font-weight:600;">add a new part</a></div>
+              <div style="font-size:0.75rem;color:#94a3b8;">Try a different search term or <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(q)}&partQty=${encodeURIComponent(field.querySelector('.mat-qty').value)}" target="_blank" style="color:#4f46e5;font-weight:600;">add a new part</a></div>
             </div>`;
         } else {
           results.innerHTML = tools.map(t => {
@@ -4629,7 +4631,7 @@
                 </div>
                 <div style="width:10px;height:10px;border-radius:50%;background:${statusDot};flex-shrink:0;box-shadow:0 0 0 3px ${statusDot}22;"></div>
               </div>
-              ${isOut ? `<div style="margin-top:0.35rem;font-size:0.7rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:0.25rem 0.5rem;display:flex;align-items:center;gap:0.3rem;"><i class="bi bi-exclamation-triangle-fill"></i> Out of stock — <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true" target="_blank" style="color:#4f46e5;font-weight:700;text-decoration:underline;">Procure from inventory</a></div>` : ''}
+              ${isOut ? `<div style="margin-top:0.35rem;font-size:0.7rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:0.25rem 0.5rem;display:flex;align-items:center;gap:0.3rem;"><i class="bi bi-exclamation-triangle-fill"></i> Out of stock — <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true" target="_blank" style="color:#4f46e5;font-weight:700;text-decoration:underline;">Procure from inventory</a></div>` : ''}
               ${isLow ? `<div style="margin-top:0.35rem;font-size:0.7rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:0.25rem 0.5rem;display:flex;align-items:center;gap:0.3rem;"><i class="bi bi-exclamation-circle-fill"></i> Low stock — only ${available} left</div>` : ''}
             </div>`;
           }).join('');
@@ -4658,7 +4660,7 @@
                 stockWarning.style.display = 'block';
                 stockWarning.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:0.5rem 0.7rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
                   <div style="display:flex;align-items:center;gap:0.4rem;color:#991b1b;font-size:0.78rem;font-weight:600;"><i class="bi bi-exclamation-triangle-fill"></i> This item is out of stock (${stock} total, ${reserved} reserved by other projects)</div>
-                  <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true" target="_blank" class="pd-btn" style="font-size:0.7rem;padding:0.3rem 0.6rem;background:#4f46e5;color:#fff;border:none;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:0.3rem;"><i class="bi bi-cart-plus"></i> Procure Parts</a>
+                  <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true" target="_blank" class="pd-btn" style="font-size:0.7rem;padding:0.3rem 0.6rem;background:#4f46e5;color:#fff;border:none;white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;gap:0.3rem;"><i class="bi bi-cart-plus"></i> Procure Parts</a>
                 </div>`;
                 procureBtn.style.display = 'none';
               } else if (available <= (stock * 0.3)) {
@@ -4691,7 +4693,7 @@
     const modal = document.createElement('div');
     modal.className = 'pd-modal-overlay';
     modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
-    const procureUrl = `/admin/inventory/repair-parts?projectId=${projectId}&procure=true`;
+    const procureUrl = `${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true`;
     modal.innerHTML = `
       <div style="background:#fff;border-radius:16px;width:600px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(15,23,42,0.25);overflow:hidden;">
         <!-- HEADER -->
@@ -4825,7 +4827,7 @@
             <div style="flex:1;min-width:0;">
               <div style="font-size:0.8rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:0.3rem;">${preset.name} <span style="font-weight:500;color:#64748b;font-size:0.72rem;">x${preset.qty}</span></div>
               <div style="font-size:0.68rem;color:#64748b;margin-top:0.1rem;">${typeLabel[preset.type] || preset.type} · ${statusBadge}</div>
-              ${isOut ? `<div style="font-size:0.68rem;color:#b91c1c;margin-top:0.15rem;"><i class="bi bi-exclamation-triangle-fill"></i> This item is out of stock — <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(preset.name)}&partQty=${preset.qty}" target="_blank" style="color:#4f46e5;font-weight:700;text-decoration:underline;">procure from inventory</a></div>` : ''}
+              ${isOut ? `<div style="font-size:0.68rem;color:#b91c1c;margin-top:0.15rem;"><i class="bi bi-exclamation-triangle-fill"></i> This item is out of stock — <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(preset.name)}&partQty=${preset.qty}" target="_blank" style="color:#4f46e5;font-weight:700;text-decoration:underline;">procure from inventory</a></div>` : ''}
             </div>
             <button class="pd-btn ai-add-one" data-idx="${idx}" style="font-size:0.68rem;padding:0.3rem 0.6rem;${isOut ? 'opacity:0.6;' : ''}" ${isOut ? 'title="Item is out of stock — you may need to procure first"' : ''}><i class="bi bi-plus-lg"></i> Add</button>`;
           list.appendChild(row);
@@ -4836,7 +4838,7 @@
           warningDiv.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:0.5rem 0.7rem;margin-top:0.5rem;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
           warningDiv.innerHTML = `
             <span style="font-size:0.72rem;color:#991b1b;font-weight:600;"><i class="bi bi-exclamation-triangle-fill"></i> ${outOfStockItems.length} item(s) are out of stock</span>
-            <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true" target="_blank" style="font-size:0.7rem;color:#4f46e5;font-weight:700;text-decoration:underline;white-space:nowrap;">Procure Parts</a>`;
+            <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true" target="_blank" style="font-size:0.7rem;color:#4f46e5;font-weight:700;text-decoration:underline;white-space:nowrap;">Procure Parts</a>`;
           list.appendChild(warningDiv);
         }
         function promote(preset) {
@@ -4936,7 +4938,7 @@
               }).then(res => {
                 if (res.isConfirmed) {
                   const firstName = data.stockConflicts[0]?.itemName || '';
-                  window.open(`/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(firstName)}`, '_blank');
+                  window.open(`${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(firstName)}`, '_blank');
                 }
               });
             } else {
@@ -4971,7 +4973,7 @@
               }
 
               errorHtml += `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-                <a href="/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(e.item || '')}&partQty=${encodeURIComponent(e.want || 1)}" target="_blank" style="display:inline-flex;align-items:center;gap:0.3rem;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:0.4rem 0.8rem;font-size:0.75rem;font-weight:600;text-decoration:none;">
+                <a href="${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(e.item || '')}&partQty=${encodeURIComponent(e.want || 1)}" target="_blank" style="display:inline-flex;align-items:center;gap:0.3rem;background:#4f46e5;color:#fff;border:none;border-radius:8px;padding:0.4rem 0.8rem;font-size:0.75rem;font-weight:600;text-decoration:none;">
                   <i class="bi bi-cart-plus"></i> Procure Parts from Inventory
                 </a>
                 <button onclick="this.closest('.pd-modal-overlay').remove()" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:0.4rem 0.8rem;font-size:0.75rem;font-weight:600;color:#64748b;cursor:pointer;">
@@ -5015,7 +5017,7 @@
             cancelButtonText: 'Close',
           }).then(res => {
             if (res.isConfirmed) {
-              window.open(`/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(firstOut)}`, '_blank');
+              window.open(`${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(firstOut)}`, '_blank');
             }
           });
         } else {
@@ -5033,7 +5035,7 @@
           cancelButtonText: 'Close',
         }).then(res => {
           if (res.isConfirmed) {
-            window.open(`/admin/inventory/repair-parts?projectId=${projectId}&procure=true&partName=${encodeURIComponent(procurePart)}`, '_blank');
+            window.open(`${PROJECT_INVENTORY_PARTS_PATH}?projectId=${projectId}&procure=true&partName=${encodeURIComponent(procurePart)}`, '_blank');
           }
         });
       }

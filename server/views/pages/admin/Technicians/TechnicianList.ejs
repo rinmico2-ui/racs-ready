@@ -1,3 +1,7 @@
+<%
+  const resolvedTechniciansApiBase = typeof techniciansApiBase === "string" ? techniciansApiBase : "/api/admin/technicians";
+  const resolvedTechniciansCanManageAccounts = typeof techniciansCanManageAccounts === "boolean" ? techniciansCanManageAccounts : true;
+%>
 <div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <div class="au-hero mb-4">
@@ -88,10 +92,10 @@
         <button id="filterInactive" class="btn btn-light rp-filter-btn">Inactive</button>
       </div>
     </div>
-    <div class="rp-filter-group ms-auto">
+    <% if (resolvedTechniciansCanManageAccounts) { %><div class="rp-filter-group ms-auto">
       <label class="rp-filter-label">Action</label>
       <a href="/admin/technicians/new" class="btn btn-primary rp-filter-btn d-inline-flex align-items-center gap-1"><i class="bi bi-plus-lg"></i> Add Technician</a>
-    </div>
+    </div><% } else { %><span class="badge bg-light text-secondary border px-3 py-2 ms-auto"><i class="bi bi-eye me-1"></i>Account changes are admin-only</span><% } %>
   </div>
 
   <!-- Technician Directory Card -->
@@ -102,7 +106,7 @@
         <span id="resultInfo" class="text-muted small fw-normal">&nbsp;</span>
       </div>
       <div>
-        <button id="bulkDeactivate" class="btn btn-sm btn-outline-danger" disabled>Deactivate Selected</button>
+        <button id="bulkDeactivate" class="btn btn-sm btn-outline-danger <%= resolvedTechniciansCanManageAccounts ? '' : 'd-none' %>" disabled>Deactivate Selected</button>
       </div>
     </div>
     <div class="card-body p-0">
@@ -111,7 +115,7 @@
           <thead class="bg-light">
             <tr>
               <th class="ps-4" style="width: 36px">
-                <input id="selectAll" type="checkbox" />
+                <input id="selectAll" type="checkbox" <%- resolvedTechniciansCanManageAccounts ? '' : 'disabled style="visibility:hidden"' %> />
               </th>
               <th><i class="bi bi-person"></i> Name</th>
               <th class="d-none d-md-table-cell">
@@ -236,6 +240,8 @@
 
   <script>
     (function () {
+      const techniciansApiBase = <%- JSON.stringify(resolvedTechniciansApiBase).replace(/</g, "\\u003c") %>;
+      const techniciansCanManageAccounts = <%- JSON.stringify(resolvedTechniciansCanManageAccounts) %>;
       const el = (id) => document.getElementById(id);
       const body = el("techTableBody");
       // map state must be defined before any functions use it
@@ -267,7 +273,7 @@
         const ratingStars = t.rating ? Array.from({length:5}).map((_,i)=> i < Math.round(t.rating) ? '<i class="bi bi-star-fill"></i>' : '<i class="bi bi-star"></i>').join('') : '<span class="text-muted">—</span>';
 
         tr.innerHTML = `
-        <td><input class="rowSelect" type="checkbox" data-id="${t._id}" /></td>
+        <td><input class="rowSelect" type="checkbox" data-id="${t._id}" ${techniciansCanManageAccounts ? '' : 'disabled style="visibility:hidden"'} /></td>
         <td><div class="fw-semibold">${escapeHtml(t.name || ((t.firstName || "") + " " + (t.lastName || "")).trim() || "—")}</div><div class="small text-muted">${escapeHtml(t.email || "")}</div></td>
         <td class="d-none d-md-table-cell small text-muted">${escapeHtml(t.phone || "—")}</td>
         <td class="d-none d-lg-table-cell small text-muted">${escapeHtml(locationStr)}</td>
@@ -276,7 +282,7 @@
         <td><span class="badge fs-7 fw-semibold px-2 py-1 ${t.active ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary"}">${t.active ? "Active" : "Inactive"}</span></td>
         <td class="text-end">
           <div class="d-flex justify-content-end gap-1">
-            <a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-muted border-0 shadow-sm d-flex align-items-center justify-content-center" style="width:30px;height:30px;padding:0;" title="Edit"><i class="bi bi-pencil" style="font-size:0.85rem;"></i></a>
+            ${techniciansCanManageAccounts ? `<a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-muted border-0 shadow-sm d-flex align-items-center justify-content-center" style="width:30px;height:30px;padding:0;" title="Edit"><i class="bi bi-pencil" style="font-size:0.85rem;"></i></a>` : ''}
           </div>
         </td>
       `;
@@ -319,7 +325,7 @@
 
       async function load() {
         try {
-          const r = await fetch("/api/admin/technicians", { cache: "no-store" });
+          const r = await fetch(techniciansApiBase, { cache: "no-store" });
           if (!r.ok) throw new Error("failed");
           const j = await r.json();
           technicians = (j.technicians || []).map((t) => ({
@@ -409,6 +415,7 @@
           updateBulkButtons();
       });
       el("bulkDeactivate").addEventListener("click", async () => {
+        if (!techniciansCanManageAccounts) return;
         const ids = Array.from(
           document.querySelectorAll(".rowSelect:checked"),
         ).map((i) => i.dataset.id);
@@ -562,5 +569,3 @@
   </script>
 
 </div>
-
-    

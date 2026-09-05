@@ -96,15 +96,9 @@ async function buildRevenueAnalytics(query = {}) {
   const bookingsQuery = { createdAt: dateFilter, status: { $ne: "cancelled" } };
   if (techFilter !== "all") bookingsQuery.technicianId = techFilter;
   const paymentsQuery = {
-    $and: [
-      { $or: [
-        { verifiedAt: dateFilter }, { completedAt: dateFilter },
-        { collectedAt: dateFilter }, { submittedAt: dateFilter }, { refundedAt: dateFilter },
-      ] },
-      { $or: [
-        { status: { $in: Array.from(ACCEPTED_PAYMENT_STATUSES) } },
-        { refundAmount: { $gt: 0 } },
-      ] },
+    $or: [
+      { verifiedAt: dateFilter }, { completedAt: dateFilter },
+      { collectedAt: dateFilter }, { submittedAt: dateFilter }, { refundedAt: dateFilter },
     ],
   };
 
@@ -133,6 +127,9 @@ async function buildRevenueAnalytics(query = {}) {
       { "repairCompletion.completedAt": dateFilter },
       { "slaTracking.resolutionAt": dateFilter },
       { "statusHistory": { $elemMatch: { toStatus: { $in: ["completed", "repair_completed", "closed"] }, timestamp: dateFilter } } },
+      { "statusHistory": { $elemMatch: { toStatus: { $in: ["completed", "repair_completed", "closed"] }, changedAt: dateFilter } } },
+      { "statusHistory": { $elemMatch: { status: { $in: ["completed", "repair_completed", "closed"] }, timestamp: dateFilter } } },
+      { "statusHistory": { $elemMatch: { status: { $in: ["completed", "repair_completed", "closed"] }, changedAt: dateFilter } } },
       { updatedAt: dateFilter },
     ],
   };
@@ -140,6 +137,7 @@ async function buildRevenueAnalytics(query = {}) {
   const recognizedOrderQuery = {
     status: "completed",
     $or: [
+      { completedAt: dateFilter },
       { "statusHistory": { $elemMatch: { status: "completed", timestamp: dateFilter } } },
       { updatedAt: dateFilter },
     ],
@@ -387,7 +385,7 @@ async function buildRevenueAnalytics(query = {}) {
   const recognizedProjectIds = Array.from(projectPricingMap.entries())
     .filter(([bookingId]) => recognizedBookings.some((booking) => String(booking._id) === bookingId))
     .map(([, entry]) => entry.projectId);
-  const [serviceCostAnalytics, inventoryCosts, hvacCostProducts, approvedExpenses, payrollRows, projectMaterials] = await Promise.all([
+  const [serviceCostAnalytics, inventoryCosts, hvacCostProducts, expenseRows, payrollRows, projectMaterials] = await Promise.all([
     buildServiceCostAnalytics(recognizedBookings, { revenueResolver: getBookingRevenue }),
     recognizedInventoryIds.length
       ? Inventory.find({ _id: { $in: recognizedInventoryIds } }).select("costPrice").lean()
@@ -395,8 +393,8 @@ async function buildRevenueAnalytics(query = {}) {
     recognizedInventoryIds.length
       ? HVACProduct.find({ "variants._id": { $in: recognizedInventoryIds } }).select("variants._id variants.costPrice").lean()
       : [],
-    Expense.find({ status: "approved", expenseDate: dateFilter }).select("amount type bookingId projectId").lean(),
-    Payroll.find({ status: { $in: ["approved", "paid"] }, payDate: dateFilter }).select("grossPay netPay status").lean(),
+    Expense.find({ expenseDate: dateFilter }).select("amount type status bookingId projectId").lean(),
+    Payroll.find({ status: { $ne: "voided" }, payDate: dateFilter }).select("grossPay netPay status").lean(),
     recognizedProjectIds.length
       ? ProjectMaterial.find({
         projectId: { $in: recognizedProjectIds },
@@ -422,13 +420,19 @@ async function buildRevenueAnalytics(query = {}) {
     .map((service) => String(service.bookingId)));
   const projectsWithRecordedMaterials = new Set(projectMaterials.map((material) => String(material.projectId)));
   const duplicatedDirectExpenseTypes = new Set(["external_parts", "material"]);
+  const approvedExpenses = expenseRows.filter((expense) => expense.status === "approved");
   const operatingExpenseRows = approvedExpenses.filter((expense) => !(
     duplicatedDirectExpenseTypes.has(expense.type)
     && ((expense.bookingId && bookingsWithRecordedDirectCost.has(String(expense.bookingId)))
       || (expense.projectId && projectsWithRecordedMaterials.has(String(expense.projectId))))
   ));
   const approvedExpenseTotal = operatingExpenseRows.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-  const payrollCost = payrollRows.reduce((sum, payroll) => sum + Number(payroll.grossPay || 0), 0);
+  const approvedPayrollRows = payrollRows.filter((payroll) => ["approved", "paid"].includes(payroll.status));
+  const payrollCost = approvedPayrollRows.reduce((sum, payroll) => sum + Number(payroll.grossPay || 0), 0);
+  const pendingExpenseCount = expenseRows.filter((expense) => expense.status === "pending").length;
+  const pendingExpenseValue = expenseRows.filter((expense) => expense.status === "pending").reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const draftPayrollCount = payrollRows.filter((payroll) => payroll.status === "draft").length;
+  const draftPayrollValue = payrollRows.filter((payroll) => payroll.status === "draft").reduce((sum, payroll) => sum + Number(payroll.grossPay || 0), 0);
   const serviceDirectCost = serviceCostAnalytics.totals.partsCost
     + serviceCostAnalytics.totals.consumablesCost
     + serviceCostAnalytics.totals.localPurchaseCost
@@ -597,9 +601,13 @@ async function buildRevenueAnalytics(query = {}) {
       allProductsMap[key] = { name: p.name, category: p.brand || "Aircon", channel: "Online Order", quantity: p.quantity, revenue: p.revenue, cost: 0, profit: 0, orders: p.orders };
     }
   });
-  const combinedTopProducts = Object.values(allProductsMap).sort((a, b) => b.revenue - a.revenue).slice(0, 20);
-  const totalProductUnits = combinedTopProducts.reduce((s, p) => s + p.quantity, 0);
-  const totalProductRevenue = combinedTopProducts.reduce((s, p) => s + p.revenue, 0);
+  const allProducts = Object.values(allProductsMap);
+  const combinedTopProducts = allProducts.sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+  const totalProductUnits = allProducts.reduce((s, p) => s + p.quantity, 0);
+  const totalProductRevenue = allProducts.reduce((s, p) => s + p.revenue, 0);
+  const onlineOrderProductUnits = Object.values(orderProductMap).reduce((s, p) => s + p.quantity, 0);
+  const onlineOrderProductRevenue = Object.values(orderProductMap).reduce((s, p) => s + p.revenue, 0);
+  const posProductRevenue = Object.values(posProductMap).reduce((s, p) => s + p.revenue, 0);
 
   // ── Payment status counts ──
   const paidBookings = filteredBookings.filter((b) => b.paymentStatus === "paid").length;
@@ -624,6 +632,29 @@ async function buildRevenueAnalytics(query = {}) {
   const orderShare = totalRevenue > 0 ? (orderRevenue / totalRevenue) * 100 : 0;
   const posShare = totalRevenue > 0 ? (posRevenue / totalRevenue) * 100 : 0;
   const directCostCoverage = costDataCoverage;
+  const atRiskBookingStatuses = new Set(["pending_reassignment", "reschedule-required", "reschedule_required"]);
+  const atRiskServiceBookings = filteredBookings.filter((booking) => atRiskBookingStatuses.has(booking.status)).length;
+  const openServiceBookings = filteredBookings.filter((booking) => !["completed", "repair_completed", "closed"].includes(booking.status)).length;
+  const openOrders = orders.filter((order) => order.status !== "completed").length;
+  const paymentExceptionRows = payments.filter((payment) => ["unaccounted", "rejected", "failed"].includes(payment.status));
+  const paymentExceptionCount = paymentExceptionRows.length;
+  const paymentExceptionValue = paymentExceptionRows.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const pendingLedgerCount = payments.filter((payment) => payment.status === "pending").length;
+  const hasBookingCompletionEvidence = (booking) => Boolean(
+    booking.completedAt || booking.repairCompletion?.completedAt || booking.slaTracking?.resolutionAt
+    || (booking.statusHistory || []).some((event) =>
+      ["completed", "repair_completed", "closed"].includes(event?.toStatus || event?.status)
+      && (event?.timestamp || event?.changedAt)),
+  );
+  const hasOrderCompletionEvidence = (order) => Boolean(
+    order.completedAt || (order.statusHistory || []).some((event) => event?.status === "completed" && event?.timestamp),
+  );
+  const recognizedActivityCount = recognizedBookings.length + recognizedOrders.length + posSales.length;
+  const evidencedRecognizedActivity = recognizedBookings.filter(hasBookingCompletionEvidence).length
+    + recognizedOrders.filter(hasOrderCompletionEvidence).length + posSales.filter((sale) => sale.completedAt).length;
+  const completionEvidenceCoverage = recognizedActivityCount > 0
+    ? (evidencedRecognizedActivity / recognizedActivityCount) * 100
+    : 100;
 
   // ── Executive insights (strategic call-outs shown at the top of the report) ──
   const executiveInsights = [];
@@ -652,6 +683,15 @@ async function buildRevenueAnalytics(query = {}) {
   }
   if (grossProfit >= 0 && operatingProfit < 0) {
     executiveInsights.push({ tone: "danger", title: "Operating loss", text: `Contribution is positive, but approved expenses and payroll produce an operating loss of ${Math.abs(operatingProfit).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}.` });
+  }
+  if (atRiskServiceBookings > 0) {
+    executiveInsights.push({ tone: "danger", title: "Service pipeline intervention", text: `${atRiskServiceBookings} active service booking${atRiskServiceBookings === 1 ? " requires" : "s require"} reassignment or rescheduling before booked value can progress toward completion.` });
+  }
+  if (paymentExceptionCount > 0) {
+    executiveInsights.push({ tone: "danger", title: "Payment control exception", text: `${paymentExceptionCount} payment record${paymentExceptionCount === 1 ? "" : "s"} totaling ${paymentExceptionValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} ${paymentExceptionCount === 1 ? "is" : "are"} unaccounted, rejected, or failed.` });
+  }
+  if (pendingExpenseCount + draftPayrollCount > 0) {
+    executiveInsights.push({ tone: "warning", title: "Financial close backlog", text: `${pendingExpenseCount} pending expense${pendingExpenseCount === 1 ? "" : "s"} and ${draftPayrollCount} draft payroll${draftPayrollCount === 1 ? "" : "s"} are excluded from operating profit until approved.` });
   }
   if (!executiveInsights.length) executiveInsights.push({ tone: "info", title: "Stable performance", text: "No material revenue or collection exception was detected in this period." });
 
@@ -694,9 +734,13 @@ async function buildRevenueAnalytics(query = {}) {
         return { ...s, serviceCategory: booking ? serviceCategory(booking) : "core" };
       }),
       directCostCoverage,
+      atRiskServiceBookings, openServiceBookings, openOrders,
+      paymentExceptionCount, paymentExceptionValue, pendingLedgerCount,
+      pendingExpenseCount, pendingExpenseValue, draftPayrollCount, draftPayrollValue,
+      completionEvidenceCoverage,
       paidBookings, pendingPayments, partialPayments,
       totalTransactions,
-      recognizedTransactions: recognizedBookings.length + recognizedOrders.length + posSales.length,
+      recognizedTransactions: recognizedActivityCount,
       serviceTransactions: filteredBookings.length, orderTransactions: orders.length, posTransactions: posSales.length,
       avgTransactionValue: totalRevenue / (totalTransactions || 1),
       avgServiceTicket: filteredBookings.length ? serviceRevenue / filteredBookings.length : 0,
@@ -707,6 +751,7 @@ async function buildRevenueAnalytics(query = {}) {
       topPosProducts: Object.values(posProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
       topOrderProducts, orderBrandAnalysis, orderCapacityAnalysis, orderFulfillmentMap,
       combinedTopProducts, totalProductUnits, totalProductRevenue,
+      onlineOrderProductUnits, onlineOrderProductRevenue, posProductRevenue,
       executiveInsights,
     },
   };

@@ -1,3 +1,17 @@
+<%
+  const sidebarCurrentPath = typeof currentPath === 'string' ? currentPath : '';
+  const sidebarPathMatches = function(prefix) {
+    return sidebarCurrentPath === prefix || sidebarCurrentPath.startsWith(prefix + '/');
+  };
+  const bookingsGroupOpen = sidebarPathMatches('/admin/appointments')
+    || sidebarPathMatches('/admin/projects')
+    || sidebarPathMatches('/admin/operations/resolution-center')
+    || sidebarPathMatches('/admin/warranty')
+    || sidebarPathMatches('/admin/maintenance');
+  const servicesGroupOpen = sidebarPathMatches('/admin/services');
+  const inventoryGroupOpen = sidebarPathMatches('/admin/inventory');
+  const settingsGroupOpen = sidebarPathMatches('/admin/settings');
+%>
 <div class="sidebar" id="sidebar">
   <style>
     .sidebar::-webkit-scrollbar { display: none; }
@@ -104,14 +118,14 @@
 
     <!-- Appointment Management -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse"
-        data-bs-target="#appointment-mgmt-collapse" aria-expanded="false">
+      <button class="btn btn-toggle nav-link<%= bookingsGroupOpen ? ' active' : ' collapsed' %>" data-bs-toggle="collapse"
+        data-bs-target="#appointment-mgmt-collapse" aria-expanded="<%= bookingsGroupOpen ? 'true' : 'false' %>">
         <i class="bi bi-calendar2-check nav-icon"></i>
         <span class="nav-label">Bookings</span>
         <span class="nav-badge badge bg-warning text-dark" id="pendingReviewCount" style="display:none;">0</span>
         <i class="bi bi-chevron-down ms-auto"></i>
       </button>
-      <div class="collapse" id="appointment-mgmt-collapse">
+      <div class="collapse<%= bookingsGroupOpen ? ' show' : '' %>" id="appointment-mgmt-collapse">
         <ul class="btn-toggle-nav list-unstyled">
           <!-- Core Management -->
           <li style="padding-top: 8px; padding-bottom: 4px; margin-left: 12px;">
@@ -197,13 +211,13 @@
 
     <!-- Services -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#services-collapse"
-        aria-expanded="false">
+      <button class="btn btn-toggle nav-link<%= servicesGroupOpen ? ' active' : ' collapsed' %>" data-bs-toggle="collapse" data-bs-target="#services-collapse"
+        aria-expanded="<%= servicesGroupOpen ? 'true' : 'false' %>">
         <i class="bi bi-tools nav-icon"></i>
         <span class="nav-label">Services</span>
         <i class="bi bi-chevron-down ms-auto"></i>
       </button>
-      <div class="collapse" id="services-collapse">
+      <div class="collapse<%= servicesGroupOpen ? ' show' : '' %>" id="services-collapse">
         <ul class="btn-toggle-nav list-unstyled">
           <li><a href="/admin/services/core" class="nav-link"><i class="bi bi-gear nav-icon"></i><span class="nav-label">Core Services</span></a></li>
           <li><a href="/admin/services/service-categories" class="nav-link"><i class="bi bi-grid-3x3-gap nav-icon"></i><span class="nav-label">Repair</span></a></li>
@@ -213,13 +227,13 @@
 
     <!-- Inventory -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#inventory-collapse"
-        aria-expanded="false">
+      <button class="btn btn-toggle nav-link<%= inventoryGroupOpen ? ' active' : ' collapsed' %>" data-bs-toggle="collapse" data-bs-target="#inventory-collapse"
+        aria-expanded="<%= inventoryGroupOpen ? 'true' : 'false' %>">
         <i class="bi bi-box-seam nav-icon"></i>
         <span class="nav-label">Inventory</span>
         <i class="bi bi-chevron-down ms-auto"></i>
       </button>
-      <div class="collapse" id="inventory-collapse">
+      <div class="collapse<%= inventoryGroupOpen ? ' show' : '' %>" id="inventory-collapse">
         <ul class="btn-toggle-nav list-unstyled">
           <li><a href="/admin/inventory/pos" class="nav-link" style="color:#22c55e;"><i class="bi bi-shop nav-icon"></i><span class="nav-label fw-bold">Point of Sale</span></a></li>
           <li><a href="/admin/inventory/repair-parts" class="nav-link"><i class="bi bi-box-seam nav-icon"></i><span class="nav-label">Repair Parts Procurement</span></a></li>
@@ -300,13 +314,13 @@
 
     <!-- Settings -->
     <li class="nav-item">
-      <button class="btn btn-toggle nav-link collapsed" data-bs-toggle="collapse" data-bs-target="#settings-collapse"
-        aria-expanded="false">
+      <button class="btn btn-toggle nav-link<%= settingsGroupOpen ? ' active' : ' collapsed' %>" data-bs-toggle="collapse" data-bs-target="#settings-collapse"
+        aria-expanded="<%= settingsGroupOpen ? 'true' : 'false' %>">
         <i class="bi bi-gear nav-icon"></i>
         <span class="nav-label">Settings</span>
         <i class="bi bi-chevron-down ms-auto"></i>
       </button>
-      <div class="collapse" id="settings-collapse">
+      <div class="collapse<%= settingsGroupOpen ? ' show' : '' %>" id="settings-collapse">
         <ul class="btn-toggle-nav list-unstyled">
           <li><a href="/admin/settings/system" class="nav-link"><i class="bi bi-hdd-network nav-icon"></i><span class="nav-label">System</span></a></li>
           <li><a href="/admin/settings/fare" class="nav-link"><i class="bi bi-cash-coin nav-icon"></i><span class="nav-label">Fare &amp; Pricing</span></a></li>

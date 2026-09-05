@@ -2,6 +2,12 @@
   'use strict';
 
   var $ = function(id) { return document.getElementById(id); };
+  var dashboardConfig = window.RACSDashboardConfig || {};
+  var dashboardEndpoints = dashboardConfig.endpoints || {};
+  var dashboardLinks = dashboardConfig.links || {};
+  function dashboardLink(key, fallback) {
+    return Object.prototype.hasOwnProperty.call(dashboardLinks, key) ? dashboardLinks[key] : fallback;
+  }
 
   // ── KPI Modal ──
   var kpiModalOverlay = $('kpiModalOverlay');
@@ -1218,7 +1224,7 @@
 
   async function loadDashboard() {
     try {
-      var res = await fetch('/api/admin/analytics/summary', { credentials: 'same-origin' });
+      var res = await fetch(dashboardEndpoints.summary || '/api/admin/analytics/summary', { credentials: 'same-origin' });
       var d = res.ok ? await res.json() : {};
       _dashData = d;
     } catch (e) {
@@ -1469,33 +1475,42 @@
         '<div class="dash-stat-card"><div class="dash-stat-card-val" style="color:#64748b;">' + absent + '</div><div class="dash-stat-card-lbl">Offline</div><div class="dash-stat-card-sub">' + (total - avail - busy) + '</div></div>' +
         '</div>' +
         '<table class="dash-tech-table"><thead><tr><th>Technician</th><th>Status</th><th>Check-in</th></tr></thead><tbody>';
-      try {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', '/api/admin/attendance/today', false);
-        xhr.send();
-        if (xhr.status === 200) {
-          var techs = JSON.parse(xhr.responseText) || [];
-          if (techs.length) {
-            techRows += techs.map(function(t) {
-              var st = t.availabilityStatus || 'Offline';
-              var dot = 'offline';
-              if (st === 'Available') dot = 'online';
-              else if (['Assigned','On The Way','In Progress'].indexOf(st) >= 0) dot = 'busy';
-              var checkIn = t.checkInTime ? formatTime(t.checkInTime) : '--';
-              var initials = (t.name || 'T').split(' ').map(function(n){ return n.charAt(0); }).slice(0,2).join('').toUpperCase();
-              return '<tr><td><div class="dash-tech-name"><div class="dash-tech-avatar">' + initials + '</div><span style="font-weight:700;color:#0f172a;">' + (t.name || 'Technician') + '</span></div></td>' +
-                '<td><span class="dash-chip ' + (dot === 'online' ? 'success' : dot === 'busy' ? 'warning' : '') + '"><span class="status-dot ' + dot + '"></span> ' + st + '</span></td>' +
-                '<td style="color:#64748b;font-size:0.78rem;">' + checkIn + '</td></tr>';
-            }).join('');
-          } else {
-            techRows += '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:16px;">No technicians found</td></tr>';
-          }
-        }
-      } catch(e) {
+      if (!dashboardEndpoints.attendanceToday) {
+        // The secretary dashboard intentionally receives aggregate attendance
+        // only; named attendance records remain an admin-only endpoint.
         techRows += '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:16px;">' +
           '<span class="status-dot online"></span> ' + avail + ' Available &middot; ' +
           '<span class="status-dot busy"></span> ' + busy + ' Busy &middot; ' +
           '<span class="status-dot offline"></span> ' + absent + ' Offline</td></tr>';
+      } else {
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', dashboardEndpoints.attendanceToday, false);
+          xhr.send();
+          if (xhr.status === 200) {
+            var techs = JSON.parse(xhr.responseText) || [];
+            if (techs.length) {
+              techRows += techs.map(function(t) {
+                var st = t.availabilityStatus || 'Offline';
+                var dot = 'offline';
+                if (st === 'Available') dot = 'online';
+                else if (['Assigned','On The Way','In Progress'].indexOf(st) >= 0) dot = 'busy';
+                var checkIn = t.checkInTime ? formatTime(t.checkInTime) : '--';
+                var initials = (t.name || 'T').split(' ').map(function(n){ return n.charAt(0); }).slice(0,2).join('').toUpperCase();
+                return '<tr><td><div class="dash-tech-name"><div class="dash-tech-avatar">' + initials + '</div><span style="font-weight:700;color:#0f172a;">' + (t.name || 'Technician') + '</span></div></td>' +
+                  '<td><span class="dash-chip ' + (dot === 'online' ? 'success' : dot === 'busy' ? 'warning' : '') + '"><span class="status-dot ' + dot + '"></span> ' + st + '</span></td>' +
+                  '<td style="color:#64748b;font-size:0.78rem;">' + checkIn + '</td></tr>';
+              }).join('');
+            } else {
+              techRows += '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:16px;">No technicians found</td></tr>';
+            }
+          }
+        } catch(e) {
+          techRows += '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:16px;">' +
+            '<span class="status-dot online"></span> ' + avail + ' Available &middot; ' +
+            '<span class="status-dot busy"></span> ' + busy + ' Busy &middot; ' +
+            '<span class="status-dot offline"></span> ' + absent + ' Offline</td></tr>';
+        }
       }
       techRows += '</tbody></table>';
       container.innerHTML = techRows;
@@ -1916,16 +1931,16 @@
           icon: change > 0 ? 'bi-arrow-up-short' : change < 0 ? 'bi-arrow-down-short' : 'bi-dash',
           title: todayBookings + ' bookings today' + (change !== 0 ? ' (' + (change > 0 ? '+' : '') + change + '% vs avg)' : ''),
           text: '7-day average is ' + avgPerDay + ' bookings/day (' + weekTotal + ' this week).',
-          action: '/admin/appointments', actionLabel: 'View Bookings'
+          action: dashboardLink('appointments', '/admin/appointments'), actionLabel: 'View Bookings'
         });
       } else if (allBookings > 0) {
-        insights.push({ type: 'info', icon: 'bi-calendar3', title: 'No bookings scheduled for today', text: 'You have ' + allBookings + ' total bookings on record. Average ' + avgPerDay + '/day this week.', action: '/admin/appointments', actionLabel: 'View Schedule' });
+        insights.push({ type: 'info', icon: 'bi-calendar3', title: 'No bookings scheduled for today', text: 'You have ' + allBookings + ' total bookings on record. Average ' + avgPerDay + '/day this week.', action: dashboardLink('appointments', '/admin/appointments'), actionLabel: 'View Schedule' });
       }
 
       // Pending review
       var pendingReview = d.pendingReview || 0;
       if (pendingReview > 0) {
-        insights.push({ type: 'warning', icon: 'bi-clock-history', title: pendingReview + ' booking' + (pendingReview > 1 ? 's' : '') + ' awaiting payment review', text: 'Payments need verification before work can proceed. Review promptly to keep jobs on schedule.', action: '/admin/payments', actionLabel: 'Review Payments' });
+        insights.push({ type: 'warning', icon: 'bi-clock-history', title: pendingReview + ' booking' + (pendingReview > 1 ? 's' : '') + ' awaiting payment review', text: 'Payments need verification before work can proceed. Review promptly to keep jobs on schedule.', action: dashboardLink('payments', '/admin/payments'), actionLabel: 'Review Payments' });
       }
 
       // Awaiting assignment
@@ -1937,7 +1952,7 @@
           icon: 'bi-person-plus',
           title: awaitAssign + ' booking' + (awaitAssign > 1 ? 's' : '') + ' awaiting technician assignment',
           text: availTechs > 0 ? availTechs + ' technician' + (availTechs > 1 ? 's' : '') + ' available for assignment.' : 'No technicians currently available. Consider rebalancing workload.',
-          action: '/admin/technicians', actionLabel: 'Assign Techs'
+          action: dashboardLink('technicians', '/admin/technicians'), actionLabel: 'Assign Techs'
         });
       }
 
@@ -1951,7 +1966,7 @@
           icon: 'bi-tools',
           title: activeS + ' active service' + (activeS > 1 ? 's' : '') + ' in progress',
           text: 'Technician utilization at ' + utilization + '% (' + busyTechs + '/' + (d.totalTechnicians || 0) + ' busy).',
-          action: '/admin/jobs/active', actionLabel: 'View Active Jobs'
+          action: dashboardLink('jobs', '/admin/jobs/active'), actionLabel: 'View Active Jobs'
         });
       }
 
@@ -1970,7 +1985,7 @@
           icon: 'bi-cash-coin',
           title: 'Revenue performance',
           text: msg,
-          action: '/admin/payments', actionLabel: 'View Payments'
+          action: dashboardLink('payments', '/admin/payments'), actionLabel: 'View Payments'
         });
       }
 
@@ -1982,18 +1997,18 @@
           type: 'danger', icon: 'bi-exclamation-triangle',
           title: lowStock + ' item' + (lowStock > 1 ? 's' : '') + ' low on stock',
           text: (items ? items + (lowStock > 3 ? ' and more' : '') + ' — ' : '') + 'Reorder soon to avoid service delays.',
-          action: '/admin/inventory', actionLabel: 'Check Inventory'
+          action: dashboardLink('inventory', '/admin/inventory'), actionLabel: 'Check Inventory'
         });
       }
 
       // Pending expenses
       var pendExp = d.pendingExpenses || 0;
-      if (pendExp > 0) {
+      if (pendExp > 0 && dashboardLink('expenses', '/admin/expenses')) {
         insights.push({
           type: 'warning', icon: 'bi-receipt',
           title: pendExp + ' expense' + (pendExp > 1 ? 's' : '') + ' pending approval',
           text: fmtMoney(d.pendingExpensesTotal || 0) + ' total awaiting your review.',
-          action: '/admin/expenses', actionLabel: 'Review Expenses'
+          action: dashboardLink('expenses', '/admin/expenses'), actionLabel: 'Review Expenses'
         });
       }
 
@@ -2005,7 +2020,7 @@
           type: 'warning', icon: 'bi-person-x',
           title: absentTechs + ' of ' + totalTechs + ' technicians offline',
           text: Math.round((absentTechs / totalTechs) * 100) + '% of workforce unavailable. May impact service capacity.',
-          action: '/admin/technicians', actionLabel: 'Manage Team'
+          action: dashboardLink('technicians', '/admin/technicians'), actionLabel: 'Manage Team'
         });
       }
 

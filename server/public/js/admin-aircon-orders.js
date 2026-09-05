@@ -1,4 +1,9 @@
 document.addEventListener("DOMContentLoaded", function () {
+  const ordersWorkspaceConfig = window.RACSOrdersWorkspace || {};
+  const isAdminWorkspace = ordersWorkspaceConfig.role !== "secretary";
+  const canResolveOrders = ordersWorkspaceConfig.canResolve !== false;
+  const resolutionPath = ordersWorkspaceConfig.resolutionPath || "/admin/operations/resolution-center";
+  const resolutionApiBase = ordersWorkspaceConfig.resolutionApiBase || "/api/admin";
   // ═══ CONSTANTS ═══════════════════════════════════════════════════════════════
   const STATUS_LABELS = {
     pending_payment: "Pending Payment", preparing_unit: "Preparing Unit",
@@ -190,8 +195,9 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function loadOrderResolutionCount() {
+    if (!canResolveOrders) return;
     try {
-      const response = await fetch('/api/admin/resolution-center?source=order&page=1&perPage=1');
+      const response = await fetch(`${resolutionApiBase}/resolution-center?source=order&page=1&perPage=1`);
       if (!response.ok) throw new Error('Resolution count unavailable');
       const data = await response.json();
       const count = Number(data?.summary?.bySource?.order) || 0;
@@ -329,9 +335,10 @@ document.addEventListener("DOMContentLoaded", function () {
       open: 'resolve',
     });
     if (o.attentionType) params.set('issue', o.attentionType);
-    return `/admin/operations/resolution-center?${params.toString()}`;
+    return `${resolutionPath}?${params.toString()}`;
   }
   function resolutionBtn(o) {
+    if (!canResolveOrders) return "";
     return `<a class="btn btn-sm btn-warning ao-action-btn" href="${esc(resolutionUrl(o))}"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>`;
   }
   function paymentIsVerified(o) {
@@ -1164,7 +1171,7 @@ document.addEventListener("DOMContentLoaded", function () {
       let footerBtns = '';
       const isPickup = o.fulfillmentType === 'customer_pickup';
       if (o.isPastDate) {
-        footerBtns += `<a class="btn btn-sm btn-warning fw-bold" href="${esc(resolutionUrl(o))}" style="border-radius:8px;"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>`;
+        if (canResolveOrders) footerBtns += `<a class="btn btn-sm btn-warning fw-bold" href="${esc(resolutionUrl(o))}" style="border-radius:8px;"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>`;
         footerBtns += '<button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Close</button>';
       } else if (o.status === "pending_payment" && o.paymentMethod !== "cash_onsite" && (o.paymentStatus||"pending") === "pending") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoVerifyPayment('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Verify Payment</button>`;
@@ -1178,7 +1185,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (canAssign(o)) {
         footerBtns += assignBtn(o);
       }
-      if (o.customerAccount?.state === 'invited' && o.customerAccount?.canManageInvitation) {
+      if (isAdminWorkspace && o.customerAccount?.state === 'invited' && o.customerAccount?.canManageInvitation) {
         footerBtns += `<button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="window._aoResendCustomerActivation('${esc(o._id)}')"><i class="bi bi-envelope-arrow-up me-1"></i>Resend Activation</button>`;
       }
       modalFooter.innerHTML = footerBtns;

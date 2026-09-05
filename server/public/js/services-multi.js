@@ -4669,7 +4669,9 @@ function renderRepairServices() {
 function createServiceCard(service, type) {
 
   const col = document.createElement('div');
-  col.className = 'col-12 col-sm-6 col-lg-4';
+  col.className = type === 'core'
+    ? 'col-6 col-md-4 core-service-column'
+    : 'col-12 col-sm-6 col-lg-4';
 
   const card = document.createElement('div');
   card.className = 'card service-card h-100 border-0 shadow-sm';
@@ -4720,14 +4722,14 @@ function createServiceCard(service, type) {
        </div>`;
 
   card.innerHTML = `
-    <div class="card-body p-3">
+    <div class="card-body service-card-body d-flex flex-column">
       ${mediaSection}
       <h6 class="card-title fw-semibold mb-1 text-dark">${service.name}</h6>
-      <div class="d-flex align-items-center gap-2 mb-2">
+      <div class="service-card-meta d-flex flex-wrap align-items-center gap-2 mb-2">
         ${serviceTypeBadge}
         <span class="badge bg-light text-muted service-card-chip">${durationLabel}</span>
       </div>
-      <div class="text-center mb-2">
+      <div class="service-card-price text-center mt-auto mb-2">
         <div class="price-box rounded-pill px-3 py-1 fw-bold text-primary d-inline-block">
           ${priceDisplay}
         </div>
@@ -4954,11 +4956,7 @@ function addContinueButton() {
     e.preventDefault();
     e.stopPropagation();
 
-    if (BookingState.selectedServices.length > 0) {
-      advanceToNextStep();
-    } else {
-      alert('Please select at least one service first');
-    }
+    advanceToNextStep();
     return false;
   };
 
@@ -4977,7 +4975,10 @@ function updateContinueButtonState() {
   if (!continueBtn) return;
 
   const hasServices = BookingState.selectedServices.length > 0;
-  continueBtn.disabled = !hasServices;
+  // Keep the action available so an incomplete step can explain what is
+  // required instead of failing silently behind a disabled control.
+  continueBtn.disabled = false;
+  continueBtn.classList.toggle('is-ready', hasServices);
 
   if (continueHint) {
     if (hasServices) {
@@ -8118,26 +8119,7 @@ function confirmQuantitySelection() {
     }, 150);
   }
 
-  // Show success feedback with SweetAlert2
-  if (typeof Swal !== 'undefined') {
-    // Use a toast notification instead of modal to avoid blocking
-    Swal.fire({
-      icon: 'success',
-      title: 'Service Added!',
-      text: `${service.name} has been added to your booking`,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000,
-      timerProgressBar: true,
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer)
-        toast.addEventListener('mouseleave', Swal.resumeTimer)
-      }
-    });
-  } else {
-    // Fallback if SweetAlert2 not loaded
-  }
+  showSuccess(`${service.name} has been added to your booking`, 'Service Added');
 
   // Reset processing flag after completion
   resetProcessingFlag();
@@ -8287,74 +8269,162 @@ function advanceToNextStep() {
   }, 400); // Wait for transition to complete
 }
 
-/**
- * Validate current step before allowing advancement
- */
-function validateStep(stepNumber) {
-  console.log(`🔍 Validating Step ${stepNumber}`);
-
-  switch (stepNumber) {
-    case 1:
-      // Check if services are selected
-      if (BookingState.selectedServices.length === 0) {
-        showError('Please select at least one service to continue');
-        return false;
-      }
-      break;
-
-    case 2:
-      // Step 2 is service details, auto-advances after selection
-      break;
-
-    case 3:
-      // Check if location is entered
-      if (!BookingState.location || BookingState.location.length < 10) {
-        showError('Please enter a valid location (at least 10 characters)');
-        return false;
-      }
-      break;
-
-    case 4:
-      // Check if schedule is selected
-      const _isProject =
-        isLargeScaleSelection() ||
-        (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
-        BookingState.isProject === true ||
-        !!BookingState.projectScheduling;
-      if (_isProject) {
-        // Projects require a fully validated start + end date range whose
-        // capacity verdict is sufficient — an insufficient window cannot be
-        // submitted.
-        const ps = BookingState.projectScheduling;
-        const hasEnd = !!(ps && ps.endDate) ||
-          !!(EnterpriseCalendar.getSelectedEndDate && EnterpriseCalendar.getSelectedEndDate());
-        if (!BookingState.selectedDate || !hasEnd) {
-          showError('Please select both a start date and an end date for your project');
-          return false;
-        }
-        const verdict = (EnterpriseCalendar.getWindowVerdict && EnterpriseCalendar.getWindowVerdict()) ||
-          (ps && ps.windowVerdict) || null;
-        if (verdict && verdict.sufficient === false) {
-          showError('This project window does not provide enough available working capacity. Please adjust your end date or use the recommended date.');
-          return false;
-        }
-      } else if (!BookingState.selectedDate || !BookingState.selectedTimeSlot) {
-        showError('Please select both date and time for your appointment');
-        return false;
-      }
-      break;
-
-    case 5:
-      // Fee step - no validation needed
-      break;
-
-    default:
-      console.warn(`Unknown step number: ${stepNumber}`);
+function getBookingStepIssue(stepNumber) {
+  if (stepNumber === 1) {
+    const stepper = document.getElementById('entStepper');
+    if (!stepper || stepper.dataset.authenticated !== 'true') {
+      return {
+        step: 1,
+        title: 'Log In to Continue',
+        message: 'Please log in or create a customer account before selecting services.',
+        confirmButtonText: 'Return to Login',
+        focusSelector: '.booking-step[data-step="1"] a[href="/login"]'
+      };
+    }
   }
 
-  console.log(`✅ Step ${stepNumber} validation passed`);
+  if (stepNumber === 2 && (!Array.isArray(BookingState.selectedServices) || BookingState.selectedServices.length === 0)) {
+    return {
+      step: 2,
+      title: 'Select a Service First',
+      message: 'Add at least one Core or Repair service before continuing to the location step.',
+      confirmButtonText: 'Choose a Service',
+      focusSelector: '#coreServiceCards .add-service-btn, #repair-tab'
+    };
+  }
+
+  if (stepNumber === 3) {
+    const location = BookingState.customerLocation;
+    const routeReady = document.getElementById('mapInfoDistance')?.dataset.ready === 'true';
+    const hasPinnedLocation = location &&
+      Number.isFinite(Number(location.lat)) &&
+      Number.isFinite(Number(location.lng));
+
+    if (!hasPinnedLocation) {
+      return {
+        step: 3,
+        title: 'Confirm Your Service Location',
+        message: 'Search for an address, choose a suggestion, use My Location, or pin the exact service point on the map.',
+        confirmButtonText: 'Set Location',
+        focusSelector: '#locationInput'
+      };
+    }
+
+    if (!routeReady) {
+      return {
+        step: 3,
+        title: 'Location Confirmation in Progress',
+        message: 'Please wait for the route and travel fee to finish calculating before continuing.',
+        confirmButtonText: 'Review Location',
+        focusSelector: '#serviceCheckoutMapCard'
+      };
+    }
+  }
+
+  if (stepNumber === 4) {
+    const calendar = typeof EnterpriseCalendar !== 'undefined' ? EnterpriseCalendar : null;
+    const isProject =
+      isLargeScaleSelection() ||
+      (calendar && calendar.isProjectMode && calendar.isProjectMode()) ||
+      BookingState.isProject === true ||
+      !!BookingState.projectScheduling;
+    const selectedDate = BookingState.selectedDate || BookingState.scheduleDate;
+
+    if (isProject) {
+      const projectSchedule = BookingState.projectScheduling;
+      const hasEndDate = !!(projectSchedule && projectSchedule.endDate) ||
+        !!(calendar && calendar.getSelectedEndDate && calendar.getSelectedEndDate());
+      if (!selectedDate || !hasEndDate) {
+        return {
+          step: 4,
+          title: 'Complete the Project Schedule',
+          message: 'Select both a start date and an end date before reviewing the booking fee.',
+          confirmButtonText: 'Choose Dates',
+          focusSelector: '#manualCalendar'
+        };
+      }
+      const verdict = (calendar && calendar.getWindowVerdict && calendar.getWindowVerdict()) ||
+        (projectSchedule && projectSchedule.windowVerdict) || null;
+      if (verdict && verdict.sufficient === false) {
+        return {
+          step: 4,
+          title: 'Adjust the Project Schedule',
+          message: 'The selected dates do not provide enough working capacity. Choose a later end date or use the recommended schedule.',
+          confirmButtonText: 'Adjust Schedule',
+          focusSelector: '#manualCalendar'
+        };
+      }
+    } else if (!selectedDate || !(BookingState.selectedTimeSlot || BookingState.scheduleTime)) {
+      return {
+        step: 4,
+        title: 'Choose a Date and Time',
+        message: 'Select an available appointment date and time before reviewing the booking fee.',
+        confirmButtonText: 'Choose Schedule',
+        focusSelector: '#manualCalendar'
+      };
+    }
+  }
+
+  return null;
+}
+
+function focusBookingRequirement(issue) {
+  const stepPanel = document.querySelector(`.booking-step[data-step="${issue.step}"]`);
+  if (stepPanel) {
+    stepPanel.classList.add('step-highlight');
+    stepPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => stepPanel.classList.remove('step-highlight'), 1800);
+  }
+
+  const focusTarget = document.querySelector(issue.focusSelector || '');
+  if (!focusTarget) return;
+  if (!focusTarget.matches('button, a, input, select, textarea, [tabindex]')) {
+    focusTarget.setAttribute('tabindex', '-1');
+  }
+  setTimeout(() => focusTarget.focus({ preventScroll: true }), 250);
+}
+
+function presentBookingStepIssue(issue) {
+  if (BookingState.currentStep !== issue.step) showStep(issue.step);
+  return showServiceDialog({
+    icon: 'warning',
+    title: issue.title,
+    message: issue.message,
+    confirmButtonText: issue.confirmButtonText
+  }).then(() => focusBookingRequirement(issue));
+}
+
+function requestBookingStepNavigation(targetStep) {
+  const step = Number(targetStep);
+  if (!Number.isInteger(step) || step < 1 || step > 6) return false;
+
+  const currentStep = Number(BookingState.currentStep) || 1;
+  if (step === currentStep) return true;
+  if (step < currentStep) {
+    showStep(step);
+    return true;
+  }
+
+  for (let prerequisiteStep = 1; prerequisiteStep < step; prerequisiteStep += 1) {
+    const issue = getBookingStepIssue(prerequisiteStep);
+    if (issue) {
+      presentBookingStepIssue(issue);
+      return false;
+    }
+  }
+
+  showStep(step);
   return true;
 }
+
+function validateStep(stepNumber) {
+  const issue = getBookingStepIssue(stepNumber);
+  if (!issue) return true;
+  presentBookingStepIssue(issue);
+  return false;
+}
+
+window.requestBookingStepNavigation = requestBookingStepNavigation;
 
 /**
  * Get current visible booking step
@@ -8638,40 +8708,48 @@ function getServiceUnitText(service) {
   return unit === 'aircon' ? 'aircon' : unit;
 }
 
-function showError(message) {
-  // Show error toast or alert
+function showServiceDialog({ icon, title, message, confirmButtonText = 'Continue' }) {
   if (typeof Swal !== 'undefined') {
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
+    return Swal.fire({
+      icon,
+      title,
       text: message,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000
+      toast: false,
+      position: 'center',
+      showConfirmButton: true,
+      confirmButtonText,
+      focusConfirm: true,
+      allowOutsideClick: false,
+      allowEscapeKey: true,
+      customClass: {
+        popup: 'service-booking-alert'
+      }
     });
-  } else {
-    // Fallback to alert
-    alert(message);
   }
+
+  window.alert(message);
+  return Promise.resolve();
+}
+
+function showError(message) {
+  return showServiceDialog({
+    icon: 'error',
+    title: 'Unable to Continue',
+    message,
+    confirmButtonText: 'Review Details'
+  });
 }
 
 /** Unified notification helper used by the combined Core/Repair selector. */
 function showAlert(message, type = 'info') {
   if (type === 'success') return showSuccess(message);
   if (type === 'error' || type === 'danger') return showError(message);
-  if (typeof Swal !== 'undefined') {
-    return Swal.fire({
-      icon: type === 'warning' ? 'warning' : 'info',
-      title: type === 'warning' ? 'Check Service Details' : 'Service Booking',
-      text: message,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000,
-    });
-  }
-  window.alert(message);
+  return showServiceDialog({
+    icon: type === 'warning' ? 'warning' : 'info',
+    title: type === 'warning' ? 'Check Service Details' : 'Service Booking',
+    message,
+    confirmButtonText: type === 'warning' ? 'Review Details' : 'Got It'
+  });
 }
 window.showAlert = showAlert;
 
@@ -8702,21 +8780,13 @@ function clearModalError() {
   }
 }
 
-function showSuccess(message) {
-  // Show success toast or alert
-  if (typeof Swal !== 'undefined') {
-    Swal.fire({
-      icon: 'success',
-      title: 'Success',
-      text: message,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 2000
-    });
-  } else {
-    // Fallback to console
-  }
+function showSuccess(message, title = 'Booking Updated') {
+  return showServiceDialog({
+    icon: 'success',
+    title,
+    message,
+    confirmButtonText: 'Continue'
+  });
 }
 
 /**

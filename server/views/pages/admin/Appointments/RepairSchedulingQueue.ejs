@@ -507,6 +507,9 @@
 (function() {
   'use strict';
 
+  const REPAIR_OPERATIONS_API = <%- JSON.stringify(typeof repairOperationsApiBase === 'string' ? repairOperationsApiBase : '/api/admin').replace(/</g, '\\u003c') %>;
+  const REPAIR_PARTS_PATH = <%- JSON.stringify(typeof repairPartsPath === 'string' ? repairPartsPath : '/admin/inventory/repair-parts').replace(/</g, '\\u003c') %>;
+
   let allBookings = [];
   let selectedTechId = null;
   let selectedAdminDate = null;
@@ -519,8 +522,8 @@
 
     try {
       const [queueRes, statsRes] = await Promise.all([
-        fetch('/api/admin/repair-scheduling-queue', { credentials: 'same-origin' }),
-        fetch('/api/admin/repair-scheduling-queue/stats', { credentials: 'same-origin' })
+        fetch(REPAIR_OPERATIONS_API + '/repair-scheduling-queue', { credentials: 'same-origin' }),
+        fetch(REPAIR_OPERATIONS_API + '/repair-scheduling-queue/stats', { credentials: 'same-origin' })
       ]);
 
       if (!queueRes.ok) throw new Error('Failed to load queue');
@@ -795,7 +798,7 @@
     modal.show();
 
     try {
-      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/availability`, { credentials: 'same-origin' });
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/availability`, { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Failed to check availability');
       const data = await res.json();
 
@@ -904,7 +907,7 @@
     capacityEl.textContent = '-';
 
     try {
-      const res = await fetch(`/api/admin/technicians/${techId}/available-dates?duration=${duration || 90}&travelTime=${Math.max(0, Number(travelTime) || 0)}`, { credentials: 'same-origin' });
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/technicians/${techId}/available-dates?duration=${duration || 90}&travelTime=${Math.max(0, Number(travelTime) || 0)}`, { credentials: 'same-origin' });
       if (!res.ok) throw new Error('Failed to load dates');
       const data = await res.json();
 
@@ -1169,7 +1172,7 @@
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Scheduling...';
 
     try {
-      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/assign`, {
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -1336,7 +1339,7 @@
     if (!bookingId) return;
     try {
       Swal.fire({ title: 'Reserving stock...', allowOutsideClick: false, showConfirmButton: false, willOpen: () => Swal.showLoading() });
-      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin'
@@ -1357,7 +1360,7 @@
     const btn = document.getElementById('mpReserveAndScheduleBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Reserving stock...'; }
     try {
-      const res = await fetch(`/api/admin/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/repair-scheduling-queue/${bookingId}/check-and-procure-parts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -1392,7 +1395,7 @@
     if (needing.length === 0) {
       window.reserveParts(_mpBookingId);
     } else {
-      window.location.href = `/admin/inventory/repair-parts?bookingId=${_mpBookingId}`;
+      window.location.href = `${REPAIR_PARTS_PATH}?bookingId=${_mpBookingId}`;
     }
   };
 
@@ -1402,7 +1405,7 @@
     btn.disabled = true;
     btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Processing...';
     try {
-      const res = await fetch(`/api/admin/repair-queue/${_mpBookingId}/receive-parts`, {
+      const res = await fetch(`${REPAIR_OPERATIONS_API}/repair-queue/${_mpBookingId}/receive-parts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',

@@ -1,3 +1,7 @@
+<%
+  const resolvedStaffApiBase = typeof staffApiBase === "string" ? staffApiBase : "/api/admin/staff";
+  const resolvedStaffCanManage = typeof staffCanManage === "boolean" ? staffCanManage : true;
+%>
 <div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
@@ -395,9 +399,13 @@
           <label class="rp-filter-label" for="staffToolbarSearch"><i class="bi bi-search me-1"></i>Find staff</label>
           <input id="staffToolbarSearch" class="form-control rp-filter-input" placeholder="Search by name or email..." />
         </div>
-        <button id="btnOpenAddStaff" class="btn btn-primary rp-filter-btn" type="button" data-bs-toggle="modal" data-bs-target="#addStaffModal">
-          <i class="bi bi-plus-lg me-2"></i>Add New Staff
-        </button>
+        <% if (resolvedStaffCanManage) { %>
+          <button id="btnOpenAddStaff" class="btn btn-primary rp-filter-btn" type="button" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+            <i class="bi bi-plus-lg me-2"></i>Add New Staff
+          </button>
+        <% } else { %>
+          <span class="badge bg-light text-secondary border px-3 py-2"><i class="bi bi-eye me-1"></i>Read-only directory</span>
+        <% } %>
       </div>
 
       <!-- Staff Filter Toolbar -->
@@ -743,6 +751,8 @@
 
 <script>
   (function () {
+    const staffApiBase = <%- JSON.stringify(resolvedStaffApiBase).replace(/</g, "\\u003c") %>;
+    const staffCanManage = <%- JSON.stringify(resolvedStaffCanManage) %>;
     // Move modals to body to escape AOS transform stacking context on <main>
     !function(){var m=document.getElementById('viewStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
     !function(){var m=document.getElementById('editStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
@@ -791,7 +801,7 @@
       ${roleTag}
       <div class="staff-actions">
         <button class="btn-icon view-staff" data-id='${u._id || ""}' title='View'><i class="bi bi-eye"></i></button>
-        <button class="btn-icon edit-staff" data-id='${u._id || ""}' title='Edit'><i class="bi bi-pencil"></i></button>
+        ${staffCanManage ? `<button class="btn-icon edit-staff" data-id='${u._id || ""}' title='Edit'><i class="bi bi-pencil"></i></button>` : ''}
       </div>
     </div>
   </div>
@@ -806,7 +816,7 @@
         </div>`;
       if (el("staffCards")) el("staffCards").innerHTML = spinner;
       try {
-        const r = await fetch("/api/admin/staff", {
+        const r = await fetch(staffApiBase, {
           credentials: "same-origin",
         });
         if (!r.ok) {
@@ -1114,7 +1124,8 @@
           createBtn.disabled = true;
           createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creating...';
           try {
-            var res = await fetch("/api/admin/staff", {
+            if (!staffCanManage) return;
+            var res = await fetch(staffApiBase, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload),
@@ -1349,7 +1360,7 @@
       var id = btn.dataset.id;
       if (!id) return;
 
-      fetch("/api/admin/staff/" + id)
+      fetch(staffApiBase + "/" + id)
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
@@ -1387,10 +1398,11 @@
     document.getElementById("staffCards").addEventListener("click", function (ev) {
       var btn = ev.target.closest && ev.target.closest(".edit-staff");
       if (!btn) return;
+      if (!staffCanManage) return;
       var id = btn.dataset.id;
       if (!id) return;
 
-      fetch("/api/admin/staff/" + id)
+      fetch(staffApiBase + "/" + id)
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
@@ -1413,6 +1425,7 @@
 
     // ── Save Edit ──
     document.getElementById("saveEditStaffBtn").addEventListener("click", function () {
+      if (!staffCanManage) return;
       var id = document.getElementById("editStaffId").value;
       if (!id) return;
       var payload = {
@@ -1424,7 +1437,7 @@
         active: document.getElementById("editStaffActive").value === "true",
       };
 
-      fetch("/api/admin/staff/" + id, {
+      fetch(staffApiBase + "/" + id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",

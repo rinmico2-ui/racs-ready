@@ -1,3 +1,14 @@
+<%
+  const appointmentsResolutionEnabled = typeof appointmentsCanResolve === 'boolean'
+    ? appointmentsCanResolve
+    : (typeof appointmentsWorkspaceRole !== 'string' || appointmentsWorkspaceRole === 'admin');
+  const appointmentsResolutionUrl = typeof appointmentsResolutionPath === 'string'
+    ? appointmentsResolutionPath
+    : '/admin/operations/resolution-center';
+  const appointmentsResolutionApi = typeof appointmentsResolutionApiBase === 'string'
+    ? appointmentsResolutionApiBase
+    : '/api/admin';
+%>
 <style>
   /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
   :root {
@@ -611,7 +622,9 @@
           <p>Full booking lifecycle pipeline &mdash; from request to completion</p>
         </div>
       </div>
-      <a class="btn btn-light fw-bold" href="/admin/operations/resolution-center?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
+      <% if (appointmentsResolutionEnabled) { %>
+        <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
+      <% } %>
       <div class="au-hero-stats">
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
@@ -1789,6 +1802,20 @@
 (function() {
   'use strict';
 
+  var APPOINTMENTS_IS_ADMIN = <%- JSON.stringify((typeof appointmentsWorkspaceRole === 'string' ? appointmentsWorkspaceRole : 'admin') === 'admin') %>;
+  var APPOINTMENTS_API = <%- JSON.stringify(typeof appointmentsApiBase === 'string' ? appointmentsApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
+  var APPOINTMENTS_TOOLS_API = <%- JSON.stringify(typeof appointmentsToolsApiBase === 'string' ? appointmentsToolsApiBase : '/api/admin/tools').replace(/</g, '\\u003c') %>;
+  var APPOINTMENTS_CAN_RESOLVE = <%- JSON.stringify(appointmentsResolutionEnabled) %>;
+  var APPOINTMENTS_RESOLUTION_PATH = <%- JSON.stringify(appointmentsResolutionUrl).replace(/</g, '\\u003c') %>;
+  var APPOINTMENTS_RESOLUTION_API = <%- JSON.stringify(appointmentsResolutionApi).replace(/</g, '\\u003c') %>;
+
+  function appointmentResponseJson(response) {
+    return response.json().catch(function(){ return {}; }).then(function(data){
+      if (!response.ok) throw new Error(data.error || data.message || 'Appointment request failed');
+      return data;
+    });
+  }
+
   var PIPELINE_STAGES = [
     { key: 'pending', label: 'Pending Payment', icon: 'bi-hourglass-split', color: '#f59e0b', bg: '#fef3c7' },
     { key: 'awaiting_assignment', label: 'In Queue', icon: 'bi-clipboard-check', color: '#8b5cf6', bg: '#ede9fe' },
@@ -1904,6 +1931,7 @@
   }
 
   function bookingResolutionUrl(b) {
+    if (!APPOINTMENTS_CAN_RESOLVE) return '';
     var reference=b.bookingReference||b.workOrderNumber||b._id||'Booking';
     var params=new URLSearchParams({
       source:'booking',
@@ -1912,7 +1940,7 @@
       focus:'booking:'+String(b._id||''),
       open:'resolve'
     });
-    return ('/admin/operations/resolution-center?'+params.toString()).replace(/&/g,'&amp;');
+    return (APPOINTMENTS_RESOLUTION_PATH+'?'+params.toString()).replace(/&/g,'&amp;');
   }
 
   function showNotification(opts) {
@@ -2003,11 +2031,12 @@
     var heroColor = needsResolution?'#dc2626':(b.paymentStatus==='paid'?'#059669':(b.paymentStatus==='partial'?'#d97706':'#2563eb'));
     var displayedStatus=needsResolution?'Needs Resolution':stL;
     var resolutionUrl=bookingResolutionUrl(b);
+    var resolutionActionHtml = APPOINTMENTS_CAN_RESOLVE ? '<a class="btn btn-sm btn-warning" href="'+resolutionUrl+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>' : '';
     var overdueReviewHtml = needsResolution ? '<div class="alert alert-warning border-warning mb-3">'+
       '<div class="d-flex gap-2 align-items-start"><i class="bi bi-exclamation-triangle-fill text-danger mt-1"></i><div class="flex-grow-1">'+
       '<div class="fw-bold text-uppercase small">Past Schedule &middot; Needs Resolution</div><div class="small mt-1">The requested service window has passed. Normal payment verification, assignment, and field-work actions are paused for this booking.</div>'+
       '<div class="small mt-2"><strong>Next step:</strong> review the case, contact the customer when needed, and record the approved outcome in the Resolution Center.</div>'+
-      '<div class="d-flex flex-wrap gap-2 mt-3">'+((customer.phone||'')?'<a class="btn btn-sm btn-outline-success" href="tel:'+qEsc(customer.phone)+'"><i class="bi bi-telephone me-1"></i>Contact Customer</a>':'')+'<a class="btn btn-sm btn-warning" href="'+resolutionUrl+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a></div>'+
+      '<div class="d-flex flex-wrap gap-2 mt-3">'+((customer.phone||'')?'<a class="btn btn-sm btn-outline-success" href="tel:'+qEsc(customer.phone)+'"><i class="bi bi-telephone me-1"></i>Contact Customer</a>':'')+resolutionActionHtml+'</div>'+
       '</div></div></div>' : '';
 
     var paymentRows = '<div class="dv2-payment-row"><span class="dv2-payment-label">Total Amount</span><span class="dv2-payment-value">\u20B1'+total.toLocaleString()+'</span></div>'+
@@ -2443,7 +2472,7 @@
   function loadBookingResolutionCount(){
     var badge=document.getElementById('bookingResolutionCount');
     if(!badge)return;
-    fetch('/api/admin/resolution-center?source=booking&page=1&perPage=1')
+    fetch(APPOINTMENTS_RESOLUTION_API+'/resolution-center?source=booking&page=1&perPage=1')
       .then(function(r){if(!r.ok)throw new Error('Resolution count unavailable');return r.json();})
       .then(function(data){
         var count=Number(data&&data.summary&&data.summary.bySource&&data.summary.bySource.booking)||0;
@@ -2456,7 +2485,7 @@
   function loadWaitingAcceptTab(){
     var container=document.getElementById('waitingAcceptContainer');
     container.innerHTML='<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
-    fetch('/api/admin/appointments/waiting-acceptance/list?limit=50').then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/waiting-acceptance/list?limit=50').then(function(r){return r.json();}).then(function(data){
       var bookings=data.bookings||[];
       var total=data.pagination?.total||0;
       document.getElementById('waitingAcceptCount').textContent=total+' bookings';
@@ -2527,7 +2556,7 @@
     var minutes = prompt('Extend deadline by how many minutes?', '60');
     if(!minutes) return;
     try{
-      var res = await fetch('/api/admin/appointments/assignments/' + assignmentId + '/extend-deadline', {
+      var res = await fetch(APPOINTMENTS_API+'/assignments/' + assignmentId + '/extend-deadline', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({minutes: parseInt(minutes)})
@@ -2541,7 +2570,7 @@
   window.forceReassign = async function(bookingId){
     if(!confirm('Reassign this booking? The current assignment will be expired.')) return;
     try{
-      var res = await fetch('/api/admin/appointments/' + bookingId + '/force-reassign', {method:'POST'});
+      var res = await fetch(APPOINTMENTS_API+'/' + bookingId + '/force-reassign', {method:'POST'});
       var data = await res.json();
       if(res.ok){
         showNotification({type:'success',title:'Reassigned',message:'Booking is now available for reassignment.',duration:3000});
@@ -2561,21 +2590,27 @@
   AU.Overview.load=function(){
     var startDate=(document.getElementById('filterStartDate')||{}).value||'';
     var endDate=(document.getElementById('filterEndDate')||{}).value||'';
-    var statsUrl='/api/admin/appointments/flow-stats';
+    var statsUrl=APPOINTMENTS_API+'/flow-stats';
     var dateParams='';
     if(startDate||endDate){
       dateParams='?'+(startDate?'start='+startDate:'')+(startDate&&endDate?'&':'')+(endDate?'end='+endDate:'');
     }
     var listDate=startDate||endDate||'';
     Promise.all([
-      fetch(statsUrl+dateParams).then(function(r){return r.json();}),
-      fetch('/api/admin/appointments/list?page=1&limit='+_ovLimit+(listDate?'&date='+listDate:'')).then(function(r){return r.json();})
+      fetch(statsUrl+dateParams).then(appointmentResponseJson),
+      fetch(APPOINTMENTS_API+'/list?page=1&limit='+_ovLimit+(listDate?'&date='+listDate:'')).then(appointmentResponseJson)
     ]).then(function(res){
       AU.Overview.renderPipeline(res[0].statusCounts||{});
       AU.Overview.renderKPIs(res[0]);
       AU.Overview.renderTable(res[1].bookings);
       AU.Overview.renderPagination(res[1].pagination);
-    }).catch(function(e){console.error('Overview load error:',e);});
+    }).catch(function(e){
+      console.error('Overview load error:',e);
+      AU.Overview.renderPipeline({});
+      AU.Overview.renderKPIs({});
+      AU.Overview.renderTable([]);
+      AU.Overview.renderPagination({page:1,limit:_ovLimit,total:0,pages:0});
+    });
   };
 
   AU.Overview.loadRecent=function(page){
@@ -2586,12 +2621,16 @@
     var search=(document.getElementById('overviewSearchInput')||{}).value||'';
     var dateParam='';
     if(startDate&&endDate){dateParam='&date='+startDate;}else if(startDate){dateParam='&date='+startDate;}else if(endDate){dateParam='&date='+endDate;}
-    fetch('/api/admin/appointments/list?page='+page+'&limit='+_ovLimit+'&status='+status+'&search='+encodeURIComponent(search)+dateParam)
-    .then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/list?page='+page+'&limit='+_ovLimit+'&status='+status+'&search='+encodeURIComponent(search)+dateParam)
+    .then(appointmentResponseJson).then(function(data){
       AU.Overview.renderTable(data.bookings);
       AU.Overview.renderPagination(data.pagination);
-      _ovPage=data.pagination.page;
-    }).catch(function(e){console.error(e);});
+      _ovPage=(data.pagination||{}).page||1;
+    }).catch(function(e){
+      console.error(e);
+      AU.Overview.renderTable([]);
+      AU.Overview.renderPagination({page:1,limit:_ovLimit,total:0,pages:0});
+    });
   };
   AU.Overview.searchRecent=function(){
     clearTimeout(_overviewSearchTimeout);
@@ -2649,7 +2688,7 @@
       var svc=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
       var tech=b.technician?b.technician.name:'';
       var actions=_ovViewBtn(b._id);
-      if(needsResolution) actions+='<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Resolve</a>';
+      if(needsResolution && APPOINTMENTS_CAN_RESOLVE) actions+='<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Resolve</a>';
       return '<tr>'+
         '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Overview.viewDetail(\''+b._id+'\')">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
         '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
@@ -2663,9 +2702,12 @@
   };
 
   AU.Overview.renderPagination=function(p){
+    p=p||{page:1,limit:_ovLimit,total:0,pages:0};
+    p.page=Number(p.page)||1;p.limit=Number(p.limit)||_ovLimit;p.total=Number(p.total)||0;p.pages=Number(p.pages)||0;
     var info=document.getElementById('overviewPagInfo');
     var pag=document.getElementById('overviewPag');
-    if(info) info.textContent='Showing '+(((p.page-1)*p.limit)+1)+'-'+Math.min(p.page*p.limit,p.total)+' of '+p.total;
+    var first=p.total?((p.page-1)*p.limit)+1:0;
+    if(info) info.textContent='Showing '+first+'-'+Math.min(p.page*p.limit,p.total)+' of '+p.total;
     if(!pag)return;
     if(p.pages<=1){pag.innerHTML='';return;}
     var h='<li class="page-item '+(p.page===1?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Overview.loadRecent('+(p.page-1)+');return false;">&laquo;</a></li>';
@@ -2678,7 +2720,7 @@
   };
 
   AU.Overview.viewDetail=function(id){
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
       if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
@@ -2693,13 +2735,18 @@
 
   AU.Pending.load=function(){
     Promise.all([
-      fetch('/api/admin/appointments/list?stage=pending_review&page=1&limit=500').then(function(r){return r.json();}),
-      fetch('/api/admin/appointments/flow-stats').then(function(r){return r.json();})
+      fetch(APPOINTMENTS_API+'/list?stage=pending_review&page=1&limit=500').then(appointmentResponseJson),
+      fetch(APPOINTMENTS_API+'/flow-stats').then(appointmentResponseJson)
     ]).then(function(res){
       _pdAll=res[0].bookings||[];
-      AU.Pending.renderStats(res[1].stages);
+      AU.Pending.renderStats(res[1].stages||{});
       AU.Pending.applyFilters(1);
-    }).catch(function(e){console.error('Failed to load pending bookings:',e);});
+    }).catch(function(e){
+      console.error('Failed to load pending bookings:',e);
+      _pdAll=[];
+      AU.Pending.renderStats({});
+      AU.Pending.applyFilters(1);
+    });
   };
 
   AU.Pending.applyFilters=function(page){
@@ -2746,6 +2793,7 @@
   };
 
   AU.Pending.renderStats=function(stages){
+    stages=stages||{};
     document.getElementById('pendingCount').textContent=stages.PENDING_REVIEW?stages.PENDING_REVIEW.count||0:0;
     document.getElementById('awaitingCount').textContent=stages.ASSIGNMENT_QUEUE?stages.ASSIGNMENT_QUEUE.count||0:0;
     document.getElementById('rejectedCount').textContent=stages.REJECTED?stages.REJECTED.count||0:0;
@@ -2778,7 +2826,7 @@
         '<td><span class="payment-badge '+pc+'">'+pl+'</span>'+(isCOD&&b.paymentStatus!=='paid'?'<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>':'')+'</td>'+
         '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+
         '<button class="btn btn-sm btn-primary" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye me-1"></i>View</button>'+
-        (overdue?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
+        (overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
         '</div></td></tr>';
     }).join('');
   };
@@ -2807,9 +2855,12 @@
   };
 
   AU.Pending.renderPagination=function(p){
+    p=p||{page:1,limit:_pdLimit,total:0,pages:0};
+    p.page=Number(p.page)||1;p.limit=Number(p.limit)||_pdLimit;p.total=Number(p.total)||0;p.pages=Number(p.pages)||0;
     var info=document.getElementById('pendingPagInfo');
     var pag=document.getElementById('pendingPag');
-    if(info)info.textContent='Showing '+(((p.page-1)*p.limit)+1)+'-'+Math.min(p.page*p.limit,p.total)+' of '+p.total;
+    var first=p.total?((p.page-1)*p.limit)+1:0;
+    if(info)info.textContent='Showing '+first+'-'+Math.min(p.page*p.limit,p.total)+' of '+p.total;
     if(!pag)return;var h='';
     if(p.pages>1){
       h+='<li class="page-item '+(p.page===1?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Pending.loadPage('+(p.page-1)+');return false;">&laquo;</a></li>';
@@ -2823,10 +2874,10 @@
 
   AU.Pending.verifyPayment=function(id){
     if(!confirm('Verify payment for this booking?'))return;
-    fetch('/api/admin/appointments/'+id+'/verify-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:'Payment verified by admin'})})
+    fetch(APPOINTMENTS_API+'/'+id+'/verify-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:'Payment verified by operations staff'})})
     .then(function(r){return r.json();}).then(function(data){
       if(data.success){
-        fetch('/api/admin/appointments/'+id+'/move-to-queue',{method:'POST'}).
+        fetch(APPOINTMENTS_API+'/'+id+'/move-to-queue',{method:'POST'}).
         then(function(){
           showNotification({type:'success',title:'Payment Verified',message:'Booking has been verified and moved to assignment queue.',duration:4000});
           var queueTabBtn=document.querySelector('.au-tab-btn[data-bs-target="#tab-queue"]');
@@ -2857,7 +2908,7 @@
     var contactConfirmed=document.getElementById('reviewRescheduleConfirmed').checked;
     if(!newDate||!newTime||!contactConfirmed){showNotification({type:'warning',title:'Confirmation Required',message:'Choose a future schedule and confirm that the customer agreed.',duration:4000});return;}
     var button=document.getElementById('reviewRescheduleSubmit');button.disabled=true;
-    fetch('/api/admin/appointments/'+id+'/review-reschedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newDate:newDate,newTime:newTime,notes:notes,contactConfirmed:contactConfirmed})})
+    fetch(APPOINTMENTS_API+'/'+id+'/review-reschedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({newDate:newDate,newTime:newTime,notes:notes,contactConfirmed:contactConfirmed})})
     .then(function(r){return r.json().then(function(data){if(!r.ok)throw new Error(data.error||'Failed to update schedule.');return data;});})
     .then(function(data){bootstrap.Modal.getInstance(document.getElementById('reviewRescheduleModal')).hide();showNotification({type:'success',title:'Schedule Updated',message:data.message||'The booking remains Pending Review.',duration:4500});AU.Pending.load();})
     .catch(function(error){showNotification({type:'error',title:'Reschedule Failed',message:error.message,duration:5000});})
@@ -2876,7 +2927,7 @@
     var reason=document.getElementById('rejectReason').value;
     var note=document.getElementById('rejectNote').value;
     if(!reason){showNotification({type:'warning',title:'Required',message:'Please select a rejection reason.',duration:3000});return;}
-    fetch('/api/admin/appointments/'+id+'/reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason,note:note})})
+    fetch(APPOINTMENTS_API+'/'+id+'/reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason,note:note})})
     .then(function(r){return r.json();}).then(function(data){
       if(data.success){bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();showNotification({type:'success',title:'Booking Rejected',message:'The booking has been rejected and the customer will be notified.',duration:4000});AU.Pending.load();}
       else showNotification({type:'error',title:'Rejection Failed',message:data.error||'Failed to reject booking.',duration:5000});
@@ -2899,7 +2950,7 @@
     document.getElementById('detailBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary mb-2" role="status"></div><p class="text-muted small mb-0">Loading booking details...</p></div>';
     var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
     modal.show();
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
       if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Booking not found</div>';return;}
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
@@ -3132,9 +3183,9 @@
   var _qStatusFilter='all_active';
   AU.Queue.loadStats=function(){
     Promise.all([
-      fetch('/api/admin/appointments/list?status=awaiting_assignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
-      fetch('/api/admin/appointments/list?status=pending_reassignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
-      fetch('/api/admin/appointments/cancellation-log?escalated=true&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});})
+      fetch(APPOINTMENTS_API+'/list?status=awaiting_assignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
+      fetch(APPOINTMENTS_API+'/list?status=pending_reassignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
+      fetch(APPOINTMENTS_API+'/cancellation-log?escalated=true&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});})
     ]).then(function(res){
       var awaiting=res[0].pagination?res[0].pagination.total||0:0;
       var reassign=res[1].pagination?res[1].pagination.total||0:0;
@@ -3163,8 +3214,8 @@
     var filter=_qStatusFilter||'all_active';
     var search=searchEl?searchEl.value:'';
     var url;
-    if(filter==='all_active')url='/api/admin/appointments/list?page='+page+'&limit=20&status=awaiting_assignment,pending_reassignment';
-    else url='/api/admin/appointments/list?status='+filter+'&page='+page+'&limit=20';
+    if(filter==='all_active')url=APPOINTMENTS_API+'/list?page='+page+'&limit=20&status=awaiting_assignment,pending_reassignment';
+    else url=APPOINTMENTS_API+'/list?status='+filter+'&page='+page+'&limit=20';
     if(search)url+='&search='+encodeURIComponent(search);
     var container=document.getElementById('queueContainer');
     fetch(url).then(function(r){return r.json();}).then(function(data){
@@ -3199,7 +3250,7 @@
         (b.status==='pending_reassignment'&&!overdue?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 Previous technician '+(last?last.action:'declined')+' this job.</div>':'')+
         (hist.length>0?'<div class="aq-cancel-history"><div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>'+hist.slice(-3).reverse().map(function(h){return '<div class="aq-cancel-history-item"><span class="action-badge action-'+(h.action==='auto_reschedule'?'reassigned':h.action)+'">'+h.action+'</span><span><strong>'+h.technicianName+'</strong> \u2014 '+(h.reason||'No reason')+' <small class="text-muted">'+new Date(h.timestamp).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</small></span></div>';}).join('')+'</div>':'')+
         (canAssign&&!overdue?'<div id="aqRec-'+b._id+'" class="border rounded-3 p-3 mt-3" style="background:#f8fafc"><div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div></div>':'')+
-        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
+        (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
         '</div>';
       }).join('');
       AU.Queue.loadRecommendations();
@@ -3218,7 +3269,7 @@
   AU.Queue.loadRecommendations=function(){
     var filter=_qStatusFilter||'all_active';
     var statuses=filter==='all_active'?'awaiting_assignment,pending_reassignment':filter;
-    fetch('/api/admin/appointments/assignment-plan?status='+encodeURIComponent(statuses)).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(data){
+    fetch(APPOINTMENTS_API+'/assignment-plan?status='+encodeURIComponent(statuses)).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(data){
       _qRecommendations={};
       (data.plan||[]).forEach(function(row){
         _qRecommendations[row.bookingId]=row;
@@ -3239,13 +3290,13 @@
     var button=document.querySelector('[onclick="AU.Queue.assignRecommended(\''+bookingId+'\')"]');
     var original=button?button.innerHTML:'';
     if(button){button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';}
-    fetch('/api/admin/appointments/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:[{bookingId:bookingId,technicianId:r.technicianId}],responseMinutes:30})}).then(function(resp){return resp.json().then(function(d){if(!resp.ok||!d.assigned)throw new Error(d.results?.[0]?.error||d.error||'Assignment failed');return d;});}).then(function(){showNotification({type:'success',title:'Technician Assigned',message:r.name+' was notified.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message,duration:5000});if(button){button.disabled=false;button.innerHTML=original;}});
+    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:[{bookingId:bookingId,technicianId:r.technicianId}],responseMinutes:30})}).then(function(resp){return resp.json().then(function(d){if(!resp.ok||!d.assigned)throw new Error(d.results?.[0]?.error||d.error||'Assignment failed');return d;});}).then(function(){showNotification({type:'success',title:'Technician Assigned',message:r.name+' was notified.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message,duration:5000});if(button){button.disabled=false;button.innerHTML=original;}});
   };
 
   AU.Queue.openBulkPlan=function(){
     _qBulkPlan=[];document.getElementById('bulkPlanSummary').innerHTML='';document.getElementById('bulkPlanBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload and travel...</p></div>';
     new bootstrap.Modal(document.getElementById('bulkAssignmentModal')).show();
-    fetch('/api/admin/appointments/assignment-plan').then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(d){_qBulkPlan=d.plan||[];AU.Queue.renderBulkPlan();}).catch(function(e){document.getElementById('bulkPlanBody').innerHTML='<div class="alert alert-danger">'+qEsc(e.message)+'</div>';});
+    fetch(APPOINTMENTS_API+'/assignment-plan').then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(d){_qBulkPlan=d.plan||[];AU.Queue.renderBulkPlan();}).catch(function(e){document.getElementById('bulkPlanBody').innerHTML='<div class="alert alert-danger">'+qEsc(e.message)+'</div>';});
   };
 
   AU.Queue.renderBulkPlan=function(){
@@ -3266,16 +3317,16 @@
   AU.Queue.confirmBulkPlan=function(){
     var assignments=[];document.querySelectorAll('.bulk-tech-select').forEach(function(sel){var row=_qBulkPlan[Number(sel.dataset.index)];assignments.push({bookingId:row.bookingId,technicianId:sel.value});});if(!assignments.length)return;
     var btn=document.getElementById('confirmBulkPlanBtn');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Validating & assigning...';
-    fetch('/api/admin/appointments/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:assignments,responseMinutes:Number(document.getElementById('bulkResponseMinutes').value)||30})}).then(function(r){return r.json();}).then(function(d){bootstrap.Modal.getInstance(document.getElementById('bulkAssignmentModal'))?.hide();showNotification({type:d.failed?'warning':'success',title:'Assignment Plan Processed',message:d.assigned+' assigned, '+d.failed+' need review.',duration:6000});AU.Queue.loadQueue(1);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Bulk Assignment Failed',message:e.message,duration:5000});}).finally(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-send-check me-1"></i>Confirm & Notify';});
+    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:assignments,responseMinutes:Number(document.getElementById('bulkResponseMinutes').value)||30})}).then(function(r){return r.json();}).then(function(d){bootstrap.Modal.getInstance(document.getElementById('bulkAssignmentModal'))?.hide();showNotification({type:d.failed?'warning':'success',title:'Assignment Plan Processed',message:d.assigned+' assigned, '+d.failed+' need review.',duration:6000});AU.Queue.loadQueue(1);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Bulk Assignment Failed',message:e.message,duration:5000});}).finally(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-send-check me-1"></i>Confirm & Notify';});
   };
 
   AU.Queue.loadWarnings=function(){
     var w=document.getElementById('aqWarnings');
     if(!w) return;
-    fetch('/api/admin/appointments/verification-warnings').then(function(r){return r.json();}).then(function(d){
+    fetch(APPOINTMENTS_API+'/verification-warnings').then(function(r){return r.json();}).then(function(d){
       var html='';
       if(d.overdueCount>0){
-        html+='<div class="aq-warning-banner overdue"><i class="bi bi-alarm-fill"></i><div><strong>'+d.overdueCount+' booking(s)</strong> exceeded their schedule without a technician assigned. Review the approved outcome in the Resolution Center before continuing.</div><a class="au-btn au-btn-danger aq-wb-btn" href="/admin/operations/resolution-center?source=booking&amp;issue=past_date"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a></div>';
+        html+='<div class="aq-warning-banner overdue"><i class="bi bi-alarm-fill"></i><div><strong>'+d.overdueCount+' booking(s)</strong> exceeded their schedule without a technician assigned. Review the case before continuing.</div>'+(APPOINTMENTS_CAN_RESOLVE?'<a class="au-btn au-btn-danger aq-wb-btn" href="'+APPOINTMENTS_RESOLUTION_PATH+'?source=booking&amp;issue=past_date"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>':'')+'</div>';
       }
       if(d.verifyCount>0){
         html+='<div class="aq-warning-banner verify"><i class="bi bi-exclamation-circle-fill"></i><div><strong>'+d.verifyCount+' booking(s)</strong> need verification before their schedule time. Verify payments and assignments to avoid delays.</div></div>';
@@ -3309,7 +3360,7 @@
     select.innerHTML='<option value="">Loading slots...</option>';
     info.textContent='';
     submit.disabled=true;
-    fetch('/api/admin/appointments/waiting-reassignment/slots?date='+encodeURIComponent(date)+'&bookingId='+encodeURIComponent(_qRescheduleBookingId)).then(function(r){return r.json();}).then(function(d){
+    fetch(APPOINTMENTS_API+'/waiting-reassignment/slots?date='+encodeURIComponent(date)+'&bookingId='+encodeURIComponent(_qRescheduleBookingId)).then(function(r){return r.json();}).then(function(d){
       if(!d.slots||!d.slots.length){
         select.innerHTML='<option value="">No slots available</option>';
         info.textContent='No available time slots on this date. Try another day.';
@@ -3339,7 +3390,7 @@
     }
     submit.disabled=true;
     submit.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Rescheduling...';
-    fetch('/api/admin/appointments/'+_qRescheduleBookingId+'/admin-reschedule',{
+    fetch(APPOINTMENTS_API+'/'+_qRescheduleBookingId+'/admin-reschedule',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({newDate:date,newTime:time,notifyCustomer:document.getElementById('rsNotify').checked})
@@ -3428,7 +3479,7 @@
       return null;
     }
 
-    fetch('/api/admin/appointments/'+bookingId+'/eligible-technicians').then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+bookingId+'/eligible-technicians').then(function(r){return r.json();}).then(function(data){
       var container=document.getElementById('techListContainer');
       var avail=data.available||[];
       var unavail=data.offlinePresent||[];
@@ -3807,7 +3858,7 @@
     if(!name){showNotification({type:'warning',title:'Tool Name Required',message:'Enter a tool name.',duration:3000});return;}
     var btn=document.getElementById('btnSaveNewTool');
     btn.disabled=true;btn.innerHTML='Saving...';
-    fetch('/api/admin/tools',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({itemName:name,quantity:qty,unit:(unitEl&&unitEl.value)||'pcs',type:itemType,category:(catEl&&catEl.value)||itemType})})
+    fetch(APPOINTMENTS_TOOLS_API,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({itemName:name,quantity:qty,unit:(unitEl&&unitEl.value)||'pcs',type:itemType,category:(catEl&&catEl.value)||itemType})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed to save tool');return d;});})
     .then(function(d){
       showNotification({type:'success',title:'Tool Created',message:d.tool.itemName+' added to inventory.',duration:3000});
@@ -3833,7 +3884,7 @@
     var btn=document.getElementById('btnConfirmAssign');
     var orig=btn.innerHTML;
     btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
-    fetch('/api/admin/appointments/'+_qCurrentBookingId+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:_qSelectedTechId,priority:document.getElementById('assignPriority').value,notes:document.getElementById('assignNotes').value})})
+    fetch(APPOINTMENTS_API+'/'+_qCurrentBookingId+'/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:_qSelectedTechId,priority:document.getElementById('assignPriority').value,notes:document.getElementById('assignNotes').value})})
     .then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});})
     .then(function(){bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();showNotification({type:'success',title:'Technician Assigned',message:'Booking has been assigned successfully.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();})
     .catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message||'An error occurred.',duration:5000});btn.disabled=false;btn.innerHTML=orig;});
@@ -3846,7 +3897,7 @@
     subtitle.textContent='Loading...';
     document.getElementById('detailTitle').textContent='Booking Details';
     new bootstrap.Modal(document.getElementById('detailModal')).show();
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
       if(!b){body.innerHTML='<div class="alert alert-danger">Booking not found</div>';return;}
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
@@ -3854,7 +3905,7 @@
       var needsResolution=bookingNeedsResolution(b);
       subtitle.textContent=needsResolution?'Past schedule \u00b7 Needs resolution':refText;
       body.innerHTML=buildDetailHTML(b,data);
-      if(needsResolution){
+      if(needsResolution && APPOINTMENTS_CAN_RESOLVE){
         var resolutionFooter=document.createElement('div');resolutionFooter.className='pm-footer';
         resolutionFooter.innerHTML='<a class="btn btn-warning btn-sm fw-semibold" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
         body.appendChild(resolutionFooter);
@@ -3877,8 +3928,8 @@
     var searchEl=document.getElementById('activeSearchInput');
     var search=searchEl?searchEl.value:'';
     Promise.all([
-      fetch('/api/admin/appointments/list?stage=active&status='+_actStatus+'&search='+encodeURIComponent(search)+'&limit=50').then(function(r){return r.json();}),
-      fetch('/api/admin/appointments/list?stage=active&limit=1000').then(function(r){return r.json();}).catch(function(){return{bookings:[]};})
+      fetch(APPOINTMENTS_API+'/list?stage=active&status='+_actStatus+'&search='+encodeURIComponent(search)+'&limit=50').then(function(r){return r.json();}),
+      fetch(APPOINTMENTS_API+'/list?stage=active&limit=1000').then(function(r){return r.json();}).catch(function(){return{bookings:[]};})
     ]).then(function(res){
       AU.Active._updateCounts(res[1].bookings||[]);
       var bookings=res[0].bookings||[];
@@ -3938,7 +3989,7 @@
     body.innerHTML='<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading job details...</p></div>';
     subtitle.textContent='Loading...';
     new bootstrap.Modal(document.getElementById('detailModal')).show();
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
       if(!b){body.innerHTML='<div class="alert alert-danger">Job not found</div>';return;}
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
@@ -4101,7 +4152,7 @@
     window.trackDrawerPinned=false;
     document.getElementById('trackDrawerPinBtn').classList.remove('pinned');
     document.getElementById('trackDrawerPinBtn').title='Keep open';
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       window.trackingData=data;
       var b=data.booking;
       var techLoc=data.technicianLocation;
@@ -4152,12 +4203,12 @@
   AU.Completed.load=function(){
     var search=(document.getElementById('cjSearchInput')||{}).value||'';
     var date=(document.getElementById('cjDateFilter')||{}).value||'';
-    var url='/api/admin/appointments/list?stage=completed&page='+_cjPage+'&limit='+_cjLimit;
+    var url=APPOINTMENTS_API+'/list?stage=completed&page='+_cjPage+'&limit='+_cjLimit;
     if(search)url+='&search='+encodeURIComponent(search);
     if(date)url+='&date='+date;
     Promise.all([
       fetch(url).then(function(r){return r.json();}),
-      fetch('/api/admin/appointments/flow-stats').then(function(r){return r.json();}).catch(function(){return{stages:{},summary:{}};})
+      fetch(APPOINTMENTS_API+'/flow-stats').then(function(r){return r.json();}).catch(function(){return{stages:{},summary:{}};})
     ]).then(function(res){
       AU.Completed._renderStats(res[1]);
       AU.Completed._renderJobs(res[0].bookings||[]);
@@ -4225,7 +4276,7 @@
   AU.Completed.goPage=function(p){_cjPage=p;AU.Completed.load();};
 
   AU.Completed.viewDetail=function(id){
-    fetch('/api/admin/appointments/'+id).then(function(r){return r.json();}).then(function(data){
+    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
       var b=data.booking;
       if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
       var ref=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
@@ -4281,7 +4332,7 @@
     params.set('limit',20);
     var s=document.getElementById('equipmentSearchInput');
     if(s&&s.value) params.set('search',s.value);
-    fetch('/api/admin/appointments/equipment-bookings?'+params.toString()).then(function(r){return r.json();}).then(function(d){
+    fetch(APPOINTMENTS_API+'/equipment-bookings?'+params.toString()).then(function(r){return r.json();}).then(function(d){
       AU.Equipment._loading=false;
       var bookings=d.bookings||[];
       var total=d.pagination?.total||0;
@@ -4363,7 +4414,7 @@
     if(!selected){showNotification({type:'warning',title:'Select Tool',message:'Please select a tool first.',duration:3000});return;}
     var btn=document.getElementById('btnSaveEquipmentAssignment');
     btn.disabled=true; btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
-    fetch('/api/admin/appointments/'+bookingId+'/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId:selected.value,quantity:qty,notes:notes})}).then(function(r){return r.json();}).then(function(d){
+    fetch(APPOINTMENTS_API+'/'+bookingId+'/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipmentId:selected.value,quantity:qty,notes:notes})}).then(function(r){return r.json();}).then(function(d){
       btn.disabled=false; btn.innerHTML='<i class="bi bi-check-lg me-1"></i>Assign Tool';
       if(d.success){
         showNotification({type:'success',title:'Assigned',message:d.assignment?.equipmentName+' assigned.',duration:3000});

@@ -276,7 +276,7 @@
 
     <!-- Quick Actions -->
     <div class="rp-actions-bar">
-      <a href="/admin/inventory/pos" class="btn btn-outline-primary btn-sm fw-semibold">
+      <a href="<%= typeof repairPartsPosPath === 'string' ? repairPartsPosPath : '/admin/inventory/pos' %>" class="btn btn-outline-primary btn-sm fw-semibold">
         <i class="bi bi-shop"></i>Open POS
       </a>
       <button class="btn btn-outline-primary btn-sm fw-semibold" onclick="generateBarcodes()">
@@ -741,6 +741,7 @@
 </div>
 
 <script>
+  const repairPartsApiBase = <%- JSON.stringify(typeof repairPartsApiBase === 'string' ? repairPartsApiBase : '/api/admin/tools').replace(/</g, '\\u003c') %>;
 (function() {
   let allParts = [];
   let categories = [];
@@ -757,7 +758,7 @@
     const tbody = document.getElementById('rpTableBody');
     tbody.innerHTML = '<tr><td colspan="14"><div class="rp-loading"><div class="spinner-border" role="status"></div></div></td></tr>';
     try {
-      const res = await fetch('/api/admin/tools', { credentials: 'same-origin' });
+      const res = await fetch(repairPartsApiBase, { credentials: 'same-origin' });
       const contentType = res.headers.get('content-type') || '';
       const data = contentType.includes('application/json') ? await res.json() : null;
       if (!res.ok) {
@@ -1339,7 +1340,7 @@
     }
     
     try {
-      const res = await fetch(`/api/admin/tools/${id}`, {
+      const res = await fetch(`${repairPartsApiBase}/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -1390,7 +1391,7 @@
     if (!newStatus) return;
     
     try {
-      const res = await fetch(`/api/admin/tools/${id}`, {
+      const res = await fetch(`${repairPartsApiBase}/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
@@ -1443,7 +1444,7 @@
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
 
     try {
-      const url = id ? `/api/admin/tools/${id}` : '/api/admin/tools';
+      const url = id ? `${repairPartsApiBase}/${id}` : repairPartsApiBase;
       const method = id ? 'PATCH' : 'POST';
       const res = await fetch(url, {
         method,
@@ -1477,7 +1478,7 @@
     const result = await showRpConfirm('Delete Item?', `<div style="font-size:1rem;"><strong>${esc(p.itemName)}</strong><br><small>This action cannot be undone.</small></div>`, 'Delete', 'Cancel', 'warning');
     if (!result) return;
     try {
-      const res = await fetch(`/api/admin/tools/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+      const res = await fetch(`${repairPartsApiBase}/${id}`, { method: 'DELETE', credentials: 'same-origin' });
       if (res.ok) {
         showRpToast('Deleted: ' + p.itemName, 'success');
         loadParts();
@@ -1642,7 +1643,7 @@
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...'; }
 
     try {
-      const res = await fetch(`/api/admin/tools/${partId}/adjust-stock`, {
+      const res = await fetch(`${repairPartsApiBase}/${partId}/adjust-stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',

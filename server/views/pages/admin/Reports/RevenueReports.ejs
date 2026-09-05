@@ -79,22 +79,21 @@
     .rr-chart::after{content:'Click chart for details';position:absolute;bottom:6px;right:8px;font-size:.6rem;color:#94a3b8;pointer-events:none;opacity:0;transition:opacity .2s}
     .rr-chart:hover::after{opacity:1}
   </style>
-  <% const A=analytics||{}; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); %>
+  <link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
+  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260906-decision-view">
+  <% const A=analytics||{}; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
   <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Revenue Intelligence</h1><p>Services, online orders, and point-of-sale performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/admin/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="/admin/inventory/pos"><i class="bi bi-shop me-1"></i> POS</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Export</button></div></div></div>
 
-  <button class="report-nav-trigger" id="reportNavTrigger"><i class="bi bi-list" id="reportNavTriggerIcon"></i><span id="reportNavTriggerLabel">Sections</span></button>
-
   <!-- --- SECTION NAV --- -->
-  <div class="report-nav" id="reportNav">
-    <button class="report-nav-btn active" data-target="top"><i class="bi bi-speedometer2"></i>Overview</button>
-    <button class="report-nav-btn" data-target="section-executive"><i class="bi bi-lightbulb"></i>Executive</button>
-    <button class="report-nav-btn" data-target="section-performance"><i class="bi bi-bar-chart-line"></i>Performance</button>
-    <button class="report-nav-btn" data-target="section-collection"><i class="bi bi-bank"></i>Collection</button>
-    <button class="report-nav-btn" data-target="section-cost"><i class="bi bi-calculator"></i>Cost</button>
-    <button class="report-nav-btn" data-target="section-service-profit"><i class="bi bi-clipboard-check"></i>Services</button>
-    <button class="report-nav-btn" data-target="section-pos"><i class="bi bi-shop"></i>POS &amp; Products</button>
-    <button class="report-nav-btn" data-target="section-activity"><i class="bi bi-journal-text"></i>Activity</button>
+  <div class="report-nav" id="reportNav" role="tablist" aria-label="Revenue analysis sections">
+    <button class="report-nav-btn active" type="button" role="tab" aria-selected="true" data-target="section-executive"><i class="bi bi-speedometer2"></i>Overview</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-performance"><i class="bi bi-bar-chart-line"></i>Revenue</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-collection"><i class="bi bi-bank"></i>Collections</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-cost"><i class="bi bi-calculator"></i>Profit &amp; cost</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-service-profit"><i class="bi bi-clipboard-check"></i>Services</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-pos"><i class="bi bi-shop"></i>Products</button>
+    <button class="report-nav-btn" type="button" role="tab" aria-selected="false" data-target="section-activity"><i class="bi bi-journal-text"></i>Activity</button>
   </div>
 
   <!-- ═══ FILTER BAR ═══ -->
@@ -255,8 +254,26 @@
   </div>
 
   <!-- ═══ SECTION 1: EXECUTIVE SUMMARY & STRATEGIC INSIGHTS ═══ -->
-  <div id="section-executive" class="rr-section"><h2><i class="bi bi-lightbulb me-2" style="color:#d97706;"></i>Executive Summary</h2><span class="text-muted small">Strategic signals and decision-ready interpretations from current data</span></div>
-  <div class="rr-three"><% (A.executiveInsights||[]).forEach(function(x){ %><article class="rr-card rr-insight <%= x.tone %>"><div class="rr-insight-icon"><i class="bi <%= x.tone==='danger'?'bi-exclamation-triangle':x.tone==='warning'?'bi-wallet2':x.tone==='success'?'bi-graph-up-arrow':'bi-pie-chart' %>"></i></div><div><h4><%= x.title %></h4><p><%= x.text %></p></div></article><% }); %></div>
+  <div id="section-executive" class="rr-section"><h2><i class="bi bi-lightbulb me-2" style="color:#d97706;"></i>Management Overview</h2><span class="text-muted small">The three highest-priority financial signals, followed by operating volume</span></div>
+  <div class="rr-three" id="executiveInsightsGrid"><% topInsights.forEach(function(x){ %><article class="rr-card rr-insight <%= x.tone %>"><div class="rr-insight-icon"><i class="bi <%= x.tone==='danger'?'bi-exclamation-triangle':x.tone==='warning'?'bi-wallet2':x.tone==='success'?'bi-graph-up-arrow':'bi-pie-chart' %>"></i></div><div><h4><%= x.title %></h4><p><%= x.text %></p></div></article><% }); %></div>
+  <section class="rr-card rr-activity-snapshot" aria-labelledby="revenueActivityTitle">
+    <div class="rr-head"><div><span class="rr-eyebrow">Operational context</span><h3 id="revenueActivityTitle"><i class="bi bi-diagram-3 me-2 text-primary"></i>Activity behind revenue</h3><p>Valid activity created in the selected period; completed activity is shown separately.</p></div><span class="rr-badge">Volume context</span></div>
+    <div class="rr-activity-grid" id="revenueActivitySnapshot">
+      <article><span class="rr-activity-icon service"><i class="bi bi-calendar2-check"></i></span><div><small>Service bookings</small><strong><%= Number(A.serviceTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgServiceTicket) %> average booked value</p></div></article>
+      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Online orders</small><strong><%= Number(A.orderTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgOrderValue) %> average order value</p></div></article>
+      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>POS sales</small><strong><%= Number(A.posTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgPosSale) %> average sale</p></div></article>
+      <article><span class="rr-activity-icon completed"><i class="bi bi-check2-circle"></i></span><div><small>Completed activity</small><strong><%= Number(A.recognizedTransactions||0).toLocaleString('en-PH') %></strong><p>Revenue-recognized transactions</p></div></article>
+    </div>
+  </section>
+  <section class="rr-card rr-control-center" aria-labelledby="revenueControlTitle">
+    <div class="rr-head"><div><span class="rr-eyebrow">Management controls</span><h3 id="revenueControlTitle"><i class="bi bi-shield-check me-2"></i>Data confidence and action queue</h3><p>Exceptions that can distort conversion, cash, cost, or operating-profit decisions.</p></div><span class="rr-badge"><%= pct(A.completionEvidenceCoverage === undefined ? 100 : A.completionEvidenceCoverage) %> completion traceability</span></div>
+    <div class="rr-control-grid" id="revenueControlGrid">
+      <article class="<%= Number(A.atRiskServiceBookings||0) ? 'danger' : 'success' %>"><i class="bi bi-calendar2-x"></i><div><small>Scheduling intervention</small><strong><%= Number(A.atRiskServiceBookings||0).toLocaleString('en-PH') %></strong><p>of <%= Number(A.openServiceBookings||0).toLocaleString('en-PH') %> open service bookings need reassignment or rescheduling</p><a href="/admin/operations/resolution-center">Open resolution center <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="<%= Number(A.paymentExceptionCount||0) ? 'danger' : 'success' %>"><i class="bi bi-receipt-cutoff"></i><div><small>Payment exceptions</small><strong><%= Number(A.paymentExceptionCount||0).toLocaleString('en-PH') %></strong><p><%= peso(A.paymentExceptionValue) %> exception value · <%= Number(A.pendingLedgerCount||0).toLocaleString('en-PH') %> pending records</p><a href="/admin/payments/remittance">Review payment custody <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="<%= Number(A.costDataCoverage||0) < 95 ? 'warning' : 'success' %>"><i class="bi bi-database-check"></i><div><small>Direct-cost confidence</small><strong><%= pct(A.costDataCoverage) %></strong><p>Overall coverage · <%= pct(A.orderCostCoverage) %> completed-order cost coverage</p><a href="/admin/reports/inventory">Review inventory costs <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="<%= Number(A.pendingExpenseCount||0) + Number(A.draftPayrollCount||0) ? 'warning' : 'success' %>"><i class="bi bi-journal-check"></i><div><small>Financial close backlog</small><strong><%= Number(A.pendingExpenseCount||0) + Number(A.draftPayrollCount||0) %></strong><p><%= Number(A.pendingExpenseCount||0) %> pending expenses · <%= Number(A.draftPayrollCount||0) %> draft payrolls excluded from profit</p><a href="/admin/payroll">Review unposted costs <i class="bi bi-arrow-right"></i></a></div></article>
+    </div>
+  </section>
 
   <!-- ═══ SECTION 2: REVENUE PERFORMANCE — THE REVENUE STORY ═══ -->
   <div id="section-performance" class="rr-section"><h2><i class="bi bi-bar-chart-line me-2" style="color:#2563eb;"></i>Approved Value Performance</h2><span class="text-muted small">Booked commercial value by creation month; cash collection is reported separately</span></div>
@@ -396,7 +413,7 @@
   </div>
 
   <!-- Product Intelligence (merged under POS & Product Performance) -->
-  <div class="rr-section" style="margin:20px 0 12px;"><h2 style="font-size:.78rem;border-left-color:#0891b2;"><i class="bi bi-box-seam me-2" style="color:#0891b2;"></i>Cross-Channel Product Intelligence</h2><span class="text-muted small">Online orders and POS combined analysis</span></div>
+  <div class="rr-subsection" style="margin:20px 0 12px;"><h2 style="font-size:.78rem;border-left-color:#0891b2;"><i class="bi bi-box-seam me-2" style="color:#0891b2;"></i>Cross-Channel Product Intelligence</h2><span class="text-muted small">Online orders and POS combined analysis</span></div>
   <!-- Product KPIs (enterprise style) -->
   <div class="kpi-grid" id="productKpiGrid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
     <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="0">
@@ -427,8 +444,8 @@
       </div>
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Online Order Units</p>
-        <div class="kpi-enterprise-value"><%= (A.orderTransactions||0) %></div>
-        <small style="color:#64748b;"><%= peso(A.orderRevenue) %> revenue</small>
+        <div class="kpi-enterprise-value"><%= Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH') %></div>
+        <small style="color:#64748b;"><%= peso(A.onlineOrderProductRevenue) %> merchandise revenue</small>
       </div>
     </div>
   </div>
@@ -466,7 +483,7 @@
   <% if((A.topOrderProducts||[]).length){ %>
   <div class="rr-equal mt-3">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-bag-check me-2 text-success"></i>Online Order Products</h3><span class="rr-badge"><%= A.orderTransactions||0 %> orders · <%= peso(A.orderRevenue) %> total</span></div>
+      <div class="rr-head"><h3><i class="bi bi-bag-check me-2 text-success"></i>Online Order Products</h3><span class="rr-badge" id="onlineProductSummary"><%= Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH') %> units · <%= peso(A.onlineOrderProductRevenue) %> merchandise</span></div>
       <div class="rr-body table-responsive">
         <table class="rr-table"><thead><tr><th>Model</th><th>Brand</th><th class="text-center">Capacity</th><th class="text-center">Units</th><th class="text-end">Revenue</th><th class="text-end">Avg Price</th></tr></thead><tbody>
         <% (A.topOrderProducts||[]).slice(0,8).forEach(function(p){ %>
@@ -777,6 +794,29 @@
       </div>`;
     document.getElementById('kpiGrid').innerHTML = kpiHtml;
 
+    const insightGrid = document.getElementById('executiveInsightsGrid');
+    if (insightGrid) insightGrid.innerHTML = [...(A.executiveInsights || [])].sort((a, b) => ({danger:0,warning:1,info:2,success:3}[a.tone] ?? 2) - ({danger:0,warning:1,info:2,success:3}[b.tone] ?? 2)).slice(0, 3).map(x => {
+      const tone = ['danger', 'warning', 'success'].includes(x.tone) ? x.tone : 'info';
+      const icon = tone === 'danger' ? 'bi-exclamation-triangle' : tone === 'warning' ? 'bi-wallet2' : tone === 'success' ? 'bi-graph-up-arrow' : 'bi-pie-chart';
+      return `<article class="rr-card rr-insight ${tone}"><div class="rr-insight-icon"><i class="bi ${icon}"></i></div><div><h4>${esc(x.title)}</h4><p>${esc(x.text)}</p></div></article>`;
+    }).join('');
+
+    const activitySnapshot = document.getElementById('revenueActivitySnapshot');
+    if (activitySnapshot) activitySnapshot.innerHTML = `
+      <article><span class="rr-activity-icon service"><i class="bi bi-calendar2-check"></i></span><div><small>Service bookings</small><strong>${Number(A.serviceTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgServiceTicket)} average booked value</p></div></article>
+      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Online orders</small><strong>${Number(A.orderTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgOrderValue)} average order value</p></div></article>
+      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>POS sales</small><strong>${Number(A.posTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgPosSale)} average sale</p></div></article>
+      <article><span class="rr-activity-icon completed"><i class="bi bi-check2-circle"></i></span><div><small>Completed activity</small><strong>${Number(A.recognizedTransactions||0).toLocaleString('en-PH')}</strong><p>Revenue-recognized transactions</p></div></article>`;
+
+    const controlGrid = document.getElementById('revenueControlGrid');
+    if (controlGrid) controlGrid.innerHTML = `
+      <article class="${Number(A.atRiskServiceBookings||0) ? 'danger' : 'success'}"><i class="bi bi-calendar2-x"></i><div><small>Scheduling intervention</small><strong>${Number(A.atRiskServiceBookings||0).toLocaleString('en-PH')}</strong><p>of ${Number(A.openServiceBookings||0).toLocaleString('en-PH')} open service bookings need reassignment or rescheduling</p><a href="/admin/operations/resolution-center">Open resolution center <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="${Number(A.paymentExceptionCount||0) ? 'danger' : 'success'}"><i class="bi bi-receipt-cutoff"></i><div><small>Payment exceptions</small><strong>${Number(A.paymentExceptionCount||0).toLocaleString('en-PH')}</strong><p>${peso(A.paymentExceptionValue)} exception value · ${Number(A.pendingLedgerCount||0).toLocaleString('en-PH')} pending records</p><a href="/admin/payments/remittance">Review payment custody <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="${Number(A.costDataCoverage||0) < 95 ? 'warning' : 'success'}"><i class="bi bi-database-check"></i><div><small>Direct-cost confidence</small><strong>${pct(A.costDataCoverage)}</strong><p>Overall coverage · ${pct(A.orderCostCoverage)} completed-order cost coverage</p><a href="/admin/reports/inventory">Review inventory costs <i class="bi bi-arrow-right"></i></a></div></article>
+      <article class="${Number(A.pendingExpenseCount||0) + Number(A.draftPayrollCount||0) ? 'warning' : 'success'}"><i class="bi bi-journal-check"></i><div><small>Financial close backlog</small><strong>${Number(A.pendingExpenseCount||0) + Number(A.draftPayrollCount||0)}</strong><p>${Number(A.pendingExpenseCount||0)} pending expenses · ${Number(A.draftPayrollCount||0)} draft payrolls excluded from profit</p><a href="/admin/payroll">Review unposted costs <i class="bi bi-arrow-right"></i></a></div></article>`;
+    const controlBadge = document.querySelector('.rr-control-center .rr-head > .rr-badge');
+    if (controlBadge) controlBadge.textContent = `${pct(A.completionEvidenceCoverage === undefined ? 100 : A.completionEvidenceCoverage)} completion traceability`;
+
     // Update source cards
     const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(A.serviceRevenue)}</div><div class="rr-meta">${A.serviceTransactions || 0} bookings · ${peso(A.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, A.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(A.serviceShare)} of combined revenue · Core ${peso(A.coreRevenue)} · Repair ${peso(A.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Online Product Orders</div><div class="rr-source-value">${peso(A.orderRevenue)}</div><div class="rr-meta">${A.orderTransactions || 0} orders · ${peso(A.avgOrderValue)} average order value</div><div class="rr-progress"><span style="width:${Math.min(100, A.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(A.orderShare)} of combined revenue · Products ${peso(A.productRevenue)} · Delivery ${peso(A.deliveryRevenue)} · Installation ${peso(A.installationRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Point of Sale</div><div class="rr-source-value">${peso(A.posRevenue)}</div><div class="rr-meta">${A.posTransactions || 0} completed sales · ${peso(A.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, A.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(A.posShare)} of combined revenue · COGS ${peso(A.posCost)} · Profit ${peso(A.posProfit)} (${pct(A.posMargin)})</div></article>`;
     document.querySelector('.rr-source').innerHTML = sourceCards;
@@ -894,11 +934,14 @@
           </div>
           <div class="kpi-enterprise-body">
             <p class="kpi-enterprise-label">Online Order Units</p>
-            <div class="kpi-enterprise-value">${A.orderTransactions||0}</div>
-            <small style="color:#64748b;">${peso(A.orderRevenue)} revenue</small>
+            <div class="kpi-enterprise-value">${Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH')}</div>
+            <small style="color:#64748b;">${peso(A.onlineOrderProductRevenue)} merchandise revenue</small>
           </div>
         </div>`;
     }
+
+    const onlineProductSummary = document.getElementById('onlineProductSummary');
+    if (onlineProductSummary) onlineProductSummary.textContent = `${Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH')} units · ${peso(A.onlineOrderProductRevenue)} merchandise`;
 
     // Update combined products table
     document.querySelectorAll('.rr-equal .rr-table tbody').forEach(tbody => {
@@ -1021,8 +1064,8 @@
     // Product channel mix
     const productChannelEl = document.getElementById('productChannelMix');
     if (productChannelEl) {
-      const orderProdRev = (A.topOrderProducts || []).reduce((s, p) => s + p.revenue, 0);
-      const posProdRev = (A.topPosProducts || []).reduce((s, p) => s + p.revenue, 0);
+      const orderProdRev = Number(A.onlineOrderProductRevenue || 0);
+      const posProdRev = Number(A.posProductRevenue || 0);
       charts.productChannelMix = new Chart(productChannelEl, {
         type: 'doughnut', data: { labels: ['Online Orders', 'POS Sales'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.productChannelMix, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
@@ -1328,8 +1371,8 @@
       dataTitle: 'Products', headers: ['Product','Category','Channel','Qty','Revenue'],
       type: 'doughnut', cutout: '68%',
       chartData: () => {
-        const orderRev = (currentA.topOrderProducts||[]).reduce((s,p) => s+p.revenue, 0);
-        const posRev = (currentA.topPosProducts||[]).reduce((s,p) => s+p.revenue, 0);
+        const orderRev = Number(currentA.onlineOrderProductRevenue || 0);
+        const posRev = Number(currentA.posProductRevenue || 0);
         return { labels: ['Online Orders','POS Sales'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
       },
       getFilterLabel: (i) => ['Online Orders','POS Sales'][i] || 'All',
@@ -1408,50 +1451,58 @@
 function setupReportNav() {
   var nav = document.getElementById('reportNav');
   if (!nav) return;
-  var buttons = nav.querySelectorAll('.report-nav-btn');
-  buttons.forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var target = btn.dataset.target;
-      if (target === 'top') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
-        var el = document.getElementById(target);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      buttons.forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
+  var sectionIds = ['section-executive','section-performance','section-collection','section-cost','section-service-profit','section-pos','section-activity'];
+  var buttons = Array.from(nav.querySelectorAll('.report-nav-btn'));
+  var groups = {};
+
+  sectionIds.forEach(function(id) {
+    var heading = document.getElementById(id);
+    var nodes = [];
+    if (!heading) { groups[id] = nodes; return; }
+    var current = heading;
+    while (current && (current === heading || !sectionIds.includes(current.id))) {
+      nodes.push(current);
+      current.classList.add('rr-report-panel');
+      current = current.nextElementSibling;
+    }
+    groups[id] = nodes;
+  });
+
+  var kpiGrid = document.getElementById('kpiGrid');
+  if (kpiGrid) kpiGrid.insertAdjacentElement('afterend', nav);
+
+  function selectSection(target, updateHash) {
+    sectionIds.forEach(function(id) {
+      (groups[id] || []).forEach(function(node) {
+        node.hidden = id !== target;
+        node.classList.toggle('is-active', id === target);
+      });
+    });
+    buttons.forEach(function(button) {
+      var active = button.dataset.target === target;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.setAttribute('aria-controls', button.dataset.target);
+      button.tabIndex = active ? 0 : -1;
+    });
+    if (updateHash && history.replaceState) history.replaceState(null, '', '#' + target);
+    window.setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 30);
+  }
+
+  buttons.forEach(function(button) {
+    button.addEventListener('click', function() { selectSection(button.dataset.target, true); });
+    button.addEventListener('keydown', function(event) {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      var currentIndex = buttons.indexOf(button);
+      var nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[nextIndex].focus();
+      buttons[nextIndex].click();
     });
   });
-  var trigger = document.getElementById('reportNavTrigger');
-  var icon = document.getElementById('reportNavTriggerIcon');
-  var label = document.getElementById('reportNavTriggerLabel');
-  if (trigger) {
-    trigger.addEventListener('click', function() {
-      nav.classList.toggle('open');
-      if (icon) {
-        icon.classList.toggle('bi-list');
-        icon.classList.toggle('bi-x-lg');
-      }
-      if (label) {
-        label.textContent = nav.classList.contains('open') ? 'Close' : 'Sections';
-      }
-    });
-  }
-  // Scroll spy
-  var sectionIds = ['section-executive','section-performance','section-collection','section-cost','section-service-profit','section-pos','section-activity'];
-  function onScroll() {
-    var scrollY = window.scrollY + 140;
-    var current = 'top';
-    sectionIds.forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el && el.offsetTop <= scrollY) current = id;
-    });
-    buttons.forEach(function(b) {
-      b.classList.toggle('active', b.dataset.target === current);
-    });
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+
+  var requested = window.location.hash.replace('#', '');
+  selectSection(sectionIds.includes(requested) ? requested : 'section-executive', false);
 }
 if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', setupReportNav); } else { setupReportNav(); }
 </script>

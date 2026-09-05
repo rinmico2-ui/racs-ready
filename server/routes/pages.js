@@ -721,7 +721,7 @@ router.get("/login", async (req, res) => {
     testimonial: await getRandomTestimonial(),
     extraScripts: [
       "/js/auth-panel.js",
-      "/js/login.js",
+      "/js/login.js?v=20260906-login-policy",
       "/js/register.js",
       "/js/psgc-handler.js",
     ],
@@ -755,7 +755,7 @@ router.get("/register", async (req, res) => {
     testimonial: await getRandomTestimonial(),
     extraScripts: [
       "/js/auth-panel.js",
-      "/js/login.js",
+      "/js/login.js?v=20260906-login-policy",
       "/js/register.js",
       "/js/psgc-handler.js",
     ],
@@ -1218,6 +1218,7 @@ router.get("/admin", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/admin-dashboard", {
     title: "Admin Dashboard",
     layout: "layouts/admin",
+    dashboardRole: "admin",
   });
 });
 
@@ -1232,6 +1233,12 @@ router.get(
     res.render("pages/admin/Appointments/AppointmentsUnified", {
       title: "Appointment Management",
       layout: "layouts/admin",
+      appointmentsWorkspaceRole: "admin",
+      appointmentsApiBase: "/api/admin/appointments",
+      appointmentsToolsApiBase: "/api/admin/tools",
+      appointmentsCanResolve: true,
+      appointmentsResolutionPath: "/admin/operations/resolution-center",
+      appointmentsResolutionApiBase: "/api/admin",
     });
   },
 );
@@ -1262,6 +1269,11 @@ router.get(
     res.render("pages/admin/Appointments/Calendar", {
       title: "Appointments Calendar",
       layout: "layouts/admin",
+      calendarTechniciansApi: "/api/admin/technicians",
+      calendarSchedulesApi: "/api/admin/technician-schedules",
+      calendarAppointmentsApi: "/api/admin/appointments",
+      calendarBookingsPath: "/admin/appointments",
+      calendarOrdersPath: "/admin/appointments/orders",
     });
   },
 );
@@ -1339,6 +1351,12 @@ router.get(
     res.render("pages/admin/Appointments/AttentionQueue", {
       title: "Resolution Center",
       layout: "layouts/admin",
+      resolutionWorkspaceRole: "admin",
+      resolutionApiBase: "/api/admin",
+      resolutionAppointmentsApiBase: "/api/admin/appointments",
+      resolutionBookingsPath: "/admin/appointments",
+      resolutionOrdersPath: "/admin/appointments/orders",
+      resolutionCanViewOrders: true,
     });
   },
 );
@@ -1350,6 +1368,12 @@ router.get(
     res.render("pages/admin/Appointments/AttentionQueue", {
       title: "Resolution Center",
       layout: "layouts/admin",
+      resolutionWorkspaceRole: "admin",
+      resolutionApiBase: "/api/admin",
+      resolutionAppointmentsApiBase: "/api/admin/appointments",
+      resolutionBookingsPath: "/admin/appointments",
+      resolutionOrdersPath: "/admin/appointments/orders",
+      resolutionCanViewOrders: true,
     });
   },
 );
@@ -1412,6 +1436,7 @@ router.get("/admin/inventory", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Inventory/InventoryList", {
     title: "Inventory",
     layout: "layouts/admin",
+    inventoryApiBase: "/api/admin/hvac",
   });
 });
 
@@ -1449,6 +1474,8 @@ router.get(
     res.render("pages/admin/Inventory/RepairParts", {
       title: "Parts & Tools Catalog",
       layout: "layouts/admin",
+      repairPartsApiBase: "/api/admin/tools",
+      repairPartsPosPath: "/admin/inventory/pos",
     });
   },
 );
@@ -1460,6 +1487,7 @@ router.get(
       title: "Point of Sale",
       layout: "layouts/admin",
       user: req.user,
+      posOrdersPath: "/admin/appointments/orders",
     });
   },
 );
@@ -1470,6 +1498,7 @@ router.get(
     res.render("pages/admin/Inventory/InventoryList", {
       title: "Inventory List",
       layout: "layouts/admin",
+      inventoryApiBase: "/api/admin/hvac",
     });
   },
 );
@@ -1480,6 +1509,7 @@ router.get(
     res.render("pages/admin/Inventory/StockHistory", {
       title: "Stock History",
       layout: "layouts/admin",
+      stockAdjustmentsApiBase: "/api/admin/stock-adjustments",
     });
   },
 );
@@ -1518,6 +1548,10 @@ router.get(
     res.render("pages/admin/Inventory/AirconOrders", {
       title: "Orders",
       layout: "layouts/admin",
+      ordersWorkspaceRole: "admin",
+      ordersCanResolve: true,
+      ordersResolutionPath: "/admin/operations/resolution-center",
+      ordersResolutionApiBase: "/api/admin",
     });
   },
 );
@@ -1553,6 +1587,10 @@ router.get(
     res.render("pages/admin/Customers/CustomerList", {
       title: "Customer List",
       layout: "layouts/admin",
+      customerApiBase: "/api/admin/customers",
+      customerCanManage: true,
+      customerCanBlock: true,
+      customerCanUnblock: true,
     });
   },
 );
@@ -1572,6 +1610,8 @@ router.get("/admin/staff/list", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Staff/StaffList", {
     title: "Staff List",
     layout: "layouts/admin",
+    staffApiBase: "/api/admin/staff",
+    staffCanManage: true,
   });
 });
 
@@ -1608,7 +1648,12 @@ router.get("/secretary/attendance", pageAuth.requireRole("secretary"), (req, res
 
 // Admin - Finance
 router.get("/admin/payments", pageAuth.requireRole("admin"), (req, res) => {
-  res.render("pages/admin/Payments/Payments", { title: "Payments", layout: "layouts/admin" });
+  res.render("pages/admin/Payments/Payments", {
+    title: "Payments",
+    layout: "layouts/admin",
+    paymentsApiBase: "/api/admin/payments",
+    paymentsCanManage: true,
+  });
 });
 router.get("/admin/payments/pending", pageAuth.requireRole("admin"), (req, res) => {
   res.redirect("/admin/appointments/pending");
@@ -1651,6 +1696,7 @@ router.get(
         title: "Core Services",
         layout: "layouts/admin",
         coreServices,
+        coreServicesApiBase: "/api/admin/core-services",
       });
     } catch (err) {
       console.error("/admin/services/core failed", err && err.message);
@@ -1658,6 +1704,7 @@ router.get(
         title: "Core Services",
         layout: "layouts/admin",
         coreServices: [],
+        coreServicesApiBase: "/api/admin/core-services",
       });
     }
   },
@@ -1686,6 +1733,7 @@ router.get(
         title: "Repair Services",
         layout: "layouts/admin",
         repairServices,
+        repairServicesApiBase: "/api/admin/repair-services",
       });
     } catch (err) {
       console.error("/admin/services/repair failed", err && err.message);
@@ -1693,6 +1741,7 @@ router.get(
         title: "Repair Services",
         layout: "layouts/admin",
         repairServices: [],
+        repairServicesApiBase: "/api/admin/repair-services",
       });
     }
   },
@@ -1710,6 +1759,9 @@ router.get(
         title: "Repair",
         layout: "layouts/admin",
         serviceCategories,
+        serviceCategoriesApiBase: "/api/admin/service-categories",
+        serviceCategoriesCorePath: "/admin/services/core",
+        serviceCategoriesCanManage: true,
       });
     } catch (err) {
       console.error("/admin/services/service-categories failed", err && err.message);
@@ -1717,6 +1769,9 @@ router.get(
         title: "Repair",
         layout: "layouts/admin",
         serviceCategories: [],
+        serviceCategoriesApiBase: "/api/admin/service-categories",
+        serviceCategoriesCorePath: "/admin/services/core",
+        serviceCategoriesCanManage: true,
       });
     }
   },
@@ -1727,6 +1782,8 @@ router.get("/admin/technicians", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Technicians/TechnicianList", {
     title: "Technicians",
     layout: "layouts/admin",
+    techniciansApiBase: "/api/admin/technicians",
+    techniciansCanManageAccounts: true,
   });
 });
 
@@ -2181,7 +2238,7 @@ router.get(
   "/admin/reports/orders",
   pageAuth.requireRole("admin"),
   async (req, res) => {
-    const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
+    const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, medianCycleHours: 0, p90CycleHours: 0, onTimeRate: 0, onTimeSampleSize: 0, openOrders: 0, overdueOrders: 0, unassignedOrders: 0, pendingPaymentOrders: 0, actionRequiredOrders: 0, backlogAging: { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 }, cancellationReasons: [], orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
     const { parseOrderReportFilters, serializableOrderFilters } = require("../utils/orderReportFilters");
     const reportFilters = parseOrderReportFilters(req.query);
     let filters = { range: "90", from: "", to: "", ...reportFilters };
@@ -2292,11 +2349,11 @@ router.get(
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
       empty.appliedFilters = serializableOrderFilters(reportFilters);
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
     }
   }
 );
@@ -2324,9 +2381,7 @@ router.get(
     try {
       const BookingService = require("../models/BookingService");
       const Technician = require("../models/Technician");
-      const Order = require("../models/Order");
       const Rating = require("../models/Rating");
-      const mongoose = require("mongoose");
       const {
         allocateServiceRevenue,
         buildDailyTrend,
@@ -2366,30 +2421,14 @@ router.get(
         reportStart.setHours(0, 0, 0, 0);
       }
       
-      // Fetch bookings with all needed data
-      let bookings = await BookingService.find({
-        createdAt: { $gte: reportStart, $lte: reportEnd }
-      }).lean();
-      let orders = await Order.find({ createdAt: { $gte: reportStart, $lte: reportEnd }, status: { $ne: "cancelled" } }).lean();
-      
-      // Get technicians for performance data
-      const technicians = await Technician.find({}).lean();
-
-      // Compute active technicians (checked in today and available)
-      const TechnicianAttendance = require("../models/TechnicianAttendance");
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      const endOfToday = new Date(startOfToday);
-      endOfToday.setDate(endOfToday.getDate() + 1);
-      const todayAttendance = await TechnicianAttendance.find({
-        date: { $gte: startOfToday, $lt: endOfToday },
-        status: { $in: ["Present", "Late"] },
-        checkInTime: { $ne: null },
-        checkOutTime: null,
-      }).select("technicianId").lean();
-      const activeTechIds = new Set(todayAttendance.map(a => a.technicianId.toString()));
-      const activeTechnicians = technicians.filter(t => t.active !== false && activeTechIds.has(String(t._id)));
-      const activeTechnicianCount = activeTechnicians.length;
+      // The focused report needs service bookings and technician labels only.
+      // Load them concurrently and avoid the old order/attendance reads that no
+      // longer feed anything rendered by this page.
+      const [bookingRows, technicians] = await Promise.all([
+        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd } }).lean(),
+        Technician.find({}).lean(),
+      ]);
+      let bookings = bookingRows;
 
       // One canonical classifier for current and legacy records. Older repair
       // records can be missing serviceType, so repair-workflow evidence is used
@@ -2399,12 +2438,36 @@ router.get(
       const getBookingRevenue = resolveBookedValue;
 
       const unfilteredBookings = bookings.slice();
+      const boundedFilter = (value, fallback = "all") => String(value || fallback).trim().slice(0, 120);
+      const serviceNamesFor = booking => [booking.service?.name, ...(booking.services || []).map(service => service.name)]
+        .filter(Boolean).map(value => String(value).trim());
+      const applianceTypesFor = booking => [
+        booking.unitInfo?.unitType,
+        booking.applianceTypeName,
+        booking.applianceType,
+        ...(booking.services || []).flatMap(service => [service.applianceTypeName, service.airconTypeName, service.applianceType, service.airconType]),
+      ].filter(Boolean).map(value => String(value).trim());
+      const areaFor = booking => {
+        const address = String(booking.location?.address || booking.customer?.address || "").trim();
+        if (!address) return "";
+        const parts = address.split(",").map(part => part.trim()).filter(Boolean);
+        return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+      };
+      const uniqueOptions = values => [...new Set(values.filter(Boolean).map(value => String(value).trim()))]
+        .sort((left, right) => left.localeCompare(right));
+      const bookingServices = uniqueOptions(unfilteredBookings.flatMap(serviceNamesFor));
+      const bookingApplianceTypes = uniqueOptions(unfilteredBookings.flatMap(applianceTypesFor));
+      const bookingAreas = uniqueOptions(unfilteredBookings.map(areaFor));
       const filterContext = {
-        range, from: String(req.query.from || ""), to: String(req.query.to || ""),
-        segment: String(req.query.segment || "all"), status: String(req.query.status || "all"),
-        scale: String(req.query.scale || "all"), payment: String(req.query.payment || "all"),
-        technician: String(req.query.technician || "all"), brand: String(req.query.brand || "all"),
-        search: String(req.query.search || "").trim(),
+        range, from: boundedFilter(req.query.from, ""), to: boundedFilter(req.query.to, ""),
+        segment: boundedFilter(req.query.segment), status: boundedFilter(req.query.status),
+        scale: boundedFilter(req.query.scale), payment: boundedFilter(req.query.payment),
+        technician: boundedFilter(req.query.technician), brand: boundedFilter(req.query.brand),
+        service: boundedFilter(req.query.service), assignment: boundedFilter(req.query.assignment),
+        priority: boundedFilter(req.query.priority), appliance: boundedFilter(req.query.appliance),
+        area: boundedFilter(req.query.area), valueBand: boundedFilter(req.query.valueBand),
+        sla: boundedFilter(req.query.sla), warranty: boundedFilter(req.query.warranty),
+        search: boundedFilter(req.query.search, ""),
       };
       const bookingBrands = [...new Set(unfilteredBookings.flatMap(b => [b.brand, b.unitInfo?.brand, ...(b.services || []).map(s => s.brand)]).filter(Boolean).map(String))].sort();
       bookings = bookings.filter(b => {
@@ -2425,6 +2488,33 @@ router.get(
           const brands = [b.brand, b.unitInfo?.brand, ...(b.services || []).map(s => s.brand)].filter(Boolean).map(v => normalizedType(v));
           if (!brands.includes(normalizedType(filterContext.brand))) return false;
         }
+        if (filterContext.service !== "all" && !serviceNamesFor(b).some(name => normalizedType(name) === normalizedType(filterContext.service))) return false;
+        if (filterContext.priority !== "all" && normalizedType(b.priority || "medium") !== normalizedType(filterContext.priority)) return false;
+        if (filterContext.appliance !== "all" && !applianceTypesFor(b).some(type => normalizedType(type) === normalizedType(filterContext.appliance))) return false;
+        if (filterContext.area !== "all" && normalizedType(areaFor(b)) !== normalizedType(filterContext.area)) return false;
+        if (filterContext.assignment !== "all") {
+          const assignedTechnicians = [b.technicianId, b.technician?._id, ...(b.services || []).map(s => s.technicianId)].filter(Boolean);
+          if (filterContext.assignment === "assigned" && !assignedTechnicians.length) return false;
+          if (filterContext.assignment === "unassigned" && assignedTechnicians.length) return false;
+        }
+        if (filterContext.valueBand !== "all") {
+          const bookedValue = getBookingRevenue(b);
+          if (filterContext.valueBand === "under_1000" && bookedValue >= 1000) return false;
+          if (filterContext.valueBand === "1000_5000" && (bookedValue < 1000 || bookedValue >= 5000)) return false;
+          if (filterContext.valueBand === "5000_10000" && (bookedValue < 5000 || bookedValue >= 10000)) return false;
+          if (filterContext.valueBand === "10000_plus" && bookedValue < 10000) return false;
+        }
+        if (filterContext.sla !== "all") {
+          const hasSla = Boolean(b.slaTracking && (b.slaTracking.responseDeadline || b.slaTracking.resolutionDeadline || b.slaTracking.responseBreached || b.slaTracking.resolutionBreached));
+          const breached = Boolean(b.slaTracking?.responseBreached || b.slaTracking?.resolutionBreached);
+          if (filterContext.sla === "breached" && !breached) return false;
+          if (filterContext.sla === "compliant" && (!hasSla || breached)) return false;
+          if (filterContext.sla === "not_tracked" && hasSla) return false;
+        }
+        if (filterContext.warranty !== "all") {
+          const warrantyStatus = normalizedType(b.warranty?.status || "none");
+          if (warrantyStatus !== normalizedType(filterContext.warranty)) return false;
+        }
         if (filterContext.search) {
           const haystack = [b.bookingReference, b.workOrderNumber, b.customer?.name, b.customer?.email, b.customer?.phone,
             b.service?.name, b.unitInfo?.brand, b.unitInfo?.model, b.issueDescription, b.unitInfo?.problemDescription,
@@ -2433,9 +2523,6 @@ router.get(
         }
         return true;
       });
-      if (filterContext.segment !== "all" || filterContext.status !== "all" || filterContext.scale !== "all" ||
-          filterContext.payment !== "all" || filterContext.technician !== "all" || filterContext.brand !== "all" || filterContext.search) orders = [];
-
       const lifecycle = summarizeLifecycle(bookings);
       const inProgressCount = lifecycle.inProgress;
       const totalBookings = bookings.length;
@@ -2450,7 +2537,6 @@ router.get(
       const otherPaymentBookings = totalBookings - gcashBookings - codBookings;
       const repairBookings = bookings.filter(isRepairBooking).length;
       const coreServiceBookings = bookings.filter(b => !isRepairBooking(b)).length;
-      const orderBookings = orders.length;
       const multiServiceBookings = bookings.filter(b => b.isMultiService).length;
       const valueBookings = bookings.filter(b => statusGroup(b.status) !== "cancelled");
 
@@ -2494,15 +2580,6 @@ router.get(
         appliance: b.unitInfo?.unitType || b.applianceTypeName || b.applianceType || b.services?.map(s => s.applianceTypeName || s.airconTypeName).filter(Boolean).join(", ") || "Unknown",
         month: new Date(b.createdAt).toLocaleString("en-US", { month: "short" }),
       }));
-      const orderDrilldown = orders.map(o => ({
-        id: String(o._id), recordType: "order",
-        category: "Orders", day: new Date(o.createdAt).toLocaleDateString("en-US", { weekday: "short" }), date: o.createdAt,
-        reference: o.orderReference || `#${String(o._id).slice(-6).toUpperCase()}`,
-        customer: o.customer?.name || "Unknown Customer", contact: o.customer?.phone || o.customer?.email || "—",
-        service: (o.items || []).map(item => [item.brand, item.modelLine].filter(Boolean).join(" ")).filter(Boolean).join(", ") || "Product Order",
-        status: o.status || "pending", technician: o.technician?.name || "Unassigned", amount: o.total || 0,
-      }));
-      
       // Calculate revenue from bookings
       const totalRevenue = valueBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
       const completedRevenue = bookings
@@ -2709,32 +2786,6 @@ router.get(
         .filter(b => isRepairBooking(b) && statusGroup(b.status) !== "cancelled")
         .reduce((sum, b) => sum + getBookingRevenue(b), 0);
 
-      // ── Service Report Workflow Stats (from ServiceReport model) ────────
-      let serviceReportStats = { draft: 0, submitted: 0, approved: 0, revision_requested: 0, total: 0, avgLaborHours: 0, totalPartsCost: 0, totalLaborCost: 0, followUpRequired: 0 };
-      try {
-        const ServiceReport = require("../models/ServiceReport");
-        const reportAgg = await ServiceReport.aggregate([
-          { $match: { bookingId: { $in: bookings.map(b => b._id) } } },
-          { $group: {
-            _id: "$status",
-            count: { $sum: 1 },
-            avgLaborHours: { $avg: "$laborHours" },
-            totalPartsCost: { $sum: "$partsCost" },
-            totalLaborCost: { $sum: "$laborCost" },
-            followUpRequired: { $sum: { $cond: ["$followUpRequired", 1, 0] } }
-          }}
-        ]);
-        reportAgg.forEach(r => {
-          serviceReportStats[r._id] = r.count;
-          serviceReportStats.total += r.count;
-          serviceReportStats.avgLaborHours += (r.avgLaborHours || 0) * r.count;
-          serviceReportStats.totalPartsCost += (r.totalPartsCost || 0);
-          serviceReportStats.totalLaborCost += (r.totalLaborCost || 0);
-          serviceReportStats.followUpRequired += (r.followUpRequired || 0);
-        });
-        serviceReportStats.avgLaborHours = serviceReportStats.total > 0 ? serviceReportStats.avgLaborHours / serviceReportStats.total : 0;
-      } catch (e) { /* ServiceReport model may not exist yet */ }
-
       // ── Cancellation Analysis ────────────────────────────────────────────
       const cancelledBookingsList = bookings.filter(b => statusGroup(b.status) === "cancelled");
       const cancellationRate = totalBookings > 0 ? (cancelledBookingsList.length / totalBookings) * 100 : 0;
@@ -2766,26 +2817,6 @@ router.get(
           rate: weekTotal > 0 ? (weekCancelled / weekTotal) * 100 : 0
         });
       }
-
-      // ── Customer Retention Analysis ─────────────────────────────────────
-      const cohortCustomerIds = [...new Set(bookings.map(b => String(b.customerId || b.customer?._id || "")).filter(id => mongoose.isValidObjectId(id)))];
-      const customerHistory = cohortCustomerIds.length ? await BookingService.aggregate([
-        { $match: { customerId: { $in: cohortCustomerIds.map(id => new mongoose.Types.ObjectId(id)) }, status: { $nin: ["cancelled", "rejected", "repair_declined", "no-show"] } } },
-        { $group: { _id: "$customerId", count: { $sum: 1 } } },
-      ]) : [];
-      const customerBookingCounts = Object.fromEntries(customerHistory.map(row => [String(row._id), row.count]));
-      const uniqueCustomers = Object.keys(customerBookingCounts).length;
-      bookingDrilldown.forEach((row) => {
-        const count = customerBookingCounts[row.customerId] || 1;
-        row.customerSegment = count >= 5 ? "Loyal" : count >= 2 ? "Returning" : "One-Time";
-      });
-      const repeatCustomers = Object.values(customerBookingCounts).filter(c => c > 1).length;
-      const retentionRate = uniqueCustomers > 0 ? (repeatCustomers / uniqueCustomers) * 100 : 0;
-      const customerSegments = {
-        oneTime: Object.values(customerBookingCounts).filter(c => c === 1).length,
-        returning: Object.values(customerBookingCounts).filter(c => c >= 2 && c <= 4).length,
-        loyal: Object.values(customerBookingCounts).filter(c => c >= 5).length,
-      };
 
       // ── Parts & Materials Cost Analysis ─────────────────────────────────
       let totalQuotationPartsCost = 0;
@@ -2911,55 +2942,24 @@ router.get(
         });
       }
 
-      // ── Parts Cost, Expenses, Gross Profit (all technicians) ────────────
-      let totalPartsCost = 0;
-      let totalExpenses = 0;
-      let approvedExpenses = [];
-      try {
-        const Expense = require("../models/Expense");
-        const filteredBookingIds = bookings.map(b => b._id);
-        const expenseMatch = { status: "approved", expenseDate: { $gte: reportStart, $lte: reportEnd } };
-        if (filterContext.technician !== "all") {
-          const selectedTechnician = technicians.find(t => String(t._id) === filterContext.technician);
-          if (selectedTechnician) expenseMatch.technicianId = selectedTechnician._id;
-        }
-        if (filterContext.segment !== "all" || filterContext.status !== "all" || filterContext.scale !== "all" || filterContext.payment !== "all" || filterContext.brand !== "all" || filterContext.search) {
-          expenseMatch.bookingId = filteredBookingIds.length ? { $in: filteredBookingIds } : { $in: [] };
-        }
-        approvedExpenses = await Expense.find(expenseMatch).select("amount type bookingId projectId").lean();
-      } catch (e) { /* models may not exist */ }
-
-      const serviceCostAnalytics = await require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
-        revenueResolver: getBookingRevenue,
-      });
-      totalPartsCost = Number(serviceCostAnalytics.totals.partsCost || 0)
-        + Number(serviceCostAnalytics.totals.consumablesCost || 0)
-        + Number(serviceCostAnalytics.totals.localPurchaseCost || 0)
-        + Number(serviceCostAnalytics.totals.laborCost || 0);
-      const directlyCostedBookingIds = new Set(serviceCostAnalytics.services
-        .filter(row => Number(row.partsCost || 0) + Number(row.consumablesCost || 0) + Number(row.localPurchaseCost || 0) > 0)
-        .map(row => String(row.bookingId)));
-      totalExpenses = approvedExpenses
-        .filter(expense => !(["external_parts", "material"].includes(expense.type)
-          && expense.bookingId && directlyCostedBookingIds.has(String(expense.bookingId))))
-        .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-      // Enterprise service-control measures. These are derived from the
-      // workflow records tied to the currently filtered booking population so
-      // every KPI has the same scope as the report.
+      // Fetch cost and workflow data concurrently. Cost analytics exposes the
+      // ServiceReport and EquipmentAssignment rows it already loaded so the
+      // controls below do not query the same collections a second time.
       const filteredBookingIds = bookings.map(b => b._id);
       const completedBookingIds = bookings.filter(b => statusGroup(b.status) === "completed").map(b => b._id);
       const Assignment = require("../models/Assignment");
-      const ServiceReport = require("../models/ServiceReport");
       const PartsRequest = require("../models/PartsRequest");
-      const EquipmentAssignment = require("../models/EquipmentAssignment");
       const workflowMatch = filteredBookingIds.length ? { bookingId: { $in: filteredBookingIds } } : { _id: null };
-      const completedMatch = completedBookingIds.length ? { bookingId: { $in: completedBookingIds } } : { _id: null };
-      const [workflowAssignments, completedReports, partsRequests, completedEquipment] = await Promise.all([
+      const [serviceCostAnalytics, workflowAssignments, partsRequests] = await Promise.all([
+        require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
+          revenueResolver: getBookingRevenue,
+          includeSourceRows: true,
+        }),
         Assignment.find(workflowMatch).select("acceptedAt startedAt completedAt status slaBreached").lean(),
-        ServiceReport.find(completedMatch).select("bookingId followUpRequired actualLaborCost status").lean(),
         PartsRequest.find(workflowMatch).select("status requestedAt completedAt").lean(),
-        EquipmentAssignment.find({ ...completedMatch, consumable: { $ne: true } }).select("status returnedAt").lean(),
       ]);
+      const completedReports = serviceCostAnalytics.sourceRows?.reports || [];
+      const completedEquipment = serviceCostAnalytics.sourceRows?.assignments || [];
       const completedAssignmentCycles = workflowAssignments
         .filter(a => a.completedAt && (a.startedAt || a.acceptedAt))
         .map(a => (new Date(a.completedAt) - new Date(a.startedAt || a.acceptedAt)) / 3600000)
@@ -3018,10 +3018,8 @@ router.get(
           otherPaymentBookings,
           coreServiceBookings,
           repairBookings,
-          orderBookings,
           multiServiceBookings,
           bookingDrilldown,
-          orderDrilldown,
           totalRevenue,
           completedRevenue,
           pendingRevenue,
@@ -3043,7 +3041,6 @@ router.get(
           techUtilization,
           weeklyCsat,
           recentBookings,
-          activeTechnicianCount,
           inProgressCount,
           technicians: technicians.map(t => ({
             _id: t._id,
@@ -3056,20 +3053,18 @@ router.get(
           reportStart: reportStart.toISOString(),
           reportEnd: reportEnd.toISOString(),
           bookingBrands,
+          bookingServices,
+          bookingApplianceTypes,
+          bookingAreas,
           // Senior Analyst additions
           accurateTotalRevenue,
           accurateCompletedRevenue,
           accurateAvgBookingValue,
           coreRevenueAccurate,
           repairRevenueAccurate,
-          serviceReportStats,
           cancellationRate,
           cancellationReasonsArray,
           weeklyCancellation,
-          uniqueCustomers,
-          repeatCustomers,
-          retentionRate,
-          customerSegments,
           totalQuotationPartsCost,
           totalQuotationLaborCost,
           partsCostByServiceArray,
@@ -3081,10 +3076,7 @@ router.get(
           avgAssignmentHours,
           monthlyRevenueTrend,
           // Financial KPIs
-          totalPartsCost,
-          totalExpenses,
           grossProfit: serviceCostAnalytics.totals.grossProfit,
-          netProfit: serviceCostAnalytics.totals.grossProfit - totalExpenses,
           serviceCosts: serviceCostAnalytics.totals,
           completedServiceCosts: serviceCostAnalytics.services,
           equipmentUsage: serviceCostAnalytics.equipment,
@@ -3553,12 +3545,55 @@ router.get("/admin/maintenance", pageAuth.requireRole("admin"), (req, res) => {
 
 // Secretary dashboard
 router.get("/secretary", pageAuth.requireRole("secretary"), (req, res) => {
-  // Use dedicated layout so CSS is loaded only when needed
-  res.render("pages/secretary/secretary-dashboard", {
+  res.render("pages/admin/admin-dashboard", {
     title: "Secretary Dashboard",
     layout: "layouts/secretary",
+    dashboardRole: "secretary",
   });
 });
+
+// Shared staff directory. Secretaries may inspect staff records, but all
+// create/edit/reset operations remain admin-only at both UI and API layers.
+router.get(
+  "/secretary/staff",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Staff/StaffList", {
+      title: "Staff Directory",
+      layout: "layouts/secretary",
+      staffApiBase: "/api/secretary/staff",
+      staffCanManage: false,
+    });
+  },
+);
+
+router.get(
+  "/secretary/customers",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Customers/CustomerList", {
+      title: "Customers",
+      layout: "layouts/secretary",
+      customerApiBase: "/api/secretary/customers",
+      customerCanManage: res.locals.can("customers.manage"),
+      customerCanBlock: res.locals.can("accounts.block"),
+      customerCanUnblock: res.locals.can("accounts.unblock"),
+    });
+  },
+);
+
+router.get(
+  "/secretary/technicians",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Technicians/TechnicianList", {
+      title: "Technicians",
+      layout: "layouts/secretary",
+      techniciansApiBase: "/api/secretary/technicians",
+      techniciansCanManageAccounts: false,
+    });
+  },
+);
 
 // Secretary overview
 router.get(
@@ -3572,103 +3607,42 @@ router.get(
   },
 );
 
-// Secretary appointments
-router.get(
-  "/secretary/appointments",
-  pageAuth.requireRole("secretary"),
-  async (req, res) => {
-    // fetch a batch of bookings server-side so the view can render immediately
-    try {
-      const BookingService = require("../models/BookingService");
-      const bookings = await BookingService.find({})
-        .populate("customerId", "firstName lastName email phone")
-        .populate("technicianId", "firstName lastName email")
-        .populate("serviceId", "name type durationMinutes")
-        .sort({ bookingDate: -1, startTime: -1 })
-        .limit(200)
-        .lean();
-      
-      // Format bookings for frontend
-      const formattedBookings = bookings.map(b => ({
-        _id: b._id,
-        bookingReference: b.bookingReference,
-        customerName: b.customerId ? `${b.customerId.firstName || ''} ${b.customerId.lastName || ''}`.trim() : 'N/A',
-        customerEmail: b.customerId?.email || '',
-        customerPhone: b.customerId?.phone || '',
-        technicianName: b.technicianId ? `${b.technicianId.firstName || ''} ${b.technicianId.lastName || ''}`.trim() : 'N/A',
-        serviceName: b.serviceId?.name || 'N/A',
-        serviceType: b.serviceId?.type || 'N/A',
-        bookingDate: b.bookingDate,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        status: b.status,
-        estimatedFee: b.estimatedFee,
-        issueDescription: b.issueDescription,
-        address: b.address,
-      }));
+// Secretary bookings use the same lifecycle workspace as the administrator.
+router.get("/secretary/appointments", pageAuth.requireRole("secretary"), (req, res) => {
+  res.render("pages/admin/Appointments/AppointmentsUnified", {
+    title: "Appointment Management",
+    layout: "layouts/secretary",
+    appointmentsWorkspaceRole: "secretary",
+    appointmentsApiBase: "/api/secretary/appointments",
+    appointmentsToolsApiBase: "/api/secretary/tools",
+    appointmentsCanResolve: res.locals.can("appointments.manage"),
+    appointmentsResolutionPath: "/secretary/operations/resolution-center",
+    appointmentsResolutionApiBase: "/api/secretary/operations",
+  });
+});
 
-      res.render("pages/secretary/Appointments/Appointments", {
-        title: "Appointments",
-        layout: "layouts/secretary",
-        initialBookings: formattedBookings,
-      });
-    } catch (err) {
-      console.error("/secretary/appointments failed", err && err.message);
-      res.render("pages/secretary/Appointments/Appointments", {
-        title: "Appointments",
-        layout: "layouts/secretary",
-        initialBookings: [],
-      });
-    }
+router.get(
+  "/secretary/operations/resolution-center",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Appointments/AttentionQueue", {
+      title: "Resolution Center",
+      layout: "layouts/secretary",
+      resolutionWorkspaceRole: "secretary",
+      resolutionApiBase: "/api/secretary/operations",
+      resolutionAppointmentsApiBase: "/api/secretary/appointments",
+      resolutionBookingsPath: "/secretary/appointments",
+      resolutionOrdersPath: "/secretary/inventory/ordered-products",
+      resolutionCanViewOrders: res.locals.can("orders.view"),
+    });
   },
 );
 
 router.get(
   "/secretary/appointments/completed",
   pageAuth.requireRole("secretary"),
-  async (req, res) => {
-    try {
-      const BookingService = require("../models/BookingService");
-      const bookings = await BookingService.find({ status: "completed" })
-        .populate("customerId", "firstName lastName email phone")
-        .populate("technicianId", "firstName lastName email")
-        .populate("serviceId", "name type durationMinutes")
-        .sort({ bookingDate: -1, startTime: -1 })
-        .limit(200)
-        .lean();
-      
-      // Format bookings for frontend
-      const formattedBookings = bookings.map(b => ({
-        _id: b._id,
-        bookingReference: b.bookingReference,
-        customerName: b.customerId ? `${b.customerId.firstName || ''} ${b.customerId.lastName || ''}`.trim() : 'N/A',
-        customerEmail: b.customerId?.email || '',
-        customerPhone: b.customerId?.phone || '',
-        technicianName: b.technicianId ? `${b.technicianId.firstName || ''} ${b.technicianId.lastName || ''}`.trim() : 'N/A',
-        serviceName: b.serviceId?.name || 'N/A',
-        serviceType: b.serviceId?.type || 'N/A',
-        bookingDate: b.bookingDate,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        status: b.status,
-        estimatedFee: b.estimatedFee,
-        issueDescription: b.issueDescription,
-        address: b.address,
-      }));
-
-      res.render("pages/secretary/Appointments/Appointments", {
-        title: "Completed Appointments",
-        layout: "layouts/secretary",
-        initialBookings: formattedBookings,
-      });
-    } catch (err) {
-      console.error("/secretary/appointments/completed failed", err && err.message);
-      res.render("pages/secretary/Appointments/Appointments", {
-        title: "Completed Appointments",
-        layout: "layouts/secretary",
-        initialBookings: [],
-      });
-    }
+  (req, res) => {
+    res.redirect("/secretary/appointments?tab=completed");
   },
 );
 
@@ -3676,10 +3650,7 @@ router.get(
   "/secretary/appointments/overview",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Appointments/Overview", {
-      title: "Appointments Overview",
-      layout: "layouts/secretary",
-    });
+    res.redirect("/secretary/appointments?tab=overview");
   },
 );
 
@@ -3687,9 +3658,14 @@ router.get(
   "/secretary/calendar",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Appointments/Calendar", {
+    res.render("pages/admin/Appointments/Calendar", {
       title: "Appointments Calendar",
       layout: "layouts/secretary",
+      calendarTechniciansApi: "/api/secretary/technicians",
+      calendarSchedulesApi: "/api/secretary/technician-schedules",
+      calendarAppointmentsApi: "/api/secretary/appointments",
+      calendarBookingsPath: "/secretary/appointments",
+      calendarOrdersPath: "/secretary/inventory/ordered-products",
     });
   },
 );
@@ -3698,18 +3674,71 @@ router.get(
   "/secretary/appointments/booking-requests",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Appointments/BookingRequest", {
-      title: "Booking Requests",
+    res.redirect("/secretary/appointments?tab=pending");
+  },
+);
+
+router.get(
+  "/secretary/appointments/repair-scheduling",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Appointments/RepairSchedulingQueue", {
+      title: "Repair Workflow Queue",
       layout: "layouts/secretary",
+      repairOperationsApiBase: "/api/secretary/operations",
+      repairPartsPath: "/secretary/inventory/repair-parts",
     });
   },
 );
 
 router.get(
+  "/secretary/appointments/expenses",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Appointments/ExpenseApproval", {
+      title: "Expenses",
+      layout: "layouts/secretary",
+      expensesApiBase: "/api/secretary/appointments",
+      expensesCanApprove: false,
+    });
+  },
+);
+
+router.get(
+  "/secretary/appointments/cancellation-log",
+  pageAuth.requireRole("secretary"),
+  (req, res) => {
+    res.render("pages/admin/Appointments/CancellationLog", {
+      title: "Cancellation Log",
+      layout: "layouts/secretary",
+      cancellationApiBase: "/api/secretary/appointments",
+      cancellationQueuePath: "/secretary/appointments?tab=queue",
+    });
+  },
+);
+
+router.get("/secretary/projects", pageAuth.requireRole("secretary"), (req, res) => {
+  res.render("pages/admin/Projects/ProjectList", {
+    title: "Project Management",
+    layout: "layouts/secretary",
+    projectWorkspaceBase: "/secretary/projects",
+  });
+});
+
+router.get("/secretary/projects/:id", pageAuth.requireRole("secretary"), (req, res) => {
+  res.render("pages/admin/Projects/ProjectDetail", {
+    title: "Project Details",
+    layout: "layouts/secretary",
+    projectWorkspaceBase: "/secretary/projects",
+    projectInventoryPartsPath: "/secretary/inventory/repair-parts",
+  });
+});
+
+router.get(
   "/secretary/appointments/reschedule",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.redirect("/admin/appointments/review-reschedule");
+    res.redirect("/secretary/appointments");
   },
 );
 
@@ -3722,7 +3751,7 @@ router.get(
     res.render("pages/admin/Appointments/WalkIn", {
       title: "Walk-in Appointment",
       layout: "layouts/secretary",
-      airconOrdersEnabled: false,
+      airconOrdersEnabled: true,
     });
   },
 );
@@ -3731,9 +3760,11 @@ router.get(
   "/secretary/pointofsale",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Appointments/Pointofsale", {
+    res.render("pages/admin/Inventory/POS", {
       title: "Point of Sale",
       layout: "layouts/secretary",
+      user: req.user,
+      posOrdersPath: "/secretary/inventory/ordered-products",
     });
   },
 );
@@ -3744,6 +3775,8 @@ router.get(
     res.render("pages/admin/Inventory/RepairParts", {
       title: "Parts & Tools Catalog",
       layout: "layouts/secretary",
+      repairPartsApiBase: "/api/secretary/tools",
+      repairPartsPosPath: "/secretary/pointofsale",
     });
   },
 );
@@ -3755,17 +3788,19 @@ router.get(
   async (req, res) => {
     try {
       const coreServices = await CoreService.find({}).lean().limit(200);
-      res.render("pages/secretary/Services/Coreservices", {
+      res.render("pages/admin/Services/CoreServices", {
         title: "Core Services",
         layout: "layouts/secretary",
         coreServices,
+        coreServicesApiBase: "/api/secretary/core-services",
       });
     } catch (err) {
       console.error("/secretary/services/core failed", err && err.message);
-      res.render("pages/secretary/Services/Coreservices", {
+      res.render("pages/admin/Services/CoreServices", {
         title: "Core Services",
         layout: "layouts/secretary",
         coreServices: [],
+        coreServicesApiBase: "/api/secretary/core-services",
       });
     }
   },
@@ -3775,21 +3810,33 @@ router.get(
   pageAuth.requireRole("secretary"),
   async (req, res) => {
     try {
-      const repairServices = await RepairService.find({}).lean().limit(200);
-      res.render("pages/secretary/Services/Repairservices", {
-        title: "Repair Services",
+      const ServiceCategory = require("../models/ServiceCategory");
+      const serviceCategories = await ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean();
+      res.render("pages/admin/Services/ServiceCategories", {
+        title: "Repair",
         layout: "layouts/secretary",
-        repairServices,
+        serviceCategories,
+        serviceCategoriesApiBase: "/api/secretary/service-categories",
+        serviceCategoriesCorePath: "/secretary/services/core",
+        serviceCategoriesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
       });
     } catch (err) {
       console.error("/secretary/services/repair failed", err && err.message);
-      res.render("pages/secretary/Services/Repairservices", {
-        title: "Repair Services",
+      res.render("pages/admin/Services/ServiceCategories", {
+        title: "Repair",
         layout: "layouts/secretary",
-        repairServices: [],
+        serviceCategories: [],
+        serviceCategoriesApiBase: "/api/secretary/service-categories",
+        serviceCategoriesCorePath: "/secretary/services/core",
+        serviceCategoriesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
       });
     }
   },
+);
+router.get(
+  "/secretary/services/service-categories",
+  pageAuth.requireRole("secretary"),
+  (req, res) => res.redirect("/secretary/services/repair"),
 );
 
 // Secretary inventory routes
@@ -3797,9 +3844,10 @@ router.get(
   "/secretary/inventory",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Inventory/InventoryList", {
+    res.render("pages/admin/Inventory/InventoryList", {
       title: "Inventory",
       layout: "layouts/secretary",
+      inventoryApiBase: "/api/secretary/hvac",
     });
   },
 );
@@ -3808,9 +3856,11 @@ router.get(
   "/secretary/inventory/deliveries",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Inventory/DeliveryCalendar", {
+    res.render("pages/admin/Inventory/DeliveryCalendar", {
       title: "Delivery Calendar",
       layout: "layouts/secretary",
+      deliveryInventoryApiBase: "/api/secretary/inventory",
+      deliveryInventoryPath: "/secretary/inventory",
     });
   },
 );
@@ -3819,7 +3869,14 @@ router.get(
   "/secretary/inventory/ordered-products",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.redirect("/admin/appointments/orders");
+    res.render("pages/admin/Inventory/AirconOrders", {
+      title: "Orders",
+      layout: "layouts/secretary",
+      ordersWorkspaceRole: "secretary",
+      ordersCanResolve: res.locals.can("appointments.manage") && res.locals.can("orders.manage"),
+      ordersResolutionPath: "/secretary/operations/resolution-center",
+      ordersResolutionApiBase: "/api/secretary/operations",
+    });
   },
 );
 
@@ -3827,9 +3884,10 @@ router.get(
   "/secretary/inventory/history",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Inventory/StockHistory", {
+    res.render("pages/admin/Inventory/StockHistory", {
       title: "Stock History",
       layout: "layouts/secretary",
+      stockAdjustmentsApiBase: "/api/secretary/stock-adjustments",
     });
   },
 );
@@ -4001,9 +4059,11 @@ router.get(
   "/secretary/payments",
   pageAuth.requireRole("secretary"),
   (req, res) => {
-    res.render("pages/secretary/Payments/PaymentsList", {
+    res.render("pages/admin/Payments/Payments", {
       title: "Payments",
       layout: "layouts/secretary",
+      paymentsApiBase: "/api/secretary/payments",
+      paymentsCanManage: res.locals.can("payments.manage"),
     });
   },
 );

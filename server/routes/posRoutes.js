@@ -11,6 +11,7 @@ const User = require("../models/User");
 const Technician = require("../models/Technician");
 const BookingService = require("../models/BookingService");
 const auth = require("../middleware/authenticate");
+const { requirePermission } = require("../middleware/requirePermission");
 const { escapeRegex } = require("../utils/stringSecurity");
 const {
   OrderCheckoutError,
@@ -29,7 +30,16 @@ const {
   provisionWalkInCustomer,
 } = require("../utils/customerAccountInvitation");
 
-router.use(auth.authenticate, auth.requireRole("admin"));
+function requireOrderPermission(req, res, next) {
+  if (req.user.role === "admin") return next();
+  const permission = ["GET", "HEAD", "OPTIONS"].includes(req.method)
+    ? "orders.view"
+    : "orders.manage";
+  return requirePermission(permission)(req, res, next);
+}
+
+router.use(auth.authenticate, auth.requireRole(["admin", "secretary"]));
+router.use(requireOrderPermission);
 
 // ─── Auth middleware (admin only) ─────────────────────────────────────────────
 function requireAdmin(req, res, next) {
@@ -1263,7 +1273,8 @@ router.post("/sales/:id/void", async (req, res) => {
 });
 
 const walkInAirconRouter = express.Router();
-walkInAirconRouter.use(auth.authenticate, auth.requireRole("admin"));
+walkInAirconRouter.use(auth.authenticate, auth.requireRole(["admin", "secretary"]));
+walkInAirconRouter.use(requireOrderPermission);
 walkInAirconRouter.get("/products", listAircons);
 walkInAirconRouter.post("/quote", quoteAirconOrder);
 walkInAirconRouter.post("/checkout", checkoutAirconOrder);

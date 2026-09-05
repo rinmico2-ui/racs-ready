@@ -39,7 +39,11 @@ function directLaborCost(report) {
 async function buildServiceCostAnalytics(bookings, options = {}) {
   const completed = (bookings || []).filter(booking => RECOGNIZED_BOOKING_STATUSES.has(booking.status));
   const ids = completed.map(booking => booking._id);
-  if (!ids.length) return { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, grossProfit: 0, grossProfitMargin: 0 } };
+  if (!ids.length) {
+    const empty = { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, grossProfit: 0, grossProfitMargin: 0 } };
+    if (options.includeSourceRows) empty.sourceRows = { reports: [], assignments: [] };
+    return empty;
+  }
 
   const [usages, reports, assignments] = await Promise.all([
     ServiceToolUsage.find({ bookingId: { $in: ids } }).sort({ usedAt: 1 }).lean(),
@@ -109,7 +113,11 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     if (!equipmentGroups.has(key)) equipmentGroups.set(key, { name: item.name, technician: item.technician, timesUsed: 0, checkoutStatus: item.checkoutStatus, returnStatus: item.returnStatus });
     const row = equipmentGroups.get(key); row.timesUsed += item.quantity; row.checkoutStatus = item.checkoutStatus; row.returnStatus = item.returnStatus;
   });
-  return { services, equipment: [...equipmentGroups.values()].sort((a, b) => b.timesUsed - a.timesUsed), totals };
+  const result = { services, equipment: [...equipmentGroups.values()].sort((a, b) => b.timesUsed - a.timesUsed), totals };
+  // Report pages can reuse these already-fetched rows for workflow controls,
+  // avoiding duplicate ServiceReport and EquipmentAssignment queries.
+  if (options.includeSourceRows) result.sourceRows = { reports, assignments };
+  return result;
 }
 
 module.exports = { buildServiceCostAnalytics, bookingRevenue, directLaborCost };

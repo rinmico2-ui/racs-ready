@@ -245,6 +245,12 @@ app.use(
 
 // Attach the current user to templates/res.locals when possible (non-blocking)
 app.use(attachCurrentUser);
+app.use((req, res, next) => {
+  // Let navigation partials render the active group before client-side scripts
+  // run, avoiding a collapsed-state flash on every full-page navigation.
+  res.locals.currentPath = String(req.path || "/").replace(/\/$/, "") || "/";
+  next();
+});
 
 // Prevent NoSQL injection by sanitizing any keys containing '$' or '.' from request data
 const mongoSanitize = require("express-mongo-sanitize");
@@ -426,6 +432,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 
 const adminApi = require("./routes/adminApi");
 app.use("/api/admin", adminApi);
+app.use("/api/secretary/operations", adminApi);
 
 // Public company/base location used for booking distance/fare calculations
 const publicCompanyRoutes = require("./routes/publicCompanyRoutes");
@@ -434,6 +441,7 @@ app.use("/api/public/company", publicCompanyRoutes);
 
 const hvacApi = require("./routes/hvacApi");
 app.use("/api/admin", hvacApi);
+app.use("/api/secretary", hvacApi);
 
 const inventoryRoutes = require("./routes/inventoryRoutes");
 app.use("/api/inventory", inventoryRoutes);
@@ -468,6 +476,8 @@ const equipmentReturnRoutes = require("./routes/equipmentReturnRoutes");
 app.use("/api/admin/appointments", equipmentReturnRoutes);
 const appointmentManagement = require("./routes/appointmentManagement");
 app.use("/api/admin/appointments", appointmentManagement);
+app.use("/api/secretary/appointments", equipmentReturnRoutes);
+app.use("/api/secretary/appointments", appointmentManagement);
 
 // Enterprise Project Management API
 const projectRoutes = require("./routes/projectRoutes");

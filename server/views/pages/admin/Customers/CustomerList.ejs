@@ -1,3 +1,9 @@
+<%
+  const resolvedCustomerApiBase = typeof customerApiBase === "string" ? customerApiBase : "/api/admin/customers";
+  const resolvedCustomerCanManage = typeof customerCanManage === "boolean" ? customerCanManage : true;
+  const resolvedCustomerCanBlock = typeof customerCanBlock === "boolean" ? customerCanBlock : true;
+  const resolvedCustomerCanUnblock = typeof customerCanUnblock === "boolean" ? customerCanUnblock : true;
+%>
 <div class="admin-dashboard container-fluid py-4 inventory-premium">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
@@ -238,6 +244,10 @@
 
 <script>
 (function(){
+  const customerApiBase = <%- JSON.stringify(resolvedCustomerApiBase).replace(/</g, "\\u003c") %>;
+  const customerCanManage = <%- JSON.stringify(resolvedCustomerCanManage) %>;
+  const customerCanBlock = <%- JSON.stringify(resolvedCustomerCanBlock) %>;
+  const customerCanUnblock = <%- JSON.stringify(resolvedCustomerCanUnblock) %>;
   var allCustomers = [];
   var filteredCustomers = [];
   var currentPage = 1;
@@ -401,7 +411,7 @@
     body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
     bsModal.show();
 
-    fetch('/api/admin/customers/' + id, { credentials: 'same-origin' })
+    fetch(customerApiBase + '/' + id, { credentials: 'same-origin' })
       .then(function(r) { if (!r.ok) throw new Error('Not found'); return r.json(); })
       .then(function(data) {
         var c = data.user;
@@ -535,14 +545,15 @@
 
           var footer = document.createElement('div');
           footer.className = 'ent-modal-footer';
+          var canAccountAction = c.blocked ? customerCanUnblock : customerCanBlock;
           footer.innerHTML =
-            '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
+            (canAccountAction ? '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
               '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock Account' : 'Block Account') +
-            '</button>' +
-            '<button class="btn ' + (c.vip ? 'btn-outline-warning' : 'btn-warning') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
+            '</button>' : '') +
+            (customerCanManage ? '<button class="btn ' + (c.vip ? 'btn-outline-warning' : 'btn-warning') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
               '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') +
-            '</button>';
-          modal.querySelector('.modal-content').appendChild(footer);
+            '</button>' : '');
+          if (footer.innerHTML.trim()) modal.querySelector('.modal-content').appendChild(footer);
 
           footer.querySelectorAll('.action-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
@@ -550,7 +561,7 @@
               var custId = btn.getAttribute('data-id');
               btn.disabled = true;
               btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
-              fetch('/api/admin/customers/' + custId, {
+              fetch(customerApiBase + '/' + custId, {
                 method: 'PATCH',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
@@ -559,7 +570,7 @@
               .then(function(r) { return r.json(); })
               .then(function() {
                 bsModal.hide();
-                return fetch('/api/admin/customers', { credentials: 'same-origin' });
+                return fetch(customerApiBase, { credentials: 'same-origin' });
               })
               .then(function(r) { return r.json(); })
               .then(function(data) {
@@ -580,7 +591,7 @@
       });
   }
 
-  fetch('/api/admin/customers', { credentials: 'same-origin' })
+  fetch(customerApiBase, { credentials: 'same-origin' })
     .then(function(r) {
       if (!r.ok) throw new Error('Failed to fetch customers');
       return r.json();

@@ -1,3 +1,32 @@
+<%
+  const dashboardIsAdmin = (typeof dashboardRole === "string" ? dashboardRole : (user && user.role)) === "admin";
+  const dashboardLinks = dashboardIsAdmin ? {
+    appointments: "/admin/appointments", orders: "/admin/inventory/aircon-orders",
+    review: "/admin/operations/resolution-center", cancellations: "/admin/appointments/cancellation-log",
+    payments: "/admin/payments", equipment: "/admin/inventory/equipment-returns?state=overdue",
+    remittance: "/admin/payments/remittance", attendance: "/admin/staff/attendance",
+    customers: "/admin/customers/list", jobs: "/admin/jobs/active", inventory: "/admin/inventory",
+    staff: "/admin/staff/list", technicians: "/admin/technicians", reports: "/admin/reports/service",
+    expenses: "/admin/expenses"
+  } : {
+    appointments: "/secretary/appointments", orders: "/secretary/appointments",
+    review: "/secretary/operations/resolution-center", cancellations: "/secretary/appointments/cancellation-log",
+    payments: "/secretary/payments", equipment: "/secretary/inventory",
+    remittance: "/secretary/payments", attendance: "/secretary/attendance",
+    customers: "/secretary/customers", jobs: "/secretary/service-tracking",
+    inventory: "/secretary/inventory", staff: "/secretary/staff",
+    technicians: "/secretary/technicians", reports: "/secretary/reports/service", expenses: null
+  };
+  const dashboardClientConfig = {
+    role: dashboardIsAdmin ? "admin" : "secretary",
+    endpoints: {
+      summary: dashboardIsAdmin ? "/api/admin/analytics/summary" : "/api/secretary/analytics/summary",
+      operations: dashboardIsAdmin ? "/api/admin/dashboard/operations" : "/api/secretary/dashboard/operations",
+      attendanceToday: dashboardIsAdmin ? "/api/admin/attendance/today" : null
+    },
+    links: dashboardLinks
+  };
+%>
 <div class="admin-dashboard container-fluid px-0 py-4">
   <%- include('../../partials/dashboard-styles') %>
 
@@ -740,8 +769,8 @@
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-grid-1x2-fill"></i></div>
         <div>
-          <h1>Dashboard</h1>
-          <p>System-wide operations — bookings, orders, reviews, cash controls, equipment custody, and workforce status.</p>
+          <h1><%= dashboardIsAdmin ? "Admin Dashboard" : "Secretary Dashboard" %></h1>
+          <p>Shared operations workspace — the actions shown here follow your role permissions.</p>
         </div>
       </div>
       <div class="au-hero-stats">
@@ -755,6 +784,15 @@
 
   <!-- ═══ OPERATIONS CONTROL CENTER ═══ -->
   <style>
+    .au-hero { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-radius: 20px; color: #fff; overflow: hidden; position: relative; }
+    .au-hero-inner { align-items: center; display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; padding: 28px 36px; position: relative; z-index: 1; }
+    .au-hero-left { align-items: center; display: flex; gap: 16px; }
+    .au-hero-icon { align-items: center; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.15); border-radius: 16px; display: flex; flex-shrink: 0; font-size: 1.5rem; height: 56px; justify-content: center; width: 56px; }
+    .au-hero h1 { font-family: "Outfit","Inter",sans-serif; font-size: 1.4rem; font-weight: 800; margin: 0; }
+    .au-hero p { color: rgba(255,255,255,.7); font-size: .85rem; margin: 4px 0 0; }
+    .au-hero-stat { text-align: center; }
+    .au-hero-stat-val { font-size: 1.5rem; font-weight: 800; }
+    .au-hero-stat-lbl { color: rgba(255,255,255,.6); font-size: .68rem; margin-top: 4px; text-transform: uppercase; }
     .ops-center{margin-bottom:1.5rem}.ops-shell{background:#fff;border:1px solid #dbe4ef;border-radius:20px;box-shadow:0 8px 30px rgba(15,23,42,.06);overflow:hidden}.ops-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #e8eef5;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff}.ops-head h2{margin:0;font-size:1.05rem;font-weight:750;letter-spacing:-.01em}.ops-head p{margin:4px 0 0;color:#cbd5e1;font-size:.76rem}.ops-head-actions{display:flex;align-items:center;gap:10px;color:#cbd5e1;font-size:.7rem;white-space:nowrap}.ops-refresh{border:1px solid rgba(255,255,255,.25);color:#fff;background:rgba(255,255,255,.08);border-radius:9px;padding:7px 10px}.ops-refresh:hover{background:rgba(255,255,255,.16)}.ops-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:16px;background:#f8fafc}.ops-kpi{min-width:0;background:#fff;border:1px solid #e5eaf0;border-radius:14px;padding:14px;color:inherit;text-decoration:none;transition:.18s ease}.ops-kpi:hover{color:inherit;border-color:#bfdbfe;transform:translateY(-2px);box-shadow:0 8px 22px rgba(15,23,42,.07)}.ops-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.ops-kpi-label{color:#64748b;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.045em}.ops-kpi-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#eff6ff;color:#2563eb}.ops-kpi.warn .ops-kpi-icon{background:#fffbeb;color:#d97706}.ops-kpi.danger .ops-kpi-icon{background:#fef2f2;color:#dc2626}.ops-kpi.success .ops-kpi-icon{background:#ecfdf5;color:#059669}.ops-kpi-value{color:#0f172a;font-weight:780;font-size:1.55rem;line-height:1.1;margin-top:10px;letter-spacing:-.025em}.ops-kpi-sub{color:#64748b;font-size:.71rem;margin-top:5px;min-height:2.1em;line-height:1.4}.ops-kpi-foot{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #f1f5f9;padding-top:8px;margin-top:9px;color:#475569;font-size:.65rem}.ops-kpi-foot a{color:#2563eb;text-decoration:none;font-weight:700}.ops-detail-grid{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:14px;padding:0 16px 16px;background:#f8fafc}.ops-panel{background:#fff;border:1px solid #e5eaf0;border-radius:14px;overflow:hidden;min-width:0}.ops-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #eef2f7}.ops-panel-head h3{margin:0;font-size:.78rem;font-weight:750;color:#1e293b}.ops-panel-head a{font-size:.65rem;font-weight:700;text-decoration:none}.ops-panel-body{padding:10px 12px;max-height:238px;overflow:auto}.ops-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid #f1f5f9}.ops-row:last-child{border-bottom:0}.ops-row-main{min-width:0}.ops-row-title{color:#1e293b;font-size:.72rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ops-row-meta{color:#94a3b8;font-size:.64rem;margin-top:2px}.ops-row-value{color:#334155;font-size:.68rem;font-weight:700;white-space:nowrap}.ops-priority{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;margin-bottom:7px;text-decoration:none;font-size:.7rem;font-weight:650;background:#fffbeb;color:#92400e}.ops-priority.danger{background:#fef2f2;color:#991b1b}.ops-priority:hover{color:inherit;filter:brightness(.98)}.ops-empty{color:#94a3b8;font-size:.7rem;text-align:center;padding:24px 8px}.ops-error{margin:14px 16px;border-radius:10px;padding:11px 13px;background:#fef2f2;color:#991b1b;font-size:.75rem;display:none}@media(max-width:1199px){.ops-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ops-detail-grid{grid-template-columns:1fr 1fr}.ops-detail-grid .ops-panel:first-child{grid-column:1/-1}}@media(max-width:767px){.ops-head{align-items:flex-start;flex-direction:column}.ops-grid,.ops-detail-grid{grid-template-columns:1fr}.ops-detail-grid .ops-panel:first-child{grid-column:auto}.ops-kpi-sub{min-height:auto}}
   </style>
 
@@ -763,19 +801,19 @@
       <div class="ops-head"><div><h2 id="opsCenterTitle"><i class="bi bi-command me-2"></i>Operations Control Center</h2><p>Today’s workload, exceptions, cash custody, equipment accountability, and workforce attendance.</p></div><div class="ops-head-actions"><span id="opsAsOf">Loading current state…</span><button class="ops-refresh" id="opsRefresh" type="button" title="Refresh operations summary"><i class="bi bi-arrow-clockwise"></i></button></div></div>
       <div class="ops-error" id="opsError" role="alert"></div>
       <div class="ops-grid" id="opsGrid">
-        <a class="ops-kpi" href="/admin/appointments"><div class="ops-kpi-top"><span class="ops-kpi-label">Bookings Today</span><span class="ops-kpi-icon"><i class="bi bi-calendar2-check"></i></span></div><div class="ops-kpi-value" id="opsBookings">—</div><div class="ops-kpi-sub" id="opsBookingsSub">Loading scheduled work…</div><div class="ops-kpi-foot"><span id="opsBookingsActive">— active</span><span id="opsBookingsDone">— completed</span></div></a>
-        <a class="ops-kpi" href="/admin/inventory/aircon-orders"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today</span><span class="ops-kpi-icon"><i class="bi bi-box-seam"></i></span></div><div class="ops-kpi-value" id="opsOrders">—</div><div class="ops-kpi-sub" id="opsOrdersSub">Loading deliveries and pickups…</div><div class="ops-kpi-foot"><span id="opsOrdersActive">— active</span><span id="opsOrdersDone">— completed</span></div></a>
-        <a class="ops-kpi warn" href="/admin/operations/resolution-center"><div class="ops-kpi-top"><span class="ops-kpi-label">Needs Review</span><span class="ops-kpi-icon"><i class="bi bi-exclamation-diamond"></i></span></div><div class="ops-kpi-value" id="opsReview">—</div><div class="ops-kpi-sub" id="opsReviewBreakdown">Bookings, orders, and no-shows</div><div class="ops-kpi-foot"><span>Unified resolution queue</span><span id="opsReviewOverdue">— overdue</span></div></a>
-        <a class="ops-kpi danger" href="/admin/appointments/cancellation-log"><div class="ops-kpi-top"><span class="ops-kpi-label">Cancellation Log</span><span class="ops-kpi-icon"><i class="bi bi-journal-x"></i></span></div><div class="ops-kpi-value" id="opsCancellations">—</div><div class="ops-kpi-sub">Jobs with cancellation or reassignment history</div><div class="ops-kpi-foot"><span id="opsCancellationEvents">— events</span><span id="opsCancellationEscalated">— escalated</span></div></a>
-        <a class="ops-kpi success" href="/admin/payments"><div class="ops-kpi-top"><span class="ops-kpi-label">Collected Today</span><span class="ops-kpi-icon"><i class="bi bi-cash-coin"></i></span></div><div class="ops-kpi-value" id="opsCollected">—</div><div class="ops-kpi-sub" id="opsCollectedSub">Net cash collected from the payment ledger</div><div class="ops-kpi-foot"><span id="opsCollectedTx">— transactions</span><span id="opsRefunds">— refunds</span></div></a>
-        <a class="ops-kpi danger" href="/admin/inventory/equipment-returns?state=overdue"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue</span><span class="ops-kpi-icon"><i class="bi bi-tools"></i></span></div><div class="ops-kpi-value" id="opsEquipment">—</div><div class="ops-kpi-sub" id="opsEquipmentSub">Checked-out assets past return deadline</div><div class="ops-kpi-foot"><span id="opsEquipmentUnits">— units</span><span id="opsEquipmentTechs">— technicians</span></div></a>
-        <a class="ops-kpi warn" href="/admin/payments/remittance"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action</span><span class="ops-kpi-icon"><i class="bi bi-bank"></i></span></div><div class="ops-kpi-value" id="opsRemittance">—</div><div class="ops-kpi-sub" id="opsRemittanceSub">Collections requiring technician or admin action</div><div class="ops-kpi-foot"><span id="opsRemitTech">— with tech</span><span id="opsRemitAdmin">— to verify</span></div></a>
-        <a class="ops-kpi" href="/admin/staff/attendance"><div class="ops-kpi-top"><span class="ops-kpi-label">Attendance Today</span><span class="ops-kpi-icon"><i class="bi bi-person-check"></i></span></div><div class="ops-kpi-value" id="opsAttendance">—</div><div class="ops-kpi-sub" id="opsAttendanceSub">Present and late technicians vs active headcount</div><div class="ops-kpi-foot"><span id="opsAttendanceLate">— late</span><span id="opsAttendanceAbsent">— absent</span></div></a>
+        <a class="ops-kpi" href="<%= dashboardLinks.appointments %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Bookings Today</span><span class="ops-kpi-icon"><i class="bi bi-calendar2-check"></i></span></div><div class="ops-kpi-value" id="opsBookings">—</div><div class="ops-kpi-sub" id="opsBookingsSub">Loading scheduled work…</div><div class="ops-kpi-foot"><span id="opsBookingsActive">— active</span><span id="opsBookingsDone">— completed</span></div></a>
+        <a class="ops-kpi" href="<%= dashboardLinks.orders %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today</span><span class="ops-kpi-icon"><i class="bi bi-box-seam"></i></span></div><div class="ops-kpi-value" id="opsOrders">—</div><div class="ops-kpi-sub" id="opsOrdersSub">Loading deliveries and pickups…</div><div class="ops-kpi-foot"><span id="opsOrdersActive">— active</span><span id="opsOrdersDone">— completed</span></div></a>
+        <a class="ops-kpi warn" href="<%= dashboardLinks.review %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Needs Review</span><span class="ops-kpi-icon"><i class="bi bi-exclamation-diamond"></i></span></div><div class="ops-kpi-value" id="opsReview">—</div><div class="ops-kpi-sub" id="opsReviewBreakdown">Bookings, orders, and no-shows</div><div class="ops-kpi-foot"><span>Unified resolution queue</span><span id="opsReviewOverdue">— overdue</span></div></a>
+        <a class="ops-kpi danger" href="<%= dashboardLinks.cancellations %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Cancellation Log</span><span class="ops-kpi-icon"><i class="bi bi-journal-x"></i></span></div><div class="ops-kpi-value" id="opsCancellations">—</div><div class="ops-kpi-sub">Jobs with cancellation or reassignment history</div><div class="ops-kpi-foot"><span id="opsCancellationEvents">— events</span><span id="opsCancellationEscalated">— escalated</span></div></a>
+        <a class="ops-kpi success" href="<%= dashboardLinks.payments %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Collected Today</span><span class="ops-kpi-icon"><i class="bi bi-cash-coin"></i></span></div><div class="ops-kpi-value" id="opsCollected">—</div><div class="ops-kpi-sub" id="opsCollectedSub">Net cash collected from the payment ledger</div><div class="ops-kpi-foot"><span id="opsCollectedTx">— transactions</span><span id="opsRefunds">— refunds</span></div></a>
+        <a class="ops-kpi danger" href="<%= dashboardLinks.equipment %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue</span><span class="ops-kpi-icon"><i class="bi bi-tools"></i></span></div><div class="ops-kpi-value" id="opsEquipment">—</div><div class="ops-kpi-sub" id="opsEquipmentSub">Checked-out assets past return deadline</div><div class="ops-kpi-foot"><span id="opsEquipmentUnits">— units</span><span id="opsEquipmentTechs">— technicians</span></div></a>
+        <a class="ops-kpi warn" href="<%= dashboardLinks.remittance %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action</span><span class="ops-kpi-icon"><i class="bi bi-bank"></i></span></div><div class="ops-kpi-value" id="opsRemittance">—</div><div class="ops-kpi-sub" id="opsRemittanceSub">Collections requiring technician or admin action</div><div class="ops-kpi-foot"><span id="opsRemitTech">— with tech</span><span id="opsRemitAdmin">— to verify</span></div></a>
+        <a class="ops-kpi" href="<%= dashboardLinks.attendance %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Attendance Today</span><span class="ops-kpi-icon"><i class="bi bi-person-check"></i></span></div><div class="ops-kpi-value" id="opsAttendance">—</div><div class="ops-kpi-sub" id="opsAttendanceSub">Present and late technicians vs active headcount</div><div class="ops-kpi-foot"><span id="opsAttendanceLate">— late</span><span id="opsAttendanceAbsent">— absent</span></div></a>
       </div>
       <div class="ops-detail-grid">
         <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-exclamation-triangle me-1 text-warning"></i>Operational Priorities</h3><span class="text-muted" style="font-size:.64rem">Highest-risk first</span></div><div class="ops-panel-body" id="opsPriorities"><div class="ops-empty">Loading priorities…</div></div></article>
-        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-arrow-return-left me-1 text-danger"></i>Overdue Equipment</h3><a href="/admin/inventory/equipment-returns?state=overdue">Open queue</a></div><div class="ops-panel-body" id="opsEquipmentRows"><div class="ops-empty">Loading custody records…</div></div></article>
-        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-shield-check me-1 text-primary"></i>Control Exceptions</h3><a href="/admin/payments/remittance">Remittance</a></div><div class="ops-panel-body" id="opsControlRows"><div class="ops-empty">Loading cash and attendance controls…</div></div></article>
+        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-arrow-return-left me-1 text-danger"></i>Overdue Equipment</h3><a href="<%= dashboardLinks.equipment %>">Open queue</a></div><div class="ops-panel-body" id="opsEquipmentRows"><div class="ops-empty">Loading custody records…</div></div></article>
+        <article class="ops-panel"><div class="ops-panel-head"><h3><i class="bi bi-shield-check me-1 text-primary"></i>Control Exceptions</h3><a href="<%= dashboardLinks.remittance %>">Remittance</a></div><div class="ops-panel-body" id="opsControlRows"><div class="ops-empty">Loading cash and attendance controls…</div></div></article>
       </div>
     </div>
   </section>
@@ -1060,18 +1098,20 @@
   <!-- ═══ QUICK ACTIONS ═══ -->
   <div class="quick-bar">
     <span class="quick-bar-label"><i class="bi bi-lightning-fill me-1" style="color:#2563eb;"></i>Quick</span>
-    <a href="/admin/appointments" class="quick-btn"><i class="bi bi-plus-lg" style="color:#2563eb;"></i>Appointment</a>
-    <a href="/admin/customers/list" class="quick-btn"><i class="bi bi-person-plus" style="color:#8b5cf6;"></i>Customer</a>
-    <a href="/admin/jobs/active" class="quick-btn"><i class="bi bi-briefcase" style="color:#059669;"></i>Job</a>
-    <a href="/admin/payments" class="quick-btn"><i class="bi bi-currency-dollar" style="color:#10b981;"></i>Payment</a>
-    <a href="/admin/inventory" class="quick-btn"><i class="bi bi-box-seam" style="color:#ef4444;"></i>Inventory</a>
-    <a href="/admin/inventory/equipment-returns" class="quick-btn"><i class="bi bi-arrow-return-left" style="color:#dc2626;"></i>Equipment Returns <span id="equipmentReturnsDashboardBadge" class="badge bg-danger" style="display:none"></span></a>
-    <a href="/admin/appointments/cancellation-log" class="quick-btn"><i class="bi bi-journal-x" style="color:#dc2626;"></i>Cancellations</a>
-    <a href="/admin/payments/remittance" class="quick-btn"><i class="bi bi-bank" style="color:#d97706;"></i>Remittance</a>
-    <a href="/admin/staff/attendance" class="quick-btn"><i class="bi bi-person-check" style="color:#0891b2;"></i>Attendance</a>
-    <a href="/admin/staff/list" class="quick-btn"><i class="bi bi-people" style="color:#7c3aed;"></i>Staff</a>
-    <a href="/admin/technicians" class="quick-btn"><i class="bi bi-wrench" style="color:#f59e0b;"></i>Technician</a>
-    <a href="/admin/reports/service" class="quick-btn"><i class="bi bi-graph-up" style="color:#0891b2;"></i>Reports</a>
+    <a href="<%= dashboardLinks.appointments %>" class="quick-btn"><i class="bi bi-plus-lg" style="color:#2563eb;"></i>Appointment</a>
+    <a href="<%= dashboardLinks.customers %>" class="quick-btn"><i class="bi bi-person-plus" style="color:#8b5cf6;"></i>Customer</a>
+    <a href="<%= dashboardLinks.jobs %>" class="quick-btn"><i class="bi bi-briefcase" style="color:#059669;"></i>Job</a>
+    <a href="<%= dashboardLinks.payments %>" class="quick-btn"><i class="bi bi-currency-dollar" style="color:#10b981;"></i>Payment</a>
+    <a href="<%= dashboardLinks.inventory %>" class="quick-btn"><i class="bi bi-box-seam" style="color:#ef4444;"></i>Inventory</a>
+    <% if (dashboardIsAdmin) { %>
+      <a href="<%= dashboardLinks.equipment %>" class="quick-btn"><i class="bi bi-arrow-return-left" style="color:#dc2626;"></i>Equipment Returns <span id="equipmentReturnsDashboardBadge" class="badge bg-danger" style="display:none"></span></a>
+      <a href="<%= dashboardLinks.cancellations %>" class="quick-btn"><i class="bi bi-journal-x" style="color:#dc2626;"></i>Cancellations</a>
+      <a href="<%= dashboardLinks.remittance %>" class="quick-btn"><i class="bi bi-bank" style="color:#d97706;"></i>Remittance</a>
+    <% } %>
+    <a href="<%= dashboardLinks.attendance %>" class="quick-btn"><i class="bi bi-person-check" style="color:#0891b2;"></i><%= dashboardIsAdmin ? "Attendance" : "My Attendance" %></a>
+    <a href="<%= dashboardLinks.staff %>" class="quick-btn"><i class="bi bi-people" style="color:#7c3aed;"></i>Staff</a>
+    <a href="<%= dashboardLinks.technicians %>" class="quick-btn"><i class="bi bi-wrench" style="color:#f59e0b;"></i>Technician</a>
+    <a href="<%= dashboardLinks.reports %>" class="quick-btn"><i class="bi bi-graph-up" style="color:#0891b2;"></i>Reports</a>
   </div>
 
   <!-- ═══ MAIN LAYOUT ═══ -->
@@ -1211,7 +1251,8 @@
     <!-- RIGHT COL -->
     <div class="col-xl-4 col-lg-5 d-flex flex-column gap-4">
 
-      <!-- Preparation Issues -->
+      <% if (dashboardIsAdmin) { %>
+      <!-- Preparation Issues (admin-only mutation workflow) -->
       <div class="dash-card" id="prepIssuesCard" style="cursor:pointer;">
         <div class="dash-card-header">
           <h6><i class="bi bi-exclamation-triangle me-1" style="color:#d97706;"></i>Preparation Issues</h6>
@@ -1221,6 +1262,7 @@
           <div class="dash-empty" style="color:#64748b;font-size:0.8rem;">No pending issues</div>
         </div>
       </div>
+      <% } %>
 
       <!-- Booking Pipeline -->
       <div class="dash-card" data-card-type="bookingPipeline" style="cursor:pointer;">
@@ -1319,7 +1361,7 @@
       <div class="dash-card" data-card-type="airconInventory" style="cursor:pointer;">
         <div class="dash-card-header">
           <h6><i class="bi bi-box-seam-fill me-1" style="color:#2563eb;"></i>Aircon Inventory</h6>
-          <a href="/admin/inventory" class="quick-btn quick-btn-sm">
+          <a href="<%= dashboardLinks.inventory %>" class="quick-btn quick-btn-sm">
             <i class="bi bi-box-arrow-up-right me-1"></i>Manage Inventory
           </a>
         </div>
@@ -1393,7 +1435,7 @@
       <div class="dash-card" data-card-type="topAirconProducts" style="cursor:pointer;">
         <div class="dash-card-header">
           <h6><i class="bi bi-grid-fill me-1" style="color:#2563eb;"></i>Top Aircon Products</h6>
-          <a href="/admin/inventory" class="quick-btn quick-btn-sm">
+          <a href="<%= dashboardLinks.inventory %>" class="quick-btn quick-btn-sm">
             <i class="bi bi-box-arrow-up-right me-1"></i>Manage Inventory
           </a>
         </div>
@@ -1427,10 +1469,12 @@
 </div>
 
 <!-- Scripts -->
+<script>window.RACSDashboardConfig = <%- JSON.stringify(dashboardClientConfig).replace(/</g, "\\u003c") %>;</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/admin-operations-dashboard.js"></script>
 <script src="/js/admin-dashboard.js"></script>
 
+<% if (dashboardIsAdmin) { %>
 <!-- Resolve Prep Issue Modal -->
 <div class="modal fade" id="resolvePrepIssueModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -1645,3 +1689,4 @@
   setInterval(loadPrepIssues, 30000);
 })();
 </script>
+<% } %>

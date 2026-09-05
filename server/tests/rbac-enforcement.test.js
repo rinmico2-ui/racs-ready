@@ -23,12 +23,18 @@ test("permission catalog is unique and contains governed staff workspace capabil
     "orders.manage",
     "attendance.self.manage",
     "payroll.self.view",
+    "payroll.view",
+    "payroll.manage",
     "assignments.self.manage",
     "remittances.self.manage",
   ]) {
     assert.ok(ALL_PERMISSION_KEYS.includes(permission), permission);
   }
   assert.ok(allowedPermissionsForRole("secretary").includes("inventory.manage"));
+  assert.ok(allowedPermissionsForRole("secretary").includes("staff.view"));
+  assert.ok(!allowedPermissionsForRole("secretary").includes("staff.manage"));
+  assert.ok(!allowedPermissionsForRole("secretary").includes("payroll.view"));
+  assert.ok(!allowedPermissionsForRole("secretary").includes("payroll.manage"));
   assert.ok(!allowedPermissionsForRole("secretary").includes("roles.manage"));
   assert.ok(allowedPermissionsForRole("technician").includes("assignments.self.manage"));
   assert.deepEqual(allowedPermissionsForRole("customer"), []);
@@ -55,7 +61,23 @@ test("request policy separates read access from management operations", () => {
     return requiredPermissionForRequest(req.user, req);
   };
   assert.equal(resolve("secretary", "GET", "/api/secretary/inventory"), "inventory.view");
+  assert.equal(resolve("secretary", "GET", "/secretary/staff"), "staff.view");
+  assert.equal(resolve("secretary", "GET", "/secretary/customers"), "customers.view");
+  assert.equal(resolve("secretary", "GET", "/secretary/technicians"), "technicians.view");
+  assert.equal(resolve("secretary", "GET", "/secretary/inventory/ordered-products"), "orders.view");
+  assert.equal(resolve("secretary", "GET", "/api/secretary/purchases"), "orders.view");
+  assert.equal(resolve("secretary", "GET", "/api/secretary/dashboard/operations"), "dashboard.view");
+  assert.equal(resolve("secretary", "PATCH", "/api/secretary/customers/123"), "customers.manage");
+  const blockRequest = request("secretary", "PATCH", "/api/secretary/customers/123");
+  blockRequest.body = { action: "block" };
+  assert.equal(requiredPermissionForRequest(blockRequest.user, blockRequest), "accounts.block");
   assert.equal(resolve("secretary", "PATCH", "/api/secretary/inventory/123"), "inventory.manage");
+  assert.equal(resolve("secretary", "GET", "/api/secretary/stock-adjustments"), "inventory.view");
+  assert.equal(resolve("secretary", "POST", "/secretary/pointofsale"), "orders.manage");
+  assert.equal(resolve("secretary", "GET", "/secretary/operations/resolution-center"), "appointments.view");
+  assert.equal(resolve("secretary", "POST", "/api/pos/checkout"), "orders.manage");
+  assert.equal(resolve("secretary", "GET", "/api/walk-in-aircon/products"), "orders.view");
+  assert.equal(resolve("secretary", "POST", "/api/walk-in-aircon/checkout"), "orders.manage");
   assert.equal(resolve("secretary", "POST", "/api/appointments/123/reschedule-approve"), "appointments.manage");
   assert.equal(resolve("technician", "GET", "/technician/expenses"), "expenses.self.manage");
   assert.equal(resolve("technician", "POST", "/api/technician/assignments/123/accept"), "assignments.self.manage");

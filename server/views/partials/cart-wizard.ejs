@@ -53,6 +53,8 @@
     white-space: nowrap;
     flex: 1;
     justify-content: center;
+    border: 0;
+    font-family: inherit;
   }
   .wizard-ps.active {
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
@@ -67,9 +69,31 @@
     background: #e2e8f0;
     color: #475569;
   }
+  .wizard-ps:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
   .wizard-ps-icon {
     font-size: 0.85rem;
     display: flex;
+  }
+  .wizard-progress-help {
+    margin: 0.55rem 0 0;
+    color: #64748b;
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-align: center;
+  }
+  .wizard-panel.wizard-needs-attention {
+    animation: wizardAttention 0.7s ease;
+  }
+  @keyframes wizardAttention {
+    0%, 100% { transform: translateX(0); }
+    30% { transform: translateX(-5px); }
+    60% { transform: translateX(5px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .wizard-panel.wizard-needs-attention { animation: none; }
   }
 
   .payment-method-card.selected {
@@ -777,23 +801,24 @@
           <span>Step <span id="wizardStepCurrent">1</span> of 4</span>
         </div>
         <div class="wizard-pt">
-          <div class="wizard-ps active" data-step="1" onclick="navigateWizardStep(1)">
-            <div class="wizard-ps-icon"><i class="bi bi-truck"></i></div>
+          <button type="button" class="wizard-ps active" data-step="1" aria-current="step" onclick="navigateWizardStep(1)">
+            <span class="wizard-ps-icon"><i class="bi bi-truck"></i></span>
             <span>Receive Order</span>
-          </div>
-          <div class="wizard-ps" data-step="2" onclick="navigateWizardStep(2)">
-            <div class="wizard-ps-icon"><i class="bi bi-calendar-check"></i></div>
+          </button>
+          <button type="button" class="wizard-ps" data-step="2" onclick="navigateWizardStep(2)">
+            <span class="wizard-ps-icon"><i class="bi bi-calendar-check"></i></span>
             <span>Schedule</span>
-          </div>
-          <div class="wizard-ps" data-step="3" onclick="navigateWizardStep(3)">
-            <div class="wizard-ps-icon"><i class="bi bi-credit-card"></i></div>
+          </button>
+          <button type="button" class="wizard-ps" data-step="3" onclick="navigateWizardStep(3)">
+            <span class="wizard-ps-icon"><i class="bi bi-credit-card"></i></span>
             <span>Payment</span>
-          </div>
-          <div class="wizard-ps" data-step="4" onclick="navigateWizardStep(4)">
-            <div class="wizard-ps-icon"><i class="bi bi-receipt"></i></div>
+          </button>
+          <button type="button" class="wizard-ps" data-step="4" onclick="navigateWizardStep(4)">
+            <span class="wizard-ps-icon"><i class="bi bi-receipt"></i></span>
             <span>Confirm</span>
-          </div>
+          </button>
         </div>
+        <p class="wizard-progress-help"><i class="bi bi-info-circle me-1"></i>Complete each step in order. Completed steps remain available for review.</p>
       </div>
 
       <div class="modal-header border-0 pb-0 px-4 pt-3">
@@ -817,7 +842,9 @@
           <div class="row g-3 px-md-3 justify-content-center">
             <div class="col-md-5">
               <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
-                data-fulfill="delivery_installation" onclick="selectFulfillment('delivery_installation')">
+                data-fulfill="delivery_installation" role="button" tabindex="0" aria-pressed="false"
+                onclick="selectFulfillment('delivery_installation')"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectFulfillment('delivery_installation')}">
                 <div class="fulfill-icon"
                   style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb; border: 2px solid #fff; transition: all 0.3s;">
                   <i class="bi bi-tools fs-2"></i></div>
@@ -827,7 +854,9 @@
             </div>
             <div class="col-md-5">
               <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
-                data-fulfill="customer_pickup" onclick="selectFulfillment('customer_pickup')">
+                data-fulfill="customer_pickup" role="button" tabindex="0" aria-pressed="false"
+                onclick="selectFulfillment('customer_pickup')"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectFulfillment('customer_pickup')}">
                 <div class="fulfill-icon"
                   style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a; border: 2px solid #fff; transition: all 0.3s;">
                   <i class="bi bi-shop fs-2"></i></div>
@@ -1132,16 +1161,16 @@
       </div>
 
       <div class="modal-footer d-flex justify-content-between border-0 px-4 pb-4 pt-3">
-        <button class="btn btn-sm" id="wizardBackBtn" onclick="wizardBack()"
+        <button type="button" class="btn btn-sm" id="wizardBackBtn" onclick="wizardBack()"
           style="border-radius: 8px; padding: 0.5rem 1.25rem; color: #64748b; font-weight: 600; display: none; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.82rem; transition: all 0.2s;"
           onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
           <i class="bi bi-arrow-left me-1"></i>Back
         </button>
         <div class="ms-auto d-flex gap-2">
-          <button class="btn btn-sm" data-bs-dismiss="modal"
+          <button type="button" class="btn btn-sm" data-bs-dismiss="modal"
             style="border-radius: 8px; padding: 0.5rem 1.25rem; font-weight: 600; color: #64748b; background: #fff; border: 1.5px solid #e2e8f0; font-size: 0.82rem; transition: all 0.2s;"
             onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">Cancel</button>
-          <button class="btn btn-sm px-4" id="wizardNextBtn" onclick="wizardNext()"
+          <button type="button" class="btn btn-sm px-4" id="wizardNextBtn" onclick="wizardNext()"
             style="border-radius: 8px; padding: 0.55rem 1.75rem; font-weight: 600; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.25);"
             onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'">
             Next Step <i class="bi bi-arrow-right ms-2"></i>
@@ -1201,6 +1230,7 @@
 
     let currentStep = 1;
     let selectedFulfillment = null;
+    let renderedPaymentFulfillment = null;
     let leafletMap = null;
     let leafletMarker = null;
     let fpDateDelivery = null;
@@ -1232,12 +1262,16 @@
       return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
     }
 
-    function validateReceiptFile(file, notify = false) {
+    function receiptValidationMessage(file) {
       const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-      let message = '';
-      if (!file) message = 'Please upload your GCash receipt screenshot.';
-      else if (!allowedTypes.has(String(file.type || '').toLowerCase())) message = 'Receipt must be a JPG, PNG, or WEBP image.';
-      else if (file.size > 5 * 1024 * 1024) message = 'Receipt image must be 5 MB or smaller.';
+      if (!file) return 'Please upload your GCash receipt screenshot.';
+      if (!allowedTypes.has(String(file.type || '').toLowerCase())) return 'Receipt must be a JPG, PNG, or WEBP image.';
+      if (file.size > 5 * 1024 * 1024) return 'Receipt image must be 5 MB or smaller.';
+      return '';
+    }
+
+    function validateReceiptFile(file, notify = false) {
+      const message = receiptValidationMessage(file);
       if (message && notify) Swal.fire('Invalid receipt', message, 'warning');
       return !message;
     }
@@ -1297,10 +1331,18 @@
 
       currentStep = 1;
       selectedFulfillment = null;
+      renderedPaymentFulfillment = null;
+      document.getElementById('wizardPaymentMethod').value = '';
+      document.getElementById('paymentOptionsContainer').innerHTML = '';
+      const receiptInput = document.getElementById('gcashProofWizard');
+      if (receiptInput) receiptInput.value = '';
       if (!_checkoutRequestId) _checkoutRequestId = createCheckoutRequestId();
 
       // Reset status badges
-      document.querySelectorAll('.fulfill-card').forEach(c => c.classList.remove('selected'));
+      document.querySelectorAll('.fulfill-card').forEach(c => {
+        c.classList.remove('selected');
+        c.setAttribute('aria-pressed', 'false');
+      });
 
       updateWizardUI();
 
@@ -1366,6 +1408,7 @@
       selectedFulfillment = type;
       document.querySelectorAll('.fulfill-card').forEach(c => {
         c.classList.toggle('selected', c.dataset.fulfill === type);
+        c.setAttribute('aria-pressed', c.dataset.fulfill === type ? 'true' : 'false');
       });
       if (checkoutCalendar) {
         checkoutCalendar.setFulfillmentType(type);
@@ -1374,91 +1417,201 @@
       }
     };
 
-    window.wizardNext = async function () {
-      if (currentStep === 1 && !selectedFulfillment) {
-        Swal.fire('Attention', 'Please choose a fulfillment option.', 'warning');
-        return;
+    function getCheckoutStepIssue(step) {
+      if (step === 1 && !selectedFulfillment) {
+        return {
+          step: 1,
+          title: 'Choose How to Receive Your Order',
+          message: 'Select Delivery + Installation or Customer Pickup before continuing.',
+          confirmButtonText: 'Choose Fulfillment',
+          focusSelector: '.fulfill-card'
+        };
       }
-      if (currentStep === 2) {
-        if (selectedFulfillment !== 'customer_pickup') {
-          const addr = document.getElementById('wizardAddress').value.trim();
-          const contact = document.getElementById('wizardContact').value.trim();
-          const date = document.getElementById('wizardDate').value;
-          const lat = parseFloat(document.getElementById('wizardLat').value);
-          const lng = parseFloat(document.getElementById('wizardLng').value);
-          if (!addr) { Swal.fire('Attention', 'Please enter your delivery address.', 'warning'); return; }
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) { Swal.fire('Pin your delivery location', 'Select an address suggestion, use My Location, or click the exact delivery point on the map.', 'warning'); return; }
-          if (!contact) { Swal.fire('Attention', 'Please enter your contact number.', 'warning'); return; }
-          if (!date) { Swal.fire('Attention', 'Please select a delivery date.', 'warning'); return; }
-          if (_routeQuotePending) {
-            try { await _routeQuotePending; } catch (_) {}
-          }
-          if (_routeQuoteError || !Number.isFinite(_routeDistanceKm) || _routeDistanceKm < 0) {
-            Swal.fire('Delivery quote unavailable', _routeQuoteError || 'Select the delivery pin again so we can calculate the authoritative route and fee.', 'error');
-            return;
-          }
-        } else {
-          const pickupDate = document.getElementById('wizardPickupDate').value;
-          if (!pickupDate) { Swal.fire('Attention', 'Please select a pickup date.', 'warning'); return; }
+
+      if (step === 2 && selectedFulfillment === 'customer_pickup') {
+        if (!document.getElementById('wizardPickupDate').value.trim()) {
+          return {
+            step: 2,
+            title: 'Choose a Pickup Date',
+            message: 'Select an available store pickup date before choosing payment.',
+            confirmButtonText: 'Choose Pickup Date',
+            focusSelector: '#wizardPickupDate'
+          };
         }
       }
-      if (currentStep === 3) {
-         const payMethod = document.getElementById('wizardPaymentMethod').value;
-         if (!payMethod) { Swal.fire('Attention', 'Please choose a payment method.', 'warning'); return; }
-          // Validate GCash fields when GCash method is selected
-          if (payMethod === 'gcash_full' || payMethod === 'cod') {
-            const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
-            if (!validateReceiptFile(gcashFile, true)) return;
-          }
+
+      if (step === 2 && selectedFulfillment !== 'customer_pickup') {
+        const contact = document.getElementById('wizardContact').value.trim();
+        const contactDigits = contact.replace(/\D/g, '');
+        const address = document.getElementById('wizardAddress').value.trim();
+        const date = document.getElementById('wizardDate').value;
+        const timeSlot = document.getElementById('wizardTimeSlot').value;
+        const lat = Number(document.getElementById('wizardLat').value);
+        const lng = Number(document.getElementById('wizardLng').value);
+
+        if (!contact || !/^[+\d().\-\s]+$/.test(contact) || contactDigits.length < 7 || contactDigits.length > 15) {
+          return {
+            step: 2,
+            title: 'Enter a Valid Contact Number',
+            message: 'Provide a phone number with 7 to 15 digits so the delivery team can reach you.',
+            confirmButtonText: 'Enter Contact Number',
+            focusSelector: '#wizardContact'
+          };
+        }
+        if (!address) {
+          return {
+            step: 2,
+            title: 'Enter Your Delivery Address',
+            message: 'Provide the complete delivery and installation address.',
+            confirmButtonText: 'Enter Address',
+            focusSelector: '#wizardAddress'
+          };
+        }
+        if (!_customerLocationSelected || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return {
+            step: 2,
+            title: 'Confirm the Delivery Location',
+            message: 'Choose an address suggestion, use My Location, or pin the exact delivery point on the map.',
+            confirmButtonText: 'Set Map Location',
+            focusSelector: '#checkoutMapCard'
+          };
+        }
+        if (!date) {
+          return {
+            step: 2,
+            title: 'Choose a Delivery Date',
+            message: 'Select an available delivery and installation date.',
+            confirmButtonText: 'Choose Date',
+            focusSelector: '#checkoutCalendarContainer'
+          };
+        }
+        if (!timeSlot) {
+          return {
+            step: 2,
+            title: 'Choose a Delivery Time',
+            message: 'Select an available time slot before choosing payment.',
+            confirmButtonText: 'Choose Time',
+            focusSelector: '#checkoutCalendarContainer'
+          };
+        }
+        if (_routeQuoteError || !Number.isFinite(_routeDistanceKm) || _routeDistanceKm < 0) {
+          return {
+            step: 2,
+            title: 'Delivery Quote Unavailable',
+            message: _routeQuoteError || 'Select the delivery pin again so the route and delivery fee can be calculated.',
+            confirmButtonText: 'Review Delivery Route',
+            focusSelector: '#checkoutMapCard'
+          };
+        }
       }
+
+      if (step === 3) {
+        const paymentMethod = document.getElementById('wizardPaymentMethod').value;
+        if (!paymentMethod) {
+          return {
+            step: 3,
+            title: 'Choose a Payment Method',
+            message: 'Select how you want to pay before reviewing the order.',
+            confirmButtonText: 'Choose Payment',
+            focusSelector: '.payment-method-card'
+          };
+        }
+        if (paymentMethod === 'gcash_full' || paymentMethod === 'cod') {
+          const receiptMessage = receiptValidationMessage(document.getElementById('gcashProofWizard')?.files[0]);
+          if (receiptMessage) {
+            return {
+              step: 3,
+              title: 'Upload a Valid GCash Receipt',
+              message: receiptMessage,
+              confirmButtonText: 'Upload Receipt',
+              focusSelector: '#gcashProofWizard'
+            };
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function enterWizardStep(step) {
+      currentStep = step;
+
+      if (step === 2) {
+        const isDelivery = selectedFulfillment !== 'customer_pickup';
+        document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
+        document.getElementById('pickupFields').style.display = isDelivery ? 'none' : 'block';
+        if (isDelivery) setTimeout(() => initMap(), 500);
+      }
+      if (step === 3) {
+        const paymentOptions = document.getElementById('paymentOptionsContainer');
+        if (!paymentOptions.children.length || renderedPaymentFulfillment !== selectedFulfillment) renderPaymentOptions();
+        updateNextButtonState();
+      }
+      if (step === 4) populateReview();
+      updateWizardUI();
+    }
+
+    function focusCheckoutRequirement(issue) {
+      const panel = document.getElementById(`wizardStep${issue.step}`);
+      if (panel) {
+        panel.classList.add('wizard-needs-attention');
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setTimeout(() => panel.classList.remove('wizard-needs-attention'), 1800);
+      }
+      const focusTarget = document.querySelector(issue.focusSelector || '');
+      if (!focusTarget) return;
+      if (!focusTarget.matches('button, a, input, select, textarea, [tabindex]')) focusTarget.setAttribute('tabindex', '-1');
+      setTimeout(() => focusTarget.focus({ preventScroll: true }), 200);
+    }
+
+    async function presentCheckoutStepIssue(issue) {
+      if (currentStep !== issue.step) enterWizardStep(issue.step);
+      await Swal.fire({
+        icon: 'warning',
+        title: issue.title,
+        text: issue.message,
+        confirmButtonText: issue.confirmButtonText,
+        allowOutsideClick: false,
+        focusConfirm: true
+      });
+      focusCheckoutRequirement(issue);
+    }
+
+    async function validateCheckoutStep(step) {
+      if (step === 2 && selectedFulfillment !== 'customer_pickup' && _routeQuotePending) {
+        try { await _routeQuotePending; } catch (_) {}
+      }
+      const issue = getCheckoutStepIssue(step);
+      if (!issue) return true;
+      await presentCheckoutStepIssue(issue);
+      return false;
+    }
+
+    window.wizardNext = async function () {
+      if (!(await validateCheckoutStep(currentStep))) return;
       if (currentStep === 4) {
         submitCartOrder();
         return;
       }
-
-      currentStep++;
-
-      if (currentStep === 2) {
-        const isDelivery = selectedFulfillment !== 'customer_pickup';
-        document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
-        document.getElementById('pickupFields').style.display = isDelivery ? 'none' : 'block';
-        if (isDelivery) { setTimeout(() => initMap(), 500); }
-      }
-
-      if (currentStep === 3) {
-        renderPaymentOptions();
-        updateNextButtonState();
-      }
-
-      if (currentStep === 4) { populateReview(); }
-      updateWizardUI();
+      enterWizardStep(currentStep + 1);
     };
 
     window.wizardBack = function () {
       if (currentStep <= 1) return;
-      currentStep--;
-      updateWizardUI();
+      enterWizardStep(currentStep - 1);
     };
 
-    window.navigateWizardStep = function (step) {
-      if (step < 1 || step > 4) return;
-      if (step > currentStep) {
-        var canProceed = true;
-        if (currentStep === 1 && !selectedFulfillment) canProceed = false;
-        if (currentStep === 2 && !validateStep2()) canProceed = false;
-        if (currentStep === 3 && !document.getElementById('wizardPaymentMethod').value) canProceed = false;
-        if (!canProceed) { Swal.fire('Incomplete', 'Please complete the current step first.', 'info'); return; }
+    window.navigateWizardStep = async function (step) {
+      if (!Number.isInteger(step) || step < 1 || step > 4 || step === currentStep) return;
+      if (step < currentStep) {
+        enterWizardStep(step);
+        return;
       }
-      currentStep = step;
-      updateWizardUI();
+      for (let prerequisiteStep = 1; prerequisiteStep < step; prerequisiteStep += 1) {
+        if (!(await validateCheckoutStep(prerequisiteStep))) return;
+      }
+      enterWizardStep(step);
     };
-
-    function validateStep2() {
-      if (selectedFulfillment === 'customer_pickup') {
-        return document.getElementById('wizardPickupDate').value.trim() !== '';
-      }
-      return document.getElementById('wizardAddress').value.trim() !== '' && document.getElementById('wizardDate').value !== '';
-    }
 
     function updateWizardUI() {
       for (let i = 1; i <= 4; i++) {
@@ -1471,8 +1624,13 @@
       document.querySelectorAll('.wizard-ps').forEach(p => {
         const step = parseInt(p.dataset.step);
         p.classList.remove('active', 'completed');
-        if (step === currentStep) p.classList.add('active');
-        else if (step < currentStep) p.classList.add('completed');
+        p.removeAttribute('aria-current');
+        if (step === currentStep) {
+          p.classList.add('active');
+          p.setAttribute('aria-current', 'step');
+        } else if (step < currentStep) {
+          p.classList.add('completed');
+        }
       });
 
       document.getElementById('wizardBackBtn').style.display = currentStep > 1 ? 'inline-flex' : 'none';
@@ -1577,9 +1735,9 @@
       if (needsProof) {
         const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
         const hasValidProof = !!gcashFile && validateReceiptFile(gcashFile, false);
-        nextBtn.disabled = !hasValidProof;
-        nextBtn.style.opacity = hasValidProof ? '1' : '0.5';
-        nextBtn.style.cursor = hasValidProof ? 'pointer' : 'not-allowed';
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1';
+        nextBtn.style.cursor = 'pointer';
         const warning = document.getElementById('gcashProofWarning');
         if (warning) warning.classList.toggle('d-none', hasValidProof);
       } else {
@@ -1592,6 +1750,7 @@
     function renderPaymentOptions() {
       const container = document.getElementById('paymentOptionsContainer');
       document.getElementById('wizardPaymentMethod').value = '';
+      renderedPaymentFulfillment = selectedFulfillment;
 
       const paymentCardStyle = `
         border: 2px solid #e2e8f0;

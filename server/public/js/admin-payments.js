@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", function () {
   const page = document.querySelector(".payments-page");
   if (!page) return;
+  const paymentsApiBase = (window.RACSPaymentsConfig && window.RACSPaymentsConfig.apiBase) || "/api/admin/payments";
+  const paymentsCanManage = !window.RACSPaymentsConfig || window.RACSPaymentsConfig.canManage !== false;
   // move modal element to body to avoid z-index/overflow issues
   const dm = document.getElementById("paymentDetailsModal");
   if (dm && dm.parentElement !== document.body) {
@@ -196,7 +198,7 @@ document.addEventListener("DOMContentLoaded", function () {
   let currentPaymentId = null;
 
   async function changePaymentStatus(paymentId, newStatus) {
-    if (!paymentId) return false;
+    if (!paymentId || !paymentsCanManage) return false;
     let body = { status: newStatus };
     // when failing, ask admin for reason and include it as notes
     if (newStatus === "failed") {
@@ -206,7 +208,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
     try {
-      const resp = await fetch(`/api/admin/payments/${encodeURIComponent(paymentId)}`, {
+      const resp = await fetch(`${paymentsApiBase}/${encodeURIComponent(paymentId)}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -251,17 +253,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const configureButtons = (paid, method, currentStatus) => {
       if (detailsVerifyBtn) {
         detailsVerifyBtn.textContent = "Mark Paid";
-        detailsVerifyBtn.style.display = paid ? "none" : "inline-block";
+        detailsVerifyBtn.style.display = paid || !paymentsCanManage ? "none" : "inline-block";
         detailsVerifyBtn.onclick = () => changePaymentStatus(paymentId, "paid");
       }
       if (detailsFailBtn) {
-        detailsFailBtn.style.display = paid ? "none" : "inline-block";
+        detailsFailBtn.style.display = paid || !paymentsCanManage ? "none" : "inline-block";
         detailsFailBtn.onclick = () => changePaymentStatus(paymentId, "failed");
       }
       if (detailsPartialBtn) {
         const isCash = method === "cod" || method === "cash";
         const alreadyPartial = String(currentStatus || "").toLowerCase() === "partial";
-        detailsPartialBtn.style.display = !paid && isCash && !alreadyPartial ? "inline-block" : "none";
+        detailsPartialBtn.style.display = paymentsCanManage && !paid && isCash && !alreadyPartial ? "inline-block" : "none";
         detailsPartialBtn.onclick = () => changePaymentStatus(paymentId, "partial");
       }
       if (detailsCompleteBtn) {
@@ -271,7 +273,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // temporarily hide until we know current state
     configureButtons(true, null, null);
     try {
-      const res = await fetch(`/api/admin/payments/${encodeURIComponent(paymentId)}`, {
+      const res = await fetch(`${paymentsApiBase}/${encodeURIComponent(paymentId)}`, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });
@@ -639,7 +641,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const res = await fetch("/api/admin/payments", {
+      const res = await fetch(paymentsApiBase, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });

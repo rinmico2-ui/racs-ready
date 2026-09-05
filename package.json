@@ -25,6 +25,7 @@
     "test:security": "node --test server/tests/apiSecurity.test.js",
     "test:maintenance": "node --test server/tests/maintenance.test.js",
     "test:ai-technician": "node --test server/tests/ai-technician-assistant.test.js",
+    "audit:revenue": "node server/scripts/auditRevenueAnalytics.js",
     "test": "node server/tests/run-all.js"
   },
   "keywords": [],

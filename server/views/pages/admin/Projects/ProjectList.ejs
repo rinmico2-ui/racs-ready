@@ -813,6 +813,7 @@
 (async function() {
   const qs = (s) => document.querySelector(s);
   const qsa = (s) => [...document.querySelectorAll(s)];
+  const PROJECT_WORKSPACE_BASE = <%- JSON.stringify(typeof projectWorkspaceBase === 'string' ? projectWorkspaceBase : '/admin/projects').replace(/</g, '\\u003c') %>;
 
   function spark(ctx, data, color) {
     if (!ctx || !window.Chart) return null;
@@ -1015,7 +1016,7 @@
       const hc = healthConfig[health.code] || healthConfig.unscheduled;
 
       gridHtml += `
-        <a href="/admin/projects/${p._id}" class="pl-card ${hc.cardCls}">
+        <a href="${PROJECT_WORKSPACE_BASE}/${p._id}" class="pl-card ${hc.cardCls}">
           <div class="pl-card-inner">
             <div class="pl-card-top">
               <div>
@@ -1075,7 +1076,7 @@
       const hc = healthConfig[health.code] || healthConfig.unscheduled;
 
       tableHtml += `
-        <tr onclick="window.location='/admin/projects/${p._id}'">
+        <tr onclick="window.location=PROJECT_WORKSPACE_BASE+'/${p._id}'">
           <td>
             <div class="customer-cell">${escapeHtml(p.customer?.name || 'Unknown')}</div>
             ${isRepair ? '<span class="pl-card-repair-badge" style="margin-top:2px;"><i class="bi bi-tools"></i> Repair</span>' : ''}

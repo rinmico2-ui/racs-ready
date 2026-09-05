@@ -1,102 +1,237 @@
-<div class="admin-dashboard container-fluid py-4">
+<%
+  const resolvedServiceCategoriesApiBase = typeof serviceCategoriesApiBase === "string" ? serviceCategoriesApiBase : "/api/admin/service-categories";
+  const resolvedServiceCategoriesCorePath = typeof serviceCategoriesCorePath === "string" ? serviceCategoriesCorePath : "/admin/services/core";
+  const resolvedServiceCategoriesCanManage = typeof serviceCategoriesCanManage === "boolean" ? serviceCategoriesCanManage : true;
+%>
+<div class="admin-dashboard container-fluid py-4 service-categories-page">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
-    .sc-table{width:100%;border-collapse:separate;border-spacing:0}
-    .sc-table th{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;padding:10px 16px;border-bottom:2px solid #e2e8f0;background:#f8fafc}
-    .sc-table td{padding:12px 16px;border-bottom:1px solid #edf2f7;vertical-align:middle}
-    .sc-table tr:hover td{background:#f8fafc}
-    .sc-icon-badge{width:38px;height:38px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;color:#fff;flex-shrink:0}
+    .service-categories-page{max-width:1600px;margin:0 auto;color:#172033}
+    .sc-hero{position:relative;overflow:hidden;padding:24px 26px;border:1px solid rgba(37,99,235,.16);border-radius:16px;background:linear-gradient(118deg,#0f2a4a 0%,#174477 67%,#2563eb 145%);box-shadow:0 16px 40px rgba(15,42,74,.16)}
+    .sc-hero::after{content:"";position:absolute;right:-70px;top:-110px;width:260px;height:260px;border-radius:50%;border:48px solid rgba(255,255,255,.055)}
+    .sc-hero-inner{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:22px}
+    .sc-hero-copy{display:flex;align-items:center;gap:16px;min-width:0}
+    .sc-hero-icon{width:50px;height:50px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border:1px solid rgba(255,255,255,.18);border-radius:14px;background:rgba(255,255,255,.12);color:#fff;font-size:1.25rem;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+    .sc-eyebrow{display:block;margin-bottom:3px;color:#bfdbfe;font-size:.65rem;font-weight:750;letter-spacing:.12em;text-transform:uppercase}
+    .sc-hero h1{margin:0;color:#fff;font-family:'Outfit','Inter',sans-serif;font-size:1.48rem;font-weight:750;letter-spacing:-.02em}
+    .sc-hero p{max-width:680px;margin:5px 0 0;color:#dbeafe;font-size:.82rem;line-height:1.55}
+    .sc-hero-actions{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+    .sc-hero-btn{min-height:39px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 13px;border:1px solid rgba(255,255,255,.3);border-radius:9px;background:rgba(255,255,255,.1);color:#fff;text-decoration:none;font-size:.76rem;font-weight:650;transition:all .16s ease}
+    .sc-hero-btn:hover{background:rgba(255,255,255,.18);color:#fff;transform:translateY(-1px)}
+    .sc-hero-btn.primary{border-color:#fff;background:#fff;color:#174477;box-shadow:0 6px 16px rgba(15,23,42,.15)}
+    .sc-hero-btn.primary:hover{background:#eff6ff;color:#1d4ed8}
+    .sc-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}
+    .sc-kpi{position:relative;overflow:hidden;display:flex;align-items:center;gap:13px;min-height:96px;padding:16px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.045)}
+    .sc-kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--sc-accent,#2563eb)}
+    .sc-kpi-icon{width:42px;height:42px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:11px;background:var(--sc-tint,#eff6ff);color:var(--sc-accent,#2563eb);font-size:1.05rem}
+    .sc-kpi-value{color:#0f172a;font-family:'Outfit','Inter',sans-serif;font-size:1.38rem;font-weight:750;line-height:1}
+    .sc-kpi-label{margin-top:5px;color:#526077;font-size:.72rem;font-weight:650}
+    .sc-kpi-note{margin-top:2px;color:#94a3b8;font-size:.62rem}
+    .service-categories-page .dash-card{overflow:hidden;border:1px solid #dfe6ef;border-radius:14px;box-shadow:0 8px 26px rgba(15,23,42,.055);background:#fff}
+    .sc-toolbar{padding:17px 20px;border-bottom:1px solid #e8edf4;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:#fff}
+    .sc-toolbar-heading{display:flex;align-items:center;gap:11px}
+    .sc-toolbar-mark{width:35px;height:35px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:#eff6ff;color:#2563eb}
+    .sc-toolbar-title{margin:0;font-size:.9rem;font-weight:750;color:#172033}
+    .sc-toolbar-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+    .sc-search{position:relative;min-width:280px}
+    .sc-search i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none}
+    .sc-search input{min-height:39px;padding-left:36px;border-radius:9px;border-color:#d7e0eb;background:#fbfdff;font-size:.78rem}
+    .sc-search input:focus,.sc-filter:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1);background:#fff}
+    .sc-filter{width:145px;min-height:39px;border-radius:9px;border-color:#d7e0eb;background-color:#fbfdff;font-size:.78rem}
+    .sc-table-wrap{overflow:auto;min-height:230px}
+    .sc-table{width:100%;min-width:940px;border-collapse:separate;border-spacing:0}
+    .sc-table th{position:sticky;top:0;z-index:2;font-size:.64rem;font-weight:750;text-transform:uppercase;letter-spacing:.07em;color:#718096;padding:11px 16px;border-bottom:1px solid #dfe6ef;background:#f8fafc;white-space:nowrap}
+    .sc-table td{padding:15px 16px;border-bottom:1px solid #edf2f7;vertical-align:middle;font-size:.8rem}
+    .sc-table tbody tr{transition:background .16s ease,box-shadow .16s ease}
+    .sc-table tbody tr:last-child td{border-bottom:0}
+    .sc-table tbody tr[data-id]:hover td{background:#f8fbff}
+    .sc-row-number{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#f1f5f9;color:#64748b;font-size:.68rem;font-weight:750}
+    .sc-category-cell{display:flex;align-items:center;gap:11px;min-width:190px}
+    .sc-category-name{font-size:.82rem;font-weight:750;color:#1e293b;line-height:1.3}
+    .sc-category-meta{display:flex;align-items:center;gap:6px;margin-top:4px;color:#94a3b8;font-size:.64rem}
+    .sc-icon-badge{width:40px;height:40px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;color:#fff;flex-shrink:0;box-shadow:0 5px 12px rgba(15,23,42,.12)}
     .sc-icon-badge.blue{background:linear-gradient(135deg,#2563eb,#1d4ed8)}
     .sc-icon-badge.amber{background:linear-gradient(135deg,#f59e0b,#d97706)}
     .sc-icon-badge.violet{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
     .sc-icon-badge.green{background:linear-gradient(135deg,#10b981,#059669)}
     .sc-icon-badge.red{background:linear-gradient(135deg,#ef4444,#dc2626)}
     .sc-icon-badge.cyan{background:linear-gradient(135deg,#06b6d4,#0891b2)}
-    .sc-unit-chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:3px 10px;border-radius:999px;background:#f1f5f9;color:#475569;margin:2px}
+    .sc-slug{display:inline-flex;align-items:center;padding:4px 8px;border:1px solid #dbe5f0;border-radius:6px;background:#f8fafc;color:#475569;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.69rem}
+    .sc-unit-list{display:flex;flex-wrap:wrap;gap:5px;max-width:560px}
+    .sc-unit-chip{display:inline-flex;align-items:center;gap:5px;font-size:.67rem;font-weight:620;padding:4px 8px;border-radius:7px;background:#f5f8fc;color:#475569;border:1px solid #e1e8f0;white-space:nowrap}
     .sc-unit-chip i{font-size:.65rem}
-    .sc-badge{font-size:.62rem;font-weight:700;padding:3px 8px;border-radius:999px}
-    .sc-badge.active{background:#ecfdf5;color:#059669}
-    .sc-badge.inactive{background:#fef2f2;color:#dc2626}
+    .sc-badge{display:inline-flex;align-items:center;gap:5px;font-size:.61rem;font-weight:750;padding:4px 8px;border-radius:999px;white-space:nowrap}
+    .sc-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+    .sc-badge.active{background:#ecfdf5;color:#047857}
+    .sc-badge.inactive{background:#fef2f2;color:#b91c1c}
     .sc-badge.custom{background:#eff6ff;color:#2563eb}
-    .sc-add-btn{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;padding:6px 14px;border-radius:8px;border:2px dashed #cbd5e1;background:#fff;color:#475569;cursor:pointer;transition:all .2s}
-    .sc-add-btn:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
-    .sc-modal .modal-content{border-radius:16px;border:none}
-    .sc-modal .modal-header{border-bottom:1px solid #edf2f7;padding:18px 24px}
-    .sc-modal .modal-body{padding:20px 24px}
+    .sc-add-btn{min-height:39px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:.76rem;font-weight:650;padding:7px 13px;border-radius:9px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer;transition:all .2s}
+    .sc-add-btn:hover{border-color:#1d4ed8;color:#fff;background:#1d4ed8;box-shadow:0 5px 12px rgba(37,99,235,.18);transform:translateY(-1px)}
+    .sc-readonly{font-size:.7rem;font-weight:700;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#64748b;display:inline-flex;align-items:center;gap:5px}
+    .sc-result-count{font-size:.72rem;color:#64748b;white-space:nowrap}
+    .sc-empty{padding:48px 24px!important;text-align:center;color:#94a3b8}
+    .sc-empty i{font-size:2rem;display:block;margin-bottom:8px;color:#cbd5e1}
+    .sc-actions{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
+    .sc-action-btn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#526077;transition:all .15s ease}
+    .sc-action-btn:hover{border-color:#93b4f5;background:#eff6ff;color:#1d4ed8;transform:translateY(-1px)}
+    .sc-action-btn.danger:hover{border-color:#fecaca;background:#fef2f2;color:#dc2626}
+    .sc-action-btn.success:hover{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+    .sc-modal .modal-content{overflow:hidden;border:1px solid #dbe3ee;border-radius:16px;box-shadow:0 28px 72px rgba(15,23,42,.22)}
+    .sc-modal .modal-header{border:0;padding:18px 22px;background:linear-gradient(135deg,#0f2a4a,#174477)}
+    .sc-modal .modal-title{color:#fff;font-family:'Outfit','Inter',sans-serif;font-size:1rem;font-weight:700}
+    .sc-modal .btn-close{filter:invert(1) grayscale(1) brightness(2)}
+    .sc-modal .modal-body{padding:22px 24px;background:#fff}
+    .sc-form-section{padding:16px;border:1px solid #e3eaf2;border-radius:11px;background:#fbfdff}
+    .sc-form-section-title{display:flex;align-items:center;gap:8px;margin-bottom:3px;color:#1e293b;font-size:.79rem;font-weight:750}
+    .sc-form-section-title i{color:#2563eb}
+    .sc-form-section-note{margin:0 0 14px;color:#7b8799;font-size:.68rem;line-height:1.5}
     .sc-form-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:6px}
-    .sc-form-control{border-radius:10px;border-color:#e2e8f0;font-size:.85rem}
+    .sc-form-control{min-height:41px;border-radius:9px;border-color:#d7e0eb;font-size:.82rem;background:#fff}
     .sc-form-control:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
-    .sc-unit-row{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:6px}
+    .sc-help{display:block;margin-top:5px;color:#94a3b8;font-size:.64rem;line-height:1.4}
+    .sc-custom-toggle{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid #dbe5f0;border-radius:9px;background:#fff;cursor:pointer}
+    .sc-custom-toggle input{margin-top:3px}
+    .sc-custom-toggle strong{display:block;color:#334155;font-size:.76rem}
+    .sc-custom-toggle span{display:block;margin-top:2px;color:#7b8799;font-size:.66rem;line-height:1.4}
+    .sc-unit-headings{display:grid;grid-template-columns:1fr 1fr 130px 34px;gap:8px;padding:0 12px 6px;color:#94a3b8;font-size:.6rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}
+    .sc-unit-row{display:grid;grid-template-columns:1fr 1fr 130px 34px;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:7px}
     .sc-unit-row input{flex:1}
     .sc-unit-row .btn{flex-shrink:0}
-    .icon-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:200px;overflow-y:auto;padding:8px}
-    .icon-option{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;border:2px solid #e2e8f0;cursor:pointer;font-size:1rem;color:#475569;transition:all .15s}
-    .icon-option:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
-    .icon-option.selected{border-color:#2563eb;background:#2563eb;color:#fff}
+    .sc-modal .modal-footer{border-top:1px solid #e3eaf2!important;padding:14px 22px!important;background:#f8fafc}
+    .sc-modal .modal-footer .btn{min-height:38px;padding:7px 15px!important;border-radius:8px!important;font-size:.76rem;font-weight:650}
+    @media(max-width:991px){
+      .sc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .sc-hero-inner{align-items:flex-start}
+    }
+    @media(max-width:767px){
+      .service-categories-page{padding-left:0!important;padding-right:0!important}
+      .sc-hero{padding:20px 17px;border-radius:13px}
+      .sc-hero-inner,.sc-hero-copy{align-items:flex-start}
+      .sc-hero-inner{flex-direction:column}
+      .sc-hero-icon{width:42px;height:42px;border-radius:11px}
+      .sc-hero h1{font-size:1.18rem}
+      .sc-hero-actions{width:100%}
+      .sc-hero-btn{flex:1}
+      .sc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+      .sc-kpi{min-height:84px;padding:13px 11px;gap:10px}
+      .sc-kpi-icon{width:36px;height:36px}
+      .sc-kpi-value{font-size:1.18rem}
+      .sc-kpi-note{display:none}
+      .sc-toolbar{align-items:stretch;padding:14px}
+      .sc-toolbar-controls,.sc-search{width:100%;min-width:0}
+      .sc-filter{flex:1;width:auto}
+      .sc-add-btn{justify-content:center}
+      .sc-table-wrap{overflow:visible;padding:10px;background:#f8fafc}
+      .sc-table{min-width:0;display:block}
+      .sc-table thead{display:none}
+      .sc-table tbody{display:grid;gap:10px}
+      .sc-table tbody tr[data-id]{display:grid;grid-template-columns:1fr auto;overflow:hidden;border:1px solid #dfe6ef;border-radius:11px;background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.035)}
+      .sc-table tbody tr[data-id] td{display:block;padding:9px 13px;border:0!important;background:#fff!important}
+      .sc-table tbody tr[data-id] td::before{content:attr(data-label);display:block;margin-bottom:4px;color:#94a3b8;font-size:.57rem;font-weight:750;text-transform:uppercase;letter-spacing:.06em}
+      .sc-table tbody tr[data-id] td:first-child{display:none}
+      .sc-table tbody tr[data-id] td:nth-child(2),.sc-table tbody tr[data-id] td:nth-child(4){grid-column:1/-1}
+      .sc-table tbody tr[data-id] td:nth-child(2){padding-top:13px}
+      .sc-table tbody tr[data-id] td:nth-child(4){padding-bottom:13px;border-bottom:1px solid #edf2f7!important}
+      .sc-table tbody tr[data-id] td:nth-child(5){display:flex;flex-direction:column;align-items:flex-start}
+      .sc-table tbody tr[data-id] td:nth-child(6){display:flex;align-items:flex-end;justify-content:flex-end}
+      .sc-actions{justify-content:flex-end}
+      .sc-modal .modal-dialog{margin:8px}
+      .sc-modal .modal-body{padding:15px}
+      .sc-form-section{padding:13px}
+      .sc-unit-headings{display:none}
+      .sc-unit-row{grid-template-columns:1fr 38px}
+      .sc-unit-row input{grid-column:1}
+      .sc-unit-row .btn{grid-column:2;grid-row:1/4;height:38px}
+    }
+    @media(max-width:420px){
+      .sc-kpi-grid{grid-template-columns:1fr}
+      .sc-toolbar-controls{display:grid;grid-template-columns:1fr 1fr}
+      .sc-search{grid-column:1/-1}
+      .sc-add-btn{grid-column:1/-1}
+    }
   </style>
 
   <% const cats = serviceCategories || []; %>
 
   <!-- Hero Header -->
-  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-grid-3x3-gap"></i></div><div><h1>Repair Service Categories</h1><p>Manage repair request categories and unit types shown to customers</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/services/core"><i class="bi bi-gear me-1"></i> Core Services</a></div></div></div>
+  <section class="sc-hero" aria-labelledby="serviceCategoriesTitle">
+    <div class="sc-hero-inner">
+      <div class="sc-hero-copy">
+        <div class="sc-hero-icon"><i class="bi bi-grid-3x3-gap-fill"></i></div>
+        <div><span class="sc-eyebrow">Service configuration</span><h1 id="serviceCategoriesTitle">Repair Service Categories</h1><p>Control the customer-facing repair categories and the unit types available in every repair request.</p></div>
+      </div>
+      <div class="sc-hero-actions">
+        <a class="sc-hero-btn" href="<%= resolvedServiceCategoriesCorePath %>"><i class="bi bi-arrow-left"></i> Core Services</a>
+        <% if (resolvedServiceCategoriesCanManage) { %><button type="button" class="sc-hero-btn primary" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> New Category</button><% } %>
+      </div>
+    </div>
+  </section>
 
   <!-- KPI Summary -->
-  <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px;">
-    <div class="kpi-enterprise" data-accent="blue"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon blue"><i class="bi bi-grid-3x3-gap"></i></div></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Total Categories</p><div class="kpi-enterprise-value"><%= cats.length %></div></div></div>
-    <div class="kpi-enterprise" data-accent="green"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon green"><i class="bi bi-check-circle"></i></div></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Active</p><div class="kpi-enterprise-value"><%= cats.filter(c=>c.active).length %></div></div></div>
-    <div class="kpi-enterprise" data-accent="amber"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon amber"><i class="bi bi-tags"></i></div></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Total Unit Types</p><div class="kpi-enterprise-value"><%= cats.reduce((s,c)=>s+c.unitTypes.length,0) %></div></div></div>
-    <div class="kpi-enterprise" data-accent="purple"><div class="kpi-enterprise-top"><div class="kpi-enterprise-icon purple"><i class="bi bi-plus-circle"></i></div></div><div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Custom Category</p><div class="kpi-enterprise-value"><%= cats.filter(c=>c.isCustom).length %></div></div></div>
+  <div class="sc-kpi-grid" aria-label="Category summary">
+    <div class="sc-kpi" style="--sc-accent:#2563eb;--sc-tint:#eff6ff"><div class="sc-kpi-icon"><i class="bi bi-collection"></i></div><div><div class="sc-kpi-value"><%= cats.length %></div><div class="sc-kpi-label">Total Categories</div><div class="sc-kpi-note">Configured repair groups</div></div></div>
+    <div class="sc-kpi" style="--sc-accent:#059669;--sc-tint:#ecfdf5"><div class="sc-kpi-icon"><i class="bi bi-check-circle"></i></div><div><div class="sc-kpi-value"><%= cats.filter(c=>c.active).length %></div><div class="sc-kpi-label">Active Categories</div><div class="sc-kpi-note">Currently visible to customers</div></div></div>
+    <div class="sc-kpi" style="--sc-accent:#d97706;--sc-tint:#fffbeb"><div class="sc-kpi-icon"><i class="bi bi-tags"></i></div><div><div class="sc-kpi-value"><%= cats.reduce((s,c)=>s+(c.unitTypes || []).length,0) %></div><div class="sc-kpi-label">Unit Types</div><div class="sc-kpi-note">Selectable equipment formats</div></div></div>
+    <div class="sc-kpi" style="--sc-accent:#7c3aed;--sc-tint:#f5f3ff"><div class="sc-kpi-icon"><i class="bi bi-input-cursor-text"></i></div><div><div class="sc-kpi-value"><%= cats.filter(c=>c.isCustom).length %></div><div class="sc-kpi-label">Custom Input</div><div class="sc-kpi-note">Free-text customer option</div></div></div>
   </div>
 
   <!-- Category Table -->
   <div class="dash-card">
-    <div style="padding:16px 20px;border-bottom:1px solid #edf1f6;display:flex;justify-content:space-between;align-items:center;">
-      <h6 style="margin:0;font-weight:700;"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Service Categories & Unit Types</h6>
-      <button class="sc-add-btn" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> Add Category</button>
+    <div class="sc-toolbar">
+      <div class="sc-toolbar-heading"><div class="sc-toolbar-mark"><i class="bi bi-list-check"></i></div><div><h2 class="sc-toolbar-title">Category Directory</h2><span class="sc-result-count" id="categoryResultCount"><%= cats.length %> categories</span></div></div>
+      <div class="sc-toolbar-controls">
+        <div class="sc-search"><i class="bi bi-search"></i><input id="categorySearch" type="search" class="form-control" placeholder="Search category, slug, or unit type" aria-label="Search categories" /></div>
+        <select id="categoryStatusFilter" class="form-select sc-filter" aria-label="Filter category status"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="custom">Custom</option></select>
+        <% if (resolvedServiceCategoriesCanManage) { %><button class="sc-add-btn" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> Add Category</button><% } else { %><span class="sc-readonly"><i class="bi bi-eye"></i> View only</span><% } %>
+      </div>
     </div>
-    <div style="overflow-x:auto;">
+    <div class="sc-table-wrap">
       <table class="sc-table" id="categoryTable">
         <thead><tr>
-          <th style="width:50px;">#</th>
+          <th style="width:58px;">#</th>
           <th>Category</th>
-          <th>Slug</th>
+          <th>System Slug</th>
           <th>Unit Types</th>
           <th style="text-align:center;">Status</th>
           <th style="text-align:right;width:160px;">Actions</th>
         </tr></thead>
         <tbody id="categoryTableBody">
-          <% if (!cats.length) { %><tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:40px;">No service categories found. Run the seed script or add one manually.</td></tr><% } %>
+          <% if (!cats.length) { %><tr><td colspan="6" class="sc-empty"><i class="bi bi-inboxes"></i><strong>No service categories yet</strong><div class="mt-1">Add the first category to begin configuring customer repair requests.</div></td></tr><% } %>
           <% cats.forEach(function(cat, i) { %>
-          <tr data-id="<%= cat._id %>">
-            <td style="font-weight:600;color:#94a3b8;"><%= i + 1 %></td>
-            <td>
-              <div style="display:flex;align-items:center;gap:10px;">
+          <tr data-id="<%= cat._id %>" data-status="<%= cat.isCustom ? 'custom' : (cat.active ? 'active' : 'inactive') %>" data-search="<%= [cat.name, cat.slug].concat((cat.unitTypes || []).map(ut => ut.label + ' ' + ut.value)).join(' ').toLowerCase() %>">
+            <td data-label="Record"><span class="sc-row-number"><%= i + 1 %></span></td>
+            <td data-label="Category">
+              <div class="sc-category-cell">
                 <div class="sc-icon-badge <%= cat.iconColor %>"><i class="bi <%= cat.icon %>"></i></div>
                 <div>
-                  <div style="font-weight:700;color:#1e293b;"><%= cat.name %></div>
-                  <% if (cat.isCustom) { %><span class="sc-badge custom">Custom Input</span><% } %>
+                  <div class="sc-category-name"><%= cat.name %></div>
+                  <div class="sc-category-meta"><span><%= (cat.unitTypes || []).length %> unit type<%= (cat.unitTypes || []).length === 1 ? '' : 's' %></span><% if (cat.isCustom) { %><span>•</span><span>Free-text entry</span><% } %></div>
                 </div>
               </div>
             </td>
-            <td><code style="font-size:.75rem;background:#f1f5f9;padding:2px 8px;border-radius:4px;"><%= cat.slug %></code></td>
-            <td>
-              <div style="display:flex;flex-wrap:wrap;gap:3px;max-width:400px;">
-                <% cat.unitTypes.forEach(function(ut) { %>
+            <td data-label="System Slug"><code class="sc-slug"><%= cat.slug %></code></td>
+            <td data-label="Unit Types">
+              <div class="sc-unit-list">
+                <% (cat.unitTypes || []).forEach(function(ut) { %>
                   <span class="sc-unit-chip"><i class="bi <%= ut.icon %>"></i> <%= ut.label %></span>
                 <% }); %>
+                <% if (!(cat.unitTypes || []).length) { %><span class="text-muted small"><i class="bi bi-input-cursor-text me-1"></i>Customer provides the unit type</span><% } %>
               </div>
             </td>
-            <td style="text-align:center;"><span class="sc-badge <%= cat.active ? 'active' : 'inactive' %>"><%= cat.active ? 'Active' : 'Inactive' %></span></td>
-            <td style="text-align:right;">
-              <div style="display:flex;gap:6px;justify-content:flex-end;">
-                <button class="btn btn-sm btn-outline-primary" style="border-radius:8px;font-size:.72rem;" onclick="openEditModal('<%= cat._id %>')"><i class="bi bi-pencil"></i> Edit</button>
+            <td data-label="Status" style="text-align:center;"><span class="sc-badge <%= cat.active ? 'active' : 'inactive' %>"><%= cat.active ? 'Active' : 'Inactive' %></span></td>
+            <td data-label="Actions" style="text-align:right;">
+              <div class="sc-actions">
+                <% if (resolvedServiceCategoriesCanManage) { %>
+                <button class="sc-action-btn" title="Edit <%= cat.name %>" aria-label="Edit <%= cat.name %>" onclick="openEditModal('<%= cat._id %>')"><i class="bi bi-pencil"></i></button>
                 <% if (!cat.isCustom) { %>
-                <button class="btn btn-sm btn-outline-danger" style="border-radius:8px;font-size:.72rem;" onclick="toggleCategory('<%= cat._id %>', <%= cat.active %>)"><i class="bi bi-<%= cat.active ? 'pause' : 'play' %>"></i></button>
+                <button class="sc-action-btn <%= cat.active ? 'danger' : 'success' %>" title="<%= cat.active ? 'Deactivate category' : 'Activate category' %>" aria-label="<%= cat.active ? 'Deactivate category' : 'Activate category' %>" onclick="toggleCategory('<%= cat._id %>', <%= cat.active %>)"><i class="bi bi-<%= cat.active ? 'pause' : 'play' %>"></i></button>
                 <% } %>
+                <% } else { %><span class="text-muted small">—</span><% } %>
               </div>
             </td>
           </tr>
           <% }); %>
+          <% if (cats.length) { %><tr id="categoryFilterEmpty" style="display:none"><td colspan="6" class="sc-empty"><i class="bi bi-search"></i>No categories match the current filters.</td></tr><% } %>
         </tbody>
       </table>
     </div>
@@ -104,55 +239,105 @@
 
   <!-- Add/Edit Modal -->
   <div class="modal fade sc-modal" id="categoryModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="modalTitle"><i class="bi bi-grid-3x3-gap me-2"></i>Add Service Category</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-header"><div><span class="sc-eyebrow">Repair request taxonomy</span><h5 class="modal-title" id="modalTitle"><i class="bi bi-grid-3x3-gap me-2" id="modalTitleIcon"></i><span id="modalTitleText">Add Service Category</span></h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body">
       <input type="hidden" id="modalCatId" value="" />
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="sc-form-label">Category Name *</label>
-          <input type="text" class="form-control sc-form-control" id="catName" placeholder="e.g. Air Conditioning" />
-        </div>
-        <div class="col-md-6">
-          <label class="sc-form-label">Slug *</label>
-          <input type="text" class="form-control sc-form-control" id="catSlug" placeholder="e.g. aircon" />
-        </div>
-        <div class="col-md-6">
-          <label class="sc-form-label">Icon (Bootstrap Icons)</label>
-          <input type="text" class="form-control sc-form-control" id="catIcon" placeholder="e.g. bi-snow" value="bi-grid" />
-        </div>
-        <div class="col-md-6">
-          <label class="sc-form-label">Icon Color</label>
-          <select class="form-select sc-form-control" id="catIconColor">
-            <option value="blue">Blue</option><option value="amber">Amber</option><option value="violet">Violet</option>
-            <option value="green">Green</option><option value="red">Red</option><option value="cyan">Cyan</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="sc-form-label"><input type="checkbox" id="catIsCustom" /> Custom Input Category (free-text, no unit types)</label>
-        </div>
-        <div class="col-12">
-          <label class="sc-form-label">Unit Types</label>
+      <div class="d-grid gap-3">
+        <section class="sc-form-section">
+          <div class="sc-form-section-title"><i class="bi bi-card-heading"></i> Category identity</div>
+          <p class="sc-form-section-note">Set the customer-facing name and the stable system identifier used by repair workflows.</p>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="sc-form-label" for="catName">Category Name *</label>
+              <input type="text" class="form-control sc-form-control" id="catName" placeholder="e.g. Air Conditioning" autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="sc-form-label" for="catSlug">System Slug *</label>
+              <input type="text" class="form-control sc-form-control" id="catSlug" placeholder="e.g. air-conditioning" autocomplete="off" />
+              <span class="sc-help">Lowercase letters, numbers, and hyphens only.</span>
+            </div>
+            <div class="col-md-6">
+              <label class="sc-form-label" for="catIcon">Bootstrap Icon</label>
+              <input type="text" class="form-control sc-form-control" id="catIcon" placeholder="e.g. bi-snow" value="bi-grid" autocomplete="off" />
+            </div>
+            <div class="col-md-6">
+              <label class="sc-form-label" for="catIconColor">Icon Color</label>
+              <select class="form-select sc-form-control" id="catIconColor">
+                <option value="blue">Blue</option><option value="amber">Amber</option><option value="violet">Violet</option>
+                <option value="green">Green</option><option value="red">Red</option><option value="cyan">Cyan</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="sc-custom-toggle" for="catIsCustom"><input type="checkbox" id="catIsCustom" /><span><strong>Use custom customer input</strong><span>Customers type the equipment category themselves instead of choosing a configured unit type.</span></span></label>
+            </div>
+          </div>
+        </section>
+        <section class="sc-form-section" id="unitTypesSection">
+          <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+            <div><div class="sc-form-section-title"><i class="bi bi-tags"></i> Unit types</div><p class="sc-form-section-note">Add the equipment formats customers can select under this category.</p></div>
+            <button type="button" class="sc-add-btn" onclick="addUnitTypeRow()" id="addUnitTypeBtn"><i class="bi bi-plus"></i> Add Unit Type</button>
+          </div>
+          <div class="sc-unit-headings" aria-hidden="true"><span>System value</span><span>Customer label</span><span>Icon</span><span></span></div>
           <div id="unitTypeRows"></div>
-          <button type="button" class="sc-add-btn" onclick="addUnitTypeRow()" id="addUnitTypeBtn"><i class="bi bi-plus"></i> Add Unit Type</button>
-        </div>
+        </section>
       </div>
     </div>
-    <div class="modal-footer" style="border-top:1px solid #edf1f7;padding:14px 24px;">
-      <button type="button" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;" data-bs-dismiss="modal">Cancel</button>
-      <button type="button" class="btn btn-primary btn-sm" style="border-radius:8px;" onclick="saveCategory()"><i class="bi bi-check-lg me-1"></i> Save Category</button>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" id="saveCategoryBtn" onclick="saveCategory()"><i class="bi bi-check-lg me-1"></i> Save Category</button>
     </div>
   </div></div></div>
 </div>
 
 <script>
 (() => {
-  const API = '/api/admin/service-categories';
-  const PESO = n => '\u20B1' + Number(n || 0).toLocaleString();
-  let allCategories = <%- JSON.stringify(cats) %>;
+  const API = <%- JSON.stringify(resolvedServiceCategoriesApiBase).replace(/</g, "\\u003c") %>;
+  const CAN_MANAGE = <%- JSON.stringify(resolvedServiceCategoriesCanManage) %>;
+  let allCategories = <%- JSON.stringify(cats).replace(/</g, "\\u003c") %>;
 
   function authFetch(url, opts = {}) {
-    return fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...opts.headers }, ...opts });
+    return fetch(url, { ...opts, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...opts.headers } });
   }
+
+  function notify(type, message) {
+    if (window.Swal) {
+      if (type === 'success') {
+        return Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: message, showConfirmButton: false, timer: 2200, timerProgressBar: true });
+      }
+      return Swal.fire({ icon: type === 'error' ? 'error' : type, title: type === 'error' ? 'Action required' : 'Notice', text: message, confirmButtonText: 'Understood' });
+    }
+    if (typeof window.showNotification === 'function') {
+      window.showNotification({ type, title: type === 'success' ? 'Saved' : 'Unable to save', message, duration: 4000 });
+      return;
+    }
+    if (typeof window.showToast === 'function') return window.showToast(message, type);
+    window.alert(message);
+  }
+
+  function escapeAttribute(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function applyCategoryFilters() {
+    const query = (document.getElementById('categorySearch')?.value || '').trim().toLowerCase();
+    const status = document.getElementById('categoryStatusFilter')?.value || 'all';
+    const rows = [...document.querySelectorAll('#categoryTableBody tr[data-id]')];
+    let visible = 0;
+    rows.forEach(row => {
+      const matchesQuery = !query || (row.dataset.search || '').includes(query);
+      const matchesStatus = status === 'all' || row.dataset.status === status;
+      const show = matchesQuery && matchesStatus;
+      row.style.display = show ? '' : 'none';
+      if (show) visible += 1;
+    });
+    const count = document.getElementById('categoryResultCount');
+    if (count) count.textContent = `${visible} of ${rows.length} categories`;
+    const empty = document.getElementById('categoryFilterEmpty');
+    if (empty) empty.style.display = visible ? 'none' : '';
+  }
+
+  document.getElementById('categorySearch')?.addEventListener('input', applyCategoryFilters);
+  document.getElementById('categoryStatusFilter')?.addEventListener('change', applyCategoryFilters);
 
   // ── Auto-generate slug from name ──
   document.getElementById('catName').addEventListener('input', function() {
@@ -167,8 +352,7 @@
 
   // ── Toggle custom checkbox ──
   document.getElementById('catIsCustom').addEventListener('change', function() {
-    document.getElementById('unitTypeRows').style.display = this.checked ? 'none' : '';
-    document.getElementById('addUnitTypeBtn').style.display = this.checked ? 'none' : '';
+    document.getElementById('unitTypesSection').classList.toggle('d-none', this.checked);
   });
 
   // ── Unit type rows ──
@@ -177,10 +361,10 @@
     const row = document.createElement('div');
     row.className = 'sc-unit-row';
     row.innerHTML = `
-      <input type="text" class="form-control form-control-sm" placeholder="Value (e.g. Split Type Aircon)" data-field="value" value="${value}" style="border-radius:8px;font-size:.82rem;" />
-      <input type="text" class="form-control form-control-sm" placeholder="Label (e.g. Split Type)" data-field="label" value="${label}" style="border-radius:8px;font-size:.82rem;" />
-      <input type="text" class="form-control form-control-sm" placeholder="Icon (bi-window)" data-field="icon" value="${icon}" style="border-radius:8px;font-size:.82rem;max-width:130px;" />
-      <button type="button" class="btn btn-sm btn-outline-danger" style="border-radius:8px;" onclick="this.closest('.sc-unit-row').remove()"><i class="bi bi-trash"></i></button>
+      <input type="text" class="form-control form-control-sm sc-form-control" placeholder="split-type" aria-label="Unit type value" data-field="value" value="${escapeAttribute(value)}" />
+      <input type="text" class="form-control form-control-sm sc-form-control" placeholder="Split Type" aria-label="Unit type label" data-field="label" value="${escapeAttribute(label)}" />
+      <input type="text" class="form-control form-control-sm sc-form-control" placeholder="bi-window" aria-label="Unit type icon" data-field="icon" value="${escapeAttribute(icon)}" />
+      <button type="button" class="sc-action-btn danger" title="Remove unit type" aria-label="Remove unit type" onclick="this.closest('.sc-unit-row').remove()"><i class="bi bi-trash"></i></button>
     `;
     container.appendChild(row);
   };
@@ -199,8 +383,10 @@
 
   // ── Open Add Modal ──
   window.openAddModal = function() {
+    if (!CAN_MANAGE) return;
     document.getElementById('modalCatId').value = '';
-    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-grid-3x3-gap me-2"></i>Add Service Category';
+    document.getElementById('modalTitleIcon').className = 'bi bi-grid-3x3-gap me-2';
+    document.getElementById('modalTitleText').textContent = 'Add Service Category';
     document.getElementById('catName').value = '';
     document.getElementById('catSlug').value = '';
     document.getElementById('catSlug').dataset.manual = '';
@@ -208,18 +394,19 @@
     document.getElementById('catIconColor').value = 'blue';
     document.getElementById('catIsCustom').checked = false;
     document.getElementById('unitTypeRows').innerHTML = '';
-    document.getElementById('unitTypeRows').style.display = '';
-    document.getElementById('addUnitTypeBtn').style.display = '';
+    document.getElementById('unitTypesSection').classList.remove('d-none');
     addUnitTypeRow();
-    new bootstrap.Modal(document.getElementById('categoryModal')).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('categoryModal')).show();
   };
 
   // ── Open Edit Modal ──
   window.openEditModal = function(id) {
+    if (!CAN_MANAGE) return;
     const cat = allCategories.find(c => c._id === id);
     if (!cat) return;
     document.getElementById('modalCatId').value = cat._id;
-    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit ' + cat.name;
+    document.getElementById('modalTitleIcon').className = 'bi bi-pencil me-2';
+    document.getElementById('modalTitleText').textContent = 'Edit ' + cat.name;
     document.getElementById('catName').value = cat.name;
     document.getElementById('catSlug').value = cat.slug;
     document.getElementById('catSlug').dataset.manual = '1';
@@ -227,15 +414,15 @@
     document.getElementById('catIconColor').value = cat.iconColor || 'blue';
     document.getElementById('catIsCustom').checked = !!cat.isCustom;
     document.getElementById('unitTypeRows').innerHTML = '';
-    document.getElementById('unitTypeRows').style.display = cat.isCustom ? 'none' : '';
-    document.getElementById('addUnitTypeBtn').style.display = cat.isCustom ? 'none' : '';
+    document.getElementById('unitTypesSection').classList.toggle('d-none', !!cat.isCustom);
     (cat.unitTypes || []).forEach(ut => addUnitTypeRow(ut.value, ut.label, ut.icon));
-    if (!cat.unitTypes.length && !cat.isCustom) addUnitTypeRow();
-    new bootstrap.Modal(document.getElementById('categoryModal')).show();
+    if (!(cat.unitTypes || []).length && !cat.isCustom) addUnitTypeRow();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('categoryModal')).show();
   };
 
   // ── Save Category ──
   window.saveCategory = async function() {
+    if (!CAN_MANAGE) return;
     const id = document.getElementById('modalCatId').value;
     const payload = {
       name: document.getElementById('catName').value.trim(),
@@ -245,24 +432,53 @@
       isCustom: document.getElementById('catIsCustom').checked,
       unitTypes: document.getElementById('catIsCustom').checked ? [] : getUnitTypesFromForm()
     };
-    if (!payload.name || !payload.slug) return alert('Name and slug are required.');
+    if (!payload.name || !payload.slug) return notify('error', 'Name and slug are required.');
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(payload.slug)) return notify('error', 'Use lowercase letters, numbers, and single hyphens for the slug.');
+    if (!payload.isCustom && !payload.unitTypes.length) return notify('error', 'Add at least one unit type or mark this as a custom category.');
+    if (new Set(payload.unitTypes.map(unit => unit.value.toLowerCase())).size !== payload.unitTypes.length) return notify('error', 'Unit type values must be unique.');
+    const saveButton = document.getElementById('saveCategoryBtn');
+    const originalButton = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
     try {
       const url = id ? `${API}/${id}` : API;
       const method = id ? 'PATCH' : 'POST';
       const resp = await authFetch(url, { method, body: JSON.stringify(payload) });
-      const data = await resp.json();
-      if (data.success) { location.reload(); } else { alert(data.error || 'Save failed.'); }
-    } catch (e) { alert('Network error.'); }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) throw new Error(data.error || 'Save failed.');
+      notify('success', id ? 'Category changes were saved.' : 'Category was added.');
+      bootstrap.Modal.getInstance(document.getElementById('categoryModal'))?.hide();
+      window.setTimeout(() => location.reload(), 700);
+    } catch (e) {
+      notify('error', e.message || 'Network error.');
+      saveButton.disabled = false;
+      saveButton.innerHTML = originalButton;
+    }
   };
 
   // ── Toggle Active/Inactive ──
   window.toggleCategory = async function(id, currentlyActive) {
-    if (!confirm(currentlyActive ? 'Deactivate this category? It will be hidden from customers.' : 'Activate this category?')) return;
+    if (!CAN_MANAGE) return;
+    const action = currentlyActive ? 'Deactivate' : 'Activate';
+    const confirmed = window.Swal
+      ? (await Swal.fire({
+          icon: currentlyActive ? 'warning' : 'question',
+          title: `${action} category?`,
+          text: currentlyActive ? 'Customers will no longer see this category when submitting repair requests.' : 'This category will become available to customers immediately.',
+          showCancelButton: true,
+          confirmButtonText: action,
+          cancelButtonText: 'Keep unchanged',
+          confirmButtonColor: currentlyActive ? '#dc2626' : '#2563eb'
+        })).isConfirmed
+      : confirm(currentlyActive ? 'Deactivate this category? It will be hidden from customers.' : 'Activate this category?');
+    if (!confirmed) return;
     try {
       const resp = await authFetch(`${API}/${id}`, { method: 'PATCH', body: JSON.stringify({ active: !currentlyActive }) });
-      const data = await resp.json();
-      if (data.success) location.reload(); else alert(data.error || 'Failed.');
-    } catch (e) { alert('Network error.'); }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) throw new Error(data.error || 'Update failed.');
+      notify('success', currentlyActive ? 'Category deactivated.' : 'Category activated.');
+      window.setTimeout(() => location.reload(), 300);
+    } catch (e) { notify('error', e.message || 'Network error.'); }
   };
 })();
 </script>

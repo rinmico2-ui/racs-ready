@@ -1,6 +1,51 @@
 const Notification = require("../models/Notification");
 const { getSystemConfiguration, priorityMeetsThreshold } = require("./systemConfiguration");
 
+function toSecretaryNotificationLink(link) {
+  if (!link || typeof link !== "string") return "";
+  const queryIndex = link.search(/[?#]/);
+  const pathname = queryIndex >= 0 ? link.slice(0, queryIndex) : link;
+  const suffix = queryIndex >= 0 ? link.slice(queryIndex) : "";
+
+  if (pathname === "/admin/payments/remittance" || pathname.startsWith("/admin/payments/remittance/")) {
+    return "";
+  }
+
+  const exactMappings = new Map([
+    ["/admin/appointments/pending", "/secretary/appointments?tab=pending"],
+    ["/admin/appointments/active", "/secretary/appointments?tab=active"],
+    ["/admin/appointments/queue", "/secretary/appointments?tab=queue"],
+    ["/admin/appointments/completed", "/secretary/appointments?tab=completed"],
+    ["/admin/appointments/waiting-reassign", "/secretary/appointments?tab=waiting"],
+    ["/admin/appointments/attention", "/secretary/operations/resolution-center"],
+    ["/admin/appointments/review-reschedule", "/secretary/operations/resolution-center"],
+  ]);
+  if (exactMappings.has(pathname)) {
+    const mapped = exactMappings.get(pathname);
+    if (!suffix) return mapped;
+    return mapped + (mapped.includes("?") && suffix.startsWith("?") ? `&${suffix.slice(1)}` : suffix);
+  }
+
+  const prefixMappings = [
+    ["/admin/appointments/orders", "/secretary/inventory/ordered-products"],
+    ["/admin/inventory/ordered-products", "/secretary/inventory/ordered-products"],
+    ["/admin/inventory/aircon-orders", "/secretary/inventory/ordered-products"],
+    ["/admin/operations/resolution-center", "/secretary/operations/resolution-center"],
+    ["/admin/appointments/calendar", "/secretary/calendar"],
+    ["/admin/appointments", "/secretary/appointments"],
+    ["/admin/projects", "/secretary/projects"],
+    ["/admin/payments", "/secretary/payments"],
+    ["/admin/inventory/repair-parts", "/secretary/inventory/repair-parts"],
+    ["/admin/inventory/history", "/secretary/inventory/history"],
+    ["/admin/inventory", "/secretary/inventory"],
+    ["/admin/services", "/secretary/services"],
+    ["/admin/customers/list", "/secretary/customers"],
+    ["/admin/technicians", "/secretary/technicians"],
+  ];
+  const match = prefixMappings.find(([adminPath]) => pathname === adminPath || pathname.startsWith(`${adminPath}/`));
+  return match ? match[1] + pathname.slice(match[0].length) + suffix : "";
+}
+
 async function sendConfiguredAdminEmail({ role, userId, title, message, priority, link }) {
   if (userId || role !== "admin") return;
   const configuration = await getSystemConfiguration();
@@ -56,7 +101,7 @@ async function createNotification({
         userId = technician.user;
       }
     }
-    const notification = await Notification.create({
+    const notificationData = {
       userId,
       // A notification is either targeted to one account or broadcast to a
       // role. Storing both made private technician updates visible to everyone
@@ -69,7 +114,17 @@ async function createNotification({
       referenceModel,
       link,
       priority,
-    });
+    };
+    const notificationsToCreate = [notificationData];
+    const secretaryLink = !userId && role === "admin" ? toSecretaryNotificationLink(link) : "";
+    if (secretaryLink) {
+      notificationsToCreate.push({
+        ...notificationData,
+        role: "secretary",
+        link: secretaryLink,
+      });
+    }
+    const [notification] = await Notification.create(notificationsToCreate);
 
     // Emit via Socket.io if available
     if (io) {
@@ -124,4 +179,4 @@ async function createNotification({
   }
 }
 
-module.exports = { createNotification };
+module.exports = { createNotification, toSecretaryNotificationLink };

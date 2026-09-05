@@ -1,3 +1,14 @@
+<%
+  const ordersResolutionEnabled = typeof ordersCanResolve === 'boolean'
+    ? ordersCanResolve
+    : (typeof ordersWorkspaceRole !== 'string' || ordersWorkspaceRole === 'admin');
+  const ordersResolutionUrl = typeof ordersResolutionPath === 'string'
+    ? ordersResolutionPath
+    : '/admin/operations/resolution-center';
+  const ordersResolutionApi = typeof ordersResolutionApiBase === 'string'
+    ? ordersResolutionApiBase
+    : '/api/admin';
+%>
 <style>
   /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
   :root {
@@ -227,7 +238,9 @@
           <p>Manage delivery, installation, and customer pickup through separate operational workspaces</p>
         </div>
       </div>
-      <a class="btn btn-light fw-bold" href="/admin/operations/resolution-center?source=order" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="aoResolutionCount">0</span></a>
+      <% if (ordersResolutionEnabled) { %>
+        <a class="btn btn-light fw-bold" href="<%= ordersResolutionUrl %>?source=order" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="aoResolutionCount">0</span></a>
+      <% } %>
     </div>
   </div>
 
@@ -525,4 +538,10 @@
     document.body.appendChild(overlay);
   };
 </script>
-<script src="/js/admin-aircon-orders.js?v=20260830.3"></script>
+<script>window.RACSOrdersWorkspace = {
+  role: <%- JSON.stringify(typeof ordersWorkspaceRole === 'string' ? ordersWorkspaceRole : 'admin').replace(/</g, '\\u003c') %>,
+  canResolve: <%- JSON.stringify(ordersResolutionEnabled) %>,
+  resolutionPath: <%- JSON.stringify(ordersResolutionUrl).replace(/</g, '\\u003c') %>,
+  resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
+};</script>
+<script src="/js/admin-aircon-orders.js?v=20260905.1"></script>

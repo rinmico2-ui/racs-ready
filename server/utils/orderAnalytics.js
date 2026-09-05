@@ -7,6 +7,7 @@ const {
   summarizeOrderCosts,
   summarizePaymentLedger,
 } = require("./enterpriseRevenue");
+const { orderAttentionState, requestedOrderCutoff } = require("./orderAttention");
 
 const FINAL_PAYMENT_STATUSES = new Set(["paid", "verified", "remitted", "refunded"]);
 
@@ -33,6 +34,13 @@ function normalizePaymentMethod(value) {
   if (["cod", "cash", "cash_onsite"].includes(method)) return "cash";
   if (["bank", "paymongo"].includes(method)) return "bank";
   return "other";
+}
+
+function percentile(values, fraction) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * fraction) - 1));
+  return sorted[index];
 }
 
 function buildBuckets(startDate, endDate) {
@@ -159,15 +167,38 @@ function buildOrderAnalytics({
   });
   let outstandingBalance = 0;
   let ledgerMismatchCount = 0;
+  const actionOrderIds = new Set();
   cohortValid.forEach(order => {
     const orderPayments = paymentByOrder.get(String(order._id)) || [];
     const collected = netPaymentsThrough(orderPayments, endDate);
     outstandingBalance += Math.max(0, money(order.total) - collected);
-    if (FINAL_PAYMENT_STATUSES.has(order.paymentStatus) && collected + 0.01 < money(order.total)) ledgerMismatchCount += 1;
+    if (FINAL_PAYMENT_STATUSES.has(order.paymentStatus) && collected + 0.01 < money(order.total)) {
+      ledgerMismatchCount += 1;
+      actionOrderIds.add(String(order._id));
+    }
   });
 
   const completedCohort = cohortOrders.filter(order => order.status === "completed");
   const cancelled = cohortOrders.filter(order => order.status === "cancelled");
+  const openOrders = cohortValid.filter(order => order.status !== "completed");
+  const reportAsOf = new Date(Math.min(new Date(endDate).getTime(), Date.now()));
+  const overdueOrders = openOrders.filter(order => orderAttentionState(order, reportAsOf).isPastDate);
+  const unassignedOrders = openOrders.filter(order => order.fulfillmentType !== "customer_pickup"
+    && order.status !== "pending_payment" && !order.technicianId && !order.technician?._id);
+  const pendingPaymentOrders = openOrders.filter(order => order.status === "pending_payment" || order.paymentStatus === "pending");
+  overdueOrders.forEach(order => actionOrderIds.add(String(order._id)));
+  unassignedOrders.forEach(order => actionOrderIds.add(String(order._id)));
+  openOrders.filter(order => order.status === "technician_declined"
+    || (order.rescheduleRequest?.requested && order.rescheduleRequest?.status === "pending"))
+    .forEach(order => actionOrderIds.add(String(order._id)));
+  const backlogAging = { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 };
+  openOrders.forEach(order => {
+    const ageDays = Math.max(0, Math.floor((reportAsOf - new Date(order.createdAt)) / 86400000));
+    if (ageDays <= 1) backlogAging.today += 1;
+    else if (ageDays <= 3) backlogAging.twoToThree += 1;
+    else if (ageDays <= 7) backlogAging.fourToSeven += 1;
+    else backlogAging.overSeven += 1;
+  });
   const statusBreakdown = {};
   const fulfillmentBreakdown = {};
   const paymentBreakdown = {};
@@ -182,6 +213,16 @@ function buildOrderAnalytics({
 
   const cycleHours = recognized.map(order => (new Date(orderCompletionDate(order)) - new Date(order.createdAt)) / 3600000)
     .filter(hours => Number.isFinite(hours) && hours >= 0);
+  const scheduledCompletions = recognized.map(order => ({
+    completedAt: orderCompletionDate(order),
+    cutoff: requestedOrderCutoff(order),
+  })).filter(row => row.completedAt && row.cutoff);
+  const onTimeCompleted = scheduledCompletions.filter(row => new Date(row.completedAt) <= row.cutoff).length;
+  const cancellationReasons = Object.entries(cancelled.reduce((summary, order) => {
+    const reason = String(order.cancellationReason || "Unspecified").trim() || "Unspecified";
+    summary[reason] = (summary[reason] || 0) + 1;
+    return summary;
+  }, {})).map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, 6);
   const technicianMap = new Map();
   cohortOrders.forEach(order => {
     if (!order.technicianId && !order.technician?.name) return;
@@ -236,7 +277,18 @@ function buildOrderAnalytics({
     completionRate,
     cancellationRate,
     avgCycleHours: cycleHours.length ? cycleHours.reduce((sum, value) => sum + value, 0) / cycleHours.length : 0,
-    orderGrowth: growth(totalOrders, previousCohortOrders.length),
+    medianCycleHours: percentile(cycleHours, 0.5),
+    p90CycleHours: percentile(cycleHours, 0.9),
+    onTimeRate: scheduledCompletions.length ? (onTimeCompleted / scheduledCompletions.length) * 100 : 0,
+    onTimeSampleSize: scheduledCompletions.length,
+    openOrders: openOrders.length,
+    overdueOrders: overdueOrders.length,
+    unassignedOrders: unassignedOrders.length,
+    pendingPaymentOrders: pendingPaymentOrders.length,
+    actionRequiredOrders: actionOrderIds.size,
+    backlogAging,
+    cancellationReasons,
+    orderGrowth: growth(cohortValid.length, previousValid.length),
     revenueGrowth: growth(grossOrderValue, previousGrossOrderValue),
     recognizedRevenueGrowth: recognizedGrowth,
     collectionGrowth: growth(currentLedger.netCollections, previousLedger.netCollections),

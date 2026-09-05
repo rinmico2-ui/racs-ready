@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { validationResult } = require("express-validator");
 
 const authRoutes = require("../routes/authRoutes");
@@ -44,6 +46,7 @@ for (const [name, router] of [
     for (const password of [
       "ChangeMe123!",
       "password",
+      "old123",
       "Correct-Horse_Battery Staple!",
     ]) {
       const result = await validateLogin(router, {
@@ -83,3 +86,14 @@ for (const [name, router] of [
     assert.equal(invalidEmail.isEmpty(), false);
   });
 }
+
+test("login does not apply the new-password minimum length policy", () => {
+  const publicJs = path.join(__dirname, "..", "public", "js");
+  const loginClient = fs.readFileSync(path.join(publicJs, "login.js"), "utf8");
+  const registerClient = fs.readFileSync(path.join(publicJs, "register.js"), "utf8");
+  const resetClient = fs.readFileSync(path.join(publicJs, "reset.js"), "utf8");
+
+  assert.doesNotMatch(loginClient, /password\.length\s*<\s*8|Password must be at least 8/i);
+  assert.match(registerClient, /password\.length\s*<\s*8/);
+  assert.match(resetClient, /password\.length\s*<\s*8/);
+});

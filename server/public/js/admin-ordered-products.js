@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
+  const purchasesApiBase = (window.RACSPurchasesConfig && window.RACSPurchasesConfig.apiBase) || "/api/admin/purchases";
   const page = document.querySelector(".ordered-products-page");
   if (!page) return;
 
@@ -78,7 +79,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (searchInput && searchInput.value.trim()) params.set("search", searchInput.value.trim());
     if (dateFilter && dateFilter.value) params.set("from", dateFilter.value);
     try {
-      const resp = await fetch(`/api/admin/purchases?${params.toString()}`);
+      const resp = await fetch(`${purchasesApiBase}?${params.toString()}`);
       if (!resp.ok) throw new Error("fetch failed");
       const data = await resp.json();
       renderRows(data.purchases || []);
@@ -91,7 +92,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!detailsModal) return;
     detailsBody.innerHTML = '<p class="text-center text-muted py-4">Loading...</p>';
     detailsModal.show();
-    fetch(`/api/admin/purchases/${encodeURIComponent(id)}`)
+    fetch(`${purchasesApiBase}/${encodeURIComponent(id)}`)
       .then((r) => r.ok ? r.json() : Promise.reject(r))
       .then((d) => {
         const o = d.purchase;

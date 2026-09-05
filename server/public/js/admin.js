@@ -473,10 +473,15 @@ document.addEventListener("DOMContentLoaded", function () {
         var parentCollapse = link.closest(".collapse");
         if (parentCollapse) {
           try {
-            // use Bootstrap Collapse API if available
-            var bsCollapse =
-              bootstrap.Collapse.getOrCreateInstance(parentCollapse);
-            bsCollapse.show();
+            // The sidebar can already be rendered open by the server. Bootstrap's
+            // default `toggle: true` would close it while constructing the instance.
+            // Create a non-toggling instance and only request an open transition when
+            // the panel is actually closed.
+            var bsCollapse = bootstrap.Collapse.getOrCreateInstance(
+              parentCollapse,
+              { toggle: false },
+            );
+            if (!parentCollapse.classList.contains("show")) bsCollapse.show();
           } catch (err) {
             parentCollapse.classList.add("show");
           }

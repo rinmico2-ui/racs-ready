@@ -147,13 +147,6 @@
   }
 
   if (passwordInput) {
-    passwordInput.addEventListener('blur', function () {
-      if (this.value && this.value.length < 8) {
-        showFieldError(this, 'Password must be at least 8 characters');
-      } else {
-        removeFieldError(this);
-      }
-    });
     passwordInput.addEventListener('input', function () {
       if (this.classList.contains('error')) {
         removeFieldError(this);

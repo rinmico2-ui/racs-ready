@@ -1,0 +1,265 @@
+/* Shared enterprise presentation for SweetAlert2 and global action dialogs. */
+:root {
+  --racs-alert-navy: #0f2a4a;
+  --racs-alert-blue: #2563eb;
+  --racs-alert-blue-dark: #1d4ed8;
+  --racs-alert-border: #dbe3ee;
+  --racs-alert-muted: #64748b;
+  --racs-alert-surface: #ffffff;
+  --racs-alert-subtle: #f8fafc;
+}
+
+.swal2-container {
+  /* Must stay above application dialogs, including the service configurator
+     which uses a high isolation layer for mobile interaction. */
+  z-index: 2147483000 !important;
+  padding: 1rem !important;
+  font-family: "Inter", "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.swal2-container.racs-enterprise-over-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+}
+
+.swal2-container.swal2-backdrop-show {
+  background: rgba(15, 23, 42, 0.56) !important;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.swal2-popup:not(.swal2-toast) {
+  width: min(31rem, calc(100vw - 2rem)) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(203, 213, 225, 0.9) !important;
+  border-radius: 16px !important;
+  background: var(--racs-alert-surface) !important;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.24), 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+}
+
+.swal2-popup:not(.swal2-toast)::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 5px;
+  background: linear-gradient(90deg, var(--racs-alert-navy), var(--racs-alert-blue));
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-icon {
+  width: 3.65rem !important;
+  height: 3.65rem !important;
+  margin: 1.5rem auto 0.7rem !important;
+  border-width: 2px !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-icon .swal2-icon-content {
+  font-size: 2.25rem !important;
+  font-weight: 700 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-title {
+  padding: 0 1.75rem !important;
+  color: #172033 !important;
+  font-family: "Outfit", "Inter", sans-serif !important;
+  font-size: 1.22rem !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-html-container {
+  margin: 0.6rem 1.75rem 0 !important;
+  padding: 0 !important;
+  color: #526077 !important;
+  font-size: 0.88rem !important;
+  line-height: 1.65 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-actions {
+  width: 100% !important;
+  margin: 1.45rem 0 0 !important;
+  padding: 1rem 1.4rem !important;
+  justify-content: center !important;
+  gap: 0.6rem !important;
+  border-top: 1px solid #e8edf4;
+  background: var(--racs-alert-subtle);
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-actions button {
+  min-height: 40px !important;
+  margin: 0 !important;
+  padding: 0.55rem 1.15rem !important;
+  border-radius: 8px !important;
+  font-size: 0.82rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow: none !important;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-confirm {
+  border: 1px solid var(--racs-alert-blue) !important;
+  background: linear-gradient(135deg, var(--racs-alert-blue), var(--racs-alert-blue-dark)) !important;
+  color: #fff !important;
+  box-shadow: 0 5px 13px rgba(37, 99, 235, 0.2) !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-cancel {
+  border: 1px solid #cbd5e1 !important;
+  background: #fff !important;
+  color: #475569 !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-deny,
+.swal2-popup:not(.swal2-toast) .swal2-confirm.racs-enterprise-danger {
+  border: 1px solid #dc2626 !important;
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-confirm:hover:not(:disabled) {
+  box-shadow: 0 7px 16px rgba(37, 99, 235, 0.28) !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-cancel:hover:not(:disabled) {
+  border-color: #94a3b8 !important;
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-input,
+.swal2-popup:not(.swal2-toast) .swal2-textarea,
+.swal2-popup:not(.swal2-toast) .swal2-select,
+.swal2-popup:not(.swal2-toast) .form-control,
+.swal2-popup:not(.swal2-toast) .form-select {
+  min-height: 42px;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #1e293b !important;
+  font-size: 0.86rem !important;
+  box-shadow: none !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-input:focus,
+.swal2-popup:not(.swal2-toast) .swal2-textarea:focus,
+.swal2-popup:not(.swal2-toast) .swal2-select:focus,
+.swal2-popup:not(.swal2-toast) .form-control:focus,
+.swal2-popup:not(.swal2-toast) .form-select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.13) !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-validation-message {
+  margin: 0.8rem 1.75rem 0 !important;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  font-size: 0.78rem !important;
+}
+
+.swal2-popup:not(.swal2-toast) .swal2-loader {
+  border-color: var(--racs-alert-blue) transparent var(--racs-alert-blue) transparent !important;
+}
+
+.swal2-close {
+  color: #94a3b8 !important;
+  font-size: 1.55rem !important;
+}
+
+.swal2-popup.swal2-toast {
+  border: 1px solid var(--racs-alert-border) !important;
+  border-left: 4px solid var(--racs-alert-blue) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16) !important;
+  color: #1e293b !important;
+}
+
+.swal2-popup.racs-enterprise-success::before { background: linear-gradient(90deg, #047857, #10b981); }
+.swal2-popup.racs-enterprise-warning::before { background: linear-gradient(90deg, #b45309, #f59e0b); }
+.swal2-popup.racs-enterprise-error::before { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+.swal2-popup.racs-enterprise-info::before,
+.swal2-popup.racs-enterprise-question::before { background: linear-gradient(90deg, var(--racs-alert-navy), var(--racs-alert-blue)); }
+
+.swal2-toast .swal2-title {
+  color: #1e293b !important;
+  font-family: "Inter", sans-serif !important;
+  font-size: 0.82rem !important;
+  font-weight: 650 !important;
+}
+
+#globalConfirmModal .modal-content,
+#globalPromptModal .modal-content {
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+}
+
+#globalConfirmModal .modal-header,
+#globalPromptModal .modal-header {
+  padding: 1rem 1.2rem;
+  border: 0;
+  background: linear-gradient(135deg, var(--racs-alert-navy), #173f70);
+}
+
+#globalConfirmModal .modal-title,
+#globalPromptModal .modal-title {
+  color: #fff;
+  font-family: "Outfit", "Inter", sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+#globalConfirmModal .modal-header .btn-close,
+#globalPromptModal .modal-header .btn-close {
+  filter: invert(1) grayscale(1) brightness(2);
+}
+
+#globalConfirmModal .modal-body,
+#globalPromptModal .modal-body {
+  padding: 1.25rem;
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+#globalConfirmModal .modal-footer,
+#globalPromptModal .modal-footer {
+  gap: 0.5rem;
+  padding: 0.9rem 1.2rem;
+  border-color: #e8edf4;
+  background: var(--racs-alert-subtle);
+}
+
+#globalConfirmModal .modal-footer .btn,
+#globalPromptModal .modal-footer .btn {
+  min-width: 88px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+@media (max-width: 575.98px) {
+  .swal2-container { padding: 0.65rem !important; }
+  .swal2-popup:not(.swal2-toast) { width: calc(100vw - 1.3rem) !important; border-radius: 13px !important; }
+  .swal2-popup:not(.swal2-toast) .swal2-title { padding-inline: 1.15rem !important; font-size: 1.08rem !important; }
+  .swal2-popup:not(.swal2-toast) .swal2-html-container { margin-inline: 1.15rem !important; font-size: 0.82rem !important; }
+  .swal2-popup:not(.swal2-toast) .swal2-actions { padding: 0.85rem 1rem !important; }
+  .swal2-popup:not(.swal2-toast) .swal2-actions button { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swal2-popup,
+  .swal2-popup .swal2-actions button { transition: none !important; }
+}

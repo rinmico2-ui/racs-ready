@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const ejs = require("ejs");
 
@@ -32,6 +33,15 @@ test("walk-in aircon has a dedicated authenticated API surface", () => {
   assert.match(checkoutSource, /getTimeSlotsForQuery/);
   assert.match(checkoutSource, /BookingService/);
   assert.match(checkoutSource, /startTransaction/);
+});
+
+test("walk-in aircon API admits secretary users through order permissions", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../routes/posRoutes.js"), "utf8");
+  const walkInRouterSource = source.slice(source.indexOf("const walkInAirconRouter"));
+
+  assert.match(walkInRouterSource, /requireRole\(\["admin", "secretary"\]\)/);
+  assert.match(walkInRouterSource, /use\(requireOrderPermission\)/);
+  assert.doesNotMatch(walkInRouterSource, /requireRole\("admin"\)/);
 });
 
 test("admin walk-in page exposes Services and Aircon Orders workflows", async () => {

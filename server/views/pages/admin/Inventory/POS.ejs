@@ -424,6 +424,7 @@
 </div>
 
 <script>
+  const posOrdersPath = <%- JSON.stringify(typeof posOrdersPath === 'string' ? posOrdersPath : '/admin/appointments/orders').replace(/</g, '\\u003c') %>;
 "use strict";
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -1142,7 +1143,7 @@ function closeReceipt() { document.getElementById("receiptOverlay").classList.re
 // ── Sales History ─────────────────────────────────────────────────────────────
 async function toggleSalesHistory() {
   if (currentTab === "aircons") {
-    window.location.href = "/admin/appointments/orders";
+    window.location.href = posOrdersPath;
     return;
   }
   const overlay = document.getElementById("historyOverlay");

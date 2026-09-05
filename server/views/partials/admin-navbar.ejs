@@ -1,3 +1,12 @@
+<%
+  const navbarUser = typeof user !== 'undefined' && user ? user : {};
+  const navbarRole = navbarUser.role || 'admin';
+  const navbarIsSecretary = navbarRole === 'secretary';
+  const navbarHomePath = navbarIsSecretary ? '/secretary' : '/admin';
+  const navbarRoleLabel = navbarIsSecretary ? 'Secretary' : 'Admin';
+  const navbarFallbackName = navbarIsSecretary ? 'Secretary' : 'Administrator';
+  const navbarFallbackInitial = navbarIsSecretary ? 'S' : 'A';
+%>
     <nav id="adminNavbar" class="navbar navbar-expand-lg border-bottom px-4 py-2 bg-white" style="border-color: rgba(226, 232, 240, 0.8) !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03); z-index: 70; position: relative;">
   <div class="container-fluid d-flex align-items-center">
     <!-- Mobile hamburger (visible ≤767px) -->
@@ -5,7 +14,7 @@
       <i class="bi bi-list" style="font-size: 1.25rem;"></i>
     </button>
 
-    <a class="navbar-brand fw-bold d-flex align-items-center" href="/admin">
+    <a class="navbar-brand fw-bold d-flex align-items-center" href="<%= navbarHomePath %>">
       <img
         src="/images/LOGO/RACS.png"
         alt="CALIDRO RACS"
@@ -69,15 +78,15 @@
               <img src="<%= user.profileImage %>" alt="Profile" />
             <% } else { %>
               <span>
-                <%= typeof user !== 'undefined' && user && (user.name || user.email) ? (user.name || user.email).charAt(0).toUpperCase() : 'A' %>
+                <%= navbarUser.name || navbarUser.email ? (navbarUser.name || navbarUser.email).charAt(0).toUpperCase() : navbarFallbackInitial %>
               </span>
             <% } %>
           </div>
           <div class="profile-toggle-details d-none d-sm-flex flex-column">
             <span class="name">
-              <%= (typeof user !== 'undefined' && user && (user.name || user.fullName)) ? (user.name || user.fullName) : 'Administrator' %>
+              <%= (navbarUser.name || navbarUser.fullName) ? (navbarUser.name || navbarUser.fullName) : navbarFallbackName %>
             </span>
-            <span class="role">Admin</span>
+            <span class="role"><%= navbarRoleLabel %></span>
           </div>
           <i class="bi bi-chevron-down ms-2 chevron"></i>
         </a>
@@ -91,22 +100,22 @@
                 <% if (typeof user !== 'undefined' && user && user.profileImage) { %>
                   <img src="<%= user.profileImage %>" alt="Profile" />
                 <% } else { %>
-                  <%= typeof user !== 'undefined' && user && (user.name || user.email) ? (user.name || user.email).charAt(0).toUpperCase() : 'A' %>
+                  <%= navbarUser.name || navbarUser.email ? (navbarUser.name || navbarUser.email).charAt(0).toUpperCase() : navbarFallbackInitial %>
                 <% } %>
               </div>
             </div>
             <div class="details">
               <p class="name">
-                <%= (typeof user !== 'undefined' && user && (user.name || user.fullName)) ? (user.name || user.fullName) : 'Administrator' %>
+                <%= (navbarUser.name || navbarUser.fullName) ? (navbarUser.name || navbarUser.fullName) : navbarFallbackName %>
               </p>
-              <span class="role">Admin</span>
+              <span class="role"><%= navbarRoleLabel %></span>
             </div>
           </li>
           <li><hr class="dropdown-divider" /></li>
           <li>
             <a
               class="dropdown-item premium-item"
-              href="<%= (user && user.role === 'admin') ? '/profile-admin' : (user && user.role === 'secretary') ? '/secretary/profile' : (user && user.role === 'technician') ? '/technician/profile' : '/profile' %>"
+              href="<%= navbarRole === 'admin' ? '/profile-admin' : navbarRole === 'secretary' ? '/secretary/profile' : navbarRole === 'technician' ? '/technician/profile' : '/profile' %>"
               >Profile</a
             >
           </li>
@@ -286,7 +295,7 @@
 </style>
 
 <script>
-  window.USER_ROLE = "<%= (user && user.role) || '' %>";
+  window.USER_ROLE = <%- JSON.stringify(navbarRole).replace(/</g, '\\u003c') %>;
 
   (function() {
     const btn = document.getElementById('notifBtn');
@@ -312,6 +321,46 @@
     let currentPage = 1;
     let pageSize = 10;
     let filteredNotifications = [];
+
+    function roleSafeNotificationLink(link) {
+      if (!link || window.USER_ROLE !== 'secretary') return link || '';
+      const value = String(link);
+      const queryIndex = value.search(/[?#]/);
+      const path = queryIndex >= 0 ? value.slice(0, queryIndex) : value;
+      const suffix = queryIndex >= 0 ? value.slice(queryIndex) : '';
+      const exactMappings = {
+        '/admin/appointments/pending': '/secretary/appointments?tab=pending',
+        '/admin/appointments/active': '/secretary/appointments?tab=active',
+        '/admin/appointments/queue': '/secretary/appointments?tab=queue',
+        '/admin/appointments/completed': '/secretary/appointments?tab=completed',
+        '/admin/appointments/waiting-reassign': '/secretary/appointments?tab=waiting',
+        '/admin/appointments/attention': '/secretary/operations/resolution-center',
+        '/admin/appointments/review-reschedule': '/secretary/operations/resolution-center',
+      };
+      if (exactMappings[path]) {
+        const mapped = exactMappings[path];
+        return mapped + (mapped.includes('?') && suffix.startsWith('?') ? '&' + suffix.slice(1) : suffix);
+      }
+      if (path === '/admin/payments/remittance' || path.startsWith('/admin/payments/remittance/')) return '';
+      const mappings = [
+        ['/admin/appointments/orders', '/secretary/inventory/ordered-products'],
+        ['/admin/inventory/ordered-products', '/secretary/inventory/ordered-products'],
+        ['/admin/inventory/aircon-orders', '/secretary/inventory/ordered-products'],
+        ['/admin/operations/resolution-center', '/secretary/operations/resolution-center'],
+        ['/admin/appointments/calendar', '/secretary/calendar'],
+        ['/admin/appointments', '/secretary/appointments'],
+        ['/admin/projects', '/secretary/projects'],
+        ['/admin/payments', '/secretary/payments'],
+        ['/admin/inventory/repair-parts', '/secretary/inventory/repair-parts'],
+        ['/admin/inventory/history', '/secretary/inventory/history'],
+        ['/admin/inventory', '/secretary/inventory'],
+        ['/admin/services', '/secretary/services'],
+        ['/admin/customers/list', '/secretary/customers'],
+        ['/admin/technicians', '/secretary/technicians'],
+      ];
+      const match = mappings.find(([adminPath]) => path === adminPath || path.startsWith(adminPath + '/'));
+      return match ? match[1] + path.slice(match[0].length) + suffix : '';
+    }
 
     // Toggle panel
     btn.addEventListener('click', (e) => {
@@ -390,7 +439,8 @@
           };
           const ic = iconMap[n.type] || iconMap.system;
           const timeAgo = getTimeAgo(n.createdAt);
-          const link = n.link ? `onclick="window.location.href='${n.link}'"` : '';
+          const safeLink = roleSafeNotificationLink(n.link);
+          const link = safeLink ? `data-link="${escapeHtml(safeLink)}"` : '';
           return `<div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n._id}" ${link}>
             ${n.read ? '' : '<div class="notif-dot"></div>'}
             <div class="notif-icon" style="background:${ic.bg};color:${ic.color};"><i class="bi ${ic.icon}"></i></div>
@@ -412,6 +462,7 @@
               el.querySelector('.notif-dot')?.remove();
               loadUnreadCount();
             }
+            if (el.dataset.link) window.location.href = el.dataset.link;
           });
         });
       } catch (e) { console.error('Failed to load notifications:', e); }
@@ -443,13 +494,14 @@
     // ── Socket.io Real-time Notifications ──────────────────────────────────
     if (typeof io !== 'undefined') {
       const socket = io();
-      socket.emit('admin:join', '<%= (user && user._id) ? user._id.toString() : "" %>');
+      socket.emit('admin:join', '<%= navbarUser._id ? navbarUser._id.toString() : "" %>');
 
       socket.on('notification:new', (data) => {
         // Refresh badge count
         loadUnreadCount();
         // If panel is open, refresh list
         if (isOpen) loadNotifications();
+        window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
       });
     }
 
@@ -502,7 +554,8 @@
         };
         const ic = iconMap[n.type] || iconMap.system;
         const timeAgo = getTimeAgo(n.createdAt);
-        const linkAttr = n.link ? `data-link="${escapeHtml(n.link)}"` : '';
+        const safeLink = roleSafeNotificationLink(n.link);
+        const linkAttr = safeLink ? `data-link="${escapeHtml(safeLink)}"` : '';
         const checked = selectedIds.has(n._id) ? 'checked' : '';
         return `<div class="notif-modal-item ${n.read ? '' : 'unread'}" data-id="${n._id}" ${linkAttr}>
           <input type="checkbox" class="notif-checkbox" data-id="${n._id}" ${checked}>
@@ -540,8 +593,6 @@
       notifModalList.querySelectorAll('.notif-modal-item').forEach(el => {
         el.addEventListener('click', async (e) => {
           if (e.target.classList.contains('notif-checkbox')) return;
-          const link = el.dataset.link;
-          if (link) window.location.href = link;
           if (el.classList.contains('unread')) {
             const id = el.dataset.id;
             await fetch(`/api/notifications/${id}/read`, { method: 'PUT', credentials: 'same-origin' });
@@ -549,6 +600,8 @@
             el.querySelector('.notif-dot')?.remove();
             loadUnreadCount();
           }
+          const link = el.dataset.link;
+          if (link) window.location.href = link;
         });
       });
     }

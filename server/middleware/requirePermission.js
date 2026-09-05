@@ -82,6 +82,13 @@ const PERMISSION_CATALOG = [
     ],
   },
   {
+    group: "Payroll Management",
+    permissions: [
+      { key: "payroll.view", label: "View Staff Payroll" },
+      { key: "payroll.manage", label: "Create / Edit Staff Payroll" },
+    ],
+  },
+  {
     group: "Reports",
     permissions: [
       { key: "reports.view", label: "View Reports" },
@@ -212,30 +219,46 @@ function requiredPermissionForRequest(user, req) {
     if (path.startsWith("/secretary/profile") || path.startsWith("/secretary/settings")) return null;
     if (path.startsWith("/secretary/attendance")) return "attendance.self.manage";
     if (path.startsWith("/secretary/payroll")) return "payroll.self.view";
+    if (path.startsWith("/secretary/staff")) return "staff.view";
+    if (path.startsWith("/secretary/customers")) return "customers.view";
+    if (path.startsWith("/secretary/technicians")) return "technicians.view";
     if (path.startsWith("/secretary/reports")) return "reports.view";
     if (path.startsWith("/secretary/payments")) return "payments.view";
+    if (path.startsWith("/secretary/inventory/ordered-products")) return "orders.view";
     if (path.startsWith("/secretary/inventory")) return "inventory.view";
     if (path.startsWith("/secretary/services")) return "services.view";
     if (path.startsWith("/secretary/service-tracking")) return "appointments.view";
     if (path.startsWith("/secretary/appointments/booking-requests")) return "booking_requests.view";
-    if (path.startsWith("/secretary/appointments/walk-in") || path.startsWith("/secretary/pointofsale")) return "appointments.manage";
+    if (path.startsWith("/secretary/pointofsale")) return "orders.manage";
+    if (path.startsWith("/secretary/operations/resolution-center")) return "appointments.view";
+    if (path.startsWith("/secretary/appointments/walk-in") || path.startsWith("/secretary/appointments/reschedule") || path.startsWith("/secretary/appointments/repair-scheduling")) return "appointments.manage";
     if (path.startsWith("/secretary/appointments") || path.startsWith("/secretary/calendar")) return "appointments.view";
+    if (path.startsWith("/secretary/projects")) return "appointments.view";
 
     if (path.startsWith("/api/secretary/attendance")) return "attendance.self.manage";
-    if (path.startsWith("/api/secretary/analytics")) return "dashboard.view";
+    if (path.startsWith("/api/secretary/analytics") || path.startsWith("/api/secretary/dashboard")) return "dashboard.view";
     if (path.startsWith("/api/secretary/reports")) return "reports.view";
     if (path.startsWith("/api/secretary/payments")) return read ? "payments.view" : "payments.manage";
-    if (path.startsWith("/api/secretary/customers")) return read ? "customers.view" : "customers.manage";
+    if (path.startsWith("/api/secretary/customers")) {
+      if (read) return "customers.view";
+      const action = String((req.body && req.body.action) || "").toLowerCase();
+      if (action === "block") return "accounts.block";
+      if (action === "unblock") return "accounts.unblock";
+      return "customers.manage";
+    }
     if (path.startsWith("/api/secretary/technician-schedules") || path.startsWith("/api/secretary/dayoffs")) return read ? "technicians.view" : "technicians.manage";
     if (path.startsWith("/api/secretary/technicians")) return "technicians.view";
     if (path.startsWith("/api/secretary/staff")) return "staff.view";
     if (path.startsWith("/api/secretary/core-services") || path.startsWith("/api/secretary/repair-services")) return read ? "services.view" : "services.manage";
-    if (path.startsWith("/api/secretary/service-categories") || path.startsWith("/api/secretary/service-types")) return "services.view";
+    if (path.startsWith("/api/secretary/service-categories")) return read ? "services.view" : "services.manage";
+    if (path.startsWith("/api/secretary/service-types")) return "services.view";
     if (path.startsWith("/api/secretary/service-tracking")) return "appointments.view";
-    if (path.startsWith("/api/secretary/inventory") || path.startsWith("/api/secretary/hvac") || path.startsWith("/api/secretary/tools") || path.startsWith("/api/secretary/tool-usage")) return read ? "inventory.view" : "inventory.manage";
-    if (path.startsWith("/api/secretary/purchases")) return "inventory.view";
+    if (path.startsWith("/api/secretary/appointments") || path.startsWith("/api/secretary/operations")) return read ? "appointments.view" : "appointments.manage";
+    if (path.startsWith("/api/secretary/inventory") || path.startsWith("/api/secretary/hvac") || path.startsWith("/api/secretary/tools") || path.startsWith("/api/secretary/tool-usage") || path.startsWith("/api/secretary/stock-adjustments")) return read ? "inventory.view" : "inventory.manage";
+    if (path.startsWith("/api/secretary/purchases")) return "orders.view";
 
     if (path.startsWith("/api/appointments") || path.startsWith("/appointments")) return read ? "appointments.view" : "appointments.manage";
+    if (path.startsWith("/api/projects") || path.startsWith("/api/work-orders") || path.startsWith("/api/issues") || path.startsWith("/api/expenses")) return read ? "appointments.view" : "appointments.manage";
     if (path.startsWith("/api/orders") || path.startsWith("/api/walk-in-aircon") || path.startsWith("/api/pos")) return read ? "orders.view" : "orders.manage";
     if (path.startsWith("/api/users")) return read ? "customers.view" : "customers.manage";
     if (path.startsWith("/api/services") || path.startsWith("/api/schedule") || path.startsWith("/api/bookings") || path.startsWith("/api/booking-flow")) return read ? "appointments.view" : "appointments.manage";

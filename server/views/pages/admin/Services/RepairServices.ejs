@@ -1,3 +1,6 @@
+<%
+  const resolvedRepairServicesApiBase = typeof repairServicesApiBase === "string" ? repairServicesApiBase : "/api/admin/repair-services";
+%>
 <div class="admin-dashboard container-fluid py-4 repair-services-page">
   <%- include('../../../partials/dashboard-styles') %>
 
@@ -704,7 +707,7 @@
           partsCoverage: { mode: form.warrantyPartsMode.value, days: form.warrantyPartsDays.value ? parseInt(form.warrantyPartsDays.value) : null },
         },
       };
-      let url = '/api/admin/repair-services';
+      let url = <%- JSON.stringify(resolvedRepairServicesApiBase).replace(/</g, "\\u003c") %>;
       let method = 'POST';
       if (editingId) {
         url += '/' + editingId;

@@ -94,33 +94,14 @@
           f.style.height=(i/(t-1)*100)+'%';
           if(l)l.textContent=step;
         }
-        function isLocationEntered(){
-          if(typeof BookingState!=='undefined' && BookingState.customerLocation && BookingState.customerLocation.address) return true;
-          if(typeof BookingState!=='undefined' && typeof BookingState.location==='string' && BookingState.location.length>=10) return true;
-          var li=document.getElementById('locationInput');
-          if(li && li.value.trim().length>=10) return true;
-          return false;
-        }
         function navigateToStep(step){
-          var currentStep=parseInt(document.getElementById('stepperCurrentStep').textContent || '1');
-          if(step>currentStep && step>3 && !isLocationEntered()){
-            var li=document.getElementById('locationInput');
-            if(li) li.focus();
-            var msg='Please enter and confirm your service location before continuing.';
-            if(typeof showError==='function') showError(msg); else alert(msg);
-            navigateToStep(3);
+          if(typeof window.requestBookingStepNavigation==='function'){
+            window.requestBookingStepNavigation(step);
             return;
           }
-          var maxStep=1;
-          if(typeof BookingState!=='undefined'&&BookingState.maxReachedStep){
-            maxStep=BookingState.maxReachedStep;
-          }else{
-            var all=document.querySelectorAll('.booking-step');
-            all.forEach(function(e){var n=parseInt(e.getAttribute('data-step'));if(n>maxStep)maxStep=n;});
+          if(typeof showAlert==='function'){
+            showAlert('Booking navigation is still loading. Please try again in a moment.','info');
           }
-          if(step>maxStep)return;
-          updateEntStepper(step);
-          if(typeof showStep==='function')showStep(step);
         }
         document.addEventListener('DOMContentLoaded',function(){updateEntStepper(1);});
       </script>
@@ -150,7 +131,7 @@
       </aside>
       <% } %>
 
-      <div class="ent-stepper" id="entStepper">
+      <div class="ent-stepper" id="entStepper" data-authenticated="<%= user ? 'true' : 'false' %>">
         <div class="ent-h">
           <span>Booking Progress</span>
           <span>Step <span id="stepperCurrentStep">1</span> of 6</span>
@@ -164,6 +145,7 @@
           <button type="button" class="ent-n" data-step="5" onclick="navigateToStep(5)"><span class="ent-ni"><i class="bi bi-receipt"></i></span><span>Fee Review</span></button>
           <button type="button" class="ent-n" data-step="6" onclick="navigateToStep(6)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
         </div>
+        <p class="ent-stepper-help"><i class="bi bi-info-circle"></i>Complete each step in order. You can return to any completed step.</p>
       </div>
 
       <div class="booking-layout">
@@ -419,7 +401,7 @@
                 </div>
               </div>
               <div class="mt-4 text-center" id="continueButtonSection">
-                <button type="button" class="ent-btn-primary px-5" id="continueToNextStep" disabled onclick="if(!this.disabled){showStep(3);updateStepper(3);}else{alert('Please select at least one service first');}return false;"><i class="bi bi-arrow-right-circle"></i> Continue to Next Step</button>
+                <button type="button" class="ent-btn-primary px-5" id="continueToNextStep" aria-describedby="continueHint" onclick="advanceToNextStep();return false;"><i class="bi bi-arrow-right-circle"></i> Continue to Next Step</button>
                 <p class="text-muted small mt-2" id="continueHint">Please select at least one service to continue</p>
               </div>
             </div>
@@ -1275,6 +1257,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .sv-btn-b:hover{background:var(--sv-bs)}
 
 .ent-stepper{background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(15,23,42,0.04);position:sticky;top:84px;z-index:40}
+.ent-stepper-help{display:flex;align-items:center;justify-content:center;gap:.35rem;margin:.55rem 0 0;color:#64748b;font-size:.67rem;font-weight:600;text-align:center}
+.ent-stepper-help i{color:#2563eb}
 .ent-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem}
 .ent-h span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
 .ent-h span:last-child{font-size:0.72rem;color:#64748b;font-weight:600}
@@ -1728,6 +1712,9 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   font-size: 0.78rem;
   padding: 4px 12px;
 }
+.service-card-body {
+  padding: 1rem;
+}
 
 @media(max-width:767px){
   .sv-hero{padding:3.5rem 0 4rem}
@@ -1740,6 +1727,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   .ent-tr::-webkit-scrollbar{display:none}
   .ent-n{flex:0 0 auto;padding:5px 10px;font-size:0.68rem;scroll-snap-align:start}
   .ent-n:focus-visible{outline:2px solid var(--sv-b);outline-offset:2px}
+  .ent-stepper-help{font-size:.62rem}
   .sv-tr{display:none}
   .sv-pt{gap:8px}
   .sv-ptb{min-height:62px;padding:0.65rem;gap:7px}
@@ -1780,6 +1768,58 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   .add-service-btn {
     font-size: 0.7rem;
     padding: 5px 8px;
+  }
+
+  /* Keep core services compact and scannable: two cards per row on phones. */
+  #coreServiceCards {
+    --bs-gutter-x: 0.75rem;
+    --bs-gutter-y: 0.75rem;
+  }
+
+  #coreServiceCards > .core-service-column {
+    display: flex;
+    min-width: 0;
+  }
+
+  #coreServiceCards .service-card {
+    width: 100%;
+    min-width: 0;
+    border-radius: 12px;
+  }
+
+  #coreServiceCards .service-card-body {
+    min-width: 0;
+    padding: 0.7rem;
+  }
+
+  #coreServiceCards .service-card-media {
+    height: auto;
+    max-height: 110px;
+    aspect-ratio: 4 / 3;
+  }
+
+  #coreServiceCards .card-title {
+    display: -webkit-box;
+    min-height: 2.4em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  #coreServiceCards .service-card-meta {
+    gap: 0.3rem !important;
+  }
+
+  #coreServiceCards .price-box {
+    max-width: 100%;
+    padding-inline: 0.5rem !important;
+    white-space: nowrap;
+  }
+
+  #coreServiceCards .add-service-btn {
+    min-height: 44px;
+    padding-inline: 0.35rem;
+    white-space: nowrap;
   }
 }
 
@@ -1823,6 +1863,33 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   .add-service-btn {
     font-size: 0.65rem;
     padding: 4px 6px;
+  }
+
+  #coreServiceCards {
+    --bs-gutter-x: 0.5rem;
+    --bs-gutter-y: 0.5rem;
+  }
+
+  #coreServiceCards .service-card-body {
+    padding: 0.55rem;
+  }
+
+  #coreServiceCards .service-card-media {
+    max-height: 90px;
+  }
+
+  #coreServiceCards .service-card-chip {
+    font-size: 0.55rem !important;
+    padding: 0.25em 0.45em !important;
+  }
+
+  #coreServiceCards .price-box {
+    font-size: 0.62rem;
+  }
+
+  #coreServiceCards .add-service-btn {
+    font-size: 0.65rem;
+    min-height: 44px;
   }
 
   /* Step cards — extra compact on small phones */
@@ -2277,7 +2344,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260826-shared-slot-logic';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260826-shared-slot-logic':'/js/services.js?v=20260816-whole-peso-downpayment';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260906-guarded-step-navigation':'/js/services.js?v=20260816-whole-peso-downpayment';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

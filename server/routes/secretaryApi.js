@@ -1,13 +1,18 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const router = express.Router();
 const admin = require("../controllers/adminController");
 const auth = require("../middleware/authenticate");
+const { requirePermission } = require("../middleware/requirePermission");
 const audit = require("../utils/audit");
 const Inventory = require("../models/Inventory");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
 const SiteSetting = require("../models/SiteSetting");
 const { attendanceDay } = require("../utils/attendanceTime");
+const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const {
 	listToolUsage,
 	summarizeToolUsage,
@@ -19,6 +24,17 @@ const {
 // only authenticated secretaries should be able to hit these endpoints
 router.use(auth.authenticate);
 router.use(auth.requireRole("secretary"));
+
+const secretaryServiceImageDir = path.join(__dirname, "../public/uploads/service-images");
+if (!fs.existsSync(secretaryServiceImageDir)) fs.mkdirSync(secretaryServiceImageDir, { recursive: true });
+const secretaryServiceImageUpload = multer({
+	storage: multer.diskStorage({
+		destination: (req, file, cb) => cb(null, secretaryServiceImageDir),
+		filename: (req, file, cb) => cb(null, `svc-${Date.now()}-${Math.round(Math.random() * 1e9)}${imageExtensionFor(file)}`),
+	}),
+	limits: { fileSize: 5 * 1024 * 1024 },
+	fileFilter: (req, file, cb) => cb(null, isAllowedImage(file)),
+}).single("serviceImage");
 
 // Secretary timekeeping uses the same rotating QR shown by the administrator,
 // but does not inherit technician-only availability, expense, or remittance rules.
@@ -147,6 +163,18 @@ router.get("/attendance/history", async (req, res, next) => {
 // Dashboard KPI summary (counts used by secretary dashboard)
 router.get("/analytics/summary", admin.analyticsSummary);
 
+// The admin and secretary dashboards share one view. This read-only snapshot
+// supplies the common operational cards without exposing admin mutation APIs.
+router.get("/dashboard/operations", async (req, res, next) => {
+	try {
+		const { buildAdminOperationsDashboard } = require("../utils/adminOperationsDashboard");
+		res.set("Cache-Control", "no-store");
+		return res.json(await buildAdminOperationsDashboard(new Date()));
+	} catch (error) {
+		next(error);
+	}
+});
+
 // Analytics appointments trend data
 router.get("/analytics/appointments", async (req, res, next) => {
 	try {
@@ -201,6 +229,7 @@ router.get("/technicians/:id/calendar", admin.getTechnicianCalendar);
 
 // Staff list (includes technicians and other staff)
 router.get("/staff", admin.listStaff);
+router.get("/staff/:id", admin.getStaff);
 
 // Technician schedules
 router.get("/technician-schedules", admin.listTechnicianSchedules);
@@ -216,25 +245,22 @@ router.delete("/dayoffs/:id", admin.deleteNonWorkingDay);
 // Core service administration
 router.get("/core-services", admin.listCoreServices);
 router.get("/core-services/:id", admin.getCoreService);
-router.post("/core-services", admin.createCoreService);
-router.patch("/core-services/:id", admin.editCoreService);
+router.post("/core-services", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.createCoreService);
+router.patch("/core-services/:id", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.editCoreService);
 
 // Repair service administration
 router.get("/repair-services", admin.listRepairServices);
 router.get("/repair-services/:id", admin.getRepairService);
-router.post("/repair-services", admin.createRepairService);
-router.patch("/repair-services/:id", admin.editRepairService);
+router.post("/repair-services", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.createRepairService);
+router.patch("/repair-services/:id", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.editRepairService);
 
-// Service Categories (read-only for secretary)
-const ServiceCategory = require("../models/ServiceCategory");
-router.get("/service-categories", async (req, res) => {
-  try {
-    const categories = await ServiceCategory.find({}).sort({ order: 1 }).lean();
-    res.json({ success: true, categories });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Service Categories use the same contract as admin, guarded by services RBAC.
+const serviceCategories = require("../controllers/serviceCategoryController");
+router.get("/service-categories", serviceCategories.list);
+router.post("/service-categories", serviceCategories.create);
+router.patch("/service-categories/:id", serviceCategories.update);
+router.delete("/service-categories/:id", serviceCategories.deactivate);
+router.patch("/service-categories/:id/reorder", serviceCategories.reorder);
 
 // Service Tracking
 router.get("/service-tracking", admin.getServiceTracking);
@@ -360,6 +386,102 @@ router.get("/tools/:id", admin.getTool);
 router.post("/tools", admin.createTool);
 router.patch("/tools/:id", admin.editTool);
 router.delete("/tools/:id", admin.deleteTool);
+router.post("/tools/:id/adjust-stock", requirePermission("inventory.manage"), async (req, res, next) => {
+  try {
+    const StockAdjustment = require("../models/StockAdjustment");
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid id" });
+    }
+
+    const { type, delta, reason, notes } = req.body;
+    const validTypes = ["stock_in", "stock_out", "adjustment", "job_usage", "return", "damage"];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ error: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+    }
+    if (!Number.isFinite(delta) || delta === 0) {
+      return res.status(400).json({ error: "Delta must be a non-zero number" });
+    }
+
+    const normalizedReason = typeof reason === "string" && reason.trim() === "" ? null : (reason || null);
+    const result = await StockAdjustment.record({
+      toolId: id,
+      type,
+      delta,
+      adjustedBy: req.user._id,
+      reason: normalizedReason,
+      notes: notes || null,
+    });
+    return res.json({ message: "Stock adjusted", adjustment: result.adjustment, tool: result.tool });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.get("/stock-adjustments", requirePermission("inventory.view"), async (req, res, next) => {
+  try {
+    const StockAdjustment = require("../models/StockAdjustment");
+    const { toolId, type, from, to, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (toolId && mongoose.Types.ObjectId.isValid(toolId)) filter.toolId = toolId;
+    if (type) filter.type = type;
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) filter.createdAt.$lte = new Date(`${to}T23:59:59.999Z`);
+    }
+
+    const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50));
+    const skip = (safePage - 1) * safeLimit;
+    const [adjustments, total] = await Promise.all([
+      StockAdjustment.find(filter)
+        .populate("toolId", "itemName unit barcode category")
+        .populate("adjustedBy", "name email")
+        .populate("referenceId", "workOrderNumber")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(safeLimit)
+        .lean(),
+      StockAdjustment.countDocuments(filter),
+    ]);
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const todayFilter = { createdAt: { $gte: todayStart, $lte: todayEnd } };
+    const [todayIn, todayOut, todayAdj] = await Promise.all([
+      StockAdjustment.aggregate([
+        { $match: { ...todayFilter, type: { $in: ["stock_in", "return"] } } },
+        { $group: { _id: null, total: { $sum: "$delta" }, count: { $sum: 1 } } },
+      ]),
+      StockAdjustment.aggregate([
+        { $match: { ...todayFilter, type: { $in: ["stock_out", "job_usage", "damage"] } } },
+        { $group: { _id: null, total: { $sum: { $abs: "$delta" } }, count: { $sum: 1 } } },
+      ]),
+      StockAdjustment.aggregate([
+        { $match: { ...todayFilter, type: "adjustment" } },
+        { $group: { _id: null, count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    return res.json({
+      adjustments,
+      pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) },
+      kpi: {
+        todayIn: todayIn[0]?.total || 0,
+        todayInCount: todayIn[0]?.count || 0,
+        todayOut: todayOut[0]?.total || 0,
+        todayOutCount: todayOut[0]?.count || 0,
+        todayAdjCount: todayAdj[0]?.count || 0,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Payments administration
 const paymentController = require("../controllers/paymentController");

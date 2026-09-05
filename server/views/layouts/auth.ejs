@@ -40,6 +40,8 @@
   <!-- Auth Styles -->
   <link rel="stylesheet" href="/css/auth/auth.css">
   <link rel="stylesheet" href="/css/fonts/fonts.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <link rel="stylesheet" href="/css/enterprise-alerts.css">
 
   <% if (typeof extraStyles !== 'undefined' && extraStyles) { %>
     <% extraStyles.forEach(function(s){ %>
@@ -49,6 +51,7 @@
 
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="/js/enterprise-alerts.js"></script>
 
   <!-- reCAPTCHA -->
   <script>window.recaptchaSiteKey = "<%= (typeof recaptchaSiteKey !== 'undefined' && recaptchaSiteKey) ? recaptchaSiteKey : '' %>";</script>

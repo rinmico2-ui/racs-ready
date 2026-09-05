@@ -128,6 +128,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  const CANCELLATION_API = <%- JSON.stringify(typeof cancellationApiBase === 'string' ? cancellationApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
+  const CANCELLATION_QUEUE_PATH = <%- JSON.stringify(typeof cancellationQueuePath === 'string' ? cancellationQueuePath : '/admin/appointments?tab=queue').replace(/</g, '\\u003c') %>;
   let currentPage = 1;
   let pageCache = []; // bookings on the currently rendered page
 
@@ -153,16 +155,16 @@
       const params = new URLSearchParams({ page: currentPage, limit: 20 });
       if (filter === 'escalated') params.set('escalated', 'true');
       if (search) params.set('search', search);
-      const res = await fetch(`/api/admin/appointments/cancellation-log?${params}`);
+      const res = await fetch(`${CANCELLATION_API}/cancellation-log?${params}`);
       const data = await res.json();
       pageCache = data.bookings || [];
       renderTable(pageCache);
       renderPagination(data.pagination);
 
       // Stats
-      const allRes = await fetch('/api/admin/appointments/cancellation-log?limit=1');
+      const allRes = await fetch(CANCELLATION_API + '/cancellation-log?limit=1');
       const allData = await allRes.json();
-      const escRes = await fetch('/api/admin/appointments/cancellation-log?escalated=true&limit=1');
+      const escRes = await fetch(CANCELLATION_API + '/cancellation-log?escalated=true&limit=1');
       const escData = await escRes.json();
       document.getElementById('statTotal').textContent = allData.pagination?.total || 0;
       document.getElementById('statEscalated').textContent = escData.pagination?.total || 0;
@@ -199,7 +201,7 @@
         <td class="text-end pe-3">
           <div class="d-inline-flex gap-1">
             <button class="btn btn-sm btn-outline-info d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0;border-radius:8px;" title="View history" onclick="viewHistory('${b._id}')"><i class="bi bi-eye"></i></button>
-            <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0;border-radius:8px;" title="Go to queue" onclick="window.location.href='/admin/appointments/queue'"><i class="bi bi-arrow-right"></i></button>
+            <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center" style="width:32px;height:32px;padding:0;border-radius:8px;" title="Go to queue" onclick="window.location.href=CANCELLATION_QUEUE_PATH"><i class="bi bi-arrow-right"></i></button>
           </div>
         </td>
       </tr>`;
@@ -223,7 +225,7 @@
       let b = pageCache.find(x => x._id === id);
       if (!b) {
         // Fallback: search the API for this booking
-        const res = await fetch(`/api/admin/appointments/cancellation-log?limit=100`);
+        const res = await fetch(`${CANCELLATION_API}/cancellation-log?limit=100`);
         const data = await res.json();
         b = (data.bookings || []).find(x => x._id === id);
       }

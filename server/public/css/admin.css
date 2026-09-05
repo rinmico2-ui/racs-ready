@@ -1861,3 +1861,76 @@ button:focus {
 .pl-kpi:nth-child(3)::before { background: #10b981; }
 .pl-kpi:nth-child(4)::before { background: #3b82f6; }
 .pl-kpi:hover::before { width: 6px; }
+
+/* Shared admin-grade page hero. Both admin and secretary layouts load this
+   stylesheet so shared operational views keep the exact same presentation. */
+.au-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%);
+  border-radius: 20px;
+  padding: 0;
+  margin-bottom: 24px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.au-hero::before {
+  content: '';
+  position: absolute;
+  top: -60%;
+  right: -20%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.au-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40%;
+  left: -10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.au-hero-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 36px;
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.au-hero-left { display: flex; align-items: center; gap: 16px; }
+.au-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+.au-hero h1 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-family: "Outfit", "Inter", sans-serif;
+}
+.au-hero p { color: rgba(255,255,255,0.65); margin: 4px 0 0; font-size: 0.85rem; font-weight: 400; }
+.au-hero-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+@media (max-width: 767px) {
+  .au-hero-inner { padding: 22px 20px; flex-direction: column; align-items: flex-start; }
+  .au-hero-icon { width: 44px; height: 44px; font-size: 1.2rem; }
+  .au-hero h1 { font-size: 1.15rem; }
+  .au-hero-actions { width: 100%; }
+  .au-hero-actions .btn { flex: 1; justify-content: center; }
+}

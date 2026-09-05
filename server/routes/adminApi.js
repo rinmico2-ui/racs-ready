@@ -6,7 +6,7 @@ const admin = require("../controllers/adminController");
 const auth = require("../middleware/authenticate");
 const audit = require("../utils/audit");
 const User = require("../models/User");
-const { requirePermission } = require("../middleware/requirePermission");
+const { hasPermission, requirePermission } = require("../middleware/requirePermission");
 const { assertAdminTransition, assertResolution, REMITTANCE_STATUSES } = require("../utils/remittancePolicy");
 const {
   listToolUsage,
@@ -16,9 +16,34 @@ const {
   deleteToolUsageEntry,
 } = require("../utils/toolUsageManagement");
 
-// Protect all admin API routes
+// Protect all admin API routes. The secretary mount reuses only explicitly
+// approved operational workflows; unrelated administration endpoints remain
+// inaccessible through that mount.
 router.use(auth.authenticate);
-router.use(auth.requireRole("admin"));
+router.use((req, res, next) => {
+  if (req.user.role === "admin") return next();
+  const isSecretaryOperationsMount = req.user.role === "secretary"
+    && req.baseUrl === "/api/secretary/operations";
+  const isRepairWorkflowPath = req.path === "/repair-scheduling-queue"
+    || req.path.startsWith("/repair-scheduling-queue/")
+    || req.path.startsWith("/repair-queue/")
+    || /^\/technicians\/[^/]+\/available-dates$/.test(req.path);
+  const isResolutionWorkflowPath = req.path === "/resolution-center"
+    || req.path.startsWith("/resolution-center/")
+    || req.path === "/review-reschedule"
+    || req.path.startsWith("/review-reschedule/")
+    || req.path === "/no-show-review"
+    || req.path.startsWith("/no-show-review/");
+  if (!isSecretaryOperationsMount || (!isRepairWorkflowPath && !isResolutionWorkflowPath)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const read = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+  const isPaymentResolution = /^\/resolution-center\/[^/]+\/(payment-summary|verify-pending-payment|cancel-with-refund)$/.test(req.path);
+  const permission = isPaymentResolution
+    ? (read ? "payments.view" : "payments.manage")
+    : (read ? "appointments.view" : "appointments.manage");
+  return requirePermission(permission)(req, res, next);
+});
 
 async function reconcileOrderRefundState(orderId) {
   const Payment = require("../models/Payment");
@@ -448,77 +473,12 @@ router.post("/repair-services", (req, res, next) => serviceImageUpload(req, res,
 router.patch("/repair-services/:id", (req, res, next) => serviceImageUpload(req, res, next), admin.editRepairService);
 
 // Service Categories (dynamic repair request categories & unit types)
-const ServiceCategory = require("../models/ServiceCategory");
-
-router.get("/service-categories", async (req, res) => {
-  try {
-    const categories = await ServiceCategory.find({}).sort({ order: 1 }).lean();
-    res.json({ success: true, categories });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.post("/service-categories", async (req, res) => {
-  try {
-    const { name, slug, icon, iconColor, unitTypes, isCustom, order } = req.body;
-    if (!name || !slug) return res.status(400).json({ success: false, error: "Name and slug are required." });
-    const exists = await ServiceCategory.findOne({ $or: [{ name }, { slug }] });
-    if (exists) return res.status(409).json({ success: false, error: "Category name or slug already exists." });
-    const maxOrder = await ServiceCategory.findOne().sort({ order: -1 }).lean();
-    const category = await ServiceCategory.create({
-      name, slug, icon: icon || "bi-grid", iconColor: iconColor || "blue",
-      unitTypes: unitTypes || [], isCustom: !!isCustom, order: order ?? ((maxOrder?.order || 0) + 1)
-    });
-    res.status(201).json({ success: true, category });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.patch("/service-categories/:id", async (req, res) => {
-  try {
-    const { name, slug, icon, iconColor, unitTypes, active, order, isCustom } = req.body;
-    const update = {};
-    if (name !== undefined) update.name = name;
-    if (slug !== undefined) update.slug = slug;
-    if (icon !== undefined) update.icon = icon;
-    if (iconColor !== undefined) update.iconColor = iconColor;
-    if (unitTypes !== undefined) update.unitTypes = unitTypes;
-    if (active !== undefined) update.active = active;
-    if (order !== undefined) update.order = order;
-    if (isCustom !== undefined) update.isCustom = isCustom;
-    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, update, { returnDocument: "after", runValidators: true });
-    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
-    res.json({ success: true, category });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.delete("/service-categories/:id", async (req, res) => {
-  try {
-    const category = await ServiceCategory.findById(req.params.id);
-    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
-    if (category.isCustom) return res.status(400).json({ success: false, error: "Cannot delete the 'Other' category." });
-    category.active = false;
-    await category.save();
-    res.json({ success: true, message: "Category deactivated." });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-router.patch("/service-categories/:id/reorder", async (req, res) => {
-  try {
-    const { order } = req.body;
-    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, { order }, { returnDocument: "after" });
-    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
-    res.json({ success: true, category });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+const serviceCategories = require("../controllers/serviceCategoryController");
+router.get("/service-categories", serviceCategories.list);
+router.post("/service-categories", serviceCategories.create);
+router.patch("/service-categories/:id", serviceCategories.update);
+router.delete("/service-categories/:id", serviceCategories.deactivate);
+router.patch("/service-categories/:id/reorder", serviceCategories.reorder);
 
 // Service Tracking
 router.get("/service-tracking", admin.getServiceTracking);
@@ -7117,17 +7077,22 @@ router.get("/resolution-center", async (req, res, next) => {
       "inspection_scheduled", "inspection_in_progress", "repair_scheduled", "repair_in_progress",
     ];
 
+    const canViewOrderCases = req.user.role === "admin" || await hasPermission(req.user, "orders.view");
     const [followUpReports, attentionOrders, linkedActiveOrderBookingIds] = await Promise.all([
       ServiceReport.find({ followUpRequired: true })
         .sort({ updatedAt: -1 })
         .select("bookingId followUpNotes followUpDate updatedAt")
         .lean(),
-      Order.find({ status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
-        .sort({ createdAt: -1 })
-        .limit(500)
-        .populate("technicianId", "name phone")
-        .lean(),
-      Order.distinct("bookingId", { bookingId: { $ne: null }, status: { $nin: ["completed", "cancelled"] } }),
+      canViewOrderCases
+        ? Order.find({ status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
+          .sort({ createdAt: -1 })
+          .limit(500)
+          .populate("technicianId", "name phone")
+          .lean()
+        : Promise.resolve([]),
+      canViewOrderCases
+        ? Order.distinct("bookingId", { bookingId: { $ne: null }, status: { $nin: ["completed", "cancelled"] } })
+        : Promise.resolve([]),
     ]);
     const followUpByBooking = new Map();
     for (const report of followUpReports) {
@@ -7583,7 +7548,7 @@ router.post("/resolution-center/:id/verify-pending-payment", async (req, res, ne
       status: payment.status,
       actor: req.user?._id,
       actorName: req.user?.name || req.user?.email || "Admin",
-      actorRole: "admin",
+      actorRole: req.user?.role || "admin",
       note: "Payment verified from the Booking Resolution Center",
       at: now,
     });
@@ -7699,7 +7664,7 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
           status: payment.status === "refunded" ? "refunded" : "refund_pending",
           actor: req.user?._id,
           actorName: req.user?.name || req.user?.email || "Admin",
-          actorRole: "admin",
+          actorRole: req.user?.role || "admin",
           note: refundDecision === "full"
             ? `Full refund of ₱${refundAmt} approved`
             : refundDecision === "partial"

@@ -104,4 +104,5 @@
   </div>
 </div>
 
+<script>window.RACSPurchasesConfig = { apiBase: <%- JSON.stringify(typeof purchasesApiBase === "string" ? purchasesApiBase : "/api/admin/purchases").replace(/</g, "\\u003c") %> };</script>
 <script src="/js/admin-ordered-products.js"></script>

@@ -76,7 +76,7 @@
         </div>
       </div>
       <div class="au-hero-actions">
-        <a href="/admin/inventory" class="btn btn-light btn-sm fw-semibold">
+        <a href="<%= typeof deliveryInventoryPath === 'string' ? deliveryInventoryPath : '/admin/inventory' %>" class="btn btn-light btn-sm fw-semibold">
           <i class="bi bi-arrow-left me-1"></i>Return → Back to Inventory
         </a>
       </div>
@@ -93,6 +93,7 @@
 <script src="/vendor/fullcalendar/main.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
+    const deliveryInventoryApiBase = <%- JSON.stringify(typeof deliveryInventoryApiBase === 'string' ? deliveryInventoryApiBase : '/api/admin/inventory').replace(/</g, '\\u003c') %>;
     const calEl = document.getElementById('deliveryCalendar');
     if (!calEl || !window.FullCalendar) return;
     function render(events) {
@@ -108,7 +109,7 @@
     }
 
     // fetch inventory and show deliveries
-    fetch('/api/admin/inventory')
+    fetch(deliveryInventoryApiBase)
       .then(r => r.ok ? r.json() : Promise.reject('fetch failed'))
       .then(j => {
         const items = j.inventory || [];

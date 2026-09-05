@@ -655,7 +655,7 @@
         </div>
         <div class="modal-footer border-0 bg-light px-4 py-3">
           <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-          <a class="btn btn-sm btn-primary fw-semibold" id="calDetailOpenRecord" href="/admin/appointments"><i class="bi bi-box-arrow-up-right me-1"></i>Open full record</a>
+          <a class="btn btn-sm btn-primary fw-semibold" id="calDetailOpenRecord" href="<%= typeof calendarBookingsPath === 'string' ? calendarBookingsPath : '/admin/appointments' %>"><i class="bi bi-box-arrow-up-right me-1"></i>Open full record</a>
         </div>
       </div>
     </div>
@@ -664,6 +664,11 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
+      const calendarTechniciansApi = <%- JSON.stringify(typeof calendarTechniciansApi === 'string' ? calendarTechniciansApi : '/api/admin/technicians').replace(/</g, '\\u003c') %>;
+      const calendarSchedulesApi = <%- JSON.stringify(typeof calendarSchedulesApi === 'string' ? calendarSchedulesApi : '/api/admin/technician-schedules').replace(/</g, '\\u003c') %>;
+      const calendarAppointmentsApi = <%- JSON.stringify(typeof calendarAppointmentsApi === 'string' ? calendarAppointmentsApi : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
+      const calendarBookingsPath = <%- JSON.stringify(typeof calendarBookingsPath === 'string' ? calendarBookingsPath : '/admin/appointments').replace(/</g, '\\u003c') %>;
+      const calendarOrdersPath = <%- JSON.stringify(typeof calendarOrdersPath === 'string' ? calendarOrdersPath : '/admin/appointments/orders').replace(/</g, '\\u003c') %>;
       if (!window.FullCalendar || !window.FullCalendar.Calendar) {
         const host = document.getElementById("adminAppointmentsCalendar");
         if (host) host.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Calendar library failed to load. Please refresh.</div>';
@@ -910,7 +915,7 @@
 
       async function fetchTechnicians() {
         try {
-          const res = await fetch("/api/admin/technicians", { credentials: "same-origin", cache: "no-store" });
+          const res = await fetch(calendarTechniciansApi, { credentials: "same-origin", cache: "no-store" });
           if (!res.ok) return [];
           const json = await res.json();
           return json.technicians || [];
@@ -983,7 +988,7 @@
 
       async function fetchTechnicianSchedules() {
         try {
-          const res = await fetch("/api/admin/technician-schedules", { credentials: "same-origin", cache: "no-store" });
+          const res = await fetch(calendarSchedulesApi, { credentials: "same-origin", cache: "no-store" });
           if (!res.ok) return {};
           const json = await res.json();
           const schedules = json.schedules || json || [];
@@ -1235,7 +1240,7 @@
           const isOrder = type === 'order';
           const openRecord = document.getElementById("calDetailOpenRecord");
           const detailSubtitle = document.getElementById("calDetailSubtitle");
-          if (openRecord) openRecord.href = isOrder ? "/admin/orders?order=" + encodeURIComponent(id) : "/admin/appointments?sel=" + encodeURIComponent(id);
+          if (openRecord) openRecord.href = isOrder ? calendarOrdersPath + "?order=" + encodeURIComponent(id) : calendarBookingsPath + "?sel=" + encodeURIComponent(id);
           if (detailSubtitle) detailSubtitle.textContent = isOrder ? "Order fulfillment schedule" : "Service booking schedule";
           if (isOrder) {
             const res = await fetch("/api/orders/" + id);
@@ -1265,7 +1270,7 @@
               '<div class="ent-timeline"><h6><i class="bi bi-clock-history me-1"></i>Status Timeline</h6>' + timeline + '</div>';
             new bootstrap.Modal(document.getElementById("calDetailModal")).show();
           } else {
-            const res = await fetch("/api/admin/appointments/" + id);
+            const res = await fetch(calendarAppointmentsApi + "/" + id);
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             const b = data.booking;
@@ -1291,8 +1296,8 @@
         } catch (e) {
           console.error(e);
           window.location.href = type === "order"
-            ? "/admin/orders?order=" + encodeURIComponent(id)
-            : "/admin/appointments?sel=" + encodeURIComponent(id);
+            ? calendarOrdersPath + "?order=" + encodeURIComponent(id)
+            : calendarBookingsPath + "?sel=" + encodeURIComponent(id);
         }
       };
 

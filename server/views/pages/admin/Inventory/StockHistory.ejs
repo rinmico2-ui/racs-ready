@@ -234,6 +234,7 @@
 
 <script>
 (function() {
+  const stockAdjustmentsApiBase = <%- JSON.stringify(typeof stockAdjustmentsApiBase === 'string' ? stockAdjustmentsApiBase : '/api/admin/stock-adjustments').replace(/</g, '\\u003c') %>;
   let currentPage = 1;
   const perPage = 10;
   const _sparkCharts = {};
@@ -294,7 +295,7 @@
     if (to) params.set('to', to);
 
     try {
-      const resp = await fetch(`/api/admin/stock-adjustments?${params}`, { credentials: 'same-origin' });
+      const resp = await fetch(`${stockAdjustmentsApiBase}?${params}`, { credentials: 'same-origin' });
       const data = await resp.json();
       renderTable(data.adjustments || []);
       renderPagination(data.pagination);

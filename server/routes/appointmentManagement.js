@@ -21,8 +21,16 @@ const { bookingReviewState, withBookingReviewState } = require('../utils/booking
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
+const { requirePermission } = require('../middleware/requirePermission');
 
 router.use(authenticate);
+router.use((req, res, next) => {
+  if (req.user.role !== 'secretary') return next();
+  const permission = ['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+    ? 'appointments.view'
+    : 'appointments.manage';
+  return requirePermission(permission)(req, res, next);
+});
 
 /** Build an explainable, non-mutating assignment plan for standard bookings. */
 router.get('/assignment-plan', requireRole(['admin','secretary']), async (req,res) => {

@@ -5,6 +5,7 @@ const HVACProduct = require("../models/HVACProduct");
 const Brand = require("../models/Brand");
 const Category = require("../models/Category");
 const auth = require("../middleware/authenticate");
+const { requirePermission } = require("../middleware/requirePermission");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -40,9 +41,17 @@ const upload = multer({
   },
 });
 
-// Protect all admin API routes
+// Shared HVAC inventory API. RBAC middleware separately enforces
+// inventory.view versus inventory.manage for secretary requests.
 router.use(auth.authenticate);
-router.use(auth.requireRole("admin"));
+router.use(auth.requireRole(["admin", "secretary"]));
+router.use((req, res, next) => {
+  if (req.user.role === "admin") return next();
+  const permission = ["GET", "HEAD", "OPTIONS"].includes(req.method)
+    ? "inventory.view"
+    : "inventory.manage";
+  return requirePermission(permission)(req, res, next);
+});
 
 // ─── Helper Functions ─────────────────────────────────────────────────────
 
@@ -163,9 +172,8 @@ router.get("/hvac/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid product id" });
-    }
+    // Let static routes such as /hvac/brands/all continue matching below.
+    if (!mongoose.Types.ObjectId.isValid(id)) return next("route");
 
     const product = await HVACProduct.findById(id)
       .populate('brand', 'name')

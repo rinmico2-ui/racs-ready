@@ -9,6 +9,7 @@ const Tool = require("../models/Tool");
 const Notification = require("../models/Notification");
 const audit = require("../utils/audit");
 const { authenticate, requireRole } = require("../middleware/authenticate");
+const { requirePermission } = require("../middleware/requirePermission");
 const { createNotification } = require("../utils/notify");
 const { escapeRegex } = require("../utils/stringSecurity");
 const { equipmentReturnState } = require("../utils/equipmentReturnPolicy");
@@ -19,6 +20,13 @@ const REMINDER_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const MAX_BULK_SELECTION = 500;
 
 router.use(authenticate);
+router.use((req, res, next) => {
+  if (req.user.role !== "secretary") return next();
+  const permission = ["GET", "HEAD", "OPTIONS"].includes(req.method)
+    ? "appointments.view"
+    : "appointments.manage";
+  return requirePermission(permission)(req, res, next);
+});
 
 function dayBounds(now = new Date()) {
   const start = new Date(now);

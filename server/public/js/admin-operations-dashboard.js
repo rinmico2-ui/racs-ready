@@ -3,6 +3,17 @@
 
   var refreshButton = document.getElementById("opsRefresh");
   if (!refreshButton) return;
+  var dashboardConfig = window.RACSDashboardConfig || {};
+  var dashboardLinks = dashboardConfig.links || {};
+
+  function permittedHref(href) {
+    if (dashboardConfig.role !== "secretary") return href;
+    var value = String(href || "");
+    if (value.indexOf("remittance") >= 0 || value.indexOf("payment") >= 0) return dashboardLinks.payments || "/secretary/payments";
+    if (value.indexOf("equipment") >= 0 || value.indexOf("inventory") >= 0) return dashboardLinks.inventory || "/secretary/inventory";
+    if (value.indexOf("technician") >= 0) return dashboardLinks.technicians || "/secretary/technicians";
+    return dashboardLinks.appointments || "/secretary/appointments";
+  }
 
   function el(id) { return document.getElementById(id); }
   function text(id, value) { var node = el(id); if (node) node.textContent = value; }
@@ -30,7 +41,7 @@
     }
     target.innerHTML = rows.map(function (row) {
       var dangerous = row.tone === "danger";
-      return '<a class="ops-priority ' + (dangerous ? "danger" : "") + '" href="' + esc(row.href) + '"><i class="bi ' + (dangerous ? "bi-exclamation-octagon" : "bi-exclamation-triangle") + '"></i><span>' + esc(row.label) + '</span><i class="bi bi-chevron-right ms-auto"></i></a>';
+      return '<a class="ops-priority ' + (dangerous ? "danger" : "") + '" href="' + esc(permittedHref(row.href)) + '"><i class="bi ' + (dangerous ? "bi-exclamation-octagon" : "bi-exclamation-triangle") + '"></i><span>' + esc(row.label) + '</span><i class="bi bi-chevron-right ms-auto"></i></a>';
     }).join("");
   }
 
@@ -111,7 +122,8 @@
     refreshButton.disabled = true;
     if (icon) icon.classList.add("spin");
     try {
-      var response = await fetch("/api/admin/dashboard/operations", { credentials: "same-origin", cache: "no-store" });
+      var endpoint = ((dashboardConfig.endpoints || {}).operations) || "/api/admin/dashboard/operations";
+      var response = await fetch(endpoint, { credentials: "same-origin", cache: "no-store" });
       var payload = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(payload.error || "Operations summary could not be loaded.");
       error.style.display = "none";

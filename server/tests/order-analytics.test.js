@@ -119,3 +119,34 @@ test("flags settled snapshots that are not supported by the payment ledger", () 
   assert.equal(result.ledgerMismatchCount, 1);
   assert.equal(result.outstandingBalance, 1000);
 });
+
+test("surfaces deduplicated fulfillment exceptions, aging, and robust cycle measures", () => {
+  const cohortOrders = [
+    { _id: "completed-fast", status: "completed", createdAt: new Date(2026, 0, 1), completedAt: new Date(2026, 0, 3), total: 1000, fulfillmentType: "delivery_only", delivery: { preferredDate: new Date(2026, 0, 4) }, items: [] },
+    { _id: "completed-slow", status: "completed", createdAt: new Date(2026, 0, 1), completedAt: new Date(2026, 0, 10), total: 1000, fulfillmentType: "delivery_only", delivery: { preferredDate: new Date(2026, 0, 5) }, items: [] },
+    { _id: "overdue-payment", status: "pending_payment", paymentStatus: "pending", createdAt: new Date(2026, 0, 1), pickupDate: new Date(2026, 0, 2), fulfillmentType: "customer_pickup", total: 500, items: [] },
+    { _id: "unassigned", status: "preparing_unit", paymentStatus: "verified", createdAt: new Date(2026, 0, 30), delivery: { preferredDate: new Date(2026, 1, 2) }, fulfillmentType: "delivery_installation", total: 2000, items: [] },
+    { _id: "cancelled", status: "cancelled", cancellationReason: "Customer changed schedule", createdAt: new Date(2026, 0, 15), total: 0, items: [] },
+  ];
+  const result = buildOrderAnalytics({ cohortOrders, completionCandidates: cohortOrders, payments: [], inventoryItems: [], startDate, endDate, previousStart, previousEnd });
+
+  assert.equal(result.openOrders, 2);
+  assert.equal(result.overdueOrders, 1);
+  assert.equal(result.unassignedOrders, 1);
+  assert.equal(result.actionRequiredOrders, 2);
+  assert.equal(result.backlogAging.overSeven, 1);
+  assert.equal(result.backlogAging.today, 1);
+  assert.equal(result.medianCycleHours, 48);
+  assert.equal(result.p90CycleHours, 216);
+  assert.equal(result.onTimeRate, 50);
+  assert.deepEqual(result.cancellationReasons, [{ reason: "Customer changed schedule", count: 1 }]);
+});
+
+test("order growth compares valid demand instead of cancelled volume", () => {
+  const result = buildOrderAnalytics({
+    cohortOrders: [{ _id:"current-valid", status:"preparing_unit", createdAt:startDate, total:100, items:[] }, { _id:"current-cancelled", status:"cancelled", createdAt:startDate, total:100, items:[] }],
+    previousCohortOrders: [{ status:"preparing_unit", total:100 }, { status:"completed", total:100 }],
+    completionCandidates: [], payments: [], inventoryItems: [], startDate, endDate, previousStart, previousEnd,
+  });
+  assert.equal(result.orderGrowth, -50);
+});

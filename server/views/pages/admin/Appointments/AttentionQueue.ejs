@@ -1,3 +1,11 @@
+<%
+  const resolutionRole = typeof resolutionWorkspaceRole === 'string' ? resolutionWorkspaceRole : 'admin';
+  const resolutionApi = typeof resolutionApiBase === 'string' ? resolutionApiBase : '/api/admin';
+  const resolutionAppointmentsApi = typeof resolutionAppointmentsApiBase === 'string' ? resolutionAppointmentsApiBase : '/api/admin/appointments';
+  const resolutionBookingsUrl = typeof resolutionBookingsPath === 'string' ? resolutionBookingsPath : '/admin/appointments';
+  const resolutionOrdersUrl = typeof resolutionOrdersPath === 'string' ? resolutionOrdersPath : '/admin/appointments/orders';
+  const resolutionShowsOrders = typeof resolutionCanViewOrders === 'boolean' ? resolutionCanViewOrders : true;
+%>
 <link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
 <style>
   .attention-card { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
@@ -152,14 +160,14 @@
         <div class="rc-kpi"><span class="rc-kpi-icon"><i class="bi bi-inboxes"></i></span><div class="rc-kpi-label">Open cases</div><div class="rc-kpi-value" id="resolutionTotal">—</div><div class="rc-kpi-meta">Across bookings and orders</div></div>
         <div class="rc-kpi danger"><span class="rc-kpi-icon"><i class="bi bi-exclamation-octagon"></i></span><div class="rc-kpi-label">Critical / high</div><div class="rc-kpi-value" id="resolutionPriority">—</div><div class="rc-kpi-meta"><span id="resolutionPastDue">—</span> past scheduled time</div></div>
         <div class="rc-kpi booking"><span class="rc-kpi-icon"><i class="bi bi-calendar2-check"></i></span><div class="rc-kpi-label">Booking cases</div><div class="rc-kpi-value" id="resolutionBookings">—</div><div class="rc-kpi-meta">Service visit decisions</div></div>
-        <div class="rc-kpi order"><span class="rc-kpi-icon"><i class="bi bi-box-seam"></i></span><div class="rc-kpi-label">Order cases</div><div class="rc-kpi-value" id="resolutionOrders">—</div><div class="rc-kpi-meta">Delivery, installation, and pickup</div></div>
+        <% if (resolutionShowsOrders) { %><div class="rc-kpi order"><span class="rc-kpi-icon"><i class="bi bi-box-seam"></i></span><div class="rc-kpi-label">Order cases</div><div class="rc-kpi-value" id="resolutionOrders">—</div><div class="rc-kpi-meta">Delivery, installation, and pickup</div></div><% } %>
       </section>
 
       <section class="rc-workspace" aria-label="Open resolution cases">
         <div class="rc-domain-tabs" role="tablist" aria-label="Case source">
           <button class="rc-domain-tab active" type="button" data-source="" role="tab" aria-selected="true"><i class="bi bi-grid"></i> All cases <span class="rc-domain-count" id="rcAllCount">0</span></button>
           <button class="rc-domain-tab" type="button" data-source="booking" role="tab" aria-selected="false"><i class="bi bi-calendar2-check"></i> Bookings <span class="rc-domain-count" id="rcBookingCount">0</span></button>
-          <button class="rc-domain-tab" type="button" data-source="order" role="tab" aria-selected="false"><i class="bi bi-box-seam"></i> Orders <span class="rc-domain-count" id="rcOrderCount">0</span></button>
+          <% if (resolutionShowsOrders) { %><button class="rc-domain-tab" type="button" data-source="order" role="tab" aria-selected="false"><i class="bi bi-box-seam"></i> Orders <span class="rc-domain-count" id="rcOrderCount">0</span></button><% } %>
         </div>
         <div class="rc-toolbar">
           <div class="rc-search"><i class="bi bi-search"></i><input class="form-control" id="resolutionSearch" type="search" placeholder="Search reference, customer, technician…" autocomplete="off"></div>
@@ -379,6 +387,12 @@
 
 <script src="/js/enterprise-calendar.js"></script>
 <script>
+  const RESOLUTION_WORKSPACE_ROLE = <%- JSON.stringify(resolutionRole).replace(/</g, '\\u003c') %>;
+  const RESOLUTION_API_BASE = <%- JSON.stringify(resolutionApi).replace(/</g, '\\u003c') %>;
+  const RESOLUTION_APPOINTMENTS_API = <%- JSON.stringify(resolutionAppointmentsApi).replace(/</g, '\\u003c') %>;
+  const RESOLUTION_BOOKINGS_PATH = <%- JSON.stringify(resolutionBookingsUrl).replace(/</g, '\\u003c') %>;
+  const RESOLUTION_ORDERS_PATH = <%- JSON.stringify(resolutionOrdersUrl).replace(/</g, '\\u003c') %>;
+  const RESOLUTION_CAN_VIEW_ORDERS = <%- JSON.stringify(resolutionShowsOrders) %>;
   function showToast(type, message) {
     const toast = document.createElement('div');
     toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
@@ -394,6 +408,7 @@
   const validIssueFilters = ['no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'pickup_overdue'];
   let currentFilter = legacyFilterMap[requestedFilter] || (validIssueFilters.includes(requestedFilter) ? requestedFilter : '');
   let currentSource = ['booking', 'order'].includes(queryParams.get('source')) ? queryParams.get('source') : '';
+  if (currentSource === 'order' && !RESOLUTION_CAN_VIEW_ORDERS) currentSource = '';
   let currentSeverity = ['critical', 'high', 'medium'].includes(queryParams.get('severity')) ? queryParams.get('severity') : '';
   let currentSearch = queryParams.get('q') || '';
   let currentPage = Math.max(1, Number.parseInt(queryParams.get('page'), 10) || 1);
@@ -448,7 +463,7 @@
     if (currentSearch.trim()) params.set('q', currentSearch.trim());
     document.getElementById('resolutionResultsMeta').textContent = 'Loading current queue…';
     try {
-      const res = await fetch(`/api/admin/resolution-center?${params.toString()}`);
+      const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load resolution center');
       if (requestId !== queueRequest) return;
@@ -457,10 +472,10 @@
       document.getElementById('resolutionPastDue').textContent = data.summary?.pastDue || 0;
       document.getElementById('resolutionPriority').textContent = (data.summary?.bySeverity?.critical || 0) + (data.summary?.bySeverity?.high || 0);
       document.getElementById('resolutionBookings').textContent = data.summary?.bySource?.booking || 0;
-      document.getElementById('resolutionOrders').textContent = data.summary?.bySource?.order || 0;
+      if (document.getElementById('resolutionOrders')) document.getElementById('resolutionOrders').textContent = data.summary?.bySource?.order || 0;
       document.getElementById('rcAllCount').textContent = data.summary?.total || 0;
       document.getElementById('rcBookingCount').textContent = data.summary?.bySource?.booking || 0;
-      document.getElementById('rcOrderCount').textContent = data.summary?.bySource?.order || 0;
+      if (document.getElementById('rcOrderCount')) document.getElementById('rcOrderCount').textContent = data.summary?.bySource?.order || 0;
       const pagination = data.pagination || { page:1, pages:1, total:allResolutionCases.length, perPage:25 };
       const start = pagination.total ? ((pagination.page - 1) * pagination.perPage) + 1 : 0;
       const end = Math.min(pagination.total, pagination.page * pagination.perPage);
@@ -490,7 +505,7 @@
     const awaitingCustomer = i.awaitingCustomerSchedule === true;
     const decisionBadge = awaitingCustomer
       ? '<span class="badge bg-primary">Waiting for customer schedule</span>'
-      : '<span class="badge bg-warning text-dark">Admin decision required</span>';
+      : '<span class="badge bg-warning text-dark">Staff decision required</span>';
     const decisionActions = awaitingCustomer
       ? `<button class="btn btn-sm btn-primary" onclick="openReschedule('${i.id}', decodeURIComponent('${encodeURIComponent(String(i.reference || 'Booking'))}'), ${i.serviceDurationMinutes || 60}, 'no-show-review', 'no_show', ${i.capacityQuantity || 1})"><i class="bi bi-calendar-event me-1"></i>Schedule on Customer's Behalf</button>`
       : `<button class="btn btn-sm btn-outline-danger" onclick="confirmNoShow('${i.id}', false, this)"><i class="bi bi-person-check me-1"></i>Confirm &amp; Close</button>
@@ -639,7 +654,7 @@
 
   function renderOrderActions(item) {
     const allowed = new Set(item.allowedActions || []);
-    return `<a class="btn btn-outline-secondary" href="/admin/inventory/aircon-orders?order=${encodeURIComponent(item.id)}"><i class="bi bi-eye me-1"></i>View order</a>${allowed.has('verify_payment') ? `<button class="btn btn-success" onclick="verifyOrderPayment('${item.id}')"><i class="bi bi-check2-circle me-1"></i>Verify payment</button>` : ''}${allowed.has('reschedule') ? `<button class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}')"><i class="bi bi-calendar2-week me-1"></i>Set future schedule</button>` : ''}${contactActions(item)}`;
+    return `<a class="btn btn-outline-secondary" href="${RESOLUTION_ORDERS_PATH}?order=${encodeURIComponent(item.id)}"><i class="bi bi-eye me-1"></i>View order</a>${allowed.has('verify_payment') ? `<button class="btn btn-success" onclick="verifyOrderPayment('${item.id}')"><i class="bi bi-check2-circle me-1"></i>Verify payment</button>` : ''}${allowed.has('reschedule') ? `<button class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}')"><i class="bi bi-calendar2-week me-1"></i>Set future schedule</button>` : ''}${contactActions(item)}`;
   }
 
   function findResolutionCase(source, id) {
@@ -910,7 +925,7 @@
               </div>` : `
               <div class="d-flex flex-wrap gap-2 mt-2">
                 <button class="btn btn-sm btn-outline-secondary" onclick="viewDetail('${i.id}')" title="View Details"><i class="bi bi-eye me-1"></i>View Details</button>
-                ${i.status === 'pending_reassignment' && !i.isProposedPassed ? `<a href="/admin/appointments/queue?assign=${i.id}" class="btn btn-sm btn-outline-success" title="Assign a technician in the assignment queue"><i class="bi bi-person-plus me-1"></i>Reassign</a>` : ''}
+                ${i.status === 'pending_reassignment' && !i.isProposedPassed ? `<a href="${RESOLUTION_BOOKINGS_PATH}?tab=queue&assign=${i.id}" class="btn btn-sm btn-outline-success" title="Assign a technician in the assignment queue"><i class="bi bi-person-plus me-1"></i>Reassign</a>` : ''}
                 ${i.requiresReschedule && (!i.proposedReschedule || i.proposedReschedule.status !== 'pending') ? `<button class="btn btn-sm btn-outline-info" onclick="openReschedule('${i.id}', '${i.reference}', ${i.serviceDurationMinutes || 60})"><i class="bi bi-calendar-event me-1"></i>${i.isProposedPassed ? 'Reschedule (required)' : 'Reschedule'}</button>` : ''}
                 ${i.phone ? `<a href="tel:${i.phone}" class="btn btn-sm btn-outline-success" title="Call customer"><i class="bi bi-telephone me-1"></i>Call</a>` : ''}
                 <a href="mailto:${i.email}" class="btn btn-sm btn-outline-secondary" title="Contact customer via email"><i class="bi bi-envelope me-1"></i>Contact</a>
@@ -927,7 +942,7 @@
     body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     modal.show();
     try {
-      const res = await fetch(`/api/admin/appointments/${id}`);
+      const res = await fetch(`${RESOLUTION_APPOINTMENTS_API}/${id}`);
       const data = await res.json();
       if (!data.booking) throw new Error('Booking not found');
       const b = data.booking;
@@ -1123,7 +1138,7 @@
     modal.show();
 
     // Fetch verified and pending amounts separately from the payment ledger.
-    fetch(`/api/admin/resolution-center/${bookingId}/payment-summary`)
+    fetch(`${RESOLUTION_API_BASE}/resolution-center/${bookingId}/payment-summary`)
       .then(r => r.json())
       .then(summary => {
         if (!summary || summary.success === false) throw new Error(summary?.error || 'Failed to load');
@@ -1218,7 +1233,7 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Verifying...';
     try {
-      const res = await fetch(`/api/admin/resolution-center/${bookingId}/verify-pending-payment`, {
+      const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${bookingId}/verify-pending-payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -1277,10 +1292,10 @@
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...'; }
 
     try {
-      const body = { reasonType, reason: notes || `Cancelled by admin (${reasonType})`, refundDecision, refundMethod, refundNotes };
+      const body = { reasonType, reason: notes || `Cancelled by ${RESOLUTION_WORKSPACE_ROLE} (${reasonType})`, refundDecision, refundMethod, refundNotes };
       if (refundDecision === 'partial') body.refundAmount = Number(partialAmount);
 
-      const res = await fetch(`/api/admin/resolution-center/${bookingId}/cancel-with-refund`, {
+      const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${bookingId}/cancel-with-refund`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -1354,8 +1369,8 @@
   async function rschSubmitProposal(dateStr, startTime, timeLabel) {
     try {
       const endpoint = rescheduleMode === 'no-show-review'
-        ? `/api/admin/no-show-review/${rescheduleBookingId}/reschedule`
-        : `/api/admin/review-reschedule/${rescheduleBookingId}/reschedule`;
+        ? `${RESOLUTION_API_BASE}/no-show-review/${rescheduleBookingId}/reschedule`
+        : `${RESOLUTION_API_BASE}/review-reschedule/${rescheduleBookingId}/reschedule`;
       const payload = rescheduleMode === 'no-show-review'
         ? { newDate: dateStr, newTime: startTime }
         : { date: dateStr, time: startTime, reason: 'New visit scheduled from Booking Resolution Center', issueType: rescheduleIssueType };
@@ -1390,7 +1405,7 @@
       button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Confirming...';
     }
     try {
-      const res = await fetch(`/api/admin/no-show-review/${id}/confirm`, {
+      const res = await fetch(`${RESOLUTION_API_BASE}/no-show-review/${id}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ allowCustomerReschedule: allowCustomerReschedule === true })
@@ -1410,11 +1425,11 @@
   }
 
   async function closeCase(id, issueType) {
-    const note = prompt('Resolution note (optional):', 'Reviewed and closed by admin');
+    const note = prompt('Resolution note (optional):', `Reviewed and closed by ${RESOLUTION_WORKSPACE_ROLE}`);
     if (note === null) return;
     if (!confirm('Close this resolution case? The booking record and history will remain unchanged.')) return;
     try {
-      const res = await fetch(`/api/admin/resolution-center/${id}/close`, {
+      const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${id}/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ issueType, note: note.trim() })
@@ -1431,14 +1446,14 @@
   async function reassignCase(id, issueType) {
     if (!confirm('Send this booking to the assignment queue for a new technician?')) return;
     try {
-      const res = await fetch(`/api/admin/resolution-center/${id}/reassign`, {
+      const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${id}/reassign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ issueType })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to prepare reassignment');
-      window.location.href = `/admin/appointments?tab=queue&assign=${id}`;
+      window.location.href = `${RESOLUTION_BOOKINGS_PATH}?tab=queue&assign=${id}`;
     } catch (e) {
       alert(e.message || 'Failed to prepare reassignment');
     }
@@ -1466,7 +1481,7 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Approve failed');
-      window.location.href = `/admin/appointments/queue?assign=${id}`;
+      window.location.href = `${RESOLUTION_BOOKINGS_PATH}?tab=queue&assign=${id}`;
     } catch (e) {
       alert(e.message || 'Failed to approve reschedule');
     }
