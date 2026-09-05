@@ -22,6 +22,7 @@ const repairServiceSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
   slug: { type: String, required: true, unique: true, index: true, trim: true },
   icon: { type: String },
+  images: [String],
   applianceType: { type: String, index: true },
   commonFaults: [String],
   parts: [partSchema],

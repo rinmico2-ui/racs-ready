@@ -83,7 +83,23 @@
       <div class="col-lg-6 mt-5 mt-lg-0">
         <div class="ent-hero-visual">
           <div class="ent-hero-image-wrap">
-            <img src="/images/technicianWork/tech1.jpg" alt="Professional Technician" class="img-fluid">
+            <picture>
+              <source
+                media="(max-width: 767px)"
+                srcset="/images/technicianWork/optimized/tech1-640.jpg"
+              >
+              <img
+                src="/images/technicianWork/optimized/tech1-1280.jpg"
+                srcset="/images/technicianWork/optimized/tech1-640.jpg 640w, /images/technicianWork/optimized/tech1-1280.jpg 1280w"
+                sizes="(max-width: 767px) 100vw, 50vw"
+                width="1280"
+                height="1019"
+                alt="Professional Technician"
+                class="img-fluid"
+                decoding="async"
+                fetchpriority="high"
+              >
+            </picture>
             
             <!-- Floating Cards -->
             <div class="ent-float-card ent-float-card-top">
@@ -278,9 +294,9 @@
     <div class="ent-services-grid">
       <% 
       const services = [
-        { name: 'Aircon Installation', img: '/images/technicianWork/tech2.jpg', type: 'Core Service' },
-        { name: 'Aircon Cleaning', img: '/images/technicianWork/tech1.jpg', type: 'Core Service' },
-        { name: 'Freon Recharging', img: '/images/technicianWork/tech3.jpg', type: 'Core Service' },
+        { name: 'Aircon Installation', img: '/images/technicianWork/optimized/tech2-1280.jpg', srcset: '/images/technicianWork/optimized/tech2-640.jpg 640w, /images/technicianWork/optimized/tech2-1280.jpg 1280w', type: 'Core Service' },
+        { name: 'Aircon Cleaning', img: '/images/technicianWork/optimized/tech1-1280.jpg', srcset: '/images/technicianWork/optimized/tech1-640.jpg 640w, /images/technicianWork/optimized/tech1-1280.jpg 1280w', type: 'Core Service' },
+        { name: 'Freon Recharging', img: '/images/technicianWork/optimized/tech3-1280.jpg', srcset: '/images/technicianWork/optimized/tech3-640.jpg 640w, /images/technicianWork/optimized/tech3-1280.jpg 1280w', type: 'Core Service' },
         { name: 'Aircon Relocation', img: '/images/technicianWork/tech4.jpg', type: 'Core Service' },
         { name: 'Refrigerator Repair', img: '/images/bgphotos/ref.jpg', type: 'Repair' },
         { name: 'Washing Machine', img: '/images/bgphotos/washing machine.jpg', type: 'Repair' },
@@ -290,7 +306,13 @@
       services.forEach((svc, idx) => { %>
         <div class="ent-service-card ent-reveal ent-delay-<%= idx % 4 %>">
           <div class="ent-service-image">
-            <img src="<%= svc.img %>" alt="<%= svc.name %>" loading="lazy">
+            <img
+              src="<%= svc.img %>"
+              <% if (svc.srcset) { %>srcset="<%= svc.srcset %>" sizes="(max-width: 575px) 100vw, (max-width: 991px) 50vw, 25vw"<% } %>
+              alt="<%= svc.name %>"
+              loading="lazy"
+              decoding="async"
+            >
             <span class="ent-service-chip"><%= svc.type %></span>
             <div class="ent-service-overlay">
               <a href="/services" class="ent-btn-primary" style="padding: 10px 20px; font-size: 0.85rem;">
@@ -532,34 +554,24 @@
     ══════════════════════════════════════════════════════════════════════════════ %>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Scroll reveal animation
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Reveal with IntersectionObserver instead of measuring every element on
+  // every scroll frame. This keeps the mobile main thread available for input.
   const revealElements = document.querySelectorAll('.ent-reveal, .ent-reveal-left, .ent-reveal-right, .ent-reveal-scale');
-  
-  const revealOnScroll = () => {
-    revealElements.forEach(el => {
-      const rect = el.getBoundingClientRect();
-      const windowHeight = window.innerHeight;
-      
-      if (rect.top < windowHeight * 0.85) {
-        el.classList.add('revealed');
-      }
-    });
-  };
-  
-  // Initial check
-  revealOnScroll();
-  
-  // Throttled scroll listener
-  let ticking = false;
-  window.addEventListener('scroll', () => {
-    if (!ticking) {
-      window.requestAnimationFrame(() => {
-        revealOnScroll();
-        ticking = false;
+
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    revealElements.forEach(el => el.classList.add('revealed'));
+  } else {
+    const revealObserver = new IntersectionObserver((entries, observer) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('revealed');
+        observer.unobserve(entry.target);
       });
-      ticking = true;
-    }
-  });
+    }, { rootMargin: '0px 0px -15% 0px', threshold: 0.01 });
+    revealElements.forEach(el => revealObserver.observe(el));
+  }
 
   // Counter animation for stats
   const counters = document.querySelectorAll('.ent-stat-number');
@@ -588,7 +600,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Observe stats section
   const statsSection = document.querySelector('.ent-stats');
-  if (statsSection) {
+  if (statsSection && !reduceMotion) {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -602,15 +614,17 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Parallax effect on hero orbs
-  const orbs = document.querySelectorAll('.ent-hero-orb');
-  window.addEventListener('mousemove', (e) => {
-    const x = (e.clientX / window.innerWidth - 0.5) * 30;
-    const y = (e.clientY / window.innerHeight - 0.5) * 30;
-    
-    orbs.forEach((orb, index) => {
-      const factor = (index + 1) * 0.5;
-      orb.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
+  if (!reduceMotion && window.matchMedia('(pointer: fine)').matches) {
+    const orbs = document.querySelectorAll('.ent-hero-orb');
+    window.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 30;
+      const y = (e.clientY / window.innerHeight - 0.5) * 30;
+
+      orbs.forEach((orb, index) => {
+        const factor = (index + 1) * 0.5;
+        orb.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
+      });
     });
-  });
+  }
 });
 </script>

@@ -415,16 +415,37 @@ router.put("/technicians/:id", async (req, res) => {
   }
 });
 
+// ── Service image upload middleware ──
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+
+const serviceImageDir = path.join(__dirname, "../public/uploads/service-images");
+if (!fs.existsSync(serviceImageDir)) fs.mkdirSync(serviceImageDir, { recursive: true });
+
+const serviceImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, serviceImageDir),
+  filename: (req, file, cb) => {
+    cb(null, `svc-${Date.now()}-${Math.round(Math.random() * 1e9)}${imageExtensionFor(file)}`);
+  },
+});
+const serviceImageUpload = multer({
+  storage: serviceImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, isAllowedImage(file)),
+}).single("serviceImage");
+
 // Core service administration
 router.get("/core-services", admin.listCoreServices);
 router.get("/core-services/:id", admin.getCoreService);
-router.post("/core-services", admin.createCoreService);
-router.patch("/core-services/:id", admin.editCoreService);
+router.post("/core-services", (req, res, next) => serviceImageUpload(req, res, next), admin.createCoreService);
+router.patch("/core-services/:id", (req, res, next) => serviceImageUpload(req, res, next), admin.editCoreService);
 // Repair service administration
 router.get("/repair-services", admin.listRepairServices);
 router.get("/repair-services/:id", admin.getRepairService);
-router.post("/repair-services", admin.createRepairService);
-router.patch("/repair-services/:id", admin.editRepairService);
+router.post("/repair-services", (req, res, next) => serviceImageUpload(req, res, next), admin.createRepairService);
+router.patch("/repair-services/:id", (req, res, next) => serviceImageUpload(req, res, next), admin.editRepairService);
 
 // Service Categories (dynamic repair request categories & unit types)
 const ServiceCategory = require("../models/ServiceCategory");

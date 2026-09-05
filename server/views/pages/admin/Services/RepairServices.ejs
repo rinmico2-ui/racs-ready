@@ -384,6 +384,17 @@
               <label class="form-check-label ms-2" for="isAirconServiceCheck">Is Aircon Service?</label>
               <div class="form-text mt-0">Enables specific cooling flows.</div>
             </div>
+            <h6 class="modal-section-title mt-4">Service Image</h6>
+            <div class="text-center mb-3">
+              <div id="repairServiceImagePreview" class="service-image-preview mx-auto" style="width:120px;height:120px;border:2px dashed #dee2e6;border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8f9fa;">
+                <i class="bi bi-image text-muted" style="font-size:2rem;"></i>
+              </div>
+            </div>
+            <input type="file" id="repairServiceImageInput" class="d-none" accept="image/jpeg,image/png,image/webp" />
+            <label for="repairServiceImageInput" class="btn btn-outline-primary btn-sm w-100">
+              <i class="bi bi-upload me-1"></i> Choose Image
+            </label>
+            <div class="form-text small text-muted text-center">JPG, PNG, WEBP. Max 5MB.</div>
           </div>
           <div class="col-md-6">
             <h6 class="modal-section-title">Pricing Structure</h6>
@@ -588,7 +599,11 @@
     window.updateHP = (i, j, field, val) => { currentAirconTypes[i].hpPricing[j][field] = val; };
     window.removeHP = (i, j) => { currentAirconTypes[i].hpPricing.splice(j, 1); renderMatrix(); };
 
+    let uploadedRepairImage = null;
+
     function openForm(data) {
+      uploadedRepairImage = null;
+      const preview = document.getElementById('repairServiceImagePreview');
       if (data) {
         editingId = data._id;
         modalEl.querySelector('.modal-title').innerText = 'Edit Repair Service';
@@ -604,6 +619,11 @@
         form.active.checked = !!data.active;
         currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
         setWarrantyPolicy(data.warrantyPolicy);
+        if (data.images && data.images.length > 0) {
+          preview.innerHTML = '<img src="' + data.images[0] + '" style="width:100%;height:100%;object-fit:cover;" />';
+        } else {
+          preview.innerHTML = '<i class="bi bi-image text-muted" style="font-size:2rem;"></i>';
+        }
       } else {
         editingId = null;
         modalEl.querySelector('.modal-title').innerText = 'New Repair Service';
@@ -612,6 +632,7 @@
         form.allowTechnicianPricing.checked = true;
         currentAirconTypes = [];
         setWarrantyPolicy(null);
+        preview.innerHTML = '<i class="bi bi-image text-muted" style="font-size:2rem;"></i>';
       }
       isAirconToggle.dispatchEvent(new Event('change'));
       renderMatrix();
@@ -629,6 +650,19 @@
         const svc = JSON.parse(decodeURIComponent(tr.dataset.svc || '{}'));
         openForm(svc);
       }
+    });
+
+    document.getElementById('repairServiceImageInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { alert('Image must be under 5MB'); return; }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { alert('Only JPG, PNG, WEBP allowed'); return; }
+      uploadedRepairImage = file;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        document.getElementById('repairServiceImagePreview').innerHTML = '<img src="' + ev.target.result + '" style="width:100%;height:100%;object-fit:cover;" />';
+      };
+      reader.readAsDataURL(file);
     });
 
     form.addEventListener('submit', async function(e) {
@@ -677,11 +711,19 @@
         method = 'PATCH';
       }
       try {
-        const r = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+        const formData = new FormData();
+        Object.keys(payload).forEach(key => {
+          const val = payload[key];
+          if (typeof val === 'object' && val !== null) {
+            formData.append(key, JSON.stringify(val));
+          } else {
+            formData.append(key, val);
+          }
         });
+        if (uploadedRepairImage) {
+          formData.append('serviceImage', uploadedRepairImage);
+        }
+        const r = await fetch(url, { method, body: formData });
         if (r.ok) {
           location.reload();
         } else {

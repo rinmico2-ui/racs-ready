@@ -36,6 +36,74 @@ const BookingState = {
 };
 window.BookingState = BookingState;
 
+// ── localStorage persistence for booking progress ──
+const BOOKING_STORAGE_KEY = 'calidro_booking_progress';
+
+function saveBookingProgress() {
+  try {
+    const data = {
+      selectedServices: BookingState.selectedServices || [],
+      totalEstimatedPrice: BookingState.totalEstimatedPrice,
+      hasRepairServices: BookingState.hasRepairServices,
+      selectedTechnicianId: BookingState.selectedTechnicianId,
+      location: BookingState.location,
+      customerLocation: BookingState.customerLocation,
+      userCoordinates: BookingState.userCoordinates,
+      scheduleDate: BookingState.scheduleDate,
+      scheduleTime: BookingState.scheduleTime,
+      currentStep: BookingState.currentStep,
+      maxReachedStep: BookingState.maxReachedStep,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(data));
+    console.log('💾 Booking progress saved');
+  } catch(e) {
+    console.warn('Failed to save booking progress:', e);
+  }
+}
+
+function restoreBookingProgress() {
+  try {
+    const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    // Expire after 24 hours
+    if (!data.savedAt || (Date.now() - data.savedAt > 24 * 60 * 60 * 1000)) {
+      localStorage.removeItem(BOOKING_STORAGE_KEY);
+      return false;
+    }
+    // Restore state
+    if (data.selectedServices && data.selectedServices.length > 0) {
+      BookingState.selectedServices = data.selectedServices;
+      BookingState.totalEstimatedPrice = data.totalEstimatedPrice || 0;
+      BookingState.hasRepairServices = data.hasRepairServices || false;
+      BookingState.selectedTechnicianId = data.selectedTechnicianId || null;
+      BookingState.location = data.location || null;
+      BookingState.customerLocation = data.customerLocation || null;
+      BookingState.userCoordinates = data.userCoordinates || null;
+      BookingState.scheduleDate = data.scheduleDate || null;
+      BookingState.scheduleTime = data.scheduleTime || null;
+      BookingState.maxReachedStep = data.maxReachedStep || 1;
+      console.log('📂 Booking progress restored from', new Date(data.savedAt).toLocaleString());
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.warn('Failed to restore booking progress:', e);
+    return false;
+  }
+}
+
+function clearBookingProgress() {
+  try {
+    localStorage.removeItem(BOOKING_STORAGE_KEY);
+    console.log('🗑️ Booking progress cleared');
+  } catch(e) {}
+}
+
+// Auto-save on step changes
+const _origShowStep = typeof showStep === 'function' ? showStep : null;
+
 function calculateConfiguredDownpayment(total) {
   const percentage = Number(BookingState.downpaymentPercentage) || 10;
   return Math.round(Math.max(0, Number(total) || 0) * percentage / 100);
@@ -186,7 +254,7 @@ function initMultiServiceBooking() {
     // Cache DOM elements
     cacheDOMElements();
 
-    // Initialize booking state
+    // Initialize booking state (restores from localStorage if available)
     initializeBookingState();
 
     // Load services catalog
@@ -195,8 +263,46 @@ function initMultiServiceBooking() {
     // Setup event listeners
     setupEventListeners();
 
-    // Initialize stepper (handled implicitly or uses updateStepperIndicators)
-    updateStepperIndicators(1);
+    // Restore UI state if we have saved progress
+    if (BookingState.selectedServices && BookingState.selectedServices.length > 0) {
+      // Re-render selected services list
+      if (typeof renderSelectedServicesList === 'function') {
+        renderSelectedServicesList();
+      }
+      if (typeof updateSelectedCount === 'function') {
+        updateSelectedCount();
+      }
+      // Show booking summary
+      const bookingSummary = document.getElementById('bookingSummary');
+      if (bookingSummary) {
+        bookingSummary.classList.remove('d-none');
+      }
+
+      // Show "Progress Restored" banner
+      const restoredBanner = document.createElement('div');
+      restoredBanner.className = 'alert alert-info alert-dismissible fade show mb-3';
+      restoredBanner.setAttribute('role', 'alert');
+      restoredBanner.innerHTML = '<i class="bi bi-clock-history me-2"></i><strong>Progress restored!</strong> Your previous booking has been restored. Continue where you left off.';
+      const firstStep = document.querySelector('.booking-step[data-step="1"]');
+      if (firstStep) {
+        firstStep.insertBefore(restoredBanner, firstStep.firstChild);
+      }
+
+      // Navigate to saved step
+      const stepToRestore = Math.min(BookingState.maxReachedStep || 1, 6);
+      if (stepToRestore > 1) {
+        setTimeout(() => {
+          showStep(stepToRestore);
+          updateStepperIndicators(stepToRestore);
+          console.log('📂 Restored to step', stepToRestore);
+        }, 600);
+      } else {
+        updateStepperIndicators(1);
+      }
+    } else {
+      // Initialize stepper (handled implicitly or uses updateStepperIndicators)
+      updateStepperIndicators(1);
+    }
 
   }, 500); // 500ms delay to ensure everything is loaded
 }
@@ -576,11 +682,16 @@ function disableBookingFeatures() {
  * Initialize booking state
  */
 function initializeBookingState() {
-  // Initialize BookingState
-  BookingState.selectedServices = [];
-  BookingState.currentService = null;
-  BookingState.totalEstimatedPrice = 0;
-  BookingState.hasRepairServices = false;
+  // Try to restore from localStorage first
+  const restored = restoreBookingProgress();
+  
+  if (!restored) {
+    // No saved progress, initialize fresh
+    BookingState.selectedServices = [];
+    BookingState.currentService = null;
+    BookingState.totalEstimatedPrice = 0;
+    BookingState.hasRepairServices = false;
+  }
 }
 
 /**
@@ -1104,6 +1215,9 @@ function showStep(stepNumber) {
     BookingState.maxReachedStep = stepNumber;
   }
 
+  // Save progress to localStorage
+  saveBookingProgress();
+
   // Get target step element
   const targetStep = document.querySelector(`.booking-step[data-step="${stepNumber}"]`);
 
@@ -1595,8 +1709,17 @@ function initializeMap() {
     return;
   }
 
-  // Clean up any existing map instance first
-  cleanupMap();
+  // If map already exists and is valid, just invalidate its size and return
+  if (BookingState && BookingState.map) {
+    try {
+      BookingState.map.invalidateSize();
+      console.log('✅ Map already exists, invalidated size');
+    } catch(e) {
+      console.warn('Map invalidateSize failed, reinitializing:', e);
+      cleanupMap();
+    }
+    return;
+  }
 
   if (typeof L === 'undefined') {
     console.warn('Leaflet not loaded, waiting...');
@@ -1970,6 +2093,17 @@ function initializeMapInternal(mapContainer) {
     BookingState.technicianIcon = technicianIcon;
     BookingState.userIcon = userIcon;
     BookingState.routeMarkers = [];
+  }
+
+  // Restore user marker and route if we have saved coordinates
+  if (BookingState.userCoordinates && BookingState.userCoordinates.lat && BookingState.userCoordinates.lng) {
+    const { lat, lng } = BookingState.userCoordinates;
+    console.log('📂 Restoring user marker at:', lat, lng);
+    setTimeout(() => {
+      setCustomerLocationMarker(lat, lng, BookingState.location || '', 'Restored from saved progress');
+      map.setView([lat, lng], 15);
+      drawRoute();
+    }, 500);
   }
 
   // Render company baseline marker after map init (fare uses company↔customer, not technician↔customer)
@@ -4535,7 +4669,7 @@ function renderRepairServices() {
 function createServiceCard(service, type) {
 
   const col = document.createElement('div');
-  col.className = 'col-12 col-md-6 col-lg-4';
+  col.className = 'col-12 col-sm-6 col-lg-4';
 
   const card = document.createElement('div');
   card.className = 'card service-card h-100 border-0 shadow-sm';
@@ -4573,31 +4707,37 @@ function createServiceCard(service, type) {
       ? '<span class="badge bg-secondary text-white service-card-chip">Repair</span>'
       : '<span class="badge bg-primary service-card-chip">Service</span>';
 
-  card.innerHTML = `
-    <div class="card-body p-3">
-      <div class="d-flex align-items-center mb-2">
-        <div class="service-icon flex-shrink-0 me-3">
+  // Use image if available, otherwise use icon
+  const hasImage = service.images && service.images.length > 0;
+  const mediaSection = hasImage
+    ? `<div class="service-card-media">
+        <img src="${service.images[0]}" alt="${service.name}" class="service-card-img" loading="lazy" />
+       </div>`
+    : `<div class="service-icon-wrap mb-2">
+        <div class="service-icon">
           <i class="${service.icon || (type === 'repair' ? 'bi bi-tools' : 'bi bi-gear-fill')} fs-4 text-primary"></i>
         </div>
-        <div class="flex-grow-1">
-          <h6 class="card-title fw-semibold mb-1 text-dark">${service.name}</h6>
-          <div class="d-flex align-items-center gap-2">
-            ${serviceTypeBadge}
-            <span class="badge bg-light text-muted service-card-chip">${durationLabel}</span>
-          </div>
-        </div>
+       </div>`;
+
+  card.innerHTML = `
+    <div class="card-body p-3">
+      ${mediaSection}
+      <h6 class="card-title fw-semibold mb-1 text-dark">${service.name}</h6>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        ${serviceTypeBadge}
+        <span class="badge bg-light text-muted service-card-chip">${durationLabel}</span>
       </div>
-      <div class="text-center mb-3">
-        <div class="price-box rounded-pill px-3 py-2 fw-bold text-primary d-inline-block">
+      <div class="text-center mb-2">
+        <div class="price-box rounded-pill px-3 py-1 fw-bold text-primary d-inline-block">
           ${priceDisplay}
         </div>
       </div>
-      <button class="btn btn-primary w-100 add-service-btn" 
+      <button class="btn btn-primary btn-sm w-100 add-service-btn" 
               data-service-id="${service._id}" 
               data-service-type="${type}"
               data-service-name="${service.name}"
               data-is-aircon="${isAirconService}">
-        <i class="bi bi-plus-circle me-2"></i>Add to Booking
+        <i class="bi bi-plus-circle me-1"></i>Add to Booking
       </button>
     </div>
   `;
@@ -10294,6 +10434,9 @@ async function handleBookingSubmission() {
         console.warn('⚠️ showBookingConfirmationModal function not available, falling back to default success');
         showBookingSuccessModal(result);
       }
+
+      // Clear saved progress after successful booking
+      clearBookingProgress();
 
     } else {
       const errorData = await response.json();

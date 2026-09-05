@@ -1002,6 +1002,31 @@
   .ent-status-text { font-size: 0.7rem; }
 }
 
+/* Preserve the visual hierarchy on phones without continuously compositing
+   several full-screen blurred layers. */
+@media (max-width: 767px) {
+  .ent-hero-bg::before,
+  .ent-status-dot,
+  .ent-hero-title .ent-gradient-text,
+  .ent-hero-image-wrap,
+  .ent-hero-image-wrap::before {
+    animation: none;
+  }
+
+  .ent-hero-orb,
+  .ent-hero-particles {
+    display: none;
+  }
+
+  .ent-status-badge,
+  .ent-btn-secondary,
+  .ent-float-card,
+  .ent-glass-card {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    REDUCED MOTION
    ══════════════════════════════════════════════════════════════════════════════ */

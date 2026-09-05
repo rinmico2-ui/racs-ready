@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const path = require("path");
 const expressEjsLayouts = require("express-ejs-layouts");
 const helmet = require("helmet");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const attachCurrentUser = require("./middleware/currentUser");
 const User = require("./models/User");
@@ -111,7 +112,7 @@ app.use(expressEjsLayouts);
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.set("layout", "layouts/main");
-app.set("view cache", false);
+app.set("view cache", process.env.NODE_ENV === "production");
 
 // Helmet Security Middleware - disable default CSP so we can set our own
 app.use(
@@ -151,6 +152,10 @@ app.use(cors({
   origin: ALLOWED_ORIGINS,
   credentials: true,
 }));
+
+// Compress rendered HTML and text assets before they cross slower mobile
+// connections. This also adds the correct Vary header automatically.
+app.use(compression({ threshold: 1024 }));
 
 // request logging middleware (small overhead)
 app.use((req, res, next) => {
@@ -285,7 +290,25 @@ app.use(
   ],
   apiAuth.authenticate,
 );
-app.use(express.static(path.join(__dirname, "public")));
+const publicDirectory = path.join(__dirname, "public");
+app.use(express.static(publicDirectory, {
+  etag: true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    // Evidence and payment uploads may contain private customer data.
+    if (filePath.includes(`${path.sep}uploads${path.sep}`)) {
+      res.setHeader("Cache-Control", "private, no-store");
+      return;
+    }
+
+    if (process.env.NODE_ENV !== "production") return;
+    if (/\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=2592000");
+      return;
+    }
+    res.setHeader("Cache-Control", "public, max-age=3600");
+  },
+}));
 
 // Runtime maintenance gate. Static assets and the sign-in flow remain
 // available; authenticated administrators can always reach the control page.

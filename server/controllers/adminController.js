@@ -1633,6 +1633,13 @@ exports.createCoreService = async (req, res, next) => {
     const existing = await CoreService.findOne({ slug });
     if (existing) return res.status(409).json({ error: "slug already exists" });
     const normalizedWarranty = normalizeServiceWarrantyPolicy(warrantyPolicy, { slug, name }, "core");
+
+    // Handle uploaded image
+    const images = [];
+    if (req.file) {
+      images.push(`/uploads/service-images/${req.file.filename}`);
+    }
+
     const svc = new CoreService({
       name,
       slug,
@@ -1645,6 +1652,7 @@ exports.createCoreService = async (req, res, next) => {
       airconTypes: Array.isArray(airconTypes) ? airconTypes : undefined,
       warrantyPolicy: normalizedWarranty,
       active: active !== false,
+      images,
     });
     await svc.save();
     await logAction(req.user._id, svc._id, "coreService.create", req, {
@@ -1688,6 +1696,14 @@ exports.editCoreService = async (req, res, next) => {
         : Math.min(1000000, Math.max(1, Number(previousPolicy.termsVersion) || 1) + 1);
       updates.warrantyPolicy = nextPolicy;
     }
+
+    // Handle uploaded image
+    if (req.file) {
+      const newImageUrl = `/uploads/service-images/${req.file.filename}`;
+      const existingImages = existingService.images || [];
+      updates.images = [newImageUrl, ...existingImages];
+    }
+
     const svc = await CoreService.findByIdAndUpdate(id, updates, {
       returnDocument: "after",
       runValidators: true,
@@ -1826,6 +1842,13 @@ exports.createRepairService = async (req, res, next) => {
     const existing = await RepairService.findOne({ slug });
     if (existing) return res.status(409).json({ error: "slug already exists" });
     const normalizedWarranty = normalizeServiceWarrantyPolicy(warrantyPolicy, { slug, name }, "repair");
+
+    // Handle uploaded image
+    const images = [];
+    if (req.file) {
+      images.push(`/uploads/service-images/${req.file.filename}`);
+    }
+
     const svc = new RepairService({
       name,
       slug,
@@ -1840,6 +1863,7 @@ exports.createRepairService = async (req, res, next) => {
       warrantyDays: normalizedWarranty.workmanshipDays,
       warrantyPolicy: normalizedWarranty,
       active: active !== false,
+      images,
     });
     await svc.save();
     await logAction(req.user._id, svc._id, "repairService.create", req, {
@@ -1884,6 +1908,14 @@ exports.editRepairService = async (req, res, next) => {
       updates.warrantyPolicy = nextPolicy;
       updates.warrantyDays = nextPolicy.workmanshipDays;
     }
+
+    // Handle uploaded image
+    if (req.file) {
+      const newImageUrl = `/uploads/service-images/${req.file.filename}`;
+      const existingImages = existingService.images || [];
+      updates.images = [newImageUrl, ...existingImages];
+    }
+
     const svc = await RepairService.findByIdAndUpdate(id, updates, {
       returnDocument: "after",
       runValidators: true,

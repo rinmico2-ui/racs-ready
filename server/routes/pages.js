@@ -30,114 +30,39 @@ router.get("/math-captcha", (req, res) => {
 
 // Landing page
 router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
-  let featuredProducts = [];
-  let publicStats = { servicesCompleted: 0, satisfactionPercentage: 0, activeTechnicians: 0, yearsExperience: 0, averageRating: 0, ratingCount: 0 };
-  try {
-    const HVACProduct = require("../models/HVACProduct");
-    const products = await HVACProduct.find({
-      active: true,
-      salesChannel: { $in: ["web", "both"] },
-      status: { $ne: "discontinued" },
-    })
-      .populate("category", "name")
-      .populate("brand", "name")
-      .sort({ modelLine: 1 })
-      .limit(8)
-      .lean();
+  const fallbackStats = {
+    servicesCompleted: 0,
+    satisfactionPercentage: 0,
+    activeTechnicians: 0,
+    yearsExperience: 0,
+    averageRating: 0,
+    ratingCount: 0,
+  };
 
-    featuredProducts = products.map((item) => {
-      const variants = (item.variants || []).filter((v) => v.active);
-      const prices = variants.map((v) => v.sellingPrice).filter((p) => p > 0);
-      const totalStock = variants.reduce((s, v) => s + (v.quantity || 0), 0);
-      const firstInStock = variants.find(
-        (v) => v.status === "in_stock" && v.quantity > 0
-      );
-      const anyStock = variants.some((v) => v.quantity > 0);
-      return {
-        _id: item._id,
-        modelLine: item.modelLine,
-        brand: item.brand ? item.brand.name : "",
-        category: item.category ? item.category.name : "",
-        type: item.type || "split",
-        inverter: item.inverter || false,
-        imageUrl: item.imageUrl || "/images/products/default.png",
-        description: item.description || "",
-        features:
-          item.specifications && item.specifications.features
-            ? item.specifications.features
-            : [],
-        warranty:
-          item.specifications && item.specifications.warranty
-            ? item.specifications.warranty
-            : "1 Year Compressor, 1 Year Parts",
-        startingPrice: prices.length ? Math.min(...prices) : 0,
-        totalStock,
-        inStock: anyStock,
-        firstCapacity: firstInStock ? firstInStock.capacity : (variants[0] && variants[0].capacity) || "",
-      };
-    });
-  } catch (err) {
-    // Don't block the landing page if the catalog is unavailable.
-    console.error("Landing page failed to load products:", err && err.message);
-  }
+  // Fetch the small set of dynamic values used by the landing page.
+  // Resolve independent values together so hosted database latency costs one
+  // round trip instead of three sequential waits. The old product and rating
+  // queries were removed because this template never rendered their results.
+  const [publicStats, businessHours, companyLocation] = await Promise.all([
+    getPublicBusinessStats().catch((err) => {
+      console.error("Landing page failed to load public business statistics:", err && err.message);
+      return fallbackStats;
+    }),
+    getBusinessHours(),
+    getCompanyLocation(),
+  ]);
 
-  // ── Fetch rating stats & testimonials ────────────────────────────
-  let avgRating = null;
-  let ratingCount = 0;
-  let testimonials = [];
-  try {
-    const Rating = require("../models/Rating");
-    const stats = await Rating.aggregate([
-      { $group: { _id: null, avgScore: { $avg: "$score" }, count: { $sum: 1 } } },
-    ]);
-    if (stats.length) {
-      avgRating = Math.round(stats[0].avgScore * 10) / 10;
-      ratingCount = stats[0].count;
-    }
-
-    const recent = await Rating.find({ comment: { $exists: true, $ne: "" } })
-      .populate("customerId", "firstName lastName")
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
-
-    testimonials = recent
-      .filter((r) => r.comment && r.comment.trim().length > 15)
-      .map((r) => ({
-        quote: r.comment.trim(),
-        name: r.customerId
-          ? [r.customerId.firstName, r.customerId.lastName].filter(Boolean).join(" ")
-          : "Customer",
-        role: "Verified Customer",
-        score: r.score,
-      }));
-  } catch (err) {
-    console.error("Landing page failed to load ratings:", err && err.message);
-  }
-
-  try {
-    publicStats = await getPublicBusinessStats();
-  } catch (err) {
-    console.error("Landing page failed to load public business statistics:", err && err.message);
-  }
-
-  const displayRating = publicStats.averageRating || avgRating || 0;
-  const displayCount = publicStats.ratingCount || ratingCount || 0;
-
-  const businessHours = await getBusinessHours();
-  const companyLocation = await getCompanyLocation();
+  const displayRating = publicStats.averageRating || 0;
+  const displayCount = publicStats.ratingCount || 0;
 
   res.render("pages/landing", {
     title: "CALIDRO RACS",
-    featuredProducts,
-    avgRating,
-    ratingCount,
-    testimonials,
     displayRating,
     displayCount,
     publicStats,
     businessHours,
     companyLocation,
+    lightweightPublicPage: true,
   });
 });
 

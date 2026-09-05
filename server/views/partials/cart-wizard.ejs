@@ -1035,9 +1035,12 @@
 
               <!-- Receipt Upload -->
               <div class="mb-3">
-                <label class="form-label text-muted">Receipt Screenshot <span class="text-danger">*</span></label>
-                <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
-                <div class="form-text">Accepted: image files only (JPG, PNG, WEBP).</div>
+                <label class="form-label text-muted fw-bold">Receipt Screenshot <span class="text-danger">*</span></label>
+                <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required />
+                <div class="form-text">Accepted: image files only (JPG, PNG, WEBP). Max 5MB.</div>
+                <div id="gcashProofWarning" class="mt-2 p-2 rounded-3 d-none" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:0.8rem;font-weight:600;">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>Please upload your GCash receipt before proceeding.
+                </div>
                 <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:160px;border-radius:10px;" />
               </div>
 
@@ -1424,6 +1427,7 @@
 
       if (currentStep === 3) {
         renderPaymentOptions();
+        updateNextButtonState();
       }
 
       if (currentStep === 4) { populateReview(); }
@@ -1523,7 +1527,19 @@
         document.getElementById('gcashTotalDisplayWizard').textContent = '₱' + grandTotal.toLocaleString();
         document.getElementById('gcashBalanceDisplayWizard').textContent = '₱' + balance.toLocaleString();
         document.getElementById('gcashBalanceRowWizard').style.display = method === 'cod' ? 'flex' : 'none';
+        // Show proof warning if no file uploaded yet
+        const proofInput = document.getElementById('gcashProofWizard');
+        const warning = document.getElementById('gcashProofWarning');
+        if (warning && proofInput && !proofInput.files[0]) {
+          warning.classList.remove('d-none');
+        }
+      } else {
+        // Hide warning for non-GCash methods
+        const warning = document.getElementById('gcashProofWarning');
+        if (warning) warning.classList.add('d-none');
       }
+      // Update Next button state
+      updateNextButtonState();
     };
 
     // Preview uploaded receipt
@@ -1531,20 +1547,47 @@
       if (e.target && e.target.id === 'gcashProofWizard') {
         const file = e.target.files[0];
         const preview = document.getElementById('gcashProofPreviewWizard');
+        const warning = document.getElementById('gcashProofWarning');
         if (file && !validateReceiptFile(file, true)) {
           e.target.value = '';
           if (preview) { preview.classList.add('d-none'); preview.removeAttribute('src'); }
+          if (warning) warning.classList.remove('d-none');
+          updateNextButtonState();
           return;
         }
         if (file && preview) {
           const reader = new FileReader();
           reader.onload = ev => { preview.src = ev.target.result; preview.classList.remove('d-none'); };
           reader.readAsDataURL(file);
+          if (warning) warning.classList.add('d-none');
         } else if (preview) {
           preview.classList.add('d-none');
+          if (warning) warning.classList.remove('d-none');
         }
+        updateNextButtonState();
       }
     });
+
+    // Update Next Step button state based on payment method and proof upload
+    function updateNextButtonState() {
+      const nextBtn = document.getElementById('wizardNextBtn');
+      if (!nextBtn || currentStep !== 3) return;
+      const payMethod = document.getElementById('wizardPaymentMethod').value;
+      const needsProof = payMethod === 'gcash_full' || payMethod === 'cod';
+      if (needsProof) {
+        const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
+        const hasValidProof = !!gcashFile && validateReceiptFile(gcashFile, false);
+        nextBtn.disabled = !hasValidProof;
+        nextBtn.style.opacity = hasValidProof ? '1' : '0.5';
+        nextBtn.style.cursor = hasValidProof ? 'pointer' : 'not-allowed';
+        const warning = document.getElementById('gcashProofWarning');
+        if (warning) warning.classList.toggle('d-none', hasValidProof);
+      } else {
+        nextBtn.disabled = false;
+        nextBtn.style.opacity = '1';
+        nextBtn.style.cursor = 'pointer';
+      }
+    }
 
     function renderPaymentOptions() {
       const container = document.getElementById('paymentOptionsContainer');
