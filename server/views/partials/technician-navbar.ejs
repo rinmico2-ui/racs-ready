@@ -221,22 +221,27 @@
   /* ── Mobile sidebar: toggle .open + backdrop ── */
   window.toggleMobileSidebar = function() {
     var s = document.getElementById('adminSidebar');
+    var btn = document.getElementById('sidebarToggleMobile');
     if (!s) return;
     var b = getBackdrop();
     if (s.classList.toggle('open')) {
       b.classList.add('show');
       document.body.style.overflow = 'hidden';
+      if (btn) { var ic = btn.querySelector('i'); if (ic) { ic.classList.remove('bi-list'); ic.classList.add('bi-x-lg'); } }
     } else {
       b.classList.remove('show');
       document.body.style.overflow = '';
+      if (btn) { var ic = btn.querySelector('i'); if (ic) { ic.classList.remove('bi-x-lg'); ic.classList.add('bi-list'); } }
     }
   };
   window.closeMobileSidebar = function() {
     var s = document.getElementById('adminSidebar');
+    var btn = document.getElementById('sidebarToggleMobile');
     var b = getBackdrop();
     if (s) s.classList.remove('open');
     b.classList.remove('show');
     document.body.style.overflow = '';
+    if (btn) { var ic = btn.querySelector('i'); if (ic) { ic.classList.remove('bi-x-lg'); ic.classList.add('bi-list'); } }
   };
   function getBackdrop() {
     var el = document.querySelector('.sidebar-backdrop');

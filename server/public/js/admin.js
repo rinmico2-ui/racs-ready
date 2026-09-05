@@ -14,6 +14,15 @@ document.addEventListener("DOMContentLoaded", function () {
       toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
   }
 
+  // swap hamburger ↔ close-arrow icon on mobile toggle button
+  function setMobileToggleIcon(open) {
+    if (!toggle) return;
+    var icon = toggle.querySelector("i");
+    if (!icon) return;
+    icon.classList.remove("bi-list", "bi-x-lg", "bi-arrow-left");
+    icon.classList.add(open ? "bi-x-lg" : "bi-list");
+  }
+
   // helper to animate nav items when sidebar opens/closes
   function animateSidebarLinks(sidebarEl, opening) {
     if (!window.gsap) return;
@@ -65,6 +74,7 @@ document.addEventListener("DOMContentLoaded", function () {
             hideBackdrop();
             animateSidebarLinks(sidebar, false);
             setToggleAria(false);
+            setMobileToggleIcon(false);
           } else {
             sidebar.classList.add("open");
             gsap.fromTo(
@@ -83,11 +93,13 @@ document.addEventListener("DOMContentLoaded", function () {
             showBackdrop();
             animateSidebarLinks(sidebar, true);
             setToggleAria(true);
+            setMobileToggleIcon(true);
           }
         } else {
           // fallback to CSS toggle
           var toggled = sidebar.classList.toggle("open");
           setToggleAria(toggled);
+          setMobileToggleIcon(toggled);
           if (toggled) {
             showBackdrop();
             animateSidebarLinks(sidebar, true);
@@ -117,6 +129,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (window.innerWidth > 767 && sidebar.classList.contains("open")) {
         sidebar.classList.remove("open");
         setToggleAria(true);
+        setMobileToggleIcon(false);
       }
     });
   }
@@ -210,6 +223,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (sidebar && sidebar.classList.contains("open")) {
         sidebar.classList.remove("open");
         setToggleAria(false);
+        setMobileToggleIcon(false);
       }
       hideBackdrop();
     });
@@ -346,6 +360,7 @@ document.addEventListener("DOMContentLoaded", function () {
           var isOpen = sidebar.classList.toggle("open");
           if (isOpen) showBackdrop();
           else hideBackdrop();
+          setMobileToggleIcon(isOpen);
         } else {
           if (root) root.classList.toggle("sidebar-collapsed");
           else sidebar.classList.toggle("open");
