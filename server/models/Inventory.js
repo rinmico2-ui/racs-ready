@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { lifecycleFields } = require("../utils/dataLifecycle");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Aircon Inventory Schema — Air Conditioner Product Catalog
@@ -245,6 +246,8 @@ const inventorySchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+
+    ...lifecycleFields(mongoose),
 
 
     // ── Display Name (derived from modelLine + capacity) ─────────────────────

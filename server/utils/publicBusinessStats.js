@@ -87,7 +87,7 @@ async function getPublicBusinessStats({ bypassCache = false } = {}) {
     ]),
     Technician.countDocuments({ active: { $ne: false } }),
     Rating.aggregate([
-      { $match: { targetType: { $nin: ["booking", "order"] }, score: { $gte: 1, $lte: 5 } } },
+      { $match: { targetType: { $nin: ["booking", "order"] }, score: { $gte: 1, $lte: 5 }, moderationStatus: { $ne: "hidden" } } },
       { $group: {
         _id: null,
         scoreTotal: { $sum: "$score" },

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { lifecycleFields } = require("../utils/dataLifecycle");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HVAC Product Schema — Professional Air Conditioner Catalog
@@ -280,6 +281,8 @@ const hvacProductSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+
+    ...lifecycleFields(mongoose),
 
     // ── Metadata ───────────────────────────────────────────────────────────────
     createdBy: {

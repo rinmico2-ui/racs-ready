@@ -13,12 +13,13 @@ const SecretaryAttendance = require("../models/SecretaryAttendance");
 const SiteSetting = require("../models/SiteSetting");
 const { attendanceDay } = require("../utils/attendanceTime");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+const { normalizeLifecycleReason, archiveRecord } = require("../utils/dataLifecycle");
 const {
 	listToolUsage,
 	summarizeToolUsage,
 	createToolUsageEntry,
 	updateToolUsageEntry,
-	deleteToolUsageEntry,
+	voidToolUsageEntry,
 } = require("../utils/toolUsageManagement");
 
 // only authenticated secretaries should be able to hit these endpoints
@@ -365,20 +366,29 @@ router.patch("/tool-usage/:usageId", async (req, res, next) => {
 	}
 });
 
-router.delete("/tool-usage/:usageId", async (req, res, next) => {
+async function voidSecretaryToolUsage(req, res, next) {
 	try {
-		const result = await deleteToolUsageEntry({
+		const result = await voidToolUsageEntry({
 			usageId: req.params.usageId,
 			actorId: req.user && req.user._id,
+			reason: req.body && req.body.reason,
 			req,
 			moduleName: "secretary",
 		});
-		return res.json({ message: "Tool usage deleted and stock restored", ...result });
+		return res.json({
+			message: result.warning
+				? "Tool usage was voided and retained; stock restoration needs review"
+				: "Tool usage voided and retained; deducted stock was restored",
+			...result,
+		});
 	} catch (err) {
 		if (err.status) return res.status(err.status).json({ error: err.message });
 		next(err);
 	}
-});
+}
+
+router.post("/tool-usage/:usageId/void", voidSecretaryToolUsage);
+router.delete("/tool-usage/:usageId", voidSecretaryToolUsage);
 
 // Tool administration (service tools & materials)
 router.get("/tools", admin.listTools);
@@ -389,10 +399,13 @@ router.delete("/tools/:id", admin.deleteTool);
 router.post("/tools/:id/adjust-stock", requirePermission("inventory.manage"), async (req, res, next) => {
   try {
     const StockAdjustment = require("../models/StockAdjustment");
+    const Tool = require("../models/Tool");
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ error: "Invalid id" });
     }
+    const activeTool = await Tool.exists({ _id: id, active: { $ne: false } });
+    if (!activeTool) return res.status(409).json({ error: "Restore this tool before adjusting stock.", code: "TOOL_ARCHIVED" });
 
     const { type, delta, reason, notes } = req.body;
     const validTypes = ["stock_in", "stock_out", "adjustment", "job_usage", "return", "damage"];
@@ -510,11 +523,24 @@ router.delete("/inventory/:id", async (req, res, next) => {
     const item = await Inventory.findById(id);
     if (!item) return res.status(404).json({ error: "Inventory item not found" });
 
-    item.active = false;
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", {
+      fallback: "Archived from the aircon catalogue by a secretary",
+    });
+    archiveRecord(item, req.user._id, reason);
     await item.save();
+
+    await audit.logEvent({
+      actor: req.user._id,
+      target: item._id,
+      action: "inventory.archive",
+      module: "secretary",
+      req,
+      details: { reason },
+    });
 
     return res.json({ message: "Aircon product archived", item });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });
@@ -557,6 +583,9 @@ router.patch("/inventory/:id/stock", async (req, res, next) => {
 
 		const item = await Inventory.findById(id);
 		if (!item) return res.status(404).json({ error: "Inventory item not found" });
+		if (item.active === false || item.archivedAt) {
+			return res.status(409).json({ error: "Restore this inventory item before adjusting stock.", code: "INVENTORY_ARCHIVED" });
+		}
 
 		const patch = {};
 

@@ -153,6 +153,14 @@
       box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
       border-color: rgba(59, 130, 246, 0.15);
     }
+    .staff-card.is-archived { background:#f8fafc; border-style:dashed; }
+    .staff-card.is-archived .staff-avatar { filter:grayscale(0.65); opacity:0.75; }
+    .staff-status-tag { font-size:0.62rem; font-weight:700; border-radius:999px; padding:0.18rem 0.5rem; white-space:nowrap; }
+    .staff-status-tag.active { color:#047857; background:#d1fae5; }
+    .staff-status-tag.inactive { color:#92400e; background:#fef3c7; }
+    .staff-status-tag.archived { color:#475569; background:#e2e8f0; }
+    .staff-lifecycle-policy { border:1px solid #bfdbfe; background:#eff6ff; border-radius:12px; padding:0.85rem 1rem; color:#1e3a8a; font-size:0.78rem; }
+    .archive-blocker-list { margin:0; padding-left:1.15rem; font-size:0.8rem; color:#991b1b; }
     .staff-avatar {
       width: 44px; height: 44px; min-width: 44px;
       border-radius: 11px;
@@ -425,7 +433,23 @@
             <option value="secretary">Secretary</option>
           </select>
         </div>
+        <div class="rp-filter-group" style="max-width:180px;">
+          <label class="rp-filter-label" for="staffFilterStatus"><i class="bi bi-person-check me-1"></i>Status</label>
+          <select id="staffFilterStatus" class="form-select rp-filter-input">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="inactive">Legacy Inactive</option>
+          </select>
+        </div>
         <button id="btn-refresh-staff" class="btn btn-outline-secondary rp-filter-btn" type="button" title="Reload staff list"><i class="bi bi-arrow-clockwise me-2"></i>Refresh</button>
+      </div>
+
+      <div class="staff-lifecycle-policy mb-3">
+        <div class="d-flex align-items-start gap-2">
+          <i class="bi bi-shield-check mt-1"></i>
+          <div><strong>Staff archive and retention policy</strong><br>Archiving immediately removes account and roster access. Historical jobs, service reports, payments, payroll, and audit records are retained. Staff with unfinished work must be reassigned before archival. No permanent-delete action is available.</div>
+        </div>
       </div>
 
       <!-- Staff Directory Card -->
@@ -491,6 +515,10 @@
             <div style="font-size:0.82rem;color:#0f172a;" id="viewStaffCreated"></div>
           </div>
         </div>
+        <div id="viewStaffArchiveDetails" class="alert alert-secondary small mt-3 mb-0" style="display:none;">
+          <div><strong>Archived:</strong> <span id="viewStaffArchivedAt"></span></div>
+          <div class="mt-1"><strong>Reason:</strong> <span id="viewStaffArchiveReason"></span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -538,13 +566,6 @@
                 <option value="technician">Technician</option>
               </select>
             </div>
-            <div class="col-12">
-              <label class="staff-form-label">Active</label>
-              <select id="editStaffActive" class="staff-form-select">
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
-            </div>
           </div>
         </form>
       </div>
@@ -557,6 +578,31 @@
 </div>
 
 <!-- ═══ ADD STAFF WIZARD MODAL ═══ -->
+<div class="modal fade" id="archiveStaffModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.16);">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h6 class="modal-title fw-bold"><i class="bi bi-archive me-2 text-danger"></i>Archive Staff Member</h6>
+          <div id="archiveStaffName" class="small text-muted mt-1"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <input type="hidden" id="archiveStaffId">
+        <div id="archivePreflight" class="alert alert-light border small mb-3"><span class="spinner-border spinner-border-sm me-2"></span>Checking unfinished work…</div>
+        <label class="staff-form-label" for="archiveStaffReason">Reason for archiving *</label>
+        <textarea id="archiveStaffReason" class="staff-form-control" rows="3" minlength="10" maxlength="500" placeholder="Example: Employment ended on September 7, 2026"></textarea>
+        <div class="staff-form-text">Required for the audit trail (10–500 characters). Historical work will not be deleted.</div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmArchiveStaffBtn" class="btn btn-danger" disabled><i class="bi bi-archive me-1"></i>Archive Staff</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="addStaffModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered" style="max-width:560px;">
     <div class="modal-content" style="border-radius:16px;border:none;overflow:hidden;box-shadow:0 24px 64px rgba(15,23,42,0.18);">
@@ -756,6 +802,7 @@
     // Move modals to body to escape AOS transform stacking context on <main>
     !function(){var m=document.getElementById('viewStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
     !function(){var m=document.getElementById('editStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
+    !function(){var m=document.getElementById('archiveStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
     !function(){var m=document.getElementById('addStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
 
     const el = (id) => document.getElementById(id);
@@ -783,6 +830,13 @@
       const color = stringToHslColor(seed, 65, 50);
       const role = (u.role || "").toString().toLowerCase();
       const roleTag = `<span class='staff-role-tag ${role}' data-role='${role}' title='Filter by role'>${role || ''}</span>`;
+      const lifecycleState = u.lifecycleState || (u.archivedAt ? "archived" : (u.active === false ? "inactive" : "active"));
+      const statusLabel = lifecycleState === "archived" ? "Archived" : (lifecycleState === "inactive" ? "Inactive" : "Active");
+      const statusTag = `<span class='staff-status-tag ${lifecycleState}'>${statusLabel}</span>`;
+      const canEdit = staffCanManage && lifecycleState === "active" && u.staffRecordType !== "technician_profile";
+      const lifecycleAction = lifecycleState === "active"
+        ? `<button class="btn-icon archive-staff text-danger" data-id='${u._id || ""}' title='Archive'><i class="bi bi-archive"></i></button>`
+        : `<button class="btn-icon restore-staff text-success" data-id='${u._id || ""}' title='Restore'><i class="bi bi-arrow-counterclockwise"></i></button>`;
       const initial = (
         (u.firstName || "")[0] ||
         (u.name || "")[0] ||
@@ -790,18 +844,19 @@
       ).toUpperCase();
 
       return `
-<div class='col-md-4 mb-0 staff-card-col' data-role='${role}' data-email='${u.email || ""}' data-name='${(name || "").replace(/'/g, "&#39;")}' data-id='${u._id || ""}'>
-  <div class="staff-card">
+<div class='col-md-4 mb-0 staff-card-col' data-role='${role}' data-status='${lifecycleState}' data-email='${u.email || ""}' data-name='${(name || "").replace(/'/g, "&#39;")}' data-id='${u._id || ""}'>
+  <div class="staff-card ${lifecycleState === "archived" ? "is-archived" : ""}">
     <div class="staff-avatar" style="background:${color};">${initial}</div>
     <div class="staff-card-body">
       <div class="staff-card-name">${name}</div>
       <div class="staff-card-email">${u.email || ""}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-      ${roleTag}
+      <div class="d-flex flex-column align-items-end gap-1">${roleTag}${statusTag}</div>
       <div class="staff-actions">
         <button class="btn-icon view-staff" data-id='${u._id || ""}' title='View'><i class="bi bi-eye"></i></button>
-        ${staffCanManage ? `<button class="btn-icon edit-staff" data-id='${u._id || ""}' title='Edit'><i class="bi bi-pencil"></i></button>` : ''}
+        ${canEdit ? `<button class="btn-icon edit-staff" data-id='${u._id || ""}' title='Edit'><i class="bi bi-pencil"></i></button>` : ''}
+        ${staffCanManage ? lifecycleAction : ''}
       </div>
     </div>
   </div>
@@ -855,6 +910,9 @@
         )
           .trim()
           .toLowerCase();
+        const currentStatusFilter = (
+          document.getElementById("staffFilterStatus")?.value || ""
+        ).trim().toLowerCase();
         const filtered = arr.filter((u) => {
           const n = (
             ((u.firstName || "") + " " + (u.lastName || "")).trim() ||
@@ -870,7 +928,9 @@
             !currentRoleFilter ||
             (u.role || "").toString().toLowerCase() ===
               currentRoleFilter;
-          return matchesSearch && matchesRole;
+          const lifecycleState = u.lifecycleState || (u.archivedAt ? "archived" : (u.active === false ? "inactive" : "active"));
+          const matchesStatus = !currentStatusFilter || lifecycleState === currentStatusFilter;
+          return matchesSearch && matchesRole && matchesStatus;
         });
 
         staffData = arr;
@@ -1235,6 +1295,8 @@
     const staffSearch = document.getElementById("staffSearch");
     const staffFilterRole =
       document.getElementById("staffFilterRole");
+    const staffFilterStatus =
+      document.getElementById("staffFilterStatus");
 
     function debounce(fn, wait = 160) {
       let t;
@@ -1251,6 +1313,9 @@
       const role = ((staffFilterRole && staffFilterRole.value) || "")
         .trim()
         .toLowerCase();
+      const status = ((staffFilterStatus && staffFilterStatus.value) || "")
+        .trim()
+        .toLowerCase();
 
       staffFiltered = staffData.filter((u) => {
         const n = (
@@ -1260,9 +1325,11 @@
         ).toLowerCase();
         const e = (u.email || "").toLowerCase();
         const r = (u.role || "").toString().toLowerCase();
+        const lifecycleState = u.lifecycleState || (u.archivedAt ? "archived" : (u.active === false ? "inactive" : "active"));
         const matchesSearch = !search || n.includes(search) || e.includes(search);
         const matchesRole = !role || r === role;
-        return matchesSearch && matchesRole;
+        const matchesStatus = !status || lifecycleState === status;
+        return matchesSearch && matchesRole && matchesStatus;
       });
 
       currentPage = 1;
@@ -1330,7 +1397,10 @@
           debouncedFilter();
       });
     }
-    if (!staffSearch && !staffFilterRole)
+    if (staffFilterStatus) {
+      staffFilterStatus.addEventListener("change", debouncedFilter);
+    }
+    if (!staffSearch && !staffFilterRole && !staffFilterStatus)
       console.warn("Staff list: filter elements not found on page.");
 
     // make role badges clickable: clicking a badge will set/toggle the role filter
@@ -1372,13 +1442,23 @@
           document.getElementById("viewStaffPhone").innerText = u.phone || "—";
 
           var statusEl = document.getElementById("viewStaffStatus");
-          if (u.active !== false) {
+          if (u.lifecycleState === "archived" || u.archivedAt) {
+            statusEl.innerHTML = '<span style="font-size:0.72rem;font-weight:600;padding:0.15rem 0.6rem;border-radius:999px;background:#e2e8f0;color:#475569;">Archived</span>';
+          } else if (u.active !== false) {
             statusEl.innerHTML = '<span style="font-size:0.72rem;font-weight:600;padding:0.15rem 0.6rem;border-radius:999px;background:rgba(34,197,94,0.12);color:#16a34a;">Active</span>';
           } else {
             statusEl.innerHTML = '<span style="font-size:0.72rem;font-weight:600;padding:0.15rem 0.6rem;border-radius:999px;background:rgba(239,68,68,0.10);color:#dc2626;">Inactive</span>';
           }
 
           document.getElementById("viewStaffCreated").innerText = u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "—";
+          var archiveDetails = document.getElementById("viewStaffArchiveDetails");
+          if (u.archivedAt) {
+            archiveDetails.style.display = "block";
+            document.getElementById("viewStaffArchivedAt").innerText = new Date(u.archivedAt).toLocaleString("en-PH", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+            document.getElementById("viewStaffArchiveReason").innerText = u.archiveReason || "No reason recorded";
+          } else {
+            archiveDetails.style.display = "none";
+          }
 
           var avatarEl = document.getElementById("viewStaffAvatar");
           var seed = String(u._id || u.email || name);
@@ -1413,8 +1493,6 @@
           document.getElementById("editStaffEmail").value = u.email || "";
           document.getElementById("editStaffPhone").value = u.phone || "";
           document.getElementById("editStaffRole").value = u.role || "secretary";
-          document.getElementById("editStaffActive").value = u.active !== false ? "true" : "false";
-
           var name = ((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email || "";
           document.getElementById("editStaffSubtitle").innerText = "Editing " + name;
 
@@ -1434,7 +1512,6 @@
         email: document.getElementById("editStaffEmail").value.trim(),
         phone: document.getElementById("editStaffPhone").value.trim(),
         role: document.getElementById("editStaffRole").value,
-        active: document.getElementById("editStaffActive").value === "true",
       };
 
       fetch(staffApiBase + "/" + id, {
@@ -1458,6 +1535,122 @@
         .catch(function (err) {
           console.error("PATCH error", err);
           window.notify.error("Failed: " + err.message);
+        });
+    });
+
+    function parseApiResponse(response) {
+      return response.text().then(function (text) {
+        var body = {};
+        try { body = text ? JSON.parse(text) : {}; } catch (e) { body = { error: text }; }
+        if (!response.ok) {
+          var error = new Error(body.error || "Request failed");
+          error.body = body;
+          throw error;
+        }
+        return body;
+      });
+    }
+
+    function updateArchiveButtonState() {
+      var reason = document.getElementById("archiveStaffReason").value.trim();
+      var preflight = document.getElementById("archivePreflight");
+      document.getElementById("confirmArchiveStaffBtn").disabled =
+        preflight.dataset.canArchive !== "true" || reason.length < 10 || reason.length > 500;
+    }
+
+    document.getElementById("archiveStaffReason").addEventListener("input", updateArchiveButtonState);
+
+    document.getElementById("staffCards").addEventListener("click", function (ev) {
+      var btn = ev.target.closest && ev.target.closest(".archive-staff");
+      if (!btn || !staffCanManage) return;
+      var id = btn.dataset.id;
+      var staff = staffData.find(function (item) { return String(item._id) === String(id); }) || {};
+      var name = ((staff.firstName || "") + " " + (staff.lastName || "")).trim() || staff.name || staff.email || "Staff member";
+      var preflight = document.getElementById("archivePreflight");
+      document.getElementById("archiveStaffId").value = id;
+      document.getElementById("archiveStaffName").textContent = name;
+      document.getElementById("archiveStaffReason").value = "";
+      preflight.dataset.canArchive = "false";
+      preflight.className = "alert alert-light border small mb-3";
+      preflight.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking unfinished work…';
+      updateArchiveButtonState();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById("archiveStaffModal")).show();
+
+      fetch(staffApiBase + "/" + encodeURIComponent(id) + "/archive-preview", { credentials: "same-origin" })
+        .then(parseApiResponse)
+        .then(function (data) {
+          var blockers = data.blockers && data.blockers.items ? data.blockers.items : [];
+          if (blockers.length) {
+            preflight.className = "alert alert-danger small mb-3";
+            preflight.innerHTML = '<div class="fw-semibold mb-1">Archive blocked—reassign or close:</div><ul class="archive-blocker-list">' +
+              blockers.map(function (item) { return "<li>" + Number(item.count) + " " + item.label + "</li>"; }).join("") + "</ul>";
+            preflight.dataset.canArchive = "false";
+          } else {
+            preflight.className = "alert alert-success small mb-3";
+            preflight.innerHTML = '<i class="bi bi-check-circle me-2"></i>No unfinished work found. Historical records will be preserved.';
+            preflight.dataset.canArchive = "true";
+          }
+          updateArchiveButtonState();
+        })
+        .catch(function (error) {
+          preflight.className = "alert alert-danger small mb-3";
+          preflight.textContent = error.message || "Unable to check unfinished work.";
+          preflight.dataset.canArchive = "false";
+          updateArchiveButtonState();
+        });
+    });
+
+    document.getElementById("confirmArchiveStaffBtn").addEventListener("click", function () {
+      var button = this;
+      var id = document.getElementById("archiveStaffId").value;
+      var reason = document.getElementById("archiveStaffReason").value.trim();
+      if (!id || reason.length < 10) return updateArchiveButtonState();
+      var original = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Archiving…';
+      fetch(staffApiBase + "/" + encodeURIComponent(id) + "/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ reason: reason }),
+      })
+        .then(parseApiResponse)
+        .then(function (data) {
+          bootstrap.Modal.getInstance(document.getElementById("archiveStaffModal"))?.hide();
+          window.notify.success(data.message || "Staff member archived");
+          loadStaff();
+        })
+        .catch(function (error) {
+          var preflight = document.getElementById("archivePreflight");
+          preflight.className = "alert alert-danger small mb-3";
+          preflight.textContent = error.message || "Unable to archive staff member.";
+        })
+        .finally(function () {
+          button.innerHTML = original;
+          updateArchiveButtonState();
+        });
+    });
+
+    document.getElementById("staffCards").addEventListener("click", function (ev) {
+      var btn = ev.target.closest && ev.target.closest(".restore-staff");
+      if (!btn || !staffCanManage) return;
+      var id = btn.dataset.id;
+      if (!window.confirm("Restore this staff member's account and roster eligibility?")) return;
+      btn.disabled = true;
+      fetch(staffApiBase + "/" + encodeURIComponent(id) + "/restore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ reason: "Restored from the staff directory" }),
+      })
+        .then(parseApiResponse)
+        .then(function (data) {
+          window.notify.success(data.message || "Staff member restored");
+          loadStaff();
+        })
+        .catch(function (error) {
+          btn.disabled = false;
+          window.notify.error(error.message || "Unable to restore staff member.");
         });
     });
 

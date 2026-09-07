@@ -118,6 +118,17 @@ const serviceToolUsageSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    lifecycleStatus: {
+      type: String,
+      enum: ["active", "voided"],
+      default: "active",
+      index: true,
+    },
+    voidedAt: { type: Date, default: null, index: true },
+    voidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    voidReason: { type: String, trim: true, maxlength: 500, default: "" },
+    inventoryRestored: { type: Boolean, default: false },
+    inventoryRestoredAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

@@ -31,6 +31,8 @@ const { createNotification } = require("../utils/notify");
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
+const { cancelBookingRecord } = require("../utils/bookingLifecycle");
+const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 
 function isPathWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
@@ -2632,18 +2634,50 @@ router.post(
         }
       }
 
-      appt.status = "cancelled";
-      // Store cancellation reason
-      if (reason && reason.trim()) {
-        appt.cancellationReason = reason.trim();
-        // Also add to notes if notes field exists
-        if (!appt.notes) {
-          appt.notes = `Cancellation reason: ${reason.trim()}`;
-        } else {
-          appt.notes += `\n\nCancellation reason: ${reason.trim()}`;
+      if ((isAdmin || isSecretary) && appt.status !== "cancelled") {
+        const receivedPayment = await Payment.exists({
+          bookingId: appt._id,
+          status: { $in: ["payment_collected", "remitted", "verified", "paid", "partial"] },
+        });
+        if (receivedPayment) {
+          return res.status(409).json({
+            error: "This booking has received payment. Cancel it through the Resolution Center so the refund decision is recorded.",
+            code: "REFUND_DECISION_REQUIRED",
+          });
         }
       }
+
+      const cancellation = cancelBookingRecord(appt, {
+        actorId: req.user._id,
+        actorName: req.user.name || req.user.email || req.user.role,
+        reason: reason || (isCustomer ? "Cancelled by customer request" : "Cancelled by administrator"),
+      });
       await appt.save();
+
+      if (cancellation.changed) {
+        const Assignment = require("../models/Assignment");
+        await Assignment.updateMany(
+          { bookingId: appt._id, status: { $nin: ["completed", "cancelled", "declined", "expired", "no_show"] } },
+          {
+            $set: { status: "cancelled", cancelledAt: new Date() },
+            $push: {
+              notes: {
+                text: `Booking cancelled: ${cancellation.reason || appt.cancellationReason}`,
+                by: req.user._id,
+                byName: req.user.name || req.user.email || "User",
+                createdAt: new Date(),
+              },
+            },
+          },
+        );
+      }
+
+      await releaseReservedEquipment({
+        filter: { bookingId: appt._id },
+        actorId: req.user._id,
+        reason: cancellation.reason || appt.cancellationReason,
+        moduleName: "booking cancellation",
+      });
 
       // server-side: remove calendar event if present
       if (googleCalendarSync.isConfigured() && appt.googleCalendarEventId) {
@@ -4205,15 +4239,52 @@ router.post(
   },
 );
 
-// Delete appointment (admin/secretary only)
+// Legacy DELETE compatibility. Appointments are cancelled and retained so
+// payments, reports, assignments, projects and stock history remain linked.
 router.delete("/:id", auth.authenticate, async (req, res) => {
   try {
     if (req.user.role !== "admin" && req.user.role !== "secretary") {
       return res.status(403).json({ error: "Forbidden" });
     }
     const id = req.params.id;
-    const appt = await BookingService.findByIdAndDelete(id);
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid appointment id" });
+    const appt = await BookingService.findById(id);
     if (!appt) return res.status(404).json({ error: "Appointment not found" });
+    if (appt.status !== "cancelled") {
+      const receivedPayment = await Payment.exists({
+        bookingId: appt._id,
+        status: { $in: ["payment_collected", "remitted", "verified", "paid", "partial"] },
+      });
+      if (receivedPayment) {
+        return res.status(409).json({
+          error: "This booking has received payment. Use the Resolution Center so cancellation and refund handling remain linked.",
+          code: "REFUND_DECISION_REQUIRED",
+        });
+      }
+    }
+    const cancellation = cancelBookingRecord(appt, {
+      actorId: req.user._id,
+      actorName: req.user.name || req.user.email || req.user.role,
+      reason: req.body?.reason || "Cancelled through legacy appointment removal",
+    });
+    await appt.save();
+
+    if (cancellation.changed) {
+      const Assignment = require("../models/Assignment");
+      await Assignment.updateMany(
+        { bookingId: appt._id, status: { $nin: ["completed", "cancelled", "declined", "expired", "no_show"] } },
+        {
+          $set: { status: "cancelled", cancelledAt: new Date() },
+          $push: { notes: { text: `Booking cancelled: ${cancellation.reason || appt.cancellationReason}`, by: req.user._id, byName: req.user.name || req.user.email || "Administrator", createdAt: new Date() } },
+        },
+      );
+    }
+    await releaseReservedEquipment({
+      filter: { bookingId: appt._id },
+      actorId: req.user._id,
+      reason: cancellation.reason || appt.cancellationReason || "Cancelled through legacy appointment removal",
+      moduleName: "booking cancellation",
+    });
 
     // server-side: remove calendar event if present
     if (googleCalendarSync.isConfigured() && appt.googleCalendarEventId) {
@@ -4224,7 +4295,7 @@ router.delete("/:id", auth.authenticate, async (req, res) => {
         });
       } catch (e) {
         console.warn(
-          "Failed to delete calendar event on appointment delete",
+          "Failed to delete calendar event on appointment cancellation",
           e && e.message,
         );
       }
@@ -4235,15 +4306,15 @@ router.delete("/:id", auth.authenticate, async (req, res) => {
     await audit.logEvent({
       actor: req.user && req.user._id,
       target: appt.customerId || appt.customer,
-      action: "appointment.delete",
+      action: "appointment.cancel",
       module: "appointments",
       req,
-      details: { appointmentId: id },
+      details: { appointmentId: id, reason: cancellation.reason || appt.cancellationReason, legacyDeleteEndpoint: true },
     });
-    return res.json({ message: "Appointment deleted" });
+    return res.json({ message: "Appointment cancelled and retained in history", appointment: appt });
   } catch (err) {
-    console.error("delete appointment error", err);
-    return res.status(500).json({ error: "Failed to delete appointment" });
+    console.error("cancel appointment error", err);
+    return res.status(err.status || 500).json({ error: err.status ? err.message : "Failed to cancel appointment" });
   }
 });
 
@@ -5246,23 +5317,12 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
 
       // ── Cleanup: Release reserved equipment from old assignment ──────
       try {
-        const EquipmentAssignment = require('../models/EquipmentAssignment');
-        const Tool = require('../models/Tool');
-        const reserved = await EquipmentAssignment.find({
-          bookingId: booking._id,
-          status: 'reserved',
-        }).lean();
-        if (reserved.length) {
-          for (const eq of reserved) {
-            if (eq.equipmentId) {
-              await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
-            }
-          }
-          await EquipmentAssignment.deleteMany({
-            bookingId: booking._id,
-            status: 'reserved',
-          });
-        }
+        await releaseReservedEquipment({
+          filter: { bookingId: booking._id },
+          actorId: req.user._id,
+          reason: 'Released when the customer accepted a rescheduled booking',
+          moduleName: 'accepted booking reschedule',
+        });
       } catch (eqErr) {
         console.warn('Equipment cleanup on accept reschedule skipped:', eqErr.message);
       }

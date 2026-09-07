@@ -55,6 +55,8 @@ const projectMaterialSchema = new mongoose.Schema({
   reservedAt: { type: Date, default: Date.now },
   fulfilledAt: { type: Date },
   cancelledAt: { type: Date },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  cancellationReason: { type: String, trim: true, maxlength: 500, default: "" },
 
   source: { type: String, enum: ["inventory", "purchase", "other"], default: "inventory" },
   sourceId: { type: mongoose.Schema.Types.ObjectId },

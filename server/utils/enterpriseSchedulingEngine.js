@@ -300,6 +300,7 @@ async function generateAvailableDates(params) {
   endDate.setDate(endDate.getDate() + 60);
 
   const nonWorkingDays = await NonWorkingDay.find({
+    active: { $ne: false },
     date: { $gte: startDate, $lte: endDate },
   }).lean();
   const nwdSet = new Set(nonWorkingDays.map((d) => toLocalDateKey(d.date)));
@@ -748,6 +749,7 @@ async function validateProjectDateRange(params) {
 
   // Fetch once for the entire range
   const nonWorkingDays = await NonWorkingDay.find({
+    active: { $ne: false },
     date: { $gte: sDate, $lte: eDate },
   }).lean();
   const nwdSet = new Set(nonWorkingDays.map((d) => toLocalDateKey(d.date)));

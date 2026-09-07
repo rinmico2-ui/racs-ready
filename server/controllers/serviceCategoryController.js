@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ServiceCategory = require("../models/ServiceCategory");
+const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
 
 const ICON_COLORS = new Set(["blue", "amber", "violet", "green", "red", "cyan"]);
 
@@ -44,6 +45,7 @@ exports.list = async (_req, res) => {
     const categories = await ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean();
     return res.json({ success: true, categories });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
     return sendError(res, error);
   }
 };
@@ -62,6 +64,7 @@ exports.create = async (req, res) => {
     const category = await ServiceCategory.create(payload);
     return res.status(201).json({ success: true, category });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
     return sendError(res, error);
   }
 };
@@ -72,10 +75,22 @@ exports.update = async (req, res) => {
     const payload = categoryPayload(req.body, true);
     if (Object.prototype.hasOwnProperty.call(payload, "name") && !payload.name) return res.status(400).json({ success: false, error: "Name is required." });
     if (Object.prototype.hasOwnProperty.call(payload, "slug") && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(payload.slug)) return res.status(400).json({ success: false, error: "Enter a valid lowercase slug." });
-    const category = await ServiceCategory.findByIdAndUpdate(req.params.id, payload, { returnDocument: "after", runValidators: true });
+    const category = await ServiceCategory.findById(req.params.id);
     if (!category) return res.status(404).json({ success: false, error: "Category not found." });
+    const requestedActive = Object.prototype.hasOwnProperty.call(payload, "active") ? payload.active : undefined;
+    delete payload.active;
+    Object.assign(category, payload);
+    if (requestedActive === false && category.active !== false) {
+      const reason = normalizeLifecycleReason(req.body?.archiveReason, "Archive", { fallback: "Deactivated from the service catalogue by an administrator" });
+      archiveRecord(category, req.user._id, reason);
+    } else if (requestedActive === true && (category.active === false || category.archivedAt)) {
+      const reason = normalizeLifecycleReason(req.body?.restoreReason, "Restore", { fallback: "Restored to the service catalogue by an administrator" });
+      restoreRecord(category, req.user._id, reason);
+    }
+    await category.save();
     return res.json({ success: true, category });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
     return sendError(res, error);
   }
 };
@@ -86,10 +101,27 @@ exports.deactivate = async (req, res) => {
     const category = await ServiceCategory.findById(req.params.id);
     if (!category) return res.status(404).json({ success: false, error: "Category not found." });
     if (category.isCustom) return res.status(400).json({ success: false, error: "The custom category cannot be deactivated here." });
-    category.active = false;
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", { fallback: "Deactivated from the service catalogue by an administrator" });
+    archiveRecord(category, req.user._id, reason);
     await category.save();
-    return res.json({ success: true, message: "Category deactivated." });
+    return res.json({ success: true, message: "Category archived.", category });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
+    return sendError(res, error);
+  }
+};
+
+exports.restore = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ success: false, error: "Invalid category." });
+    const category = await ServiceCategory.findById(req.params.id);
+    if (!category) return res.status(404).json({ success: false, error: "Category not found." });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", { fallback: "Restored to the service catalogue by an administrator" });
+    restoreRecord(category, req.user._id, reason);
+    await category.save();
+    return res.json({ success: true, message: "Category restored.", category });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
     return sendError(res, error);
   }
 };

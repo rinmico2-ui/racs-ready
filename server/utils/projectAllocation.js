@@ -60,7 +60,7 @@ async function buildAllocationCalendar(projectId, opts = {}) {
   const spanEnd = startOfDay(span.end);
 
   // Non-working company days (global holidays/etc.)
-  const nwds = await NonWorkingDay.find({ service: null }).lean();
+  const nwds = await NonWorkingDay.find({ service: null, active: { $ne: false } }).lean();
   const nwdSet = new Set(nwds.map((d) => dateKey(new Date(d.date))));
 
   // Candidate technicians for the matrix.

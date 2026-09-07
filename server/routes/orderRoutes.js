@@ -444,7 +444,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
 
       let inventory = await Inventory.findById(inventoryId).populate("brand", "name").lean();
       if (!inventory) {
-        const product = await HVACProduct.findOne({ "variants._id": inventoryId }).populate("brand", "name").lean();
+        const product = await HVACProduct.findOne({ active: { $ne: false }, "variants._id": inventoryId }).populate("brand", "name").lean();
         const variant = product?.variants?.find(row => String(row._id) === inventoryId);
         if (product && variant) {
           inventory = {

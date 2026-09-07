@@ -217,6 +217,7 @@ router.get('/available-dates', async (req, res) => {
 
     // ── 6. Load non-working days / holidays (one query) ───────────────────
     const nonWorkingDays = await NonWorkingDay.find({
+      active: { $ne: false },
       $or: [{ service: null }, ...(service ? [{ service: service._id }] : [])],
     });
     const nonWorkingDateSet = new Set(
@@ -677,6 +678,7 @@ router.get('/holidays-and-nonworking', async (req, res) => {
   try {
     // Get all non-working days (includes both holidays and admin-created day-offs)
     const nonWorkingDays = await NonWorkingDay.find({
+      active: { $ne: false },
       date: { $gte: new Date() }
     }).sort({ date: 1 }).limit(365);
 
@@ -784,6 +786,7 @@ async function handleTimeSlots(req, res) {
     const dayOfWeek = selectedDate.getDay();
 
     const nonWorkingDays = await NonWorkingDay.find({
+      active: { $ne: false },
       $or: [{ service: null }, { service: service?._id || null }],
     });
     const isNonWorkingDay = nonWorkingDays.some(nwd => {
@@ -1211,7 +1214,7 @@ router.get('/technician/:technicianId/available-slots', async (req, res) => {
       await schedule.save();
     }
 
-    const nonWorkingDays = await NonWorkingDay.find({ service: null });
+    const nonWorkingDays = await NonWorkingDay.find({ service: null, active: { $ne: false } });
 
     // Compute capacity consumption with buffer
     const bufferTime = await getBufferMinutes();

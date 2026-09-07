@@ -7,6 +7,17 @@ const loginRateLimiter = require("../middleware/loginRateLimiter");
 const { escapeRegex } = require("../utils/stringSecurity");
 const { normalizeServiceWarrantyPolicy } = require("../utils/serviceWarrantyPolicy");
 const { normalizeAuditQuery, csvCell } = require("../utils/auditTrailPolicy");
+const {
+  STAFF_RETENTION_POLICY,
+  normalizeArchiveReason,
+  staffLifecycleState,
+  findStaffArchiveBlockers,
+} = require("../utils/staffLifecycle");
+const {
+  normalizeLifecycleReason,
+  archiveRecord,
+  restoreRecord,
+} = require("../utils/dataLifecycle");
 
 function sanitizeEmail(e) {
   return String(e || "")
@@ -45,6 +56,56 @@ async function logAction(actorId, targetId, action, req, details) {
   } catch (e) {
     console.warn("ActivityLog error", e && e.message);
   }
+}
+
+async function resolveManagedStaff(id) {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  const Technician = require("../models/Technician");
+  const user = await User.findOne({
+    _id: id,
+    role: { $in: ["secretary", "technician"] },
+  });
+  if (user) {
+    const technician = await Technician.findOne({ user: user._id });
+    return { kind: "user", user, technician };
+  }
+
+  // Legacy technician profiles can exist without a login account. They are
+  // still part of the roster and must be offboarded through the same policy.
+  const technician = await Technician.findById(id);
+  if (!technician) return null;
+  if (technician.user) {
+    const linkedUser = await User.findOne({
+      _id: technician.user,
+      role: { $in: ["secretary", "technician"] },
+    });
+    if (linkedUser) return { kind: "user", user: linkedUser, technician };
+  }
+  return { kind: "technician_profile", user: null, technician };
+}
+
+function managedStaffResponse(record) {
+  if (record.kind === "user") {
+    const staff = record.user.toObject ? record.user.toObject() : record.user;
+    delete staff.passwordHash;
+    delete staff.resetPasswordTokenHash;
+    delete staff.resetPasswordExpires;
+    delete staff.currentSessionId;
+    staff.staffRecordType = "user";
+    staff.lifecycleState = staffLifecycleState(staff);
+    if (record.technician) staff.technicianId = record.technician._id;
+    return staff;
+  }
+  const tech = record.technician.toObject ? record.technician.toObject() : record.technician;
+  return {
+    ...tech,
+    firstName: String(tech.name || "").split(" ")[0] || "",
+    lastName: String(tech.name || "").split(" ").slice(1).join(" "),
+    email: tech.userEmail || "",
+    role: "technician",
+    staffRecordType: "technician_profile",
+    lifecycleState: staffLifecycleState(tech),
+  };
 }
 
 exports.listCustomers = async (req, res, next) => {
@@ -224,6 +285,8 @@ exports.listStaff = async (req, res, next) => {
     // 3) transform users: attach technician/secretary metadata where available
     const transformedUsers = users.map((u) => {
       const out = Object.assign({}, u);
+      out.staffRecordType = "user";
+      out.lifecycleState = staffLifecycleState(u);
       const uid = String(u._id);
       // attach technician metadata when linked
       if (techByUser.has(uid)) {
@@ -255,6 +318,11 @@ exports.listStaff = async (req, res, next) => {
         lastName: (t.name || "").split(" ").slice(1).join(" ") || "",
         role: "technician",
         active: typeof t.active === "boolean" ? t.active : true,
+        archivedAt: t.archivedAt || null,
+        archivedBy: t.archivedBy || null,
+        archiveReason: t.archiveReason || "",
+        lifecycleState: staffLifecycleState(t),
+        staffRecordType: "technician_profile",
         // skills removed from model
         _tech: true,
       }));
@@ -276,6 +344,8 @@ exports.listStaff = async (req, res, next) => {
       (u) => u.role === "secretary",
     ).length;
     const userTotalCount = users.length;
+    const activeCount = users.filter((u) => staffLifecycleState(u) === "active").length;
+    const archivedCount = users.filter((u) => staffLifecycleState(u) === "archived").length;
 
     res.json({
       staff: combined,
@@ -283,6 +353,8 @@ exports.listStaff = async (req, res, next) => {
         total: userTotalCount,
         technicians: userTechCount,
         secretaries: userSecretaryCount,
+        active: activeCount,
+        archived: archivedCount,
       },
     });
   } catch (err) {
@@ -413,11 +485,9 @@ exports.getStaff = async (req, res, next) => {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
-    const user = await User.findById(id)
-      .select("-passwordHash -resetPasswordTokenHash -resetPasswordExpires -currentSessionId")
-      .lean();
-    if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ staff: user });
+    const record = await resolveManagedStaff(id);
+    if (!record) return res.status(404).json({ error: "Staff member not found" });
+    res.json({ staff: managedStaffResponse(record) });
   } catch (err) {
     next(err);
   }
@@ -430,9 +500,25 @@ exports.editStaff = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
     const { role, active, firstName, lastName, email, phone } = req.body;
+    if (active !== undefined) {
+      return res.status(400).json({
+        error: "Use the staff archive or restore action to change account status.",
+        code: "STAFF_LIFECYCLE_ACTION_REQUIRED",
+      });
+    }
+    const existing = await User.findOne({
+      _id: id,
+      role: { $in: ["secretary", "technician"] },
+    }).select("archivedAt");
+    if (!existing) return res.status(404).json({ error: "Staff member not found" });
+    if (existing.archivedAt) {
+      return res.status(409).json({
+        error: "Restore this staff member before editing their account.",
+        code: "STAFF_ARCHIVED",
+      });
+    }
     const update = {};
-    if (role && ["admin", "secretary", "technician"].includes(role)) update.role = role;
-    if (typeof active === "boolean") update.active = active;
+    if (role && ["secretary", "technician"].includes(role)) update.role = role;
     if (firstName !== undefined) update.firstName = firstName;
     if (lastName !== undefined) update.lastName = lastName;
     if (email !== undefined) update.email = email;
@@ -455,7 +541,6 @@ exports.editStaff = async (req, res, next) => {
         if (fullName) techUpdate.name = fullName;
         if (email !== undefined) techUpdate.userEmail = email;
         if (phone !== undefined && phone !== "") techUpdate.phone = phone;
-        if (typeof active === "boolean") techUpdate.active = active;
         if (Object.keys(techUpdate).length > 0) {
           const techResult = await Technician.updateOne(
             { user: user._id },
@@ -1335,6 +1420,7 @@ exports.analyticsSummary = async (req, res, next) => {
     try {
       var Rating = require("../models/Rating");
       var ratingAgg = await Rating.aggregate([
+        { $match: { moderationStatus: { $ne: "hidden" } } },
         { $group: { _id: null, avg: { $avg: "$score" }, count: { $sum: 1 } } },
       ]).catch(() => []);
       if (ratingAgg && ratingAgg[0]) {
@@ -1344,6 +1430,7 @@ exports.analyticsSummary = async (req, res, next) => {
 
       // Rating distribution
       var ratingDist = await Rating.aggregate([
+        { $match: { moderationStatus: { $ne: "hidden" } } },
         { $group: { _id: "$score", count: { $sum: 1 } } },
         { $sort: { _id: -1 } },
       ]).catch(() => []);
@@ -1441,7 +1528,7 @@ exports.debugCounts = async (req, res) => {
 exports.listNonWorkingDays = async (req, res, next) => {
   try {
     const { date, startDate, endDate, serviceId } = req.query;
-    const q = {};
+    const q = req.query.includeArchived === "1" ? {} : { active: { $ne: false } };
 
     if (date) {
       const d = new Date(date + "T00:00:00");
@@ -1491,12 +1578,28 @@ exports.createNonWorkingDay = async (req, res, next) => {
     if (Number.isNaN(d.getTime()))
       return res.status(400).json({ error: "invalid date" });
     const NonWorkingDay = require("../models/NonWorkingDay");
+    const scope = serviceId && mongoose.Types.ObjectId.isValid(serviceId)
+      ? new mongoose.Types.ObjectId(serviceId)
+      : null;
+    const existing = await NonWorkingDay.findOne({ date: d, service: scope });
+    if (existing) {
+      if (existing.active !== false && !existing.archivedAt) {
+        return res.status(409).json({ error: "Day off already exists for that date/scope" });
+      }
+      const restoreReason = "Restored by recreating this date in the scheduling calendar";
+      restoreRecord(existing, req.user._id, restoreReason);
+      existing.note = note || existing.note || "";
+      await existing.save();
+      await logAction(req.user._id, existing._id, "dayoff.restore", req, {
+        date,
+        serviceId,
+        reason: restoreReason,
+      });
+      return res.json({ message: "Archived day off restored", dayoff: existing });
+    }
     const doc = new NonWorkingDay({
       date: d,
-      service:
-        serviceId && mongoose.Types.ObjectId.isValid(serviceId)
-          ? serviceId
-          : undefined,
+      service: scope || undefined,
       note: note || "",
     });
     await doc.save();
@@ -1516,18 +1619,43 @@ exports.createNonWorkingDay = async (req, res, next) => {
   }
 };
 
-// DELETE /api/admin/dayoffs/:id
+// DELETE /api/admin/dayoffs/:id (soft archive; scheduling history is retained)
 exports.deleteNonWorkingDay = async (req, res, next) => {
   try {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid id" });
     const NonWorkingDay = require("../models/NonWorkingDay");
-    const d = await NonWorkingDay.findByIdAndDelete(id);
+    const d = await NonWorkingDay.findById(id);
     if (!d) return res.status(404).json({ error: "Day off not found" });
-    await logAction(req.user._id, d._id, "dayoff.delete", req, {});
-    return res.json({ message: "deleted" });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", {
+      fallback: "Removed from the active scheduling calendar by an administrator",
+    });
+    archiveRecord(d, req.user._id, reason);
+    await d.save();
+    await logAction(req.user._id, d._id, "dayoff.archive", req, { reason, date: d.date });
+    return res.json({ message: "Day off archived and retained in scheduling history", dayoff: d });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+};
+
+exports.restoreNonWorkingDay = async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid id" });
+    const NonWorkingDay = require("../models/NonWorkingDay");
+    const dayoff = await NonWorkingDay.findById(req.params.id);
+    if (!dayoff) return res.status(404).json({ error: "Day off not found" });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", {
+      fallback: "Restored to the scheduling calendar by an administrator",
+    });
+    restoreRecord(dayoff, req.user._id, reason);
+    await dayoff.save();
+    await logAction(req.user._id, dayoff._id, "dayoff.restore", req, { reason, date: dayoff.date });
+    return res.json({ message: "Day off restored", dayoff });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 };
@@ -1558,6 +1686,12 @@ exports.syncPublicHolidays = async (req, res, next) => {
         const existing = await NonWorkingDay.findOne({ date, service: null });
         if (!existing) {
           await NonWorkingDay.create({ date, note, reason: "public holiday" });
+          addedCount++;
+        } else if (existing.active === false) {
+          restoreRecord(existing, req.user._id, "Restored by the public holiday synchronization process");
+          existing.note = note;
+          existing.reason = "public holiday";
+          await existing.save();
           addedCount++;
         }
       } catch (e) {
@@ -1659,6 +1793,143 @@ exports.createCoreService = async (req, res, next) => {
       slug,
     });
     return res.status(201).json({ coreService: svc });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getStaffRetentionPolicy = async (req, res) => {
+  res.json({ policy: STAFF_RETENTION_POLICY });
+};
+
+exports.previewStaffArchive = async (req, res, next) => {
+  try {
+    const record = await resolveManagedStaff(req.params.id);
+    if (!record) return res.status(404).json({ error: "Staff member not found" });
+    const blockers = await findStaffArchiveBlockers(record.technician?._id);
+    res.json({
+      staff: managedStaffResponse(record),
+      blockers,
+      canArchive: blockers.total === 0,
+      policy: STAFF_RETENTION_POLICY,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.archiveStaff = async (req, res, next) => {
+  try {
+    const record = await resolveManagedStaff(req.params.id);
+    if (!record) return res.status(404).json({ error: "Staff member not found" });
+
+    if (record.user?.archivedAt || (!record.user && record.technician.archivedAt)) {
+      return res.json({ message: "Staff member is already archived", staff: managedStaffResponse(record) });
+    }
+    const reason = normalizeArchiveReason(req.body && req.body.reason);
+
+    const blockers = await findStaffArchiveBlockers(record.technician?._id);
+    if (blockers.total > 0) {
+      return res.status(409).json({
+        error: "Reassign or close all unfinished work before archiving this staff member.",
+        code: "ACTIVE_WORK_BLOCKS_ARCHIVE",
+        blockers,
+      });
+    }
+
+    const now = new Date();
+    const actorId = req.user._id;
+    const lifecycleEvent = { action: "archived", at: now, by: actorId, reason };
+
+    if (record.user) {
+      record.user.active = false;
+      record.user.archivedAt = now;
+      record.user.archivedBy = actorId;
+      record.user.archiveReason = reason;
+      record.user.currentSessionId = require("crypto").randomUUID();
+      record.user.staffLifecycleHistory.push(lifecycleEvent);
+    }
+    if (record.technician) {
+      record.technician.active = false;
+      record.technician.availabilityStatus = "Offline";
+      record.technician.archivedAt = now;
+      record.technician.archivedBy = actorId;
+      record.technician.archiveReason = reason;
+      record.technician.staffLifecycleHistory.push(lifecycleEvent);
+    }
+    await Promise.all([
+      record.user ? record.user.validate() : null,
+      record.technician ? record.technician.validate() : null,
+    ]);
+    if (record.user) await record.user.save({ validateBeforeSave: false });
+    if (record.technician) await record.technician.save({ validateBeforeSave: false });
+
+    await logAction(actorId, record.user?._id || null, "staff.archive", req, {
+      entityType: record.kind === "user" ? "User" : "Technician",
+      entityId: record.user?._id || record.technician._id,
+      staffRecordType: record.kind,
+      reason,
+      historicalWorkPreserved: true,
+      sessionsRevoked: Boolean(record.user),
+    });
+
+    res.json({
+      message: "Staff member archived. Historical work and audit records were preserved.",
+      staff: managedStaffResponse(record),
+    });
+  } catch (err) {
+    if (err && err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
+    next(err);
+  }
+};
+
+exports.restoreStaff = async (req, res, next) => {
+  try {
+    const record = await resolveManagedStaff(req.params.id);
+    if (!record) return res.status(404).json({ error: "Staff member not found" });
+    if (staffLifecycleState(record.user || record.technician) === "active") {
+      return res.json({ message: "Staff member is already active", staff: managedStaffResponse(record) });
+    }
+    const reason = String((req.body && req.body.reason) || "Restored by administrator")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 500);
+    const now = new Date();
+    const actorId = req.user._id;
+    const lifecycleEvent = { action: "restored", at: now, by: actorId, reason };
+
+    if (record.user) {
+      record.user.active = true;
+      record.user.archivedAt = null;
+      record.user.archivedBy = null;
+      record.user.archiveReason = "";
+      record.user.currentSessionId = require("crypto").randomUUID();
+      record.user.staffLifecycleHistory.push(lifecycleEvent);
+    }
+    if (record.technician) {
+      record.technician.active = true;
+      record.technician.availabilityStatus = "Offline";
+      record.technician.archivedAt = null;
+      record.technician.archivedBy = null;
+      record.technician.archiveReason = "";
+      record.technician.staffLifecycleHistory.push(lifecycleEvent);
+    }
+    await Promise.all([
+      record.user ? record.user.validate() : null,
+      record.technician ? record.technician.validate() : null,
+    ]);
+    if (record.user) await record.user.save({ validateBeforeSave: false });
+    if (record.technician) await record.technician.save({ validateBeforeSave: false });
+
+    await logAction(actorId, record.user?._id || null, "staff.restore", req, {
+      entityType: record.kind === "user" ? "User" : "Technician",
+      entityId: record.user?._id || record.technician._id,
+      staffRecordType: record.kind,
+      reason,
+    });
+    res.json({ message: "Staff member restored", staff: managedStaffResponse(record) });
   } catch (err) {
     next(err);
   }
@@ -2032,7 +2303,7 @@ exports.getTechnicianCalendar = async (req, res, next) => {
     }).lean()) || { workingDays: [], restDates: [] };
 
     const NonWorkingDay = require("../models/NonWorkingDay");
-    const ndq = {};
+    const ndq = { active: { $ne: false } };
     if (start || end) ndq.date = {};
     if (start) ndq.date.$gte = start;
     if (end) {
@@ -2758,12 +3029,15 @@ exports.editInventory = async (req, res, next) => {
     }
     const item = await Inventory.findById(id);
     if (!item) return res.status(404).json({ error: "Aircon product not found" });
+    if (item.active === false || item.archivedAt) {
+      return res.status(409).json({ error: "Restore this product before editing it.", code: "INVENTORY_ARCHIVED" });
+    }
 
     const allowed = [
       "modelLine","type","capacity","capacityUnit","btu","inverter",
       "sellingPrice","costPrice","quantity","minStockLevel","status",
       "description","features","warranty","imageUrl","salesChannel",
-      "supplier","active",
+      "supplier",
     ];
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) item[key] = req.body[key];
@@ -2843,7 +3117,7 @@ exports.listTools = async (req, res, next) => {
     // The previous conversion therefore made the entire catalog endpoint fail.
     const toolIds = tools.map((tool) => tool._id).filter(Boolean);
     const consumedAgg = await ServiceToolUsage.aggregate([
-      { $match: { toolItemId: { $in: toolIds } } },
+      { $match: { toolItemId: { $in: toolIds }, lifecycleStatus: { $ne: "voided" } } },
       { $group: { _id: "$toolItemId", consumed: { $sum: "$quantityUsed" } } },
     ]);
     const consumedMap = new Map(consumedAgg.map(c => [c._id.toString(), c.consumed]));
@@ -2966,10 +3240,13 @@ exports.editTool = async (req, res, next) => {
     }
     const tool = await Tool.findById(id);
     if (!tool) return res.status(404).json({ error: "Tool not found" });
+    if (tool.active === false || tool.archivedAt) {
+      return res.status(409).json({ error: "Restore this tool before editing it.", code: "TOOL_ARCHIVED" });
+    }
 
     const allowed = [
       "itemName","unit","quantity","minStockLevel","costPrice","sellingPrice",
-      "specification","description","supplier","status","active","category","type",
+      "specification","description","supplier","status","category","type",
       "serialNumber","inventoryClass","assetCode","assetCondition","assetStatus",
       "maintenanceIntervalDays","lastMaintenanceAt","assignable","reservedQuantity",
     ];
@@ -3016,13 +3293,44 @@ exports.deleteTool = async (req, res, next) => {
     const tool = await Tool.findById(id);
     if (!tool) return res.status(404).json({ error: "Tool not found" });
 
-    tool.active = false;
+    if (Number(tool.reservedQuantity || 0) > 0 || Number(tool.checkedOutQuantity || 0) > 0) {
+      return res.status(409).json({
+        error: "Release reservations and return checked-out units before archiving this tool.",
+        code: "ACTIVE_CUSTODY_BLOCKS_ARCHIVE",
+      });
+    }
+
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", {
+      fallback: "Archived from the inventory catalogue by an administrator",
+    });
+    archiveRecord(tool, req.user._id, reason);
     await tool.save();
-    await logAction(req.user._id, tool._id, "tool.delete", req, {
+    await logAction(req.user._id, tool._id, "tool.archive", req, {
       itemName: tool.itemName,
+      reason,
     });
     return res.json({ message: "Tool archived", tool });
   } catch (err) {
+    next(err);
+  }
+};
+
+exports.restoreTool = async (req, res, next) => {
+  try {
+    const Tool = require("../models/Tool");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid id" });
+    const tool = await Tool.findById(req.params.id);
+    if (!tool) return res.status(404).json({ error: "Tool not found" });
+    if (tool.active !== false && !tool.archivedAt) return res.json({ message: "Tool is already active", tool });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", {
+      fallback: "Restored to the inventory catalogue by an administrator",
+    });
+    restoreRecord(tool, req.user._id, reason);
+    await tool.save();
+    await logAction(req.user._id, tool._id, "tool.restore", req, { itemName: tool.itemName, reason });
+    return res.json({ message: "Tool restored", tool });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 };

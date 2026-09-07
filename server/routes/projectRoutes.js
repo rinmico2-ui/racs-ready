@@ -79,6 +79,7 @@ const {
 } = require("../utils/projectScheduleRecovery");
 const { deriveProjectScheduleHealth, summarizeScheduleHealth } = require("../utils/projectScheduleHealth");
 const { addProjectItemsToDailyKit, syncDailyKit } = require("../utils/dailyKitService");
+const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
 
 function escapeRecoveryHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
@@ -3167,8 +3168,8 @@ router.get("/projects/:id/materials", auth.requireRole(["admin", "secretary", "t
   }
 });
 
-// Remove a reserved project material. Recomputes the affected catalog
-// tool's reservation ledger so its stock becomes available again.
+// Cancel and retain a reserved project material. Recomputes the affected
+// catalog tool's reservation ledger so its stock becomes available again.
 router.delete("/projects/:id/materials/:mid", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { id, mid } = req.params;
@@ -3177,16 +3178,37 @@ router.delete("/projects/:id/materials/:mid", auth.requireRole(["admin", "secret
     }
     const material = await ProjectMaterial.findOne({ _id: mid, projectId: id });
     if (!material) return res.status(404).json({ error: "Material not found" });
+    if (material.status === "cancelled") {
+      return res.json({ message: "Material reservation is already cancelled", material });
+    }
+    if (material.status !== "reserved" || material.pickedUp) {
+      return res.status(409).json({ error: "Only an uncollected reserved material can be cancelled." });
+    }
+    const reason = normalizeLifecycleReason(req.body?.reason, "Cancellation", {
+      fallback: "Removed from the project resource plan by an administrator",
+    });
     const sourceId = material.sourceId;
-    await material.deleteOne();
+    material.status = "cancelled";
+    material.cancelledAt = new Date();
+    material.cancelledBy = req.user._id;
+    material.cancellationReason = reason;
+    await material.save();
     if (material.source === "inventory" && sourceId) {
       const Tool = require("../models/Tool");
       await Tool.recomputeReserved(String(sourceId));
     }
-    res.json({ message: "Material removed", material });
+    await audit.logEvent({
+      actor: req.user._id,
+      target: id,
+      action: "project.material.cancel",
+      module: "projects",
+      req,
+      details: { materialId: mid, itemName: material.itemName, quantity: material.quantity, reason },
+    }).catch(() => {});
+    res.json({ message: "Material reservation cancelled and retained in project history", material });
   } catch (error) {
     console.error("Error removing material:", error);
-    res.status(500).json({ error: "Failed to remove material" });
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to cancel material reservation" });
   }
 });
 
@@ -3241,7 +3263,7 @@ router.put("/projects/:id/materials/:mid/assign", auth.authenticate, auth.requir
     }
 
     const material = await ProjectMaterial.findOneAndUpdate(
-      { _id: mid, projectId: id },
+      { _id: mid, projectId: id, status: "reserved" },
       { assignedToTechnicianId: technicianId, assignedBy: req.user._id, assignedAt: new Date(), scope: "assigned" },
       { returnDocument: "after" },
     );
@@ -3277,6 +3299,9 @@ router.put("/projects/:id/materials/:mid/confirm-pickup", auth.authenticate, aut
     const material = await ProjectMaterial.findById(mid);
     if (!material || material.projectId.toString() !== id) {
       return res.status(404).json({ error: "Resource not found" });
+    }
+    if (material.status !== "reserved") {
+      return res.status(409).json({ error: "Only an active reservation can be picked up." });
     }
 
     const callerTechId = await resolveTechnicianId(req.user);
@@ -6420,6 +6445,7 @@ router.put("/projects/:id/equipment/issue", auth.authenticate, auth.requireRole(
     for (const assignment of reservations) {
       const tool = await Tool.findOneAndUpdate({
         _id: assignment.equipmentId,
+        active: { $ne: false },
         quantity: { $gte: assignment.quantity },
         assignable: { $ne: false },
         assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] },

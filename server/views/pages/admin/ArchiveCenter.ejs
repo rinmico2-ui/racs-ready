@@ -1,0 +1,49 @@
+<div class="container-fluid px-0">
+  <div class="au-hero">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-archive"></i></div>
+        <div><h1>Archive &amp; Retention Center</h1><p>Review retained lifecycle records and restore eligible catalogue or staff records.</p></div>
+      </div>
+      <div class="au-hero-stats"><div class="au-hero-stat"><div class="au-hero-stat-val" id="archiveTotal">—</div><div class="au-hero-stat-lbl">Retained records</div></div></div>
+    </div>
+  </div>
+
+  <div class="alert alert-primary border-0 shadow-sm">
+    <i class="bi bi-shield-check me-2"></i><strong>Retention policy:</strong>
+    operational, financial, payroll, warranty and audit records are retained. Corrections use cancel, void or release actions; permanent deletion is not available here.
+  </div>
+
+  <div id="archiveGroups" class="row g-3">
+    <div class="col-12 text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Loading retained records…</div>
+  </div>
+</div>
+
+<style>
+  .archive-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 8px 25px rgba(15,23,42,.05);overflow:hidden}
+  .archive-head{padding:16px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+  .archive-row{display:grid;grid-template-columns:minmax(180px,1.4fr) minmax(130px,1fr) 110px minmax(180px,1.3fr) auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+  .archive-row:last-child{border-bottom:0}.archive-label{font-weight:700;color:#0f172a}.archive-meta{color:#64748b;font-size:.74rem}.archive-state{font-weight:700;text-transform:uppercase;font-size:.68rem;color:#475569;background:#f1f5f9;border-radius:999px;padding:5px 9px;justify-self:start}.archive-reason{color:#475569}.archive-empty{padding:24px;text-align:center;color:#94a3b8}
+  @media(max-width:900px){.archive-row{grid-template-columns:1fr}.archive-row>div,.archive-row>span,.archive-row>button{justify-self:start}}
+</style>
+
+<script>
+(function(){
+  const groupsEl=document.getElementById('archiveGroups');
+  const esc=(value)=>String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const date=(value)=>value?new Date(value).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}):'Date unavailable';
+  async function loadArchive(){
+    try{
+      const response=await fetch('/api/admin/archive',{credentials:'same-origin'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to load archive');
+      document.getElementById('archiveTotal').textContent=data.total||0;
+      groupsEl.innerHTML=(data.groups||[]).map(group=>`<section class="col-12"><div class="archive-card"><div class="archive-head"><h2 class="h6 mb-0 fw-bold">${esc(group.label)}</h2><span class="badge bg-secondary">${group.count}</span></div>${group.records.length?group.records.map(item=>`<div class="archive-row"><div><div class="archive-label">${esc(item.label)}</div><div class="archive-meta">${esc(item.type)}${item.secondary?' · '+esc(item.secondary):''}</div></div><div class="archive-meta">${esc(date(item.at))}</div><span class="archive-state">${esc(item.state)}</span><div class="archive-reason">${esc(item.reason)}</div>${item.restorable?`<button class="btn btn-sm btn-outline-success js-restore" data-url="${esc(item.restoreUrl)}" data-label="${esc(item.label)}"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>`:'<span></span>'}</div>`).join(''):'<div class="archive-empty">No records in this section.</div>'}</div></section>`).join('');
+      groupsEl.querySelectorAll('.js-restore').forEach(button=>button.addEventListener('click',async()=>{
+        if(!confirm(`Restore ${button.dataset.label}?`))return;button.disabled=true;
+        try{const r=await fetch(button.dataset.url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({reason:'Restored from the Archive and Retention Center'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Restore failed');await loadArchive();}
+        catch(error){alert(error.message);button.disabled=false;}
+      }));
+    }catch(error){groupsEl.innerHTML=`<div class="col-12"><div class="alert alert-danger">${esc(error.message)}</div></div>`;}
+  }
+  loadArchive();
+})();
+</script>

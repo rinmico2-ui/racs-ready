@@ -91,7 +91,7 @@ const REPAIR_PART_STATUSES = ["repair_scheduled", "repair_in_progress"];
 async function resolvePartTool(part) {
   if (part.toolId) {
     const tool = await Tool.findById(part.toolId).select("quantity active itemName assetCode barcode").lean();
-    if (tool) return tool;
+    if (tool && tool.active !== false) return tool;
   }
   const escaped = String(part.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (!escaped) return null;
@@ -595,6 +595,7 @@ async function confirmDailyKit({ technicianId, userId, date }) {
     }
     const updated = await Tool.findOneAndUpdate({
       _id: item.toolId,
+      active: { $ne: false },
       quantity: { $gte: item.quantity },
       ...(item.category === "equipment" ? { assignable: { $ne: false }, assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] } } : {}),
     }, {

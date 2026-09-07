@@ -159,18 +159,22 @@
       });
     });
 
-    body.querySelectorAll(".js-delete").forEach((btn) => {
+    body.querySelectorAll(".js-void").forEach((btn) => {
       btn.addEventListener("click", async function () {
         const id = this.dataset.id;
         if (!id) return;
-        if (!confirm("Delete this usage entry and restore stock?")) return;
+        const reason = prompt("Reason for voiding this usage record (required):", "Incorrect usage entry");
+        if (reason == null) return;
+        if (reason.trim().length < 10) return notify("error", "Enter a reason of at least 10 characters.");
 
-        const r = await fetch(`${apiBase}/tool-usage/${encodeURIComponent(id)}`, {
-          method: "DELETE",
+        const r = await fetch(`${apiBase}/tool-usage/${encodeURIComponent(id)}/void`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason.trim() }),
         });
         const d = await r.json();
-        if (!r.ok) throw new Error(d.error || "Failed to delete entry");
-        notify("success", "Entry deleted and stock restored");
+        if (!r.ok) throw new Error(d.error || "Failed to void entry");
+        notify("success", d.message || "Entry voided and stock restored");
         await reload();
       });
     });
@@ -209,7 +213,7 @@
                   data-qty="${u.quantityUsed || ""}"
                   data-notes="${(u.notes || "").replace(/"/g, "&quot;")}"
                 >Edit</button>
-                <button class="btn btn-sm btn-outline-danger js-delete" data-id="${u._id}">Delete</button>
+                <button class="btn btn-sm btn-outline-danger js-void" data-id="${u._id}">Void</button>
               </div>
             </td>
           </tr>

@@ -32,13 +32,6 @@
               <label class="form-label small fw-semibold">Phone</label>
               <input type="text" class="form-control" id="techPhone" name="phone" placeholder="09XXXXXXXXX" value="<%= isEdit ? (technician.phone || '') : '' %>">
             </div>
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">Status</label>
-              <select class="form-select" id="techActive" name="active">
-                <option value="true" <%= isEdit && technician.active !== false ? 'selected' : (!isEdit ? 'selected' : '') %>>Active</option>
-                <option value="false" <%= isEdit && technician.active === false ? 'selected' : '' %>>Inactive</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -89,7 +82,6 @@
       name: name,
       userEmail: document.getElementById('techEmail').value.trim() || undefined,
       phone: document.getElementById('techPhone').value.trim() || undefined,
-      active: document.getElementById('techActive').value === 'true',
       locationText: document.getElementById('techLocation').value.trim() || undefined,
     };
 

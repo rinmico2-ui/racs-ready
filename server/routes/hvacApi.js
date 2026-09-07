@@ -11,6 +11,8 @@ const path = require("path");
 const fs = require("fs");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { escapeRegex } = require("../utils/stringSecurity");
+const audit = require("../utils/audit");
+const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
 
 // Ensure upload directory exists
 const uploadDir = path.join(__dirname, "../public/uploads/hvac");
@@ -117,10 +119,12 @@ async function handleCategory(categoryValue) {
  */
 router.get("/hvac", async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search, brand, type, inverter } = req.query;
+    const { page = 1, limit = 10, search, brand, type, inverter, lifecycle } = req.query;
     
     // Build filter
-    const filter = { active: true };
+    const filter = lifecycle === "archived"
+      ? { active: false }
+      : lifecycle === "all" ? {} : { active: true };
     
     if (search) {
       filter.modelLine = new RegExp(escapeRegex(search), 'i');
@@ -306,6 +310,9 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+    if (product.active === false || product.archivedAt) {
+      return res.status(409).json({ error: "Restore this product before editing it.", code: "HVAC_PRODUCT_ARCHIVED" });
+    }
 
     let {
       modelLine,
@@ -390,6 +397,9 @@ router.post("/hvac/:id/variants", async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+    if (product.active === false || product.archivedAt) {
+      return res.status(409).json({ error: "Restore this product before adding variants.", code: "HVAC_PRODUCT_ARCHIVED" });
+    }
 
     const variantData = req.body.variant || {};
     const { capacity, btu, sellingPrice, costPrice, quantity, minStockLevel } = variantData;
@@ -453,6 +463,9 @@ router.patch("/hvac/:id/variants/:variantId", async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ error: "Product not found" });
     }
+    if (product.active === false || product.archivedAt) {
+      return res.status(409).json({ error: "Restore this product before editing variants.", code: "HVAC_PRODUCT_ARCHIVED" });
+    }
 
     const variant = product.variants.id(variantId);
     if (!variant) {
@@ -504,9 +517,13 @@ router.delete("/hvac/:id", async (req, res, next) => {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    product.active = false;
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", {
+      fallback: "Archived from the aircon catalogue by an administrator",
+    });
+    archiveRecord(product, req.user._id, reason);
     product.updatedBy = req.user?._id;
     await product.save();
+    await audit.logEvent({ actor: req.user._id, target: product._id, action: "hvac.archive", module: "inventory", req, details: { reason } });
 
     return res.json({ 
       message: "HVAC product archived successfully",
@@ -514,7 +531,27 @@ router.delete("/hvac/:id", async (req, res, next) => {
     });
   } catch (err) {
     console.error("archiveHVACProduct 500:", err);
-    return res.status(500).json({ error: err.message });
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    return next(err);
+  }
+});
+
+router.post("/hvac/:id/restore", async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid product id" });
+    const product = await HVACProduct.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", {
+      fallback: "Restored to the aircon catalogue by an administrator",
+    });
+    restoreRecord(product, req.user._id, reason);
+    product.updatedBy = req.user._id;
+    await product.save();
+    await audit.logEvent({ actor: req.user._id, target: product._id, action: "hvac.restore", module: "inventory", req, details: { reason } });
+    return res.json({ message: "HVAC product restored successfully", product });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
   }
 });
 

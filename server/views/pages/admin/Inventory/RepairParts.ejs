@@ -1078,7 +1078,7 @@
           <div class="rp-actions">
             <button class="btn btn-outline-primary btn-sm" onclick="openStockModal('${p._id}')" title="Adjust Stock"><i class="bi bi-arrow-left-right"></i></button>
             <button class="btn btn-outline-secondary btn-sm" onclick="editPart('${p._id}')" title="Edit"><i class="bi bi-pencil"></i></button>
-            <button class="btn btn-outline-danger btn-sm" onclick="deletePart('${p._id}')" title="Delete"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-outline-danger btn-sm" onclick="deletePart('${p._id}')" title="Archive"><i class="bi bi-archive"></i></button>
           </div>
         </td>
       </tr>`;
@@ -1471,20 +1471,23 @@
     btn.innerHTML = id ? '<i class="bi bi-check-lg me-1"></i>Update Item' : '<i class="bi bi-plus-lg me-1"></i>Add Item';
   };
 
-  // ── Delete Part ───────────────────────────────────────────────────────
+  // ── Archive Part ──────────────────────────────────────────────────────
   window.deletePart = async function(id) {
     const p = allParts.find(x => x._id === id);
     if (!p) return;
-    const result = await showRpConfirm('Delete Item?', `<div style="font-size:1rem;"><strong>${esc(p.itemName)}</strong><br><small>This action cannot be undone.</small></div>`, 'Delete', 'Cancel', 'warning');
+    const result = await showRpConfirm('Archive Item?', `<div style="font-size:1rem;"><strong>${esc(p.itemName)}</strong><br><small>The item and its history will be retained and can be restored from Archive & Retention.</small></div>`, 'Archive', 'Cancel', 'warning');
     if (!result) return;
+    const reason = prompt('Archive reason:', 'No longer used in active inventory');
+    if (reason == null) return;
+    if (reason.trim().length < 10) return showRpToast('Enter an archive reason of at least 10 characters.', 'error');
     try {
-      const res = await fetch(`${repairPartsApiBase}/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+      const res = await fetch(`${repairPartsApiBase}/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ reason: reason.trim() }) });
       if (res.ok) {
-        showRpToast('Deleted: ' + p.itemName, 'success');
+        showRpToast('Archived: ' + p.itemName, 'success');
         loadParts();
       } else {
         const data = await res.json();
-        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to delete.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
+        Swal.fire({ icon: 'error', title: 'Error', text: data.error || 'Failed to archive.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' });
       }
     } catch (e) { Swal.fire({ icon: 'error', title: 'Error', text: 'Network error.', confirmButtonColor: '#2563eb', confirmButtonText: '<i class="bi bi-check-lg"></i> OK', iconColor: '#dc2626' }); }
   };

@@ -88,7 +88,7 @@ router.post("/add", async (req, res) => {
     const HVACProduct = require("../models/HVACProduct");
     let item = await Inventory.findById(inventoryId);
     if (!item) {
-      const hvacDoc = await HVACProduct.findOne({ "variants._id": inventoryId }).lean();
+      const hvacDoc = await HVACProduct.findOne({ active: { $ne: false }, "variants._id": inventoryId }).lean();
       if (hvacDoc) {
         item = hvacDoc.variants.find(v => v._id.toString() === inventoryId.toString());
       }
@@ -183,7 +183,7 @@ router.post("/buy-now", async (req, res) => {
     const HVACProduct = require("../models/HVACProduct");
     let item = await Inventory.findById(inventoryId);
     if (!item) {
-      const hvacDoc = await HVACProduct.findOne({ "variants._id": inventoryId }).lean();
+      const hvacDoc = await HVACProduct.findOne({ active: { $ne: false }, "variants._id": inventoryId }).lean();
       if (hvacDoc) {
         item = hvacDoc.variants.find(v => v._id.toString() === inventoryId.toString());
       }

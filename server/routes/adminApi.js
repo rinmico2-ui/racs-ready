@@ -8,12 +8,14 @@ const audit = require("../utils/audit");
 const User = require("../models/User");
 const { hasPermission, requirePermission } = require("../middleware/requirePermission");
 const { assertAdminTransition, assertResolution, REMITTANCE_STATUSES } = require("../utils/remittancePolicy");
+const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
+const archiveController = require("../controllers/archiveController");
 const {
   listToolUsage,
   summarizeToolUsage,
   createToolUsageEntry,
   updateToolUsageEntry,
-  deleteToolUsageEntry,
+  voidToolUsageEntry,
 } = require("../utils/toolUsageManagement");
 
 // Protect all admin API routes. The secretary mount reuses only explicitly
@@ -77,12 +79,17 @@ router.patch("/customers/:id", admin.updateCustomer);
 
 // Staff
 router.get("/staff", admin.listStaff);
+router.get("/staff/policy", admin.getStaffRetentionPolicy);
+router.get("/staff/:id/archive-preview", admin.previewStaffArchive);
+router.post("/staff/:id/archive", admin.archiveStaff);
+router.post("/staff/:id/restore", admin.restoreStaff);
 router.get("/staff/:id", admin.getStaff);
 router.post("/staff", admin.createStaff);
 router.patch("/staff/:id", admin.editStaff);
 router.post("/staff/:id/reset-password", admin.resetStaffPassword);
 router.get("/staff/:id/logs", admin.viewStaffActivityLogs);
 router.get("/logs", admin.listLogs);
+router.get("/archive", archiveController.listArchive);
 
 // Enterprise Audit Trail
 router.get("/audit/stats", admin.auditStats);
@@ -134,7 +141,7 @@ router.post("/reports/service/drilldown", async (req, res, next) => {
     const [bookings, orders, ratings] = await Promise.all([
       bookingIds.length ? BookingService.find({ _id: { $in: bookingIds } }).lean() : [],
       orderIds.length ? Order.find({ _id: { $in: orderIds } }).lean() : [],
-      bookingIds.length ? Rating.find({ targetType: "booking", targetId: { $in: bookingIds } }).select("targetId score").lean() : [],
+      bookingIds.length ? Rating.find({ targetType: "booking", targetId: { $in: bookingIds }, moderationStatus: { $ne: "hidden" } }).select("targetId score").lean() : [],
     ]);
     const technicianIds = [...new Set(bookings.map(booking => String(booking.technicianId || "")).filter(mongoose.isValidObjectId))];
     const technicians = technicianIds.length
@@ -389,6 +396,7 @@ router.get("/debug/counts", admin.debugCounts);
 router.get("/dayoffs", admin.listNonWorkingDays);
 router.post("/dayoffs", admin.createNonWorkingDay);
 router.delete("/dayoffs/:id", admin.deleteNonWorkingDay);
+router.post("/dayoffs/:id/restore", admin.restoreNonWorkingDay);
 router.post("/dayoffs/sync-holidays", admin.syncPublicHolidays);
 
 // Technician schedules
@@ -404,13 +412,13 @@ router.get("/technicians/:id/calendar", admin.getTechnicianCalendar);
 router.post("/technicians", async (req, res) => {
   try {
     const Technician = require("../models/Technician");
-    const { name, userEmail, phone, active, locationText } = req.body;
+    const { name, userEmail, phone, locationText } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: "Name is required." });
     const tech = await Technician.create({
       name: name.trim(),
       userEmail: userEmail ? userEmail.trim().toLowerCase() : undefined,
       phone: phone ? phone.trim() : undefined,
-      active: active !== false,
+      active: true,
       locationText: locationText ? locationText.trim() : undefined,
     });
     res.json({ success: true, technician: tech });
@@ -425,14 +433,24 @@ router.put("/technicians/:id", async (req, res) => {
   try {
     const Technician = require("../models/Technician");
     const { name, userEmail, phone, active, locationText } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid technician id." });
+    if (active !== undefined) {
+      return res.status(400).json({
+        error: "Use the staff archive or restore action to change technician status.",
+        code: "STAFF_LIFECYCLE_ACTION_REQUIRED",
+      });
+    }
+    const current = await Technician.findById(req.params.id).select("active archivedAt").lean();
+    if (!current) return res.status(404).json({ error: "Technician not found." });
+    if (current.active === false || current.archivedAt) {
+      return res.status(409).json({ error: "Restore this technician before editing their profile.", code: "STAFF_ARCHIVED" });
+    }
     const update = {};
     if (name !== undefined) update.name = name.trim();
     if (userEmail !== undefined) update.userEmail = userEmail ? userEmail.trim().toLowerCase() : null;
     if (phone !== undefined) update.phone = phone ? phone.trim() : null;
-    if (active !== undefined) update.active = active;
     if (locationText !== undefined) update.locationText = locationText ? locationText.trim() : null;
     const tech = await Technician.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
-    if (!tech) return res.status(404).json({ error: "Technician not found." });
     res.json({ success: true, technician: tech });
   } catch (err) {
     console.error("PUT /api/admin/technicians/:id error:", err);
@@ -478,6 +496,7 @@ router.get("/service-categories", serviceCategories.list);
 router.post("/service-categories", serviceCategories.create);
 router.patch("/service-categories/:id", serviceCategories.update);
 router.delete("/service-categories/:id", serviceCategories.deactivate);
+router.post("/service-categories/:id/restore", serviceCategories.restore);
 router.patch("/service-categories/:id/reorder", serviceCategories.reorder);
 
 // Service Tracking
@@ -505,11 +524,33 @@ router.delete("/inventory/:id", async (req, res, next) => {
     const item = await Inventory.findById(id);
     if (!item) return res.status(404).json({ error: "Inventory item not found" });
 
-    item.active = false;
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive", {
+      fallback: "Archived from the aircon catalogue by an administrator",
+    });
+    archiveRecord(item, req.user._id, reason);
     await item.save();
+    await audit.logEvent({ actor: req.user._id, target: item._id, action: "inventory.archive", module: "inventory", req, details: { reason } });
 
     return res.json({ message: "Aircon product archived", item });
   } catch (err) {
+    next(err);
+  }
+});
+router.post("/inventory/:id/restore", async (req, res, next) => {
+  try {
+    const Inventory = require("../models/Inventory");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid inventory id" });
+    const item = await Inventory.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Inventory item not found" });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", {
+      fallback: "Restored to the aircon catalogue by an administrator",
+    });
+    restoreRecord(item, req.user._id, reason);
+    await item.save();
+    await audit.logEvent({ actor: req.user._id, target: item._id, action: "inventory.restore", module: "inventory", req, details: { reason } });
+    return res.json({ message: "Aircon product restored", item });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });
@@ -520,6 +561,7 @@ router.get("/tools/:id", admin.getTool);
 router.post("/tools", admin.createTool);
 router.patch("/tools/:id", admin.editTool);
 router.delete("/tools/:id", admin.deleteTool);
+router.post("/tools/:id/restore", admin.restoreTool);
 
 // â”€â”€â”€ Stock Adjustment (audit-logged inventory changes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post("/tools/:id/adjust-stock", async (req, res, next) => {
@@ -528,6 +570,8 @@ router.post("/tools/:id/adjust-stock", async (req, res, next) => {
     const Tool = require("../models/Tool");
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
+    const activeTool = await Tool.exists({ _id: id, active: { $ne: false } });
+    if (!activeTool) return res.status(409).json({ error: "Restore this tool before adjusting stock.", code: "TOOL_ARCHIVED" });
 
     const { type, delta, reason, notes } = req.body;
     const validTypes = ["stock_in", "stock_out", "adjustment", "job_usage", "return", "damage"];
@@ -1093,20 +1137,30 @@ router.patch("/tool-usage/:usageId", async (req, res, next) => {
   }
 });
 
-router.delete("/tool-usage/:usageId", async (req, res, next) => {
+async function voidAdminToolUsage(req, res, next) {
   try {
-    const result = await deleteToolUsageEntry({
+    const result = await voidToolUsageEntry({
       usageId: req.params.usageId,
       actorId: req.user && req.user._id,
+      reason: req.body && req.body.reason,
       req,
       moduleName: "admin",
     });
-    return res.json({ message: "Tool usage deleted and stock restored", ...result });
+    return res.json({
+      message: result.warning
+        ? "Tool usage was voided and retained; stock restoration needs review"
+        : "Tool usage voided and retained; deducted stock was restored",
+      ...result,
+    });
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
-});
+}
+
+router.post("/tool-usage/:usageId/void", voidAdminToolUsage);
+// Compatibility for older clients. This no longer deletes the ledger row.
+router.delete("/tool-usage/:usageId", voidAdminToolUsage);
 
 // â”€â”€â”€ Fare / Pricing Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SiteSetting = require("../models/SiteSetting");
@@ -1890,7 +1944,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
       // 9: expenses by type (approved, this month)
       safe(Expense.aggregate([{$match:{status:"approved",expenseDate:{$gte:startOfMonth,$lte:endOfDay}}},{$group:{_id:"$type",total:{$sum:"$amount"},count:{$sum:1}}},{$sort:{total:-1}}]), []),
       // 10: all ratings from Rating model
-      safe(Rating.find({}).populate("customerId","firstName lastName").lean(), []),
+      safe(Rating.find({ moderationStatus: { $ne: "hidden" } }).populate("customerId","firstName lastName").lean(), []),
       // 11: booking customer ratings
       safe(BookingService.find({customerRating:{$ne:null}}).populate("customerId","firstName lastName").populate("technicianId","name").select("customerRating customerRatingComment createdAt technicianId service serviceType").lean(), []),
       // 12: low stock inventory
@@ -2126,7 +2180,7 @@ router.get("/ratings/dashboard", async (req, res, next) => {
     const Technician = require("../models/Technician");
 
     const [ratingDocs, bookingDocs, allTechDocs] = await Promise.all([
-      Rating.find({}).populate("customerId", "firstName lastName").lean(),
+      Rating.find({ moderationStatus: { $ne: "hidden" } }).populate("customerId", "firstName lastName").lean(),
       BookingService.find({ customerRating: { $ne: null } })
         .populate("customerId", "firstName lastName")
         .populate("technicianId", "name")
@@ -2472,6 +2526,8 @@ router.get("/ratings/aircons", async (req, res, next) => {
         comment: r.comment || "",
         date: r.createdAt,
         verified: true,
+        moderationStatus: r.moderationStatus || "visible",
+        moderationReason: r.moderationReason || "",
         productImageUrl: inv?.imageUrl || "/images/products/default.png",
       };
     });
@@ -2553,12 +2609,37 @@ router.get("/ratings/aircons", async (req, res, next) => {
 });
 
 // ─── Aircon Top Products (standalone endpoint for aircons tab) ─────────────
+router.patch("/ratings/:id/moderation", async (req, res, next) => {
+  try {
+    const Rating = require("../models/Rating");
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid rating id" });
+    const status = String(req.body?.status || "").trim();
+    if (!["visible", "flagged", "hidden"].includes(status)) return res.status(400).json({ error: "Invalid moderation status" });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Moderation", {
+      fallback: status === "visible" ? "Approved by an administrator after moderation review" : "Moderated by an administrator after review",
+    });
+    const rating = await Rating.findById(req.params.id);
+    if (!rating) return res.status(404).json({ error: "Rating not found" });
+    rating.moderationStatus = status;
+    rating.moderatedAt = new Date();
+    rating.moderatedBy = req.user._id;
+    rating.moderationReason = reason;
+    rating.moderationHistory.push({ status, at: rating.moderatedAt, by: req.user._id, reason });
+    await rating.save();
+    await audit.logEvent({ actor: req.user._id, target: rating.customerId, action: `rating.${status}`, module: "ratings", req, entityId: rating._id, entityType: "Rating", details: { reason, targetType: rating.targetType, targetId: rating.targetId } });
+    return res.json({ message: `Review marked ${status}`, rating });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 router.get("/ratings/top-products", async (req, res, next) => {
   try {
     const Rating = require("../models/Rating");
     const Inventory = require("../models/Inventory");
 
-    const ratingDocs = await Rating.find({ targetType: "inventory" })
+    const ratingDocs = await Rating.find({ targetType: "inventory", moderationStatus: { $ne: "hidden" } })
       .populate("customerId", "firstName lastName email")
       .sort({ createdAt: -1 })
       .lean();
@@ -2619,7 +2700,7 @@ router.get("/ratings/technicians", async (req, res, next) => {
     const allTechs = await Technician.find({}).sort({ name: 1 }).lean();
 
     // 1. Get ratings from Rating collection (targetType: "technician")
-    const techRatings = await Rating.find({ targetType: "technician" })
+    const techRatings = await Rating.find({ targetType: "technician", moderationStatus: { $ne: "hidden" } })
       .populate("customerId", "firstName lastName email")
       .sort({ createdAt: -1 })
       .lean();
@@ -2762,7 +2843,7 @@ router.get("/ratings/analytics", async (req, res, next) => {
 
     // Gather ratings from both Rating model and legacy BookingService.customerRating
     const [ratingDocs, bookingDocs] = await Promise.all([
-      Rating.find({}).populate("customerId", "firstName lastName email").lean(),
+      Rating.find({ moderationStatus: { $ne: "hidden" } }).populate("customerId", "firstName lastName email").lean(),
       BookingService.find({ customerRating: { $ne: null } })
         .populate("userId", "firstName lastName email")
         .select("customerRating customerRatingComment createdAt userId")
@@ -2881,7 +2962,7 @@ router.get("/ratings/stats", async (req, res, next) => {
     const Rating = require("../models/Rating");
     const BookingService = require("../models/BookingService");
     const [ratingCount, bookingRatingCount] = await Promise.all([
-      Rating.countDocuments({}),
+      Rating.countDocuments({ moderationStatus: { $ne: "hidden" } }),
       BookingService.countDocuments({ customerRating: { $ne: null } }),
     ]);
 
@@ -5988,7 +6069,7 @@ router.get("/technicians/:techId/available-dates", async (req, res, next) => {
     }).lean();
 
     // Get company non-working days (holidays)
-    const nonWorkingDays = await NonWorkingDay.find({ service: null }).lean();
+    const nonWorkingDays = await NonWorkingDay.find({ service: null, active: { $ne: false } }).lean();
 
     // Get existing assignments
     const dayStart = new Date(dates[0]);
@@ -6238,6 +6319,7 @@ router.get("/technicians/:techId/available-slots", async (req, res, next) => {
 
     // Check company non-working days (holidays)
     const nonWorkingDay = await NonWorkingDay.findOne({
+      active: { $ne: false },
       service: null,
       date: { $gte: dayStart, $lte: dayEnd },
     }).lean();
@@ -7973,9 +8055,11 @@ router.get("/attention-queue/:bookingId/suggestions", async (req, res, next) => 
 
     const [holidays, nonWorkingDays, approvedLeaves, schedules] = await Promise.all([
       NonWorkingDay.find({
+        active: { $ne: false },
         date: { $gte: today, $lte: scanEnd },
       }).select("date").lean(),
       NonWorkingDay.find({
+        active: { $ne: false },
         date: { $gte: today, $lte: scanEnd },
       }).select("date").lean(),
       LeaveRequest.find({

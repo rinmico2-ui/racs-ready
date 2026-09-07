@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { lifecycleFields } = require('../utils/dataLifecycle');
 
 const nonWorkingDaySchema = new mongoose.Schema({
   // date-only (normalized to startOfDay)
@@ -8,6 +9,8 @@ const nonWorkingDaySchema = new mongoose.Schema({
   note: { type: String },
   // optional reason (controller expects `reason` in some places)
   reason: { type: String },
+  active: { type: Boolean, default: true, index: true },
+  ...lifecycleFields(mongoose),
   createdAt: { type: Date, default: Date.now }
 });
 

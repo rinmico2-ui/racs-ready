@@ -106,7 +106,7 @@
         <span id="resultInfo" class="text-muted small fw-normal">&nbsp;</span>
       </div>
       <div>
-        <button id="bulkDeactivate" class="btn btn-sm btn-outline-danger <%= resolvedTechniciansCanManageAccounts ? '' : 'd-none' %>" disabled>Deactivate Selected</button>
+        <button id="bulkDeactivate" class="btn btn-sm btn-outline-danger <%= resolvedTechniciansCanManageAccounts ? '' : 'd-none' %>" disabled><i class="bi bi-archive me-1"></i>Archive Selected</button>
       </div>
     </div>
     <div class="card-body p-0">
@@ -420,21 +420,30 @@
           document.querySelectorAll(".rowSelect:checked"),
         ).map((i) => i.dataset.id);
         if (!ids.length) return;
-        if (!confirm("Deactivate " + ids.length + " technicians?")) return;
+        const reason = prompt("Archive reason for " + ids.length + " selected technician(s):", "Staff offboarding approved by administrator");
+        if (reason == null) return;
+        if (reason.trim().length < 10) return alert("Enter an archive reason of at least 10 characters.");
+        if (!confirm("Archive " + ids.length + " technician(s)? Historical work will be retained.")) return;
         try {
-          const r = await fetch("/api/admin/technicians/bulk-deactivate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ids }),
-          });
-          if (r.ok) {
-            await load();
-            alert("Deactivated");
+          const results = await Promise.all(ids.map(async (id) => {
+            const response = await fetch(`/api/admin/staff/${encodeURIComponent(id)}/archive`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: reason.trim() }),
+            });
+            const data = await response.json().catch(() => ({}));
+            return { ok: response.ok, data };
+          }));
+          const archived = results.filter(result => result.ok).length;
+          const failures = results.filter(result => !result.ok);
+          await load();
+          if (failures.length) {
+            alert(`${archived} archived; ${failures.length} blocked. ${failures[0].data.error || "Review unfinished work and try again."}`);
           } else {
-            alert("Failed");
+            alert(`${archived} technician(s) archived. Historical work was retained.`);
           }
         } catch (e) {
-          alert("Failed");
+          alert("Unable to archive the selected technicians.");
         }
       });
 

@@ -17,6 +17,18 @@ const technicianSchema = new mongoose.Schema({
   name: { type: String, required: true },
   // `skills` removed: technician/service matching is handled via Service/Booking models
   active: { type: Boolean, default: true },
+  archivedAt: { type: Date, default: null, index: true },
+  archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  archiveReason: { type: String, trim: true, maxlength: 500, default: "" },
+  staffLifecycleHistory: {
+    type: [{
+      action: { type: String, enum: ["archived", "restored"], required: true },
+      at: { type: Date, default: Date.now },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      reason: { type: String, trim: true, maxlength: 500, default: "" },
+    }],
+    default: [],
+  },
   // aggregate rating from customer feedback (1-5)
   rating: { type: Number, default: 0, min: 0, max: 5 },
   ratingCount: { type: Number, default: 0, min: 0 },

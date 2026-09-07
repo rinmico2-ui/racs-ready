@@ -318,7 +318,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-warning" onclick="flagReview()">Flag Review</button>
-        <button type="button" class="btn btn-danger" onclick="deleteReview()">Delete Review</button>
+        <button type="button" class="btn btn-danger" onclick="deleteReview()"><i class="bi bi-eye-slash me-1"></i>Hide Review</button>
       </div>
     </div>
   </div>
@@ -701,6 +701,7 @@
             '<i class="bi bi-check-circle-fill verified-badge" title="Verified Purchase"></i>' : 
             '<i class="bi bi-question-circle text-muted" title="Not Verified"></i>'
           }
+          <div class="small text-muted mt-1">${(review.moderationStatus || 'visible').replace('_', ' ')}</div>
         </td>
         <td>
           <div class="btn-group btn-group-sm">
@@ -710,8 +711,8 @@
             <button class="btn btn-outline-success" onclick="approveReview('${review.id}')" title="Approve">
               <i class="bi bi-check"></i>
             </button>
-            <button class="btn btn-outline-danger" onclick="deleteReview('${review.id}')" title="Delete">
-              <i class="bi bi-trash"></i>
+            <button class="btn btn-outline-danger" onclick="deleteReview('${review.id}')" title="Hide and retain">
+              <i class="bi bi-eye-slash"></i>
             </button>
           </div>
         </td>
@@ -799,6 +800,7 @@
   function viewReviewDetails(reviewId) {
     const review = productReviews.find(r => r.id === reviewId);
     if (!review) return;
+    document.getElementById('reviewModal').dataset.reviewId = reviewId;
 
     const modalBody = document.getElementById('reviewModalBody');
     modalBody.innerHTML = `
@@ -853,23 +855,37 @@
     modal.show();
   }
 
-  function approveReview(reviewId) {
-    console.log('Approve review:', reviewId);
-    alert('Review approval functionality would be implemented here');
+  async function moderateReview(reviewId, status, reason) {
+    reviewId = reviewId || document.getElementById('reviewModal')?.dataset.reviewId;
+    if (!reviewId) throw new Error('Select a review first');
+    const response = await fetch(`/api/admin/ratings/${encodeURIComponent(reviewId)}/moderation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ status, reason }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Unable to moderate review');
+    await loadAirconRatings();
+    return data;
   }
 
-  function flagReview(reviewId) {
-    if (confirm('Are you sure you want to flag this review?')) {
-      console.log('Flag review:', reviewId);
-      alert('Review flagged for review');
-    }
+  async function approveReview(reviewId) {
+    try {
+      await moderateReview(reviewId, 'visible', 'Approved by an administrator after moderation review');
+    } catch (error) { alert(error.message); }
   }
 
-  function deleteReview(reviewId) {
-    if (confirm('Are you sure you want to delete this review? This action cannot be undone.')) {
-      console.log('Delete review:', reviewId);
-      alert('Review deletion would be implemented here');
-    }
+  async function flagReview(reviewId) {
+    const reason = prompt('Reason for flagging this review:', 'Requires administrator review');
+    if (reason == null) return;
+    try { await moderateReview(reviewId, 'flagged', reason); } catch (error) { alert(error.message); }
+  }
+
+  async function deleteReview(reviewId) {
+    const reason = prompt('Reason for hiding this review (the original is retained):', 'Hidden after administrator moderation');
+    if (reason == null) return;
+    try { await moderateReview(reviewId, 'hidden', reason); } catch (error) { alert(error.message); }
   }
 
   function exportProductReviews() {

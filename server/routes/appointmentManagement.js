@@ -19,6 +19,7 @@ const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const { isBookingPast } = require('../utils/bookingPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
+const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
 const { requirePermission } = require('../middleware/requirePermission');
@@ -1412,23 +1413,12 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
 
     // â”€â”€ Cleanup: Release reserved equipment for this booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
-      const EquipmentAssignment = require('../models/EquipmentAssignment');
-      const Tool = require('../models/Tool');
-      const reserved = await EquipmentAssignment.find({
-        bookingId: booking._id,
-        status: 'reserved',
-      }).lean();
-      if (reserved.length) {
-        for (const eq of reserved) {
-          if (eq.equipmentId) {
-            await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
-          }
-        }
-        await EquipmentAssignment.deleteMany({
-          bookingId: booking._id,
-          status: 'reserved',
-        });
-      }
+      await releaseReservedEquipment({
+        filter: { bookingId: booking._id },
+        actorId: req.user._id,
+        reason: 'Released because the booking was reassigned by an administrator',
+        moduleName: 'booking reassignment',
+      });
     } catch (eqErr) {
       console.warn('Equipment cleanup on force-reassign skipped:', eqErr.message);
     }
@@ -2054,23 +2044,12 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
 
     // â”€â”€ Cleanup: Release reserved equipment for this booking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try {
-      const EquipmentAssignment = require('../models/EquipmentAssignment');
-      const Tool = require('../models/Tool');
-      const reserved = await EquipmentAssignment.find({
-        bookingId: booking._id,
-        status: 'reserved',
-      }).lean();
-      if (reserved.length) {
-        for (const eq of reserved) {
-          if (eq.equipmentId) {
-            await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
-          }
-        }
-        await EquipmentAssignment.deleteMany({
-          bookingId: booking._id,
-          status: 'reserved',
-        });
-      }
+      await releaseReservedEquipment({
+        filter: { bookingId: booking._id },
+        actorId: req.user._id,
+        reason: 'Released because an administrator rescheduled the booking',
+        moduleName: 'booking reschedule',
+      });
     } catch (eqErr) {
       console.warn('Equipment cleanup on reschedule skipped:', eqErr.message);
     }
@@ -2355,7 +2334,7 @@ router.post('/:id/equipment', requireRole(['admin', 'secretary']), async (req, r
     if (!equipmentId || !mongoose.Types.ObjectId.isValid(equipmentId)) return res.status(400).json({ error: 'Equipment id is required' });
     const [booking, tool] = await Promise.all([
       BookingService.findById(id).populate('technicianId', 'name').lean(),
-      Tool.findById(equipmentId).lean(),
+      Tool.findOne({ _id: equipmentId, active: { $ne: false } }).lean(),
     ]);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (booking.serviceModel !== 'RepairService' && booking.serviceType !== 'repair') {
@@ -2395,7 +2374,7 @@ router.post('/:id/equipment', requireRole(['admin', 'secretary']), async (req, r
 
 /**
  * DELETE /api/admin/equipment-assignments/:assignmentId
- * Remove a reserved equipment assignment
+ * Release and retain a reserved equipment assignment
  */
 router.delete('/equipment-assignments/:assignmentId', requireRole(['admin', 'secretary']), async (req, res) => {
   try {
@@ -2404,14 +2383,16 @@ router.delete('/equipment-assignments/:assignmentId', requireRole(['admin', 'sec
     const assignment = await EquipmentAssignment.findById(assignmentId);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
     if (assignment.status !== 'reserved') return res.status(400).json({ error: 'Cannot remove a checked-out or returned assignment' });
-    await Tool.findByIdAndUpdate(assignment.equipmentId, [{
-      $set: { reservedQuantity: { $max: [0, { $subtract: [{ $ifNull: ['$reservedQuantity', 0] }, assignment.quantity || 1] }] } },
-    }], { updatePipeline: true });
-    await assignment.deleteOne();
-    res.json({ success: true, message: 'Equipment assignment removed' });
+    const result = await releaseReservedEquipment({
+      filter: { _id: assignment._id },
+      actorId: req.user._id,
+      reason: req.body?.reason || 'Released by an administrator before checkout',
+      moduleName: 'manual equipment release',
+    });
+    res.json({ success: true, message: 'Equipment reservation released and retained in history', assignment: result.released[0] });
   } catch (error) {
     console.error('Error removing equipment assignment:', error);
-    res.status(500).json({ error: 'Failed to remove equipment assignment' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to remove equipment assignment' });
   }
 });
 

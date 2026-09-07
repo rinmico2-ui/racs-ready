@@ -1340,7 +1340,7 @@ router.get("/:id/calendar", async (req, res) => {
     const blockedSet = new Set();
     let nonWorkingDays = [];
     try {
-      const ndq = {};
+      const ndq = { active: { $ne: false } };
       if (startDate || endDate) ndq.date = {};
       if (startDate) ndq.date.$gte = startDate;
       if (endDate) {

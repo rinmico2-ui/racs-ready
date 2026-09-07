@@ -14,6 +14,7 @@ const audit = require("../utils/audit");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
 const Tool = require("../models/Tool");
 const EquipmentUsageLog = require("../models/EquipmentUsageLog");
+const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const { buildServicePreparation } = require('../utils/servicePreparation');
 const { dayBounds: dailyKitDayBounds, syncDailyKit, confirmDailyKit } = require('../utils/dailyKitService');
 const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
@@ -1161,7 +1162,7 @@ router.get("/appointments/:id/tools", async (req, res, next) => {
       return res.status(403).json({ error: "You are not assigned to this appointment" });
     }
 
-    const items = await ServiceToolUsage.find({ bookingId: id, technicianId: tech._id })
+    const items = await ServiceToolUsage.find({ bookingId: id, technicianId: tech._id, lifecycleStatus: { $ne: "voided" } })
       .sort({ usedAt: -1 })
       .limit(300)
       .lean();
@@ -1473,12 +1474,12 @@ router.post("/appointments/:id/tools", async (req, res, next) => {
 
 /**
  * DELETE /api/technician/tool-usage/:usageId
- * Removes one usage record and restores stock. Only own records.
+ * Voids one usage record and restores stock. Only own records.
  */
 router.delete("/tool-usage/:usageId", async (req, res, next) => {
   try {
-    const Inventory = require("../models/Inventory");
     const ServiceToolUsage = require("../models/ServiceToolUsage");
+    const { voidToolUsageEntry } = require("../utils/toolUsageManagement");
     const { tech } = await loadTechnicianContext(req.user._id);
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
@@ -1488,37 +1489,19 @@ router.delete("/tool-usage/:usageId", async (req, res, next) => {
     const usage = await ServiceToolUsage.findOne({ _id: usageId, technicianId: tech._id });
     if (!usage) return res.status(404).json({ error: "Tool usage record not found" });
 
-    await Inventory.findByIdAndUpdate(usage.inventoryItemId, { $inc: { quantity: usage.quantityUsed } });
-    await usage.deleteOne();
-
-    // Record stock return for audit trail
-    try {
-      const StockAdjustment = require("../models/StockAdjustment");
-      await StockAdjustment.record({
-        toolId: usage.inventoryItemId,
-        type: "return",
-        delta: usage.quantityUsed,
-        adjustedBy: req.user._id,
-        reason: "return",
-        notes: `Returned from job ${usage.bookingId || ''}`,
-        referenceId: usage.bookingId || null,
-      });
-    } catch (e) { /* non-critical */ }
-
-    await audit.logEvent({
-      actor: req.user._id,
-      target: usage.bookingId,
-      action: "tool.usage.delete",
-      module: "technician",
+    const result = await voidToolUsageEntry({
+      usageId,
+      actorId: req.user._id,
+      reason: req.body?.reason || "Voided by the recording technician as an incorrect entry",
       req,
-      details: {
-        usageId,
-        inventoryItemId: usage.inventoryItemId,
-        restoredQty: usage.quantityUsed,
-      },
+      moduleName: "technician",
     });
-
-    return res.json({ message: "Tool usage removed and stock restored" });
+    return res.json({
+      message: result.warning
+        ? "Tool usage was voided and retained; stock restoration needs review"
+        : "Tool usage voided and retained; stock restored",
+      ...result,
+    });
   } catch (err) {
     next(err);
   }
@@ -2354,6 +2337,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
     const toolUsageCount = await ServiceToolUsage.countDocuments({
       technicianId: techId,
       usedAt: { $gte: monthStart },
+      lifecycleStatus: { $ne: "voided" },
     });
 
     // ── Reports Status ─────────────────────────────────────────────────────
@@ -2628,7 +2612,7 @@ router.get("/kpis", async (req, res, next) => {
         bookingDate: { $gte: todayStart },
       }),
       ServiceToolUsage.aggregate([
-        { $match: { technicianId: tech._id } },
+        { $match: { technicianId: tech._id, lifecycleStatus: { $ne: "voided" } } },
         {
           $lookup: {
             from: "bookingservices",
@@ -3917,23 +3901,12 @@ router.post("/assignments/:id/decline", async (req, res, next) => {
 
     // ── Cleanup: Release reserved equipment for this booking ─────────────
     try {
-      const EquipmentAssignment = require("../models/EquipmentAssignment");
-      const Tool = require("../models/Tool");
-      const reserved = await EquipmentAssignment.find({
-        bookingId: assignment.bookingId,
-        status: "reserved",
-      }).lean();
-      if (reserved.length) {
-        for (const eq of reserved) {
-          if (eq.equipmentId) {
-            await Tool.findByIdAndUpdate(eq.equipmentId, { $inc: { reservedQuantity: -(eq.quantity || 1) } }).catch(() => {});
-          }
-        }
-        await EquipmentAssignment.deleteMany({
-          bookingId: assignment.bookingId,
-          status: "reserved",
-        });
-      }
+      await releaseReservedEquipment({
+        filter: { bookingId: assignment.bookingId },
+        actorId: req.user._id,
+        reason: "Released because the technician declined the assignment",
+        moduleName: "assignment decline",
+      });
     } catch (eqErr) {
       console.warn("Equipment cleanup on decline skipped:", eqErr.message);
     }
@@ -7893,6 +7866,7 @@ router.post("/appointments/:id/onsite-approve", async (req, res, next) => {
           const usageAlreadyRecorded = await ServiceToolUsage.exists({
             bookingId: booking._id,
             notes: usageNote,
+            lifecycleStatus: { $ne: "voided" },
           });
           if (usageAlreadyRecorded) {
             reservation.status = "checked_out";

@@ -4,6 +4,7 @@ const BookingService = require("../models/BookingService");
 const Inventory = require("../models/Inventory");
 const Tool = require("../models/Tool");
 const ServiceToolUsage = require("../models/ServiceToolUsage");
+const { normalizeLifecycleReason } = require("./dataLifecycle");
 
 function parseDateBound(v, endOfDay = false) {
   if (!v) return null;
@@ -19,6 +20,13 @@ function toNumberOrNull(v) {
 function buildToolUsageFilter(query = {}) {
   const q = query || {};
   const filter = {};
+
+  if (q.lifecycleStatus === "voided") {
+    filter.lifecycleStatus = "voided";
+  } else if (q.includeVoided !== "1" && q.includeVoided !== true) {
+    // `$ne` keeps legacy rows (created before lifecycleStatus existed) active.
+    filter.lifecycleStatus = { $ne: "voided" };
+  }
 
   if (q.bookingId && mongoose.Types.ObjectId.isValid(q.bookingId)) {
     filter.bookingId = q.bookingId;
@@ -240,7 +248,7 @@ async function createToolUsageEntry({
   let catalogItem = null;
   let itemType = 'part';
   if (hasInventorySelection) {
-    const inv = await Tool.findById(inventoryItemId).select('itemName unit type').lean();
+    const inv = await Tool.findOne({ _id: inventoryItemId, active: { $ne: false } }).select('itemName unit type').lean();
     itemType = inv ? (inv.type === 'tool' ? 'equipment' : (inv.type || 'part')) : 'part';
     if (itemType === 'equipment') {
       // Equipment is not consumed; do not deduct stock.
@@ -379,6 +387,11 @@ async function updateToolUsageEntry({
     e.status = 404;
     throw e;
   }
+  if (usage.lifecycleStatus === "voided") {
+    const e = new Error("Voided tool usage records cannot be edited");
+    e.status = 409;
+    throw e;
+  }
 
   const patch = {};
 
@@ -477,7 +490,7 @@ async function updateToolUsageEntry({
   return usage;
 }
 
-async function deleteToolUsageEntry({ usageId, actorId, req, moduleName = "admin" }) {
+async function voidToolUsageEntry({ usageId, actorId, reason, req, moduleName = "admin" }) {
   if (!mongoose.Types.ObjectId.isValid(usageId)) {
     const e = new Error("Invalid usage id");
     e.status = 400;
@@ -490,30 +503,94 @@ async function deleteToolUsageEntry({ usageId, actorId, req, moduleName = "admin
     e.status = 404;
     throw e;
   }
-
-  if (usage.inventoryItemId && usage.deductedFromInventory) {
-    await Tool.findByIdAndUpdate(usage.inventoryItemId, {
-      $inc: { quantity: Number(usage.quantityUsed) || 0 },
-    });
+  if (usage.lifecycleStatus === "voided") {
+    const e = new Error("Tool usage record is already voided");
+    e.status = 409;
+    throw e;
   }
 
-  await usage.deleteOne();
+  const voidReason = normalizeLifecycleReason(reason, "Void");
+  const voidedAt = new Date();
+  const voided = await ServiceToolUsage.findOneAndUpdate(
+    {
+      _id: usage._id,
+      $or: [
+        { lifecycleStatus: "active" },
+        { lifecycleStatus: { $exists: false } },
+        { lifecycleStatus: null },
+      ],
+    },
+    {
+      $set: {
+        lifecycleStatus: "voided",
+        voidedAt,
+        voidedBy: actorId,
+        voidReason,
+        inventoryRestored: !usage.deductedFromInventory,
+        inventoryRestoredAt: usage.deductedFromInventory ? null : voidedAt,
+      },
+    },
+    { returnDocument: "after", runValidators: true },
+  );
+  if (!voided) {
+    const e = new Error("Tool usage record changed while it was being voided. Refresh and try again.");
+    e.status = 409;
+    throw e;
+  }
+
+  let inventoryRestored = !voided.deductedFromInventory;
+  if (voided.inventoryItemId && voided.deductedFromInventory) {
+    let restoredInventory = null;
+    try {
+      const StockAdjustment = require("../models/StockAdjustment");
+      const restoration = await StockAdjustment.record({
+        toolId: voided.inventoryItemId,
+        type: "return",
+        delta: Number(voided.quantityUsed) || 0,
+        adjustedBy: actorId,
+        reason: "return",
+        notes: `Stock restored after voiding usage ${voided._id}: ${voidReason}`,
+        referenceId: voided.bookingId || null,
+      });
+      restoredInventory = restoration.tool;
+    } catch (_) {
+      restoredInventory = null;
+    }
+    inventoryRestored = Boolean(restoredInventory);
+    if (inventoryRestored) {
+      voided.inventoryRestored = true;
+      voided.inventoryRestoredAt = new Date();
+      await voided.save();
+    }
+  }
 
   await audit.logEvent({
     actor: actorId,
-    target: usage.bookingId,
-    action: "tool.usage.delete",
+    target: voided.bookingId || voided._id,
+    action: "tool.usage.void",
     module: moduleName,
     req,
     details: {
-      usageId: usage._id,
-      inventoryItemId: usage.inventoryItemId,
-      restoredQty: Number(usage.quantityUsed) || 0,
+      usageId: voided._id,
+      inventoryItemId: voided.inventoryItemId,
+      restoredQty: inventoryRestored ? Number(voided.quantityUsed) || 0 : 0,
+      inventoryRestored,
+      reason: voidReason,
     },
   });
 
-  return { deleted: true, usageId: String(usage._id) };
+  return {
+    voided: true,
+    usage: voided,
+    inventoryRestored,
+    warning: voided.deductedFromInventory && !inventoryRestored
+      ? "Usage was voided, but its linked inventory item no longer exists. Review stock manually."
+      : null,
+  };
 }
+
+// Backward-compatible export for callers while DELETE endpoints are phased out.
+const deleteToolUsageEntry = voidToolUsageEntry;
 
 module.exports = {
   buildToolUsageFilter,
@@ -521,5 +598,6 @@ module.exports = {
   summarizeToolUsage,
   createToolUsageEntry,
   updateToolUsageEntry,
+  voidToolUsageEntry,
   deleteToolUsageEntry,
 };

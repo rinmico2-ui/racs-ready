@@ -103,7 +103,12 @@ router.get("/", async (req, res) => {
  */
 router.get("/:id", async (req, res) => {
   try {
-    const item = await HVACProduct.findById(req.params.id)
+    const item = await HVACProduct.findOne({
+      _id: req.params.id,
+      active: true,
+      salesChannel: { $in: ["web", "both"] },
+      status: { $ne: "discontinued" },
+    })
       .populate("brand", "name")
       .populate("category", "name")
       .lean();
@@ -247,6 +252,7 @@ router.get("/schedule/available-dates", async (req, res) => {
     });
 
     const nonWorkingDays = await NonWorkingDay.find({
+      active: { $ne: false },
       $or: [{ service: null }],
     });
     const nonWorkingDateSet = new Set(

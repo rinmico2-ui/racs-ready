@@ -46,7 +46,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
   }
 
   const [usages, reports, assignments] = await Promise.all([
-    ServiceToolUsage.find({ bookingId: { $in: ids } }).sort({ usedAt: 1 }).lean(),
+    ServiceToolUsage.find({ bookingId: { $in: ids }, lifecycleStatus: { $ne: "voided" } }).sort({ usedAt: 1 }).lean(),
     ServiceReport.find({ bookingId: { $in: ids } }).lean(),
     EquipmentAssignment.find({ bookingId: { $in: ids }, consumable: { $ne: true } })
       .populate("technicianId", "name firstName lastName userEmail").sort({ workDate: -1 }).lean(),

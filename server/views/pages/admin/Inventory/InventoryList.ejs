@@ -492,6 +492,8 @@
         <div class="modal-body inv-modal-body">
           <p class="mb-0 text-muted">Are you sure you want to archive this product? It will be hidden from active inventory.</p>
           <input type="hidden" id="deleteConfirmId" />
+          <label for="deleteConfirmReason" class="form-label small fw-semibold mt-3">Archive reason</label>
+          <textarea id="deleteConfirmReason" class="form-control" rows="2" minlength="10" maxlength="500" placeholder="Explain why this product is being archived" required></textarea>
         </div>
         <div class="modal-footer inv-modal-footer">
           <button type="button" class="inv-btn-secondary" data-bs-dismiss="modal">
@@ -2448,7 +2450,7 @@
         }
       }
 
-      // Delete
+      // Archive
       if (e.target.matches('.delete-inventory') || e.target.closest('.delete-inventory')) {
         const btn = e.target.matches('.delete-inventory') ? e.target : e.target.closest('.delete-inventory');
         const id = btn.dataset.id;
@@ -2462,19 +2464,26 @@
     document.getElementById('deleteConfirmArchiveBtn').addEventListener('click', function() {
       const id = document.getElementById('deleteConfirmId').value;
       if (!id) return;
+      const reason = document.getElementById('deleteConfirmReason').value.trim();
+      if (reason.length < 10) return showInvToast('Enter an archive reason of at least 10 characters.', 'error');
       const archiveModal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-      fetch(`${inventoryApiBase}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      fetch(`${inventoryApiBase}/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      })
         .then(async (r) => {
-          if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Delete failed'); }
+          if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Archive failed'); }
           return r.json();
         })
         .then(() => {
           archiveModal && archiveModal.hide();
+          document.getElementById('deleteConfirmReason').value = '';
           loadInventory();
         })
         .catch((err) => {
           console.error(err);
-          showInvToast(err.message || 'Delete failed', 'error');
+          showInvToast(err.message || 'Archive failed', 'error');
         });
     });
 

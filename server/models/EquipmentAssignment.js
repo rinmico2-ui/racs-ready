@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const EQ_STATUSES = ["reserved", "checked_out", "in_use", "returned", "consumed", "damaged", "lost"];
+const EQ_STATUSES = ["reserved", "released", "checked_out", "in_use", "returned", "consumed", "damaged", "lost"];
 
 const equipmentAssignmentSchema = new mongoose.Schema({
   projectId: {
@@ -57,6 +57,9 @@ const equipmentAssignmentSchema = new mongoose.Schema({
   }],
   overdueAdminNotifiedAt: { type: Date },
   returnedAt: { type: Date },
+  releasedAt: { type: Date, default: null },
+  releasedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  releaseReason: { type: String, trim: true, maxlength: 500, default: "" },
   returnedTo: { type: String },
   resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   resolutionNotes: { type: String, trim: true, maxlength: 500 },
@@ -75,11 +78,11 @@ equipmentAssignmentSchema.pre("save", function () {
     const { expectedReturnForWorkDate } = require("../utils/equipmentReturnPolicy");
     this.expectedReturnAt = expectedReturnForWorkDate(this.workDate || this.checkedOutAt, null, 0);
   }
-  if (["returned", "damaged", "lost"].includes(this.status)) this.resolutionState = "resolved";
+  if (["released", "returned", "damaged", "lost"].includes(this.status)) this.resolutionState = "resolved";
 });
 
 equipmentAssignmentSchema.post("save", async function (document) {
-  if (!["returned", "damaged", "lost"].includes(document.status)) return;
+  if (!["released", "returned", "damaged", "lost"].includes(document.status)) return;
   try {
     const Notification = require("./Notification");
     await Notification.updateMany(

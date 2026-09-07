@@ -472,8 +472,13 @@
         })).isConfirmed
       : confirm(currentlyActive ? 'Deactivate this category? It will be hidden from customers.' : 'Activate this category?');
     if (!confirmed) return;
+    const reason = currentlyActive
+      ? prompt('Archive reason:', 'No longer offered for new repair requests')
+      : 'Restored from the service category catalogue';
+    if (reason == null) return;
+    if (String(reason).trim().length < 10) return notify('error', 'Enter a reason of at least 10 characters.');
     try {
-      const resp = await authFetch(`${API}/${id}`, { method: 'PATCH', body: JSON.stringify({ active: !currentlyActive }) });
+      const resp = await authFetch(`${API}/${id}`, { method: 'PATCH', body: JSON.stringify({ active: !currentlyActive, ...(currentlyActive ? { archiveReason: String(reason).trim() } : { restoreReason: String(reason).trim() }) }) });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data.success) throw new Error(data.error || 'Update failed.');
       notify('success', currentlyActive ? 'Category deactivated.' : 'Category activated.');

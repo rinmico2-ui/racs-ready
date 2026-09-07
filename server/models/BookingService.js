@@ -626,6 +626,8 @@ const bookingSchema = new mongoose.Schema({
   }],
   // when an appointment is cancelled, record the reason
   cancellationReason: { type: String },
+  cancelledAt: { type: Date, default: null },
+  cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
   // Admin decisions made in the Booking Resolution Center. The booking itself
   // remains the source of truth; these entries close only a specific exception.

@@ -327,7 +327,7 @@ async function loadServiceRatingReport(source = {}, options = {}) {
   } : {};
 
   const [primaryRatings, legacyCandidates] = await Promise.all([
-    Rating.find({ targetType: "booking", ...ratingDateFilter }).populate("customerId", "firstName lastName name email").lean(),
+    Rating.find({ targetType: "booking", moderationStatus: { $ne: "hidden" }, ...ratingDateFilter }).populate("customerId", "firstName lastName name email").lean(),
     BookingService.find({ customerRating: { $ne: null }, ...bookingDateFilter })
       .populate("customerId", "firstName lastName name email")
       .populate("technicianId", "name active")
@@ -335,6 +335,8 @@ async function loadServiceRatingReport(source = {}, options = {}) {
   ]);
   const legacyIds = legacyCandidates.map(booking => booking._id);
   const normalizedLegacyLinks = legacyIds.length
+    // Include hidden normalized ratings here so their legacy booking snapshot
+    // cannot re-enter the report as an unmoderated fallback row.
     ? await Rating.find({ targetType: "booking", targetId: { $in: legacyIds } }).select("targetId").lean()
     : [];
   const primaryBookingIds = [...new Set(primaryRatings.map(rating => String(rating.targetId || "")).filter(mongoose.isValidObjectId))];

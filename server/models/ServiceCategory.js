@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { warrantyPolicySchema } = require('../utils/serviceWarrantyPolicy');
+const { lifecycleFields } = require('../utils/dataLifecycle');
 
 const unitTypeSchema = new mongoose.Schema({
   value: { type: String, required: true },
@@ -14,6 +15,7 @@ const serviceCategorySchema = new mongoose.Schema({
   iconColor: { type: String, default: 'blue' },
   unitTypes: [unitTypeSchema],
   active: { type: Boolean, default: true },
+  ...lifecycleFields(mongoose),
   order: { type: Number, default: 0 },
   isCustom: { type: Boolean, default: false },
   // Repair requests are created from these category/unit-type records rather

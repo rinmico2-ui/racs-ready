@@ -392,8 +392,8 @@ class ToolManagement {
             <button class="btn btn-sm btn-outline-info" onclick="toolManagement.viewToolDetails('${tool._id}')" title="View Details">
               <i class="bi bi-eye"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger" onclick="toolManagement.deleteTool('${tool._id}')" title="Delete Tool">
-              <i class="bi bi-trash"></i>
+            <button class="btn btn-sm btn-outline-danger" onclick="toolManagement.deleteTool('${tool._id}')" title="Archive Tool">
+              <i class="bi bi-archive"></i>
             </button>
           </div>
         </td>
@@ -499,13 +499,15 @@ class ToolManagement {
   }
 
   async deleteTool(toolId) {
-    if (!confirm('Are you sure you want to delete this tool? This action cannot be undone.')) {
-      return;
-    }
+    const reason = prompt('Archive reason (the tool and its history will be retained):', 'No longer used in active inventory');
+    if (reason == null) return;
+    if (reason.trim().length < 10) return this.showNotification('Enter an archive reason of at least 10 characters.', 'danger');
 
     try {
       const response = await fetch(`/api/admin/tools/${toolId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason.trim() })
       });
 
       const result = await response.json();
@@ -514,12 +516,12 @@ class ToolManagement {
         throw new Error(result.error || 'Failed to delete tool');
       }
 
-      this.showNotification('Tool deleted successfully', 'success');
+      this.showNotification('Tool archived successfully', 'success');
       this.loadTools();
 
     } catch (error) {
       console.error('Error deleting tool:', error);
-      this.showNotification(error.message || 'Failed to delete tool', 'danger');
+      this.showNotification(error.message || 'Failed to archive tool', 'danger');
     }
   }
 

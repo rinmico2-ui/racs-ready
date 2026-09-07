@@ -1440,6 +1440,13 @@ router.get("/admin/inventory", pageAuth.requireRole("admin"), (req, res) => {
   });
 });
 
+router.get("/admin/archive", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/ArchiveCenter", {
+    title: "Archive & Retention Center",
+    layout: "layouts/admin",
+  });
+});
+
 router.get("/activate-account", (req, res) => {
   const csrfToken = require("crypto").randomBytes(24).toString("hex");
   const isProd = process.env.NODE_ENV === "production";
@@ -2542,7 +2549,7 @@ router.get(
 
       const filteredBookingIdsForRatings = bookings.map(b => b._id);
       const ratingRows = filteredBookingIdsForRatings.length
-        ? await Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings } }).select("targetId score").lean()
+        ? await Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings }, moderationStatus: { $ne: "hidden" } }).select("targetId score").lean()
         : [];
       const ratingTotals = new Map();
       ratingRows.forEach((row) => {
@@ -3120,8 +3127,8 @@ router.get(
       usageStart.setDate(usageStart.getDate() - Number(filterContext.range));
 
       // Populate catalog labels so filters and analysis use meaningful names.
-      let inventoryItems = await Inventory.find({}).populate("brand", "name").populate("category", "name").lean();
-      let tools = await Tool.find({}).lean();
+      let inventoryItems = await Inventory.find({ active: { $ne: false } }).populate("brand", "name").populate("category", "name").lean();
+      let tools = await Tool.find({ active: { $ne: false } }).lean();
       tools.forEach(t => { t.inventoryClass = Tool.effectiveInventoryClass(t); });
       const rawInventory = inventoryItems.slice();
       const rawTools = tools.slice();
@@ -3246,6 +3253,7 @@ router.get(
       
       // Tool usage analytics for selected reporting period and selected items.
       const toolUsage = await ServiceToolUsage.find({
+        lifecycleStatus: { $ne: "voided" },
         usedAt: { $gte: usageStart },
         ...(tools.length ? { $or: [{ toolItemId: { $in: tools.map(t => t._id) } }, { inventoryItemId: { $in: tools.map(t => t._id) } }] } : { toolItemId: { $in: [] } })
       }).lean();
@@ -3929,8 +3937,8 @@ router.get(
       const Inventory = require("../models/Inventory");
       const Tool = require("../models/Tool");
       const ServiceToolUsage = require("../models/ServiceToolUsage");
-      const inventoryItems = await Inventory.find({}).lean();
-      const tools = await Tool.find({}).lean();
+      const inventoryItems = await Inventory.find({ active: { $ne: false } }).lean();
+      const tools = await Tool.find({ active: { $ne: false } }).lean();
       const totalProducts = inventoryItems.length;
       const inStock = inventoryItems.filter(i => i.status === "in_stock").length;
       const lowStock = inventoryItems.filter(i => i.status === "low_stock").length;
@@ -3991,7 +3999,7 @@ router.get(
       const profitPotential = (inventoryValue - inventoryCost) + (toolsValue - toolsCost);
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const toolUsage = await ServiceToolUsage.find({ usedAt: { $gte: thirtyDaysAgo } }).lean();
+      const toolUsage = await ServiceToolUsage.find({ usedAt: { $gte: thirtyDaysAgo }, lifecycleStatus: { $ne: "voided" } }).lean();
       const totalToolUsage = toolUsage.reduce((sum, u) => sum + (u.quantityUsed || 0), 0);
       const toolUsageValue = toolUsage.reduce((sum, u) => sum + ((u.quantityUsed || 0) * (u.unitPrice || 0)), 0);
       const toolUsageMap = {};

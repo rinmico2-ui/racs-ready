@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { lifecycleFields } = require("../utils/dataLifecycle");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tool Schema — Service Tools & Materials Catalog
@@ -167,6 +168,8 @@ const toolSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+
+    ...lifecycleFields(mongoose),
 
     // ── Reservation ledger ────────────────────────────────────────────────────
     // Quantity currently committed to active project reservations. The admin

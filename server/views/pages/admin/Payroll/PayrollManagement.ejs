@@ -1041,7 +1041,7 @@
           <div class="pw-ent-icon pw-ent-icon-void"><i class="bi bi-x-octagon"></i></div>
           <div class="pw-ent-title-group">
             <h6 class="pw-ent-title">Void Payroll</h6>
-            <p class="pw-ent-sub">This action cannot be undone</p>
+            <p class="pw-ent-sub">Retained for audit; excluded from active payroll</p>
           </div>
         </div>
         <button type="button" class="pw-ent-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
@@ -1049,8 +1049,8 @@
       <div class="pw-ent-body">
         <input type="hidden" id="voidPayrollId" />
         <div class="pw-ent-danger-zone">
-          <div class="pw-ent-danger-title"><i class="bi bi-exclamation-triangle-fill"></i>Permanent Action</div>
-          <p class="pw-ent-danger-text">Voiding this payroll run will permanently remove it from all reports and cannot be reversed. The employee will not be paid for this period.</p>
+          <div class="pw-ent-danger-title"><i class="bi bi-exclamation-triangle-fill"></i>Audited Action</div>
+          <p class="pw-ent-danger-text">Voiding excludes this payroll run from active payroll totals while retaining it in audit history. The employee will not be paid for this run.</p>
         </div>
         <div class="pw-ent-field">
           <label class="pw-ent-label" for="voidReason">Reason for voiding *</label>

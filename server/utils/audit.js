@@ -101,7 +101,7 @@ function inferOutcome(action) {
 function inferRiskLevel(action, category, outcome) {
   const value = String(action || '').toLowerCase();
   if (outcome === 'blocked' || /(suspicious|unauthorized|account_takeover)/.test(value)) return 'critical';
-  if (/(password_reset_completed|staff\.reset_password|refund|void|delete)/.test(value)) return 'high';
+  if (/(password_reset_completed|staff\.(reset_password|archive|restore)|refund|void|delete)/.test(value)) return 'high';
   if (category === 'auth' || outcome === 'failure') return 'medium';
   if (/(payment|inventory|payroll|settings)/.test(value)) return 'low';
   return 'info';

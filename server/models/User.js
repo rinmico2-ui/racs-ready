@@ -81,6 +81,20 @@ const userSchema = new mongoose.Schema({
   bookingLimit: { type: Number, default: 0 },
   // For staff accounts
   active: { type: Boolean, default: true },
+  // Staff accounts are archived instead of deleted so operational, payroll,
+  // and audit references remain resolvable.
+  archivedAt: { type: Date, default: null, index: true },
+  archivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  archiveReason: { type: String, trim: true, maxlength: 500, default: "" },
+  staffLifecycleHistory: {
+    type: [{
+      action: { type: String, enum: ["archived", "restored"], required: true },
+      at: { type: Date, default: Date.now },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      reason: { type: String, trim: true, maxlength: 500, default: "" },
+    }],
+    default: [],
+  },
   // Current server-side session id for token revocation
   currentSessionId: { type: String },
   // Per-user permission overrides — when set, these take precedence over role defaults
