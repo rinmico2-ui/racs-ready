@@ -149,6 +149,45 @@
   #toOrdersList::-webkit-scrollbar { width: 5px; }
   #toOrdersList::-webkit-scrollbar-track { background: transparent; }
   #toOrdersList::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+  /* Today's Work Order: chronological and intentionally not paginated */
+  .today-work-order { overflow: hidden; border: 1px solid #dbe4ef; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+  .today-work-order-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px 12px; background: linear-gradient(135deg,#f8fbff,#eff6ff); }
+  .today-work-order-eyebrow { margin-bottom: 3px; color: #2563eb; font-size: .61rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+  .today-work-order h3 { margin: 0; color: #172033; font-size: 1rem; font-weight: 850; }
+  .today-work-order-head p { margin: 3px 0 0; color: #64748b; font-size: .72rem; }
+  .today-work-order-progress { flex: 0 0 auto; text-align: right; }
+  .today-work-order-progress strong { display: block; color: #1d4ed8; font-size: .92rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+  .today-work-order-progress span { display: block; color: #64748b; font-size: .58rem; font-weight: 700; text-transform: uppercase; }
+  .today-work-order-bar { height: 4px; background: #e2e8f0; }
+  .today-work-order-bar span { display: block; width: 0; height: 100%; border-radius: 0 999px 999px 0; background: linear-gradient(90deg,#2563eb,#10b981); transition: width .35s ease; }
+  .today-work-order-list { padding: 5px 16px 9px; }
+  .today-work-order-loading, .today-work-order-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 22px 12px; color: #64748b; font-size: .75rem; }
+  .today-work-order-item { display: grid; grid-template-columns: 38px 76px minmax(0,1fr) auto; align-items: center; gap: 11px; padding: 11px 2px; border-bottom: 1px solid #edf1f6; }
+  .today-work-order-item:last-child { border-bottom: 0; }
+  .today-work-order-number { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #475569; background: #f1f5f9; font-size: .7rem; font-weight: 850; }
+  .today-work-order-time { color: #172033; font-size: .73rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .today-work-order-main { min-width: 0; }
+  .today-work-order-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .today-work-order-service { overflow: hidden; color: #1e293b; font-size: .76rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+  .today-work-order-status { flex: 0 0 auto; padding: 2px 7px; border-radius: 999px; font-size: .55rem; font-weight: 800; white-space: nowrap; text-transform: uppercase; }
+  .today-work-order-meta { overflow: hidden; margin-top: 3px; color: #718096; font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
+  .today-work-order-meta i { color: #94a3b8; }
+  .today-work-order-open { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border: 1px solid #cbd5e1; border-radius: 8px; color: #334155; background: #fff; font-size: .64rem; font-weight: 750; white-space: nowrap; }
+  .today-work-order-open:hover { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
+  .today-work-order-item.is-current { margin: 3px -7px; padding-left: 9px; padding-right: 9px; border: 1px solid #93c5fd; border-radius: 11px; background: #eff6ff; }
+  .today-work-order-item.is-current .today-work-order-number { color: #fff; background: #2563eb; }
+  .today-work-order-item.is-next .today-work-order-number { color: #92400e; background: #fef3c7; }
+  .today-work-order-item.is-done { opacity: .68; }
+  .today-work-order-item.is-done .today-work-order-number { color: #047857; background: #d1fae5; }
+
+  @media (max-width: 575px) {
+    .today-work-order-head { padding: 14px; }
+    .today-work-order-list { padding-left: 12px; padding-right: 12px; }
+    .today-work-order-item { grid-template-columns: 32px 64px minmax(0,1fr); gap: 8px; }
+    .today-work-order-open { grid-column: 2 / 4; justify-content: center; }
+    .today-work-order-title-row { align-items: flex-start; flex-direction: column; gap: 3px; }
+  }
   .to-order-card {
     background: #ffffff; border: 1px solid #e8edf5; border-radius: 20px; padding: 0; margin-bottom: 16px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative;
@@ -2714,7 +2753,8 @@
         <input type="text" id="toSearch" placeholder="Search ref, customer, model...">
       </div>
       <div class="mw-tabs" id="toStatusTabs">
-        <button class="mw-tab active" data-status="all">All</button>
+        <button class="mw-tab active" data-status="today"><i class="bi bi-calendar-day"></i>Today <span class="badge" id="toTodayCount">0</span></button>
+        <button class="mw-tab" data-status="all">All</button>
         <button class="mw-tab" data-status="technician_assigned">Needs Response</button>
         <button class="mw-tab" data-status="technician_accepted,preparing_unit">Accepted</button>
         <button class="mw-tab" data-status="out_for_delivery">En Route</button>
@@ -2728,7 +2768,25 @@
     <div class="mw-split-layout" id="splitLayout">
       <!-- Left Pane: Order Cards -->
       <div class="mw-split-left" id="leftPane">
-        <div id="toOrdersList">
+        <section class="today-work-order mw-animate-fade-in" id="toTodayWorkOrder" aria-labelledby="toTodayWorkOrderTitle">
+          <div class="today-work-order-head">
+            <div>
+              <div class="today-work-order-eyebrow"><i class="bi bi-list-ol me-1"></i>Daily run sheet</div>
+              <h3 id="toTodayWorkOrderTitle">Today's Order Work</h3>
+              <p id="toTodayWorkOrderSummary">Loading today's delivery schedule...</p>
+            </div>
+            <div class="today-work-order-progress" aria-label="Today's order completion progress">
+              <strong id="toTodayWorkOrderProgressText">0 / 0</strong>
+              <span>completed</span>
+            </div>
+          </div>
+          <div class="today-work-order-bar" aria-hidden="true"><span id="toTodayWorkOrderProgressBar"></span></div>
+          <div class="today-work-order-list" id="toTodayWorkOrderList">
+            <div class="today-work-order-loading"><span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>Building today's order work...</div>
+          </div>
+        </section>
+
+        <div id="toOrdersList" style="display:none;">
           <div class="to-empty"><div class="to-empty-icon"><i class="bi bi-hourglass-split spin"></i></div><h6>Loading orders...</h6><p>Please wait</p></div>
         </div>
       </div>
@@ -2773,7 +2831,7 @@
 
 <script>
 (function() {
-  var _page=1,_status='all',_search='',_orders=[],_selectedId=null;
+  var _page=1,_status='today',_search='',_orders=[],_allOrders=[],_selectedId=null;
   var SCFG={
     pending_payment:{label:'Pending Payment',cls:'pending'}, preparing_unit:{label:'Preparing Unit',cls:'preparing'},
     technician_assigned:{label:'Needs Response',cls:'assigned'}, technician_accepted:{label:'Accepted',cls:'accepted'},
@@ -2886,14 +2944,123 @@
     return normalized ? normalized : '';
   }
 
+  function isTodayOrder(order) {
+    var value = order && order.delivery && order.delivery.preferredDate;
+    if(!value) return false;
+    var date = new Date(value);
+    if(Number.isNaN(date.getTime())) return false;
+    var today = new Date();
+    return date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate();
+  }
+
+  function orderTimeMinutes(value) {
+    var match = String(value || '').trim().match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+    if(!match) return Number.MAX_SAFE_INTEGER;
+    var hour = Number(match[1]);
+    var minute = Number(match[2] || 0);
+    var period = String(match[3] || '').toUpperCase();
+    if(period === 'AM' && hour === 12) hour = 0;
+    if(period === 'PM' && hour < 12) hour += 12;
+    return (hour * 60) + minute;
+  }
+
+  function setOrderListMode() {
+    var showToday = _status === 'today';
+    var todayPanel = document.getElementById('toTodayWorkOrder');
+    var orderList = document.getElementById('toOrdersList');
+    if(todayPanel) todayPanel.style.display = showToday ? '' : 'none';
+    if(orderList) orderList.style.display = showToday ? 'none' : '';
+  }
+
+  function renderTodayOrderWork() {
+    var list = document.getElementById('toTodayWorkOrderList');
+    var summary = document.getElementById('toTodayWorkOrderSummary');
+    var progressText = document.getElementById('toTodayWorkOrderProgressText');
+    var progressBar = document.getElementById('toTodayWorkOrderProgressBar');
+    if(!list || !summary || !progressText || !progressBar) return;
+
+    var currentStatuses = ['out_for_delivery','arrived','installing'];
+    var jobs = _orders.slice().sort(function(left, right) {
+      var timeDifference = orderTimeMinutes(left.timeSlot) - orderTimeMinutes(right.timeSlot);
+      if(timeDifference) return timeDifference;
+      return String(left.orderReference || left._id || '').localeCompare(String(right.orderReference || right._id || ''));
+    });
+    var completed = jobs.filter(function(order) { return order.status === 'completed'; }).length;
+    var currentIndex = jobs.findIndex(function(order) { return currentStatuses.includes(order.status); });
+    var nextIndex = currentIndex >= 0 ? currentIndex : jobs.findIndex(function(order) { return order.status !== 'completed'; });
+    var progress = jobs.length ? Math.round((completed / jobs.length) * 100) : 0;
+
+    progressText.textContent = completed + ' / ' + jobs.length;
+    progressBar.style.width = progress + '%';
+    var count = document.getElementById('toTodayCount');
+    if(count) count.textContent = jobs.length;
+
+    if(!jobs.length) {
+      summary.textContent = 'No active deliveries or installations are scheduled for today.';
+      list.innerHTML = '<div class="today-work-order-empty"><i class="bi bi-calendar2-check"></i>Your order schedule is clear today.</div>';
+      return;
+    }
+
+    var nextOrder = nextIndex >= 0 ? jobs[nextIndex] : null;
+    summary.textContent = nextOrder
+      ? jobs.length + (jobs.length === 1 ? ' order scheduled - next: ' : ' orders scheduled - next: ') + (nextOrder.timeSlot || 'time not set')
+      : 'All ' + jobs.length + (jobs.length === 1 ? ' order is completed' : ' orders are completed');
+
+    list.innerHTML = jobs.map(function(order, index) {
+      var isCurrent = currentStatuses.includes(order.status);
+      var isDone = order.status === 'completed';
+      var isNext = index === nextIndex && !isCurrent && !isDone;
+      var cfg = SCFG[order.status] || {label:String(order.status || 'Pending').replace(/_/g,' ')};
+      var statusText = isCurrent ? 'Current' : (isNext ? 'Next' : cfg.label);
+      var statusStyle = isCurrent
+        ? 'background:#dbeafe;color:#1d4ed8;'
+        : isNext
+          ? 'background:#fef3c7;color:#92400e;'
+          : isDone
+            ? 'background:#d1fae5;color:#047857;'
+            : 'background:#f1f5f9;color:#475569;';
+      var itemNames = (order.items || []).map(orderItemName).join(', ') || 'Order item';
+      var customer = order.customer && order.customer.name ? order.customer.name : 'Customer';
+      var address = order.delivery && order.delivery.address ? order.delivery.address : 'No delivery address';
+      var stateClass = isCurrent ? 'is-current' : (isNext ? 'is-next' : (isDone ? 'is-done' : ''));
+      var number = isDone ? '<i class="bi bi-check-lg"></i>' : String(index + 1);
+      var id = esc(order._id);
+
+      return '<article class="today-work-order-item '+stateClass+'">' +
+        '<div class="today-work-order-number" aria-label="Stop '+(index + 1)+'">'+number+'</div>' +
+        '<div class="today-work-order-time"><i class="bi bi-clock me-1"></i>'+esc(order.timeSlot || 'TBD')+'</div>' +
+        '<div class="today-work-order-main"><div class="today-work-order-title-row">' +
+        '<span class="today-work-order-service">'+esc(itemNames)+'</span>' +
+        '<span class="today-work-order-status" style="'+statusStyle+'">'+esc(statusText)+'</span></div>' +
+        '<div class="today-work-order-meta"><i class="bi bi-person me-1"></i>'+esc(customer) +
+        '<span class="mx-1">&middot;</span><i class="bi bi-geo-alt me-1"></i>'+esc(address) +
+        '<span class="mx-1">&middot;</span>'+esc(fulfillmentLabel(order.fulfillmentType))+'</div></div>' +
+        '<button type="button" class="today-work-order-open" onclick="window.viewOrder(\''+id+'\')">Open Order <i class="bi bi-arrow-right"></i></button>' +
+        '</article>';
+    }).join('');
+  }
+
+  function renderCurrentOrderView() {
+    setOrderListMode();
+    if(_status === 'today') renderTodayOrderWork();
+    else renderCards();
+  }
+
   window.fetchOrders = function() {
     _search = document.getElementById('toSearch').value.trim();
     // Build URL — handle comma-separated multi-status by NOT sending to server; filter client-side
-    var _statuses = _status!=='all' ? _status.split(',').map(s=>s.trim()) : [];
+    var _statuses = !['all','today'].includes(_status) ? _status.split(',').map(s=>s.trim()) : [];
     var url = '/api/orders/technician/all?page='+_page+'&limit=200';
     if(_search) url+='&search='+encodeURIComponent(_search);
     
-    document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
+    setOrderListMode();
+    if(_status === 'today') {
+      document.getElementById('toTodayWorkOrderList').innerHTML = '<div class="today-work-order-loading"><span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>Refreshing today\'s order work...</div>';
+    } else {
+      document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
+    }
     
     fetch(url)
     .then(async function(r) {
@@ -2902,13 +3069,25 @@
       return payload;
     })
     .then(data=>{
-      var allOrders = (data.orders||[]).filter(function(order) {
+      _allOrders = (data.orders||[]).filter(function(order) {
         return order.fulfillmentType === 'delivery_only' || order.fulfillmentType === 'delivery_installation';
       });
-      // Client-side filter for comma-separated statuses
-      _orders = _statuses.length ? allOrders.filter(o=>_statuses.includes(o.status)) : allOrders;
+      var todayStatusesToHide = ['cancelled','technician_declined'];
+      if(_status === 'today') {
+        _orders = _allOrders.filter(function(order) {
+          return isTodayOrder(order) && !todayStatusesToHide.includes(order.status);
+        });
+      } else {
+        // Client-side filter for comma-separated statuses
+        _orders = _statuses.length ? _allOrders.filter(o=>_statuses.includes(o.status)) : _allOrders.slice();
+      }
+      var todayCount = _allOrders.filter(function(order) {
+        return isTodayOrder(order) && !todayStatusesToHide.includes(order.status);
+      }).length;
+      var todayBadge = document.getElementById('toTodayCount');
+      if(todayBadge) todayBadge.textContent = todayCount;
       updateKPIs(data.kpi||{});
-      renderCards();
+      renderCurrentOrderView();
       if(_selectedId) {
         var found = _orders.find(o=>o._id===_selectedId);
         if(found) openDetailPanel(found);
@@ -2916,7 +3095,12 @@
       }
     })
     .catch(e=>{
-      document.getElementById('toOrdersList').innerHTML = '<div class="alert alert-danger">Error loading orders: '+e.message+'</div>';
+      if(_status === 'today') {
+        document.getElementById('toTodayWorkOrderSummary').textContent = 'Today\'s order schedule could not be loaded.';
+        document.getElementById('toTodayWorkOrderList').innerHTML = '<div class="today-work-order-empty"><i class="bi bi-exclamation-triangle"></i>Error loading orders: '+esc(e.message)+'</div>';
+      } else {
+        document.getElementById('toOrdersList').innerHTML = '<div class="alert alert-danger">Error loading orders: '+esc(e.message)+'</div>';
+      }
     });
   };
 
@@ -2982,7 +3166,7 @@
     _selectedId = id;
     var order = _orders.find(o=>o._id===id);
     if(order) openDetailPanel(order);
-    renderCards();
+    renderCurrentOrderView();
   };
   
   window.closeDetailPanel = function() {
@@ -2994,7 +3178,7 @@
     document.getElementById('detailPanelHeader').style.display = 'none';
     document.getElementById('detailPanelContent').style.display = 'none';
     document.getElementById('detailPanelActions').style.display = 'none';
-    renderCards();
+    renderCurrentOrderView();
   };
 
   function openDetailPanel(o) {
@@ -3368,12 +3552,13 @@
 
   // Setup tabs
   document.getElementById('toStatusTabs').addEventListener('click', function(e){
-    if(e.target.tagName==='BUTTON') {
+    var button = e.target.closest('button[data-status]');
+    if(button) {
       document.querySelectorAll('#toStatusTabs button').forEach(b=>b.classList.remove('active','btn-primary'));
       document.querySelectorAll('#toStatusTabs button').forEach(b=>b.classList.add('btn-outline-secondary'));
-      e.target.classList.add('active','btn-primary');
-      e.target.classList.remove('btn-outline-secondary');
-      _status = e.target.getAttribute('data-status');
+      button.classList.add('active','btn-primary');
+      button.classList.remove('btn-outline-secondary');
+      _status = button.getAttribute('data-status');
       _page=1;
       fetchOrders();
     }

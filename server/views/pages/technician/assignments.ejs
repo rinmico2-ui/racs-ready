@@ -604,11 +604,6 @@
       </div>
       <input type="date" id="dateFilter" class="form-control"
         style="width:auto; display:inline-block; border-radius:10px; margin-left: 10px;">
-      <button class="mw-today-btn" id="todayBtn" onclick="toggleTodayFilter()" title="Show only today's jobs">
-        <i class="bi bi-calendar-event"></i>
-        <span>Today</span>
-        <span class="mw-today-badge" id="todayBadge">0</span>
-      </button>
       <select id="sortSelect">
         <option value="newest"><i class="bi bi-arrow-down"></i> Newest First</option>
         <option value="oldest"><i class="bi bi-arrow-up"></i> Oldest First</option>
@@ -822,7 +817,11 @@
 
     <!-- Status Tabs -->
     <div class="mw-tabs mb-3" id="assignTabs">
-      <button class="mw-tab active" data-filter="all">
+      <button class="mw-tab active" data-filter="today">
+        <i class="bi bi-calendar-day"></i>Today
+        <span class="badge" id="countToday">0</span>
+      </button>
+      <button class="mw-tab" data-filter="all">
         <i class="bi bi-list-ul"></i>All
         <span class="badge" id="countAll">0</span>
       </button>
@@ -925,8 +924,30 @@
           </div>
         </div>
 
+        <!-- Today's Work Order: complete chronological run sheet (not paginated) -->
+        <section class="today-work-order mw-animate-fade-in" id="todayWorkOrder" aria-labelledby="todayWorkOrderTitle">
+          <div class="today-work-order-head">
+            <div>
+              <div class="today-work-order-eyebrow"><i class="bi bi-list-ol me-1"></i>Daily run sheet</div>
+              <h3 id="todayWorkOrderTitle">Today's Work Order</h3>
+              <p id="todayWorkOrderSummary">Loading today's schedule...</p>
+            </div>
+            <div class="today-work-order-progress" aria-label="Today's completion progress">
+              <strong id="todayWorkOrderProgressText">0 / 0</strong>
+              <span>completed</span>
+            </div>
+          </div>
+          <div class="today-work-order-bar" aria-hidden="true"><span id="todayWorkOrderProgressBar"></span></div>
+          <div class="today-work-order-list" id="todayWorkOrderList">
+            <div class="today-work-order-loading">
+              <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+              Building today's work order...
+            </div>
+          </div>
+        </section>
+
         <!-- Assignments List (3 cards at a time) -->
-        <div id="assignmentsContainer">
+        <div id="assignmentsContainer" style="display:none;">
           <div class="mw-skeleton-container"
             style="padding:32px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;">
             <div style="display:flex;flex-direction:column;gap:16px;">
@@ -4312,6 +4333,166 @@
   #assignmentsContainer::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   #assignmentsContainer::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+  /* Today's Work Order: one-screen chronological run sheet */
+  .today-work-order {
+    margin-bottom: 16px;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+  .today-work-order-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px 12px;
+    background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+  }
+  .today-work-order-eyebrow {
+    margin-bottom: 3px;
+    color: #2563eb;
+    font-size: 0.61rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  .today-work-order h3 {
+    margin: 0;
+    color: #172033;
+    font-size: 1rem;
+    font-weight: 850;
+  }
+  .today-work-order-head p {
+    margin: 3px 0 0;
+    color: #64748b;
+    font-size: 0.72rem;
+  }
+  .today-work-order-progress { flex: 0 0 auto; text-align: right; }
+  .today-work-order-progress strong {
+    display: block;
+    color: #1d4ed8;
+    font-size: 0.92rem;
+    font-weight: 850;
+    font-variant-numeric: tabular-nums;
+  }
+  .today-work-order-progress span {
+    display: block;
+    color: #64748b;
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .today-work-order-bar { height: 4px; background: #e2e8f0; }
+  .today-work-order-bar span {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 0 999px 999px 0;
+    background: linear-gradient(90deg, #2563eb, #10b981);
+    transition: width 0.35s ease;
+  }
+  .today-work-order-list { padding: 5px 16px 9px; }
+  .today-work-order-loading,
+  .today-work-order-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 22px 12px;
+    color: #64748b;
+    font-size: 0.75rem;
+  }
+  .today-work-order-item {
+    display: grid;
+    grid-template-columns: 38px 76px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 2px;
+    border-bottom: 1px solid #edf1f6;
+  }
+  .today-work-order-item:last-child { border-bottom: 0; }
+  .today-work-order-number {
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #475569;
+    background: #f1f5f9;
+    font-size: 0.7rem;
+    font-weight: 850;
+  }
+  .today-work-order-time {
+    color: #172033;
+    font-size: 0.73rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .today-work-order-main { min-width: 0; }
+  .today-work-order-title-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .today-work-order-service {
+    overflow: hidden;
+    color: #1e293b;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .today-work-order-status {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.55rem;
+    font-weight: 800;
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+  .today-work-order-meta {
+    overflow: hidden;
+    margin-top: 3px;
+    color: #718096;
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .today-work-order-meta i { color: #94a3b8; }
+  .today-work-order-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    color: #334155;
+    background: #fff;
+    font-size: 0.64rem;
+    font-weight: 750;
+    white-space: nowrap;
+  }
+  .today-work-order-open:hover { color: #1d4ed8; border-color: #93c5fd; background: #eff6ff; }
+  .today-work-order-item.is-current { margin: 3px -7px; padding-left: 9px; padding-right: 9px; border: 1px solid #93c5fd; border-radius: 11px; background: #eff6ff; }
+  .today-work-order-item.is-current .today-work-order-number { color: #fff; background: #2563eb; }
+  .today-work-order-item.is-next .today-work-order-number { color: #92400e; background: #fef3c7; }
+  .today-work-order-item.is-done { opacity: 0.68; }
+  .today-work-order-item.is-done .today-work-order-number { color: #047857; background: #d1fae5; }
+
+  @media (max-width: 575px) {
+    .today-work-order-head { padding: 14px; }
+    .today-work-order-list { padding-left: 12px; padding-right: 12px; }
+    .today-work-order-item { grid-template-columns: 32px 64px minmax(0, 1fr); gap: 8px; }
+    .today-work-order-open { grid-column: 2 / 4; justify-content: center; }
+    .today-work-order-title-row { align-items: flex-start; flex-direction: column; gap: 3px; }
+    .today-work-order-service { max-width: 100%; }
+  }
+
   @media (max-width: 991px) {
     #assignmentsContainer { max-height: none; overflow-y: visible; padding-right: 0; }
   }
@@ -6532,7 +6713,7 @@
       return Promise.resolve().then(asyncFn).finally(cleanup);
     };
 
-    let currentFilter = 'all';
+    let currentFilter = 'today';
     let currentPage = 1;
     let allItems = [];
 
@@ -8677,10 +8858,110 @@ ${isRepair ? `
         </div>
         <h6 style="font-weight:700;color:#334155;margin-bottom:6px;font-size:1rem;">No assignments found</h6>
         <p style="color:#94a3b8;font-size:0.85rem;margin:0 0 16px;max-width:320px;margin-left:auto;margin-right:auto;">Try adjusting your search or filter criteria to find what you're looking for.</p>
-        <button class="btn btn-sm btn-outline-primary" onclick="document.getElementById('searchInput').value='';document.getElementById('sortSelect').value='newest';document.getElementById('dateFilter').value='';document.getElementById('todayBtn')?.classList.remove('active');loadAssignments('all',1,'');" style="border-radius:10px;font-weight:600;">
+        <button class="btn btn-sm btn-outline-primary" onclick="resetAssignmentFilters();" style="border-radius:10px;font-weight:600;">
           <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters
         </button>
       </div>`;
+    }
+
+    function workOrderTimeMinutes(value) {
+      const raw = String(value || '').trim();
+      const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+      if (!match) return Number.MAX_SAFE_INTEGER;
+      let hour = Number(match[1]);
+      const minute = Number(match[2] || 0);
+      const period = (match[3] || '').toUpperCase();
+      if (period === 'AM' && hour === 12) hour = 0;
+      if (period === 'PM' && hour < 12) hour += 12;
+      return (hour * 60) + minute;
+    }
+
+    function renderTodayWorkOrder(items) {
+      const list = document.getElementById('todayWorkOrderList');
+      const summary = document.getElementById('todayWorkOrderSummary');
+      const progressText = document.getElementById('todayWorkOrderProgressText');
+      const progressBar = document.getElementById('todayWorkOrderProgressBar');
+      if (!list || !summary || !progressText || !progressBar) return;
+
+      const hiddenStatuses = new Set(['cancelled', 'declined', 'expired', 'no_show', 'no_show_reported']);
+      const activeStatuses = new Set(['en_route', 'on_site', 'in_progress', 'waiting_for_customer']);
+      const jobs = (Array.isArray(items) ? items : [])
+        .filter(item => !hiddenStatuses.has(String(item.status || '').toLowerCase()))
+        .sort((left, right) => {
+          const timeDifference = workOrderTimeMinutes(left.startTime) - workOrderTimeMinutes(right.startTime);
+          if (timeDifference) return timeDifference;
+          return String(left.bookingReference || left._id || '').localeCompare(String(right.bookingReference || right._id || ''));
+        });
+
+      const completed = jobs.filter(job => String(job.status || '').toLowerCase() === 'completed').length;
+      const currentIndex = jobs.findIndex(job => activeStatuses.has(String(job.status || '').toLowerCase()));
+      const nextIndex = currentIndex >= 0
+        ? currentIndex
+        : jobs.findIndex(job => String(job.status || '').toLowerCase() !== 'completed');
+      const progress = jobs.length ? Math.round((completed / jobs.length) * 100) : 0;
+
+      progressText.textContent = `${completed} / ${jobs.length}`;
+      progressBar.style.width = `${progress}%`;
+
+      if (!jobs.length) {
+        summary.textContent = 'No active service visits are scheduled for today.';
+        list.innerHTML = '<div class="today-work-order-empty"><i class="bi bi-calendar2-check"></i>Your schedule is clear today.</div>';
+        return;
+      }
+
+      const nextJob = nextIndex >= 0 ? jobs[nextIndex] : null;
+      summary.textContent = nextJob
+        ? `${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'} scheduled - next: ${nextJob.startTime || 'time not set'}`
+        : `All ${jobs.length} ${jobs.length === 1 ? 'job is' : 'jobs are'} completed`;
+
+      list.innerHTML = jobs.map((job, index) => {
+        const status = String(job.status || 'pending_acceptance').toLowerCase();
+        const isCurrent = activeStatuses.has(status);
+        const isDone = status === 'completed';
+        const isNext = index === nextIndex && !isCurrent && !isDone;
+        const statusText = isCurrent ? 'Current' : (isNext ? 'Next' : (statusLabels[status] || status.replace(/_/g, ' ')));
+        const statusStyle = isCurrent
+          ? 'background:#dbeafe;color:#1d4ed8;'
+          : isNext
+            ? 'background:#fef3c7;color:#92400e;'
+            : isDone
+              ? 'background:#d1fae5;color:#047857;'
+              : 'background:#f1f5f9;color:#475569;';
+        const customer = job.customerName || 'Customer';
+        const service = job.serviceName || 'Service';
+        const address = job.address || 'Address not provided';
+        const stateClass = isCurrent ? 'is-current' : (isNext ? 'is-next' : (isDone ? 'is-done' : ''));
+        const numberContent = isDone ? '<i class="bi bi-check-lg"></i>' : String(index + 1);
+
+        return `<article class="today-work-order-item ${stateClass}">
+          <div class="today-work-order-number" aria-label="Stop ${index + 1}">${numberContent}</div>
+          <div class="today-work-order-time"><i class="bi bi-clock me-1"></i>${esc(job.startTime || 'TBD')}</div>
+          <div class="today-work-order-main">
+            <div class="today-work-order-title-row">
+              <span class="today-work-order-service">${esc(service)}</span>
+              <span class="today-work-order-status" style="${statusStyle}">${esc(statusText)}</span>
+            </div>
+            <div class="today-work-order-meta">
+              <i class="bi bi-person me-1"></i>${esc(customer)}
+              <span class="mx-1">&middot;</span>
+              <i class="bi bi-geo-alt me-1"></i>${esc(address)}
+            </div>
+          </div>
+          <button type="button" class="today-work-order-open" onclick="showDetail('${esc(job._id)}')">
+            Open Job <i class="bi bi-arrow-right"></i>
+          </button>
+        </article>`;
+      }).join('');
+    }
+
+    function setAssignmentListMode(status) {
+      const showToday = status === 'today';
+      const todayWorkOrder = document.getElementById('todayWorkOrder');
+      const assignmentsContainer = document.getElementById('assignmentsContainer');
+      const navigation = document.getElementById('jobCardNav');
+      if (todayWorkOrder) todayWorkOrder.style.display = showToday ? '' : 'none';
+      if (assignmentsContainer) assignmentsContainer.style.display = showToday ? 'none' : '';
+      if (showToday && navigation) navigation.style.display = 'none';
     }
 
     let assignmentsLoadSequence = 0;
@@ -8721,7 +9002,8 @@ ${isRepair ? `
       return repairQueueCache.promise;
     }
 
-    async function loadAssignments(status = 'all', page = 1, search = '') {
+    async function loadAssignments(status = currentFilter, page = 1, search = '') {
+      setAssignmentListMode(status);
       if (status === 'available') return loadAvailableJobs();
       const loadSequence = ++assignmentsLoadSequence;
       try {
@@ -8731,7 +9013,8 @@ ${isRepair ? `
 
         const dateFilter = document.getElementById('dateFilter')?.value || '';
         const sortValue = document.getElementById('sortSelect')?.value || 'newest';
-        let url = `/api/technician/assignments?status=${status}&page=${page}&limit=20&sort=${encodeURIComponent(sortValue)}`;
+        const pageLimit = status === 'today' ? 100 : 20;
+        let url = `/api/technician/assignments?status=${status}&page=${page}&limit=${pageLimit}&sort=${encodeURIComponent(sortValue)}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (dateFilter) url += `&date=${encodeURIComponent(dateFilter)}`;
 
@@ -8808,7 +9091,11 @@ ${isRepair ? `
         window.allItems = allItems;
         window._allAssignments = allItems;
 
-        if (allItems.length === 0) {
+        if (status === 'today') {
+          renderTodayWorkOrder(allItems);
+          container.innerHTML = '';
+          document.getElementById('jobCardNav').style.display = 'none';
+        } else if (allItems.length === 0) {
           container.innerHTML = renderEmpty();
           document.getElementById('jobCardNav').style.display = 'none';
         } else {
@@ -8816,12 +9103,20 @@ ${isRepair ? `
           renderCardPage();
         }
 
-        document.getElementById('countAll').textContent = (data.total || 0) + filteredRepairs.length;
+        if (status === 'all') document.getElementById('countAll').textContent = (data.total || 0) + filteredRepairs.length;
+        if (status === 'today') document.getElementById('countToday').textContent = data.total || 0;
         fetchTabCounts(true);
         if (window._updateWorkKpis) window._updateWorkKpis();
       } catch (e) {
         if (loadSequence !== assignmentsLoadSequence) return;
-        document.getElementById('assignmentsContainer').innerHTML = '<div class="alert alert-danger">Failed to load assignments</div>';
+        if (status === 'today') {
+          const summary = document.getElementById('todayWorkOrderSummary');
+          const list = document.getElementById('todayWorkOrderList');
+          if (summary) summary.textContent = 'Today\'s schedule could not be loaded.';
+          if (list) list.innerHTML = '<div class="today-work-order-empty"><i class="bi bi-exclamation-triangle"></i>Unable to load today\'s work order. Refresh to try again.</div>';
+        } else {
+          document.getElementById('assignmentsContainer').innerHTML = '<div class="alert alert-danger">Failed to load assignments</div>';
+        }
       }
     }
 
@@ -8865,14 +9160,16 @@ ${isRepair ? `
 
       tabCountsCache.promise = Promise.all([
           fetch('/api/technician/assignments?limit=1').then(r => r.json()),
+          fetch('/api/technician/assignments?status=today&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=pending_acceptance&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=active&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=completed&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=declined&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=cancelled&limit=1').then(r => r.json()),
           fetch('/api/technician/available-jobs').then(r => r.json()),
-        ]).then(([all, pending, active, completed, declined, cancelled, available]) => {
+        ]).then(([all, today, pending, active, completed, declined, cancelled, available]) => {
         document.getElementById('countAll').textContent = all.total || 0;
+        document.getElementById('countToday').textContent = today.total || 0;
         document.getElementById('countPending').textContent = pending.total || 0;
         document.getElementById('countActive').textContent = active.total || 0;
         document.getElementById('countCompleted').textContent = completed.total || 0;
@@ -8926,7 +9223,10 @@ ${isRepair ? `
 
     // Daily Preparation loads independently from assignments. This hook lets
     // its result refresh accepted cards without duplicating assignment logic.
-    window.refreshAssignmentCardsForPreparation = renderCardPage;
+    window.refreshAssignmentCardsForPreparation = function () {
+      if (currentFilter === 'today') renderTodayWorkOrder(allItems);
+      else renderCardPage();
+    };
 
     window.jobCardPage = function (dir) {
       cardPage += dir;
@@ -8946,6 +9246,20 @@ ${isRepair ? `
     window.reloadAssignments = function () {
       return loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
     };
+    window.resetAssignmentFilters = function () {
+      const searchInput = document.getElementById('searchInput');
+      const sortSelect = document.getElementById('sortSelect');
+      const dateFilter = document.getElementById('dateFilter');
+      if (searchInput) searchInput.value = '';
+      if (sortSelect) sortSelect.value = 'newest';
+      if (dateFilter) dateFilter.value = '';
+      currentFilter = 'all';
+      currentPage = 1;
+      document.querySelectorAll('#assignTabs .mw-tab').forEach(button => {
+        button.classList.toggle('active', button.dataset.filter === 'all');
+      });
+      loadAssignments('all', 1, '');
+    };
 
     // Tab clicks
     document.querySelectorAll('#assignTabs .mw-tab').forEach(btn => {
@@ -8953,6 +9267,10 @@ ${isRepair ? `
         document.querySelectorAll('#assignTabs .mw-tab').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
         currentFilter = this.dataset.filter;
+        if (currentFilter === 'today') {
+          const dateInput = document.getElementById('dateFilter');
+          if (dateInput) dateInput.value = '';
+        }
         currentPage = 1;
         loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
       });
@@ -8960,10 +9278,12 @@ ${isRepair ? `
 
     // Date Filter change
     document.getElementById('dateFilter')?.addEventListener('change', function () {
-      // If user manually changes the date picker, deactivate Today button
-      const todayBtn = document.getElementById('todayBtn');
-      if (todayBtn && todayBtn.classList.contains('active') && this.value !== todayISO()) {
-        todayBtn.classList.remove('active');
+      // A manually selected date belongs to the regular list, not Today's run sheet.
+      if (currentFilter === 'today') {
+        currentFilter = 'all';
+        document.querySelectorAll('#assignTabs .mw-tab').forEach(button => {
+          button.classList.toggle('active', button.dataset.filter === 'all');
+        });
       }
       currentPage = 1;
       loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
@@ -8976,17 +9296,13 @@ ${isRepair ? `
     });
 
     // ── Today's Jobs Button ──
+    function updateTodayBadge(count) {
+      const badge = document.getElementById('countToday');
+      if (badge) badge.textContent = count || 0;
+    }
     function todayISO() {
       const d = new Date();
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    }
-    function updateTodayBadge(count) {
-      const badge = document.getElementById('todayBadge');
-      const btn = document.getElementById('todayBtn');
-      if (badge) badge.textContent = count || 0;
-      if (btn) {
-        btn.classList.toggle('has-jobs', count > 0);
-      }
     }
     window.toggleTodayFilter = function () {
       const btn = document.getElementById('todayBtn');
@@ -12327,7 +12643,8 @@ function preparationEscapeHtml(value) {
     if (resolveBtn) {
       const name = resolveBtn.dataset.name;
       const action = resolveBtn.dataset.action;
-      if (name && action) window.dailyKitResolveItem(name, action);
+      const category = resolveBtn.dataset.category;
+      if (name && action) window.dailyKitResolveItem(name, action, category);
       return;
     }
     const notifyBtn = e.target.closest('.kit-notify-admin-btn');
@@ -12744,9 +13061,9 @@ function preparationEscapeHtml(value) {
             '</div>' +
             (jobNames.length ? '<div style="font-size:0.68rem;color:#64748b;margin-top:4px;"><i class="bi bi-link-45deg me-1"></i>Required by: ' + jobNames.map(n => '<span class="badge bg-light text-dark border" style="font-size:0.62rem;padding:2px 5px;">' + _esc(n) + '</span>').join(' ') + '</div>' : '') +
             (!isResolved && !isAwaitingAdmin ? '<div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;">' +
-              '<button class="btn btn-sm btn-outline-success kit-resolve-btn" data-action="confirmed_available" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-check-lg me-1"></i>Confirm I Have This</button>' +
+              '<button class="btn btn-sm btn-outline-success kit-resolve-btn" data-action="confirmed_available" data-name="' + _esc(item.name) + '" data-category="' + _esc(item.category || '') + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-check-lg me-1"></i>Confirm I Have This</button>' +
               '<button class="btn btn-sm btn-outline-primary kit-notify-admin-btn" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-bell me-1"></i>Notify Admin</button>' +
-              '<button class="btn btn-sm btn-outline-secondary kit-resolve-btn" data-action="not_required" data-name="' + _esc(item.name) + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-x-lg me-1"></i>Not Required</button>' +
+              '<button class="btn btn-sm btn-outline-secondary kit-resolve-btn" data-action="not_required" data-name="' + _esc(item.name) + '" data-category="' + _esc(item.category || '') + '" style="font-size:0.68rem;padding:3px 8px;"><i class="bi bi-x-lg me-1"></i>Not Required</button>' +
             '</div>' : '') +
             (isAwaitingAdmin ? '<div style="margin-top:8px;"><span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.65rem;"><i class="bi bi-hourglass-split me-1"></i>Admin has been notified — waiting for resolution</span></div>' : '') +
             '</div>';
@@ -12975,13 +13292,50 @@ function preparationEscapeHtml(value) {
     }
   };
 
-  window.dailyKitResolveItem = async function(itemName, resolution) {
+  window.dailyKitResolveItem = async function(itemName, resolution, category) {
+    const payload = { itemName, resolution, category };
+    if (resolution === 'not_required') {
+      const safeItemName = String(itemName || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+      const decision = await Swal.fire({
+        title: 'Mark as Not Required',
+        html: '<div class="text-start"><p class="small text-muted mb-2">Select why <strong>' + safeItemName + '</strong> is not needed for this job.</p>' +
+          '<label class="form-label fw-semibold" for="kitNotRequiredReason">Reason <span class="text-danger">*</span></label>' +
+          '<select id="kitNotRequiredReason" class="form-select"><option value="">Select a reason...</option>' +
+          KIT_NOT_NEEDED_REASONS.map(function(reason) { return '<option value="' + reason.code + '">' + reason.label + '</option>'; }).join('') +
+          '</select><label class="form-label mt-3" for="kitNotRequiredNote">Additional details</label>' +
+          '<textarea id="kitNotRequiredNote" class="form-control" rows="2" maxlength="300" placeholder="Required when Other is selected"></textarea></div>',
+        showCancelButton: true,
+        confirmButtonText: 'Confirm Decision',
+        confirmButtonColor: '#2563eb',
+        preConfirm: function() {
+          const reasonCode = document.getElementById('kitNotRequiredReason').value;
+          const note = document.getElementById('kitNotRequiredNote').value.trim();
+          if (!reasonCode) {
+            Swal.showValidationMessage('Select a valid reason.');
+            return false;
+          }
+          if (reasonCode === 'other' && !note) {
+            Swal.showValidationMessage('Explain why this item is not needed.');
+            return false;
+          }
+          return { reasonCode, note };
+        },
+      });
+      if (!decision.isConfirmed) return;
+      payload.reasonCode = decision.value.reasonCode;
+      payload.note = decision.value.note;
+    }
     try {
       const resp = await fetch('/api/technician/daily-kit/resolve-item', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ itemName, resolution }),
+        body: JSON.stringify(payload),
       });
       if (resp.ok) {
         const label = resolution === 'confirmed_available' ? 'Confirmed Available' : 'Marked Not Required';

@@ -9,7 +9,7 @@ async function run() {
     console.error("FATAL: MONGODB_URI environment variable is required. Exiting.");
     process.exit(1);
   }
-  const email = (process.env.ADMIN_EMAIL || 'sorianovincin0@gmail.com').trim().toLowerCase();
+  const email = (process.env.ADMIN_EMAIL || 'lestherneilclemente1@gmail.com').trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD || 'Racs1234';
 
   // Profile defaults (use env overrides when present)
