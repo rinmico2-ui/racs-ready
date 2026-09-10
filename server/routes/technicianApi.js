@@ -5777,6 +5777,13 @@ router.post("/expenses", async (req, res, next) => {
     if (!type) return res.status(400).json({ error: "Expense type is required" });
     if (!amount || Number(amount) <= 0) return res.status(400).json({ error: "Valid amount is required" });
     if (!description || !String(description).trim()) return res.status(400).json({ error: "Description is required" });
+    if (type === "fuel") {
+      if (!fuelLiters || Number(fuelLiters) <= 0) return res.status(400).json({ error: "Fuel liters is required" });
+      if (!pricePerLiter || Number(pricePerLiter) <= 0) return res.status(400).json({ error: "Price per liter is required" });
+      if (!odometerReading || Number(odometerReading) <= 0) return res.status(400).json({ error: "Odometer reading is required" });
+      if (!gasStation || !String(gasStation).trim()) return res.status(400).json({ error: "Gas station name is required" });
+    }
+    if (!receiptImage) return res.status(400).json({ error: "Receipt is required" });
 
     const expenseData = {
       technicianId: tech._id,

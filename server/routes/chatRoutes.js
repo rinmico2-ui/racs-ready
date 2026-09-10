@@ -1240,7 +1240,7 @@ function buildPricingResponse(knowledge, text, session) {
   // Payment
   if (lower.includes("payment") || lower.includes("gcash") || lower.includes("cash") || lower.includes("installment") || lower.includes("bayad")) {
     hasSpecific = true;
-    response += "**Payment Methods:**\n• GCash\n• Cash on Delivery\n• Bank Transfer\n• Credit/Debit Cards\n• Installment plans (3–12 months)\n\n";
+    response += "**Payment Options:**\n• Full payment through GCash\n• Reservation downpayment through GCash, with the balance due at service or installation handover\n• Cash at the store for customer-pickup orders\n\n";
   }
 
   if (!hasSpecific) {

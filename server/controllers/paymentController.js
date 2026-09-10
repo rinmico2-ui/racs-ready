@@ -362,7 +362,7 @@ exports.getPayment = async (req, res, next) => {
       selectedTimeLabel: booking?.selectedTimeLabel || order?.timeSlot || "-",
       bookingStatus: booking?.status || order?.status || "-",
       bookingPaymentStatus: booking?.paymentStatus || order?.paymentStatus || "-",
-      bookingPaymentMethod: booking?.paymentPaymentMethod || order?.paymentMethod || "-",
+      bookingPaymentMethod: booking?.paymentMethod || order?.paymentMethod || "-",
       gcashNumber: booking?.gcashNumber || order?.gcashNumber || payment?.gcashNumber || "-",
       gcashReference: booking?.paymentReference || payment?.reference || "-",
       proofUrl: payment?.proofUrl || booking?.paymentProof || order?.gcashProofUrl || "",

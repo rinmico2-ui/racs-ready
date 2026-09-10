@@ -124,6 +124,11 @@ const MAX_BOOKING_UNITS = 40;
 let customerLocationRequestToken = 0;
 let routeRequestToken = 0;
 let addressGeocodeRequestToken = 0;
+let reverseGeocodeDebounceTimer = null;
+let reverseGeocodeAbortController = null;
+let addressSuggestionRequestToken = 0;
+let addressSuggestionAbortController = null;
+const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
   return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
 }
@@ -1472,11 +1477,6 @@ function setupLocationAutoProgress() {
 
     console.log('📝 Location input changed:', value);
 
-    // Update map as user types
-    if (value.length >= 3) {
-      geocodeAddress(value);
-    }
-
     if (value.length >= 10) { // Minimum address length
       debounceTimer = setTimeout(() => {
         console.log('📍 Location entered, waiting for Next Step button');
@@ -1487,10 +1487,8 @@ function setupLocationAutoProgress() {
           BookingState.location = value;
         }
 
-        // Finalize map location
-        geocodeAddress(value, true);
-
-        // Next step is handled by the Next Step button
+        // Suggestions and the explicit search button perform the lookup. Do
+        // not issue another geocoding request for the same keystroke here.
       }, 1500);
     }
   });
@@ -1505,20 +1503,19 @@ function setupAddressAutocomplete(input) {
   const suggestContainer = document.getElementById('locationSuggest');
   if (!suggestContainer) return;
 
-  let debounceTimer;
-
   input.addEventListener('input', function (e) {
-    clearTimeout(debounceTimer);
     const query = e.target.value.trim();
 
-    if (query.length < 3) {
-      suggestContainer.classList.add('d-none');
-      return;
+    // Public Nominatim does not allow API-backed autocomplete. Invalidate any
+    // previous result while the address changes; the Search button performs
+    // the user-triggered lookup.
+    ++addressSuggestionRequestToken;
+    if (addressSuggestionAbortController) {
+      addressSuggestionAbortController.abort();
+      addressSuggestionAbortController = null;
     }
-
-    debounceTimer = setTimeout(() => {
-      fetchAddressSuggestions(query);
-    }, 800); // Increased to 800ms to prevent rate limiting
+    suggestContainer.classList.add('d-none');
+    if (query.length < 3) suggestContainer.innerHTML = '';
   });
 
   // Hide suggestions when clicking outside
@@ -1541,12 +1538,21 @@ function fetchAddressSuggestions(query) {
     searchButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
   }
 
+  const requestToken = ++addressSuggestionRequestToken;
+  if (addressSuggestionAbortController) addressSuggestionAbortController.abort();
+  addressSuggestionAbortController = new AbortController();
+
   // Use backend proxy endpoint instead of direct Nominatim API
   const url = `/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`;
 
-  fetch(url)
-    .then(response => response.json())
+  fetch(url, { signal: addressSuggestionAbortController.signal })
+    .then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Address search is temporarily unavailable');
+      return data;
+    })
     .then(data => {
+      if (requestToken !== addressSuggestionRequestToken) return;
       if (data && data.length > 0) {
         displaySuggestions(data);
       } else {
@@ -1555,11 +1561,13 @@ function fetchAddressSuggestions(query) {
       }
     })
     .catch(error => {
+      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
       console.error('Address suggestions error:', error);
       suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the point on the map.</div>';
       suggestContainer.classList.remove('d-none');
     })
     .finally(() => {
+      if (requestToken !== addressSuggestionRequestToken) return;
       if (searchButton) {
         searchButton.disabled = false;
         searchButton.innerHTML = '<i class="bi bi-search"></i>';
@@ -2651,65 +2659,98 @@ function setCustomerLocationMarker(lat, lng, address, source) {
 
 function reverseGeocode(lat, lng, requestToken) {
   const activeRequestToken = requestToken ?? ++customerLocationRequestToken;
-  const reverseGeocodeUrl = `/api/geocoding/reverse?lat=${lat}&lon=${lng}`;
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return;
 
-  fetch(reverseGeocodeUrl)
-    .then(response => response.json())
-    .then(data => {
-      if (activeRequestToken !== customerLocationRequestToken) return;
-      if (data && data.error) {
-        console.error('Reverse geocoding API error:', data.error);
-        showError(data.error);
-        return;
-      }
-      if (data && data.display_name) {
-        const address = data.display_name;
-        const locationInput = document.getElementById("locationInput");
+  clearTimeout(reverseGeocodeDebounceTimer);
+  if (reverseGeocodeAbortController) reverseGeocodeAbortController.abort();
 
-        if (locationInput) {
-          locationInput.value = address;
-          locationInput.classList.add('is-valid');
+  const cacheKey = `${parsedLat.toFixed(4)},${parsedLng.toFixed(4)}`;
+  const cached = reverseGeocodeCache.get(cacheKey);
+  const coordinateLabel = `${parsedLat.toFixed(6)}, ${parsedLng.toFixed(6)}`;
 
-          // Store customer location for booking (CRITICAL for validation)
-          if (typeof BookingState !== 'undefined') {
-            BookingState.customerLocation = {
-              address: address,
-              lat: lat,
-              lng: lng
-            };
-            BookingState.location = address; // Legacy support
-            BookingState.userCoordinates = { lat, lng }; // Legacy support
+  // The selected coordinates remain usable when the optional address lookup
+  // is temporarily unavailable.
+  BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
+  BookingState.customerLocation = { address: coordinateLabel, lat: parsedLat, lng: parsedLng };
+  BookingState.location = coordinateLabel;
 
-            console.log('📍 Customer location stored (reverse geocode):', BookingState.customerLocation);
-          }
+  const applyResult = data => {
+    if (activeRequestToken !== customerLocationRequestToken || !data?.display_name) return;
 
-          // Update map
-          if (BookingState.map) {
-            BookingState.map.setView([lat, lng], 16);
-            setCustomerLocationMarker(lat, lng, address, 'Confirmed map location');
+    const address = data.display_name;
+    const locationInput = document.getElementById('locationInput');
+    if (!locationInput) return;
 
-            // Update global zoomToUser function
-            window.zoomToUser = function () {
-              console.log('🔍 Zooming to user location (reverse geocode)');
-              if (BookingState?.map && BookingState?.userMarker) {
-                const pos = BookingState.userMarker.getLatLng();
-                BookingState.map.setView(pos, 16);
-              }
-            };
+    locationInput.value = address;
+    locationInput.classList.add('is-valid');
+    BookingState.customerLocation = { address, lat: parsedLat, lng: parsedLng };
+    BookingState.location = address;
+    BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
 
-            drawRoute();
-          }
+    console.log('📍 Customer location stored (reverse geocode):', BookingState.customerLocation);
 
-          console.log('✅ Current location set:', address);
+    if (BookingState.map) {
+      BookingState.map.setView([parsedLat, parsedLng], 16);
+      setCustomerLocationMarker(parsedLat, parsedLng, address, 'Confirmed map location');
+
+      window.zoomToUser = function () {
+        if (BookingState?.map && BookingState?.userMarker) {
+          const pos = BookingState.userMarker.getLatLng();
+          BookingState.map.setView(pos, 16);
         }
-      }
-    })
-    .catch(error => {
-      if (activeGeocodeRequest !== addressGeocodeRequestToken) return;
-      if (activeRequestToken !== customerLocationRequestToken) return;
-      console.error('Reverse geocoding error:', error);
-      showError('Unable to get address from coordinates. Please enter manually.');
-    });
+      };
+
+      drawRoute();
+    }
+  };
+
+  if (cached) {
+    applyResult(cached);
+    return;
+  }
+
+  // A short debounce collapses rapid map clicks and marker adjustments into
+  // the final requested point.
+  reverseGeocodeDebounceTimer = setTimeout(() => {
+    reverseGeocodeAbortController = new AbortController();
+    const reverseGeocodeUrl = `/api/geocoding/reverse?lat=${encodeURIComponent(parsedLat)}&lon=${encodeURIComponent(parsedLng)}`;
+
+    fetch(reverseGeocodeUrl, { signal: reverseGeocodeAbortController.signal })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const error = new Error(data.error || 'Unable to resolve the selected address');
+          error.status = response.status;
+          throw error;
+        }
+        return data;
+      })
+      .then(data => {
+        if (activeRequestToken !== customerLocationRequestToken) return;
+        reverseGeocodeCache.set(cacheKey, data);
+        if (reverseGeocodeCache.size > 100) {
+          reverseGeocodeCache.delete(reverseGeocodeCache.keys().next().value);
+        }
+        applyResult(data);
+      })
+      .catch(error => {
+        if (error.name === 'AbortError' || activeRequestToken !== customerLocationRequestToken) return;
+
+        if (error.status === 429) {
+          console.warn('Reverse geocoding is temporarily rate limited; keeping the selected coordinates.');
+        } else {
+          console.error('Reverse geocoding error:', error);
+        }
+        updateServiceMapSelectionUI(
+          parsedLat,
+          parsedLng,
+          coordinateLabel,
+          'Coordinates confirmed; street name unavailable'
+        );
+      });
+  }, 350);
 }
 
 /**
@@ -5396,7 +5437,10 @@ function showCombinedQuantityHpModal(service) {
   const serviceUnitEl = DOM.quantityModalUnit;
   const hpSection = document.getElementById('hpSelectionSection');
   const hpContainer = document.getElementById('hpOptionsContainer');
-  const modalTitle = document.querySelector('#quantitySelectionModal .modal-title');
+  const modalTitle = document.getElementById('cfgModalTitle');
+  const modalSubtitle = document.getElementById('cfgModalSubtitle');
+  const wizard = document.getElementById('cfgWizard');
+  const backToTypeBtn = document.getElementById('cfgBackToType');
   const singleQuantitySection = DOM.quantityModalInput?.closest('.mb-3');
 
   console.log('Modal elements check:', {
@@ -5524,7 +5568,15 @@ function showCombinedQuantityHpModal(service) {
   if (isAirconService) {
 
     // Update modal title
-    if (modalTitle) modalTitle.textContent = hasAirconTypes ? 'Select Aircon Type & HP' : 'Select HP Rating(s)';
+    if (modalTitle) modalTitle.textContent = 'Configure Service';
+    if (modalSubtitle) modalSubtitle.textContent = hasAirconTypes
+      ? 'Choose the brand, aircon type, and HP rating'
+      : 'Choose the brand and HP rating';
+    if (wizard) wizard.classList.toggle('d-none', !hasAirconTypes);
+    if (backToTypeBtn) {
+      backToTypeBtn.classList.add('d-none');
+      backToTypeBtn.style.setProperty('display', 'none', 'important');
+    }
 
     // Show HP section
     if (hpSection) {
@@ -5535,8 +5587,10 @@ function showCombinedQuantityHpModal(service) {
         hpContainer.innerHTML = '';
 
         if (hasAirconTypes) {
-          // NEW: Show aircon type selection first
+          // Build the type and HP panels, then start with the brand step.
           renderAirconTypeSelection(service.airconTypes, hpContainer);
+          showBrandSection(service);
+          showBrandConfigurationStep(hpContainer);
         } else if (hasLegacyHpPricing) {
           // LEGACY: Show HP options directly
           service.hpPricing.forEach((hpOption, index) => {
@@ -5555,15 +5609,21 @@ function showCombinedQuantityHpModal(service) {
       singleQuantitySection.style.display = 'none';
     }
 
-    // Show brand section first (required) for aircon services
-    if (service.brands && service.brands.length) {
+    // Legacy HP-only services have no separate type step.
+    if (!hasAirconTypes && service.brands && service.brands.length) {
       showBrandSection(service);
     }
 
   } else {
 
     // Update modal title
-    if (modalTitle) modalTitle.textContent = 'Select Quantity';
+    if (modalTitle) modalTitle.textContent = 'Configure Service';
+    if (modalSubtitle) modalSubtitle.textContent = 'Choose how many units need this service';
+    if (wizard) wizard.classList.add('d-none');
+    if (backToTypeBtn) {
+      backToTypeBtn.classList.add('d-none');
+      backToTypeBtn.style.setProperty('display', 'none', 'important');
+    }
 
     // Hide HP section
     if (hpSection) {
@@ -5586,6 +5646,7 @@ function showCombinedQuantityHpModal(service) {
   // Show modal with enterprise-level styling
   try {
     showEnterpriseModal(modal);
+    requestAnimationFrame(syncConfigurationPrimaryAction);
 
     // Add immediate visibility check
     setTimeout(() => {
@@ -5612,14 +5673,14 @@ function renderAirconTypeSelection(airconTypes, container) {
   // Create type selection section
   const typeSection = document.createElement('div');
   typeSection.id = 'airconTypeSection';
-  typeSection.className = 'mb-4';
+  typeSection.className = 'cfg-stage-panel mb-3 d-none';
 
   // Add header
   const header = document.createElement('div');
-  header.className = 'mb-3';
+  header.className = 'cfg-stage-heading mb-3';
   header.innerHTML = `
-    <h6 class="fw-bold text-dark mb-2">Step 1: Select Aircon Type</h6>
-    <p class="text-muted small mb-0">Choose the type of aircon unit. Prices vary by type and HP rating.</p>
+    <span class="cfg-stage-icon"><i class="bi bi-snow"></i></span>
+    <div><span class="cfg-stage-kicker">Step 2</span><h6 id="cfgTypeHeading" tabindex="-1">Choose the aircon type</h6><p>Select one option to see its available HP ratings.</p></div>
   `;
   typeSection.appendChild(header);
 
@@ -5652,12 +5713,16 @@ function renderAirconTypeSelection(airconTypes, container) {
   airconTypes.forEach((type, index) => {
 
     const typeCol = document.createElement('div');
-    typeCol.className = 'col-6 col-md-4';
+    typeCol.className = 'col-12 col-sm-6';
 
     const typeCard = document.createElement('div');
     typeCard.className = 'card aircon-type-card h-100 border-2 bg-white shadow-sm cursor-pointer';
     typeCard.dataset.type = type.type;
     typeCard.dataset.index = index;
+    typeCard.setAttribute('role', 'button');
+    typeCard.setAttribute('tabindex', '0');
+    typeCard.setAttribute('aria-pressed', 'false');
+    typeCard.setAttribute('aria-label', `${type.name}, ${type.hpPricing.length} HP options`);
     typeCard.style.cssText = `
       border-radius: 12px !important;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -5694,8 +5759,9 @@ function renderAirconTypeSelection(airconTypes, container) {
     typeCard.addEventListener('click', () => {
 
       // Remove previous selection
-      document.querySelectorAll('.aircon-type-card').forEach(card => {
+      container.querySelectorAll('.aircon-type-card').forEach(card => {
         card.classList.remove('selected');
+        card.setAttribute('aria-pressed', 'false');
         card.style.cssText = `
           border-radius: 12px !important;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -5709,6 +5775,7 @@ function renderAirconTypeSelection(airconTypes, container) {
 
       // Add selection styling
       typeCard.classList.add('selected');
+      typeCard.setAttribute('aria-pressed', 'true');
       typeCard.style.cssText += `
         border-color: #3b82f6 !important;
         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
@@ -5721,12 +5788,16 @@ function renderAirconTypeSelection(airconTypes, container) {
       // Record appliance type (customer-facing) for this booking
       BookingState.applianceType = type.type;
       BookingState.applianceTypeName = type.name;
-
-      // Show & populate brand selector now that an appliance type is chosen
-      showBrandSection(BookingState.currentService);
+      BookingState.selectedHps = [];
 
       // Show HP options for this type
       renderHpOptionsForType(type, container);
+      updateCombinedPrice();
+    });
+    typeCard.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      typeCard.click();
     });
 
     typeCol.appendChild(typeCard);
@@ -5739,16 +5810,156 @@ function renderAirconTypeSelection(airconTypes, container) {
   // Create HP selection section (initially hidden)
   const hpSectionDiv = document.createElement('div');
   hpSectionDiv.id = 'hpSelectionForType';
-  hpSectionDiv.className = 'd-none';
+  hpSectionDiv.className = 'cfg-stage-panel d-none';
   hpSectionDiv.innerHTML = `
-    <div class="border-top pt-4 mb-3">
-      <h6 class="fw-bold text-dark mb-2">Step 2: Select HP Rating(s)</h6>
-      <p class="text-muted small mb-0">Choose the horsepower rating and quantity for each unit.</p>
+    <div class="cfg-type-summary mb-3" aria-live="polite">
+      <span><small>Selected aircon type</small><strong id="cfgSelectedTypeName">—</strong></span>
+      <button type="button" class="cfg-change-type" id="cfgChangeTypeBtn"><i class="bi bi-arrow-left me-1"></i>Change type</button>
+    </div>
+    <div class="cfg-stage-heading mb-3">
+      <span class="cfg-stage-icon"><i class="bi bi-speedometer2"></i></span>
+      <div><span class="cfg-stage-kicker">Step 3</span><h6 id="cfgHpHeading" tabindex="-1">Choose the HP rating</h6><p>Select one or more ratings and set the quantity for each.</p></div>
     </div>
     <div id="hpOptionsForType" class="row g-3"></div>
   `;
   container.appendChild(hpSectionDiv);
 
+  const backButton = document.getElementById('cfgBackToType');
+  const changeButton = hpSectionDiv.querySelector('#cfgChangeTypeBtn');
+  const goBack = () => {
+    if (BookingState.configurationStep === 3) showAirconTypeStep(container);
+    else showBrandConfigurationStep(container);
+  };
+  if (backButton && backButton.dataset.configStepBound !== 'true') {
+    backButton.dataset.configStepBound = 'true';
+    backButton.addEventListener('click', goBack);
+  }
+  if (changeButton) changeButton.addEventListener('click', () => showAirconTypeStep(container));
+
+}
+
+function notifyServiceConfigurationStep(step, complete = false) {
+  const modal = document.getElementById('quantitySelectionModal');
+  if (modal) modal.dispatchEvent(new CustomEvent('service-config-step-change', {
+    detail: { step, complete }
+  }));
+}
+
+function isAirconConfigurationComplete() {
+  return Boolean(String(BookingState.selectedBrand || '').trim())
+    && Array.isArray(BookingState.selectedHps)
+    && BookingState.selectedHps.length > 0;
+}
+
+function activeAirconConfigurationContainer() {
+  return document.getElementById('hpOptionsContainer');
+}
+
+function usesAirconTypeWizard(service = BookingState.currentService) {
+  return Boolean(service?.isAirconService && Array.isArray(service.airconTypes) && service.airconTypes.length);
+}
+
+function advanceFromBrandSelection() {
+  if (!usesAirconTypeWizard() || !String(BookingState.selectedBrand || '').trim()) return false;
+  showAirconTypeStep(activeAirconConfigurationContainer());
+  return true;
+}
+
+function showBrandConfigurationStep(container = activeAirconConfigurationContainer()) {
+  const typeSection = container?.querySelector('#airconTypeSection');
+  const hpSection = container?.querySelector('#hpSelectionForType');
+  const brandSection = document.getElementById('brandSection');
+  const backButton = document.getElementById('cfgBackToType');
+  if (brandSection) brandSection.style.display = 'block';
+  if (typeSection) typeSection.classList.add('d-none');
+  if (hpSection) hpSection.classList.add('d-none');
+  if (backButton) {
+    backButton.classList.add('d-none');
+    backButton.style.setProperty('display', 'none', 'important');
+  }
+  const brandSelect = document.getElementById('brandInput');
+  const customBrand = document.getElementById('brandInputCustom');
+  if (brandSelect) brandSelect.value = '';
+  if (customBrand) {
+    customBrand.value = '';
+    customBrand.classList.add('d-none');
+  }
+  BookingState.selectedBrand = '';
+  BookingState.configurationStep = 1;
+  BookingState.selectedAirconType = null;
+  BookingState.applianceType = '';
+  BookingState.applianceTypeName = '';
+  BookingState.selectedHps = [];
+  updateCombinedPrice();
+  clearModalError();
+  notifyServiceConfigurationStep(1);
+  const body = document.querySelector('#quantitySelectionModal .modal-body');
+  if (body?.scrollTo) body.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => document.getElementById('brandInput')?.focus({ preventScroll: true }), 180);
+}
+
+function syncConfigurationPrimaryAction() {
+  const button = document.getElementById('confirmQuantitySelection');
+  const service = BookingState.currentService;
+  if (!button || !service) return;
+  const isAirconService = service.isAirconService
+    && ((Array.isArray(service.airconTypes) && service.airconTypes.length > 0)
+      || (Array.isArray(service.hpPricing) && service.hpPricing.length > 0));
+  if (!isAirconService) {
+    button.disabled = false;
+    button.innerHTML = '<i class="bi bi-check-lg me-2"></i>Add to Booking';
+    button.style.setProperty('opacity', '1', 'important');
+    button.style.setProperty('cursor', 'pointer', 'important');
+    return;
+  }
+
+  const hasType = !Array.isArray(service.airconTypes)
+    || service.airconTypes.length === 0
+    || Boolean(BookingState.selectedAirconType);
+  const hasBrand = Boolean(String(BookingState.selectedBrand || '').trim());
+  const hasHp = Array.isArray(BookingState.selectedHps) && BookingState.selectedHps.length > 0;
+  const ready = hasType && hasBrand && hasHp;
+  button.disabled = !ready;
+  button.innerHTML = ready
+    ? '<i class="bi bi-check-lg me-2"></i>Add to Booking'
+    : !hasBrand
+      ? '<i class="bi bi-upc-scan me-2"></i>Select a brand'
+      : !hasType
+        ? '<i class="bi bi-arrow-right me-2"></i>Select an aircon type'
+        : '<i class="bi bi-speedometer2 me-2"></i>Select an HP rating';
+  button.style.setProperty('opacity', ready ? '1' : '0.58', 'important');
+  button.style.setProperty('cursor', ready ? 'pointer' : 'not-allowed', 'important');
+}
+
+function showAirconTypeStep(container) {
+  const typeSection = container?.querySelector('#airconTypeSection');
+  const hpSection = container?.querySelector('#hpSelectionForType');
+  const brandSection = document.getElementById('brandSection');
+  const backButton = document.getElementById('cfgBackToType');
+  if (typeSection) typeSection.classList.remove('d-none');
+  if (hpSection) hpSection.classList.add('d-none');
+  if (brandSection) brandSection.style.display = 'none';
+  if (backButton) {
+    backButton.classList.remove('d-none');
+    backButton.style.setProperty('display', 'inline-flex', 'important');
+    const label = backButton.querySelector('span');
+    if (label) label.textContent = 'Back to brand';
+  }
+  container?.querySelectorAll('.aircon-type-card').forEach(card => {
+    card.classList.remove('selected');
+    card.setAttribute('aria-pressed', 'false');
+  });
+  BookingState.selectedAirconType = null;
+  BookingState.applianceType = '';
+  BookingState.applianceTypeName = '';
+  BookingState.selectedHps = [];
+  BookingState.configurationStep = 2;
+  updateCombinedPrice();
+  clearModalError();
+  notifyServiceConfigurationStep(2);
+  const body = document.querySelector('#quantitySelectionModal .modal-body');
+  if (body?.scrollTo) body.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => document.getElementById('cfgTypeHeading')?.focus({ preventScroll: true }), 180);
 }
 
 /**
@@ -5820,9 +6031,27 @@ function showBrandSection(service) {
       } else {
         BookingState.selectedBrand = select.value;
       }
+      syncConfigurationPrimaryAction();
+      if (select.value && select.value !== '__other__' && advanceFromBrandSelection()) return;
+      notifyServiceConfigurationStep(1, false);
     });
     if (custom) {
-      custom.addEventListener('input', () => { BookingState.selectedBrand = custom.value; clearModalError(); });
+      custom.addEventListener('input', () => {
+        BookingState.selectedBrand = custom.value;
+        clearModalError();
+        notifyServiceConfigurationStep(1, false);
+        syncConfigurationPrimaryAction();
+      });
+      const finishCustomBrand = () => {
+        BookingState.selectedBrand = custom.value.trim();
+        if (BookingState.selectedBrand) advanceFromBrandSelection();
+      };
+      custom.addEventListener('blur', finishCustomBrand);
+      custom.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        finishCustomBrand();
+      });
     }
   }
 }
@@ -5847,6 +6076,18 @@ function renderHpOptionsForType(airconType, container) {
   if (hpSectionDiv) {
     hpSectionDiv.classList.remove('d-none');
   }
+  const typeSection = container.querySelector('#airconTypeSection');
+  if (typeSection) typeSection.classList.add('d-none');
+  const selectedTypeName = container.querySelector('#cfgSelectedTypeName');
+  if (selectedTypeName) selectedTypeName.textContent = airconType.name;
+  const backButton = document.getElementById('cfgBackToType');
+  if (backButton) {
+    backButton.classList.remove('d-none');
+    backButton.style.setProperty('display', 'inline-flex', 'important');
+    const label = backButton.querySelector('span');
+    if (label) label.textContent = 'Back to aircon type';
+  }
+  BookingState.configurationStep = 3;
 
   // Get HP container
   const hpContainer = container.querySelector('#hpOptionsForType');
@@ -5865,8 +6106,10 @@ function renderHpOptionsForType(airconType, container) {
     hpContainer.appendChild(hpCard);
   });
 
-  // Scroll to HP section
-  hpSectionDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  notifyServiceConfigurationStep(3, false);
+  const body = document.querySelector('#quantitySelectionModal .modal-body');
+  if (body?.scrollTo) body.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => document.getElementById('cfgHpHeading')?.focus({ preventScroll: true }), 180);
 
 }
 
@@ -6059,6 +6302,8 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
 
     // Update price immediately
     updateCombinedPrice();
+    notifyServiceConfigurationStep(3, isAirconConfigurationComplete());
+    syncConfigurationPrimaryAction();
   });
 
   // Quantity controls with animation
@@ -6576,17 +6821,10 @@ function showEnterpriseModal(modalElement) {
     modalFooter.style.cssText = `
       position: relative !important;
       z-index: 100003 !important;
-      background: linear-gradient(to bottom, #ffffff, #f8fafc) !important;
-      border-top: 1px solid #e5e7eb !important;
-      padding: 1.5rem !important;
       pointer-events: auto !important;
-      display: flex !important;
       visibility: visible !important;
       opacity: 1 !important;
-      justify-content: flex-end !important;
-      gap: 0.75rem !important;
       flex-shrink: 0 !important;
-      border-radius: 0 0 16px 16px !important;
     `;
 
     const footerButtons = modalFooter.querySelectorAll('button');
@@ -6758,6 +6996,9 @@ function showEnterpriseModal(modalElement) {
           color: #374151 !important;
           transition: all 0.2s ease !important;
         `;
+        if (btn.id === 'cfgBackToType' && btn.classList.contains('d-none')) {
+          btn.style.setProperty('display', 'none', 'important');
+        }
       }
     });
   } else {
@@ -6773,8 +7014,6 @@ function showEnterpriseModal(modalElement) {
       overflow-y: auto !important;
       overflow-x: hidden !important;
       flex-grow: 1 !important;
-      padding: 1.5rem !important;
-      max-height: calc(90vh - 200px) !important;
       scrollbar-width: thin !important;
       scrollbar-color: #e5e7eb #f8fafc !important;
     `;
@@ -7733,7 +7972,7 @@ function updateCombinedPrice() {
 
 
     } else {
-      priceText = '₱0';
+      priceText = '—';
     }
   } else {
 
@@ -7747,27 +7986,20 @@ function updateCombinedPrice() {
   // Update price display
   DOM.quantityModalEstimatedPrice.textContent = priceText;
 
-  // Enable/disable confirm button based on selection
-  const confirmBtn = DOM.confirmQuantitySelection;
+  const confirmBtn = document.getElementById('confirmQuantitySelection');
   if (confirmBtn) {
     if (isAirconService) {
-      const shouldDisable = !BookingState.selectedHps || BookingState.selectedHps.length === 0;
-      // AGGRESSIVE FIX: Don't disable the button, just show error on click instead
-      // This ensures the button is always clickable
-      confirmBtn.disabled = false; // Always enable for aircon services
-      confirmBtn.dataset.requiresHp = shouldDisable ? 'true' : 'false'; // Mark if HP is required
+      confirmBtn.dataset.requiresHp = BookingState.selectedHps?.length ? 'false' : 'true';
+      syncConfigurationPrimaryAction();
     } else {
       const quantity = parseInt(DOM.quantityModalInput?.value || 0);
       confirmBtn.disabled = quantity < 1 || quantity > MAX_BOOKING_UNITS;
       confirmBtn.dataset.requiresHp = 'false';
     }
-
-    // AGGRESSIVE FIX: Ensure button is visible and clickable
     confirmBtn.style.pointerEvents = 'auto';
     confirmBtn.style.zIndex = '100004';
     confirmBtn.style.position = 'relative';
     confirmBtn.style.visibility = 'visible';
-    confirmBtn.style.opacity = '1';
   }
 }
 
@@ -7917,6 +8149,13 @@ function confirmQuantitySelection() {
       return;
     }
 
+    if (hasAirconTypes && !BookingState.selectedAirconType) {
+      showModalError('Select an aircon type before continuing to the HP rating.');
+      document.getElementById('cfgTypeHeading')?.focus({ preventScroll: true });
+      resetProcessingFlag();
+      return;
+    }
+
     // AGGRESSIVE FIX: If selectedHps is empty, scan DOM for selected HPs
     if (!BookingState.selectedHps || BookingState.selectedHps.length === 0) {
 
@@ -7957,7 +8196,8 @@ function confirmQuantitySelection() {
 
     // Validate HP selections
     if (!BookingState.selectedHps || BookingState.selectedHps.length === 0) {
-      showError('Please select at least one HP rating');
+      showModalError('Select at least one HP rating before adding this service.');
+      document.getElementById('cfgHpHeading')?.focus({ preventScroll: true });
       resetProcessingFlag();
       return;
     }
@@ -8077,52 +8317,42 @@ function confirmQuantitySelection() {
   } catch (err) {
   }
 
-  // Close quantity modal IMMEDIATELY and forcefully using Bootstrap's API first if available
+  // Show success Swal FIRST, then close modal after user dismisses it
+  showSuccess(`${service.name} has been added to your booking`, 'Service Added').then(() => {
 
-  if (DOM.quantityModal) {
-    // Try to use Bootstrap's API to close it cleanly if initialized
-    try {
-      if (BookingState.ui.modals.quantity) {
-        BookingState.ui.modals.quantity.hide();
-      } else {
-        const bsModal = bootstrap.Modal.getInstance(DOM.quantityModal);
-        if (bsModal) {
-          bsModal.hide();
+    // Close quantity modal AFTER Swal is dismissed
+    if (DOM.quantityModal) {
+      try {
+        if (BookingState.ui.modals.quantity) {
+          BookingState.ui.modals.quantity.hide();
+        } else {
+          const bsModal = bootstrap.Modal.getInstance(DOM.quantityModal);
+          if (bsModal) {
+            bsModal.hide();
+          }
         }
-      }
-    } catch (e) {
+      } catch (e) {}
+
+      // Manual fallback to ensure it's hidden no matter what
+      setTimeout(() => {
+        DOM.quantityModal.style.display = 'none';
+        DOM.quantityModal.style.visibility = 'hidden';
+        DOM.quantityModal.style.opacity = '0';
+        DOM.quantityModal.classList.remove('show');
+        DOM.quantityModal.classList.add('hide');
+        DOM.quantityModal.removeAttribute('aria-modal');
+        DOM.quantityModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        resetModalForNextUse();
+      }, 150);
     }
 
-    // Manual fallback to ensure it's hidden no matter what
-    setTimeout(() => {
-      DOM.quantityModal.style.display = 'none';
-      DOM.quantityModal.style.visibility = 'hidden';
-      DOM.quantityModal.style.opacity = '0';
-      DOM.quantityModal.classList.remove('show');
-      DOM.quantityModal.classList.add('hide');
-
-      // Reset all important properties
-      DOM.quantityModal.removeAttribute('aria-modal');
-      DOM.quantityModal.setAttribute('aria-hidden', 'true');
-
-      // Clean up body styles
-      document.body.classList.remove('modal-open');
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-
-      // Remove all backdrops
-      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-
-
-      // Reset modal state after closing
-      resetModalForNextUse();
-    }, 150);
-  }
-
-  showSuccess(`${service.name} has been added to your booking`, 'Service Added');
-
-  // Reset processing flag after completion
-  resetProcessingFlag();
+    // Reset processing flag after completion
+    resetProcessingFlag();
+  });
 }
 
 /**
@@ -10309,12 +10539,12 @@ function displayTotalFee() {
 
 /**
  * Initialize Payment Step (Step 7)
- * Set up payment method selection and form handling
+ * Set up payment-option selection and form handling
  */
 function initializePaymentStep() {
   console.log('💳 Initializing payment step...');
 
-  // Get payment method buttons
+  // Get payment-option buttons
   const paymentTabs = document.querySelectorAll('.payment-tab, .ent-payment-tab');
   const gcashFields = document.getElementById('gcashFields');
   const cashFields = document.getElementById('cashFields');
@@ -10325,36 +10555,36 @@ function initializePaymentStep() {
     return;
   }
 
-  // Payment method selection
+  // Bind once even when the customer returns to this step. The page-level
+  // selector is the single source of truth for the visual state and booking
+  // value (`gcash` or legacy-safe `cod`).
   paymentTabs.forEach(tab => {
+    if (tab.dataset.paymentOptionBound === 'true') return;
+    tab.dataset.paymentOptionBound = 'true';
     tab.addEventListener('click', function () {
       const method = this.dataset.method;
-      console.log(`💳 Payment method selected: ${method}`);
-
-      // Update active state
-      paymentTabs.forEach(t => t.setAttribute('aria-pressed', 'false'));
-      this.setAttribute('aria-pressed', 'true');
-
-      // Show/hide payment forms
-      if (gcashFields) gcashFields.classList.add('d-none');
-      if (cashFields) cashFields.classList.add('d-none');
-
-      if (method === 'gcash' && gcashFields) {
-        gcashFields.classList.remove('d-none');
-        BookingState.paymentMethod = 'gcash';
-      } else if (method === 'cash' && cashFields) {
-        cashFields.classList.remove('d-none');
-        BookingState.paymentMethod = 'cod';
+      console.log(`💳 Payment option selected: ${method}`);
+      if (typeof window.selectPaymentMethod === 'function') {
+        window.selectPaymentMethod(method);
       }
-
-      // Update GCash/Cash amount displays
-      updatePaymentAmounts();
     });
   });
 
   // Confirm booking button
-  if (confirmBookingBtn) {
+  if (confirmBookingBtn && confirmBookingBtn.dataset.paymentSubmitBound !== 'true') {
+    confirmBookingBtn.dataset.paymentSubmitBound = 'true';
     confirmBookingBtn.addEventListener('click', handleBookingSubmission);
+  }
+
+  if (BookingState.paymentMethod && typeof window.selectPaymentMethod === 'function') {
+    window.selectPaymentMethod(BookingState.paymentMethod);
+  } else {
+    if (gcashFields) gcashFields.classList.add('d-none');
+    if (cashFields) cashFields.classList.add('d-none');
+    paymentTabs.forEach(tab => {
+      tab.classList.remove('active');
+      tab.setAttribute('aria-pressed', 'false');
+    });
   }
 
   // Populate every payment amount as soon as the step is opened, including
@@ -10396,8 +10626,22 @@ function updatePaymentAmounts() {
       cashBreakdown.style.display = 'block';
     }
   }
-  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via GCash now to secure your schedule, then pay the remaining balance after the service.`;
+  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via GCash now to secure your schedule. Settle the remaining balance at service completion using an accepted on-site payment method.`;
   if (cashDownLabel) cashDownLabel.textContent = `Downpayment now (${BookingState.downpaymentPercentage || 10}%)`;
+}
+
+function isValidPhilippineMobile(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return /^(?:09\d{9}|639\d{9})$/.test(digits);
+}
+
+function paymentProofValidationMessage(file) {
+  if (!file) return 'Upload the GCash receipt before continuing.';
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(file.type || '').toLowerCase())) {
+    return 'The GCash receipt must be a JPG, PNG, or WEBP image.';
+  }
+  if (file.size > 5 * 1024 * 1024) return 'The GCash receipt must be 5 MB or smaller.';
+  return '';
 }
 
 /**
@@ -10619,29 +10863,33 @@ function validateBookingData() {
     return { valid: false, error: 'Please select a time slot' };
   }
 
-  // Check payment method
-  if (!BookingState.paymentMethod) {
-    return { valid: false, error: 'Please select a payment method' };
+  // Check the payment plan stored in the existing legacy-safe field.
+  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
+    return { valid: false, error: 'Please select a payment option' };
   }
 
   // Validate payment fields
   if (BookingState.paymentMethod === 'gcash') {
-    const gcashNumber = document.getElementById('gcashNumber')?.value;
+    const gcashNumber = document.getElementById('gcashNumber')?.value?.trim();
     const gcashProof = document.getElementById('gcashProof')?.files[0];
 
-    if (!gcashNumber || !gcashProof) {
-      return { valid: false, error: 'Please fill in all GCash payment fields (number and receipt)' };
+    if (!String(window.adminGcashNumber || '').trim()) {
+      return { valid: false, error: 'Online payment is not configured. Please contact the store before continuing.' };
     }
+    if (!isValidPhilippineMobile(gcashNumber)) {
+      return { valid: false, error: 'Enter the Philippine mobile number used to send the GCash payment.' };
+    }
+    const proofError = paymentProofValidationMessage(gcashProof);
+    if (proofError) return { valid: false, error: proofError };
   } else if (BookingState.paymentMethod === 'cod') {
-    const cashNumber = document.getElementById('cashNumber')?.value;
+    const cashNumber = document.getElementById('cashNumber')?.value?.trim();
     const cashProof = document.getElementById('cashProof')?.files[0];
 
-    if (!cashNumber) {
-      return { valid: false, error: 'Please enter your mobile number for cash payment' };
+    if (!isValidPhilippineMobile(cashNumber)) {
+      return { valid: false, error: 'Enter your mobile number for the downpayment.' };
     }
-    if (!cashProof) {
-      return { valid: false, error: 'Please upload your downpayment receipt to confirm your booking' };
-    }
+    const proofError = paymentProofValidationMessage(cashProof);
+    if (proofError) return { valid: false, error: proofError };
   }
 
   return { valid: true };
@@ -10892,7 +11140,11 @@ function showBookingSuccessModal(result) {
 
   if (time) time.textContent = BookingState.selectedTimeSlot?.label || 'Time';
   if (location) location.textContent = BookingState.customerLocation?.address || 'Location';
-  if (paymentMethod) paymentMethod.textContent = BookingState.paymentMethod === 'gcash' ? 'GCash' : 'Cash on Delivery';
+  if (paymentMethod) {
+    paymentMethod.textContent = BookingState.paymentMethod === 'gcash'
+      ? 'Current amount paid in full via GCash'
+      : `${BookingState.downpaymentPercentage || 10}% GCash downpayment; balance due at completion`;
+  }
 
   // Show payment breakdown
   const totalFee = BookingState.totalFee || 0;

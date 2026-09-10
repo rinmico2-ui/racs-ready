@@ -3,179 +3,207 @@ const axios = require('axios');
 const router = express.Router();
 
 /**
- * Geocoding Routes - Backend proxy for OpenStreetMap Nominatim API
- * Solves CORS issues by proxying requests through our backend
- * Includes caching and rate limiting to prevent 429 errors
+ * Backend proxy for the OpenStreetMap Nominatim API.
+ * Requests are cached, deduplicated, and serialized to comply with the
+ * provider's one-request-per-second public usage limit.
  */
 
-// Simple in-memory cache to reduce API calls
 const geocodeCache = new Map();
-const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+const inFlightRequests = new Map();
+const CACHE_DURATION = 1000 * 60 * 60;
+const MAX_CACHE_ENTRIES = 1000;
 
-// Rate limiting
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 1000; // 1 second between requests
+const MIN_REQUEST_INTERVAL = 1100;
+const NOMINATIM_BASE_URL = String(
+  process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org'
+).replace(/\/+$/, '');
+let nextProviderRequestAt = 0;
+let providerBlockedUntil = 0;
+let providerQueue = Promise.resolve();
 
-/**
- * Wait to respect rate limits
- */
-async function respectRateLimit() {
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
-  
-  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
-    const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-    console.log(`⏳ Rate limiting: waiting ${waitTime}ms`);
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-  }
-  
-  lastRequestTime = Date.now();
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * GET /api/geocoding/search
- * Search for addresses using Nominatim API
- * Query params: q (search query), limit (max results)
- */
+function retryDelay(error) {
+  const raw = error?.response?.headers?.['retry-after'];
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds)) return Math.max(2000, seconds * 1000);
+
+    const retryDate = Date.parse(raw);
+    if (Number.isFinite(retryDate)) return Math.max(2000, retryDate - Date.now());
+  }
+  return 3000;
+}
+
+function enqueueProviderRequest(task) {
+  const queued = providerQueue.then(async () => {
+    const waitTime = Math.max(
+      0,
+      nextProviderRequestAt - Date.now(),
+      providerBlockedUntil - Date.now()
+    );
+    if (waitTime > 0) {
+      console.log(`Geocoding queue: waiting ${waitTime}ms`);
+      await wait(waitTime);
+    }
+
+    nextProviderRequestAt = Date.now() + MIN_REQUEST_INTERVAL;
+    return task();
+  });
+
+  // A failed request must not leave the queue permanently rejected.
+  providerQueue = queued.catch(() => undefined);
+  return queued;
+}
+
+async function requestNominatim(path, params) {
+  return enqueueProviderRequest(async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) {
+        const waitTime = Math.max(
+          0,
+          nextProviderRequestAt - Date.now(),
+          providerBlockedUntil - Date.now()
+        );
+        if (waitTime > 0) await wait(waitTime);
+        nextProviderRequestAt = Date.now() + MIN_REQUEST_INTERVAL;
+      }
+
+      try {
+        return await axios.get(`${NOMINATIM_BASE_URL}/${path}`, {
+          params,
+          headers: {
+            'User-Agent': process.env.NOMINATIM_USER_AGENT || 'RACS-Ready-Booking-System/1.0',
+            Accept: 'application/json'
+          },
+          timeout: 10000
+        });
+      } catch (error) {
+        if (error?.response?.status !== 429) throw error;
+
+        const delay = retryDelay(error);
+        providerBlockedUntil = Math.max(providerBlockedUntil, Date.now() + delay);
+        if (attempt === 1) throw error;
+        console.warn(`Geocoding provider throttled the request; retrying in ${delay}ms`);
+      }
+    }
+  });
+}
+
+function getCached(cacheKey) {
+  const cached = geocodeCache.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp >= CACHE_DURATION) {
+    geocodeCache.delete(cacheKey);
+    return null;
+  }
+  return cached.data;
+}
+
+function setCached(cacheKey, data) {
+  if (geocodeCache.size >= MAX_CACHE_ENTRIES) {
+    geocodeCache.delete(geocodeCache.keys().next().value);
+  }
+  geocodeCache.set(cacheKey, { data, timestamp: Date.now() });
+}
+
+function cachedProviderRequest(cacheKey, path, params) {
+  const cached = getCached(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  const existing = inFlightRequests.get(cacheKey);
+  if (existing) return existing;
+
+  const request = requestNominatim(path, params)
+    .then(response => {
+      setCached(cacheKey, response.data);
+      return response.data;
+    })
+    .finally(() => inFlightRequests.delete(cacheKey));
+
+  inFlightRequests.set(cacheKey, request);
+  return request;
+}
+
+function sendGeocodingError(res, error, action) {
+  console.error(`${action} error:`, error.message);
+
+  if (error.response?.status === 429) {
+    const retryAfter = retryDelay(error);
+    res.set('Retry-After', String(Math.ceil(retryAfter / 1000)));
+    return res.status(429).json({
+      error: 'Too many requests. Please wait a moment and try again.',
+      retryAfter
+    });
+  }
+
+  return res.status(500).json({
+    error: `Failed to ${action.toLowerCase()}`,
+    details: 'The geocoding provider is unavailable'
+  });
+}
+
 router.get('/search', async (req, res) => {
   try {
     const { q, limit = 5 } = req.query;
-    
-    if (!q || q.trim().length === 0) {
+    if (typeof q !== 'string' || !q.trim()) {
       return res.status(400).json({ error: 'Search query is required' });
     }
-    
-    // Create cache key
-    const cacheKey = `search:${q}:${limit}`;
-    
-    // Check cache first
-    const cached = geocodeCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-      console.log(`💾 Cache hit for "${q}"`);
-      return res.json(cached.data);
-    }
-    
-    console.log(`🔍 Geocoding search: "${q}" (limit: ${limit})`);
-    
-    // Respect rate limits
-    await respectRateLimit();
-    
-    // Make request to Nominatim with axios
-    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
-      params: {
-        format: 'json',
-        q: q,
-        limit: limit,
-        addressdetails: '1',
-        countrycodes: 'ph' // Limit to Philippines
-      },
-      headers: {
-        'User-Agent': 'RACS-Ready-Booking-System/1.0' // Required by Nominatim
-      },
-      timeout: 10000 // 10 second timeout
+
+    const safeLimit = Math.min(10, Math.max(1, Number.parseInt(limit, 10) || 5));
+    const normalizedQuery = q.trim().replace(/\s+/g, ' ');
+    const cacheKey = `search:${normalizedQuery.toLowerCase()}:${safeLimit}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const data = await cachedProviderRequest(cacheKey, 'search', {
+      format: 'json',
+      q: normalizedQuery,
+      limit: safeLimit,
+      addressdetails: '1',
+      countrycodes: 'ph'
     });
-    
-    const data = response.data;
-    console.log(`✅ Found ${data.length} results for "${q}"`);
-    
-    // Cache the result
-    geocodeCache.set(cacheKey, {
-      data: data,
-      timestamp: Date.now()
-    });
-    
-    // Return results
-    res.json(data);
-    
+
+    return res.json(data);
   } catch (error) {
-    console.error('❌ Geocoding search error:', error.message);
-    
-    // Handle rate limiting specifically
-    if (error.response && error.response.status === 429) {
-      return res.status(429).json({ 
-        error: 'Too many requests. Please wait a moment and try again.',
-        retryAfter: 2000
-      });
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to search addresses',
-      details: "The geocoding provider is unavailable"
-    });
+    return sendGeocodingError(res, error, 'Search addresses');
   }
 });
 
-/**
- * GET /api/geocoding/reverse
- * Reverse geocode coordinates to address
- * Query params: lat, lon
- */
 router.get('/reverse', async (req, res) => {
   try {
     const { lat, lon } = req.query;
-    
-    if (!lat || !lon) {
+    if (lat === undefined || lon === undefined) {
       return res.status(400).json({ error: 'Latitude and longitude are required' });
     }
-    
-    // Create cache key (round to 4 decimal places for better cache hits)
-    const roundedLat = parseFloat(lat).toFixed(4);
-    const roundedLon = parseFloat(lon).toFixed(4);
+
+    const parsedLat = Number.parseFloat(lat);
+    const parsedLon = Number.parseFloat(lon);
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon) ||
+        parsedLat < -90 || parsedLat > 90 || parsedLon < -180 || parsedLon > 180) {
+      return res.status(400).json({ error: 'Valid latitude and longitude are required' });
+    }
+
+    // Four decimals is approximately 11 metres and greatly improves cache hits
+    // when GPS readings jitter around the same service location.
+    const roundedLat = parsedLat.toFixed(4);
+    const roundedLon = parsedLon.toFixed(4);
     const cacheKey = `reverse:${roundedLat}:${roundedLon}`;
-    
-    // Check cache first
-    const cached = geocodeCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-      console.log(`� Cache hit for reverse geocode ${roundedLat}, ${roundedLon}`);
-      return res.json(cached.data);
-    }
-    
-    console.log(`�🔍 Reverse geocoding: ${lat}, ${lon}`);
-    
-    // Respect rate limits
-    await respectRateLimit();
-    
-    // Make request to Nominatim with axios
-    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
-      params: {
-        format: 'json',
-        lat: lat,
-        lon: lon,
-        addressdetails: '1'
-      },
-      headers: {
-        'User-Agent': 'RACS-Ready-Booking-System/1.0'
-      },
-      timeout: 10000 // 10 second timeout
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
+    const data = await cachedProviderRequest(cacheKey, 'reverse', {
+      format: 'json',
+      lat: roundedLat,
+      lon: roundedLon,
+      addressdetails: '1'
     });
-    
-    const data = response.data;
-    console.log(`✅ Reverse geocoded to: ${data.display_name}`);
-    
-    // Cache the result
-    geocodeCache.set(cacheKey, {
-      data: data,
-      timestamp: Date.now()
-    });
-    
-    // Return result
-    res.json(data);
-    
+
+    return res.json(data);
   } catch (error) {
-    console.error('❌ Reverse geocoding error:', error.message);
-    
-    // Handle rate limiting specifically
-    if (error.response && error.response.status === 429) {
-      return res.status(429).json({ 
-        error: 'Too many requests. Please wait a moment and try again.',
-        retryAfter: 2000
-      });
-    }
-    
-    res.status(500).json({ 
-      error: 'Failed to reverse geocode',
-      details: "The geocoding provider is unavailable"
-    });
+    return sendGeocodingError(res, error, 'Reverse geocode');
   }
 });
 

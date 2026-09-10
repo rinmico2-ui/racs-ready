@@ -22,6 +22,18 @@ function imageMimeFromSignature(buffer) {
   return null;
 }
 
+function hasValidImageDataUrl(value, maxBytes = 5 * 1024 * 1024) {
+  const match = String(value || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=\r\n]+)$/i);
+  if (!match) return false;
+  try {
+    const buffer = Buffer.from(match[2].replace(/\s/g, ""), "base64");
+    if (!buffer.length || buffer.length > maxBytes) return false;
+    return imageMimeFromSignature(buffer) === match[1].toLowerCase();
+  } catch (_) {
+    return false;
+  }
+}
+
 async function hasValidStoredImageSignature(file) {
   if (!file?.path || !isAllowedImage(file)) return false;
   const handle = await fs.promises.open(file.path, "r");
@@ -37,6 +49,7 @@ async function hasValidStoredImageSignature(file) {
 
 module.exports = {
   IMAGE_EXTENSIONS,
+  hasValidImageDataUrl,
   hasValidStoredImageSignature,
   imageExtensionFor,
   imageMimeFromSignature,

@@ -2935,7 +2935,7 @@
   }
 
   function paymentMethodLabel(method) {
-    var labels = {cod:'Cash on Delivery',cash:'Cash',cash_onsite:'Cash On-site',gcash:'GCash',gcash_full:'GCash Full Payment',gcash_downpayment:'GCash Downpayment',paymongo:'PayMongo',downpayment:'Downpayment',other:'Other'};
+    var labels = {cod:'GCash reservation downpayment + balance at handover',cash:'Cash',cash_onsite:'Cash at store pickup',gcash:'GCash',gcash_full:'Full payment via GCash',gcash_downpayment:'GCash Downpayment',paymongo:'PayMongo',downpayment:'Downpayment',other:'Other'};
     return labels[method] || String(method || 'Not specified').replace(/_/g, ' ');
   }
 
@@ -3489,6 +3489,10 @@
         var confirmation=await Swal.fire({title:'Go En Route?',text:'Confirm that you are leaving for the customer location.',icon:'question',showCancelButton:true,confirmButtonText:'Mark En Route'});
         if(!confirmation.isConfirmed) return;
       }
+      const requiresFinalCollection = status === 'completed'
+        && ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod)
+        && !['paid','verified','remitted','waiting_for_remittance'].includes(order.paymentStatus);
+      if(requiresFinalCollection && !(await collectOrderPayment(id))) return;
       const res = await fetch('/api/orders/'+id+'/status', {
         method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:status,note:'Status updated to '+SCFG[status].label,...evidence})
@@ -3505,20 +3509,20 @@
       }
       if(!res.ok) throw new Error(data.error || "Failed to update status");
       await Swal.fire({title:status==='completed'?'Work Completed':'Status Updated',text:'Order is now '+SCFG[status].label+'.',icon:'success',timer:1800,showConfirmButton:false});
-      if(status === 'completed' && ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod) && !['paid','verified','remitted'].includes(order.paymentStatus)) await collectOrderPayment(id);
       fetchOrders();
-    } catch(e) { Swal.fire("Error",e.message,"error"); }
+    } catch(e) { fetchOrders(); Swal.fire("Error",e.message,"error"); }
   };
 
   async function collectOrderPayment(id) {
     var order=_orders.find(o=>String(o._id)===String(id))||{};
     const amountDue=Number(order.balanceAmount||order.total||0);
     const result=await Swal.fire({title:'Collect Payment',html:`<div class="text-start"><label class="form-label">Amount Due</label><input id="opAmount" type="number" class="form-control mb-2" value="${amountDue}" max="${amountDue}"><label class="form-label">Payment Method</label><select id="opMethod" class="form-select mb-2"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="bank">Bank Transfer</option></select><label class="form-label">Reference Number</label><input id="opRef" class="form-control mb-2" placeholder="Required for GCash / Bank"><label class="form-label">Receipt Screenshot</label><input id="opProof" type="file" accept="image/*" class="form-control mb-2"><label class="form-label">Customer Signature</label><input id="opSignature" class="form-control" placeholder="Customer full name" required></div>`,showCancelButton:true,confirmButtonText:'Record Collection',preConfirm:async()=>{const method=document.getElementById('opMethod').value,reference=document.getElementById('opRef').value.trim(),customerSignature=document.getElementById('opSignature').value.trim(),file=document.getElementById('opProof').files[0];if(!customerSignature||((method==='gcash'||method==='bank')&&(!reference||!file))){Swal.showValidationMessage('Signature and required transfer evidence are missing.');return false;}const proofUrl=file?await new Promise((ok,bad)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=bad;f.readAsDataURL(file);}):null;return {amount:Number(document.getElementById('opAmount').value),method,reference,proofUrl,customerSignature};}});
-    if(!result.isConfirmed) return;
+    if(!result.isConfirmed) return false;
     const location=await new Promise(ok=>{if(!navigator.geolocation)return ok(null);navigator.geolocation.getCurrentPosition(p=>ok({lat:p.coords.latitude,lng:p.coords.longitude,accuracy:p.coords.accuracy}),()=>ok(null),{timeout:5000});});
     const r=await fetch('/api/orders/'+id+'/collect-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...result.value,location})});
     const d=await r.json();if(!r.ok)throw new Error(d.error||'Failed to record payment');
     await Swal.fire({title:'Payment Collected',text:'Waiting for admin remittance verification.',icon:'success'});
+    return true;
   }
 
   // Delegated click handlers — card list (view order)

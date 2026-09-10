@@ -6,7 +6,7 @@ const {
   trustedOriginsFor,
 } = require("../middleware/apiSecurity");
 const { isAccountEnabled } = require("../middleware/accountState");
-const { imageExtensionFor, imageMimeFromSignature, isAllowedImage } = require("../utils/uploadSecurity");
+const { hasValidImageDataUrl, imageExtensionFor, imageMimeFromSignature, isAllowedImage } = require("../utils/uploadSecurity");
 const { escapeRegex } = require("../utils/stringSecurity");
 
 function request({ method = "POST", origin, fetchSite, host = "app.example.test" } = {}) {
@@ -98,6 +98,13 @@ test("payment proof signatures must match a supported raster image", () => {
   assert.equal(imageMimeFromSignature(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "image/png");
   assert.equal(imageMimeFromSignature(Buffer.from("RIFF0000WEBP", "ascii")), "image/webp");
   assert.equal(imageMimeFromSignature(Buffer.from("<script>alert(1)</script>")), null);
+});
+
+test("base64 payment proofs require a matching raster signature", () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64");
+  assert.equal(hasValidImageDataUrl(`data:image/png;base64,${png}`), true);
+  assert.equal(hasValidImageDataUrl(`data:image/jpeg;base64,${png}`), false);
+  assert.equal(hasValidImageDataUrl("data:image/svg+xml;base64,PHN2Zz4="), false);
 });
 
 test("regex input is escaped and bounded", () => {

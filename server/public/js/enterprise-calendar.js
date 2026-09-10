@@ -538,10 +538,19 @@ const EnterpriseCalendar = (() => {
 
     section.classList.remove('d-none');
 
+    // Auto-scroll to time slots so customer notices them
+    setTimeout(() => {
+      section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+
     // Build the enterprise time-slot section shell
     const dateLabel = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     container.innerHTML = `
-      <div class="ent-time-section">
+      <div class="ent-cal-guidance-banner">
+        <i class="bi bi-arrow-down-circle"></i>
+        <span>Date selected! Now choose your preferred time slot below</span>
+      </div>
+      <div class="ent-time-section ent-time-section-pulse">
         <div class="ent-time-header">
           <h6><i class="bi bi-clock"></i>Select Preferred Time</h6>
           <span class="ent-time-date">${dateLabel}</span>

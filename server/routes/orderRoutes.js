@@ -35,6 +35,7 @@ const {
 const {
   OrderCheckoutError,
   authoritativeDeliveryQuote,
+  normalizeGcashSenderNumber,
   initialOrderLifecycle,
   parseDateOnly,
   validateCheckoutItems,
@@ -420,8 +421,11 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       throw new OrderCheckoutError("The uploaded receipt is not a valid JPG, PNG, or WEBP image.", 400, "ORDER_PAYMENT_PROOF_INVALID");
     }
     if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && !req.file) {
-      throw new OrderCheckoutError("A GCash receipt screenshot is required for this payment method.", 400, "ORDER_PAYMENT_PROOF_REQUIRED");
+      throw new OrderCheckoutError("A GCash receipt screenshot is required for this payment option.", 400, "ORDER_PAYMENT_PROOF_REQUIRED");
     }
+    const normalizedGcashNumber = ["cod", "gcash_full"].includes(paymentMethod)
+      ? normalizeGcashSenderNumber(gcashNumber)
+      : null;
     const requestedItems = validateCheckoutItems(items);
 
     const [settings, downpaymentPercentage] = await Promise.all([
@@ -568,7 +572,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         },
       } : { pickupDate: selection.pickupDate }),
     };
-    if (gcashNumber) orderData.gcashNumber = String(gcashNumber).trim().slice(0, 100);
+    if (normalizedGcashNumber) orderData.gcashNumber = normalizedGcashNumber;
     if (req.file) orderData.gcashProofUrl = `/uploads/gcash-receipts/${req.file.filename}`;
 
     const calculatedOrderTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0)
@@ -1489,12 +1493,18 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
     const tech = await Technician.findOne({ user: req.user._id });
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (!tech || String(order.technicianId) !== String(tech._id)) return res.status(403).json({ error: "Order is not assigned to you" });
-    if (order.status !== "completed") return res.status(400).json({ error: "Complete the order before collecting payment." });
+    if (!["arrived", "installing", "completed"].includes(order.status)) {
+      return res.status(400).json({ error: "Payment can only be collected at customer handover." });
+    }
+    if (["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid"].includes(order.paymentStatus)) {
+      return res.status(409).json({ error: "This order already has a completed or pending final collection." });
+    }
     const { amount, method = "cash", reference, proofUrl, customerSignature, notes, location } = req.body || {};
     const paymentMethod = String(method).toLowerCase();
     const value = Number(amount);
     if (!["cash", "gcash", "bank"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method." });
-    if (!Number.isFinite(value) || value <= 0 || value > Number(order.total || 0)) return res.status(400).json({ error: "Invalid amount collected." });
+    const amountDue = Number(order.balanceAmount || order.total || 0);
+    if (!Number.isFinite(value) || value <= 0 || value > amountDue) return res.status(400).json({ error: "Invalid amount collected." });
     if (!customerSignature) return res.status(400).json({ error: "Customer signature is required." });
     if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
     const now = new Date();

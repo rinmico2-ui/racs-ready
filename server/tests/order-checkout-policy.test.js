@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   authoritativeDeliveryQuote,
   initialOrderLifecycle,
+  normalizeGcashSenderNumber,
   parseDateOnly,
   validateCheckoutItems,
   validateCheckoutSelection,
@@ -106,4 +107,10 @@ test("delivery quote ignores client claims and uses the routing result", async (
 test("cash-on-site pickup begins preparation without falsely recording payment", () => {
   assert.deepEqual(initialOrderLifecycle("customer_pickup", "cash_onsite"), { status: "preparing_unit", paymentStatus: "pending" });
   assert.deepEqual(initialOrderLifecycle("delivery_installation", "cod"), { status: "pending_payment", paymentStatus: "pending" });
+});
+
+test("GCash sender numbers are normalized independently from delivery contact", () => {
+  assert.equal(normalizeGcashSenderNumber("0917 123 4567"), "09171234567");
+  assert.equal(normalizeGcashSenderNumber("+63 917 123 4567"), "09171234567");
+  assert.throws(() => normalizeGcashSenderNumber("02 8123 4567"), /Philippine mobile number/i);
 });

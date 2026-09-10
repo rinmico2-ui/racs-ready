@@ -275,7 +275,9 @@ async function sendBookingConfirmationEmail({
   const feeDisplay = estimatedFee
     ? `₱${Number(estimatedFee).toFixed(2)}`
     : "To be confirmed";
-  const payLabel = paymentMethod === "gcash" ? "GCash" : "Cash on Delivery";
+  const payLabel = paymentMethod === "gcash"
+    ? "Full payment via GCash"
+    : "Reservation downpayment via GCash; balance at service completion";
   const durationHr =
     serviceDuration >= 60
       ? `${Math.floor(serviceDuration / 60)}h${serviceDuration % 60 ? ` ${serviceDuration % 60}m` : ""}`
@@ -762,7 +764,11 @@ async function sendRepairRequestSubmittedEmail({
   const safeWorkOrder = String(workOrderNumber || '').trim() || 'N/A';
   const safeName = String(customerName || 'Customer').trim();
   const safeUnit = [brand, model, unitType].filter(Boolean).join(' ') || 'N/A';
-  const payLabel = paymentMethod === 'gcash' ? 'GCash' : paymentMethod === 'cash' ? 'Cash on Delivery' : paymentMethod || 'N/A';
+  const payLabel = paymentMethod === 'gcash'
+    ? 'Full payment via GCash'
+    : ['cash', 'cod'].includes(paymentMethod)
+      ? 'Reservation downpayment via GCash; balance at service completion'
+      : paymentMethod || 'N/A';
   const issueRow = problemDescription ? `<tr class="detail-row"><td>Issue</td><td>${problemDescription}</td></tr>` : '';
   const scheduleRows = preferredDateLabel ? `<tr class="detail-row"><td>Preferred Date</td><td>${preferredDateLabel}</td></tr>
       ${preferredTime ? `<tr class="detail-row"><td>Preferred Time</td><td>${preferredTime}</td></tr>` : ''}` : '';

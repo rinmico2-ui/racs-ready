@@ -1029,8 +1029,8 @@
         <!-- STEP 3 — Payment Option -->
         <div class="wizard-panel" id="wizardStep3">
           <div class="text-center mb-4">
-            <h5 class="fw-bolder mb-2" style="color: #0f172a; letter-spacing:-0.5px;">Choose Payment Method</h5>
-            <p class="text-secondary fw-medium small">Select how you want to pay for this order.</p>
+            <h5 class="fw-bolder mb-2" style="color: #0f172a; letter-spacing:-0.5px;">Choose Payment Option</h5>
+            <p class="text-secondary fw-medium small">Choose when to pay and which amount is due now.</p>
           </div>
           
           <div class="row g-3 px-md-3" id="paymentOptionsContainer">
@@ -1062,7 +1062,12 @@
                 <div class="form-text">GCash number: <strong id="gcashNumberDisplayWizard">Not configured</strong></div>
               </div>
 
-              <!-- Receipt Upload -->
+              <!-- Sender and receipt evidence -->
+              <div class="mb-3">
+                <label class="form-label text-muted fw-bold">GCash Sender Number <span class="text-danger">*</span></label>
+                <input id="wizardGcashSenderNumber" class="form-control" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXXX" />
+                <div class="form-text">Enter the number used to send this payment.</div>
+              </div>
               <div class="mb-3">
                 <label class="form-label text-muted fw-bold">Receipt Screenshot <span class="text-danger">*</span></label>
                 <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required />
@@ -1084,7 +1089,7 @@
                   <span class="fw-bold text-primary fs-5" id="gcashAmountDisplayWizard">&mdash;</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-1" id="gcashBalanceRowWizard">
-                  <span class="text-muted small">Balance due on delivery/pickup</span>
+                  <span class="text-muted small" id="wizardGcashBalanceLabel">Balance due at handover</span>
                   <span class="fw-semibold text-success" id="gcashBalanceDisplayWizard">&mdash;</span>
                 </div>
               </div>
@@ -1279,7 +1284,7 @@
     const stepTitles = {
       1: '<i class="bi bi-truck me-2"></i>Choose how to receive your order',
       2: '<i class="bi bi-calendar-check me-2"></i>Schedule and contact details',
-      3: '<i class="bi bi-credit-card me-2"></i>Choose Payment Method',
+      3: '<i class="bi bi-credit-card me-2"></i>Choose Payment Option',
       4: '<i class="bi bi-receipt me-2"></i>Review & Confirm Order'
     };
 
@@ -1510,13 +1515,32 @@
         if (!paymentMethod) {
           return {
             step: 3,
-            title: 'Choose a Payment Method',
-            message: 'Select how you want to pay before reviewing the order.',
+            title: 'Choose a Payment Option',
+            message: 'Select whether to pay in full now or reserve with a downpayment.',
             confirmButtonText: 'Choose Payment',
             focusSelector: '.payment-method-card'
           };
         }
         if (paymentMethod === 'gcash_full' || paymentMethod === 'cod') {
+          if (!String(window.adminGcashNumber || '').trim()) {
+            return {
+              step: 3,
+              title: 'GCash Is Not Configured',
+              message: 'Online payment is temporarily unavailable. Please contact the store before placing this order.',
+              confirmButtonText: 'Review Payment',
+              focusSelector: '#paymentOptionsContainer'
+            };
+          }
+          const senderDigits = String(document.getElementById('wizardGcashSenderNumber')?.value || '').replace(/\D/g, '');
+          if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
+            return {
+              step: 3,
+              title: 'Enter the GCash Sender Number',
+              message: 'Enter the Philippine mobile number used to send this payment.',
+              confirmButtonText: 'Enter Sender Number',
+              focusSelector: '#wizardGcashSenderNumber'
+            };
+          }
           const receiptMessage = receiptValidationMessage(document.getElementById('gcashProofWizard')?.files[0]);
           if (receiptMessage) {
             return {
@@ -1681,10 +1705,14 @@
           const labelEl = document.getElementById('wizardGcashLabel');
           if (labelEl) labelEl.textContent = method === 'cod' ? `Downpayment due now (${percentage}%)` : 'Full payment due now';
         }
-        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? 'GCash Downpayment' : 'GCash Full Payment';
+        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? 'Reservation Downpayment via GCash' : 'Full Payment via GCash';
         document.getElementById('gcashTotalDisplayWizard').textContent = '₱' + grandTotal.toLocaleString();
         document.getElementById('gcashBalanceDisplayWizard').textContent = '₱' + balance.toLocaleString();
         document.getElementById('gcashBalanceRowWizard').style.display = method === 'cod' ? 'flex' : 'none';
+        const balanceLabel = document.getElementById('wizardGcashBalanceLabel');
+        if (balanceLabel) balanceLabel.textContent = selectedFulfillment === 'customer_pickup'
+          ? 'Balance due at store pickup'
+          : 'Balance due at installation handover';
         // Show proof warning if no file uploaded yet
         const proofInput = document.getElementById('gcashProofWizard');
         const warning = document.getElementById('gcashProofWarning');
@@ -1775,17 +1803,17 @@
             <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
               <i class="bi bi-phone fs-3"></i>
             </div>
-            <div class="fw-bolder fs-6 mb-1 text-dark">GCash (Full Payment)</div>
-            <div class="small text-muted">Pay full amount via GCash.</div>
+            <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
+            <div class="small text-muted">Pay the complete order amount through GCash.</div>
           </div>
         </div>
         <div class="col-md-6">
           <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
             <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
-              <i class="bi bi-truck fs-3"></i>
+              <i class="bi bi-wallet2 fs-3"></i>
             </div>
-            <div class="fw-bolder fs-6 mb-1 text-dark">Cash on Delivery</div>
-            <div class="small text-muted">Pay ${window.downpaymentPercentage || 10}% via GCash now, then pay the balance on delivery or pickup.</div>
+            <div class="fw-bolder fs-6 mb-1 text-dark">Reserve with Downpayment</div>
+            <div class="small text-muted">Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</div>
           </div>
         </div>
       `;
@@ -1798,8 +1826,8 @@
                 <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a;">
                   <i class="bi bi-cash-stack fs-3"></i>
                 </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Cash On-Site</div>
-                <div class="small text-muted">Pay full amount at our store during pickup.</div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Pay at Store Pickup</div>
+                <div class="small text-muted">Pay the complete amount in cash when collecting the order.</div>
               </div>
             </div>
             <div class="col-md-6">
@@ -1807,8 +1835,8 @@
                 <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
                   <i class="bi bi-phone fs-3"></i>
                 </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">GCash (Full Payment)</div>
-                <div class="small text-muted">Pay full amount via GCash.</div>
+                <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
+                <div class="small text-muted">Pay the complete order amount through GCash before pickup.</div>
               </div>
             </div>
          `;
@@ -1949,15 +1977,11 @@
       
       const payMethod = document.getElementById('wizardPaymentMethod').value;
       const payLabels = {
-        cash_onsite:  '💵 Cash On-Site (Pay upon visit)',
-        cash:         '💵 Cash on Delivery (Full amount)',
-        downpayment:  `💰 Downpayment — ${window.downpaymentPercentage || 10}% via GCash, balance on delivery`,
-        gcash_full:   '📱 GCash — Full payment now',
-        cod:          `🚚 Cash on Delivery — ${window.downpaymentPercentage || 10}% down via GCash, balance on delivery`
+        cash_onsite:  '💵 Pay in cash at store pickup',
+        gcash_full:   '📱 Full payment now via GCash',
+        cod:          `💳 Reserve with ${window.downpaymentPercentage || 10}% GCash downpayment; balance at installation handover`
       };
       details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
-
-      document.getElementById('reviewDetails').innerHTML = details.map(d => `<div class="review-row py-1"><span class="review-label small">${escapeCheckoutHtml(d.label)}</span><span class="review-value small">${escapeCheckoutHtml(d.value)}</span></div>`).join('');
 
       // Fallback: if SUB_TOTAL is 0 (API didn't compute it), derive from items
       let effectiveTotal = SUB_TOTAL;
@@ -1989,6 +2013,17 @@
         document.getElementById('reviewInstallRow').style.display = 'none';
       }
       const total = effectiveTotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+      const percentage = window.downpaymentPercentage || 10;
+      const dueNow = payMethod === 'cash_onsite' ? 0 : (payMethod === 'cod' ? Math.round(total * percentage / 100) : total);
+      const dueLater = Math.max(0, total - dueNow);
+      details.push({ label: 'Due now', value: `₱${dueNow.toLocaleString()}` });
+      if (dueLater > 0) {
+        details.push({
+          label: payMethod === 'cash_onsite' ? 'Due at store pickup' : 'Due at installation handover',
+          value: `₱${dueLater.toLocaleString()}`
+        });
+      }
+      document.getElementById('reviewDetails').innerHTML = details.map(d => `<div class="review-row py-1"><span class="review-label small">${escapeCheckoutHtml(d.label)}</span><span class="review-value small">${escapeCheckoutHtml(d.value)}</span></div>`).join('');
       document.getElementById('reviewTotal').textContent = `₱${total.toLocaleString()}`;
     }
 
@@ -2255,7 +2290,7 @@
         quantity: it.quantity
       }));
 
-      const payMethod = document.getElementById('wizardPaymentMethod').value || 'cash';
+      const payMethod = document.getElementById('wizardPaymentMethod').value;
       const needsGcashProof = payMethod === 'gcash_full' || payMethod === 'cod';
 
       // Build delivery / pickup data
@@ -2290,7 +2325,7 @@
       }
 
       if (needsGcashProof) {
-        fd.append('gcashNumber', document.getElementById('wizardContact')?.value || USER_PHONE);
+        fd.append('gcashNumber', document.getElementById('wizardGcashSenderNumber')?.value.trim() || '');
         const proofFile = document.getElementById('gcashProofWizard')?.files[0];
         if (proofFile) fd.append('gcashProof', proofFile);
       }

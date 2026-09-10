@@ -749,7 +749,9 @@ const bookingSchema = new mongoose.Schema({
     default: {}
   },
 
-  // payment information
+  // Legacy payment-plan field. `cod` means a GCash reservation downpayment
+  // followed by balance collection at completion; Payment.method records the
+  // actual channel used for each transaction.
   paymentMethod: { type: String, enum: ["cod", "gcash", "other"], default: "cod" },
 
   // downpayment / proof information (customer-submitted when booking)
@@ -1035,12 +1037,12 @@ bookingSchema.virtual("serviceDescription").get(function () {
 
 // validation: ensure cash/GCash fields are present depending on method
 bookingSchema.pre("validate", function () {
-  // require downpayment when using cash (cod)
+  // require a downpayment for the legacy `cod` reservation plan
   if (this.paymentMethod === "cod") {
     if (!this.downpaymentAmount || this.downpaymentAmount <= 0) {
       this.invalidate(
         "downpaymentAmount",
-        "Downpayment amount is required for cash bookings",
+        "Downpayment amount is required for reservation bookings",
       );
     }
     // Reference number is no longer required for cash bookings

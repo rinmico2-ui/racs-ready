@@ -607,7 +607,7 @@
       const dp = Number(b.downpaymentAmount || Math.round(total * (Number(b.downpaymentPercentage) || 10) / 100));
       const amountPaid = Number(b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
       const balance = Number(b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0));
-      const methodName = pm === 'cod' ? 'Cash on Delivery' : pm === 'gcash' ? 'GCash' : pm.toUpperCase();
+      const methodName = pm === 'cod' ? 'GCash downpayment + balance at completion' : pm === 'gcash' ? 'Full payment via GCash' : pm.toUpperCase();
   
       let breakdown = '';
       if (pm === 'cod' && total > 0) {

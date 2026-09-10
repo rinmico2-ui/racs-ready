@@ -47,6 +47,17 @@ function normalizeCoordinates(value) {
   return { lat, lng };
 }
 
+function normalizeGcashSenderNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (/^09\d{9}$/.test(digits)) return digits;
+  if (/^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`;
+  throw new OrderCheckoutError(
+    "Enter the Philippine mobile number used to send the GCash payment.",
+    400,
+    "ORDER_GCASH_SENDER_INVALID",
+  );
+}
+
 function validateCheckoutItems(items) {
   if (!Array.isArray(items) || items.length < 1 || items.length > MAX_CHECKOUT_LINE_ITEMS) {
     throw new OrderCheckoutError(`Add between 1 and ${MAX_CHECKOUT_LINE_ITEMS} products before checkout.`, 400, "ORDER_ITEMS_INVALID");
@@ -111,7 +122,7 @@ function validateCheckoutSelection(input, { storeHours, now = new Date() } = {})
 
   const allowedPayments = fulfillmentType === "customer_pickup" ? PICKUP_PAYMENT_METHODS : DELIVERY_PAYMENT_METHODS;
   if (!allowedPayments.has(paymentMethod)) {
-    throw new OrderCheckoutError("Choose a payment method available for this fulfillment option.", 400, "ORDER_PAYMENT_METHOD_INVALID");
+    throw new OrderCheckoutError("Choose a payment option available for this fulfillment type.", 400, "ORDER_PAYMENT_METHOD_INVALID");
   }
 
   if (fulfillmentType === "customer_pickup") {
@@ -223,6 +234,7 @@ module.exports = {
   initialOrderLifecycle,
   validateCheckoutItems,
   normalizeStoreHours,
+  normalizeGcashSenderNumber,
   parseDateOnly,
   validateCheckoutSelection,
   validatePickupDate,

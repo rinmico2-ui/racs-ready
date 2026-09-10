@@ -14,6 +14,7 @@ const audit = require('../utils/audit');
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
+const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -63,7 +64,8 @@ router.post('/create-new', async (req, res) => {
       maintenanceScheduleId
     } = req.body;
 
-    // Convert 'cash' to 'cod' for the booking schema
+    // Keep legacy `cod` storage compatibility. It represents the reservation
+    // plan (GCash downpayment + balance at completion), not the transfer channel.
     const bookingPaymentMethod = paymentMethod === 'cash' ? 'cod' : paymentMethod;
 
     console.log('Services type:', typeof services);
@@ -111,8 +113,16 @@ router.post('/create-new', async (req, res) => {
       return res.status(400).json({ error: 'Date and start time are required' });
     }
     
-    if (!paymentMethod) {
-      return res.status(400).json({ error: 'Payment method is required' });
+    if (!['gcash', 'cod'].includes(bookingPaymentMethod)) {
+      return res.status(400).json({ error: 'Choose a supported payment option.' });
+    }
+    const senderDigits = String(gcashNumber || '').replace(/\D/g, '');
+    if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
+      return res.status(400).json({ error: 'Enter the Philippine mobile number used for the GCash payment.' });
+    }
+    const normalizedGcashNumber = senderDigits.startsWith('63') ? `0${senderDigits.slice(2)}` : senderDigits;
+    if (!hasValidImageDataUrl(proofImageBase64)) {
+      return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP GCash receipt no larger than 5 MB.' });
     }
     
     // ========================================
@@ -438,7 +448,7 @@ router.post('/create-new', async (req, res) => {
       paymentMethod: bookingPaymentMethod,
       paymentStatus: 'pending',
       paymentReference: null,
-      gcashNumber: gcashNumber || null,
+      gcashNumber: normalizedGcashNumber,
       downpaymentPercentage: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentPercentage : 100,
       downpaymentAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal,
       balanceAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.balanceAmount : 0,
@@ -457,7 +467,7 @@ router.post('/create-new', async (req, res) => {
       } : undefined,
       
       // Legacy payment fields
-      gateway: paymentMethod,
+      gateway: 'gcash',
       
       // Timestamps
       createdAt: new Date(),
@@ -562,8 +572,8 @@ router.post('/create-new', async (req, res) => {
         method: paymentSchemaMethod,
         type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'final',
         gateway: paymentSchemaMethod,
-        reference: paymentReference || gcashNumber || null,
-        notes: paymentNotes || gcashNumber || '',
+        reference: paymentReference || normalizedGcashNumber,
+        notes: paymentNotes || `GCash sender: ${normalizedGcashNumber}`,
         status: 'pending',
         proofUrl: proofImageBase64 || null
       });

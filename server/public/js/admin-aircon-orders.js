@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", function () {
     technician_declined: "Technician Declined", arrived: "Arrived", installing: "Installing", completed: "Completed", cancelled: "Cancelled"
   };
   const FULFILL_LABELS = { delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" };
-  const PAYMENT_METHOD_LABELS = { cod: "Cash on Delivery", cash_onsite: "Cash On-Site", gcash_full: "GCash Full", gcash_downpayment: "GCash Downpayment", cash: "Cash", downpayment: "Downpayment (50%)" };
+  const PAYMENT_METHOD_LABELS = { cod: "GCash reservation downpayment + balance at handover", cash_onsite: "Cash at store pickup", gcash_full: "Full payment via GCash", gcash_downpayment: "GCash Downpayment", cash: "Cash", downpayment: "Downpayment" };
   const LIMIT = 25;
 
   // ═══ HELPERS ═════════════════════════════════════════════════════════════════

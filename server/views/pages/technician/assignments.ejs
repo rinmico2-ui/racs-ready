@@ -714,26 +714,6 @@
           <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiGrossProfit"></canvas></div>
         </div>
       </div>
-      <div class="col-6 col-md-4 col-xl" style="animation: mwFadeInUp 0.5s ease-out 0.38s both;">
-        <div class="kpi-enterprise" data-accent="purple">
-          <div class="kpi-enterprise-top">
-            <div class="kpi-enterprise-icon purple"><i class="bi bi-wallet2"></i></div>
-            <span class="kpi-enterprise-badge purple">Expenses</span>
-          </div>
-          <div class="kpi-enterprise-body">
-            <p class="kpi-enterprise-label">Total Expenses</p>
-            <div class="kpi-enterprise-value" id="kpiExpenses">&#8369;0</div>
-          </div>
-          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiExpenses"></canvas></div>
-        </div>
-      </div>
-      <div class="col-6 col-md-4 col-xl" style="animation: mwFadeInUp 0.5s ease-out 0.4s both;">
-        <div class="kpi-enterprise" data-accent="blue">
-          <div class="kpi-enterprise-top"><div class="kpi-enterprise-icon blue"><i class="bi bi-bank"></i></div><span class="kpi-enterprise-badge blue">After expenses</span></div>
-          <div class="kpi-enterprise-body"><p class="kpi-enterprise-label">Net Profit</p><div class="kpi-enterprise-value" id="kpiNetProfit">&#8369;0</div></div>
-          <div class="kpi-enterprise-sparkline"><canvas id="spark_kpiNetProfit"></canvas></div>
-        </div>
-      </div>
     </div>
 
     <!-- Calendar View (hidden by default) — Enterprise paginated schedule -->
@@ -13593,7 +13573,7 @@ function preparationEscapeHtml(value) {
       kpiLoading = true;
 
       // Show loading shimmer
-      ['kpiTotal', 'kpiCompleted', 'kpiPending', 'kpiToday', 'kpiRevenue', 'kpiPartsCost', 'kpiExpenses', 'kpiGrossProfit', 'kpiNetProfit', 'kpiCompletionRate'].forEach(id => {
+      ['kpiTotal', 'kpiCompleted', 'kpiPending', 'kpiToday', 'kpiRevenue', 'kpiPartsCost', 'kpiGrossProfit', 'kpiCompletionRate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.opacity = '0.4';
       });
@@ -13615,9 +13595,7 @@ function preparationEscapeHtml(value) {
         animateKpiValue(document.getElementById('kpiToday'), kpi.today, '');
         animateKpiValue(document.getElementById('kpiRevenue'), kpi.revenue, '\u20B1');
         animateKpiValue(document.getElementById('kpiPartsCost'), kpi.partsCost || 0, '\u20B1');
-        animateKpiValue(document.getElementById('kpiExpenses'), kpi.expenses || 0, '\u20B1');
         animateKpiValue(document.getElementById('kpiGrossProfit'), kpi.grossProfit || 0, '\u20B1');
-        animateKpiValue(document.getElementById('kpiNetProfit'), kpi.netProfit || 0, '\u20B1');
         setKpiText('kpiCompletionRate', kpi.completionRate + '%');
 
         // Update hero stats with animated counters
@@ -13626,10 +13604,10 @@ function preparationEscapeHtml(value) {
         animateHeroStat('heroToday', kpi.today || 0);
         // Update Today button badge
         if (window._updateTodayBadge) window._updateTodayBadge(kpi.today || 0);
-        // Hero uses bottom-line profit after parts COGS and operating expenses.
+        // Hero uses gross profit (revenue - parts cost).
         const heroProfit = document.getElementById('heroProfit');
         if (heroProfit) {
-          const gp = kpi.netProfit || 0;
+          const gp = kpi.grossProfit || 0;
           const absVal = Math.abs(gp);
           const formatted = absVal >= 1000 ? (absVal / 1000).toFixed(1) + 'K' : absVal.toLocaleString();
           heroProfit.textContent = gp >= 0 ? '\u20B1' + formatted : '-\u20B1' + formatted;
@@ -13661,9 +13639,7 @@ function preparationEscapeHtml(value) {
           h.renderSparkline('spark_kpiToday', [kpi.today, kpi.today + 1, kpi.today, kpi.today + 1, kpi.today], '#ef4444');
           h.renderSparkline('spark_kpiRevenue', [kpi.revenue * 0.8, kpi.revenue * 0.9, kpi.revenue, kpi.revenue * 0.95, kpi.revenue], '#0891b2');
           h.renderSparkline('spark_kpiPartsCost', [kpi.partsCost * 0.8, kpi.partsCost * 0.9, kpi.partsCost, kpi.partsCost * 0.95, kpi.partsCost], '#ef4444');
-          h.renderSparkline('spark_kpiExpenses', [kpi.expenses * 0.8, kpi.expenses * 0.9, kpi.expenses, kpi.expenses * 0.95, kpi.expenses], '#8b5cf6');
           h.renderSparkline('spark_kpiGrossProfit', [kpi.grossProfit * 0.8, kpi.grossProfit * 0.9, kpi.grossProfit, kpi.grossProfit * 0.95, kpi.grossProfit], '#10b981');
-          h.renderSparkline('spark_kpiNetProfit', [kpi.netProfit * 0.8, kpi.netProfit * 0.9, kpi.netProfit, kpi.netProfit * 0.95, kpi.netProfit], '#2563eb');
           h.renderSparkline('spark_kpiCompletionRate', [kpi.completionRate, Math.min(100, kpi.completionRate + 5), kpi.completionRate, Math.min(100, kpi.completionRate + 3), kpi.completionRate], '#8b5cf6');
         }
       } catch (e) {
@@ -13703,7 +13679,7 @@ function preparationEscapeHtml(value) {
           setKpiText('kpiRevenue', '\u20B1' + revenue.toLocaleString(undefined, { maximumFractionDigits: 0 }));
           setKpiText('kpiCompletionRate', total > 0 ? Math.round((completed / total) * 100) + '%' : '0%');
         }
-        ['kpiTotal', 'kpiCompleted', 'kpiPending', 'kpiToday', 'kpiRevenue', 'kpiPartsCost', 'kpiExpenses', 'kpiGrossProfit', 'kpiNetProfit', 'kpiCompletionRate'].forEach(id => {
+      ['kpiTotal', 'kpiCompleted', 'kpiPending', 'kpiToday', 'kpiRevenue', 'kpiPartsCost', 'kpiGrossProfit', 'kpiCompletionRate'].forEach(id => {
           const el = document.getElementById(id);
           if (el) el.style.opacity = '1';
         });
@@ -16015,7 +15991,7 @@ function preparationEscapeHtml(value) {
     document.getElementById('inspPayAddress').textContent = address ? (address.length > 50 ? address.substring(0, 50) + '...' : address) : '—';
 
     // Show booking payment method
-    const methodLabels = { cod: 'Cash on Delivery', cash: 'Cash', cash_onsite: 'Cash On-Site', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer' };
+    const methodLabels = { cod: 'GCash downpayment + balance at completion', cash: 'Cash', cash_onsite: 'Cash at store pickup', gcash: 'Full payment via GCash', maya: 'Maya', bank_transfer: 'Bank Transfer' };
     document.getElementById('inspPayBookingMethod').textContent = methodLabels[paymentMethod] || paymentMethod;
 
     // Show findings summary

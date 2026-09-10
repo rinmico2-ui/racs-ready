@@ -541,7 +541,7 @@
     }
 
     return allExpensesArr.filter(e => {
-      if (e.status === "rejected") return false;
+      if (e.status !== "approved") return false;
       if (cutoff && expenseDate(e) < cutoff) return false;
       return true;
     });

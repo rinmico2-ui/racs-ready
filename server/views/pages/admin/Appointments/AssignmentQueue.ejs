@@ -551,7 +551,7 @@
           <div class="aq-detail-item"><i class="bi bi-clock"></i> ${formatTime(b.startTime)}</div>
           <div class="aq-detail-item"><i class="bi bi-geo-alt"></i> ${(b.location?.address || 'No address').substring(0, 30)}</div>
           <div class="aq-detail-item"><i class="bi bi-cash"></i> ₱${Number(b.totalPrice || b.estimatedFee || 0).toLocaleString()}</div>
-          <div class="aq-detail-item"><i class="bi bi-credit-card"></i> ${(b.paymentMethod || 'cod').toUpperCase()}</div>
+          <div class="aq-detail-item"><i class="bi bi-credit-card"></i> ${b.paymentMethod === 'gcash' ? 'Full GCash payment' : 'GCash downpayment + balance'}</div>
           <div class="aq-detail-item"><i class="bi bi-person"></i> ${b.technician?.name || 'Unassigned'}</div>
           ${reassignCount > 0 ? `<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned ${reassignCount} time${reassignCount > 1 ? 's' : ''}</div>` : ''}
         </div>
@@ -1240,7 +1240,7 @@
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-credit-card"></i></div><h3 class="pm-card-title">Payment Information</h3></div>
             <div class="pm-card-body">
-              <div class="pm-row"><span class="pm-lbl">Payment Method</span><span class="pm-val">${(b.paymentMethod || 'cod').toUpperCase()}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Payment Option</span><span class="pm-val">${b.paymentMethod === 'gcash' ? 'Full GCash payment' : 'GCash downpayment + balance at completion'}</span></div>
               <div class="pm-row"><span class="pm-lbl">Payment Status</span><span class="pm-val">${b.paymentStatus === 'paid' ? '<i class="bi bi-check-circle text-success me-1"></i>Paid' : b.paymentStatus === 'partial' ? '<i class="bi bi-clock text-warning me-1"></i>Partial' : '<i class="bi bi-wallet text-info me-1"></i>Pending'}</span></div>
               ${b.paymentMethod === 'cod' ? `
               ${downpayment > 0 ? `<div class="pm-row"><span class="pm-lbl">Downpayment</span><span class="pm-val">₱${downpayment.toLocaleString()}</span></div>` : ''}

@@ -1929,10 +1929,11 @@ router.get(
           .limit(500)
           .lean();
 
-        // Fetch all expenses for this technician (last 12 months)
+        // Fetch approved expenses for this technician (last 12 months)
         allExpenses = await Expense.find({
           technicianId: { $in: objectIds },
-          expenseDate: { $gte: twelveMonthsAgo }
+          expenseDate: { $gte: twelveMonthsAgo },
+          status: "approved"
         })
           .select("amount type status expenseDate description bookingId")
           .sort({ expenseDate: -1 })

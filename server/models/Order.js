@@ -263,6 +263,8 @@ const orderSchema = new mongoose.Schema(
       ref: "Payment",
       default: null,
     },
+    // Legacy option code: `cod` is a reservation plan funded by a GCash
+    // downpayment, while individual Payment records retain the real channel.
     paymentMethod: {
       type: String,
       enum: ["cod", "gcash", "paymongo", "other", "cash_onsite", "gcash_full", "gcash_downpayment", "cash", "downpayment"],

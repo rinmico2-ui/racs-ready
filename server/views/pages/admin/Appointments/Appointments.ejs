@@ -1722,7 +1722,11 @@
         const paymentStatusText = appt.paymentStatus
           ? String(appt.paymentStatus).toUpperCase()
           : "PENDING";
-        const paymentMethodText = appt.paymentMethod || "—";
+        const paymentMethodText = appt.paymentMethod === "gcash"
+          ? "Full GCash payment"
+          : appt.paymentMethod === "cod"
+            ? "GCash downpayment + balance at completion"
+            : appt.paymentMethod || "—";
         const paymentReferenceText = appt.paymentReference || appt.bookingReference || appt.workOrderNumber || "—";
         const gcashNumberText = appt.gcashNumber || "—";
         const technicianText = appt.technicianName || appt.technician || "—";
@@ -1800,7 +1804,7 @@
             <div class="appts-detail-row"><span class="label">Customer Email</span><span class="value">${customerEmailText}</span></div>
             <div class="appts-detail-row"><span class="label">Customer Phone</span><span class="value">${customerPhoneText}</span></div>
             <div class="appts-detail-row"><span class="label">Payment Status</span><span class="value">${paymentStatusText}</span></div>
-            <div class="appts-detail-row"><span class="label">Payment Method</span><span class="value">${paymentMethodText}</span></div>
+            <div class="appts-detail-row"><span class="label">Payment Option</span><span class="value">${paymentMethodText}</span></div>
             <div class="appts-detail-row"><span class="label">GCash Number</span><span class="value">${gcashNumberText}</span></div>
             <div class="appts-detail-row"><span class="label">Reference #</span><span class="value">${paymentReferenceText}</span></div>
             <div class="appts-detail-row"><span class="label">Travel Fare</span><span class="value">${distanceFareText}</span></div>
