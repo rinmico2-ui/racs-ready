@@ -19,7 +19,8 @@ test("customer service feedback uses centered enterprise dialogs", () => {
   assert.match(servicesScript, /toast: false/);
   assert.match(servicesScript, /position: 'center'/);
   assert.match(servicesScript, /showConfirmButton: true/);
-  assert.match(servicesScript, /popup: 'service-booking-alert'/);
+  assert.match(servicesScript, /popup: popupClass \?/);
+  assert.match(servicesScript, /'service-booking-alert'/);
   assert.doesNotMatch(servicesScript, /toast: true/);
 });
 
@@ -27,7 +28,17 @@ test("service dialogs require deliberate acknowledgement", () => {
   assert.match(servicesScript, /allowOutsideClick: false/);
   assert.match(servicesScript, /confirmButtonText: 'Review Details'/);
   assert.match(servicesScript, /confirmButtonText: 'Continue'/);
-  assert.match(servicesView, /services-multi\.js\?v=20260910-brand-first-ui/);
+  assert.match(servicesView, /services-multi\.js\?v=20260912-payment-config-v1/);
+});
+
+test("service-added confirmation appears after the configurator closes", () => {
+  assert.match(servicesScript, /DOM\.quantityModal\.style\.display = 'none';[\s\S]*?showServiceAddedConfirmation\(service\.name\)/);
+  assert.match(servicesScript, /function showServiceAddedConfirmation\(serviceName\)/);
+  assert.match(servicesScript, /title: 'Added to Your Booking'/);
+  assert.match(servicesScript, /confirmButtonText: 'Continue booking'/);
+  assert.match(servicesScript, /popupClass: 'service-added-alert'/);
+  assert.match(servicesScript, /iconHtml: '<span class="service-added-check" aria-hidden="true">&#10003;<\/span>'/);
+  assert.match(servicesScript, /returnFocus: false/);
 });
 
 test("address lookup is user-triggered instead of API-backed autocomplete", () => {

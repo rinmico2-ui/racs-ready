@@ -358,7 +358,12 @@
     setTimeout(fetchNotifications, 1500);
 
     // Poll every 60s
-    setInterval(fetchNotifications, 60000);
+    setInterval(function() {
+      if (!document.hidden) fetchNotifications();
+    }, 60000);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) fetchNotifications();
+    });
 
     // Real-time: listen for new notifications via Socket.io
     if (window.socket) {

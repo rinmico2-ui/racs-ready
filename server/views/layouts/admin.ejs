@@ -1,9 +1,17 @@
   <!DOCTYPE html>
 <html lang="en">
   <head>
+    <%
+      const renderedPage = typeof body === 'string' ? body : '';
+      const pageUsesAos = /data-aos(?:=|\s|>)/i.test(renderedPage);
+      const pageUsesLeaflet = /leaflet|typeof\s+L\b|\bL\s*\./i.test(renderedPage);
+      const pageUsesPsgc = /(?:register|profile)-address(?:Province|City|Barangay|Postal)|id=["'](?:address)?(?:Province|City|Barangay|PostalCode)["']/i.test(renderedPage);
+      const pageUsesBookingCalendar = /enterprise-calendar|checkout-calendar|booking-policy/i.test(renderedPage);
+    %>
     <meta charset="UTF-8" />
     <title><%= title %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script src="/js/performance.js?v=20260911"></script>
 
     <!-- Bootstrap CSS -->
     <link
@@ -25,11 +33,13 @@
     <link rel="stylesheet" href="/css/sidebaradmin.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
     <link rel="stylesheet" href="/css/enterprise-alerts.css" />
-    <!-- AOS Animation (CDN) -->
+    <% if (pageUsesAos) { %>
+    <!-- AOS is only loaded for pages containing animation attributes. -->
     <link
       href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css"
       rel="stylesheet"
     />
+    <% } %>
     <style>
       /* ═══ GLOBAL HERO (au-hero) ═══ */
       .au-hero { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #2563eb 100%); border-radius: 20px; padding: 0; margin-bottom: 24px; color: #fff; position: relative; overflow: hidden; }
@@ -90,13 +100,16 @@
       .modal .ent-modal-footer .btn,
       .modal .modal-footer .btn { font-family: "Inter", sans-serif; font-weight: 600; border-radius: 8px; }
     </style>
-    <!-- Leaflet CSS/JS for technician maps (use jsdelivr, which is already permitted by CSP) -->
+    <% if (pageUsesLeaflet) { %>
+    <!-- Leaflet is only loaded for pages that render a map. -->
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.css"
     />
     <script src="https://cdn.jsdelivr.net/npm/leaflet/dist/leaflet.js"></script>
+    <% } %>
     <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="/css/performance.css?v=20260911" />
   </head>
   <body class="admin-layout">
     <div class="d-flex admin-root">
@@ -207,6 +220,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
+    <% if (pageUsesAos) { %>
     <!-- AOS Animation (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
     <script>
@@ -217,19 +231,20 @@
             duration: 800,
             easing: "ease-in-out",
             once: true,
+            disable: function () { return document.documentElement.classList.contains('perf-lite') || window.matchMedia('(max-width: 767px)').matches; },
           });
         }
       });
     </script>
+    <% } %>
 
-    <!-- GSAP for sidebar animations -->
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/enterprise-alerts.js"></script>
     <script src="/js/admin.js"></script>
-    <script src="/js/psgc-handler.js"></script>
+    <% if (pageUsesPsgc) { %><script src="/js/psgc-handler.js"></script><% } %>
 
     <!-- Fetch booking policy (minimum advance notice) for calendar components -->
+    <% if (pageUsesBookingCalendar) { %>
     <script>
       (function() {
         window.__bookingPolicy = { minAdvanceNoticeMinutes: 120 };
@@ -243,5 +258,6 @@
           .catch(function() {});
       })();
     </script>
+    <% } %>
   </body>
 </html>

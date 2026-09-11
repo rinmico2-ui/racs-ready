@@ -90,9 +90,19 @@ const EnterpriseCalendar = (() => {
     if (opts.resetSelection === true) {
       _selectedDate = null;
       _selectedSlot = null;
+      _selectedEndDate = null;
+    } else if (window.BookingState) {
+      const restoredDate = window.BookingState.selectedDate || window.BookingState.scheduleDate;
+      const parsedDate = restoredDate ? new Date(restoredDate) : null;
+      if (parsedDate && !Number.isNaN(parsedDate.getTime())) _selectedDate = parsedDate;
+      _selectedSlot = window.BookingState.selectedTimeSlot || null;
+
+      const restoredEndDate = window.BookingState.projectScheduling?.endDate;
+      const parsedEndDate = restoredEndDate ? new Date(restoredEndDate) : null;
+      if (parsedEndDate && !Number.isNaN(parsedEndDate.getTime())) _selectedEndDate = parsedEndDate;
     }
     if (typeof opts.nextStep === 'number') _nextStep = opts.nextStep;
-    _currentMonth = new Date();
+    _currentMonth = _selectedDate ? new Date(_selectedDate) : new Date();
     _currentMonth.setDate(1);
     _currentMonth.setHours(0, 0, 0, 0);
 
@@ -110,6 +120,7 @@ const EnterpriseCalendar = (() => {
     injectStyles();
     await loadData();
     render();
+    if (_mode === 'appointment' && _selectedDate) await loadTimeSlots(_selectedDate);
   }
 
   /**
@@ -743,6 +754,7 @@ const EnterpriseCalendar = (() => {
           window.BookingState.selectedTimeSlot = _selectedSlot;
           window.BookingState.selectedTime = _selectedSlot.label;
           window.BookingState.selectedDate = _selectedDate;
+          if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
         }
         // Sync with RepairState (if present)
         if (window.RepairState) {
@@ -1446,6 +1458,7 @@ const EnterpriseCalendar = (() => {
       window.BookingState.selectedDate = _selectedDate;
       window.BookingState.isProject = true;
       window.BookingState.projectScheduling = selection;
+      if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
     if (window.RepairState) {
       window.RepairState.preferredDate = _selectedDate;

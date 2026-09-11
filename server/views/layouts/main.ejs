@@ -1,10 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <% const lightweightPage = typeof lightweightPublicPage !== 'undefined' && lightweightPublicPage === true; %>
+    <%
+      const lightweightPage = typeof lightweightPublicPage !== 'undefined' && lightweightPublicPage === true;
+      const renderLandingChatbot = typeof showLandingChatbot !== 'undefined' && showLandingChatbot === true;
+      const renderedPage = typeof body === 'string' ? body : '';
+      const pageUsesAos = /data-aos(?:=|\s|>)/i.test(renderedPage);
+      const pageUsesLeaflet = /leaflet|typeof\s+L\b|\bL\s*\./i.test(renderedPage);
+      const pageUsesBookingCalendar = /enterprise-calendar|checkout-calendar/i.test(renderedPage);
+    %>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title><%= title %></title>
+    <script src="/js/performance.js?v=20260911"></script>
 
     <!-- Bootstrap CSS (CDN) -->
     <link
@@ -26,11 +34,13 @@
     />
     <link rel="stylesheet" href="/css/enterprise-alerts.css?v=20260906-modal-layering" />
 
-    <!-- AOS Animation (CDN) -->
+    <% if (pageUsesAos) { %>
+    <!-- AOS is only needed by pages containing scroll-animation elements. -->
     <link
       href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css"
       rel="stylesheet"
     />
+    <% } %>
     <% } %>
 
     <!-- Font - Using local Ubuntu font instead of Google Fonts -->
@@ -67,6 +77,7 @@
     <!-- custom fonts removed (using Google Fonts CDN) -->
     <link rel="stylesheet" href="/css/staffs.css" />
     <% } %>
+    <link rel="stylesheet" href="/css/performance.css?v=20260911" />
   </head>
   <body>
     <%- include('../partials/navbar') %>
@@ -83,14 +94,13 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/enterprise-alerts.js?v=20260906-modal-layering"></script>
 
-    <!-- Leaflet CSS -->
+    <% if (pageUsesLeaflet) { %>
+    <!-- Maps are expensive to parse; only map pages receive Leaflet. -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
 
     <!-- Leaflet JS -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- AOS Animation (CDN) -->
-    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
     <script>
       // Initialize Leaflet callback
       function initLeafletMap() {
@@ -105,21 +115,26 @@
     </script>
     <% } %>
 
+    <% if (pageUsesAos) { %>
+    <!-- AOS Animation (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <% } %>
+    <% } %>
+
     <!-- Navbar Active Link Script -->
     <script src="/js/navbar-active.js"></script>
-    <% if (!lightweightPage) { %>
-    <!-- GSAP animation library -->
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+    <% if (!lightweightPage && pageUsesAos) { %>
     <script src="/js/animations.js"></script>
-    <script src="/js/register.js"></script>
     <% } %>
     <script src="/js/cta.js"></script>
     <script src="/js/navbar-auth.js"></script>
 
-    <!-- AI Chatbot (site-wide) -->
+    <% if (renderLandingChatbot) { %>
+    <!-- AI Chatbot: intentionally available only on the landing page. -->
     <%- include('../partials/chatbot') %>
+    <% } %>
 
-    <% if (!lightweightPage) { %>
+    <% if (!lightweightPage && pageUsesBookingCalendar) { %>
     <!-- Fetch booking policy (minimum advance notice) for calendar components -->
     <script>
       (function() {

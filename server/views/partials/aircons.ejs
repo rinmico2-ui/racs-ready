@@ -1827,6 +1827,9 @@
         .then(r => r.json())
         .then(data => {
           const percentage = Number(data.downpaymentPercentage);
+          if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
+            window.adminGcashNumber = String(data.gcashNumber || '');
+          }
           if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
             window.downpaymentPercentage = percentage;
             const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;

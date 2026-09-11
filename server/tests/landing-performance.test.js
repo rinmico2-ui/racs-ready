@@ -38,6 +38,7 @@ function publicPageData() {
     businessHours: { summary: "Mon-Sat" },
     companyLocation: { lat: 15.5, lng: 121 },
     lightweightPublicPage: true,
+    showLandingChatbot: true,
   };
 }
 
@@ -69,6 +70,7 @@ test("lightweight landing layout omits unrelated global libraries", async () => 
   );
 
   assert.match(html, /optimized\/tech1-640\.jpg/);
+  assert.equal((html.match(/id="racbotToggle"/g) || []).length, 1);
   for (const unrelatedAsset of [
     "leaflet.js",
     "aos.js",

@@ -3,6 +3,7 @@ const SiteSetting = require("../models/SiteSetting");
 const DEFAULT_DOWNPAYMENT_PERCENTAGE = 10;
 const MIN_DOWNPAYMENT_PERCENTAGE = 1;
 const MAX_DOWNPAYMENT_PERCENTAGE = 100;
+const GCASH_RECIPIENT_SETTING_KEY = "gcashRecipientNumber";
 
 function normalizeDownpaymentPercentage(value, fallback = DEFAULT_DOWNPAYMENT_PERCENTAGE) {
   const parsed = Number(value);
@@ -35,11 +36,27 @@ async function getDownpaymentPercentage() {
   return normalizeDownpaymentPercentage(setting && setting.value);
 }
 
+function normalizeGcashRecipientNumber(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (/^09\d{9}$/.test(digits)) return digits;
+  if (/^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`;
+  return "";
+}
+
+async function getGcashRecipientNumber() {
+  const setting = await SiteSetting.findOne({ key: GCASH_RECIPIENT_SETTING_KEY }).lean();
+  if (setting) return normalizeGcashRecipientNumber(setting.value);
+  return normalizeGcashRecipientNumber(process.env.ADMIN_GCASH_NUMBER);
+}
+
 module.exports = {
   DEFAULT_DOWNPAYMENT_PERCENTAGE,
   MIN_DOWNPAYMENT_PERCENTAGE,
   MAX_DOWNPAYMENT_PERCENTAGE,
+  GCASH_RECIPIENT_SETTING_KEY,
   normalizeDownpaymentPercentage,
+  normalizeGcashRecipientNumber,
   calculatePaymentBreakdown,
   getDownpaymentPercentage,
+  getGcashRecipientNumber,
 };

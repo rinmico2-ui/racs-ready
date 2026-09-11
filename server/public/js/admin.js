@@ -1,7 +1,15 @@
 document.addEventListener("DOMContentLoaded", function () {
   // if AOS is included on the page, init/refresh so animations will run on admin views
   if (window.AOS && typeof AOS.init === "function") {
-    AOS.init({ duration: 800, easing: "ease-in-out", once: true });
+    AOS.init({
+      duration: 800,
+      easing: "ease-in-out",
+      once: true,
+      disable: function () {
+        return document.documentElement.classList.contains("perf-lite") ||
+          window.matchMedia("(max-width: 767px)").matches;
+      },
+    });
     if (typeof AOS.refresh === "function") AOS.refresh();
   }
 
@@ -281,8 +289,26 @@ document.addEventListener("DOMContentLoaded", function () {
     updateSidebarScrollState();
   }
   adjustAdminOffsets();
-  window.addEventListener('resize', adjustAdminOffsets);
-  window.addEventListener('scroll', adjustAdminOffsets);
+
+  // The navbar height does not change while the page scrolls. The old scroll
+  // listener synchronously read and wrote layout on every swipe frame, causing
+  // severe reflow/jank on mobile. Recalculate only when layout can change and
+  // coalesce resize bursts into one animation frame.
+  var offsetFrame = null;
+  function scheduleAdminOffsetUpdate() {
+    if (offsetFrame !== null) return;
+    offsetFrame = requestAnimationFrame(function () {
+      offsetFrame = null;
+      adjustAdminOffsets();
+    });
+  }
+  window.addEventListener('resize', scheduleAdminOffsetUpdate, { passive: true });
+
+  var observedNavbar = document.getElementById('adminNavbar');
+  if (observedNavbar && 'ResizeObserver' in window) {
+    var navbarResizeObserver = new ResizeObserver(scheduleAdminOffsetUpdate);
+    navbarResizeObserver.observe(observedNavbar);
+  }
 
   function updateSidebarScrollState() {
     if (!sidebar) return;

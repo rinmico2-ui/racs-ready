@@ -14,7 +14,7 @@
         Book a <span class="ent-gradient-text">Service</span>
       </h2>
       <p class="ent-hero-subtitle">
-        Professional air conditioning maintenance, installation &amp; servicing — scheduled at your convenience.
+        Tell us what you need and we’ll guide you through each step. Review everything clearly before you confirm.
       </p>
       <div class="ent-trust-badges">
         <span class="ent-trust-item"><i class="bi bi-shield-check"></i> Licensed &amp; Insured</span>
@@ -2361,8 +2361,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <% if (googleMapsApiKey) { %><script src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&libraries=places,geometry"></script><% } %>
 
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260826-shared-slot-logic';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260910-brand-first-ui':'/js/services.js?v=20260816-whole-peso-downpayment';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260911-booking-draft-v2';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260912-payment-config-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2740,6 +2740,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
     var bs=getBookingState();
     bs.paymentMethod=method;
+    if(typeof window.saveBookingProgress==='function') window.saveBookingProgress();
     document.querySelectorAll('.ent-payment-tab').forEach(function(t){
       t.classList.toggle('active',t.dataset.method===method);
       t.setAttribute('aria-pressed',t.dataset.method===method?'true':'false');
@@ -2955,3 +2956,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
 })();
 </script>
+
+<!-- Final touch-first overrides for this multi-step booking experience. -->
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260911-service-added-check">

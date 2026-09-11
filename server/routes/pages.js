@@ -63,6 +63,7 @@ router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
     businessHours,
     companyLocation,
     lightweightPublicPage: true,
+    showLandingChatbot: true,
   });
 });
 

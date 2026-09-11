@@ -5,6 +5,10 @@ document.addEventListener("DOMContentLoaded", function () {
       duration: 800, // smoother and slower animation
       easing: "ease-in-out",
       once: true, // animate only once per element
+      disable: function () {
+        return document.documentElement.classList.contains("perf-lite") ||
+          window.matchMedia("(max-width: 767px)").matches;
+      },
     });
   }
 

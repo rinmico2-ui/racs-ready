@@ -38,68 +38,223 @@ window.BookingState = BookingState;
 
 // ── localStorage persistence for booking progress ──
 const BOOKING_STORAGE_KEY = 'calidro_booking_progress';
+const BOOKING_STORAGE_VERSION = 2;
+const BOOKING_STORAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+let bookingProgressSaveTimer = null;
+
+function normalizeBookingStep(value, fallback = 1) {
+  const step = Number(value);
+  return Number.isInteger(step) && step >= 1 && step <= 6 ? step : fallback;
+}
+
+function serializeBookingDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function createPersistedServiceSnapshot(service) {
+  if (!service || typeof service !== 'object') return null;
+  // Keep drafts small and private. Uploads and payment evidence must be
+  // reselected and are never written to localStorage.
+  const { photos, proof, paymentProof, ...safeService } = service;
+  return safeService;
+}
+
+function bookingDraftHasProgress(data) {
+  return normalizeBookingStep(data?.currentStep, 1) > 1 ||
+    (Array.isArray(data?.selectedServices) && data.selectedServices.length > 0) ||
+    Boolean(data?.customerLocation || data?.location || data?.selectedDate || data?.selectedTimeSlot);
+}
 
 function saveBookingProgress() {
   try {
+    if (BookingState.draftPersistenceDisabled) return false;
+    const selectedServices = (BookingState.selectedServices || [])
+      .map(createPersistedServiceSnapshot)
+      .filter(Boolean);
     const data = {
-      selectedServices: BookingState.selectedServices || [],
+      version: BOOKING_STORAGE_VERSION,
+      selectedServices,
       totalEstimatedPrice: BookingState.totalEstimatedPrice,
       hasRepairServices: BookingState.hasRepairServices,
       selectedTechnicianId: BookingState.selectedTechnicianId,
+      selectedTechnician: BookingState.selectedTechnician || null,
       location: BookingState.location,
       customerLocation: BookingState.customerLocation,
       userCoordinates: BookingState.userCoordinates,
-      scheduleDate: BookingState.scheduleDate,
-      scheduleTime: BookingState.scheduleTime,
-      currentStep: BookingState.currentStep,
-      maxReachedStep: BookingState.maxReachedStep,
+      distance: BookingState.distance || null,
+      fare: BookingState.fare || null,
+      travelFare: BookingState.travelFare || null,
+      travelDuration: BookingState.travelDuration || null,
+      selectedDate: serializeBookingDate(BookingState.selectedDate || BookingState.scheduleDate),
+      selectedTimeSlot: BookingState.selectedTimeSlot || null,
+      selectedTime: BookingState.selectedTime || BookingState.scheduleTime || null,
+      projectScheduling: BookingState.projectScheduling || null,
+      isProject: BookingState.isProject === true,
+      paymentMethod: ['gcash', 'cod'].includes(BookingState.paymentMethod)
+        ? BookingState.paymentMethod
+        : null,
+      currentStep: normalizeBookingStep(BookingState.currentStep, 1),
+      maxReachedStep: normalizeBookingStep(BookingState.maxReachedStep, 1),
       savedAt: Date.now()
     };
+    if (!bookingDraftHasProgress(data)) return false;
     localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(data));
     console.log('💾 Booking progress saved');
+    return true;
   } catch(e) {
     console.warn('Failed to save booking progress:', e);
+    return false;
   }
 }
+
+function scheduleBookingProgressSave(delay = 120) {
+  clearTimeout(bookingProgressSaveTimer);
+  bookingProgressSaveTimer = setTimeout(saveBookingProgress, delay);
+}
+window.saveBookingProgress = saveBookingProgress;
+window.scheduleBookingProgressSave = scheduleBookingProgressSave;
 
 function restoreBookingProgress() {
   try {
     const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
-    // Expire after 24 hours
-    if (!data.savedAt || (Date.now() - data.savedAt > 24 * 60 * 60 * 1000)) {
+    // Expire abandoned or malformed drafts after 24 hours.
+    if (!data || typeof data !== 'object' || !data.savedAt || (Date.now() - data.savedAt > BOOKING_STORAGE_MAX_AGE_MS)) {
       localStorage.removeItem(BOOKING_STORAGE_KEY);
       return false;
     }
-    // Restore state
-    if (data.selectedServices && data.selectedServices.length > 0) {
-      BookingState.selectedServices = data.selectedServices;
-      BookingState.totalEstimatedPrice = data.totalEstimatedPrice || 0;
-      BookingState.hasRepairServices = data.hasRepairServices || false;
+    // A customer can have meaningful progress before adding a service (for
+    // example, after reaching the service-selection step).
+    if (bookingDraftHasProgress(data)) {
+      const restoredDate = data.selectedDate || data.scheduleDate;
+      const parsedDate = restoredDate ? new Date(restoredDate) : null;
+      BookingState.selectedServices = Array.isArray(data.selectedServices) ? data.selectedServices : [];
+      BookingState.totalEstimatedPrice = Number(data.totalEstimatedPrice) ||
+        BookingState.selectedServices.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
+      BookingState.hasRepairServices = Boolean(data.hasRepairServices);
       BookingState.selectedTechnicianId = data.selectedTechnicianId || null;
-      BookingState.location = data.location || null;
+      BookingState.selectedTechnician = data.selectedTechnician || null;
+      BookingState.location = data.location || data.customerLocation?.address || null;
       BookingState.customerLocation = data.customerLocation || null;
-      BookingState.userCoordinates = data.userCoordinates || null;
-      BookingState.scheduleDate = data.scheduleDate || null;
-      BookingState.scheduleTime = data.scheduleTime || null;
-      BookingState.maxReachedStep = data.maxReachedStep || 1;
+      BookingState.userCoordinates = data.userCoordinates || (data.customerLocation ? {
+        lat: Number(data.customerLocation.lat),
+        lng: Number(data.customerLocation.lng)
+      } : null);
+      BookingState.distance = Number(data.distance) || null;
+      BookingState.fare = Number(data.fare) || null;
+      BookingState.travelFare = Number(data.travelFare || data.fare) || null;
+      BookingState.travelDuration = Number(data.travelDuration) || null;
+      BookingState.selectedDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
+      BookingState.selectedTimeSlot = data.selectedTimeSlot || null;
+      BookingState.selectedTime = data.selectedTime || data.scheduleTime || null;
+      BookingState.scheduleDate = BookingState.selectedDate;
+      BookingState.scheduleTime = BookingState.selectedTime;
+      BookingState.projectScheduling = data.projectScheduling || null;
+      BookingState.isProject = data.isProject === true;
+      BookingState.paymentMethod = ['gcash', 'cod'].includes(data.paymentMethod)
+        ? data.paymentMethod
+        : null;
+      BookingState.currentStep = normalizeBookingStep(data.currentStep || data.maxReachedStep, 1);
+      BookingState.maxReachedStep = Math.max(
+        BookingState.currentStep,
+        normalizeBookingStep(data.maxReachedStep, BookingState.currentStep)
+      );
+      BookingState.draftRestored = true;
+      BookingState.draftSavedAt = Number(data.savedAt);
       console.log('📂 Booking progress restored from', new Date(data.savedAt).toLocaleString());
       return true;
     }
     return false;
   } catch(e) {
     console.warn('Failed to restore booking progress:', e);
+    try { localStorage.removeItem(BOOKING_STORAGE_KEY); } catch (_) {}
     return false;
   }
 }
 
+function getRestorableBookingStep() {
+  let step = normalizeBookingStep(BookingState.currentStep, 1);
+  if (step > 2 && (!Array.isArray(BookingState.selectedServices) || BookingState.selectedServices.length === 0)) {
+    return 2;
+  }
+
+  const location = BookingState.customerLocation;
+  const hasLocation = location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng));
+  if (step > 3 && !hasLocation) return 3;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const selectedDate = BookingState.selectedDate ? new Date(BookingState.selectedDate) : null;
+  const hasUsableDate = selectedDate && !Number.isNaN(selectedDate.getTime()) && selectedDate >= today;
+  const projectEndDate = BookingState.projectScheduling?.endDate
+    ? new Date(BookingState.projectScheduling.endDate)
+    : null;
+  const hasProjectSchedule = BookingState.isProject === true && hasUsableDate &&
+    projectEndDate && !Number.isNaN(projectEndDate.getTime()) && projectEndDate >= selectedDate;
+  const hasAppointmentSchedule = hasUsableDate &&
+    Boolean(BookingState.selectedTimeSlot || BookingState.selectedTime);
+  if (step > 4 && !hasProjectSchedule && !hasAppointmentSchedule) return 4;
+  return step;
+}
+
+function restoreBookingProgressUI() {
+  const locationInput = document.getElementById('locationInput');
+  if (locationInput && BookingState.location) {
+    locationInput.value = BookingState.location;
+    locationInput.classList.add('is-valid');
+  }
+
+  const distance = Number(BookingState.distance);
+  const fare = Number(BookingState.travelFare || BookingState.fare);
+  const duration = Number(BookingState.travelDuration);
+  const distanceElement = document.getElementById('mapInfoDistance');
+  const durationElement = document.getElementById('mapInfoDuration');
+  const fareElement = document.getElementById('mapInfoFare');
+  if (distanceElement && distance > 0 && duration > 0) {
+    distanceElement.textContent = `${distance.toFixed(1)} km`;
+    distanceElement.dataset.ready = 'true';
+  }
+  if (durationElement && duration > 0) {
+    durationElement.textContent = duration > 60
+      ? `${Math.floor(duration / 60)}h ${Math.round(duration % 60)}min`
+      : `${Math.round(duration)} min`;
+  }
+  if (fareElement && fare >= 0) fareElement.textContent = `₱${fare.toLocaleString()}`;
+
+  if (BookingState.selectedDate) {
+    const dateKey = typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.formatDateKey
+      ? EnterpriseCalendar.formatDateKey(BookingState.selectedDate)
+      : serializeBookingDate(BookingState.selectedDate)?.slice(0, 10);
+    if (dateKey) {
+      document.querySelectorAll(`[data-date="${dateKey}"]`).forEach(element => {
+        element.classList.add(element.classList.contains('ent-cal-cell') ? 'selected' : 'selected-day');
+      });
+    }
+  }
+
+  if (typeof displayTotalFee === 'function') displayTotalFee();
+  if (typeof updateReviewContent === 'function') updateReviewContent();
+  if (typeof updatePaymentAmounts === 'function') updatePaymentAmounts();
+}
+
 function clearBookingProgress() {
   try {
+    clearTimeout(bookingProgressSaveTimer);
+    BookingState.draftPersistenceDisabled = true;
     localStorage.removeItem(BOOKING_STORAGE_KEY);
     console.log('🗑️ Booking progress cleared');
   } catch(e) {}
 }
+
+// pagehide works for refreshes and mobile tab eviction; visibilitychange
+// covers browsers that freeze a background tab before unloading it.
+window.addEventListener('pagehide', saveBookingProgress);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveBookingProgress();
+});
 
 // Auto-save on step changes
 const _origShowStep = typeof showStep === 'function' ? showStep : null;
@@ -113,6 +268,9 @@ fetch('/api/services/payment-policy')
   .then(response => response.ok ? response.json() : Promise.reject(new Error('Payment policy unavailable')))
   .then(data => {
     const percentage = Number(data.downpaymentPercentage);
+    if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
+      window.adminGcashNumber = String(data.gcashNumber || '');
+    }
     if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
       BookingState.downpaymentPercentage = percentage;
       updatePaymentAmounts();
@@ -268,42 +426,32 @@ function initMultiServiceBooking() {
     // Setup event listeners
     setupEventListeners();
 
-    // Restore UI state if we have saved progress
-    if (BookingState.selectedServices && BookingState.selectedServices.length > 0) {
-      // Re-render selected services list
-      if (typeof renderSelectedServicesList === 'function') {
-        renderSelectedServicesList();
-      }
-      if (typeof updateSelectedCount === 'function') {
-        updateSelectedCount();
-      }
-      // Show booking summary
-      const bookingSummary = document.getElementById('bookingSummary');
-      if (bookingSummary) {
-        bookingSummary.classList.remove('d-none');
+    // Restore UI state even when the customer reached a later step before
+    // selecting a service. The previous implementation ignored that draft.
+    if (BookingState.draftRestored) {
+      if (BookingState.selectedServices.length > 0) {
+        if (typeof renderSelectedServicesList === 'function') renderSelectedServicesList();
+        if (typeof updateSelectedCount === 'function') updateSelectedCount();
+        const bookingSummary = document.getElementById('bookingSummary');
+        if (bookingSummary) bookingSummary.classList.remove('d-none');
       }
 
-      // Show "Progress Restored" banner
       const restoredBanner = document.createElement('div');
       restoredBanner.className = 'alert alert-info alert-dismissible fade show mb-3';
       restoredBanner.setAttribute('role', 'alert');
       restoredBanner.innerHTML = '<i class="bi bi-clock-history me-2"></i><strong>Progress restored!</strong> Your previous booking has been restored. Continue where you left off.';
-      const firstStep = document.querySelector('.booking-step[data-step="1"]');
-      if (firstStep) {
-        firstStep.insertBefore(restoredBanner, firstStep.firstChild);
-      }
+      const bookingContainer = document.getElementById('bookingContainer') || document.querySelector('.booking-body');
+      if (bookingContainer) bookingContainer.insertBefore(restoredBanner, bookingContainer.firstChild);
 
-      // Navigate to saved step
-      const stepToRestore = Math.min(BookingState.maxReachedStep || 1, 6);
-      if (stepToRestore > 1) {
-        setTimeout(() => {
-          showStep(stepToRestore);
-          updateStepperIndicators(stepToRestore);
-          console.log('📂 Restored to step', stepToRestore);
-        }, 600);
-      } else {
-        updateStepperIndicators(1);
-      }
+      const stepToRestore = getRestorableBookingStep();
+      setTimeout(() => {
+        showStep(stepToRestore);
+        updateStepperIndicators(stepToRestore);
+        restoreBookingProgressUI();
+        // Calendar and map components render asynchronously.
+        setTimeout(restoreBookingProgressUI, 250);
+        console.log('📂 Restored to step', stepToRestore);
+      }, 600);
     } else {
       // Initialize stepper (handled implicitly or uses updateStepperIndicators)
       updateStepperIndicators(1);
@@ -696,7 +844,11 @@ function initializeBookingState() {
     BookingState.currentService = null;
     BookingState.totalEstimatedPrice = 0;
     BookingState.hasRepairServices = false;
+    BookingState.currentStep = 1;
+    BookingState.maxReachedStep = 1;
+    BookingState.draftRestored = false;
   }
+  BookingState.draftPersistenceDisabled = false;
 }
 
 /**
@@ -961,6 +1113,7 @@ async function loadTechnicianOptions() {
         } else {
           BookingState.selectedTechnician = null;
         }
+        scheduleBookingProgressSave();
       }
 
       // If technician is selected, automatically advance to next step after a short delay
@@ -1220,9 +1373,6 @@ function showStep(stepNumber) {
     BookingState.maxReachedStep = stepNumber;
   }
 
-  // Save progress to localStorage
-  saveBookingProgress();
-
   // Get target step element
   const targetStep = document.querySelector(`.booking-step[data-step="${stepNumber}"]`);
 
@@ -1237,14 +1387,34 @@ function showStep(stepNumber) {
       // Going back to services: clear schedule, location, fee, payment
       BookingState.scheduleDate = null;
       BookingState.scheduleTime = null;
+      BookingState.selectedDate = null;
+      BookingState.selectedTime = null;
+      BookingState.selectedTimeSlot = null;
+      BookingState.projectScheduling = null;
+      BookingState.isProject = false;
       BookingState.location = null;
+      BookingState.customerLocation = null;
+      BookingState.userCoordinates = null;
+      BookingState.distance = null;
+      BookingState.fare = null;
+      BookingState.travelFare = null;
+      BookingState.travelDuration = null;
       BookingState.selectedTechnicianId = null;
     } else if (stepNumber <= 3) {
       // Going back to location: clear schedule, fee, payment
       BookingState.scheduleDate = null;
       BookingState.scheduleTime = null;
+      BookingState.selectedDate = null;
+      BookingState.selectedTime = null;
+      BookingState.selectedTimeSlot = null;
+      BookingState.projectScheduling = null;
+      BookingState.isProject = false;
     }
   }
+
+  // Persist after downstream fields have been cleared so a refresh cannot
+  // bring back stale location or schedule information.
+  saveBookingProgress();
 
   // Sync the ent-stepper if available
   if (typeof updateEntStepper === 'function') {
@@ -1636,6 +1806,7 @@ function displaySuggestions(suggestions) {
           };
           BookingState.location = suggestion.display_name; // Legacy support
           BookingState.userCoordinates = { lat, lng }; // Legacy support
+          scheduleBookingProgressSave();
 
           console.log('📍 Customer location stored:', BookingState.customerLocation);
         }
@@ -2266,6 +2437,7 @@ function geocodeAddress(address, finalize = false) {
         BookingState.userCoordinates = { lat, lng };
         BookingState.customerLocation = { address: resolvedAddress, lat, lng };
         BookingState.location = resolvedAddress;
+        scheduleBookingProgressSave();
 
         // Draw route if both company baseline and user coordinates exist and finalizing
         if (BookingState.companyBaseCoordinates && finalize) {
@@ -2675,6 +2847,7 @@ function reverseGeocode(lat, lng, requestToken) {
   BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
   BookingState.customerLocation = { address: coordinateLabel, lat: parsedLat, lng: parsedLng };
   BookingState.location = coordinateLabel;
+  scheduleBookingProgressSave();
 
   const applyResult = data => {
     if (activeRequestToken !== customerLocationRequestToken || !data?.display_name) return;
@@ -2688,6 +2861,7 @@ function reverseGeocode(lat, lng, requestToken) {
     BookingState.customerLocation = { address, lat: parsedLat, lng: parsedLng };
     BookingState.location = address;
     BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
+    scheduleBookingProgressSave();
 
     console.log('📍 Customer location stored (reverse geocode):', BookingState.customerLocation);
 
@@ -3079,6 +3253,7 @@ function calculateDistanceAndFare() {
         BookingState.trafficFactor = trafficFactor;
         BookingState.actualRouteDistance = routeData?.distance || null;
         BookingState.actualRouteDuration = routeData?.duration || null;
+        scheduleBookingProgressSave();
       }
 
       console.log('📊 Realistic calculation complete:', {
@@ -3121,6 +3296,7 @@ function calculateDistanceAndFare() {
         BookingState.travelFare = fare; // Sync with displayTotalFee() which reads travelFare
         BookingState.travelDuration = travelDurationMinutes;
         BookingState.trafficFactor = trafficFactor;
+        scheduleBookingProgressSave();
       }
 
       // Trigger update of total booking fee display
@@ -4312,6 +4488,7 @@ function selectTimeSlot(slot) {
       duration: slot.duration,
       displayText: slot.displayText
     };
+    saveBookingProgress();
   }
 
   // Show success feedback
@@ -4711,7 +4888,7 @@ function createServiceCard(service, type) {
 
   const col = document.createElement('div');
   col.className = type === 'core'
-    ? 'col-6 col-md-4 core-service-column'
+    ? 'col-12 col-md-4 core-service-column'
     : 'col-12 col-sm-6 col-lg-4';
 
   const card = document.createElement('div');
@@ -5279,12 +5456,19 @@ function initFallbackModals() {
         if (dialog) {
           dialog.style.cssText = `
             position: relative !important;
-            width: auto !important;
-            margin: 1rem auto !important;
+            width: min(700px, calc(100vw - 1rem)) !important;
+            height: min(680px, calc(100vh - 1rem)) !important;
+            height: min(680px, calc(100dvh - 1rem)) !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            margin: auto !important;
             pointer-events: auto !important;
             z-index: 10000 !important;
             transform: none !important;
-            max-width: 500px !important;
+            max-width: 700px !important;
+            max-height: calc(100vh - 1rem) !important;
+            max-height: calc(100dvh - 1rem) !important;
+            flex: 0 0 auto !important;
           `;
         }
 
@@ -5298,6 +5482,13 @@ function initFallbackModals() {
             background-color: white !important;
             border-radius: 8px !important;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            height: 100% !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-height: none !important;
           `;
         }
 
@@ -5686,7 +5877,7 @@ function renderAirconTypeSelection(airconTypes, container) {
 
   // Create type cards container
   const typesContainer = document.createElement('div');
-  typesContainer.className = 'row g-2 g-md-3 mb-4';
+  typesContainer.className = 'row g-2 g-md-3 mb-4 cfg-type-grid';
 
   // Type icon mapping
   const typeIcons = {
@@ -5713,7 +5904,7 @@ function renderAirconTypeSelection(airconTypes, container) {
   airconTypes.forEach((type, index) => {
 
     const typeCol = document.createElement('div');
-    typeCol.className = 'col-12 col-sm-6';
+    typeCol.className = 'col-6 cfg-type-option';
 
     const typeCard = document.createElement('div');
     typeCard.className = 'card aircon-type-card h-100 border-2 bg-white shadow-sm cursor-pointer';
@@ -5738,18 +5929,18 @@ function renderAirconTypeSelection(airconTypes, container) {
     const hpCount = type.hpPricing.length;
 
     typeCard.innerHTML = `
-      <div class="card-body p-2 p-md-3 text-center">
-        <div class="mb-2">
-          <i class="bi ${typeIcons[type.type] || 'bi-fan'} fs-3 fs-md-2 text-primary"></i>
+      <div class="card-body p-2 p-md-3 text-center cfg-type-card-body">
+        <div class="mb-2 cfg-type-icon-wrap">
+          <i class="bi ${typeIcons[type.type] || 'bi-fan'} fs-3 fs-md-2 text-primary cfg-type-icon"></i>
         </div>
         <h6 class="fw-bold mb-1" style="font-size:0.9rem">${type.name}</h6>
         <p class="text-muted small mb-2 d-none d-md-block" style="font-size: 0.75rem; line-height:1.35">${typeDescriptions[type.type] || type.description}</p>
         <div class="d-flex justify-content-center align-items-center gap-2">
-          <span class="badge bg-success bg-opacity-10 text-success" style="font-size:0.65rem">
+          <span class="badge bg-success bg-opacity-10 text-success cfg-type-price" style="font-size:0.65rem">
             ₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}
           </span>
         </div>
-        <div class="text-muted mt-1" style="font-size: 0.65rem;">
+        <div class="text-muted mt-1 cfg-type-count" style="font-size: 0.65rem;">
           ${hpCount} HP options available
         </div>
       </div>
@@ -5820,7 +6011,7 @@ function renderAirconTypeSelection(airconTypes, container) {
       <span class="cfg-stage-icon"><i class="bi bi-speedometer2"></i></span>
       <div><span class="cfg-stage-kicker">Step 3</span><h6 id="cfgHpHeading" tabindex="-1">Choose the HP rating</h6><p>Select one or more ratings and set the quantity for each.</p></div>
     </div>
-    <div id="hpOptionsForType" class="row g-3"></div>
+    <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
   `;
   container.appendChild(hpSectionDiv);
 
@@ -6118,7 +6309,7 @@ function renderHpOptionsForType(airconType, container) {
  */
 function createProfessionalHpCardForType(hpOption, index, airconType) {
   const col = document.createElement('div');
-  col.className = 'col-12';
+  col.className = 'col-12 cfg-hp-option';
 
   const card = document.createElement('div');
   card.className = 'card hp-selection-card border-2 bg-white shadow-sm';
@@ -6138,9 +6329,9 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
   `;
 
   card.innerHTML = `
-    <div class="card-body p-3 p-md-4">
-      <div class="row align-items-start align-items-md-center g-0 g-md-3">
-        <div class="col-12 col-md-6 mb-2 mb-md-0">
+    <div class="card-body p-3 p-md-4 cfg-hp-card-body">
+      <div class="row align-items-start align-items-md-center g-0 g-md-3 cfg-hp-card-layout">
+        <div class="col-12 col-md-6 mb-2 mb-md-0 cfg-hp-card-main">
           <div class="d-flex align-items-start gap-2 gap-md-3">
             <div class="form-check form-check-lg">
               <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}"
@@ -6164,7 +6355,7 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
             </div>
           </div>
         </div>
-        <div class="col-12 col-md-6">
+        <div class="col-12 col-md-6 cfg-hp-card-controls">
           <div class="hp-quantity-control w-100" style="opacity:0.5;pointer-events:none;">
             <label class="form-label fw-semibold text-dark mb-2 d-none d-md-block">Quantity:</label>
             <div class="quantity-selector w-100">
@@ -6731,7 +6922,7 @@ function showEnterpriseModal(modalElement) {
   modalElement.style.setProperty('opacity', '1', 'important');
   modalElement.style.setProperty('align-items', 'center', 'important');
   modalElement.style.setProperty('justify-content', 'center', 'important');
-  modalElement.style.setProperty('padding', '2rem 1rem', 'important');
+  modalElement.style.setProperty('padding', '.5rem', 'important');
 
 
   // Force body styles
@@ -6778,13 +6969,19 @@ function showEnterpriseModal(modalElement) {
   if (dialog) {
     dialog.style.cssText = `
       position: relative !important;
-      width: auto !important;
-      margin: 0 !important;
+      width: min(700px, calc(100vw - 1rem)) !important;
+      height: min(680px, calc(100vh - 1rem)) !important;
+      height: min(680px, calc(100dvh - 1rem)) !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      margin: auto !important;
       pointer-events: auto !important;
       z-index: 100000 !important;
       transform: none !important;
       max-width: 700px !important;
-      max-height: 90vh !important;
+      max-height: calc(100vh - 1rem) !important;
+      max-height: calc(100dvh - 1rem) !important;
+      flex: 0 0 auto !important;
       animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
       display: flex !important;
       visibility: visible !important;
@@ -6810,7 +7007,11 @@ function showEnterpriseModal(modalElement) {
       visibility: visible !important;
       opacity: 1 !important;
       flex-direction: column !important;
-      max-height: 90vh !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      max-height: none !important;
     `;
   } else {
   }
@@ -8317,42 +8518,32 @@ function confirmQuantitySelection() {
   } catch (err) {
   }
 
-  // Show success Swal FIRST, then close modal after user dismisses it
-  showSuccess(`${service.name} has been added to your booking`, 'Service Added').then(() => {
+  // Close the configurator before confirming success; stacked dialogs feel heavy
+  // and can trap focus inside the modal that is about to disappear.
+  if (DOM.quantityModal) {
+    try {
+      if (BookingState.ui.modals.quantity) {
+        BookingState.ui.modals.quantity.hide();
+      } else if (typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(DOM.quantityModal)?.hide();
+      }
+    } catch (e) {}
 
-    // Close quantity modal AFTER Swal is dismissed
-    if (DOM.quantityModal) {
-      try {
-        if (BookingState.ui.modals.quantity) {
-          BookingState.ui.modals.quantity.hide();
-        } else {
-          const bsModal = bootstrap.Modal.getInstance(DOM.quantityModal);
-          if (bsModal) {
-            bsModal.hide();
-          }
-        }
-      } catch (e) {}
+    DOM.quantityModal.style.display = 'none';
+    DOM.quantityModal.style.visibility = 'hidden';
+    DOM.quantityModal.style.opacity = '0';
+    DOM.quantityModal.classList.remove('show');
+    DOM.quantityModal.classList.add('hide');
+    DOM.quantityModal.removeAttribute('aria-modal');
+    DOM.quantityModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+    resetModalForNextUse();
+  }
 
-      // Manual fallback to ensure it's hidden no matter what
-      setTimeout(() => {
-        DOM.quantityModal.style.display = 'none';
-        DOM.quantityModal.style.visibility = 'hidden';
-        DOM.quantityModal.style.opacity = '0';
-        DOM.quantityModal.classList.remove('show');
-        DOM.quantityModal.classList.add('hide');
-        DOM.quantityModal.removeAttribute('aria-modal');
-        DOM.quantityModal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
-        document.body.style.paddingRight = '';
-        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-        resetModalForNextUse();
-      }, 150);
-    }
-
-    // Reset processing flag after completion
-    resetProcessingFlag();
-  });
+  showServiceAddedConfirmation(service.name).then(resetProcessingFlag, resetProcessingFlag);
 }
 
 /**
@@ -8450,6 +8641,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
   updatePricingDisplay();
   updateRepairIssueDisplay();
   updateContinueButtonState();
+  saveBookingProgress();
 
   // Show success feedback
   showSuccess(`${service.name} added to booking`);
@@ -8792,6 +8984,7 @@ function updateSelectedServicesDisplay() {
           updateSelectedServicesDisplay();
           updatePricingDisplay();
           updateContinueButtonState();
+          saveBookingProgress();
 
           showSuccess(`${removedService.name} removed from booking`);
         }
@@ -8830,6 +9023,8 @@ function removeService(serviceId) {
     BookingState.location = null;
     BookingState.selectedTechnicianId = null;
     if (typeof showStep === 'function') showStep(2);
+  } else {
+    saveBookingProgress();
   }
 }
 
@@ -8938,9 +9133,9 @@ function getServiceUnitText(service) {
   return unit === 'aircon' ? 'aircon' : unit;
 }
 
-function showServiceDialog({ icon, title, message, confirmButtonText = 'Continue' }) {
+function showServiceDialog({ icon, iconHtml = '', title, message, confirmButtonText = 'Continue', popupClass = '', returnFocus = true }) {
   if (typeof Swal !== 'undefined') {
-    return Swal.fire({
+    const dialogOptions = {
       icon,
       title,
       text: message,
@@ -8951,10 +9146,13 @@ function showServiceDialog({ icon, title, message, confirmButtonText = 'Continue
       focusConfirm: true,
       allowOutsideClick: false,
       allowEscapeKey: true,
+      returnFocus,
       customClass: {
-        popup: 'service-booking-alert'
+        popup: popupClass ? `service-booking-alert ${popupClass}` : 'service-booking-alert'
       }
-    });
+    };
+    if (iconHtml) dialogOptions.iconHtml = iconHtml;
+    return Swal.fire(dialogOptions);
   }
 
   window.alert(message);
@@ -9016,6 +9214,18 @@ function showSuccess(message, title = 'Booking Updated') {
     title,
     message,
     confirmButtonText: 'Continue'
+  });
+}
+
+function showServiceAddedConfirmation(serviceName) {
+  return showServiceDialog({
+    icon: 'success',
+    iconHtml: '<span class="service-added-check" aria-hidden="true">&#10003;</span>',
+    title: 'Added to Your Booking',
+    message: `${serviceName} is now in your booking. You can review it before continuing.`,
+    confirmButtonText: 'Continue booking',
+    popupClass: 'service-added-alert',
+    returnFocus: false
   });
 }
 
@@ -9680,6 +9890,7 @@ async function selectDate(date) {
 
   // Store selected date
   BookingState.selectedDate = date;
+  saveBookingProgress();
 
   // Highlight selected date
   document.querySelectorAll('.suggested-date-card, .calendar-date-card, .calendar-day, .ent-cal-cell').forEach(card => {
@@ -10275,6 +10486,7 @@ function selectTimeSlot(slot, buttonElement) {
   BookingState.selectedTimeSlot = slot;
   BookingState.selectedTime = slot.label;
   BookingState.selectedDate = BookingState.selectedDate || new Date();
+  saveBookingProgress();
 
   // Highlight selected slot
   document.querySelectorAll('.time-slot-btn').forEach(btn => {
@@ -11463,6 +11675,7 @@ function addCurrentRepairItem() {
   updateSelectedServicesDisplay();
   updatePricingDisplay();
   updateContinueButtonState();
+  saveBookingProgress();
   resetRepairForm();
   showAlert('Repair service added to cart!', 'success');
 }
@@ -11510,6 +11723,7 @@ function removeRepairItem(index) {
   updateSelectedServicesDisplay();
   updatePricingDisplay();
   updateContinueButtonState();
+  saveBookingProgress();
 }
 window.removeRepairItem = removeRepairItem;
 

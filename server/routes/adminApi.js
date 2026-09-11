@@ -1171,7 +1171,10 @@ const {
   warrantyRuleForBooking,
 } = require("../utils/aftercarePolicy");
 const {
+  GCASH_RECIPIENT_SETTING_KEY,
   getDownpaymentPercentage,
+  getGcashRecipientNumber,
+  normalizeGcashRecipientNumber,
   normalizeDownpaymentPercentage,
 } = require("../utils/paymentPolicy");
 
@@ -1524,7 +1527,11 @@ router.put("/settings/aftercare", async (req, res, next) => {
 /** GET /api/admin/settings/payment-policy */
 router.get("/settings/payment-policy", async (_req, res, next) => {
   try {
-    return res.json({ downpaymentPercentage: await getDownpaymentPercentage() });
+    const [downpaymentPercentage, gcashNumber] = await Promise.all([
+      getDownpaymentPercentage(),
+      getGcashRecipientNumber(),
+    ]);
+    return res.json({ downpaymentPercentage, gcashNumber, gcashConfigured: Boolean(gcashNumber) });
   } catch (err) {
     next(err);
   }
@@ -1538,20 +1545,46 @@ router.put("/settings/payment-policy", async (req, res, next) => {
       return res.status(400).json({ error: "Downpayment percentage must be between 1 and 100." });
     }
     const downpaymentPercentage = normalizeDownpaymentPercentage(raw);
-    await SiteSetting.findOneAndUpdate(
-      { key: "downpaymentPercentage" },
-      { value: downpaymentPercentage },
-      { upsert: true, setDefaultsOnInsert: true },
-    );
+    const includesGcashNumber = Object.prototype.hasOwnProperty.call(req.body || {}, "gcashNumber");
+    const suppliedGcashNumber = String(req.body?.gcashNumber || "").trim();
+    const gcashNumber = normalizeGcashRecipientNumber(suppliedGcashNumber);
+    if (includesGcashNumber && suppliedGcashNumber && !gcashNumber) {
+      return res.status(400).json({ error: "Enter a valid Philippine GCash number such as 09XXXXXXXXX." });
+    }
+    const updates = [
+      SiteSetting.findOneAndUpdate(
+        { key: "downpaymentPercentage" },
+        { value: downpaymentPercentage },
+        { upsert: true, setDefaultsOnInsert: true },
+      ),
+    ];
+    if (includesGcashNumber) {
+      updates.push(SiteSetting.findOneAndUpdate(
+        { key: GCASH_RECIPIENT_SETTING_KEY },
+        { value: gcashNumber },
+        { upsert: true, setDefaultsOnInsert: true },
+      ));
+    }
+    await Promise.all(updates);
+    const effectiveGcashNumber = includesGcashNumber ? gcashNumber : await getGcashRecipientNumber();
     await audit.logEvent({
       actor: req.user && req.user._id,
       target: req.user && req.user._id,
       action: "settings.paymentPolicy.update",
       module: "admin",
       req,
-      details: { downpaymentPercentage },
+      details: {
+        downpaymentPercentage,
+        gcashConfigured: Boolean(effectiveGcashNumber),
+        gcashLastFour: effectiveGcashNumber.slice(-4),
+      },
     }).catch(() => {});
-    return res.json({ message: "Payment policy saved successfully", downpaymentPercentage });
+    return res.json({
+      message: "Payment policy saved successfully",
+      downpaymentPercentage,
+      gcashNumber: effectiveGcashNumber,
+      gcashConfigured: Boolean(effectiveGcashNumber),
+    });
   } catch (err) {
     next(err);
   }

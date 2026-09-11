@@ -1,0 +1,128 @@
+/* Shared rendering budget for phones and low-power devices.
+   Keep interaction feedback, but avoid effects that require continuous GPU
+   compositing while the user scrolls. */
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  body,
+  .admin-layout,
+  .auth-page {
+    background-attachment: scroll !important;
+  }
+
+  [data-aos] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .auth-wrapper::before,
+  .auth-wrapper::after,
+  .auth-shape,
+  .auth-airflow span,
+  .auth-flake-mark,
+  .auth-snowflake,
+  .footer-orb,
+  .sidebar-header .admin-avatar,
+  .racbot-status-dot {
+    animation: none !important;
+    will-change: auto !important;
+  }
+
+  .auth-shapes,
+  .auth-airflow,
+  .auth-snow {
+    display: none !important;
+  }
+
+  .admin-content,
+  .admin-sidebar,
+  .navbar,
+  .modal-content,
+  .dropdown-menu,
+  .offcanvas,
+  .auth-card,
+  .auth-glass,
+  .ent-glass-card,
+  .swal2-container,
+  .swal2-popup,
+  .calidro-swal-popup,
+  .calidro-swal-popup--toast,
+  .au-hero-icon {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Hover transforms can leave layers promoted on touch browsers. */
+  a:hover,
+  button:hover,
+  .card:hover,
+  [class*="-card"]:hover,
+  [class*="-kpi"]:hover {
+    transform: none;
+  }
+
+  /* Off-screen page sections do not need painting during first render. */
+  main > section:not(:first-child),
+  .admin-content .table-responsive,
+  .admin-content .card-grid,
+  .admin-content [class*="-grid"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 500px;
+  }
+}
+
+/* JavaScript adds this class for Save-Data and devices with small CPU/RAM
+   even when their viewport is tablet-sized. */
+html.perf-lite *,
+html.perf-lite *::before,
+html.perf-lite *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
+html.perf-lite [data-aos] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+html.perf-lite .ent-hero-orb,
+html.perf-lite .ent-hero-particles,
+html.perf-lite .auth-snow,
+html.perf-lite .auth-flake-mark {
+  display: none !important;
+}
+
+html.perf-lite .admin-content,
+html.perf-lite .admin-sidebar,
+html.perf-lite .navbar,
+html.perf-lite .modal-content,
+html.perf-lite .dropdown-menu,
+html.perf-lite .auth-card,
+html.perf-lite .auth-glass,
+html.perf-lite [class*="glass"],
+html.perf-lite .swal2-container,
+html.perf-lite .swal2-popup {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  [data-aos] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

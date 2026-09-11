@@ -60,6 +60,10 @@ fetch('/api/services/payment-policy')
   .then(response => response.ok ? response.json() : Promise.reject(new Error('Payment policy unavailable')))
   .then(data => {
     const percentage = Number(data.downpaymentPercentage);
+    if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
+      window.adminGcashNumber = String(data.gcashNumber || '');
+      renderRepairGcashAccount();
+    }
     if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
       RepairState.downpaymentPercentage = percentage;
       updateCashDisplay();

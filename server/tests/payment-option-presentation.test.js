@@ -16,6 +16,10 @@ const bookingRoutes = read("routes/bookingRoutesNew.js");
 const orderRoutes = read("routes/orderRoutes.js");
 const technicianOrders = read("views/pages/technician/technicianorders.ejs");
 const paymentController = read("controllers/paymentController.js");
+const paymentPolicySource = read("utils/paymentPolicy.js");
+const paymentSettingsView = read("views/pages/admin/Settings/System.ejs");
+const adminApi = read("routes/adminApi.js");
+const serviceRoutes = read("routes/serviceRoutes.js");
 
 test("service checkout presents payment plans instead of a misleading cash method", () => {
   assert.match(servicesView, /Payment Option/);
@@ -65,4 +69,21 @@ test("final order collection is required before completion", () => {
 test("payment detail export reads the booking payment option", () => {
   assert.match(paymentController, /bookingPaymentMethod: booking\?\.paymentMethod \|\| order\?\.paymentMethod/);
   assert.doesNotMatch(paymentController, /paymentPaymentMethod/);
+});
+
+test("GCash recipient configuration is admin-managed and shared with customer checkout", () => {
+  assert.match(paymentPolicySource, /GCASH_RECIPIENT_SETTING_KEY/);
+  assert.match(paymentPolicySource, /process\.env\.ADMIN_GCASH_NUMBER/);
+  assert.match(paymentSettingsView, /id="gcashRecipientNumber"/);
+  assert.match(paymentSettingsView, /gcashNumber: gcashNumber/);
+  assert.match(adminApi, /gcashConfigured: Boolean\(effectiveGcashNumber\)/);
+  assert.match(serviceRoutes, /gcashNumber, gcashConfigured: Boolean\(gcashNumber\)/);
+});
+
+test("unconfigured GCash is disabled in checkout and enforced on the server", () => {
+  assert.match(cartWizard, /checkout-payment-unavailable/);
+  assert.match(cartWizard, /button\.disabled = true/);
+  assert.match(cartWizard, /window\.refreshCheckoutPaymentOptions/);
+  assert.match(orderRoutes, /ORDER_GCASH_NOT_CONFIGURED/);
+  assert.match(bookingRoutes, /await getGcashRecipientNumber\(\)/);
 });

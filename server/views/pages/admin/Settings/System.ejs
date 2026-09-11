@@ -258,15 +258,20 @@
           <div id="paymentPolicyAlert" class="alert d-none" role="alert"></div>
           <form id="paymentPolicyForm">
             <div class="row g-3 align-items-end">
-              <div class="col-md-7">
+              <div class="col-md-6">
+                <label class="form-label" for="gcashRecipientNumber">GCash Receiving Number</label>
+                <input type="tel" class="form-control" id="gcashRecipientNumber" inputmode="numeric" autocomplete="tel" placeholder="09XXXXXXXXX" maxlength="13">
+                <div class="form-text">Customers see this number and its QR code during checkout. Leave blank only to disable GCash checkout.</div>
+              </div>
+              <div class="col-md-3">
                 <label class="form-label" for="downpaymentPercentage">Required Downpayment</label>
                 <div class="input-group">
                   <input type="number" class="form-control" id="downpaymentPercentage" min="1" max="100" step="0.01" value="10" required>
                   <span class="input-group-text">%</span>
                 </div>
-                <div class="form-text">Applied to the total cost of new product orders and customer service bookings. Existing records keep their original rate.</div>
+                <div class="form-text">Applied to new orders and bookings.</div>
               </div>
-              <div class="col-md-5 text-md-end">
+              <div class="col-md-3 text-md-end">
                 <button type="submit" class="btn-ss primary" id="paymentPolicySaveBtn"><i class="bi bi-floppy"></i> Save Payment Policy</button>
               </div>
             </div>
@@ -664,6 +669,7 @@
 (function() {
   var form = document.getElementById('paymentPolicyForm');
   var input = document.getElementById('downpaymentPercentage');
+  var gcashInput = document.getElementById('gcashRecipientNumber');
   var btn = document.getElementById('paymentPolicySaveBtn');
   var alertBox = document.getElementById('paymentPolicyAlert');
 
@@ -678,15 +684,22 @@
     .then(function(response) { return response.ok ? response.json() : null; })
     .then(function(data) {
       if (data && data.downpaymentPercentage != null) input.value = data.downpaymentPercentage;
+      if (data && gcashInput) gcashInput.value = data.gcashNumber || '';
     })
     .catch(function() { showPaymentAlert('Unable to load the payment policy.', 'warning'); });
 
   if (form) form.addEventListener('submit', function(event) {
     event.preventDefault();
     var percentage = Number(input.value);
+    var gcashNumber = String(gcashInput && gcashInput.value || '').trim();
     if (!Number.isFinite(percentage) || percentage < 1 || percentage > 100) {
       showPaymentAlert('Enter a percentage from 1 to 100.', 'danger');
       input.focus();
+      return;
+    }
+    if (gcashNumber && !/^(?:09\d{9}|\+?639\d{9})$/.test(gcashNumber.replace(/[\s()-]/g, ''))) {
+      showPaymentAlert('Enter a valid Philippine GCash number such as 09XXXXXXXXX.', 'danger');
+      gcashInput.focus();
       return;
     }
     btn.disabled = true;
@@ -695,7 +708,7 @@
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ downpaymentPercentage: percentage }),
+      body: JSON.stringify({ downpaymentPercentage: percentage, gcashNumber: gcashNumber }),
     })
       .then(function(response) {
         return response.json().then(function(data) { return { ok: response.ok, data: data }; });
@@ -703,7 +716,10 @@
       .then(function(result) {
         if (!result.ok) throw new Error(result.data.error || 'Failed to save payment policy.');
         input.value = result.data.downpaymentPercentage;
-        showPaymentAlert('Payment policy saved. New orders and bookings will use ' + result.data.downpaymentPercentage + '%.', 'success');
+        if (gcashInput) gcashInput.value = result.data.gcashNumber || '';
+        showPaymentAlert(result.data.gcashConfigured
+          ? 'Payment policy saved. GCash checkout is ready for customers.'
+          : 'Payment policy saved. GCash checkout is disabled until a receiving number is added.', result.data.gcashConfigured ? 'success' : 'warning');
       })
       .catch(function(error) { showPaymentAlert(error.message || 'Unable to save the payment policy.', 'danger'); })
       .finally(function() {

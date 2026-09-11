@@ -679,6 +679,8 @@
   }
 </style>
 
+<link rel="stylesheet" href="/css/cart-checkout-ux.css?v=20260912-checkout-flow-v3" />
+
 <!-- RACS Van Loading Modal -->
 <div class="modal fade" id="orderLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -790,24 +792,33 @@
   </div>
 </div>
 
-<div class="modal fade wizard-modal" id="checkoutOrderModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content border-0 shadow-lg" style="border-radius: 1.5rem;">
+<div class="modal fade wizard-modal" id="checkoutOrderModal" tabindex="-1" aria-hidden="true" aria-labelledby="wizardModalTitle">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content border-0 shadow-lg checkout-wizard-shell">
+      <div class="modal-header checkout-wizard-header">
+        <div class="checkout-wizard-heading">
+          <div class="checkout-wizard-eyebrow"><i class="bi bi-shield-check"></i> Secure checkout</div>
+          <h5 class="modal-title" id="wizardModalTitle" aria-live="polite">
+            <i class="bi bi-truck me-2" style="color:#2563eb;"></i>Choose how to receive your order
+          </h5>
+        </div>
+        <button type="button" class="btn-close checkout-wizard-close" data-bs-dismiss="modal" aria-label="Close checkout"></button>
+      </div>
 
       <!-- Progress Steps -->
       <div class="wizard-progress" id="wizardProgress">
         <div class="wizard-ph">
-          <span>Checkout Progress</span>
+          <span>Your progress</span>
           <span>Step <span id="wizardStepCurrent">1</span> of 4</span>
         </div>
-        <div class="wizard-pt">
+        <div class="wizard-pt" role="navigation" aria-label="Checkout steps">
           <button type="button" class="wizard-ps active" data-step="1" aria-current="step" onclick="navigateWizardStep(1)">
             <span class="wizard-ps-icon"><i class="bi bi-truck"></i></span>
-            <span>Receive Order</span>
+            <span>Receive</span>
           </button>
           <button type="button" class="wizard-ps" data-step="2" onclick="navigateWizardStep(2)">
             <span class="wizard-ps-icon"><i class="bi bi-calendar-check"></i></span>
-            <span>Schedule</span>
+            <span>Details</span>
           </button>
           <button type="button" class="wizard-ps" data-step="3" onclick="navigateWizardStep(3)">
             <span class="wizard-ps-icon"><i class="bi bi-credit-card"></i></span>
@@ -815,53 +826,48 @@
           </button>
           <button type="button" class="wizard-ps" data-step="4" onclick="navigateWizardStep(4)">
             <span class="wizard-ps-icon"><i class="bi bi-receipt"></i></span>
-            <span>Confirm</span>
+            <span>Review</span>
           </button>
         </div>
-        <p class="wizard-progress-help"><i class="bi bi-info-circle me-1"></i>Complete each step in order. Completed steps remain available for review.</p>
+        <p class="wizard-progress-help"><i class="bi bi-info-circle me-1"></i>Finish each step in order. You can return to completed steps.</p>
       </div>
 
-      <div class="modal-header border-0 pb-0 px-4 pt-3">
-        <div>
-          <div class="mb-1" style="font-size:0.62rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1.4px;">Secure checkout</div>
-          <h5 class="modal-title fw-bolder fs-4" id="wizardModalTitle" style="color: #0f172a; letter-spacing:-0.5px;">
-            <i class="bi bi-truck me-2" style="color:#2563eb;"></i>Choose how to receive your order
-          </h5>
-        </div>
-        <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" style="opacity:0.5;transition:all 0.2s;" onmouseover="this.style.opacity='1';this.style.transform='rotate(90deg)'" onmouseout="this.style.opacity='0.5';this.style.transform='rotate(0deg)'"></button>
-      </div>
-
-      <div class="modal-body position-relative px-4 pt-4 pb-2">
+      <div class="modal-body position-relative checkout-wizard-body">
 
         <!-- STEP 1 — Fulfillment Option -->
         <div class="wizard-panel active" id="wizardStep1">
-          <div class="text-center mb-4">
-            <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">Delivery with installation or store pickup?</h5>
-            <p class="text-secondary fw-medium small">Every delivered air conditioner includes professional installation.</p>
+          <div class="wizard-step-intro">
+            <p>Choose the option that works best for you. Delivered air conditioners include professional installation.</p>
           </div>
-          <div class="row g-3 px-md-3 justify-content-center">
-            <div class="col-md-5">
-              <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
+          <div class="row g-3 justify-content-center checkout-choice-grid">
+            <div class="col-12 col-md-6">
+              <div class="fulfill-card h-100"
                 data-fulfill="delivery_installation" role="button" tabindex="0" aria-pressed="false"
                 onclick="selectFulfillment('delivery_installation')"
                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectFulfillment('delivery_installation')}">
-                <div class="fulfill-icon"
-                  style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb; border: 2px solid #fff; transition: all 0.3s;">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <div class="fulfill-icon fulfill-icon-delivery">
                   <i class="bi bi-tools fs-2"></i></div>
-                <div class="fulfill-title fs-6">Delivery + Installation</div>
-                <div class="fulfill-desc small mb-3">Delivered and installed by experts.</div>
+                <div class="fulfill-copy">
+                  <div class="fulfill-title">Delivery + Installation</div>
+                  <div class="fulfill-desc">We deliver, install, and confirm the unit is ready to use.</div>
+                  <span class="fulfill-meta"><i class="bi bi-check-circle"></i> Professional setup included</span>
+                </div>
               </div>
             </div>
-            <div class="col-md-5">
-              <div class="fulfill-card h-100 d-flex flex-column align-items-center justify-content-center p-3"
+            <div class="col-12 col-md-6">
+              <div class="fulfill-card h-100"
                 data-fulfill="customer_pickup" role="button" tabindex="0" aria-pressed="false"
                 onclick="selectFulfillment('customer_pickup')"
                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectFulfillment('customer_pickup')}">
-                <div class="fulfill-icon"
-                  style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a; border: 2px solid #fff; transition: all 0.3s;">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <div class="fulfill-icon fulfill-icon-pickup">
                   <i class="bi bi-shop fs-2"></i></div>
-                <div class="fulfill-title fs-6">Customer Pickup</div>
-                <div class="fulfill-desc small mb-3">Pick up securely at our main branch.</div>
+                <div class="fulfill-copy">
+                  <div class="fulfill-title">Customer Pickup</div>
+                  <div class="fulfill-desc">Collect your order securely from our main branch.</div>
+                  <span class="fulfill-meta"><i class="bi bi-calendar-check"></i> Choose a pickup date</span>
+                </div>
               </div>
             </div>
           </div>
@@ -870,14 +876,15 @@
         <!-- STEP 2 — Delivery / Pickup Details -->
         <div class="wizard-panel" id="wizardStep2">
           <div class="px-md-2">
-            <div class="text-center mb-4">
-              <h5 class="fw-bolder mb-1" style="color: #0f172a; letter-spacing:-0.5px;">Delivery & Schedule Details</h5>
-              <p class="text-secondary fw-medium small">Provide your delivery or pickup information.</p>
+            <div class="wizard-step-intro">
+              <p>Tell us where and when you need the order. We use the map only to confirm the route and delivery fee.</p>
             </div>
             <!-- Delivery fields -->
-            <div id="deliveryFields" class="p-4 bg-white shadow-sm border rounded-4 mb-3" style="display:none;border-color:#f1f5f9;">
-              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a; font-size:0.88rem;"><i
-                  class="bi bi-geo-alt-fill text-primary me-2"></i> Delivery Location & Details</h6>
+            <div id="deliveryFields" class="checkout-form-card" style="display:none;">
+              <div class="checkout-section-heading">
+                <span class="checkout-section-number">1</span>
+                <div><h6>Contact and delivery location</h6><p>Confirm a phone number and pin the exact destination.</p></div>
+              </div>
 
               <!-- 1. Contact Number (auto-populated) -->
               <div class="col-md-6 mb-3">
@@ -895,7 +902,7 @@
                   <input type="text" class="form-control rounded-start-3 py-2" id="wizardAddress"
                     placeholder="Enter full street address..." autocomplete="street-address" maxlength="500">
                   <button class="btn btn-outline-primary border-start-0 rounded-end-3 px-3" type="button"
-                    id="searchAddressBtn">
+                    id="searchAddressBtn" aria-label="Search delivery address">
                     <i class="bi bi-search"></i>
                   </button>
                 </div>
@@ -911,10 +918,10 @@
                   <div class="checkout-map-toolbar">
                     <div>
                       <h6 class="checkout-map-title"><i class="bi bi-map me-2 text-primary"></i>Delivery Route Map</h6>
-                      <div class="checkout-map-subtitle">Search an address, click the map, or drag the red delivery pin for an exact location.</div>
+                      <div class="checkout-map-subtitle">Search, use your location, or move the red pin to the exact destination.</div>
                     </div>
                     <div class="checkout-map-actions" aria-label="Map controls">
-                      <button type="button" class="checkout-map-action" onclick="locateMe()" title="Use my current location">
+                      <button type="button" class="checkout-map-action" id="locateMeBtn" onclick="locateMe()" title="Use my current location" aria-describedby="mapAccessNotice">
                         <i class="bi bi-crosshair"></i><span>My Location</span>
                       </button>
                       <button type="button" class="checkout-map-action" id="fitRouteBtn" onclick="fitDeliveryRoute()" title="Show the full delivery route" disabled>
@@ -926,8 +933,10 @@
                     </div>
                   </div>
 
+                  <div class="map-access-notice d-none" id="mapAccessNotice" role="status" aria-live="polite"></div>
+
                   <div class="checkout-map-stage">
-                    <div id="wizardMap" role="application" aria-label="Interactive delivery route map"></div>
+                    <div id="wizardMap" role="application" tabindex="0" aria-label="Interactive delivery route map. Select a point or move the delivery pin."></div>
                     <div class="map-locating-spinner" id="mapLocatingSpinner">
                       <span class="spinner-border spinner-border-sm" role="status"></span>
                       <span id="mapSpinnerLabel">Calculating route...</span>
@@ -960,7 +969,7 @@
                     <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Route Details</span>
                     <span class="route-method-badge" id="routeMethodBadge"><i class="bi bi-diagram-3 me-1"></i>Road Route</span>
                   </div>
-                  <div class="d-flex gap-2 mb-1">
+                  <div class="d-flex gap-2 mb-1 route-stats-grid">
                     <div class="route-stat-card">
                       <span class="route-stat-icon text-primary"><i class="bi bi-rulers"></i></span>
                       <span class="route-stat-label">Distance</span>
@@ -989,8 +998,11 @@
                 <input type="hidden" id="wizardLng">
               </div>
 
-              <!-- 5. Checkout Calendar Container -->
-              <div id="checkoutCalendarContainer"></div>
+              <div class="checkout-section-heading checkout-schedule-heading">
+                <span class="checkout-section-number">2</span>
+                <div><h6>Choose the delivery schedule</h6><p>Select an available date, then choose a time.</p></div>
+              </div>
+              <div id="checkoutCalendarContainer" class="checkout-calendar-wrap"></div>
 
               <!-- Hidden inputs to store selection -->
               <input type="hidden" id="wizardDate">
@@ -998,7 +1010,7 @@
               <div class="small mt-1 text-danger fw-semibold" id="wizardDateError" style="display: none;"></div>
 
               <!-- 6. Notes -->
-              <div class="mb-1 mt-3">
+              <div class="checkout-notes-field">
                 <label class="form-label small fw-bold"><i class="bi bi-chat-left-text me-1 text-primary"></i> Notes
                   (optional)</label>
                 <textarea class="form-control form-control-sm rounded-3" id="wizardNotes" rows="2"
@@ -1008,7 +1020,10 @@
 
             <!-- Pickup fields -->
             <div id="pickupFields" class="pickup-panel" style="display:none;">
-              <h6 class="pickup-title"><i class="bi bi-shop text-success me-2"></i> Pickup Information</h6>
+              <div class="checkout-section-heading checkout-section-heading-pickup">
+                <span class="checkout-section-number">1</span>
+                <div><h6>Choose your pickup date</h6><p>Only available store days can be selected.</p></div>
+              </div>
 
               <div class="pickup-store">
                 <i class="bi bi-shop pickup-store-bg-icon"></i>
@@ -1028,9 +1043,8 @@
 
         <!-- STEP 3 — Payment Option -->
         <div class="wizard-panel" id="wizardStep3">
-          <div class="text-center mb-4">
-            <h5 class="fw-bolder mb-2" style="color: #0f172a; letter-spacing:-0.5px;">Choose Payment Option</h5>
-            <p class="text-secondary fw-medium small">Choose when to pay and which amount is due now.</p>
+          <div class="wizard-step-intro">
+            <p>Choose when to pay. The amount due now is shown before you upload a receipt.</p>
           </div>
           
           <div class="row g-3 px-md-3" id="paymentOptionsContainer">
@@ -1039,8 +1053,8 @@
           <input type="hidden" id="wizardPaymentMethod" value="">
 
           <!-- GCash Details Panel (shown when a GCash method is picked) -->
-          <div id="gcashFieldsWizard" class="d-none mt-4 px-md-3">
-            <div class="p-4 bg-white shadow-sm border rounded-4" style="border-color: #dcfce7;">
+          <div id="gcashFieldsWizard" class="d-none mt-3 px-md-3">
+            <div class="gcash-checkout-card">
               <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i class="bi bi-phone-fill text-success me-2"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
 
               <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
@@ -1109,7 +1123,9 @@
 
         <!-- STEP 4 — Review & Confirm -->
         <div class="wizard-panel" id="wizardStep4">
-          <h6 class="fw-bolder mb-3 text-center" style="color: #0f172a;">Review Your Order</h6>
+          <div class="wizard-step-intro">
+            <p>Check the products, fulfillment details, schedule, and amount before placing your order.</p>
+          </div>
 
           <div class="px-md-2">
             <div class="p-3 rounded-4 mb-3 bg-white border"
@@ -1165,17 +1181,17 @@
         </div>
       </div>
 
-      <div class="modal-footer d-flex justify-content-between border-0 px-4 pb-4 pt-3">
-        <button type="button" class="btn btn-sm" id="wizardBackBtn" onclick="wizardBack()"
+      <div class="modal-footer checkout-wizard-footer">
+        <button type="button" class="btn btn-sm checkout-back-btn" id="wizardBackBtn" onclick="wizardBack()"
           style="border-radius: 8px; padding: 0.5rem 1.25rem; color: #64748b; font-weight: 600; display: none; border: 1.5px solid #e2e8f0; background: #fff; font-size: 0.82rem; transition: all 0.2s;"
           onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">
           <i class="bi bi-arrow-left me-1"></i>Back
         </button>
-        <div class="ms-auto d-flex gap-2">
-          <button type="button" class="btn btn-sm" data-bs-dismiss="modal"
+        <div class="ms-auto d-flex gap-2 checkout-footer-actions">
+          <button type="button" class="btn btn-sm checkout-cancel-btn" data-bs-dismiss="modal"
             style="border-radius: 8px; padding: 0.5rem 1.25rem; font-weight: 600; color: #64748b; background: #fff; border: 1.5px solid #e2e8f0; font-size: 0.82rem; transition: all 0.2s;"
             onmouseover="this.style.borderColor='#cbd5e1';this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#fff'">Cancel</button>
-          <button type="button" class="btn btn-sm px-4" id="wizardNextBtn" onclick="wizardNext()"
+          <button type="button" class="btn btn-sm px-4 checkout-primary-btn" id="wizardNextBtn" onclick="wizardNext()"
             style="border-radius: 8px; padding: 0.55rem 1.75rem; font-weight: 600; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.25);"
             onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'">
             Next Step <i class="bi bi-arrow-right ms-2"></i>
@@ -1186,7 +1202,7 @@
   </div>
 </div>
 
-<script src="/js/checkout-calendar.js"></script>
+<script src="/js/checkout-calendar.js?v=20260912-checkout-mobile"></script>
 
 <script>
   let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
@@ -1196,6 +1212,7 @@
   window.airconInstallFee = 1500;
   window._farePerKm = 40;
   window.downpaymentPercentage = 10;
+  window.gcashConfigurationLoaded = false;
   fetch('/api/services/fare-per-km')
     .then(r => r.json())
     .then(data => {
@@ -1207,13 +1224,21 @@
     .then(r => r.json())
     .then(data => {
       const percentage = Number(data.downpaymentPercentage);
+      if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
+        window.adminGcashNumber = String(data.gcashNumber || '');
+      }
+      window.gcashConfigurationLoaded = true;
       if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
         window.downpaymentPercentage = percentage;
         const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;
         if (selectedMethod && typeof window.selectPaymentMethods === 'function') window.selectPaymentMethods(selectedMethod);
       }
+      if (typeof window.refreshCheckoutPaymentOptions === 'function') window.refreshCheckoutPaymentOptions();
     })
-    .catch(() => console.warn('Using default downpayment policy'));
+    .catch(() => {
+      window.gcashConfigurationLoaded = true;
+      console.warn('Using default downpayment policy');
+    });
 
   // Company base location for distance calculation
   window._companyBaseLocation = { configured: false, lat: 14.676049, lng: 121.043731 };
@@ -1256,6 +1281,37 @@
     let _routeQuoteError = null;
     let _checkoutSubmitting = false;
     let _checkoutRequestId = '';
+    let _guidedFocusTimer = null;
+    let _autoAdvanceTimer = null;
+
+    function prefersReducedCheckoutMotion() {
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function focusCheckoutControl(selector, delay) {
+      clearTimeout(_guidedFocusTimer);
+      _guidedFocusTimer = setTimeout(function() {
+        const target = document.querySelector(selector);
+        if (!target) return;
+        target.scrollIntoView({ behavior: prefersReducedCheckoutMotion() ? 'auto' : 'smooth', block:'center' });
+        if (target.matches('button, a, input, select, textarea, [tabindex]')) {
+          target.focus({ preventScroll:true });
+        }
+      }, Number.isFinite(delay) ? delay : 160);
+    }
+
+    function scheduleCheckoutAdvance(expectedStep, delay) {
+      clearTimeout(_autoAdvanceTimer);
+      _autoAdvanceTimer = setTimeout(function() {
+        if (currentStep === expectedStep && typeof window.wizardNext === 'function') {
+          window.wizardNext();
+        }
+      }, Number.isFinite(delay) ? delay : 500);
+    }
+
+    function isCompletePhilippinePhone(value) {
+      return /^(?:09\d{9}|639\d{9})$/.test(String(value || '').replace(/\D/g, ''));
+    }
 
     function createCheckoutRequestId() {
       if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -1282,10 +1338,10 @@
     }
 
     const stepTitles = {
-      1: '<i class="bi bi-truck me-2"></i>Choose how to receive your order',
-      2: '<i class="bi bi-calendar-check me-2"></i>Schedule and contact details',
-      3: '<i class="bi bi-credit-card me-2"></i>Choose Payment Option',
-      4: '<i class="bi bi-receipt me-2"></i>Review & Confirm Order'
+      1: '<i class="bi bi-truck me-2"></i>How would you like to receive it?',
+      2: '<i class="bi bi-calendar-check me-2"></i>Delivery or pickup details',
+      3: '<i class="bi bi-credit-card me-2"></i>Payment option',
+      4: '<i class="bi bi-receipt me-2"></i>Review and place order'
     };
 
     let CART_ITEMS = cartObj.items || [];
@@ -1335,6 +1391,8 @@
       }
 
       currentStep = 1;
+      clearTimeout(_guidedFocusTimer);
+      clearTimeout(_autoAdvanceTimer);
       selectedFulfillment = null;
       renderedPaymentFulfillment = null;
       document.getElementById('wizardPaymentMethod').value = '';
@@ -1356,6 +1414,22 @@
       if (contactInput && USER_PHONE) {
         contactInput.value = USER_PHONE;
       }
+      if (contactInput && !contactInput.dataset.guidedProgressBound) {
+        contactInput.dataset.guidedProgressBound = 'true';
+        contactInput.addEventListener('input', function() {
+          if (isCompletePhilippinePhone(contactInput.value)) {
+            focusCheckoutControl('#wizardAddress', 420);
+          } else {
+            clearTimeout(_guidedFocusTimer);
+          }
+        });
+        contactInput.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter' && isCompletePhilippinePhone(contactInput.value)) {
+            event.preventDefault();
+            focusCheckoutControl('#wizardAddress', 0);
+          }
+        });
+      }
 
       // Calculate estimated installation duration based on total quantity
       const totalQty = CART_ITEMS.reduce((sum, it) => sum + (it.quantity || 1), 0);
@@ -1368,9 +1442,12 @@
           onDateSelect: (dateStr) => {
             document.getElementById('wizardDate').value = dateStr;
             document.getElementById('wizardDateError').style.display = 'none';
+            if (dateStr) focusCheckoutControl('#coTimeSection', 240);
           },
           onTimeSelect: (timeStr) => {
             document.getElementById('wizardTimeSlot').value = timeStr;
+            if (timeStr) scheduleCheckoutAdvance(2, 550);
+            else clearTimeout(_autoAdvanceTimer);
           }
         });
       } else {
@@ -1395,7 +1472,11 @@
         disableMobile: true,
         inline: true,
         monthSelectorType: "static",
-        position: "auto left"
+        position: "auto left",
+        onChange: function(selectedDates) {
+          if (selectedDates && selectedDates.length) scheduleCheckoutAdvance(2, 500);
+          else clearTimeout(_autoAdvanceTimer);
+        }
       };
 
       if (!fpDatePickup) {
@@ -1420,6 +1501,7 @@
         const totalQty = CART_ITEMS.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
         checkoutCalendar.setDuration(type === 'delivery_installation' ? Math.max(60, totalQty * 60) : 60);
       }
+      scheduleCheckoutAdvance(1, 420);
     };
 
     function getCheckoutStepIssue(step) {
@@ -1558,6 +1640,7 @@
     }
 
     function enterWizardStep(step) {
+      clearTimeout(_autoAdvanceTimer);
       currentStep = step;
 
       if (step === 2) {
@@ -1645,6 +1728,12 @@
       document.getElementById('wizardModalTitle').innerHTML = stepTitles[currentStep] || '';
       document.getElementById('wizardStepCurrent').textContent = currentStep;
 
+      const modalBody = document.querySelector('#checkoutOrderModal .modal-body');
+      if (modalBody) {
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        modalBody.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      }
+
       document.querySelectorAll('.wizard-ps').forEach(p => {
         const step = parseInt(p.dataset.step);
         p.classList.remove('active', 'completed');
@@ -1659,25 +1748,23 @@
 
       document.getElementById('wizardBackBtn').style.display = currentStep > 1 ? 'inline-flex' : 'none';
       const nextBtn = document.getElementById('wizardNextBtn');
-      if (currentStep === 4) {
-        nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
-        nextBtn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
-        nextBtn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.25)';
-        nextBtn.onmouseover = function() { this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(16,185,129,0.35)'; };
-        nextBtn.onmouseout = function() { this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.25)'; };
-      } else {
-        nextBtn.innerHTML = 'Next Step <i class="bi bi-arrow-right ms-2"></i>';
-        nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
-        nextBtn.style.boxShadow = '0 4px 12px rgba(37,99,235,0.25)';
-        nextBtn.onmouseover = function() { this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'; };
-        nextBtn.onmouseout = function() { this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'; };
-      }
+      const nextLabels = {
+        1: 'Continue to details <i class="bi bi-arrow-right ms-2"></i>',
+        2: 'Continue to payment <i class="bi bi-arrow-right ms-2"></i>',
+        3: 'Review order <i class="bi bi-arrow-right ms-2"></i>',
+        4: '<i class="bi bi-bag-check me-2"></i>Place order'
+      };
+      nextBtn.innerHTML = nextLabels[currentStep];
+      nextBtn.classList.toggle('is-submit', currentStep === 4);
+      nextBtn.removeAttribute('style');
     }
 
     window.selectPaymentMethods = function(method) {
+      clearTimeout(_autoAdvanceTimer);
       document.getElementById('wizardPaymentMethod').value = method;
       document.querySelectorAll('.payment-method-card').forEach(c => {
         c.classList.toggle('selected', c.dataset.method === method);
+        c.setAttribute('aria-pressed', c.dataset.method === method ? 'true' : 'false');
       });
 
       const showGcashPanel = method === 'gcash_full' || method === 'cod';
@@ -1726,11 +1813,17 @@
       }
       // Update Next button state
       updateNextButtonState();
+      if (method === 'cash_onsite') {
+        scheduleCheckoutAdvance(3, 450);
+      } else if (showGcashPanel) {
+        focusCheckoutControl('#wizardGcashSenderNumber', 220);
+      }
     };
 
     // Preview uploaded receipt
     document.addEventListener('change', function(e) {
       if (e.target && e.target.id === 'gcashProofWizard') {
+        clearTimeout(_autoAdvanceTimer);
         const file = e.target.files[0];
         const preview = document.getElementById('gcashProofPreviewWizard');
         const warning = document.getElementById('gcashProofWarning');
@@ -1751,6 +1844,24 @@
           if (warning) warning.classList.remove('d-none');
         }
         updateNextButtonState();
+        const senderNumber = document.getElementById('wizardGcashSenderNumber')?.value;
+        if (file && isCompletePhilippinePhone(senderNumber)) scheduleCheckoutAdvance(3, 650);
+      }
+    });
+
+    document.addEventListener('input', function(e) {
+      if (e.target && e.target.id === 'wizardGcashSenderNumber') {
+        if (isCompletePhilippinePhone(e.target.value)) {
+          const proofFile = document.getElementById('gcashProofWizard')?.files[0];
+          if (proofFile && validateReceiptFile(proofFile, false)) {
+            scheduleCheckoutAdvance(3, 550);
+          } else {
+            focusCheckoutControl('#gcashProofWizard', 420);
+          }
+        } else {
+          clearTimeout(_guidedFocusTimer);
+          clearTimeout(_autoAdvanceTimer);
+        }
       }
     });
 
@@ -1759,6 +1870,13 @@
       const nextBtn = document.getElementById('wizardNextBtn');
       if (!nextBtn || currentStep !== 3) return;
       const payMethod = document.getElementById('wizardPaymentMethod').value;
+      const gcashConfigured = !!String(window.adminGcashNumber || '').trim();
+      if (!payMethod && !gcashConfigured && selectedFulfillment !== 'customer_pickup') {
+        nextBtn.disabled = true;
+        nextBtn.style.opacity = '0.55';
+        nextBtn.style.cursor = 'not-allowed';
+        return;
+      }
       const needsProof = payMethod === 'gcash_full' || payMethod === 'cod';
       if (needsProof) {
         const gcashFile = document.getElementById('gcashProofWizard')?.files[0];
@@ -1780,41 +1898,26 @@
       document.getElementById('wizardPaymentMethod').value = '';
       renderedPaymentFulfillment = selectedFulfillment;
 
-      const paymentCardStyle = `
-        border: 2px solid #e2e8f0;
-        border-radius: 1.5rem;
-        padding: 1.5rem;
-        cursor: pointer;
-        transition: all 0.3s;
-        background: white;
-        text-align: center;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-      `;
-
       let html = '';
 
       const paymentCardsHtml = `
         <div class="col-md-6">
-          <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
-            <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+          <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
+            <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+            <div class="payment-method-icon">
               <i class="bi bi-phone fs-3"></i>
             </div>
-            <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
-            <div class="small text-muted">Pay the complete order amount through GCash.</div>
-          </div>
+            <div class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash.</span></div>
+          </button>
         </div>
         <div class="col-md-6">
-          <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
-            <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
+          <button type="button" class="payment-method-card payment-card-amber" data-method="cod" aria-pressed="false" onclick="selectPaymentMethods('cod')">
+            <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+            <div class="payment-method-icon">
               <i class="bi bi-wallet2 fs-3"></i>
             </div>
-            <div class="fw-bolder fs-6 mb-1 text-dark">Reserve with Downpayment</div>
-            <div class="small text-muted">Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</div>
-          </div>
+            <div class="payment-method-copy"><strong>Reserve with Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</span></div>
+          </button>
         </div>
       `;
 
@@ -1822,22 +1925,22 @@
          // Pickup: Cash On-Site + GCash only (no COD — customer is picking up in person)
          html = `
             <div class="col-md-6">
-              <div class="payment-method-card" data-method="cash_onsite" onclick="selectPaymentMethods('cash_onsite')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a;">
+              <button type="button" class="payment-method-card payment-card-green" data-method="cash_onsite" aria-pressed="false" onclick="selectPaymentMethods('cash_onsite')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <div class="payment-method-icon">
                   <i class="bi bi-cash-stack fs-3"></i>
                 </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Pay at Store Pickup</div>
-                <div class="small text-muted">Pay the complete amount in cash when collecting the order.</div>
-              </div>
+                <div class="payment-method-copy"><strong>Pay at Store Pickup</strong><span>Pay the complete amount in cash when collecting the order.</span></div>
+              </button>
             </div>
             <div class="col-md-6">
-              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
+              <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <div class="payment-method-icon">
                   <i class="bi bi-phone fs-3"></i>
                 </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
-                <div class="small text-muted">Pay the complete order amount through GCash before pickup.</div>
-              </div>
+                <div class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash before pickup.</span></div>
+              </button>
             </div>
          `;
       } else {
@@ -1849,10 +1952,30 @@
 
       container.innerHTML = html;
 
+      const gcashConfigured = !!String(window.adminGcashNumber || '').trim();
+      if (!gcashConfigured) {
+        container.querySelectorAll('[data-method="gcash_full"], [data-method="cod"]').forEach(function(button) {
+          button.disabled = true;
+          button.setAttribute('aria-disabled', 'true');
+          button.removeAttribute('onclick');
+        });
+        const message = selectedFulfillment === 'customer_pickup'
+          ? 'GCash is currently unavailable. You can still pay in cash when you collect your order.'
+          : 'Online payment is being configured by the store. Please contact the store before arranging delivery and installation.';
+        container.insertAdjacentHTML('afterbegin', '<div class="col-12"><div class="checkout-payment-unavailable" role="status"><i class="bi bi-info-circle-fill"></i><span>' + message + '</span></div></div>');
+      }
+
       // Reset GCash panel when switching fulfillment
       const gcashPanel = document.getElementById('gcashFieldsWizard');
       if (gcashPanel) gcashPanel.classList.add('d-none');
     }
+
+    window.refreshCheckoutPaymentOptions = function() {
+      renderedPaymentFulfillment = null;
+      if (currentStep !== 3) return;
+      renderPaymentOptions();
+      updateNextButtonState();
+    };
 
     // ── Transport fare calculation ──────────────────────────────────────
     function updateRoutePanel(distKm, durMin, farePerKm, fee, isRoad) {
@@ -2033,7 +2156,26 @@
       });
     }
 
+    function showMapAccessNotice(message, tone) {
+      const notice = document.getElementById('mapAccessNotice');
+      if (!notice) return;
+      notice.classList.remove('d-none', 'is-info');
+      if (tone === 'info') notice.classList.add('is-info');
+      notice.innerHTML = '<i class="bi ' + (tone === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle') + '"></i>' + escapeMapText(message);
+    }
+
+    function clearMapAccessNotice() {
+      const notice = document.getElementById('mapAccessNotice');
+      if (notice) notice.classList.add('d-none');
+    }
+
+    function focusManualAddress() {
+      const input = document.getElementById('wizardAddress');
+      if (input) setTimeout(function() { input.focus({ preventScroll: true }); }, 80);
+    }
+
     function updateMapSelectionDetails(lat, lng, address, source) {
+      clearMapAccessNotice();
       _customerLocationSelected = true;
       _lastCustomerLat = Number(lat);
       _lastCustomerLng = Number(lng);
@@ -2097,9 +2239,31 @@
       }
     }
 
+    function applyDeviceLocation(pos, options) {
+      const lat = Number(pos && pos.coords && pos.coords.latitude);
+      const lng = Number(pos && pos.coords && pos.coords.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (leafletMap && leafletMarker) {
+        setCustomerMapLocation(lat, lng, options);
+        return;
+      }
+      updateMapSelectionDetails(lat, lng, '', options && options.source);
+      calcTransportFare(lat, lng);
+      reverseGeocodeDeliveryPoint(lat, lng, options && options.source);
+      focusCheckoutControl('#checkoutCalendarContainer', 650);
+    }
+
     function initMap() {
       const mapEl = document.getElementById('wizardMap');
-      if (!mapEl || typeof L === 'undefined') return;
+      if (!mapEl) return;
+      if (typeof L === 'undefined') {
+        mapEl.classList.add('map-unavailable-state');
+        mapEl.innerHTML = '<div><i class="bi bi-map d-block fs-3 mb-2"></i>The interactive map could not load.<br>Search for your full address above to continue.</div>';
+        showMapAccessNotice('Map tiles are unavailable, but address search still works and will calculate your delivery route.', 'info');
+        return;
+      }
+      mapEl.classList.remove('map-unavailable-state');
+      mapEl.innerHTML = '';
       const savedLat = parseFloat(document.getElementById('wizardLat').value);
       const savedLng = parseFloat(document.getElementById('wizardLng').value);
       const hasSavedLocation = Number.isFinite(savedLat) && Number.isFinite(savedLng);
@@ -2111,12 +2275,20 @@
       leafletMap = null; leafletMarker = null;
       window._routeLayer = null; window._companyMarker = null;
 
-      leafletMap = L.map('wizardMap', { zoomControl:false, scrollWheelZoom:false, preferCanvas:true }).setView([defaultLat, defaultLng], hasSavedLocation ? 16 : 13);
+      try {
+        leafletMap = L.map('wizardMap', { zoomControl:false, scrollWheelZoom:false, preferCanvas:true }).setView([defaultLat, defaultLng], hasSavedLocation ? 16 : 13);
+      } catch (error) {
+        console.warn('Checkout map initialization failed:', error);
+        mapEl.classList.add('map-unavailable-state');
+        mapEl.innerHTML = '<div><i class="bi bi-map d-block fs-3 mb-2"></i>The interactive map could not start.<br>Search for your full address above to continue.</div>';
+        showMapAccessNotice('The interactive map is unavailable. Select an address search result to continue.', 'info');
+        return;
+      }
       L.control.zoom({ position:'bottomright' }).addTo(leafletMap);
       L.control.scale({ position:'bottomleft', imperial:false, maxWidth:120 }).addTo(leafletMap);
 
-      _streetMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution:'&copy; OpenStreetMap contributors', maxNativeZoom:19, maxZoom:19
+      _streetMapLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution:'&copy; OpenStreetMap contributors &copy; CARTO', subdomains:'abcd', maxNativeZoom:20, maxZoom:20
       }).addTo(leafletMap);
       const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution:'Tiles &copy; Esri', maxZoom:19
@@ -2125,6 +2297,14 @@
         attribution:'Labels &copy; Esri', maxZoom:19
       });
       _satelliteMapLayer = L.layerGroup([satelliteImagery, satelliteLabels]);
+      let streetTileErrors = 0;
+      _streetMapLayer.on('tileerror', function() {
+        streetTileErrors += 1;
+        if (streetTileErrors < 3 || !leafletMap || !leafletMap.hasLayer(_streetMapLayer)) return;
+        leafletMap.removeLayer(_streetMapLayer);
+        _satelliteMapLayer.addTo(leafletMap);
+        showMapAccessNotice('The detailed street layer is temporarily unavailable. Satellite view is active and address search still works.', 'info');
+      });
       L.control.layers({ 'Detailed streets':_streetMapLayer, 'Satellite + labels':_satelliteMapLayer }, null, { position:'topright', collapsed:true }).addTo(leafletMap);
 
       const customPinIcon = L.divIcon({ className:'custom-map-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body"></div>' });
@@ -2147,6 +2327,7 @@
       });
       leafletMap.on('click', function(e) {
         setCustomerMapLocation(e.latlng.lat, e.latlng.lng, { source:'Point selected on map', zoom:false });
+        focusCheckoutControl('#checkoutCalendarContainer', 650);
       });
 
       if (hasSavedLocation) {
@@ -2158,9 +2339,14 @@
     }
 
     window.locateMe = function() {
-      if (!leafletMap || !leafletMarker) return;
+      if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+        showMapAccessNotice('Automatic location requires HTTPS. Search for your address or tap the map instead.');
+        focusManualAddress();
+        return;
+      }
       if (!navigator.geolocation) {
-        Swal.fire('Not Supported', 'Geolocation is not supported by your browser.', 'warning');
+        showMapAccessNotice('Automatic location is unavailable in this browser. Search for your address or tap the map instead.');
+        focusManualAddress();
         return;
       }
       const spinner = document.getElementById('mapLocatingSpinner');
@@ -2168,17 +2354,19 @@
       if (spinnerLabel) spinnerLabel.textContent = 'Locating your device...';
       if (spinner) spinner.classList.add('show');
       navigator.geolocation.getCurrentPosition(function(pos) {
-        setCustomerMapLocation(pos.coords.latitude, pos.coords.longitude, {
+        applyDeviceLocation(pos, {
           source: pos.coords.accuracy ? 'Device GPS · ±' + Math.round(pos.coords.accuracy) + ' m' : 'Device GPS',
           zoom:17
         });
+        focusCheckoutControl('#checkoutCalendarContainer', 650);
       }, function(error) {
         if (spinner) spinner.classList.remove('show');
         var message = error && error.code === 1
-          ? 'Location permission was denied. Allow location access or search for your address instead.'
-          : 'Unable to retrieve your location. Search for your address or select the point on the map.';
-        Swal.fire('Location unavailable', message, 'warning');
-      }, { enableHighAccuracy:true, timeout:12000, maximumAge:30000 });
+          ? 'Location access is blocked in your browser settings. Search for your address or select the point on the map instead.'
+          : 'We could not read your location. Search for your address or select the point on the map instead.';
+        showMapAccessNotice(message);
+        focusManualAddress();
+      }, { enableHighAccuracy:false, timeout:10000, maximumAge:300000 });
     };
 
     window.fitDeliveryRoute = function() {
@@ -2267,7 +2455,13 @@
       addrInput.value = name;
       suggestBox.style.display = 'none';
       const flat = parseFloat(lat); const flon = parseFloat(lon);
-      setCustomerMapLocation(flat, flon, { address:name, source:'Address search result', zoom:16, reverseGeocode:false });
+      if (leafletMap && leafletMarker) {
+        setCustomerMapLocation(flat, flon, { address:name, source:'Address search result', zoom:16, reverseGeocode:false });
+      } else {
+        updateMapSelectionDetails(flat, flon, name, 'Address search result');
+        calcTransportFare(flat, flon);
+      }
+      focusCheckoutControl('#checkoutCalendarContainer', 550);
     }
 
     document.addEventListener('click', (e) => { if (suggestBox && !suggestBox.contains(e.target) && e.target !== addrInput) { suggestBox.style.display = 'none'; } });

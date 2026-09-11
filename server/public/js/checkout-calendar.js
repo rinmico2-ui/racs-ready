@@ -162,18 +162,20 @@ class CheckoutCalendar {
             .co-cal-nav-btn:disabled { opacity: .35; cursor: not-allowed; }
             .co-cal-nav-btn:disabled:hover { background: rgba(255,255,255,0.08); }
             @media (max-width: 575px) {
+                .co-cal-mode { display: none; }
                 .co-cal-cell { min-height: 44px; border-radius: 6px; border-width: 1px; padding: 3px 1px; }
                 .co-cal-date { font-size: 0.76rem; }
                 .co-cal-slots { font-size: 0.46rem; }
                 .co-cal-reason { font-size: .44rem; }
-                .co-cal-legend { gap: 6px; padding: 6px 12px; }
+                .co-cal-legend { flex-wrap: nowrap; justify-content: center; gap: 10px; padding: 6px 8px; }
                 .co-cal-legend-item { font-size: 0.6rem; }
                 .co-cal-legend-dot { width: 10px; height: 10px; }
+                .co-cal-legend-item:nth-child(n+4) { display: none; }
                 .co-cal-header { padding: 10px 12px; }
                 .co-cal-mode { padding: 7px 12px; font-size: .66rem; }
                 .co-cal-days { padding-left: 8px; padding-right: 8px; }
                 .co-cal-grid { gap: 3px; padding: 2px 8px 8px; }
-                .co-time-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px; padding: 8px 10px; }
+                .co-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 8px; }
                 .co-time-slot { padding: 8px 10px; }
                 .co-time-header { padding: 8px 12px; align-items:flex-start; flex-direction:column; gap:5px; }
                 .co-cal-tooltip { display:none; }

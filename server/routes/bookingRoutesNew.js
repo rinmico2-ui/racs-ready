@@ -11,7 +11,7 @@ const RepairService = require('../models/RepairService');
 const { createNotification } = require('../utils/notify');
 const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
 const audit = require('../utils/audit');
-const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
+const { getDownpaymentPercentage, getGcashRecipientNumber, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
@@ -115,6 +115,9 @@ router.post('/create-new', async (req, res) => {
     
     if (!['gcash', 'cod'].includes(bookingPaymentMethod)) {
       return res.status(400).json({ error: 'Choose a supported payment option.' });
+    }
+    if (!(await getGcashRecipientNumber())) {
+      return res.status(503).json({ error: 'GCash checkout is temporarily unavailable. Please contact the store.' });
     }
     const senderDigits = String(gcashNumber || '').replace(/\D/g, '');
     if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
@@ -1197,6 +1200,9 @@ router.post('/create-repair', (req, res, next) => {
     if (isNaN(latNum) || isNaN(lngNum)) errors.push('Location coordinates are required');
     if (!paymentMethod || !['gcash', 'cod'].includes(paymentMethod)) {
       errors.push('Valid payment method is required (gcash or cod)');
+    }
+    if (!(await getGcashRecipientNumber())) {
+      errors.push('GCash checkout is temporarily unavailable. Please contact the store.');
     }
     repairItems.forEach((item, index) => {
       if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);

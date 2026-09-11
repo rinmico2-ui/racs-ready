@@ -19,7 +19,7 @@ const {
   syncDailyKit,
 } = require("../utils/dailyKitService");
 const { orderDepartureReadiness } = require("../utils/orderPreparation");
-const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
+const { getDownpaymentPercentage, getGcashRecipientNumber, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
@@ -428,9 +428,10 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       : null;
     const requestedItems = validateCheckoutItems(items);
 
-    const [settings, downpaymentPercentage] = await Promise.all([
+    const [settings, downpaymentPercentage, gcashRecipientNumber] = await Promise.all([
       getOrderCheckoutSettings(),
       getDownpaymentPercentage(),
+      getGcashRecipientNumber(),
     ]);
     const selection = validateCheckoutSelection({
       fulfillmentType,
@@ -439,6 +440,13 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       pickupDate,
       timeSlot,
     }, { storeHours: settings.storeHours });
+    if (["cod", "gcash_full"].includes(selection.paymentMethod) && !gcashRecipientNumber) {
+      throw new OrderCheckoutError(
+        "GCash checkout is temporarily unavailable. Please choose another available payment option or contact the store.",
+        503,
+        "ORDER_GCASH_NOT_CONFIGURED",
+      );
+    }
 
     const HVACProduct = require("../models/HVACProduct");
     const enrichedItems = [];

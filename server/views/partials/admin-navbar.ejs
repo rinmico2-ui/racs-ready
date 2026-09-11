@@ -485,7 +485,12 @@
 
     // Poll every 30 seconds
     loadUnreadCount();
-    notifTimer = setInterval(loadUnreadCount, 30000);
+    notifTimer = setInterval(function() {
+      if (!document.hidden) loadUnreadCount();
+    }, 30000);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) loadUnreadCount();
+    });
 
     // Expose for Socket.io updates
     window._notifLoadUnreadCount = loadUnreadCount;

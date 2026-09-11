@@ -5,6 +5,9 @@ fetch('/api/services/payment-policy')
   .then(response => response.ok ? response.json() : null)
   .then(data => {
     const percentage = Number(data && data.downpaymentPercentage);
+    if (data && Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
+      window.adminGcashNumber = String(data.gcashNumber || '');
+    }
     if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) window.downpaymentPercentage = percentage;
   })
   .catch(() => {});
