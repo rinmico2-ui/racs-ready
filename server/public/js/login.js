@@ -362,6 +362,30 @@
   var params = new URLSearchParams(window.location.search);
   var returnTo = params.get('returnTo') || '';
 
+  if (params.get('google_error')) {
+    var googleErrorMessages = {
+      not_configured: 'Google sign-in is not available right now. Please use your email and password.',
+      cancelled: 'Google sign-in was cancelled.',
+      invalid_request: 'The Google sign-in request expired or was invalid. Please try again.',
+      invalid_account: 'Google could not verify that account. Please choose a verified Google account.',
+      account_not_found: 'No existing account uses that Google email. Create your account first, then sign in with Google.',
+      account_unavailable: 'That account is not available. Please contact support if you need help.',
+      failed: 'Google sign-in could not be completed. Please try again.',
+    };
+    var googleError = params.get('google_error');
+    window.authUtils.swalError(
+      'Google sign-in failed',
+      googleErrorMessages[googleError] || googleErrorMessages.failed
+    );
+    if (window.history && window.history.replaceState) {
+      try {
+        var googleErrorUrl = new URL(window.location.href);
+        googleErrorUrl.searchParams.delete('google_error');
+        window.history.replaceState(null, '', googleErrorUrl.pathname + googleErrorUrl.search + googleErrorUrl.hash);
+      } catch (e) { /* ignore */ }
+    }
+  }
+
   if (params.get('registered')) {
     window.authUtils.swalSuccess('Account created', 'Your account was created successfully. Please log in.');
     // Clean URL

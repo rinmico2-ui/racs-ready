@@ -24,6 +24,12 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false
       - key: BREVO_API_KEY
         sync: false
       - key: FROM_EMAIL

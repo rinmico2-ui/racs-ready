@@ -220,20 +220,21 @@ function sendGenericError(res, status = 400) {
     .json({ error: "Invalid email or password. Please try again." });
 }
 
-function loginRedirectFor(req, user) {
+function loginRedirectFor(req, user, returnToOverride) {
   if (user.role === "admin") return "/admin";
   if (user.role === "secretary") return "/secretary";
   if (user.role === "technician") return "/technician";
-  if (user.role === "customer" && req.body.returnTo) {
+  const requestedReturnTo = returnToOverride || (req.body && req.body.returnTo);
+  if (user.role === "customer" && requestedReturnTo) {
     try {
-      const returnTo = decodeURIComponent(req.body.returnTo);
+      const returnTo = decodeURIComponent(requestedReturnTo);
       if (returnTo.startsWith("/") && !returnTo.startsWith("//")) return returnTo;
     } catch (e) {}
   }
   return "/";
 }
 
-async function establishJwtLogin(req, res, user, rememberMe) {
+async function establishJwtLogin(req, res, user, rememberMe, options = {}) {
   const sessionId = crypto.randomBytes(24).toString("hex");
   const defaultMaxAge = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
   const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : defaultMaxAge;
@@ -250,7 +251,10 @@ async function establishJwtLogin(req, res, user, rememberMe) {
   res.cookie("auth_token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Strict",
+    // OAuth callbacks arrive through a cross-site top-level navigation. Lax is
+    // required for the first protected redirect to receive the new cookie;
+    // password and OTP logins retain the stricter default.
+    sameSite: options.sameSite === "lax" ? "lax" : "strict",
     maxAge,
     path: "/",
   });
@@ -262,12 +266,16 @@ async function establishJwtLogin(req, res, user, rememberMe) {
       action: "login",
       module: "auth",
       req,
-      details: { role: user.role },
+      details: { role: user.role, method: options.method || "password" },
     });
   } catch (e) {}
 
-  return loginRedirectFor(req, user);
+  return loginRedirectFor(req, user, options.returnTo);
 }
+
+// Shared by the Google OAuth callback so every login receives the same bound
+// JWT cookie, expiry policy, last-login update, and audit event.
+exports.establishJwtLogin = establishJwtLogin;
 
 async function createAssessment({
   // TO-DO: Replace the token and reCAPTCHA action variables before running the sample.

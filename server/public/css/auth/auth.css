@@ -665,6 +665,30 @@
   .auth-form-panel { padding: 16px; }
   .auth-form-card { padding: 28px 18px; }
 }
+
+.auth-login-divider { margin: 20px 0 16px; }
+.auth-login-divider span { flex: 0 0 auto; }
+.auth-google-button {
+  width: 100%; min-height: 46px; padding: 11px 16px;
+  display: flex; align-items: center; justify-content: center; gap: 11px;
+  border: 1.5px solid rgba(148, 163, 184, .45); border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .82); color: var(--clr-text);
+  font-family: var(--font); font-size: 14px; font-weight: 700;
+  text-decoration: none; transition: var(--transition);
+}
+.auth-google-button:hover {
+  color: var(--clr-text); border-color: rgba(37, 99, 235, .55);
+  background: #fff; transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, .09);
+}
+.auth-google-button:focus-visible {
+  outline: 3px solid var(--clr-primary-soft); outline-offset: 2px;
+}
+.auth-google-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+.auth-google-note {
+  margin: 8px 0 0; color: var(--clr-text-muted);
+  font-size: 11.5px; line-height: 1.45; text-align: center;
+}
 @media (max-height: 700px) {
   .auth-form-card { padding: 28px 24px; }
   .auth-form-card-header { margin-bottom: 20px; }

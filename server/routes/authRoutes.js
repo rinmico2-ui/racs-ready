@@ -2,8 +2,14 @@ const express = require("express");
 const router = express.Router();
 const { body } = require("express-validator");
 const authController = require("../controllers/authController");
+const googleAuthController = require("../controllers/googleAuthController");
 // secure (session) auth - optional new implementation
 const secureAuthRoutes = require("./secureAuth");
+
+// Google OAuth is sign-in only: the callback accepts existing accounts and
+// never creates a user record.
+router.get("/google", googleAuthController.start);
+router.get("/google/callback", googleAuthController.callback);
 
 // Register - basic customer registration
 router.post(
