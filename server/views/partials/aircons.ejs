@@ -1,4 +1,5 @@
 <!-- Aircon Product Page — Premium E-Commerce Design -->
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260912-consistent-payment-v1">
 <%
   var airconGroups = (locals.grouped && Array.isArray(grouped)) ? grouped : [];
 %>
@@ -1664,22 +1665,24 @@
               <h4>Payment Option</h4>
               <p>Choose when to pay and which amount is due now.</p>
             </div>
-            <div class="row g-3 px-md-3" id="paymentOptionsContainer">
+            <div class="row g-3 px-md-3 customer-payment-options" id="paymentOptionsContainer">
               <!-- Options rendered by JS based on fulfillment type -->
             </div>
 
             <!-- GCash Fields Panel (Hidden initially) -->
-            <div id="wizardGcashFieldsPanel" class="mt-3 p-4" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-              <h6 class="fw-bold mb-3" style="color: #0f172a; font-size: 0.88rem;"><i class="bi bi-phone me-2" style="color: #3b82f6;"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
+            <div id="wizardGcashFieldsPanel" class="customer-payment-panel" style="display: none;">
+              <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
+              <div class="customer-payment-instructions mb-3">
+                <strong>Send your payment through GCash</strong>
+                <ol><li>Scan the QR code or use the displayed number.</li><li>Send the exact amount due now.</li><li>Upload the successful transaction receipt.</li></ol>
+              </div>
               <div class="row g-3">
-                <div class="col-md-5 text-center border-md-end mb-3 mb-md-0" style="border-color: #e2e8f0 !important;">
+                <div class="col-md-5 border-md-end mb-3 mb-md-0 customer-payment-qr" style="border-color: #e2e8f0 !important;">
                   <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Scan to Pay</div>
                   <img id="wizardGcashQr" src="" alt="GCash QR" class="img-fluid" style="max-width: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
-                  <div class="small text-muted mt-2">GCash: <strong id="wizardGcashNumber">Not configured</strong></div>
-                  <div class="fw-bold mt-2" style="color: #0f172a; font-size: 1.1rem;" id="wizardGcashAmount">--</div>
-                  <div style="font-size: 0.75rem; font-weight: 600; color: #3b82f6;" id="wizardGcashLabel"></div>
+                  <div class="customer-payment-recipient">GCash number: <strong id="wizardGcashNumber">Not configured</strong></div>
                 </div>
-                <div class="col-md-7 ps-md-4">
+                <div class="col-md-7 ps-md-4 customer-payment-fields">
                   <div class="mb-3">
                     <label class="form-label">GCash Sender Number <span class="text-danger">*</span></label>
                     <input class="form-control" id="wizardGcashSenderNumber" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXXX">
@@ -1692,15 +1695,16 @@
                   <!-- Image Preview -->
                   <div id="wizardGcashProofPreviewArea" class="mt-2 text-center" style="display: none;">
                     <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Receipt Preview</div>
-                    <img id="wizardGcashProofPreview" src="" alt="Receipt Preview" style="max-height: 100px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px;">
+                    <img id="wizardGcashProofPreview" src="" alt="Receipt Preview" class="customer-payment-proof-preview">
                   </div>
                 </div>
               </div>
-              <div class="rounded-3 p-3 mt-3" style="background:#fff;border:1px solid #dbeafe;">
-                <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Order total</span><span class="fw-semibold" id="wizardGcashTotal">--</span></div>
-                <div class="d-flex justify-content-between small" id="wizardGcashBalanceRow"><span class="text-muted" id="wizardGcashBalanceLabel">Balance due at handover</span><span class="fw-semibold text-success" id="wizardGcashBalance">--</span></div>
-                <div class="small text-muted mt-2"><i class="bi bi-shield-check me-1"></i>Your payment remains pending until an admin verifies the receipt.</div>
+              <div class="customer-payment-summary">
+                <div class="customer-payment-summary-row"><span>Order total</span><strong id="wizardGcashTotal">--</strong></div>
+                <div class="customer-payment-summary-row due"><span id="wizardGcashLabel">Amount due now</span><strong id="wizardGcashAmount">--</strong></div>
+                <div class="customer-payment-summary-row" id="wizardGcashBalanceRow"><span id="wizardGcashBalanceLabel">Balance due at handover</span><strong id="wizardGcashBalance">--</strong></div>
               </div>
+              <div class="customer-payment-verification"><i class="bi bi-shield-check"></i><span><strong>Receipt verification.</strong> Your payment remains pending until an admin verifies the uploaded receipt.</span></div>
             </div>
 
             <input type="hidden" id="wizardPaymentMethod" value="">
@@ -2290,6 +2294,7 @@
         document.getElementById('wizardPaymentMethod').value = method;
         document.querySelectorAll('#productOrderModal .payment-method-card').forEach(c => {
           c.classList.toggle('selected', c.dataset.method === method);
+          c.setAttribute('aria-pressed', c.dataset.method === method ? 'true' : 'false');
         });
 
         const gcashPanel = document.getElementById('wizardGcashFieldsPanel');
@@ -2356,66 +2361,42 @@
         const container = document.getElementById('paymentOptionsContainer');
         document.getElementById('wizardPaymentMethod').value = '';
 
-        const paymentCardStyle = `
-          border: 2px solid #e2e8f0;
-          border-radius: 1.5rem;
-          padding: 1.5rem;
-          cursor: pointer;
-          transition: all 0.3s;
-          background: white;
-          text-align: center;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        `;
-
         let html = '';
 
         if (selectedFulfillment === 'customer_pickup') {
           html = `
-            <div class="col-md-6">
-              <div class="payment-method-card" data-method="cash_onsite" onclick="selectPaymentMethods('cash_onsite')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #16a34a;">
-                  <i class="bi bi-cash-stack fs-3"></i>
-                </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Pay at Store Pickup</div>
-                <div class="small text-muted">Pay the complete amount in cash when collecting the order.</div>
-              </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="payment-method-card payment-card-green" data-method="cash_onsite" aria-pressed="false" onclick="selectPaymentMethods('cash_onsite')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <span class="payment-method-icon"><i class="bi bi-cash-stack fs-3"></i></span>
+                <span class="payment-method-copy"><strong>Pay at Store Pickup</strong><span>Pay the complete amount in cash when collecting the order.</span></span>
+              </button>
             </div>
-
-            <div class="col-md-6 mt-3 mt-md-0">
-              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
-                  <i class="bi bi-phone fs-3"></i>
-                </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
-                <div class="small text-muted">Pay the complete order amount through GCash before pickup.</div>
-              </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
+                <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash before pickup.</span></span>
+              </button>
             </div>
           `;
         } else {
           html = `
 
 
-            <div class="col-md-6 mt-3 mt-md-0">
-              <div class="payment-method-card" data-method="gcash_full" onclick="selectPaymentMethods('gcash_full')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #eff6ff, #dbeafe); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #2563eb;">
-                  <i class="bi bi-phone fs-3"></i>
-                </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Pay in Full Now</div>
-                <div class="small text-muted">Pay the complete order amount through GCash.</div>
-              </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
+                <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash.</span></span>
+              </button>
             </div>
-            <div class="col-md-6 mt-3 mt-md-0">
-              <div class="payment-method-card" data-method="cod" onclick="selectPaymentMethods('cod')" style="${paymentCardStyle}">
-                <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; color: #92400e;">
-                  <i class="bi bi-wallet2 fs-3"></i>
-                </div>
-                <div class="fw-bolder fs-6 mb-1 text-dark">Reserve with Downpayment</div>
-                <div class="small text-muted">Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</div>
-              </div>
+            <div class="col-12 col-md-6">
+              <button type="button" class="payment-method-card payment-card-amber" data-method="cod" aria-pressed="false" onclick="selectPaymentMethods('cod')">
+                <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
+                <span class="payment-method-copy"><strong>Reserve with Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</span></span>
+              </button>
             </div>
           `;
         }

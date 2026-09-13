@@ -28,7 +28,7 @@ test("service dialogs require deliberate acknowledgement", () => {
   assert.match(servicesScript, /allowOutsideClick: false/);
   assert.match(servicesScript, /confirmButtonText: 'Review Details'/);
   assert.match(servicesScript, /confirmButtonText: 'Continue'/);
-  assert.match(servicesView, /services-multi\.js\?v=20260912-payment-config-v1/);
+  assert.match(servicesView, /services-multi\.js\?v=20260912-step-navigation-v2/);
 });
 
 test("service-added confirmation appears after the configurator closes", () => {

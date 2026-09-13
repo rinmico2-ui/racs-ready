@@ -32,6 +32,19 @@ test("service progress navigation reports the first incomplete prerequisite", ()
   assert.doesNotMatch(servicesScript, /alert\('Please select at least one service first'\)/);
 });
 
+test("every navigation path into the services step prepares the catalog", () => {
+  assert.match(servicesScript, /function prepareServiceSelectionStep\(\)/);
+  assert.match(
+    servicesScript,
+    /if \(stepNumber === 2\) \{\s*prepareServiceSelectionStep\(\);\s*\}/,
+  );
+  assert.match(
+    servicesScript,
+    /if \(step === currentStep\) \{\s*if \(step === 2\) prepareServiceSelectionStep\(\);/,
+  );
+  assert.match(servicesScript, /function continueToServices\(\) \{\s*\/\/ Move to Step 2\s*showStep\(2\);\s*\}/);
+});
+
 test("order progress navigation is keyboard accessible and cannot skip steps", async () => {
   const html = await ejs.renderFile(cartWizardPath, {
     cart: { items: [], totalAmount: 0 },

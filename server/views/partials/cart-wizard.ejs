@@ -679,6 +679,7 @@
   }
 </style>
 
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260912-consistent-payment-v1" />
 <link rel="stylesheet" href="/css/cart-checkout-ux.css?v=20260912-checkout-flow-v3" />
 
 <!-- RACS Van Loading Modal -->
@@ -1047,17 +1048,17 @@
             <p>Choose when to pay. The amount due now is shown before you upload a receipt.</p>
           </div>
           
-          <div class="row g-3 px-md-3" id="paymentOptionsContainer">
+          <div class="row g-3 px-md-3 customer-payment-options" id="paymentOptionsContainer">
              <!-- Options dynamically rendered by JS based on fulfillment type -->
           </div>
           <input type="hidden" id="wizardPaymentMethod" value="">
 
           <!-- GCash Details Panel (shown when a GCash method is picked) -->
           <div id="gcashFieldsWizard" class="d-none mt-3 px-md-3">
-            <div class="gcash-checkout-card">
-              <h6 class="fw-bolder mb-3 pb-2 border-bottom" style="color: #0f172a;"><i class="bi bi-phone-fill text-success me-2"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
+            <div class="gcash-checkout-card customer-payment-panel">
+              <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
 
-              <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
+              <div class="rounded-3 p-3 mb-3 customer-payment-instructions" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
                 <div class="d-flex align-items-center gap-2 mb-2">
                   <i class="bi bi-phone text-success fs-4"></i>
                   <span class="fw-semibold">Send your payment through GCash</span>
@@ -1070,53 +1071,47 @@
               </div>
 
               <!-- QR Code -->
-              <div class="text-center mb-3">
+              <div class="text-center mb-3 customer-payment-qr">
                 <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
                 <img id="gcashQrImageWizard" src="" alt="GCash QR Code" class="img-thumbnail" style="max-width:220px;border-radius:12px;" />
-                <div class="form-text">GCash number: <strong id="gcashNumberDisplayWizard">Not configured</strong></div>
+                <div class="customer-payment-recipient">GCash number: <strong id="gcashNumberDisplayWizard">Not configured</strong></div>
               </div>
 
               <!-- Sender and receipt evidence -->
-              <div class="mb-3">
+              <div class="customer-payment-fields">
+              <div>
                 <label class="form-label text-muted fw-bold">GCash Sender Number <span class="text-danger">*</span></label>
                 <input id="wizardGcashSenderNumber" class="form-control" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXXX" />
                 <div class="form-text">Enter the number used to send this payment.</div>
               </div>
-              <div class="mb-3">
+              <div>
                 <label class="form-label text-muted fw-bold">Receipt Screenshot <span class="text-danger">*</span></label>
                 <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required />
                 <div class="form-text">Accepted: image files only (JPG, PNG, WEBP). Max 5MB.</div>
                 <div id="gcashProofWarning" class="mt-2 p-2 rounded-3 d-none" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:0.8rem;font-weight:600;">
                   <i class="bi bi-exclamation-triangle-fill me-1"></i>Please upload your GCash receipt before proceeding.
                 </div>
-                <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="img-thumbnail mt-2 d-none" style="max-height:160px;border-radius:10px;" />
+                <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="d-none customer-payment-proof-preview" />
+              </div>
               </div>
 
               <!-- Payment Summary -->
-              <div class="rounded-3 p-3 mb-3" style="background:#f8fdff;border:1px solid #bee3f8;">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="text-muted small">Order total</span>
-                  <span class="fw-semibold" id="gcashTotalDisplayWizard">&mdash;</span>
+              <div class="customer-payment-summary">
+                <div class="customer-payment-summary-row">
+                  <span>Order total</span>
+                  <strong id="gcashTotalDisplayWizard">&mdash;</strong>
                 </div>
-                <div class="d-flex justify-content-between align-items-center">
-                  <span class="text-muted small" id="wizardGcashLabel">Amount due now</span>
-                  <span class="fw-bold text-primary fs-5" id="gcashAmountDisplayWizard">&mdash;</span>
+                <div class="customer-payment-summary-row due">
+                  <span id="wizardGcashLabel">Amount due now</span>
+                  <strong id="gcashAmountDisplayWizard">&mdash;</strong>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mt-1" id="gcashBalanceRowWizard">
-                  <span class="text-muted small" id="wizardGcashBalanceLabel">Balance due at handover</span>
-                  <span class="fw-semibold text-success" id="gcashBalanceDisplayWizard">&mdash;</span>
+                <div class="customer-payment-summary-row" id="gcashBalanceRowWizard">
+                  <span id="wizardGcashBalanceLabel">Balance due at handover</span>
+                  <strong id="gcashBalanceDisplayWizard">&mdash;</strong>
                 </div>
               </div>
 
-              <div class="alert alert-success border-0" role="alert" style="background:#f0fdf4;border-left:4px solid #16a34a !important;">
-                <div class="d-flex align-items-start gap-2">
-                  <i class="bi bi-lock-fill text-success mt-1"></i>
-                  <div>
-                    <div class="fw-semibold small">Receipt verification</div>
-                    <small class="text-muted">Your payment remains pending until an admin verifies the uploaded receipt.</small>
-                  </div>
-                </div>
-              </div>
+              <div class="customer-payment-verification" role="status"><i class="bi bi-shield-check"></i><span><strong>Receipt verification.</strong> Your payment remains pending until an admin verifies the uploaded receipt.</span></div>
             </div>
           </div>
         </div>

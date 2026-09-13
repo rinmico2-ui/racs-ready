@@ -1,0 +1,75 @@
+/* Shared customer payment layout for service and product checkout. */
+.customer-payment-options { --bs-gutter-x: .85rem; --bs-gutter-y: .85rem; }
+.ent-payment-tabs.customer-payment-options { display: flex; flex-flow: row wrap; gap: 0; }
+.customer-payment-options .payment-method-card {
+  position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center; gap: .9rem; width: 100%; min-height: 112px; padding: 1rem;
+  border: 1.5px solid #dbe3ee; border-radius: 15px; background: #fff; color: #0f172a;
+  text-align: left; box-shadow: 0 3px 12px rgba(15, 23, 42, .04); cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+}
+.customer-payment-options .payment-method-card:hover { border-color: #93c5fd; box-shadow: 0 5px 16px rgba(37, 99, 235, .09); transform: none !important; }
+.customer-payment-options .payment-method-card:focus-visible { outline: 3px solid rgba(37, 99, 235, .22); outline-offset: 2px; }
+.customer-payment-options .payment-method-card.selected,
+.customer-payment-options .payment-method-card.active,
+.customer-payment-options .payment-method-card[aria-pressed="true"] {
+  border-color: #2563eb !important; background: #eff6ff !important;
+  box-shadow: 0 0 0 1px #2563eb, 0 5px 16px rgba(37, 99, 235, .1) !important;
+}
+.customer-payment-options .payment-method-icon {
+  display: flex; align-items: center; justify-content: center; width: 52px; height: 52px;
+  border-radius: 13px; background: #dbeafe; color: #1d4ed8;
+}
+.customer-payment-options .payment-card-amber .payment-method-icon { background: #fef3c7; color: #92400e; }
+.customer-payment-options .payment-card-green .payment-method-icon { background: #dcfce7; color: #15803d; }
+.customer-payment-options .payment-method-copy { display: flex; flex-direction: column; gap: .25rem; min-width: 0; padding-right: 1.15rem; }
+.customer-payment-options .payment-method-copy strong { font-size: .91rem; }
+.customer-payment-options .payment-method-copy span { color: #64748b; font-size: .76rem; line-height: 1.42; }
+.customer-payment-options .checkout-choice-check {
+  position: absolute; top: .65rem; right: .65rem; display: grid; place-items: center;
+  width: 23px; height: 23px; border: 1.5px solid #cbd5e1; border-radius: 50%;
+  background: #fff; color: transparent; font-size: .72rem;
+}
+.customer-payment-options .payment-method-card.selected .checkout-choice-check,
+.customer-payment-options .payment-method-card.active .checkout-choice-check,
+.customer-payment-options .payment-method-card[aria-pressed="true"] .checkout-choice-check { border-color: #2563eb; background: #2563eb; color: #fff; }
+.customer-payment-panel {
+  margin-top: .85rem; padding: 1rem; border: 1px solid #dbe3ee; border-radius: 15px;
+  background: #fff; box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+}
+.customer-payment-panel-title {
+  display: flex; align-items: center; gap: .5rem; margin: 0 0 .8rem; padding-bottom: .7rem;
+  border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: .9rem; font-weight: 800;
+}
+.customer-payment-instructions, .customer-payment-summary, .customer-payment-verification {
+  padding: .8rem .9rem; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4;
+}
+.customer-payment-instructions ol { margin: .4rem 0 0; padding-left: 1.15rem; color: #64748b; font-size: .76rem; line-height: 1.65; }
+.customer-payment-qr { padding: .8rem; text-align: center; }
+.customer-payment-qr img { width: min(170px, 52vw); padding: 6px; border: 1px solid #e2e8f0; border-radius: 11px; background: #fff; }
+.customer-payment-recipient { margin-top: .4rem; color: #64748b; font-size: .76rem; }
+.customer-payment-recipient strong { color: #166534; letter-spacing: .04em; }
+.customer-payment-copy { min-height: 34px; margin-left: .35rem; padding: .35rem .6rem; border: 0; border-radius: 9px; background: #16a34a; color: #fff; font-size: .72rem; font-weight: 700; }
+.customer-payment-fields { display: grid; gap: .8rem; }
+.customer-payment-fields .form-label { margin-bottom: .35rem; color: #475569; font-size: .78rem; font-weight: 700; }
+.customer-payment-fields .form-control { min-height: 44px; border: 1.5px solid #dbe3ee; border-radius: 11px; font-size: .86rem; }
+.customer-payment-fields .form-text { font-size: .72rem; }
+.customer-payment-proof-preview { display: block; max-width: 100%; max-height: 150px; margin: .55rem auto 0; border: 1px solid #bbf7d0; border-radius: 10px; object-fit: contain; }
+.customer-payment-summary { margin-top: .85rem; border-color: #bfdbfe; background: #f8fbff; }
+.customer-payment-summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .18rem 0; color: #64748b; font-size: .78rem; }
+.customer-payment-summary-row strong { color: #0f172a; text-align: right; }
+.customer-payment-summary-row.due strong { color: #1d4ed8; font-size: 1rem; }
+.customer-payment-verification { display: flex; align-items: flex-start; gap: .55rem; margin-top: .85rem; border-color: #fde68a; background: #fffbeb; color: #854d0e; font-size: .75rem; line-height: 1.45; }
+@media (max-width: 575.98px) {
+  .customer-payment-options { --bs-gutter-y: .6rem; }
+  .customer-payment-options .payment-method-card { grid-template-columns: 43px minmax(0, 1fr); gap: .7rem; min-height: 0; padding: .75rem; border-radius: 12px; }
+  .customer-payment-options .payment-method-icon { width: 43px; height: 43px; border-radius: 10px; }
+  .customer-payment-options .payment-method-copy strong { font-size: .82rem; }
+  .customer-payment-options .payment-method-copy span { font-size: .68rem; }
+  .customer-payment-options .checkout-choice-check { top: .45rem; right: .45rem; width: 20px; height: 20px; }
+  .customer-payment-panel { padding: .75rem; border-radius: 12px; }
+  .customer-payment-instructions, .customer-payment-summary, .customer-payment-verification { padding: .68rem .72rem; }
+  .customer-payment-instructions ol { font-size: .7rem; }
+  .customer-payment-qr img { width: min(145px, 48vw); }
+}
+@media (prefers-reduced-motion: reduce) { .customer-payment-options .payment-method-card { transition: none; } }

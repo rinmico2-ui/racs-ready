@@ -82,3 +82,21 @@ test("lightweight landing layout omits unrelated global libraries", async () => 
     assert.doesNotMatch(html, new RegExp(unrelatedAsset.replace(".", "\\.")));
   }
 });
+
+test("chatbot renders once on landing and nowhere else in the public layout", async () => {
+  const data = publicPageData();
+  const landingHtml = await ejs.renderFile(
+    path.join(viewsDirectory, "layouts", "main.ejs"),
+    { ...data, body: "<section>Landing</section>" },
+  );
+  const otherPageHtml = await ejs.renderFile(
+    path.join(viewsDirectory, "layouts", "main.ejs"),
+    { ...data, body: "<section>Services</section>", lightweightPublicPage: false, showLandingChatbot: false },
+  );
+  const chatbotSource = fs.readFileSync(path.join(viewsDirectory, "partials", "chatbot.ejs"), "utf8");
+
+  assert.equal((landingHtml.match(/id="racsChatbot"/g) || []).length, 1);
+  assert.equal((landingHtml.match(/id="racbotToggle"/g) || []).length, 1);
+  assert.doesNotMatch(otherPageHtml, /id="racsChatbot"/);
+  assert.doesNotMatch(chatbotSource, /initDraggable|racbot_drag_pos|pointerdown/);
+});

@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260912-consistent-payment-v1">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <section class="ent-hero">
   <div class="ent-hero-orb ent-hero-orb-1"></div>
@@ -610,22 +611,29 @@
                 <div class="rv-card-body">
                   <div class="rv-section-title"><i class="bi bi-credit-card"></i>Payment Option</div>
                   <p class="small text-muted mb-3">Choose a full GCash payment or reserve the schedule with a GCash downpayment. The downpayment option is not a cash payment today.</p>
-                  <div class="ent-payment-tabs mb-3" role="group" aria-label="Payment options">
-                    <button type="button" class="ent-payment-tab" data-method="gcash" aria-pressed="false">
-                      <i class="bi bi-phone"></i>
-                      <span><strong class="d-block">Pay current amount in full</strong><small>GCash payment now</small></span>
+                  <div class="ent-payment-tabs customer-payment-options row mb-3" role="group" aria-label="Payment options">
+                    <div class="col-12 col-md-6">
+                    <button type="button" class="ent-payment-tab payment-method-card payment-card-blue" data-method="gcash" aria-pressed="false">
+                      <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                      <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
+                      <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete booking amount through GCash.</span></span>
                     </button>
-                    <button type="button" class="ent-payment-tab" data-method="cod" aria-pressed="false">
-                      <i class="bi bi-wallet2"></i>
-                      <span><strong class="d-block">Reserve with downpayment</strong><small>GCash now, balance on completion</small></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                    <button type="button" class="ent-payment-tab payment-method-card payment-card-amber" data-method="cod" aria-pressed="false">
+                      <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                      <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
+                      <span class="payment-method-copy"><strong>Reserve with Downpayment</strong><span>Pay the required amount through GCash and settle the balance after service.</span></span>
                     </button>
+                    </div>
                   </div>
                   <input class="d-none" type="radio" name="paymentMethod" id="payGcash" value="gcash">
                   <input class="d-none" type="radio" name="paymentMethod" id="payDeposit" value="cod">
 
-                  <div id="gcashFields" class="payment-section d-none">
+                  <div id="gcashFields" class="payment-section customer-payment-panel d-none">
+                    <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i>GCash Payment</h6>
                     <!-- Payment-option header -->
-                    <div class="rounded-3 p-4 mb-4" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;">
+                    <div class="rounded-3 p-4 mb-4 customer-payment-instructions" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;">
                       <div class="d-flex align-items-start gap-3">
                         <div class="d-flex align-items-center justify-content-center rounded-2" style="width:48px;height:48px;background:#16a34a;flex-shrink:0;">
                           <i class="bi bi-phone text-white" style="font-size:1.25rem;"></i>
@@ -641,52 +649,18 @@
                       </div>
                     </div>
 
-                    <!-- QR Code Section -->
-                    <div class="rounded-3 p-4 mb-4 text-center" style="background:#f8fafc;border:2px dashed #cbd5e1;">
+                    <!-- QR Code and receiving account -->
+                    <div class="rounded-3 p-4 mb-4 text-center customer-payment-qr" style="background:#f8fafc;border:2px dashed #cbd5e1;">
                       <div class="mb-3">
                         <span class="d-inline-block px-3 py-1 rounded-full" style="background:#e0edff;color:#1d4ed8;font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Step 1: Scan & Send</span>
                       </div>
                       <label class="form-label text-muted d-block fw-semibold mb-3" style="font-size:0.9rem;">Scan this GCash QR Code</label>
                       <img id="gcashQrImage" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=RACSREADY-GCASH-PAYMENT" alt="GCash QR code for payment" style="max-width:240px;border-radius:16px;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.1);" />
-                    </div>
-
-                    <!-- Payment Amount Section -->
-                    <div class="row g-3 mb-4">
-                      <div class="col-md-6">
-                        <div class="rounded-3 p-3" style="background:#f1f5f9;border:1px solid #e2e8f0;">
-                          <div class="text-muted small fw-semibold mb-2" style="font-size:0.8rem;letter-spacing:0.05em;text-transform:uppercase;">Current Booking Amount</div>
-                          <div class="fw-bold" style="font-size:1.5rem;color:#0f172a;" id="gcashBookingTotal">₱0</div>
-                        </div>
-                      </div>
-                      <div class="col-md-6">
-                        <div class="rounded-3 p-3" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;">
-                          <div class="text-muted small fw-semibold mb-2" style="font-size:0.8rem;letter-spacing:0.05em;text-transform:uppercase;color:#166534;">Amount to Send</div>
-                          <div class="fw-bold" style="font-size:1.5rem;color:#16a34a;" id="gcashAmountDisplay">₱0</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- GCash Account Info -->
-                    <div class="rounded-3 p-4 mb-4" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                      <div class="mb-3">
-                        <span class="d-inline-block px-3 py-1 rounded-full" style="background:#e0edff;color:#1d4ed8;font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">GCash Account</span>
-                      </div>
-                      <div class="mb-3">
-                        <div class="text-muted small fw-semibold mb-2" style="font-size:0.8rem;">GCash Number</div>
-                        <div class="d-flex align-items-center gap-2">
-                          <div class="flex-grow-1 rounded-2 p-3" style="background:#fff;border:1.5px solid #e2e8f0;">
-                            <strong id="gcashAccountNumber" style="font-size:1.1rem;color:#166534;letter-spacing:1px;font-family:monospace;">—</strong>
-                          </div>
-                          <button type="button" class="btn btn-sm" id="copyGcashNumber" title="Copy number" style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:0.6rem 0.8rem;"><i class="bi bi-clipboard me-1"></i>Copy</button>
-                        </div>
-                      </div>
-                      <div class="alert alert-info mb-0" style="font-size:0.85rem;border-radius:12px;border:1px solid #bfdbfe;">
-                        <i class="bi bi-info-circle me-2"></i><strong>Send the exact amount</strong> shown above to this GCash number
-                      </div>
+                      <div class="customer-payment-recipient">GCash number: <strong id="gcashAccountNumber">Not configured</strong><button type="button" class="customer-payment-copy" id="copyGcashNumber" title="Copy GCash number"><i class="bi bi-clipboard me-1"></i>Copy</button></div>
                     </div>
 
                     <!-- Receipt Upload Section -->
-                    <div class="rounded-3 p-4 mb-4" style="background:#f8fafc;border:1px solid #e2e8f0;">
+                    <div class="rounded-3 p-4 mb-4 customer-payment-fields" style="background:#f8fafc;border:1px solid #e2e8f0;">
                       <div class="mb-3">
                         <span class="d-inline-block px-3 py-1 rounded-full" style="background:#e0edff;color:#1d4ed8;font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Step 2: Upload Receipt</span>
                       </div>
@@ -706,11 +680,17 @@
                         </div>
                         <small class="text-muted mt-2 d-block"><i class="bi bi-info-circle me-1"></i>Upload a clear screenshot showing the successful transaction</small>
                       </div>
-                      <img id="gcashProofPreview" alt="Preview" class="img-thumbnail mt-3 d-none" style="max-height:160px;border-radius:12px;border:2px solid #16a34a;" />
+                      <img id="gcashProofPreview" alt="Preview" class="img-thumbnail mt-3 d-none customer-payment-proof-preview" style="max-height:160px;border-radius:12px;border:2px solid #16a34a;" />
+                    </div>
+
+                    <!-- Payment Amount Section -->
+                    <div class="customer-payment-summary">
+                      <div class="customer-payment-summary-row"><span>Booking total</span><strong id="gcashBookingTotal">&#8369;0</strong></div>
+                      <div class="customer-payment-summary-row due"><span>Amount due now</span><strong id="gcashAmountDisplay">&#8369;0</strong></div>
                     </div>
 
                     <!-- Info Banner -->
-                    <div class="alert alert-warning mb-0" style="font-size:0.85rem;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;">
+                    <div class="alert alert-warning mb-0 customer-payment-verification" style="font-size:0.85rem;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;">
                       <div class="d-flex align-items-start gap-2">
                         <i class="bi bi-shield-check mt-1" style="color:#d97706;"></i>
                         <div>
@@ -721,8 +701,9 @@
                     </div>
                   </div>
 
-                  <div id="cashFields" class="payment-section d-none">
-                    <div class="rounded-3 p-3 mb-3" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;">
+                  <div id="cashFields" class="payment-section customer-payment-panel d-none">
+                    <h6 class="customer-payment-panel-title"><i class="bi bi-wallet2 text-warning"></i>GCash Reservation Downpayment</h6>
+                    <div class="rounded-3 p-3 mb-3 customer-payment-instructions" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;">
                       <div class="d-flex align-items-center gap-2 mb-1">
                         <div class="d-flex align-items-center justify-content-center rounded-2"
                           style="width:32px;height:32px;background:#d97706;flex-shrink:0;">
@@ -732,18 +713,25 @@
                       </div>
                       <p class="mb-0 small text-muted ps-4" id="cashPolicyText">Pay 10% via GCash now to secure your schedule. Settle the remaining balance at service completion using an accepted on-site payment method.</p>
                     </div>
-                    <div class="mb-3">
+                    <div class="customer-payment-qr mb-3">
+                      <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
+                      <img id="cashQrImage" src="" alt="GCash QR code for downpayment" />
+                      <div class="customer-payment-recipient">GCash number: <strong id="cashAccountNumber">Not configured</strong><button type="button" class="customer-payment-copy" id="copyCashGcashNumber" title="Copy GCash number"><i class="bi bi-clipboard me-1"></i>Copy</button></div>
+                    </div>
+                    <div class="customer-payment-fields mb-3">
+                    <div>
                       <label class="form-label text-muted small fw-semibold">GCash sender number <span class="text-danger">*</span></label>
                       <input id="cashNumber" class="form-control" inputmode="tel" placeholder="+639XXXXXXXXX" autocomplete="tel"
                         style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
                       <small class="text-muted">Enter the number used to send the downpayment.</small>
                     </div>
-                    <div class="mb-3">
+                    <div>
                       <label class="form-label text-muted small fw-semibold">Downpayment Receipt <span class="text-danger">*</span></label>
                       <input id="cashProof" type="file" class="form-control" accept="image/*" required
                         style="border-radius:12px;border:1.5px dashed rgba(217,119,6,0.3);background:rgba(217,119,6,0.02);padding:1rem;" />
                       <div class="form-text" style="color:#d97706;font-size:0.82rem;font-weight:600;"><i class="bi bi-exclamation-circle me-1"></i>Upload the receipt for manual verification before your booking is confirmed.</div>
-                      <img id="cashProofPreview" alt="Preview" class="img-thumbnail mt-2 d-none" style="max-height:120px;border-radius:10px;" />
+                      <img id="cashProofPreview" alt="Preview" class="img-thumbnail mt-2 d-none customer-payment-proof-preview" style="max-height:120px;border-radius:10px;" />
+                    </div>
                     </div>
                     <div class="mb-3">
                       <label class="form-label text-muted small fw-semibold">Downpayment amount</label>
@@ -752,13 +740,13 @@
                         <input id="downpaymentAmt" type="number" class="form-control bg-white" value="0" readonly />
                       </div>
                     </div>
-                    <div id="cashBreakdown" class="rounded-3 p-3 mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;display:none;">
+                    <div id="cashBreakdown" class="rounded-3 p-3 mb-3 customer-payment-summary" style="background:#f8fafc;border:1px solid #e2e8f0;display:none;">
                       <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Estimated total</span><span class="fw-semibold" id="cashTotalDisplay">—</span></div>
                       <div class="d-flex justify-content-between small mb-1"><span class="text-muted" id="cashDownLabel">Downpayment now (10%)</span><span class="fw-bold text-warning" id="cashDownDisplay">—</span></div>
                       <hr class="my-1">
                       <div class="d-flex justify-content-between small"><span class="text-muted">Balance due at service completion</span><span class="fw-bold text-success" id="cashBalanceDisplay">—</span></div>
                     </div>
-                    <div class="alert alert-warning mb-3" style="font-size:0.85rem;border-radius:12px;">
+                    <div class="alert alert-warning mb-3 customer-payment-verification" style="font-size:0.85rem;border-radius:12px;">
                       <div class="d-flex align-items-start gap-2"><i class="bi bi-shield-check mt-1"></i><small><strong>Manual verification.</strong> Your payment stays pending until an admin verifies the uploaded receipt.</small></div>
                     </div>
                     <div class="mb-1"><textarea id="cashNotes" class="form-control" rows="2" placeholder="Special instructions (optional)" style="border-radius:12px;border:1.5px solid #e5e7eb;"></textarea></div>
@@ -2362,7 +2350,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260911-booking-draft-v2';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260912-payment-config-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260912-step-navigation-v2':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2752,26 +2740,33 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function renderGcashAccount(){
     var num=window.adminGcashNumber||'';
-    var disp=document.getElementById('gcashAccountNumber');
-    var qr=document.getElementById('gcashQrImage');
-    if(disp) disp.textContent=num?num:'—';
-    if(qr&&num){
-      qr.src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent('GCash|'+num);
-    } else if(qr){
-      qr.removeAttribute('src');
-      qr.alt='GCash account is not configured';
-    }
+    ['gcashAccountNumber','cashAccountNumber'].forEach(function(id){
+      var disp=document.getElementById(id);
+      if(disp) disp.textContent=num?num:'Not configured';
+    });
+    ['gcashQrImage','cashQrImage'].forEach(function(id){
+      var qr=document.getElementById(id);
+      if(qr&&num){
+        qr.src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent('GCash|'+num);
+        qr.alt='GCash QR code for payment';
+      } else if(qr){
+        qr.removeAttribute('src');
+        qr.alt='GCash account is not configured';
+      }
+    });
   }
 
   function bindCopy(){
-    var btn=document.getElementById('copyGcashNumber');
-    if(!btn) return;
-    btn.addEventListener('click',function(){
-      var num=(window.adminGcashNumber||'').trim();
-      if(!num) return;
-      var done=function(){btn.classList.add('copied');btn.innerHTML='<i class="bi bi-check-lg"></i>';setTimeout(function(){btn.classList.remove('copied');btn.innerHTML='<i class="bi bi-clipboard"></i>';},1500);};
-      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(num).then(done).catch(function(){});}
-      else { var t=document.createElement('textarea');t.value=num;document.body.appendChild(t);t.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(t);}
+    ['copyGcashNumber','copyCashGcashNumber'].forEach(function(id){
+      var btn=document.getElementById(id);
+      if(!btn) return;
+      btn.addEventListener('click',function(){
+        var num=(window.adminGcashNumber||'').trim();
+        if(!num) return;
+        var done=function(){btn.classList.add('copied');btn.innerHTML='<i class="bi bi-check-lg me-1"></i>Copied';setTimeout(function(){btn.classList.remove('copied');btn.innerHTML='<i class="bi bi-clipboard me-1"></i>Copy';},1500);};
+        if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(num).then(done).catch(function(){});}
+        else { var t=document.createElement('textarea');t.value=num;document.body.appendChild(t);t.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(t);}
+      });
     });
   }
 

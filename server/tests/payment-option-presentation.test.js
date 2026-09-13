@@ -12,6 +12,7 @@ const servicesView = read("views/pages/services.ejs");
 const servicesScript = read("public/js/services-multi.js");
 const cartWizard = read("views/partials/cart-wizard.ejs");
 const productWizard = read("views/partials/aircons.ejs");
+const customerPaymentCss = read("public/css/customer-payment.css");
 const bookingRoutes = read("routes/bookingRoutesNew.js");
 const orderRoutes = read("routes/orderRoutes.js");
 const technicianOrders = read("views/pages/technician/technicianorders.ejs");
@@ -23,11 +24,27 @@ const serviceRoutes = read("routes/serviceRoutes.js");
 
 test("service checkout presents payment plans instead of a misleading cash method", () => {
   assert.match(servicesView, /Payment Option/);
-  assert.match(servicesView, /Pay current amount in full/);
-  assert.match(servicesView, /Reserve with downpayment/);
+  assert.match(servicesView, /Pay in Full Now/);
+  assert.match(servicesView, /Reserve with Downpayment/);
   assert.match(servicesView, /data-method="cod" aria-pressed="false"/);
   assert.doesNotMatch(servicesView, /ent-payment-tab active[^>]*data-method="gcash"/);
   assert.match(servicesScript, /paymentOptionBound/);
+});
+
+test("service and product checkout use one consistent customer payment layout", () => {
+  for (const source of [servicesView, cartWizard, productWizard]) {
+    assert.match(source, /customer-payment\.css\?v=20260912-consistent-payment-v1/);
+    assert.match(source, /customer-payment-options/);
+    assert.match(source, /payment-method-copy/);
+    assert.match(source, /customer-payment-panel/);
+    assert.match(source, /customer-payment-instructions/);
+    assert.match(source, /customer-payment-qr/);
+    assert.match(source, /customer-payment-fields/);
+    assert.match(source, /customer-payment-summary/);
+    assert.match(source, /customer-payment-verification/);
+  }
+  assert.match(customerPaymentCss, /\.customer-payment-options \.payment-method-card/);
+  assert.match(customerPaymentCss, /@media \(max-width: 575\.98px\)/);
 });
 
 test("service payment evidence is validated on both client and server", () => {

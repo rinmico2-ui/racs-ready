@@ -890,41 +890,27 @@ function setupEventListeners() {
 /**
  * Continue to Services (called from Step 1 button)
  */
-function continueToServices() {
-
-  // Ensure DOM elements are cached
+function prepareServiceSelectionStep() {
   cacheDOMElements();
 
-  // Ensure services catalog is loaded
   if (BookingState.catalog.coreServices.length === 0 && BookingState.catalog.repairServices.length === 0) {
     loadServicesCatalog();
   }
 
-  // Move to Step 2
-  showStep(2);
-
-  // Ensure services are loaded in tabs
   if (DOM.coreServiceCards && DOM.coreServiceCards.children.length === 0) {
     renderCoreServices();
-  } else {
   }
-
   if (DOM.repairServiceCards && DOM.repairServiceCards.children.length === 0) {
     renderRepairServices();
-  } else {
   }
 
-  // Re-cache DOM elements after rendering services to ensure all elements are available
-  setTimeout(() => {
-    cacheDOMElements();
+  updateSelectedServicesDisplay();
+  updatePricingDisplay();
+}
 
-    // Initialize selected services display
-    updateSelectedServicesDisplay();
-    updatePricingDisplay();
-  }, 100);
-
-  // Update stepper
-  updateStepper(2);
+function continueToServices() {
+  // Move to Step 2
+  showStep(2);
 }
 
 /**
@@ -1436,6 +1422,12 @@ function showStep(stepNumber) {
       step.classList.add('step-visible', 'step-active');
     }
   });
+
+  // Every path into Step 2 must prepare the catalog. Progress navigation,
+  // restored drafts, and the normal Continue button all converge here.
+  if (stepNumber === 2) {
+    prepareServiceSelectionStep();
+  }
 
   // When step 3 (Location) becomes visible, ensure map tiles render correctly
   if (stepNumber === 3) {
@@ -8821,7 +8813,10 @@ function requestBookingStepNavigation(targetStep) {
   if (!Number.isInteger(step) || step < 1 || step > 6) return false;
 
   const currentStep = Number(BookingState.currentStep) || 1;
-  if (step === currentStep) return true;
+  if (step === currentStep) {
+    if (step === 2) prepareServiceSelectionStep();
+    return true;
+  }
   if (step < currentStep) {
     showStep(step);
     return true;
