@@ -13,6 +13,11 @@ test('technician attendance provides touch-friendly mobile check-in and checkout
   assert.match(attendanceView, /\.att-detail-row\s*\{[^}]*grid-template-columns:/s);
 });
 
+test('technician attendance applies only one horizontal page gutter', () => {
+  assert.match(attendanceView, /<div class="technician-page" id="attendancePage"/);
+  assert.match(attendanceView, /\.technician-page \.container-fluid \{ display: block !important; \}/);
+});
+
 test('technician attendance camera target adapts to the available reader width', () => {
   assert.match(attendanceView, /const readerWidth = reader\.clientWidth/);
   assert.match(attendanceView, /const qrSize = Math\.max\(160, Math\.min\(250, readerWidth - 32\)\)/);

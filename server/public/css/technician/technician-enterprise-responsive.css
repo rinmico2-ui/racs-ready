@@ -1,0 +1,243 @@
+/* Technician workspace: one predictable, responsive application shell. */
+.technician-layout {
+  --tech-page-gutter: 1.5rem;
+  --tech-touch-target: 44px;
+}
+
+.technician-layout .admin-content {
+  min-width: 0;
+  padding: var(--admin-topbar-height, 56px) 0 0 !important;
+}
+
+.technician-layout .technician-main {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: calc(100vh - var(--admin-topbar-height, 56px));
+  margin: 0;
+  padding: 0 !important;
+  background: #f1f5f9;
+}
+
+.technician-layout .technician-main > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Every technician view receives exactly one horizontal page gutter. */
+.technician-layout .technician-main > .technician-page,
+.technician-layout .technician-main > .exp-page,
+.technician-layout .technician-main > .admin-dashboard,
+.technician-layout .technician-main > .technician-dashboard-page,
+.technician-layout .technician-main > .tw-page {
+  width: 100%;
+  padding-left: var(--tech-page-gutter) !important;
+  padding-right: var(--tech-page-gutter) !important;
+}
+
+/* Most workflow pages already use a direct container for vertical rhythm.
+   Its horizontal padding is reset so it does not duplicate the shell gutter. */
+.technician-layout .technician-main > .technician-page > .container-fluid {
+  width: 100%;
+  max-width: none;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.technician-layout .technician-main > .technician-dashboard-page,
+.technician-layout .technician-main > .tw-page {
+  padding-top: var(--tech-page-gutter);
+  padding-bottom: var(--tech-page-gutter);
+}
+
+/* These legacy views have a second inner desktop gutter. The shell now owns it. */
+.technician-layout .technician-schedule-page > .container,
+.technician-layout .technician-main > .admin-dashboard .tracker-wrap {
+  max-width: none;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.technician-layout .technician-main .row,
+.technician-layout .technician-main [class*="col-"] {
+  min-width: 0;
+}
+
+.technician-layout .technician-main img,
+.technician-layout .technician-main video,
+.technician-layout .technician-main canvas,
+.technician-layout .technician-main svg {
+  max-width: 100%;
+}
+
+.technician-layout .technician-main .table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+.technician-layout .technician-main .modal-content,
+.technician-layout .technician-main .card,
+.technician-layout .technician-main [class$="-card"],
+.technician-layout .technician-main [class$="-panel"] {
+  max-width: 100%;
+}
+
+@media (max-width: 991.98px) {
+  .technician-layout { --tech-page-gutter: 1rem; }
+
+  .technician-layout .technician-main {
+    min-height: calc(100dvh - var(--admin-topbar-height, 56px));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .technician-layout { --tech-page-gutter: 0.75rem; }
+
+  .technician-layout .admin-content {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .technician-layout .technician-main {
+    width: 100%;
+    min-height: calc(100dvh - 56px);
+  }
+
+  .technician-layout .technician-main > .technician-page,
+  .technician-layout .technician-main > .exp-page,
+  .technician-layout .technician-main > .admin-dashboard,
+  .technician-layout .technician-main > .technician-dashboard-page,
+  .technician-layout .technician-main > .tw-page {
+    padding-left: var(--tech-page-gutter) !important;
+    padding-right: var(--tech-page-gutter) !important;
+  }
+
+  .technician-layout .technician-main .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .technician-layout .technician-main input:not([type="checkbox"]):not([type="radio"]),
+  .technician-layout .technician-main select,
+  .technician-layout .technician-main textarea {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .technician-layout .technician-main .btn:not(.btn-link):not(.btn-close) {
+    min-height: 42px;
+  }
+
+  .technician-layout .technician-main .btn.btn-sm:not(.btn-link):not(.btn-close) {
+    min-height: 38px;
+  }
+
+  .technician-layout .technician-main .modal-dialog {
+    width: auto;
+    max-width: calc(100vw - 1rem);
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+
+  .technician-layout .technician-main .modal-content {
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .technician-layout .technician-main .modal-body {
+    min-width: 0;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .technician-layout .technician-main .modal-footer {
+    gap: 0.5rem;
+  }
+
+  .technician-layout .technician-main .modal-footer > .btn {
+    flex: 1 1 120px;
+    margin: 0;
+  }
+
+  /* Compact legacy pages that do not have their own complete phone system. */
+  .technician-layout .technician-main .tw-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .technician-layout .technician-main .tw-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .technician-layout .technician-main .tw-actions > .btn {
+    flex: 1 1 150px;
+  }
+
+  .technician-layout .technician-main .tw-hero h2 {
+    font-size: clamp(1.25rem, 7vw, 1.65rem);
+  }
+
+  .technician-layout .technician-main .exp-reminder,
+  .technician-layout .technician-main .tracker-status-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .technician-layout .technician-main .tracker-status-card .status-meta {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .technician-layout .technician-main .tracker-toggle-btn {
+    width: 100%;
+    min-height: var(--tech-touch-target);
+  }
+
+  .technician-layout .technician-main .profile-technician-page .card-body.p-4,
+  .technician-layout .technician-main .profile-technician-page .card.p-4 {
+    padding: 1rem !important;
+  }
+
+  .technician-layout .technician-main .profile-technician-page .text-start,
+  .technician-layout .technician-main .tw-value {
+    overflow-wrap: anywhere;
+  }
+
+  .technician-layout .technician-main .td-hero-content,
+  .technician-layout .technician-main .mw-hero-content,
+  .technician-layout .technician-main .mp-hero-content,
+  .technician-layout .technician-main .exp-hero {
+    min-width: 0;
+  }
+
+  .technician-layout .technician-main .card:hover,
+  .technician-layout .technician-main [class$="-card"]:hover,
+  .technician-layout .technician-main [class$="-panel"]:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 399.98px) {
+  .technician-layout { --tech-page-gutter: 0.625rem; }
+
+  .technician-layout .technician-main .modal-dialog {
+    max-width: calc(100vw - 0.5rem);
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .technician-layout .technician-main *,
+  .technician-layout .technician-main *::before,
+  .technician-layout .technician-main *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

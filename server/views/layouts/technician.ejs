@@ -53,6 +53,7 @@
 
     <!-- Optional technician-specific style overrides -->
     <link rel="stylesheet" href="/css/technician/technician.css" />
+    <link rel="stylesheet" href="/css/technician/technician-enterprise-responsive.css?v=20260914-1" />
 
     <% if (pageUsesLeaflet) { %>
     <!-- Leaflet is only loaded for map/tracking pages. -->
@@ -89,7 +90,7 @@
       </button>
 
       <div class="admin-content flex-grow-1">
-        <main class="p-4"><%- body %></main>
+        <main class="technician-main"><%- body %></main>
       </div>
     </div>
 
