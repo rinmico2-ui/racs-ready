@@ -13,6 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title><%= title %></title>
     <script src="/js/performance.js?v=20260911"></script>
+    <script src="/js/esri-hybrid-layer.js?v=20260913-esri-hybrid-v1"></script>
 
     <!-- Bootstrap CSS (CDN) -->
     <link
@@ -100,7 +101,6 @@
 
     <!-- Leaflet JS -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
       // Initialize Leaflet callback
       function initLeafletMap() {
@@ -114,7 +114,6 @@
       });
     </script>
     <% } %>
-
     <% if (pageUsesAos) { %>
     <!-- AOS Animation (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>

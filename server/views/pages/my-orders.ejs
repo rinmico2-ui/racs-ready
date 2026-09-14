@@ -1132,7 +1132,7 @@
         if (isNaN(custLat) || isNaN(custLng)) return;
 
         const map = L.map(el.id).setView([custLat, custLng], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+        window.createEsriHybridLayer().addTo(map);
         L.marker([custLat, custLng], { icon:customerIcon }).addTo(map).bindTooltip('Delivery Location', { permanent:true, direction:'top', offset:[0,-28], className:'map-tooltip' });
 
         const btnCust = document.getElementById(`btn-focus-cust-${orderId}`);

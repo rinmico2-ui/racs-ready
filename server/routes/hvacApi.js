@@ -10,6 +10,11 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+const {
+  deleteProductImage,
+  isCloudinaryConfigured,
+  uploadProductImage,
+} = require("../utils/productImageStorage");
 const { escapeRegex } = require("../utils/stringSecurity");
 const audit = require("../utils/audit");
 const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
@@ -21,7 +26,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Configure multer storage
-const storage = multer.diskStorage({
+const localStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
   },
@@ -30,6 +35,7 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + imageExtensionFor(file));
   },
 });
+const storage = isCloudinaryConfigured() ? multer.memoryStorage() : localStorage;
 
 const upload = multer({
   storage: storage,
@@ -200,6 +206,7 @@ router.get("/hvac/:id", async (req, res, next) => {
  * Create a new HVAC product
  */
 router.post("/hvac", upload.single("image"), async (req, res, next) => {
+  let uploadedImage = null;
   try {
     let {
       modelLine,
@@ -214,11 +221,6 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       supplier,
       variants
     } = req.body;
-
-    // Handle uploaded file
-    if (req.file) {
-      imageUrl = `/uploads/hvac/${req.file.filename}`;
-    }
 
     // Parse JSON strings if this is multipart form data
     if (typeof inverter === 'string') inverter = inverter === 'true';
@@ -258,6 +260,11 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       });
     }
 
+    if (req.file) {
+      uploadedImage = await uploadProductImage(req.file);
+      imageUrl = uploadedImage.imageUrl;
+    }
+
     // Create product
     const product = new HVACProduct({
       modelLine: modelLine.trim(),
@@ -267,6 +274,7 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       inverter: inverter || false,
       description: description?.trim() || null,
       imageUrl: imageUrl?.trim() || "/images/products/default.png",
+      imagePublicId: uploadedImage?.imagePublicId || null,
       specifications: specifications || {},
       salesChannel: salesChannel || 'both',
       supplier: supplier?.trim() || null,
@@ -289,8 +297,9 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       product
     });
   } catch (err) {
+    if (uploadedImage?.imagePublicId) await deleteProductImage(uploadedImage.imagePublicId).catch(() => {});
     console.error("createHVACProduct 500:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(err.status || 500).json({ error: err.message });
   }
 });
 
@@ -299,6 +308,8 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
  * Update an HVAC product
  */
 router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
+  let uploadedImage = null;
+  let previousImagePublicId = null;
   try {
     const { id } = req.params;
     
@@ -328,11 +339,6 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
       variants
     } = req.body;
 
-    // Handle uploaded file
-    if (req.file) {
-      imageUrl = `/uploads/hvac/${req.file.filename}`;
-    }
-
     // Parse JSON strings if this is multipart form data
     if (typeof inverter === 'string') inverter = inverter === 'true';
     if (typeof specifications === 'string') {
@@ -346,6 +352,12 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
     if (brand) brand = await handleBrand(brand);
     if (category) category = await handleCategory(category);
 
+    previousImagePublicId = product.imagePublicId;
+    if (req.file) {
+      uploadedImage = await uploadProductImage(req.file);
+      imageUrl = uploadedImage.imageUrl;
+    }
+
     // Update fields
     if (modelLine) product.modelLine = modelLine.trim();
     if (brand) product.brand = brand;
@@ -353,7 +365,13 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
     if (type !== undefined) product.type = type;
     if (inverter !== undefined) product.inverter = inverter;
     if (description !== undefined) product.description = description?.trim() || null;
-    if (imageUrl !== undefined) product.imageUrl = imageUrl?.trim() || "/images/products/default.png";
+    if (imageUrl !== undefined) {
+      const normalizedImageUrl = imageUrl?.trim() || "/images/products/default.png";
+      const imageChanged = normalizedImageUrl !== product.imageUrl;
+      product.imageUrl = normalizedImageUrl;
+      if (uploadedImage) product.imagePublicId = uploadedImage.imagePublicId;
+      else if (imageChanged) product.imagePublicId = null;
+    }
     if (specifications !== undefined) product.specifications = specifications || {};
     if (salesChannel !== undefined) product.salesChannel = salesChannel;
     if (supplier !== undefined) product.supplier = supplier?.trim() || null;
@@ -366,7 +384,10 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
 
     product.updatedBy = req.user?._id;
     await product.save();
-    
+    if (uploadedImage?.imagePublicId && previousImagePublicId) {
+      await deleteProductImage(previousImagePublicId).catch(() => {});
+    }
+
     // Populate for response
     await product.populate('brand', 'name');
     await product.populate('category', 'name');
@@ -376,8 +397,9 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
       product
     });
   } catch (err) {
+    if (uploadedImage?.imagePublicId) await deleteProductImage(uploadedImage.imagePublicId).catch(() => {});
     console.error("updateHVACProduct 500:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(err.status || 500).json({ error: err.message });
   }
 });
 

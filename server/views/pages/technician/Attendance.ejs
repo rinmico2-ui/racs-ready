@@ -1,4 +1,4 @@
-<div class="technician-page">
+<div class="technician-page" id="attendancePage" data-attendance-state="loading">
   <div class="container-fluid px-3 px-md-4 py-3 py-md-4">
 
     <!-- Enterprise Hero Header -->
@@ -25,7 +25,7 @@
     <div class="att-main-row row g-4">
 
       <!-- ═══ LEFT COLUMN: Status + QR ═══ -->
-      <div class="col-12 col-lg-5">
+      <div class="att-status-column col-12 col-lg-5">
 
         <!-- Current Attendance Card -->
         <div class="att-status-card" id="statusCard">
@@ -33,7 +33,7 @@
             <div class="att-status-icon" id="statusIcon">
               <i class="bi bi-qr-code"></i>
             </div>
-            <div>
+            <div class="att-status-copy">
               <div class="att-status-title" id="statusTitle">Scan QR to Check In</div>
               <div class="att-status-sub" id="statusSub">Point your camera at the admin's QR code</div>
             </div>
@@ -84,7 +84,7 @@
       </div>
 
       <!-- ═══ RIGHT COLUMN: QR Scanner ═══ -->
-      <div class="col-12 col-lg-7">
+      <div class="att-scan-column col-12 col-lg-7">
 
         <!-- QR Code Check-In -->
         <div class="att-panel">
@@ -155,7 +155,7 @@
     <div class="att-panel mt-3">
       <div class="att-panel-header">
         <h6 class="att-panel-title"><i class="bi bi-calendar-x me-2 text-warning"></i>Leave Requests</h6>
-        <button class="btn btn-sm btn-warning fw-semibold" onclick="openLeaveModal()">
+        <button type="button" class="att-leave-request-btn btn btn-sm btn-warning fw-semibold" onclick="openLeaveModal()">
           <i class="bi bi-plus-lg me-1"></i>Request Leave
         </button>
       </div>
@@ -319,6 +319,13 @@
   /* Page background (matches My Work) */
   .technician-page { background: #f1f5f9; min-height: 100vh; }
   .technician-page .container-fluid { display: block !important; }
+  .technician-page[data-attendance-state="not-checked-in"] .att-scan-column > .att-panel:first-child {
+    border-color: #bbf7d0;
+    box-shadow: 0 6px 22px rgba(22,163,74,0.08);
+  }
+  .technician-page[data-attendance-state="checked-in"] .att-status-card { border-color: #bbf7d0; }
+  .technician-page[data-attendance-state="checked-out"] .att-status-card { border-color: #c7d2fe; }
+  .technician-page[data-attendance-state="on-leave"] .att-status-card { border-color: #e9d5ff; }
 
   /* Main row */
   .att-main-row { display: flex; flex-wrap: wrap; }
@@ -519,6 +526,181 @@
     .att-history-table td .badge { font-size: 0.7rem; }
   }
 
+  /* Mobile attendance actions */
+  @media (max-width: 991px) {
+    /* Bootstrap's columns already stack below lg. Keep the row direction so its
+       gutter calculations remain stable on tablets and narrow screens. */
+    .att-main-row { flex-direction: row; }
+    .att-status-column,
+    .att-scan-column { min-width: 0; }
+  }
+
+  @media (max-width: 767px) {
+    .technician-page .container-fluid {
+      padding: 0.75rem !important;
+    }
+
+    .technician-page .att-main-row {
+      --bs-gutter-x: 0;
+      --bs-gutter-y: 0.875rem;
+      margin-left: 0;
+      margin-right: 0;
+    }
+
+    .technician-page .att-main-row > * {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    .td-hero {
+      padding: 1.125rem;
+      margin-bottom: 0.875rem;
+      border-radius: 14px;
+    }
+
+    .td-hero-content { gap: 0.875rem; }
+    .td-hero-left { gap: 0.75rem; min-width: 0; }
+    .td-hero-icon { width: 44px; height: 44px; border-radius: 12px; font-size: 1.15rem; }
+    .td-hero-title { font-size: 1.2rem; }
+    .td-hero-sub { font-size: 0.78rem; line-height: 1.35; }
+    .td-hero-right { align-items: stretch; }
+    .td-hero-clock {
+      width: 100%;
+      min-height: 40px;
+      justify-content: center;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.76rem;
+    }
+
+    .att-status-card { padding: 1rem; border-radius: 14px; }
+    .att-status-header {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.875rem;
+    }
+    .att-status-copy { min-width: 0; }
+    .att-status-title { font-size: 1rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .att-status-sub { margin-top: 0.15rem; font-size: 0.76rem; line-height: 1.35; }
+    .att-status-details {
+      padding: 0.25rem 0.75rem;
+      border: 1px solid #eef2f7;
+      border-radius: 12px;
+      background: #f8fafc;
+    }
+    .att-detail-row {
+      display: grid;
+      grid-template-columns: minmax(82px, auto) minmax(0, 1fr);
+      align-items: center;
+      gap: 0.75rem;
+      min-height: 43px;
+      padding: 0.55rem 0;
+    }
+    .att-detail-label { font-size: 0.75rem; }
+    .att-detail-value {
+      min-width: 0;
+      text-align: right;
+      font-size: 0.8rem;
+      overflow-wrap: anywhere;
+    }
+    .att-checkout-wrap { margin-top: 1rem; padding-top: 1rem; }
+    .att-checkout-btn {
+      min-height: 52px;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      font-size: 0.95rem;
+    }
+    .att-checkout-hint { margin: 0.5rem 0 0; line-height: 1.35; }
+
+    .att-timer-card {
+      min-height: 76px;
+      padding: 0.875rem 1rem;
+      border-radius: 12px;
+      margin-top: 0.75rem;
+    }
+    .att-timer-content { min-width: 0; }
+    .att-timer-value { font-size: clamp(1.35rem, 8vw, 1.8rem); line-height: 1.1; }
+
+    .att-panel { border-radius: 14px; }
+    .att-panel:hover { transform: none; }
+    .att-panel-header {
+      min-height: 50px;
+      padding: 0.75rem 0.875rem;
+      gap: 0.625rem;
+      flex-wrap: wrap;
+    }
+    .att-panel-title { min-width: 0; font-size: 0.8rem; line-height: 1.3; }
+    .att-panel-body { padding: 0.875rem; }
+
+    .att-scanner-box {
+      width: min(100%, 340px);
+      max-width: none;
+      aspect-ratio: 4 / 3;
+      min-height: 190px;
+    }
+    #reader { width: min(100%, 420px); }
+    #reader video { width: 100% !important; object-fit: cover; }
+    .att-scanner-controls { width: 100%; }
+    .att-sm-btn {
+      width: min(100%, 340px);
+      min-height: 48px;
+      justify-content: center;
+      padding: 0.7rem 1rem;
+      font-size: 0.82rem;
+    }
+
+    .att-timeline { padding-left: 1.1rem; }
+    .att-timeline-item { padding-left: 0.875rem; }
+    .att-empty-timeline { padding: 1.25rem 0.75rem; }
+
+    #historyContainer .table-responsive { overflow: visible; }
+    .att-history-table tr { margin-bottom: 0.625rem; padding: 0.625rem 0.875rem; }
+    .att-history-table tr:last-child { margin-bottom: 0; }
+    .att-history-table td { gap: 1rem; padding: 0.55rem 0; }
+    .att-history-table td::before { flex: 0 0 auto; }
+    .att-history-table td > * { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+
+    .att-leave-request-btn {
+      min-height: 40px;
+      padding-inline: 0.75rem;
+      white-space: nowrap;
+    }
+
+    #leaveModal .modal-dialog {
+      min-height: calc(100% - 0.5rem);
+      margin: 0.5rem 0.5rem 0;
+      align-items: flex-end;
+    }
+    #leaveModal .modal-content {
+      max-height: calc(100vh - 0.5rem);
+      max-height: calc(100dvh - 0.5rem);
+      border: 0;
+      border-radius: 18px 18px 0 0;
+    }
+    #leaveModal .modal-body { overflow-y: auto; padding: 1rem; }
+    #leaveModal .modal-footer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.625rem;
+      padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    }
+    #leaveModal .modal-footer .btn {
+      width: 100%;
+      min-height: 46px;
+      margin: 0;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .technician-page .container-fluid { padding: 0.625rem !important; }
+    .td-hero { padding: 1rem; }
+    .td-hero-sub { max-width: 230px; }
+    .att-status-icon { width: 40px; height: 40px; }
+    .att-detail-row { grid-template-columns: 76px minmax(0, 1fr); gap: 0.5rem; }
+    .att-panel-header { align-items: center; }
+    .att-leave-request-btn { width: 100%; justify-content: center; }
+  }
+
 </style>
 
 <script>
@@ -545,6 +727,10 @@
       const isCheckedIn = ['Present', 'Late'].includes(status) && record && !record.checkOutTime;
       const isCheckedOut = status === 'Checked Out' || (record && record.checkOutTime);
       const isOnLeave = data.isOnLeave;
+
+      const page = document.getElementById('attendancePage');
+      const attendanceState = isOnLeave ? 'on-leave' : isCheckedIn ? 'checked-in' : isCheckedOut ? 'checked-out' : 'not-checked-in';
+      page.dataset.attendanceState = attendanceState;
 
       // Update status icon
       const iconEl = document.getElementById('statusIcon');
@@ -768,10 +954,14 @@
     document.getElementById('scanStatusBadge').textContent = 'Scanning...';
     document.getElementById('scanStatusBadge').className = 'badge bg-warning text-dark';
 
+    const reader = document.getElementById('reader');
+    const readerWidth = reader.clientWidth || Math.max(240, window.innerWidth - 64);
+    const qrSize = Math.max(160, Math.min(250, readerWidth - 32));
+
     html5Qrcode = new Html5Qrcode('reader');
     html5Qrcode.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
+      { fps: 10, qrbox: { width: qrSize, height: qrSize } },
       (decodedText) => {
         try {
           const payload = JSON.parse(decodedText);

@@ -33,6 +33,7 @@ const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity")
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
+const { enrichCustomerBooking } = require("../utils/customerBookingPresentation");
 
 function isPathWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
@@ -537,13 +538,13 @@ router.get("/", auth.authenticate, async (req, res) => {
       return res.status(400).json({ error: rangeError.message });
     }
 
-    const items = await BookingService.find(query)
+    const bookingItems = await BookingService.find(query)
       .sort({ bookingDate: -1, createdAt: -1 })
       .limit(limit)
       .lean();
 
     // enrich each booking with a friendly serviceType string from the snapshot
-    for (const b of items) {
+    for (const b of bookingItems) {
       if (!b.serviceType && b.service && b.service.name) {
         b.serviceType = b.service.name;
       }
@@ -553,6 +554,7 @@ router.get("/", auth.authenticate, async (req, res) => {
       }
     }
 
+    const items = bookingItems.map(enrichCustomerBooking);
     return res.json({ items });
   } catch (err) {
     console.error("GET /api/appointments failed", err && err.message);

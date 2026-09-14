@@ -1725,14 +1725,9 @@
 
       state.map = L.map(el, { zoomControl: false, scrollWheelZoom: false, preferCanvas: true })
         .setView([state.techCoords.lat, state.techCoords.lng], 13);
-      const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19,
-      }).addTo(state.map);
-      const satelliteImagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 });
-      const satelliteLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { attribution: "Labels &copy; Esri", maxZoom: 19 });
+      window.createEsriHybridLayer().addTo(state.map);
       L.control.zoom({ position: "bottomright" }).addTo(state.map);
       L.control.scale({ position: "bottomleft", imperial: false, maxWidth: 120 }).addTo(state.map);
-      L.control.layers({ "Detailed streets": streets, "Satellite + labels": L.layerGroup([satelliteImagery, satelliteLabels]) }, null, { position: "topright", collapsed: true }).addTo(state.map);
 
       const companyIcon = L.divIcon({
         html: '<div style="background:#2563eb;border:3px solid #fff;border-radius:50% 50% 50% 0;width:30px;height:30px;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.3)"><span style="display:block;background:#fff;border-radius:50%;width:10px;height:10px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)"></span></div>',

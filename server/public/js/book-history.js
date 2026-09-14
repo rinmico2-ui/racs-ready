@@ -89,6 +89,7 @@
       awaiting_confirmation: "warning",
       // Enterprise Repair statuses
       repair_requested: "warning",
+      inspection_pending: "info",
       pending_inspection: "info",
       inspection_scheduled: "primary",
       inspection_in_progress: "info",
@@ -109,6 +110,49 @@
     const cls = map[String(status || "").toLowerCase()] || "secondary";
     const label = String(status || "unknown").replace(/_/g, " ");
     return `<span class="badge bg-${cls} text-capitalize">${label}</span>`;
+  }
+
+  function isRepairBooking(b) {
+    const type = String(b?.serviceType || '').toLowerCase();
+    const model = String(b?.serviceModel || '').toLowerCase();
+    const status = String(b?.status || '').toLowerCase();
+    return type === 'repair'
+      || type === 'mixed'
+      || model === 'repairservice'
+      || Boolean(b?.unitInfo)
+      || status.startsWith('repair_')
+      || (b?.services || []).some(item => String(item?.type || '').toLowerCase() === 'repair');
+  }
+
+  function repairDetailsForBooking(b) {
+    if (b?.customerRepairDetails?.items?.length) return b.customerRepairDetails;
+    if (!isRepairBooking(b)) return null;
+
+    const rawItems = (b.services || []).filter(item => String(item?.type || '').toLowerCase() === 'repair');
+    const sources = rawItems.length ? rawItems : [{}];
+    const items = sources.map((item, index) => {
+      const top = index === 0 ? (b.unitInfo || {}) : {};
+      const unitType = item.unitType || item.applianceTypeName || item.airconTypeName || item.unitCategory
+        || top.unitType || b.applianceTypeName || b.applianceType || 'Not recorded';
+      return {
+        ...item,
+        name: item.name || `${unitType} Repair`,
+        unitType,
+        brand: item.brand || top.brand || b.brand || 'Not recorded',
+        model: item.model || top.model || '',
+        problemDescription: item.problemDescription || item.repairIssue || top.problemDescription
+          || b.issueDescription || b.repairIssues || 'Not recorded',
+        quantity: Math.max(1, Number(item.quantity || b.quantity) || 1),
+        status: item.status || b.status || 'pending',
+        photos: [...new Set([...(item.photos || []), ...(index === 0 ? (top.photos || []) : [])].filter(Boolean))],
+      };
+    });
+    return {
+      items,
+      applianceCount: items.length,
+      unitCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      primary: items[0],
+    };
   }
 
   // True when the scheduled service window has fully elapsed and the booking
@@ -297,9 +341,21 @@
           ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — being rescheduled</span></div>`
           : '';
 
-        const svc = b.serviceType || "service";
-        const svcIcon = svc === 'core' ? 'bi-gear' : svc === 'repair' ? 'bi-wrench' : 'bi-tools';
-        const rowType = svc === 'core' ? 'bh-row--core' : svc === 'repair' ? 'bh-row--repair' : 'bh-row--mixed';
+        const svc = String(b.serviceType || "service").toLowerCase();
+        const repairSummary = repairDetailsForBooking(b);
+        const repairRow = Boolean(repairSummary);
+        const svcIcon = svc === 'core' ? 'bi-gear' : repairRow ? 'bi-wrench' : 'bi-tools';
+        const rowType = svc === 'core' ? 'bh-row--core' : svc === 'mixed' ? 'bh-row--mixed' : repairRow ? 'bh-row--repair' : 'bh-row--mixed';
+        const serviceLabel = svc === 'mixed'
+          ? 'Mixed Services'
+          : repairRow
+          ? 'Repair Service'
+          : ((b.service && b.service.name) || (svc === 'core' ? 'Core Service' : 'Mixed Services'));
+        const serviceMeta = repairRow
+          ? (repairSummary.applianceCount > 1
+            ? `${repairSummary.applianceCount} appliances · ${repairSummary.unitCount} units`
+            : [repairSummary.primary?.brand, repairSummary.primary?.unitType].filter(value => value && value !== 'Not recorded').join(' · '))
+          : '';
         const location =
           b.location && b.location.address ? b.location.address : "-";
         const rated = b.customerRating != null && b.customerRating !== "";
@@ -342,7 +398,8 @@
             <div class="bh-cell-meta">Created ${formatDateTime(b.createdAt)}</div>
           </td>
           <td>
-            <div class="bh-cell-service"><i class="bi ${svcIcon}"></i><span class="text-capitalize">${escapeHtml(svc)}</span></div>
+            <div class="bh-cell-service"><i class="bi ${svcIcon}"></i><span>${escapeHtml(serviceLabel)}</span></div>
+            ${serviceMeta ? `<div class="bh-cell-meta">${escapeHtml(serviceMeta)}</div>` : ''}
           </td>
           <td>
             <div class="bh-cell-title">${escapeHtml(dateText)}</div>
@@ -501,9 +558,15 @@
 
   function showDetailModal(b) {
     // Data normalisation
-    const isRepair = b.serviceType === 'repair' || b.serviceModel === 'RepairService' || !!b.unitInfo;
-    const serviceTypeLabel = isRepair ? 'Repair Service' : 'Core Service';
-    const serviceName = (b.service && b.service.name) || (b.serviceId && b.serviceId.name) || b.serviceType || 'Service';
+    const isRepair = isRepairBooking(b);
+    const repairDetails = repairDetailsForBooking(b);
+    const serviceTypeLabel = String(b.serviceType || '').toLowerCase() === 'mixed'
+      ? 'Mixed Services'
+      : (isRepair ? 'Repair Service' : 'Core Service');
+    const snapshotServiceName = (b.service && b.service.name) || (b.serviceId && b.serviceId.name) || '';
+    const serviceName = snapshotServiceName && snapshotServiceName.toLowerCase() !== 'repair'
+      ? snapshotServiceName
+      : 'Service';
     const bookingRef = b.bookingReference || b.workOrderNumber || '—';
     const scheduleDate = b.preferredDate || b.bookingDate;
     const dateText = scheduleDate ? new Date(scheduleDate).toLocaleDateString() : '—';
@@ -543,7 +606,6 @@
     };
   
     // Status timeline
-    const repairStatuses = ['repair_requested','pending_inspection','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','repair_declined','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','repair_completed','under_warranty','warranty_claim','closed'];
     const timelineSteps = [
       { key: 'pending', label: 'Booked', icon: 'bi-calendar-check' },
       { key: 'confirmed', label: 'Confirmed', icon: 'bi-check-circle' },
@@ -640,9 +702,9 @@
       `, breakdown, 'blue');
     })();
   
-    // Service items
+    // Core-service items. Repair appliances use the richer repair section below.
     const serviceItemsHtml = (() => {
-      const services = (b.services || []).filter(Boolean);
+      const services = (b.services || []).filter(item => item && (!isRepair || String(item.type || '').toLowerCase() !== 'repair'));
       if (!services.length) return '';
       const cards = services.map((item, index) => {
         const meta = [item.brand, item.model, item.applianceTypeName || item.airconTypeName]
@@ -676,6 +738,46 @@
         `;
       }).join('');
       return section('Service Items', 'bi-list-check', '', cards, 'purple');
+    })();
+
+    const repairItemsHtml = (() => {
+      if (!repairDetails?.items?.length) return '';
+      const cards = repairDetails.items.map((item, index) => {
+        const schedule = item.schedule || {};
+        const scheduleText = schedule.date
+          ? `${fmtLongDate(schedule.date)}${schedule.startTime ? ` · ${formatTime(schedule.startTime)}` : ''}`
+          : '';
+        const photos = (item.photos || []).filter(url => /^(https?:\/\/|\/)/i.test(String(url)));
+        const photoHtml = photos.length ? `
+          <div class="bh-repair-photos">
+            ${photos.map((url, photoIndex) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="Open repair photo ${photoIndex + 1}"><img src="${escapeHtml(url)}" alt="Repair photo ${photoIndex + 1}" loading="lazy"></a>`).join('')}
+          </div>` : '';
+        return `
+          <div class="bh-service-card">
+            <div class="bh-service-head">
+              <div>
+                <div class="bh-service-name">${index + 1}. ${escapeHtml(item.name || 'Repair Service')}</div>
+                <div class="bh-service-meta">${escapeHtml(item.unitType || 'Not recorded')} · Qty ${escapeHtml(item.quantity || 1)}</div>
+              </div>
+              ${statusBadge(item.status || b.status || 'pending')}
+            </div>
+            <div class="bh-kv-grid mt-3">
+              ${kv('Unit Type', escapeHtml(item.unitType || 'Not recorded'))}
+              ${kv('Brand', escapeHtml(item.brand || 'Not recorded'))}
+              ${kv('Model', escapeHtml(item.model || 'Not specified'))}
+              ${kv('Quantity', escapeHtml(item.quantity || 1))}
+              ${scheduleText ? kv('Inspection Schedule', escapeHtml(scheduleText), { full: true }) : ''}
+              ${kv('Reported Problem', `<div class="bh-kv-problem">${escapeHtml(item.problemDescription || 'Not recorded')}</div>`, { full: true, problem: true })}
+            </div>
+            ${photoHtml}
+          </div>`;
+      }).join('');
+      const summary = `
+        <div class="bh-repair-summary">
+          <span><strong>${escapeHtml(repairDetails.applianceCount)}</strong> appliance type${repairDetails.applianceCount === 1 ? '' : 's'}</span>
+          <span><strong>${escapeHtml(repairDetails.unitCount)}</strong> total unit${repairDetails.unitCount === 1 ? '' : 's'}</span>
+        </div>`;
+      return section('Repair Service Details', 'bi-wrench-adjustable', '', summary + cards, 'orange');
     })();
   
     // Repair quotation
@@ -789,14 +891,7 @@
       ${kv('Location', escapeHtml(locationText), { full: true })}
     `, '', 'purple');
   
-    if (b.unitInfo || isRepair || (b.status && String(b.status).startsWith('repair_')) || repairStatuses.includes(b.status)) {
-      html += section('Unit Information', 'bi-wrench', `
-        ${kv('Unit Type', escapeHtml(b.unitInfo?.unitType || '—'))}
-        ${kv('Brand', escapeHtml(b.unitInfo?.brand || '—'))}
-        ${kv('Model', escapeHtml(b.unitInfo?.model || 'N/A'))}
-        ${kv('Problem', `<div class="bh-kv-problem">${escapeHtml(b.unitInfo?.problemDescription || b.issueDescription || '—')}</div>`, { full: true, problem: true })}
-      `, '', 'orange');
-    }
+    html += repairItemsHtml;
   
     if (b.preferredDate && !isRepair) {
       html += section('Preferred Schedule', 'bi-calendar-event', `
@@ -900,13 +995,17 @@
 
       // search
       if (q) {
+        const repairSearch = repairDetailsForBooking(b);
         const hay = [
           String(b._id || ""),
+          String(b.bookingReference || b.workOrderNumber || ""),
           String(b.serviceType || ""),
+          String((b.service && b.service.name) || ""),
           String(b.status || ""),
           String(b.notes || ""),
           String(b.technicianId || ""),
           String((b.location && b.location.address) || ""),
+          ...(repairSearch?.items || []).flatMap(item => [item.name, item.unitType, item.brand, item.model, item.problemDescription]),
         ]
           .join(" ")
           .toLowerCase();

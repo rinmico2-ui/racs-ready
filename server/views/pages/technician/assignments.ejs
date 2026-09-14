@@ -825,10 +825,6 @@
         <i class="bi bi-slash-circle"></i>Cancelled
         <span class="badge" id="countCancelled">0</span>
       </button>
-      <button class="mw-tab" data-filter="available">
-        <i class="bi bi-briefcase"></i>Available
-        <span class="badge" id="countAvailable">0</span>
-      </button>
     </div>
 
     <div class="mw-split-layout" id="mwSplitLayout">
@@ -880,29 +876,8 @@
           })();
         </script>
 
-        <!-- Daily Preparation Center -->
-        <div id="preparationBar" class="mw-animate-fade-in" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:2px solid #93c5fd;border-radius:14px;padding:14px 18px;margin-bottom:16px;">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="d-flex align-items-center gap-2">
-              <div class="d-flex align-items-center justify-content-center rounded-2" style="width:32px;height:32px;background:#2563eb;color:#fff;flex-shrink:0;">
-                <i class="bi bi-briefcase" style="font-size:0.85rem;"></i>
-              </div>
-              <div>
-                <div style="font-weight:700;font-size:0.88rem;color:#1e40af;">Daily Preparation</div>
-                <div style="font-size:0.75rem;color:#1e40afcc;" id="preparationSummaryText">Loading today's kit...</div>
-              </div>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span id="prepStatusBadge" style="display:none;padding:4px 10px;border-radius:8px;font-size:0.7rem;font-weight:700;"></span>
-              <button class="btn btn-sm btn-primary fw-bold" onclick="openDailyKitModal()" style="border-radius:8px;font-size:0.75rem;padding:5px 12px;" title="Review and confirm your daily field kit">
-                <i class="bi bi-briefcase me-1"></i>Prepare Today's Jobs
-              </button>
-            </div>
-          </div>
-          <div id="preparationDetails" class="mt-2" style="display:none;">
-            <div class="d-flex flex-wrap gap-1" id="preparationResourceTags"></div>
-          </div>
-        </div>
+        <!-- Shared by booking and installation-order workflows. -->
+        <%- include('../../partials/technician-order-daily-kit') %>
 
         <!-- Today's Work Order: complete chronological run sheet (not paginated) -->
         <section class="today-work-order mw-animate-fade-in" id="todayWorkOrder" aria-labelledby="todayWorkOrderTitle">
@@ -9112,7 +9087,8 @@ ${isRepair ? `
         if (loadSequence !== assignmentsLoadSequence) return;
         allItems = data.items || [];
 
-        document.getElementById('countAvailable').textContent = data.total || 0;
+        const availableBadge = document.getElementById('countAvailable');
+        if (availableBadge) availableBadge.textContent = data.total || 0;
 
         if (data.reason === 'capacity_full') {
           container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-exclamation-circle" style="font-size:2.5rem;color:#f59e0b;"></i><p class="mt-2 fw-bold">Maximum Capacity Reached</p><p class="text-muted" style="font-size:0.85rem;">You already have 3 active assignments. Complete or cancel one before accepting new jobs.</p></div>';
@@ -9146,8 +9122,7 @@ ${isRepair ? `
           fetch('/api/technician/assignments?status=completed&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=declined&limit=1').then(r => r.json()),
           fetch('/api/technician/assignments?status=cancelled&limit=1').then(r => r.json()),
-          fetch('/api/technician/available-jobs').then(r => r.json()),
-        ]).then(([all, today, pending, active, completed, declined, cancelled, available]) => {
+        ]).then(([all, today, pending, active, completed, declined, cancelled]) => {
         document.getElementById('countAll').textContent = all.total || 0;
         document.getElementById('countToday').textContent = today.total || 0;
         document.getElementById('countPending').textContent = pending.total || 0;
@@ -9155,7 +9130,6 @@ ${isRepair ? `
         document.getElementById('countCompleted').textContent = completed.total || 0;
         document.getElementById('countDeclined').textContent = declined.total || 0;
         document.getElementById('countCancelled').textContent = cancelled.total || 0;
-        document.getElementById('countAvailable').textContent = available.total || 0;
         tabCountsCache.loadedAt = Date.now();
       }).catch(() => {}).finally(() => { tabCountsCache.promise = null; });
 
@@ -12059,14 +12033,7 @@ function preparationEscapeHtml(value) {
                   !!detailMap._container && detailMap._container.isConnected;
               };
 
-              var hybridBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-                maxZoom: 18
-              });
-              var hybridLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '&copy; Esri', maxZoom: 18
-              });
-              var hybridGroup = L.layerGroup([hybridBase, hybridLabels]);
+              var hybridGroup = window.createEsriHybridLayer();
               hybridGroup.addTo(detailMap);
 
               let finalLat = custLat;
@@ -12463,6 +12430,10 @@ function preparationEscapeHtml(value) {
 
   // ═══ Preparation Bar (All Upcoming Jobs) ═══
   async function loadPreparation(dateStr) {
+    // Keep legacy callers synchronized with the shared booking/order kit.
+    if (typeof window.refreshTechnicianDailyKit === 'function') {
+      return window.refreshTechnicianDailyKit(dateStr);
+    }
     const _esc = (s) => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') : '';
     try {
       const resp = await fetch('/api/technician/daily-kit' + (dateStr ? '?date=' + encodeURIComponent(dateStr) : ''), { credentials: 'same-origin' });
@@ -12654,7 +12625,10 @@ function preparationEscapeHtml(value) {
     }
   });
 
-  window.openDailyKitModal = function() {
+  window.openDailyKitModal = function(date) {
+    if (typeof window.openTechnicianDailyKit === 'function') {
+      return window.openTechnicianDailyKit(date);
+    }
     loadDailyKit();
     new bootstrap.Modal(document.getElementById('dailyKitModal')).show();
   };

@@ -241,6 +241,11 @@ const hvacProductSchema = new mongoose.Schema(
       trim: true,
       default: "/images/products/default.png",
     },
+    imagePublicId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
 
     // ── Technical Specifications ────────────────────────────────────────────
     specifications: {

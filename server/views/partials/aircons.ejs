@@ -2514,11 +2514,7 @@
         // Add custom zoom control position
         L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
 
-        // Reverting to OpenStreetMap to prevent Gray Tiles issue due to broken Carto CDN
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors',
-          maxZoom: 19
-        }).addTo(leafletMap);
+        window.createEsriHybridLayer().addTo(leafletMap);
 
         const customPinIcon = L.divIcon({
           className: 'custom-map-pin',

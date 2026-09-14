@@ -1725,10 +1725,6 @@
       <div class="td-map-ctrls td-ctrl-tech" id="tdCtrlTech" title="Focus technician">
         <button class="td-ctrl-btn"><i class="bi bi-geo-alt-fill"></i></button>
       </div>
-      <div class="td-map-ctrls td-ctrl-layers" id="tdLayerSelector">
-        <button class="td-ctrl-layer active" data-layer="standard"><span class="td-ctrl-thumb" data-thumb="standard" style="background:#e0f2fe;"></span>Standard</button>
-        <button class="td-ctrl-layer" data-layer="hybrid"><span class="td-ctrl-thumb" data-thumb="hybrid" style="background:#14532d;"></span>Hybrid</button>
-      </div>
       <div class="track-drawer-legend">
         <div class="td-legend-item"><div class="td-legend-dot" style="background:#2563eb;"></div><span>Customer</span></div>
         <div class="td-legend-item"><div class="td-legend-dot" style="background:#ef4444;"></div><span>Technician</span></div>
@@ -3661,7 +3657,7 @@
             try{ window.__assignMap.remove(); }catch(e){}
             window.__assignMap=null;
           }
-          window.__assignMap=L.map(mapEl,{zoomControl:true,attributionControl:false});
+          window.__assignMap=L.map(mapEl,{zoomControl:true,attributionControl:true});
 
           var bounds=[];
           if(bookingLoc) bounds.push([bookingLoc.lat,bookingLoc.lng]);
@@ -3673,7 +3669,7 @@
             window.__assignMap.setView([14.5995,120.9842], 12);
           }
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'}).addTo(window.__assignMap);
+          window.createEsriHybridLayer().addTo(window.__assignMap);
 
           if(bookingLoc){
             var bookingIcon=L.divIcon({className:'',html:'<div style="position:relative;"><div style="width:38px;height:38px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 14px rgba(37,99,235,0.5);display:flex;align-items:center;justify-content:center;"><i class="bi bi-geo-alt-fill" style="color:#fff;font-size:17px;"></i></div><div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.2);">Customer</div></div>',iconSize:[38,38],iconAnchor:[19,19]});
@@ -4029,24 +4025,10 @@
     var mapEl=document.getElementById('trackDrawerMap');
     if(_trackMap){_trackMap.remove();_trackMap=null;}
     var def=custLoc||techLoc||{lat:14.5995,lng:120.9842};
-    _trackMap=L.map(mapEl,{zoomControl:false,attributionControl:false}).setView([def.lat,def.lng],13);
+    _trackMap=L.map(mapEl,{zoomControl:false,attributionControl:true}).setView([def.lat,def.lng],13);
     window._trackMapCenter=def;
 
-    var standardLayer=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>, <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains:'abcd',
-      maxZoom:19
-    });
-    var hybridBase=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-      attribution:'&copy; Esri',
-      maxZoom:18
-    });
-    var hybridLabels=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{
-      attribution:'&copy; Esri',
-      maxZoom:18
-    });
-    var hybridGroup=L.layerGroup([hybridBase,hybridLabels]);
-    window._trackTileLayers={standard:standardLayer,hybrid:hybridGroup,current:standardLayer,name:'standard'};
+    var standardLayer=window.createEsriHybridLayer();
     standardLayer.addTo(_trackMap);
     L.control.attribution({position:'bottomright',prefix:false}).addTo(_trackMap);
 
@@ -4094,18 +4076,6 @@
         if(_trackMap.setBearing)_trackMap.setBearing(0);
       }
     };
-    document.querySelectorAll('#tdLayerSelector .td-ctrl-layer').forEach(function(btn){
-      btn.onclick=function(){
-        var layer=btn.dataset.layer;
-        if(!layer||!_trackMap||layer===window._trackTileLayers.name)return;
-        _trackMap.removeLayer(window._trackTileLayers.current);
-        if(layer==='standard'){window._trackTileLayers.current=standardLayer;window._trackTileLayers.name='standard';}
-        else if(layer==='hybrid'){window._trackTileLayers.current=hybridGroup;window._trackTileLayers.name='hybrid';}
-        _trackMap.addLayer(window._trackTileLayers.current);
-        document.querySelectorAll('#tdLayerSelector .td-ctrl-layer').forEach(function(b){b.classList.toggle('active',b.dataset.layer===layer);});
-      };
-    });
-
     if(document.getElementById('trackDrawer').classList.contains('open')){
       setTimeout(function(){_trackMap.invalidateSize();},200);
     }
@@ -4442,6 +4412,7 @@
   function auInit(){
     var params=new URLSearchParams(window.location.search);
     var initialTab=params.get('tab')||'overview';
+    var linkedBookingId=params.get('sel');
     if(initialTab==='equipment'||initialTab==='waiting-reassign'||initialTab==='waitingReassign') initialTab='queue';
     var tabEl=document.getElementById('tab-'+initialTab);
     if(tabEl&&typeof bootstrap!=='undefined'){
@@ -4451,6 +4422,11 @@
     loaded[initialTab]=true;
     loadTab(initialTab);
     loadBookingResolutionCount();
+    // Calendar "Open full record" links include the selected booking ID.
+    // Open that exact record after the workspace and Bootstrap modal are ready.
+    if(linkedBookingId&&/^[a-f\d]{24}$/i.test(linkedBookingId)){
+      window.setTimeout(function(){AU.Queue.viewBooking(linkedBookingId);},150);
+    }
   }
   if(typeof bootstrap!=='undefined'){auInit();}
   else{window.addEventListener('load',auInit);}

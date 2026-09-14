@@ -237,6 +237,9 @@ test("sidebar renders the current navigation group open across page loads", asyn
     effectivePermissions: ["appointments.view", "appointments.manage", "orders.view"],
   });
   assert.match(secretaryHtml, /class="btn btn-toggle nav-link active"[^>]+data-bs-target="#appointment-mgmt-collapse"[^>]+aria-expanded="true"/);
+  const secretaryWorkLabel = secretaryHtml.indexOf('<span class="nav-label">Work</span>');
+  const secretaryBookingsLink = secretaryHtml.indexOf('href="/secretary/appointments"', secretaryWorkLabel);
+  assert.ok(secretaryWorkLabel >= 0 && secretaryBookingsLink > secretaryWorkLabel);
   assert.match(secretaryHtml, /class="collapse show" id="appointment-mgmt-collapse"/);
 
   const ordersHtml = await ejs.renderFile(secretarySidebar, {
@@ -252,6 +255,9 @@ test("sidebar renders the current navigation group open across page loads", asyn
     user: { role: "admin" },
   });
   assert.match(adminHtml, /class="collapse show" id="appointment-mgmt-collapse"/);
+  const adminWorkLabel = adminHtml.indexOf('<span class="nav-label">Work</span>');
+  const adminBookingsLink = adminHtml.indexOf('href="/admin/appointments"', adminWorkLabel);
+  assert.ok(adminWorkLabel >= 0 && adminBookingsLink > adminWorkLabel);
 
   const secretaryLayout = fs.readFileSync(path.join(__dirname, "../views/layouts/secretary.ejs"), "utf8");
   assert.doesNotMatch(secretaryLayout, /src="\/js\/sidebar\.js"/);

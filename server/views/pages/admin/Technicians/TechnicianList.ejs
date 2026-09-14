@@ -57,16 +57,6 @@
             <i class="bi bi-arrows-angle-expand" id="iconExpand"></i>
           </button>
         </div>
-        <div id="techLayerSelector" style="position:absolute;bottom:12px;left:12px;z-index:1000;background:rgba(15,23,42,0.88);backdrop-filter:blur(4px);border-radius:14px;padding:6px 10px;display:flex;gap:10px;box-shadow:0 4px 12px rgba(0,0,0,.35);">
-          <button class="tech-layer-btn active" data-layer="standard">
-            <div class="tech-layer-thumb thumb-standard"></div>
-            Standard
-          </button>
-          <button class="tech-layer-btn" data-layer="hybrid">
-            <div class="tech-layer-thumb thumb-hybrid"></div>
-            Hybrid
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -245,7 +235,7 @@
       const el = (id) => document.getElementById(id);
       const body = el("techTableBody");
       // map state must be defined before any functions use it
-      const techMapState = { map: null, markers: [], standardLayer: null, hybridGroup: null, activeLayer: null, activeLayerName: 'standard' };
+      const techMapState = { map: null, markers: [], activeLayer: null };
       // we no longer need a custom icon; Leaflet's default marker provides a familiar map pin
       // kept techIcon variable for backwards compatibility if desired
       const techIcon = null; // default marker will be used
@@ -468,22 +458,7 @@
         const el = document.getElementById("techListMap");
         if (!el || !window.L) return;
         techMapState.map = L.map(el, { zoomControl: false }).setView([14.676049, 121.043731], 12);
-        techMapState.standardLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: 'abcd',
-          maxZoom: 19
-        });
-        const hybridBase = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-          attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-          maxZoom: 18
-        });
-        const hybridLabels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
-          attribution: '&copy; Esri',
-          maxZoom: 18
-        });
-        techMapState.hybridGroup = L.layerGroup([hybridBase, hybridLabels]);
-        techMapState.activeLayer = techMapState.standardLayer;
-        techMapState.activeLayerName = 'standard';
+        techMapState.activeLayer = window.createEsriHybridLayer();
         techMapState.activeLayer.addTo(techMapState.map);
         techMapReady = true;
         const ol = document.getElementById('techMapOverlay');
@@ -530,28 +505,6 @@
           };
         }
       }
-
-      // Layer selector
-      document.querySelectorAll('#techLayerSelector .tech-layer-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          const layer = btn.dataset.layer;
-          if (!layer || !techMapState.map || layer === techMapState.activeLayerName) return;
-          if (techMapState.activeLayer) techMapState.map.removeLayer(techMapState.activeLayer);
-          if (layer === 'standard') {
-            techMapState.activeLayer = techMapState.standardLayer;
-            techMapState.activeLayerName = 'standard';
-          } else if (layer === 'hybrid') {
-            techMapState.activeLayer = techMapState.hybridGroup;
-            techMapState.activeLayerName = 'hybrid';
-          }
-          techMapState.activeLayer.addTo(techMapState.map);
-          const ol = document.getElementById('techMapOverlay');
-          if (ol) { ol.classList.remove('d-flex'); ol.classList.add('d-none'); }
-          document.querySelectorAll('#techLayerSelector .tech-layer-btn').forEach(function (b) {
-            b.classList.toggle('active', b.dataset.layer === layer);
-          });
-        });
-      });
 
       // Custom zoom controls
       const btnZoomIn = document.getElementById('btnZoomIn');

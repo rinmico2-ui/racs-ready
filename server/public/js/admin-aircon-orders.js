@@ -1453,11 +1453,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     loadLeaflet(() => {
-      _aoAssignMap = L.map(mapEl, { zoomControl: true, attributionControl: false })
+      _aoAssignMap = L.map(mapEl, { zoomControl: true, attributionControl: true })
         .setView([bookingLat, bookingLng], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'
-      }).addTo(_aoAssignMap);
+      window.createEsriHybridLayer().addTo(_aoAssignMap);
 
       const custIcon = L.divIcon({
         html: '<div style="background:#2563eb;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);"><i class="bi bi-geo-alt-fill"></i></div>',

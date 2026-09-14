@@ -462,16 +462,6 @@
           </div>
         </div>
 
-        <div class="company-layer-bar">
-          <button class="company-layer-btn active" data-layer="standard">
-            <div class="company-layer-thumb thumb-standard"></div>
-            Standard
-          </button>
-          <button class="company-layer-btn" data-layer="hybrid">
-            <div class="company-layer-thumb thumb-hybrid"></div>
-            Hybrid
-          </button>
-        </div>
       </div>
       <div class="card-footer bg-white p-3 border-top">
         <h5 class="mb-3 fw-600 text-dark" style="font-size:1rem;"><i class="bi bi-geo-alt me-2 text-primary"></i>Set Company / Base Coordinates</h5>
@@ -557,10 +547,7 @@
       const companyMapState = {
         map: null,
         marker: null,
-        standardLayer: null,
-        hybridGroup: null,
-        activeLayer: null,
-        activeLayerName: 'standard'
+        activeLayer: null
       };
 
       function renderPreview(payload) {
@@ -631,24 +618,7 @@
 
         companyMapState.map = window.L.map(mapEl, { zoomControl: false }).setView(center, 14);
 
-        companyMapState.standardLayer = window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: 'abcd',
-          maxZoom: 19
-        });
-
-        const hybridBase = window.L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-          attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-          maxZoom: 18
-        });
-        const hybridLabels = window.L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-          attribution: '&copy; Esri',
-          maxZoom: 18
-        });
-        companyMapState.hybridGroup = window.L.layerGroup([hybridBase, hybridLabels]);
-
-        companyMapState.activeLayer = companyMapState.standardLayer;
-        companyMapState.activeLayerName = 'standard';
+        companyMapState.activeLayer = window.createEsriHybridLayer();
         companyMapState.activeLayer.addTo(companyMapState.map);
 
         const icon = window.L.divIcon({
@@ -796,26 +766,6 @@
           if (companyMapState.map) companyMapState.map.setZoom(companyMapState.map.getZoom() - 1);
         });
       }
-
-      // Layer selector
-      document.querySelectorAll('.company-layer-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          const layer = btn.dataset.layer;
-          if (!layer || !companyMapState.map || layer === companyMapState.activeLayerName) return;
-          if (companyMapState.activeLayer) companyMapState.map.removeLayer(companyMapState.activeLayer);
-          if (layer === 'standard') {
-            companyMapState.activeLayer = companyMapState.standardLayer;
-            companyMapState.activeLayerName = 'standard';
-          } else if (layer === 'hybrid') {
-            companyMapState.activeLayer = companyMapState.hybridGroup;
-            companyMapState.activeLayerName = 'hybrid';
-          }
-          companyMapState.activeLayer.addTo(companyMapState.map);
-          document.querySelectorAll('.company-layer-btn').forEach(function (b) {
-            b.classList.toggle('active', b.dataset.layer === layer);
-          });
-        });
-      });
 
       loadCurrent();
       // Attempt to initialize map right after load

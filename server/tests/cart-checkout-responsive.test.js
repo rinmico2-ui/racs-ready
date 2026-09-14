@@ -74,11 +74,10 @@ test("blocked device location never blocks manual checkout location", () => {
   assert.doesNotMatch(wizard, /Swal\.fire\('Location unavailable'/);
 });
 
-test("checkout street map uses a production-safe provider with an automatic fallback", () => {
-  assert.match(wizard, /basemaps\.cartocdn\.com\/rastertiles\/voyager/);
+test("checkout map uses the shared Esri hybrid provider", () => {
+  assert.match(wizard, /createEsriHybridLayer\(\{ maxZoom:20 \}\)/);
   assert.doesNotMatch(wizard, /tileLayer\('https:\/\/\{s\}\.tile\.openstreetmap\.org/);
-  assert.match(wizard, /_streetMapLayer\.on\('tileerror'/);
-  assert.match(wizard, /_satelliteMapLayer\.addTo\(leafletMap\)/);
+  assert.doesNotMatch(wizard, /basemaps\.cartocdn\.com|_streetMapLayer\.on\('tileerror'/);
 });
 
 test("completed checkout fields guide customers to the next required action", () => {

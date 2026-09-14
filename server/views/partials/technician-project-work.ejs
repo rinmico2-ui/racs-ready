@@ -2026,9 +2026,9 @@
     if (firstLat == null || firstLng == null) return;
 
     el.innerHTML = '';
-    const map = L.map(el, { zoomControl: true, attributionControl: false }).setView([firstLat, firstLng], 14);
+    const map = L.map(el, { zoomControl: true, attributionControl: true }).setView([firstLat, firstLng], 14);
     el._pwMap = map; el._pwInited = true;
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    window.createEsriHybridLayer().addTo(map);
 
     const addMarker = (lat, lng, color, icon, title, body) => {
       const m = L.divIcon({ className: '', html: `<div style="background:${color};color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.3);">${icon}</div>`, iconSize: [30,30], iconAnchor: [15,15] });

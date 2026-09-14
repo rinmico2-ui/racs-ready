@@ -2018,9 +2018,7 @@
               // Initialize map similar to services.js
               const map = L.map(mapEl).setView(center, hasCust && hasTech ? 10 : 12);
               
-              L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-              }).addTo(map);
+              window.createEsriHybridLayer().addTo(map);
               
               // Create technician icon (similar to services.js)
               const techIcon = L.divIcon({
@@ -2148,9 +2146,7 @@
             } else {
               // Show message when no location data is available
               const map = L.map(mapEl).setView([14.676049, 121.043731], 6);
-              L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-              }).addTo(map);
+              window.createEsriHybridLayer().addTo(map);
               
               L.popup()
                 .setLatLng([14.676049, 121.043731])
@@ -2630,13 +2626,7 @@
             if (hasCoords) {
               const [lng, lat] = coordsArray;
               const map = L.map(mapEl).setView([lat, lng], 12);
-              L.tileLayer(
-                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                {
-                  attribution:
-                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                },
-              ).addTo(map);
+              window.createEsriHybridLayer().addTo(map);
               L.marker([lat, lng]).addTo(map).bindPopup("Request location");
             }
           } catch (err) {

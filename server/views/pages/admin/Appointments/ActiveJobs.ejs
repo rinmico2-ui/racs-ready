@@ -1021,11 +1021,9 @@
     if (trackMap) { trackMap.remove(); trackMap = null; }
 
     const defaultCenter = custLoc || techLoc || { lat: 14.5995, lng: 120.9842 };
-    trackMap = L.map(mapEl, { zoomControl: true, attributionControl: false }).setView([defaultCenter.lat, defaultCenter.lng], 13);
+    trackMap = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([defaultCenter.lat, defaultCenter.lng], 13);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'
-    }).addTo(trackMap);
+    window.createEsriHybridLayer().addTo(trackMap);
 
     trackMarkers = {};
 

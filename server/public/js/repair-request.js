@@ -704,10 +704,7 @@ function initMap() {
 
   map = L.map('technicianMap', { zoomControl: false }).setView([companyLoc.lat, companyLoc.lng], 13);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19,
-  }).addTo(map);
+  window.createEsriHybridLayer().addTo(map);
 
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 

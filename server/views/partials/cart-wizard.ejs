@@ -2282,25 +2282,7 @@
       L.control.zoom({ position:'bottomright' }).addTo(leafletMap);
       L.control.scale({ position:'bottomleft', imperial:false, maxWidth:120 }).addTo(leafletMap);
 
-      _streetMapLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution:'&copy; OpenStreetMap contributors &copy; CARTO', subdomains:'abcd', maxNativeZoom:20, maxZoom:20
-      }).addTo(leafletMap);
-      const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution:'Tiles &copy; Esri', maxZoom:19
-      });
-      const satelliteLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-        attribution:'Labels &copy; Esri', maxZoom:19
-      });
-      _satelliteMapLayer = L.layerGroup([satelliteImagery, satelliteLabels]);
-      let streetTileErrors = 0;
-      _streetMapLayer.on('tileerror', function() {
-        streetTileErrors += 1;
-        if (streetTileErrors < 3 || !leafletMap || !leafletMap.hasLayer(_streetMapLayer)) return;
-        leafletMap.removeLayer(_streetMapLayer);
-        _satelliteMapLayer.addTo(leafletMap);
-        showMapAccessNotice('The detailed street layer is temporarily unavailable. Satellite view is active and address search still works.', 'info');
-      });
-      L.control.layers({ 'Detailed streets':_streetMapLayer, 'Satellite + labels':_satelliteMapLayer }, null, { position:'topright', collapsed:true }).addTo(leafletMap);
+      _streetMapLayer = window.createEsriHybridLayer({ maxZoom:20 }).addTo(leafletMap);
 
       const customPinIcon = L.divIcon({ className:'custom-map-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body"></div>' });
       leafletMarker = L.marker([defaultLat, defaultLng], { icon:customPinIcon, draggable:true, keyboard:true, title:'Delivery location' }).addTo(leafletMap);

@@ -2122,27 +2122,9 @@ function initializeMapInternal(mapContainer) {
     }
   }
 
-  // Match the product checkout map: detailed streets plus satellite imagery.
-  const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxNativeZoom: 19,
-    maxZoom: 19
-  }).addTo(map);
-  const satelliteImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles © Esri',
-    maxZoom: 19
-  });
-  const satelliteLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Labels © Esri',
-    maxZoom: 19
-  });
-  const satelliteLayer = L.layerGroup([satelliteImagery, satelliteLabels]);
+  window.createEsriHybridLayer().addTo(map);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.control.scale({ position: 'bottomleft', imperial: false, maxWidth: 120 }).addTo(map);
-  L.control.layers({
-    'Detailed streets': streetLayer,
-    'Satellite + labels': satelliteLayer
-  }, null, { position: 'topright', collapsed: true }).addTo(map);
 
   // Create custom technician icon (blue color)
   const technicianIcon = L.divIcon({
@@ -11614,11 +11596,81 @@ function updateRepairCharCount() {
   counter.style.color = len > 500 ? 'var(--color-danger)' : 'var(--gray-400)';
 }
 
+function getRepairBrandCatalog() {
+  const coreServices = BookingState.catalog.coreServices.length
+    ? BookingState.catalog.coreServices
+    : ((window.initialCatalog && window.initialCatalog.coreServices) || []);
+  const seen = new Set();
+
+  return coreServices
+    .flatMap(service => Array.isArray(service.brands) ? service.brands : [])
+    .map(brand => String(brand || '').trim())
+    .filter(brand => {
+      const key = brand.toLocaleLowerCase();
+      if (!brand || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function toggleRepairCustomBrand() {
+  const select = document.getElementById('unitBrand');
+  const custom = document.getElementById('unitBrandCustom');
+  if (!select || !custom) return;
+  const isCustom = select.value === '__other__';
+  custom.classList.toggle('d-none', !isCustom);
+  custom.required = isCustom;
+  if (!isCustom) custom.value = '';
+}
+
+function setupRepairBrandSelector() {
+  const select = document.getElementById('unitBrand');
+  if (!select) return;
+
+  const currentValue = select.value;
+  select.replaceChildren(new Option('Select brand\u2026', ''));
+  getRepairBrandCatalog().forEach(brand => select.add(new Option(brand, brand)));
+  select.add(new Option('Other (type your brand)', '__other__'));
+  select.value = Array.from(select.options).some(option => option.value === currentValue) ? currentValue : '';
+
+  if (!select.dataset.repairBrandWired) {
+    select.dataset.repairBrandWired = '1';
+    select.addEventListener('change', () => {
+      toggleRepairCustomBrand();
+      if (select.value === '__other__') document.getElementById('unitBrandCustom')?.focus();
+    });
+  }
+  toggleRepairCustomBrand();
+}
+
+function getSelectedRepairBrand() {
+  const select = document.getElementById('unitBrand');
+  if (!select) return '';
+  if (select.value === '__other__') {
+    return (document.getElementById('unitBrandCustom')?.value || '').trim();
+  }
+  return select.value.trim();
+}
+
+function setSelectedRepairBrand(brand) {
+  const select = document.getElementById('unitBrand');
+  const custom = document.getElementById('unitBrandCustom');
+  if (!select) return;
+  const value = String(brand || '').trim();
+  const matchingOption = Array.from(select.options).find(option =>
+    option.value && option.value !== '__other__' && option.value.toLocaleLowerCase() === value.toLocaleLowerCase()
+  );
+  select.value = matchingOption ? matchingOption.value : (value ? '__other__' : '');
+  toggleRepairCustomBrand();
+  if (!matchingOption && value && custom) custom.value = value;
+}
+
 function getCurrentRepairItem() {
   return {
     type: 'repair',
     unitType: (document.getElementById('unitType') || {}).value || '',
-    brand: (document.getElementById('unitBrand') || {}).value || '',
+    brand: getSelectedRepairBrand(),
     model: (document.getElementById('unitModel') || {}).value || '',
     problemDescription: (document.getElementById('repairProblemDescription') || {}).value || '',
     quantity: Number((document.getElementById('repairUnitQuantity') || {}).value || 1),
@@ -11632,7 +11684,7 @@ function repairItemIsComplete(item) {
 function addCurrentRepairItem() {
   const item = getCurrentRepairItem();
   if (!item.unitType) return showAlert('Please select a service category and unit type.', 'warning');
-  if (!item.brand) return showAlert('Please enter the brand name.', 'warning');
+  if (!item.brand) return showAlert('Please select a brand or enter a brand name under Other.', 'warning');
   if (item.problemDescription.length < 10) return showAlert('Please describe the problem in at least 10 characters.', 'warning');
   if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`Cannot add more than ${MAX_BOOKING_UNITS} units`, 'warning');
 
@@ -11692,11 +11744,10 @@ function editRepairItem(index) {
     const unitTypeInput = document.getElementById('unitType');
     if (unitTypeInput) unitTypeInput.value = item.unitType;
   }
-  const brandEl = document.getElementById('unitBrand');
   const modelEl = document.getElementById('unitModel');
   const problemEl = document.getElementById('repairProblemDescription');
   const qtyEl = document.getElementById('repairUnitQuantity');
-  if (brandEl) brandEl.value = item.brand || '';
+  setSelectedRepairBrand(item.brand);
   if (modelEl) modelEl.value = item.model || '';
   if (problemEl) problemEl.value = item.problemDescription || '';
   if (qtyEl) qtyEl.value = item.quantity || 1;
@@ -11723,10 +11774,11 @@ function removeRepairItem(index) {
 window.removeRepairItem = removeRepairItem;
 
 function resetRepairForm() {
-  ['unitType', 'unitBrand', 'unitModel', 'repairProblemDescription'].forEach(id => {
+  ['unitType', 'unitBrand', 'unitBrandCustom', 'unitModel', 'repairProblemDescription'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  toggleRepairCustomBrand();
   const qty = document.getElementById('repairUnitQuantity');
   if (qty) qty.value = 1;
   document.querySelectorAll('.unit-category-card,.sub-unit-chip,.symptom-chip').forEach(el => el.classList.remove('active'));
@@ -11901,6 +11953,7 @@ function hideRepairLoadingModal() {
 
 // Initialize repair form controls when DOM is ready
 function initRepairFormControls() {
+  setupRepairBrandSelector();
   setupRepairQuantityControls();
   setupRepairPhotoUpload();
   const problemEl = document.getElementById('repairProblemDescription');

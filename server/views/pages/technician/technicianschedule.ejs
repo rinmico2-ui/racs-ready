@@ -1227,12 +1227,10 @@
             var centerLng = custLng || techLng || 120.9842;
             var zoom = (custLat && techLat) ? 13 : 15;
 
-            var detailMap = L.map(mapEl, { zoomControl: false, attributionControl: false }).setView([centerLat, centerLng], zoom);
+            var detailMap = L.map(mapEl, { zoomControl: false, attributionControl: true }).setView([centerLat, centerLng], zoom);
             L.control.zoom({ position: 'topright' }).addTo(detailMap);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-              maxZoom: 19
-            }).addTo(detailMap);
+            window.createEsriHybridLayer().addTo(detailMap);
 
             // Customer marker
             if (custLat && custLng) {

@@ -422,7 +422,7 @@
     if (!Number.isFinite(customerLat) || !Number.isFinite(customerLng) || !technicianId) return;
 
     const map = L.map(mapElement).setView([customerLat, customerLng], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+    window.createEsriHybridLayer().addTo(map);
     const customerIcon = L.divIcon({ html:'<i class="bi bi-geo-alt-fill"></i>', className:'custom-customer-icon', iconSize:[30,30], iconAnchor:[15,30] });
     const technicianIcon = L.divIcon({ html:'<i class="bi bi-person-badge-fill"></i>', className:'custom-tech-icon', iconSize:[30,30], iconAnchor:[15,30] });
     L.marker([customerLat, customerLng], { icon:customerIcon }).addTo(map).bindTooltip('Installation address');

@@ -656,11 +656,9 @@
     }
 
     loadLeaflet(() => {
-      assignMap = L.map(mapEl, { zoomControl: true, attributionControl: false })
+      assignMap = L.map(mapEl, { zoomControl: true, attributionControl: true })
         .setView([bookingLat, bookingLng], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://openstreetmap.org/copyright">OSM</a>'
-      }).addTo(assignMap);
+      window.createEsriHybridLayer().addTo(assignMap);
 
       // Booking marker
       const custIcon = L.divIcon({

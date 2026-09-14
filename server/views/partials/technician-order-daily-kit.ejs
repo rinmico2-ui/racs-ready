@@ -49,7 +49,9 @@
     if(kit.hasDelta)return {cls:'blocked',icon:'bi-exclamation-triangle',label:'Review update',copy:'New requirements were added after the kit was prepared.'};
     if(['confirmed','in_progress'].includes(kit.status))return {cls:'ready',icon:'bi-check-circle',label:'Confirmed',copy:(kit.items||[]).length+' kit item(s) prepared for '+jobs.length+' job(s).'};
     var unavailable=(kit.items||[]).filter(function(i){return i.checkoutStatus==='unavailable'&&!i.exception?.approved&&!resolvedStatuses.includes(i.resolution?.status)}).length;
-    return unavailable?{cls:'blocked',icon:'bi-exclamation-octagon',label:'Blocked',copy:unavailable+' unavailable item(s) require a decision.'}:{cls:'pending',icon:'bi-hourglass-split',label:'Pending',copy:'Review and confirm '+(kit.items||[]).length+' requirement(s) before departure.'};
+    if(unavailable)return {cls:'blocked',icon:'bi-exclamation-octagon',label:'Blocked',copy:unavailable+' unavailable item(s) require a decision.'};
+    if(!(kit.items||[]).length)return {cls:'pending',icon:'bi-clipboard-check',label:'Ready to confirm',copy:jobs.length+' job(s) scheduled; no physical kit items are required. Confirm readiness before departure.'};
+    return {cls:'pending',icon:'bi-hourglass-split',label:'Pending',copy:'Review and confirm '+(kit.items||[]).length+' requirement(s) before departure.'};
   }
   async function request(url,options){var response=await fetch(url,{credentials:'same-origin',...(options||{})});var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
   function setBar(payload){
@@ -81,17 +83,21 @@
     el('odkBody').innerHTML=html;
     var canConfirm=kit.status==='draft'||Boolean(kit.hasDelta);
     el('odkConfirm').style.display=canConfirm?'':'none';
-    el('odkConfirm').disabled=unavailable.length>0||!items.length&&!delta.length;
+    el('odkConfirm').disabled=unavailable.length>0||!jobs.length;
     el('odkConfirm').innerHTML=unavailable.length?'<i class="bi bi-exclamation-triangle me-1"></i>Resolve '+unavailable.length+' issue(s)':kit.hasDelta?'<i class="bi bi-plus-circle me-1"></i>Prepare Additional Items':'<i class="bi bi-check2-circle me-1"></i>Confirm Daily Preparation';
-    el('odkFooterHint').textContent=unavailable.length?'Unavailable requirements must be resolved before confirmation.':'Confirmation checks out equipment and issues consumables for all covered jobs.';
+    el('odkFooterHint').textContent=unavailable.length?'Unavailable requirements must be resolved before confirmation.':items.length||delta.length?'Confirmation checks out equipment and issues consumables for all covered jobs.':'No physical items are required; confirm that you are ready for the covered jobs.';
   }
   async function load(date,showModal){
     if(state.loading)return;state.loading=true;state.date=date||state.date||localDateKey();el('odkBarDate').value=state.date;el('odkModalDate').textContent=niceDate(state.date);
     if(showModal)el('odkBody').innerHTML='<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Building the shared kit...</div>';
-    try{var payload=await request('/api/technician/daily-kit?date='+encodeURIComponent(state.date));state.payload=payload;setBar(payload);if(showModal||el('odkModal').classList.contains('show'))render(payload)}catch(error){el('odkBarStatus').className='odk-status blocked';el('odkBarStatus').innerHTML='<i class="bi bi-exclamation-triangle"></i> Error';el('odkBarCopy').textContent=error.message;if(showModal)el('odkBody').innerHTML='<div class="alert alert-danger">'+esc(error.message)+'</div>'}finally{state.loading=false}
+    try{var payload=await request('/api/technician/daily-kit?date='+encodeURIComponent(state.date));state.payload=payload;window._dailyKitStatus=payload.kit?payload.kit.status:null;setBar(payload);if(showModal||el('odkModal').classList.contains('show'))render(payload)}catch(error){el('odkBarStatus').className='odk-status blocked';el('odkBarStatus').innerHTML='<i class="bi bi-exclamation-triangle"></i> Error';el('odkBarCopy').textContent=error.message;if(showModal)el('odkBody').innerHTML='<div class="alert alert-danger">'+esc(error.message)+'</div>'}finally{state.loading=false}
   }
-  window.openOrderDailyKit=function(date){state.date=date||el('odkBarDate').value||localDateKey();el('odkBarDate').value=state.date;bootstrap.Modal.getOrCreateInstance(el('odkModal')).show();load(state.date,true)};
-  window.refreshOrderDailyKit=function(){return load(state.date||localDateKey(),false)};
+  window.openTechnicianDailyKit=function(date){state.date=date||el('odkBarDate').value||localDateKey();el('odkBarDate').value=state.date;bootstrap.Modal.getOrCreateInstance(el('odkModal')).show();return load(state.date,true)};
+  window.refreshTechnicianDailyKit=function(date){return load(date||state.date||localDateKey(),false)};
+  // Compatibility aliases for existing booking- and order-page action buttons.
+  window.openOrderDailyKit=window.openTechnicianDailyKit;
+  window.openDailyKitModal=window.openTechnicianDailyKit;
+  window.refreshOrderDailyKit=window.refreshTechnicianDailyKit;
   async function resolveItem(button){
     var action=button.dataset.odkAction,name=button.dataset.name,category=button.dataset.category;
     try{
@@ -107,7 +113,7 @@
     el('odkOpenButton').addEventListener('click',function(){window.openOrderDailyKit(el('odkBarDate').value)});
     el('odkBarDate').addEventListener('change',function(){state.date=this.value;load(state.date,false)});
     el('odkBody').addEventListener('click',function(event){var button=event.target.closest('[data-odk-action]');if(button)resolveItem(button)});
-    el('odkConfirm').addEventListener('click',async function(){var button=this;if(!window.confirm('Confirm Daily Preparation for '+niceDate(state.date)+'? Equipment will be checked out and consumables issued.'))return;button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Confirming';try{await request('/api/technician/daily-kit/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:state.date})});await load(state.date,true);if(typeof window.fetchOrders==='function')window.fetchOrders();await Swal.fire({title:'Preparation Confirmed',text:'The shared Daily Kit is ready. Installation orders may proceed when dispatch is ready.',icon:'success',timer:2200,showConfirmButton:false})}catch(error){Swal.fire('Preparation Incomplete',error.message,'error')}finally{button.disabled=false}});
+    el('odkConfirm').addEventListener('click',async function(){var button=this;if(!window.confirm('Confirm Daily Preparation for '+niceDate(state.date)+'? Equipment will be checked out and consumables issued.'))return;button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Confirming';try{await request('/api/technician/daily-kit/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:state.date})});await load(state.date,true);if(typeof window.fetchOrders==='function')window.fetchOrders();if(typeof window.refreshAssignmentCardsForPreparation==='function')window.refreshAssignmentCardsForPreparation();if(window._currentDetailId&&typeof window.showDetail==='function')window.showDetail(window._currentDetailId);await Swal.fire({title:'Preparation Confirmed',text:'The shared Daily Kit is ready. Today\'s bookings and installation orders may now proceed.',icon:'success',timer:2200,showConfirmButton:false})}catch(error){Swal.fire('Preparation Incomplete',error.message,'error')}finally{button.disabled=false}});
     load(state.date,false);
   });
 })();

@@ -15196,19 +15196,7 @@ function attemptMapMount() {
 
 
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-
-
-
-    attribution:
-
-
-
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-
-
-
-  }).addTo(mapState.map);
+  window.createEsriHybridLayer().addTo(mapState.map);
 
 
 

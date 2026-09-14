@@ -349,18 +349,7 @@
     map = L.map('trackingMap', { zoomControl: false }).setView([14.5995, 120.9842], 12);
     L.control.zoom({ position: 'topright' }).addTo(map);
 
-    const standardLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
-    });
-    const hybridBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 18
-    });
-    const hybridLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-      attribution: '&copy; Esri', maxZoom: 18
-    });
-    const hybridGroup = L.layerGroup([hybridBase, hybridLabels]);
-    hybridGroup.addTo(map);
+    window.createEsriHybridLayer().addTo(map);
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {

@@ -485,14 +485,9 @@
     }
     const fallback = { lat: 14.676049, lng: 121.043731 };
     state.map = L.map("waMap", { zoomControl: false, scrollWheelZoom: false, preferCanvas: true }).setView([fallback.lat, fallback.lng], 13);
-    const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors", maxZoom: 19 }).addTo(state.map);
-    const satellite = L.layerGroup([
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 }),
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { attribution: "Labels &copy; Esri", maxZoom: 19 }),
-    ]);
+    window.createEsriHybridLayer().addTo(state.map);
     L.control.zoom({ position: "bottomright" }).addTo(state.map);
     L.control.scale({ position: "bottomleft", imperial: false, maxWidth: 100 }).addTo(state.map);
-    L.control.layers({ "Detailed streets": streets, "Satellite + labels": satellite }, null, { position: "topright", collapsed: true }).addTo(state.map);
 
     const deliveryIcon = L.divIcon({ className: "wa-delivery-marker", iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -38], html: '<div style="width:34px;height:34px;border:3px solid #fff;border-radius:50% 50% 50% 0;background:#ef4444;transform:rotate(-45deg);box-shadow:0 3px 9px rgba(15,23,42,.35)"><span style="position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;background:#fff;transform:translate(-50%,-50%)"></span></div>' });
     state.deliveryMarker = L.marker([fallback.lat, fallback.lng], { icon: deliveryIcon, draggable: true, keyboard: true, title: "Installation point" }).addTo(state.map).setOpacity(0);

@@ -314,7 +314,10 @@
                         <div class="row g-3">
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="unitBrand"><i class="bi bi-award me-2 text-primary"></i>Brand <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control rp-input" id="unitBrand" placeholder="e.g. Carrier, Samsung, LG" required />
+                            <select class="form-select rp-input" id="unitBrand" required>
+                              <option value="">Select brand&hellip;</option>
+                            </select>
+                            <input type="text" class="form-control rp-input mt-2 d-none" id="unitBrandCustom" placeholder="Type the brand name" maxlength="80" aria-label="Other brand name" />
                           </div>
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model Number <span class="rp-optional">(optional)</span></label>
@@ -2350,7 +2353,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260911-booking-draft-v2';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260912-step-navigation-v2':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260913-repair-brand-select-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
