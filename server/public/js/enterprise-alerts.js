@@ -5,6 +5,10 @@
 
   const Swal = window.Swal;
   const originalFire = Swal.fire.bind(Swal);
+  const semanticIconHtml = Object.freeze({
+    success: '<span class="racs-alert-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 12.5l4.25 4.25L19 7.5"></path></svg></span>',
+    error: '<span class="racs-alert-glyph" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 7l10 10M17 7L7 17"></path></svg></span>',
+  });
 
   function joinClass(existing, required) {
     return [existing || "", required].filter(Boolean).join(" ").trim();
@@ -40,6 +44,9 @@
     const callerDidOpen = options.didOpen;
 
     options.customClass = normalizeCustomClass(options.customClass, toast, options.icon);
+    if (!toast && !options.iconHtml && semanticIconHtml[options.icon]) {
+      options.iconHtml = semanticIconHtml[options.icon];
+    }
     if (!toast && !options.target) {
       const activeModal = getActiveModalTarget();
       if (activeModal) {

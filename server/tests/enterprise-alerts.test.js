@@ -33,6 +33,20 @@ test("enterprise SweetAlert adapter preserves shorthand calls and adds semantic 
   assert.equal(options.heightAuto, false);
 });
 
+test("success and error alerts use centered vector glyphs instead of distorted stock strokes", async () => {
+  const successAlert = installEnterpriseAlerts();
+  await successAlert.Swal.fire("Saved", "The record was updated.", "success");
+  const successOptions = successAlert.getOptions();
+  assert.match(successOptions.iconHtml, /class="racs-alert-glyph"/);
+  assert.match(successOptions.iconHtml, /M5 12\.5l4\.25 4\.25L19 7\.5/);
+
+  const errorAlert = installEnterpriseAlerts();
+  await errorAlert.Swal.fire("Unable to save", "Please try again.", "error");
+  const errorOptions = errorAlert.getOptions();
+  assert.match(errorOptions.iconHtml, /class="racs-alert-glyph"/);
+  assert.match(errorOptions.iconHtml, /M7 7l10 10M17 7L7 17/);
+});
+
 test("enterprise SweetAlert adapter protects form dialogs and destructive confirmations", async () => {
   const { Swal, getOptions } = installEnterpriseAlerts();
   let opened = false;
@@ -87,4 +101,12 @@ test("all interactive application layouts load the shared enterprise alert asset
   assert.match(css, /\.swal2-actions \{[\s\S]*?justify-content: center !important;/);
   assert.match(css, /z-index: 2147483000 !important;/);
   assert.match(css, /@media \(max-width: 575\.98px\)/);
+  assert.match(css, /\.racs-alert-glyph svg/);
+  assert.match(css, /stroke-linecap: round/);
+
+  for (const layoutName of ["admin.ejs", "secretary.ejs", "technician.ejs", "main.ejs", "auth.ejs"]) {
+    const layout = fs.readFileSync(path.join(__dirname, "../views/layouts", layoutName), "utf8");
+    assert.match(layout, /enterprise-alerts\.css\?v=20260915-semantic-icons-v2/, layoutName);
+    assert.match(layout, /enterprise-alerts\.js\?v=20260915-semantic-icons-v2/, layoutName);
+  }
 });

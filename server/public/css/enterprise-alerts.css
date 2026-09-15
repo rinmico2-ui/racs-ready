@@ -60,6 +60,61 @@
   font-weight: 700 !important;
 }
 
+/* Success and error use explicit vector glyphs. SweetAlert's stock check/X
+   strokes are sized in em units and become misaligned when the icon shell is
+   made more compact by the application theme. */
+.swal2-popup:not(.swal2-toast).racs-enterprise-success .swal2-icon,
+.swal2-popup:not(.swal2-toast).racs-enterprise-error .swal2-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 4rem !important;
+  height: 4rem !important;
+  border-width: 1px !important;
+  border-style: solid !important;
+}
+
+.swal2-popup:not(.swal2-toast).racs-enterprise-success .swal2-icon {
+  border-color: #a7f3d0 !important;
+  background: linear-gradient(145deg, #f0fdf4, #dcfce7) !important;
+  color: #047857 !important;
+  box-shadow: 0 8px 22px rgba(5, 150, 105, 0.16) !important;
+}
+
+.swal2-popup:not(.swal2-toast).racs-enterprise-error .swal2-icon {
+  border-color: #fecaca !important;
+  background: linear-gradient(145deg, #fff7f7, #fee2e2) !important;
+  color: #dc2626 !important;
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.15) !important;
+}
+
+.swal2-popup:not(.swal2-toast).racs-enterprise-success .swal2-icon-content,
+.swal2-popup:not(.swal2-toast).racs-enterprise-error .swal2-icon-content {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  line-height: 0 !important;
+}
+
+.racs-alert-glyph {
+  display: grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+}
+
+.racs-alert-glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .swal2-popup:not(.swal2-toast) .swal2-title {
   padding: 0 1.75rem !important;
   color: #172033 !important;

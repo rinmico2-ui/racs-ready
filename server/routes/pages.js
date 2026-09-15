@@ -3075,6 +3075,66 @@ router.get(
         feedbackCoverage: completedBookingIds.length ? (ratedCompletedIds.size / completedBookingIds.length) * 100 : 0,
       };
 
+      // Photo evidence belongs beside the analytics that it supports. Reuse
+      // the filtered booking cohort and the ServiceReport rows already loaded
+      // for cost analytics so the gallery follows every active report filter
+      // without adding another database read.
+      const reportsByBooking = new Map();
+      completedReports.forEach(report => {
+        const key = String(report.bookingId || "");
+        if (!reportsByBooking.has(key)) reportsByBooking.set(key, []);
+        reportsByBooking.get(key).push(report);
+      });
+      const displayableImageUrl = value => {
+        const url = String(value || "").trim();
+        if (/^\/(?:uploads|images)\//i.test(url)) return url;
+        if (/^https?:\/\//i.test(url)) return url;
+        if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(url)) return url;
+        return "";
+      };
+      const photoEvidenceReports = bookings.map(booking => {
+        const bookingReports = (reportsByBooking.get(String(booking._id)) || [])
+          .slice()
+          .sort((left, right) => new Date(right.submittedAt || right.updatedAt || right.createdAt || 0) - new Date(left.submittedAt || left.updatedAt || left.createdAt || 0));
+        const latestReport = bookingReports[0] || null;
+        const candidates = [];
+        const addPhotos = (values, label) => (Array.isArray(values) ? values : [values]).forEach(value => candidates.push({ url: value, label }));
+        bookingReports.forEach(report => addPhotos(report.photos, "Service report"));
+        addPhotos(booking.proofPhoto, "Completion proof");
+        addPhotos(booking.afterPhotos, "After service");
+        addPhotos(booking.inspection?.photos, "Inspection");
+        addPhotos(booking.unitInfo?.photos, "Customer issue");
+        (booking.services || []).forEach(service => {
+          addPhotos(service.photos, "Service item");
+          addPhotos(service.inspection?.photos, "Inspection");
+          addPhotos(service.diagnosis?.photos, "Diagnosis");
+        });
+        const seen = new Set();
+        const photos = candidates.reduce((items, candidate) => {
+          const url = displayableImageUrl(candidate.url);
+          if (!url || seen.has(url)) return items;
+          seen.add(url);
+          items.push({ url, label: candidate.label });
+          return items;
+        }, []);
+        if (!photos.length) return null;
+        const assignedTechnician = technicianById.get(String(latestReport?.technicianId || booking.technicianId || booking.technician?._id || ""));
+        const serviceNames = serviceNamesFor(booking);
+        return {
+          bookingId: String(booking._id),
+          reference: booking.bookingReference || booking.workOrderNumber || `#${String(booking._id).slice(-6).toUpperCase()}`,
+          customer: latestReport?.customerName || booking.customer?.name || "Customer not recorded",
+          service: latestReport?.serviceName || serviceNames.join(", ") || booking.serviceType || "Service",
+          technician: assignedTechnician?.name || booking.technician?.name || "Unassigned",
+          reportStatus: latestReport?.status || "evidence_only",
+          reportCount: bookingReports.length,
+          findings: latestReport?.findings || "",
+          actionsTaken: latestReport?.actionsTaken || "",
+          date: latestReport?.submittedAt || latestReport?.updatedAt || booking.completedAt || booking.updatedAt || booking.createdAt,
+          photos,
+        };
+      }).filter(Boolean).sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0)).slice(0, 24);
+
       res.render("pages/admin/Reports/ServiceReport", {
         title: "Services",
         layout: "layouts/admin",
@@ -3152,6 +3212,7 @@ router.get(
           completedServiceCosts: serviceCostAnalytics.services,
           equipmentUsage: serviceCostAnalytics.equipment,
           serviceControls,
+          photoEvidenceReports,
         },
         reportError: null,
       });

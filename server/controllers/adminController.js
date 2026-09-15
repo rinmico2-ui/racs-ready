@@ -6,6 +6,10 @@ const Category = require("../models/Category");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
 const { escapeRegex } = require("../utils/stringSecurity");
 const { normalizeServiceWarrantyPolicy } = require("../utils/serviceWarrantyPolicy");
+const {
+  normalizeCoreServicePayload,
+  normalizeRepairServicePayload,
+} = require("../utils/serviceCatalogPayload");
 const { normalizeAuditQuery, csvCell } = require("../utils/auditTrailPolicy");
 const {
   STAFF_RETENTION_POLICY,
@@ -1758,7 +1762,7 @@ exports.createCoreService = async (req, res, next) => {
       airconTypes,
       warrantyPolicy,
       active,
-    } = req.body || {};
+    } = normalizeCoreServicePayload(req.body);
     if (!name || !slug || !category)
       return res
         .status(400)
@@ -1941,7 +1945,7 @@ exports.editCoreService = async (req, res, next) => {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "invalid id" });
-    const updates = { ...(req.body || {}) };
+    const updates = normalizeCoreServicePayload(req.body);
     if (updates.slug) {
       const CoreService = require("../models/CoreService");
       const other = await CoreService.findOne({
@@ -1974,6 +1978,7 @@ exports.editCoreService = async (req, res, next) => {
       const existingImages = existingService.images || [];
       updates.images = [newImageUrl, ...existingImages];
     }
+    updates.updatedAt = new Date();
 
     const svc = await CoreService.findByIdAndUpdate(id, updates, {
       returnDocument: "after",
@@ -2106,7 +2111,7 @@ exports.createRepairService = async (req, res, next) => {
       estimatedDurationMinutes,
       warrantyPolicy,
       active,
-    } = req.body || {};
+    } = normalizeRepairServicePayload(req.body);
     if (!name || !slug)
       return res.status(400).json({ error: "name and slug are required" });
     const RepairService = require("../models/RepairService");
@@ -2152,7 +2157,7 @@ exports.editRepairService = async (req, res, next) => {
     const id = req.params.id;
     if (!mongoose.Types.ObjectId.isValid(id))
       return res.status(400).json({ error: "invalid id" });
-    const updates = { ...(req.body || {}) };
+    const updates = normalizeRepairServicePayload(req.body);
     if (updates.slug) {
       const RepairService = require("../models/RepairService");
       const other = await RepairService.findOne({
@@ -2186,6 +2191,7 @@ exports.editRepairService = async (req, res, next) => {
       const existingImages = existingService.images || [];
       updates.images = [newImageUrl, ...existingImages];
     }
+    updates.updatedAt = new Date();
 
     const svc = await RepairService.findByIdAndUpdate(id, updates, {
       returnDocument: "after",

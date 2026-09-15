@@ -45,6 +45,7 @@ test("service report uses progressive disclosure instead of an analytics wall", 
   for (const tab of ["Overview", "Performance", "Cost &amp; contribution", "Quality", "Records"]) {
     assert.match(template, new RegExp(">" + tab + "<"));
   }
+  assert.match(template, /Report photos/);
   assert.match(template, /<details class="sr-more-filters"/);
   assert.match(template, /Needs attention/);
   assert.match(template, /Top services/);
@@ -98,4 +99,38 @@ test("filtered reports avoid obsolete and duplicate database reads", () => {
   assert.doesNotMatch(serviceRoute, /BookingService\.aggregate/);
   assert.match(template, /Updating…/);
   assert.match(template, /aria-busy/);
+});
+
+test("service analytics shows filtered report photos with accessible full-size previews", () => {
+  const html = ejs.render(template, {
+    reportError: null,
+    analytics: {
+      photoEvidenceReports: [{
+        reference: "BOOK-1042",
+        customer: "Sample Customer",
+        service: "Aircon Cleaning",
+        technician: "Sample Technician",
+        reportStatus: "approved",
+        date: "2026-09-15T08:00:00.000Z",
+        findings: "Dirty evaporator coil",
+        actionsTaken: "Cleaned and tested the unit",
+        photos: [
+          { url: "/uploads/service-reports/before.webp", label: "Service report" },
+          { url: "/uploads/proof-of-completion/after.webp", label: "Completion proof" },
+        ],
+      }],
+    },
+  });
+
+  assert.match(html, /id="photos-tab"/);
+  assert.match(html, /id="photos-pane"/);
+  assert.match(html, /Service report photos/);
+  assert.match(html, /src="\/uploads\/service-reports\/before\.webp"/);
+  assert.match(html, /data-evidence-photo/);
+  assert.match(html, /id="serviceEvidenceModal"/);
+  assert.match(html, /loading="lazy"/);
+  assert.match(serviceRoute, /const photoEvidenceReports = bookings\.map/);
+  assert.match(serviceRoute, /bookingReports\.forEach\(report => addPhotos\(report\.photos/);
+  assert.match(serviceRoute, /addPhotos\(booking\.proofPhoto, "Completion proof"\)/);
+  assert.match(serviceRoute, /serviceCostAnalytics\.sourceRows\?\.reports/);
 });

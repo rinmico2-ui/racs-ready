@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="/css/analytics.css">
-<link rel="stylesheet" href="/css/service-report-focused.css?v=20260906-filter-performance">
+<link rel="stylesheet" href="/css/service-report-focused.css?v=20260915-photo-evidence">
 <link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
 
 <%
@@ -19,6 +19,8 @@
   const topServices = Array.isArray(report.topServices) ? report.topServices.slice(0, 5) : [];
   const recentBookings = Array.isArray(report.recentBookings) ? report.recentBookings : [];
   const costRows = Array.isArray(report.completedServiceCosts) ? report.completedServiceCosts : [];
+  const photoEvidenceReports = Array.isArray(report.photoEvidenceReports) ? report.photoEvidenceReports : [];
+  const photoEvidenceCount = photoEvidenceReports.reduce((total, item) => total + (Array.isArray(item.photos) ? item.photos.length : 0), 0);
   const rangeLabels = { '7':'Last 7 days', '30':'Last 30 days', '90':'Last 90 days', '365':'Last 12 months', custom:'Custom period' };
   const rangeLabel = rangeLabels[filters.range] || 'Last 90 days';
   const formatMoney = value => Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 });
@@ -145,6 +147,7 @@
       <button class="sr-tab" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance-pane" type="button" role="tab" aria-controls="performance-pane" aria-selected="false">Performance</button>
       <button class="sr-tab" id="cost-tab" data-bs-toggle="tab" data-bs-target="#cost-pane" type="button" role="tab" aria-controls="cost-pane" aria-selected="false">Cost &amp; contribution</button>
       <button class="sr-tab" id="quality-tab" data-bs-toggle="tab" data-bs-target="#quality-pane" type="button" role="tab" aria-controls="quality-pane" aria-selected="false">Quality</button>
+      <button class="sr-tab" id="photos-tab" data-bs-toggle="tab" data-bs-target="#photos-pane" type="button" role="tab" aria-controls="photos-pane" aria-selected="false">Report photos <span class="sr-tab-count"><%= formatNumber(photoEvidenceCount) %></span></button>
       <button class="sr-tab" id="records-tab" data-bs-toggle="tab" data-bs-target="#records-pane" type="button" role="tab" aria-controls="records-pane" aria-selected="false">Records</button>
     </div>
   </nav>
@@ -213,11 +216,57 @@
       <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Quality follow-up</h2></div></header><div class="sr-related-grid"><a href="/admin/ratings/service"><i class="bi bi-star"></i><span><strong>Customer ratings</strong><small>Read feedback and rating detail</small></span></a><a href="/admin/ratings/technicians"><i class="bi bi-person-check"></i><span><strong>Technician ratings</strong><small>Review individual service quality</small></span></a><a href="/admin/warranty"><i class="bi bi-shield-check"></i><span><strong>Warranty</strong><small>Track coverage and claims</small></span></a></div></section>
     </div>
 
+    <div class="tab-pane fade" id="photos-pane" role="tabpanel" aria-labelledby="photos-tab" tabindex="0">
+      <section class="sr-card sr-evidence-section" aria-labelledby="report-photos-title">
+        <header class="sr-card-header">
+          <div><span class="sr-card-kicker">Field evidence</span><h2 id="report-photos-title">Service report photos</h2><p>Report attachments, inspection images, customer issue photos, and completion proof for the selected filters.</p></div>
+          <span class="sr-evidence-total"><i class="bi bi-images" aria-hidden="true"></i><strong><%= formatNumber(photoEvidenceCount) %></strong><small>photo<%= photoEvidenceCount === 1 ? '' : 's' %></small></span>
+        </header>
+        <% if (photoEvidenceReports.length) { %>
+          <div class="sr-evidence-grid">
+            <% photoEvidenceReports.forEach(function(item) { const statusLabel = String(item.reportStatus || 'evidence_only').replace(/_/g, ' '); %>
+              <article class="sr-evidence-card">
+                <header>
+                  <div><span class="sr-evidence-reference"><%= item.reference %></span><h3><%= item.service %></h3></div>
+                  <span class="sr-evidence-status <%= item.reportStatus %>"><%= statusLabel %></span>
+                </header>
+                <div class="sr-evidence-photos">
+                  <% item.photos.forEach(function(photo, photoIndex) { %>
+                    <button type="button" class="sr-evidence-photo" data-evidence-photo data-evidence-title="<%= item.reference %> · <%= photo.label %>" data-evidence-meta="<%= item.service %> · <%= item.technician %>" aria-label="View <%= photo.label %> for <%= item.reference %>">
+                      <img src="<%= photo.url %>" alt="<%= photo.label %> for <%= item.reference %>" loading="lazy" decoding="async">
+                      <span><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i><%= photo.label %></span>
+                    </button>
+                  <% }); %>
+                </div>
+                <div class="sr-evidence-details">
+                  <div><i class="bi bi-person" aria-hidden="true"></i><span><strong><%= item.customer %></strong><small>Customer</small></span></div>
+                  <div><i class="bi bi-person-gear" aria-hidden="true"></i><span><strong><%= item.technician %></strong><small>Technician</small></span></div>
+                  <div><i class="bi bi-calendar3" aria-hidden="true"></i><span><strong><%= formatDate(item.date) %></strong><small>Recorded</small></span></div>
+                </div>
+                <% if (item.findings || item.actionsTaken) { %><div class="sr-evidence-notes"><% if (item.findings) { %><p><strong>Findings:</strong> <%= item.findings %></p><% } %><% if (item.actionsTaken) { %><p><strong>Work done:</strong> <%= item.actionsTaken %></p><% } %></div><% } %>
+              </article>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No service photos in this report period</strong><p>Photos will appear here after a technician attaches report, inspection, or completion evidence. Current report filters also apply to this gallery.</p></div>
+        <% } %>
+      </section>
+    </div>
+
     <div class="tab-pane fade" id="records-pane" role="tabpanel" aria-labelledby="records-tab" tabindex="0">
       <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit trail</span><h2>Recent booking records</h2><p>The latest matching service records. Use Bookings for full workflow management.</p></div><a class="sr-inline-link" href="/admin/appointments">Open all bookings <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th class="text-end">Booked value</th><th>Status</th></tr></thead><tbody>
         <% if (recentBookings.length) { recentBookings.forEach(function(booking) { %><tr><td><strong><%= booking.reference || '—' %></strong></td><td><%= booking.customer %></td><td><%= booking.service %></td><td><%= booking.technician %></td><td class="text-end">&#8369;<%= formatMoney(booking.amount) %></td><td><span class="sr-badge"><%= String(booking.status || 'pending').replace(/[-_]/g, ' ') %></span></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No recent booking records match the selected filters.</td></tr><% } %>
       </tbody></table></div></section>
       <section class="sr-card sr-definitions"><header class="sr-card-header"><div><span class="sr-card-kicker">Definitions</span><h2>How to read this report</h2></div></header><dl><div><dt>Booked value</dt><dd>Value attached to non-cancelled bookings, whether or not the service has been completed.</dd></div><div><dt>Completed-service value</dt><dd>Value from services whose lifecycle is recognized as completed.</dd></div><div><dt>Direct service cost</dt><dd>Recorded internal labor, consumables, repair parts, and local purchases used for completed work.</dd></div><div><dt>Service contribution</dt><dd>Completed-service value less recorded direct service costs. It is provisional when cost coverage is incomplete.</dd></div></dl></section>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade sr-evidence-modal" id="serviceEvidenceModal" tabindex="-1" aria-labelledby="serviceEvidenceTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><div><h2 class="modal-title" id="serviceEvidenceTitle">Service photo</h2><p id="serviceEvidenceMeta"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close photo preview"></button></div>
+      <div class="modal-body"><img id="serviceEvidencePreview" src="" alt="Selected service report photo"></div>
     </div>
   </div>
 </div>
@@ -275,6 +324,21 @@
   document.querySelectorAll('[data-trend]').forEach(function (button) { button.addEventListener('click', function () { document.querySelectorAll('[data-trend]').forEach(function (item) { item.classList.remove('active'); }); button.classList.add('active'); renderTrend(button.dataset.trend); }); });
   document.querySelectorAll('[data-open-tab]').forEach(function (link) { link.addEventListener('click', function (event) { event.preventDefault(); var trigger = document.getElementById(link.dataset.openTab); if (trigger && window.bootstrap) bootstrap.Tab.getOrCreateInstance(trigger).show(); }); });
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (tab) { tab.addEventListener('shown.bs.tab', function () { Object.keys(charts).forEach(function (key) { charts[key].resize(); }); }); });
+  var evidenceModalElement = document.getElementById('serviceEvidenceModal');
+  var evidencePreview = document.getElementById('serviceEvidencePreview');
+  document.querySelectorAll('[data-evidence-photo]').forEach(function (button) {
+    var thumbnail = button.querySelector('img');
+    if (thumbnail) thumbnail.addEventListener('error', function () { button.classList.add('is-broken'); button.disabled = true; });
+    button.addEventListener('click', function () {
+      if (!evidenceModalElement || !evidencePreview || !thumbnail || typeof bootstrap === 'undefined') return;
+      evidencePreview.src = thumbnail.currentSrc || thumbnail.src;
+      evidencePreview.alt = thumbnail.alt;
+      document.getElementById('serviceEvidenceTitle').textContent = button.dataset.evidenceTitle || 'Service photo';
+      document.getElementById('serviceEvidenceMeta').textContent = button.dataset.evidenceMeta || '';
+      bootstrap.Modal.getOrCreateInstance(evidenceModalElement).show();
+    });
+  });
+  if (evidenceModalElement) evidenceModalElement.addEventListener('hidden.bs.modal', function () { if (evidencePreview) evidencePreview.removeAttribute('src'); });
   var range = document.getElementById('reportRange');
   if (range) range.addEventListener('change', function () { document.getElementById('customDateFilters').classList.toggle('is-visible', range.value === 'custom'); });
   var filterForm = document.getElementById('serviceReportFilters');

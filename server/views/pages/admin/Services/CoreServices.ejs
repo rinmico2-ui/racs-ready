@@ -629,15 +629,27 @@
 
     /* ═══ CORE SERVICE MODAL ═══ */
     .core-services-page #coreServiceModal .modal-dialog {
+      width: min(960px, calc(100vw - 2rem));
       max-width: min(960px, 95vw);
+      height: calc(100vh - 2rem);
+      height: calc(100dvh - 2rem);
+      max-height: 900px;
+      margin: 1rem auto;
     }
     .core-services-page #coreServiceModal .modal-content {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      max-height: 100%;
       border: none;
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 30px 60px rgba(15, 23, 42, 0.2);
     }
     .core-services-page #coreServiceModal .modal-header {
+      flex: 0 0 auto;
       background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 50%, #2563eb 100%) !important;
       border-bottom: none;
       padding: 1.25rem 1.5rem;
@@ -722,12 +734,21 @@
 
     /* ═══ MODAL BODY & FOOTER ═══ */
     .core-services-page #coreServiceModal .modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 24px 28px;
     }
     .core-services-page #coreServiceModal .modal-footer {
+      position: relative;
+      z-index: 2;
+      flex: 0 0 auto;
       padding: 18px 28px;
       border-top: 1px solid #f1f5f9;
       background: #f8fafc;
+      box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.06);
       display: flex; justify-content: flex-end; gap: 10px;
     }
     .core-services-page #coreServiceModal .modal-footer .btn {
@@ -749,7 +770,26 @@
       background: #1d4ed8; border-color: #1d4ed8;
       box-shadow: 0 6px 16px rgba(37,99,235,0.35);
     }
-    @media (max-width: 767px) { .ent-detail-grid { grid-template-columns: 1fr; } .ent-detail-card-wide { grid-column: span 1; } }
+    @media (max-width: 767px) {
+      .ent-detail-grid { grid-template-columns: 1fr; }
+      .ent-detail-card-wide { grid-column: span 1; }
+      .core-services-page #coreServiceModal .modal-dialog {
+        width: calc(100vw - 1rem);
+        height: calc(100vh - 1rem);
+        height: calc(100dvh - 1rem);
+        max-height: none;
+        margin: 0.5rem auto;
+      }
+      .core-services-page #coreServiceModal .modal-body {
+        padding: 1rem;
+      }
+      .core-services-page #coreServiceModal .modal-footer {
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+      }
+      .core-services-page #coreServiceModal .modal-footer .btn {
+        min-height: 46px;
+      }
+    }
   </style>
 
   <div class="au-hero mb-4">
@@ -1068,6 +1108,7 @@
               </div>
             </div>
           </div>
+          <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm">
               <div class="card-header bg-white border-bottom-0 p-3">
                 <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-cash-coin text-success"></i> Pricing &amp; Details</h6>
@@ -1159,9 +1200,9 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer bg-light border-top-0">
+      <div class="modal-footer core-modal-footer bg-light border-top-0">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-2"></i>Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
+        <button type="submit" class="btn btn-primary" id="coreServiceSaveBtn"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
       </div>
     </form>
   </div>
@@ -1208,6 +1249,15 @@
     let editingId = null;
     let currentAirconTypes = [];
     let warrantyDaysTouched = false;
+    const AIRCON_TYPE_LABELS = {
+      split: 'Split Type',
+      window: 'Window Type',
+      floor_standing: 'Floor Standing',
+      floor_mounted: 'Floor Mounted',
+      split_suspended: 'Split Suspended',
+      cassette: 'Cassette Type',
+      central: 'Central',
+    };
 
     function setWarrantyPolicy(policy) {
       const p = policy || {};
@@ -1272,8 +1322,7 @@
         const card = document.createElement('div');
         card.className = 'aircon-type-card card border-0 shadow-sm';
         
-        const typeLabels = { split:'Split Type', window:'Window Type', floor_mounted:'Floor Mounted', split_suspended:'Split Suspended', cassette:'Cassette', central:'Central' };
-        const defaultName = typeLabels[ac.type] || '';
+        const defaultName = AIRCON_TYPE_LABELS[ac.type] || '';
         const displayName = (ac.name && ac.name !== defaultName) ? ac.name : '';
 
         let hpRows = '';
@@ -1312,6 +1361,7 @@
               <select class="form-select core-type-select" onchange="updateAC(${i}, 'type', this.value)">
                 <option value="split" ${ac.type==='split'?'selected':''}>Split Type</option>
                 <option value="window" ${ac.type==='window'?'selected':''}>Window Type</option>
+                <option value="floor_standing" ${ac.type==='floor_standing'?'selected':''}>Floor Standing</option>
                 <option value="floor_mounted" ${ac.type==='floor_mounted'?'selected':''}>Floor Mounted</option>
                 <option value="split_suspended" ${ac.type==='split_suspended'?'selected':''}>Split Suspended</option>
                 <option value="cassette" ${ac.type==='cassette'?'selected':''}>Cassette</option>
@@ -1419,18 +1469,29 @@
 
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
-      
+      if (form.dataset.saving === 'true') return;
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
       const cleanAirconTypes = currentAirconTypes.map(ac => ({
         type: ac.type,
-        name: ac.name,
-        description: ac.description,
+        name: String(ac.name || AIRCON_TYPE_LABELS[ac.type] || 'Aircon Type').trim(),
+        description: String(ac.description || '').trim(),
         hpPricing: ac.hpPricing.filter(hp => hp.hp !== '' && hp.price !== '').map(hp => ({
           hp: parseFloat(hp.hp),
           price: parseFloat(hp.price),
           durationMinutes: hp.durationMinutes ? parseInt(hp.durationMinutes) : undefined,
-          description: hp.description
+          description: String(hp.description || '').trim()
         }))
       }));
+
+      const invalidTier = cleanAirconTypes.some(ac => ac.hpPricing.some(hp => !Number.isFinite(hp.hp) || hp.hp <= 0 || !Number.isFinite(hp.price) || hp.price < 0 || (hp.durationMinutes !== undefined && (!Number.isInteger(hp.durationMinutes) || hp.durationMinutes < 1))));
+      if (invalidTier) {
+        await Swal.fire({ icon:'warning', title:'Check HP pricing', text:'Each HP tier needs a valid capacity, non-negative price, and a positive duration when provided.' });
+        return;
+      }
 
       const payload = {
         name: form.name.value.trim(),
@@ -1460,6 +1521,11 @@
         url += '/' + editingId;
         method = 'PATCH';
       }
+      const saveButton = document.getElementById('coreServiceSaveBtn');
+      const originalSaveHtml = saveButton.innerHTML;
+      form.dataset.saving = 'true';
+      saveButton.disabled = true;
+      saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Saving...';
       try {
         const formData = new FormData();
         Object.keys(payload).forEach(key => {
@@ -1473,18 +1539,28 @@
         if (uploadedCoreImage) {
           formData.append('serviceImage', uploadedCoreImage);
         }
-        const r = await fetch(url, { method, body: formData });
-        if (r.ok) {
-          const mainModal = bootstrap.Modal.getInstance(modalEl);
-          if (mainModal) mainModal.hide();
-          const saveSuccessModal = new bootstrap.Modal(document.getElementById('saveSuccessModal'));
-          saveSuccessModal.show();
-        } else {
-          const j = await r.json();
-          alert(j.error || 'Save failed');
+        const r = await fetch(url, { method, body: formData, credentials: 'same-origin' });
+        const response = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(response.error || 'The service could not be saved.');
+
+        const mainModal = bootstrap.Modal.getInstance(modalEl);
+        if (mainModal) {
+          await new Promise(resolve => {
+            let resolved = false;
+            const done = () => { if (!resolved) { resolved = true; resolve(); } };
+            modalEl.addEventListener('hidden.bs.modal', done, { once:true });
+            mainModal.hide();
+            setTimeout(done, 500);
+          });
         }
+        const saveSuccessModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('saveSuccessModal'));
+        saveSuccessModal.show();
       } catch (err) {
-        alert('Save failed');
+        await Swal.fire({ icon:'error', title:'Service not saved', text:err.message || 'Please check the edited details and try again.' });
+      } finally {
+        form.dataset.saving = 'false';
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalSaveHtml;
       }
     });
   })();
