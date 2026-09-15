@@ -13,14 +13,13 @@
     const leaflet = global.L;
     if (!leaflet) throw new Error("Leaflet must load before the Esri hybrid layer");
 
-    // Esri advertises deeper zoom levels globally, but coverage varies by
-    // location. In areas without those tiles the service returns a JPEG that
-    // says "Map data not available" with a successful HTTP response, so a
-    // normal tile-error fallback cannot catch it. Treat level 19 as the last
-    // native level and let Leaflet enlarge those valid tiles for close pin and
-    // route inspection. Zoom 22 gives three additional levels without asking
-    // Esri for the unavailable native tiles at levels 20-22.
-    const settings = Object.assign({ maxNativeZoom: 19, maxZoom: 22 }, options || {});
+    // Esri coverage varies by location. At native level 19 and above the
+    // service can return a successful JPEG whose contents say "Map data not
+    // available", so Leaflet's tile-error event cannot provide a fallback.
+    // Stop native requests at level 18 and let Leaflet enlarge those tiles for
+    // close pin and route inspection. Users can still zoom to level 22 without
+    // requesting the unreliable native levels 19-22.
+    const settings = Object.assign({ maxNativeZoom: 18, maxZoom: 22 }, options || {});
     const imagery = leaflet.tileLayer(IMAGERY_URL, Object.assign({}, settings, {
       attribution: "Tiles &copy; Esri",
     }));

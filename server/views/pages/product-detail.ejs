@@ -489,6 +489,11 @@
     box-shadow: 0 8px 24px rgba(34,197,94,0.4);
   }
   .pd-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .pd-purchase-action.pd-action-locked,
+  .pd-purchase-action.pd-action-locked:disabled {
+    opacity: 1;
+    cursor: wait;
+  }
   .pd-actions { display: grid; gap: 0.6rem; margin-bottom: 1.2rem; }
 
   .pd-trust-row {
@@ -812,11 +817,11 @@
               </div>
 
               <div class="pd-actions">
-                <button class="pd-btn pd-btn-primary" id="pdAddToCartBtn" onclick="pdAddToCart()" <%= !p.inStock ? 'disabled' : '' %>>
+                <button type="button" class="pd-btn pd-btn-primary pd-purchase-action" id="pdAddToCartBtn" data-pd-purchase data-pd-action="cart" onclick="pdAddToCart()" <%= !p.inStock ? 'disabled' : '' %>>
                   <i class="bi bi-cart-plus"></i>
                   <%= p.inStock ? 'Add to Cart' : 'Out of Stock' %>
                 </button>
-                <button class="pd-btn pd-btn-success" onclick="pdBuyNow()" <%= !p.inStock ? 'disabled' : '' %>>
+                <button type="button" class="pd-btn pd-btn-success pd-purchase-action" data-pd-purchase data-pd-action="buy" onclick="pdBuyNow()" <%= !p.inStock ? 'disabled' : '' %>>
                   <i class="bi bi-bag"></i>
                   Buy Now
                 </button>
@@ -883,8 +888,8 @@
     <div class="pd-bar-price" id="pdMobilePrice">₱<%= startingPrice.toLocaleString() %></div>
   </div>
   <div class="pd-bar-actions">
-    <button class="pd-bar-cart" onclick="pdAddToCart()"><i class="bi bi-cart-plus"></i> Cart</button>
-    <button class="pd-bar-buy" onclick="pdBuyNow()"><i class="bi bi-bag"></i> Buy Now</button>
+    <button type="button" class="pd-bar-cart pd-purchase-action" data-pd-purchase data-pd-action="cart" onclick="pdAddToCart()" <%= !p.inStock ? 'disabled' : '' %>><i class="bi bi-cart-plus"></i> Cart</button>
+    <button type="button" class="pd-bar-buy pd-purchase-action" data-pd-purchase data-pd-action="buy" onclick="pdBuyNow()" <%= !p.inStock ? 'disabled' : '' %>><i class="bi bi-bag"></i> Buy Now</button>
   </div>
 </div>
 
@@ -900,6 +905,24 @@
     var selectedIdx = 0;
     var selectedQty = 1;
     var selectedVariant = variants[0] || null;
+    var pdPurchasePending = false;
+
+    function setPdPurchaseBusy(isBusy, action) {
+      document.querySelectorAll('[data-pd-purchase]').forEach(function(button) {
+        if (!button.dataset.pdIdleHtml) button.dataset.pdIdleHtml = button.innerHTML;
+        var isActiveAction = button.dataset.pdAction === action;
+        var unavailable = !selectedVariant || Number(selectedVariant.quantity) < 1;
+        button.disabled = Boolean(isBusy || unavailable);
+        button.classList.toggle('pd-action-locked', Boolean(isBusy));
+        if (isBusy && isActiveAction) {
+          button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ' + (action === 'buy' ? 'Opening...' : 'Adding...');
+          button.setAttribute('aria-busy', 'true');
+        } else {
+          button.innerHTML = button.dataset.pdIdleHtml;
+          button.removeAttribute('aria-busy');
+        }
+      });
+    }
 
     window.pdSetImage = function(el, src) {
       var img = document.getElementById('pdMainImage');
@@ -917,6 +940,7 @@
       });
       document.getElementById('pdQtyDisplay').textContent = '1';
       updateQtyButtons();
+      setPdPurchaseBusy(pdPurchasePending);
       animatePriceUpdate();
     };
 
@@ -956,21 +980,29 @@
     window.pdAddToCart = async function() {
       if (!isLoggedIn) { window.location.href = '/login'; return; }
       if (!selectedVariant) { Swal.fire({ title:'Attention', text:'Please select a configuration.', icon:'warning', confirmButtonText:'OK' }); return; }
+      if (pdPurchasePending) return;
+      var requestVariant = selectedVariant;
+      var requestQty = selectedQty;
+      pdPurchasePending = true;
+      setPdPurchaseBusy(true, 'cart');
       try {
         var res = await fetch('/api/aircon-cart/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inventoryId: selectedVariant._id, quantity: selectedQty })
+          body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
         if (!res.ok) throw new Error('Failed');
-        Swal.fire({
+        await Swal.fire({
           title: 'Added to Cart!',
-          text: selectedQty + ' x ' + selectedVariant.capacity + ' ' + selectedVariant.capacityUnit + ' added to your cart.',
+          text: requestQty + ' x ' + requestVariant.capacity + ' ' + requestVariant.capacityUnit + ' added to your cart.',
           icon: 'success',
           confirmButtonText: 'OK'
         });
       } catch(e) {
-        Swal.fire({ title:'Error', text:'Failed to add to cart. Please try again.', icon:'error', confirmButtonText:'OK' });
+        await Swal.fire({ title:'Error', text:'Failed to add to cart. Please try again.', icon:'error', confirmButtonText:'OK' });
+      } finally {
+        pdPurchasePending = false;
+        setPdPurchaseBusy(false);
       }
     };
 
@@ -980,18 +1012,27 @@
         Swal.fire({ title:'Attention', text:'Please select a configuration.', icon:'warning', confirmButtonText:'OK' });
         return;
       }
+      if (pdPurchasePending) return;
+      var requestVariant = selectedVariant;
+      var requestQty = selectedQty;
+      pdPurchasePending = true;
+      setPdPurchaseBusy(true, 'buy');
       try {
         var res = await fetch('/api/aircon-cart/buy-now', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inventoryId: selectedVariant._id, quantity: selectedQty })
+          body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
         if (!res.ok) throw new Error('Failed');
         var cartRes = await fetch('/api/aircon-cart');
+        if (!cartRes.ok) throw new Error('Failed');
         var cartData = await cartRes.json();
         if (typeof openCheckoutWizard === 'function') openCheckoutWizard(cartData.cart);
       } catch(e) {
-        Swal.fire({ title:'Error', text:'Failed to process order. Please try again.', icon:'error', confirmButtonText:'OK' });
+        await Swal.fire({ title:'Error', text:'Failed to process order. Please try again.', icon:'error', confirmButtonText:'OK' });
+      } finally {
+        pdPurchasePending = false;
+        setPdPurchaseBusy(false);
       }
     };
 
@@ -1010,6 +1051,7 @@
       var instEl = document.getElementById('pdInstallmentAmt');
       if (instEl) instEl.textContent = Math.round(total / 3).toLocaleString();
       updateQtyButtons();
+      setPdPurchaseBusy(false);
     }
 
     (function() {

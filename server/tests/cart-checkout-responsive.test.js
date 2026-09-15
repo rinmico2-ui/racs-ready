@@ -42,6 +42,11 @@ test("checkout actions explain the next outcome instead of saying generic next",
   assert.match(wizard, /setAttribute\('aria-pressed', c\.dataset\.method === method/);
 });
 
+test("checkout modal reuses one Bootstrap instance so rapid opens cannot stack backdrops", () => {
+  assert.match(wizard, /Modal\.getOrCreateInstance\(document\.getElementById\('checkoutOrderModal'\)\)/);
+  assert.doesNotMatch(wizard, /new bootstrap\.Modal\(document\.getElementById\('checkoutOrderModal'\)\)/);
+});
+
 test("phone checkout is full-screen, compact, and keeps one dominant action", () => {
   assert.match(checkoutCss, /@media \(max-width: 575\.98px\)/);
   assert.match(checkoutCss, /#checkoutOrderModal \.modal-dialog \{ width: 100%; max-width: none; \}/);

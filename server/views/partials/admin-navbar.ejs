@@ -242,12 +242,13 @@
   /* Mobile responsive styles for notification modal */
   @media (max-width: 767px) {
     #notifModal {
-      padding: 8px;
-      align-items: flex-end;
+      padding: 12px;
+      align-items: center;
     }
     #notifModal > div {
-      max-height: 85vh;
-      border-radius: 14px 14px 0 0;
+      max-height: calc(100vh - 24px);
+      max-height: calc(100dvh - 24px);
+      border-radius: 14px;
       max-width: 100%;
     }
     #notifModalList {
@@ -279,11 +280,12 @@
 
   @media (max-width: 480px) {
     #notifModal {
-      padding: 0;
+      padding: 12px;
     }
     #notifModal > div {
-      border-radius: 0;
-      max-height: 100vh;
+      border-radius: 14px;
+      max-height: calc(100vh - 24px);
+      max-height: calc(100dvh - 24px);
     }
     #notifModalList {
       max-height: calc(100vh - 200px);

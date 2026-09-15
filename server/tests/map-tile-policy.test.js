@@ -59,13 +59,13 @@ test("all application maps use the shared Esri hybrid provider", () => {
   assert.match(provider, /World_Boundaries_and_Places/);
   assert.match(provider, /Tiles &copy; Esri/);
   assert.match(provider, /Labels &copy; Esri/);
-  assert.match(provider, /maxNativeZoom:\s*19/);
+  assert.match(provider, /maxNativeZoom:\s*18/);
   assert.match(provider, /maxZoom:\s*22/);
 
   for (const layout of ["main", "admin", "secretary", "technician"]) {
     const source = fs.readFileSync(path.join(serverRoot, `views/layouts/${layout}.ejs`), "utf8");
     assert.match(source, /\/js\/esri-hybrid-layer\.js/);
-    assert.match(source, /esri-hybrid-layer\.js\?v=20260914-esri-overzoom-v3/);
+    assert.match(source, /esri-hybrid-layer\.js\?v=20260915-esri-overzoom-v4/);
   }
 });
 
