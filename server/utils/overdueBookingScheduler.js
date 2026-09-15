@@ -18,15 +18,16 @@ const BookingService = require('../models/BookingService');
 const Technician = require('../models/Technician');
 const User = require('../models/User');
 const Assignment = require('../models/Assignment');
+const {
+  assignmentTimingState,
+  manilaDateTime,
+  parseAppointmentTime,
+} = require('./bookingDateTime');
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 // Grace period after scheduled time before flagging as "delayed" (30 min)
 const DELAY_GRACE_MINUTES = 30;
-
-// Grace period after scheduled time before an unassigned booking in the
-// assignment queue is auto-fallen-back to "Needs Reschedule"
-const RESCHEDULE_FALLBACK_GRACE_MINUTES = 30;
 
 // Grace period after scheduled time before a stale confirmed/scheduled booking
 // (with no service activity) is moved back to the reschedule queue (2 hours)
@@ -53,45 +54,8 @@ function shouldNotifyDelay(booking, scheduledDateTime) {
  */
 function parseBookingDateTime(bookingDate, startTime) {
   if (!bookingDate) return null;
-  const base = new Date(bookingDate);
-  if (isNaN(base.getTime())) return null;
-
-  const y = base.getFullYear();
-  const mo = base.getMonth();
-  const d = base.getDate();
-  const localBase = new Date(y, mo, d, 0, 0, 0, 0);
-
-  if (startTime !== undefined && startTime !== null && String(startTime).trim() !== '') {
-    const raw = String(startTime).trim();
-
-    // Pure integer → minutes-from-midnight
-    if (/^\d+$/.test(raw)) {
-      const mins = parseInt(raw, 10);
-      localBase.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
-      return localBase;
-    }
-
-    // 12-hour format with AM/PM
-    const ampmMatch = raw.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*$/i);
-    if (ampmMatch) {
-      let hours = parseInt(ampmMatch[1], 10);
-      const mins = parseInt(ampmMatch[2], 10);
-      const period = ampmMatch[3].toUpperCase();
-      if (period === 'PM' && hours < 12) hours += 12;
-      if (period === 'AM' && hours === 12) hours = 0;
-      localBase.setHours(hours, mins, 0, 0);
-      return localBase;
-    }
-
-    // 24-hour format
-    const hhmmMatch = raw.match(/^\s*(\d{1,2}):(\d{2})\s*$/);
-    if (hhmmMatch) {
-      localBase.setHours(parseInt(hhmmMatch[1], 10), parseInt(hhmmMatch[2], 10), 0, 0);
-      return localBase;
-    }
-  }
-
-  return localBase;
+  const minutes = parseAppointmentTime(startTime);
+  return manilaDateTime(bookingDate, Number.isFinite(minutes) ? minutes : 0);
 }
 
 /**
@@ -100,6 +64,7 @@ function parseBookingDateTime(bookingDate, startTime) {
  */
 async function resolveCustomer(customer, customerId) {
   let name = customer && customer.name ? customer.name : 'Customer';
+  let email = customer && customer.email ? customer.email : '';
   let id = null;
   if (customerId) id = customerId;
   else if (customer && customer._id) id = customer._id;
@@ -109,10 +74,11 @@ async function resolveCustomer(customer, customerId) {
       if (u) {
         if (u.firstName && u.lastName) name = `${u.firstName} ${u.lastName}`;
         else if (u.name) name = u.name;
+        if (u.email) email = u.email;
       }
     } catch (_) {}
   }
-  return { name, id };
+  return { name, email, id };
 }
 
 /**
@@ -143,11 +109,9 @@ async function checkForUnassignedOverdueBookings() {
     let flaggedCount = 0;
 
     for (const booking of queueBookings) {
-      const scheduledDateTime = parseBookingDateTime(booking.bookingDate, booking.startTime);
-      if (!scheduledDateTime) continue;
-
-      const graceEnd = new Date(scheduledDateTime.getTime() + RESCHEDULE_FALLBACK_GRACE_MINUTES * 60000);
-      if (now <= graceEnd) continue;
+      const timing = assignmentTimingState(booking, now);
+      const scheduledDateTime = timing.scheduledStartAt ? new Date(timing.scheduledStartAt) : null;
+      if (!scheduledDateTime || !timing.isExpired) continue;
 
       // `assigned` requires the assignment to still be pending acceptance;
       // if the technician already accepted, this is a lateness case (delay monitor).
@@ -165,7 +129,7 @@ async function checkForUnassignedOverdueBookings() {
       const overdueByMin = Math.round((now - scheduledDateTime) / 60000);
       const reason = `No technician assigned before scheduled time (${overdueByMin} minute(s) overdue). Auto-moved to reschedule queue.`;
 
-      const { name: customerName, id: customerId } = await resolveCustomer(booking.customer, booking.customerId);
+      const { name: customerName, email: customerEmail, id: customerId } = await resolveCustomer(booking.customer, booking.customerId);
 
       let techName = 'None assigned';
       if (booking.technicianId) {
@@ -233,13 +197,58 @@ async function checkForUnassignedOverdueBookings() {
         }).catch(() => {});
       } catch (_) {}
 
+      const customerMessage = `We could not confirm a technician for booking ${booking.bookingReference || ''} within the assignment window. Your booking and recorded payment remain active while our team arranges a new schedule.`;
+
+      // Durable customer notification: remains available even if the customer
+      // was offline when the scheduler detected the assignment exception.
+      if (customerId) {
+        await createNotification({
+          type: 'booking_assignment_delayed',
+          title: 'Service Schedule Needs an Update',
+          message: customerMessage,
+          userId: customerId,
+          referenceId: booking._id,
+          referenceModel: 'BookingService',
+          link: '/tracking',
+          priority: 'high',
+          io,
+        }).catch(() => {});
+      }
+
+      // Email is a second durable channel. Delivery failure is logged by the
+      // mailer but never rolls back the already-audited booking transition.
+      if (customerEmail) {
+        try {
+          const { sendBookingAssignmentDelayedEmail } = require('./mailer');
+          await sendBookingAssignmentDelayedEmail({
+            to: customerEmail,
+            customerName,
+            bookingReference: booking.bookingReference || String(booking._id).slice(-8).toUpperCase(),
+            serviceName: booking.serviceName || 'Service',
+            scheduledDateLabel: scheduledDateTime.toLocaleDateString('en-PH', {
+              timeZone: 'Asia/Manila',
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+            scheduledTime: booking.startTime || '',
+          });
+        } catch (emailError) {
+          console.warn('[reschedule-monitor] Customer schedule-update email failed:', emailError.message);
+        }
+      }
+
       if (customerId && io) {
         try {
           io.to('customer:' + customerId).emit('booking:auto-reschedule-pending', {
             bookingId: booking._id,
             bookingRef: booking.bookingReference,
             serviceName: booking.serviceName,
-            message: 'Your appointment passed its scheduled time without a confirmed technician. We are working to reschedule it — you will be notified of the new schedule.',
+            status: 'pending_reassignment',
+            technicianId: null,
+            assignmentCutoffAt: timing.assignmentCutoffAt,
+            message: customerMessage,
           });
         } catch (_) {}
       }

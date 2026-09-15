@@ -8,6 +8,11 @@
   const appointmentsResolutionApi = typeof appointmentsResolutionApiBase === 'string'
     ? appointmentsResolutionApiBase
     : '/api/admin';
+  const appointmentsOperationsCalendarUrl = typeof operationsCalendarPath === 'string'
+    ? operationsCalendarPath
+    : (typeof appointmentsWorkspaceRole === 'string' && appointmentsWorkspaceRole === 'secretary'
+      ? '/secretary/operations/calendar'
+      : '/admin/operations/calendar');
 %>
 <style>
   /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
@@ -42,12 +47,15 @@
   .au-hero-stat { text-align: center; padding: 8px 14px; border-radius: 14px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); }
   .au-hero-stat-val { font-family: "Outfit", sans-serif; font-size: 1.7rem; font-weight: 600; line-height: 1; }
   .au-hero-stat-lbl { font-family: "Inter", sans-serif; font-size: 0.7rem; color: rgba(255,255,255,0.65); text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; font-weight: 600; }
+  .au-hero-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
   @media(max-width:767px){
     .au-hero-inner { padding: 22px 20px; flex-direction: column; align-items: flex-start; }
     .au-hero-icon { width: 44px; height: 44px; font-size: 1.2rem; }
     .au-hero h1 { font-size: 1.15rem; }
     .au-hero-stats { gap: 18px; }
     .au-hero-stat-val { font-size: 1.2rem; }
+    .au-hero-actions { width: 100%; justify-content: stretch; }
+    .au-hero-actions .btn { flex: 1 1 180px; }
   }
 
   /* ═══ TABS ═══ */
@@ -622,9 +630,12 @@
           <p>Full booking lifecycle pipeline &mdash; from request to completion</p>
         </div>
       </div>
-      <% if (appointmentsResolutionEnabled) { %>
-        <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
-      <% } %>
+      <div class="au-hero-actions">
+        <a class="btn btn-light fw-bold" href="<%= appointmentsOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
+        <% if (appointmentsResolutionEnabled) { %>
+          <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
+        <% } %>
+      </div>
       <div class="au-hero-stats">
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
@@ -1865,7 +1876,7 @@
   };
 
   function formatDate(d) {
-    return d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '\u2014';
+    return d ? new Date(d).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}) : '\u2014';
   }
   function formatTime(t) {
     if (!t) return '\u2014';
@@ -1886,13 +1897,57 @@
     var ampm = h >= 12 ? 'PM' : 'AM';
     return (h % 12 || 12) + ':' + String(m).padStart(2,'0') + ' ' + ampm;
   }
+
+  // Normalize every supported appointment time representation to minutes
+  // after midnight. In particular, 24-hour values such as 17:00 must remain
+  // 17:00 instead of being folded to 05:00 by 12-hour conversion.
+  function appointmentTimeMinutes(value) {
+    if (value===undefined||value===null) return NaN;
+    var raw=String(value).trim();
+    if (!raw) return NaN;
+    if (/^\d{1,4}$/.test(raw)) {
+      var total=Number(raw);
+      return Number.isFinite(total)&&total>=0&&total<=1439?total:NaN;
+    }
+    var match=raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!match) return NaN;
+    var hours=Number(match[1]);
+    var minutes=Number(match[2]||0);
+    var meridiem=match[3];
+    if (minutes>59) return NaN;
+    if (meridiem) {
+      if (hours<1||hours>12) return NaN;
+      hours=hours%12;
+      if (/pm/i.test(meridiem)) hours+=12;
+    } else if (hours>23) {
+      return NaN;
+    }
+    return hours*60+minutes;
+  }
+
+  function appointmentDateKey(value) {
+    var date=new Date(value);
+    if(Number.isNaN(date.getTime()))return'';
+    var parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Manila',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+    var values={};parts.forEach(function(part){values[part.type]=part.value;});
+    return values.year&&values.month&&values.day?values.year+'-'+values.month+'-'+values.day:'';
+  }
+
+  function appointmentDateTime(dateValue,minutesAfterMidnight) {
+    var key=appointmentDateKey(dateValue);
+    var minutes=Number(minutesAfterMidnight);
+    if(!key||!Number.isFinite(minutes))return null;
+    return new Date(new Date(key+'T00:00:00+08:00').getTime()+minutes*60000);
+  }
+
   function statusLabel(s) {
     return (s||'').replace(/_/g,' ').replace(/-/g,' ').replace(/\b\w/g,function(l){return l.toUpperCase();});
   }
 
   function bookingNeedsResolution(b) {
     if (!b) return false;
-    if (b.isReviewOverdue===true||b.autoReschedulePending===true||b.status==='reschedule-required') return true;
+    if (b.isReviewOverdue===true||b.status==='reschedule-required') return true;
+    if (b.assignmentTiming&&typeof b.assignmentTiming.isExpired==='boolean'&&['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1) return b.assignmentTiming.isExpired;
     var actionableStatuses=[
       'pending','payment_verified','awaiting_assignment','assigned','pending_reassignment',
       'confirmed','scheduled','re-scheduled','repair_requested','pending_inspection',
@@ -1900,29 +1955,15 @@
     ];
     if (actionableStatuses.indexOf(b.status)===-1) return false;
     var rawDate=b.preferredDate||b.bookingDate;
-    if (!rawDate) return false;
-    var cutoff=new Date(rawDate);
-    if (Number.isNaN(cutoff.getTime())) return false;
-    function toMinutes(value) {
-      if (!value) return NaN;
-      var match=String(value).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
-      if (!match) return NaN;
-      var hours=Number(match[1]);
-      var minutes=Number(match[2]||0);
-      if (minutes>59||hours>24) return NaN;
-      if (match[3]) {
-        hours=hours%12;
-        if (/pm/i.test(match[3])) hours+=12;
-      }
-      return hours*60+minutes;
-    }
-    var endMinutes=toMinutes(b.endTime);
+    if (!rawDate) return b.autoReschedulePending===true;
+    var endMinutes=appointmentTimeMinutes(b.endTime);
     if (!Number.isFinite(endMinutes)) {
-      var startMinutes=toMinutes(b.startTime||b.preferredTime);
+      var startMinutes=appointmentTimeMinutes(b.startTime||b.preferredTime);
       endMinutes=Number.isFinite(startMinutes)?startMinutes+(Number(b.serviceDurationMinutes||b.duration)||60):NaN;
     }
-    if (Number.isFinite(endMinutes)) cutoff.setHours(Math.floor(endMinutes/60),endMinutes%60,0,0);
-    else cutoff.setHours(23,59,59,999);
+    if (!Number.isFinite(endMinutes)) endMinutes=24*60;
+    var cutoff=appointmentDateTime(rawDate,endMinutes);
+    if (!cutoff) return b.autoReschedulePending===true;
     return cutoff.getTime()<Date.now();
   }
 
@@ -2504,8 +2545,8 @@
       }
       container.innerHTML='<div class="workflow-record-list">'+bookings.map(function(b){
         var tech=b.technician;
-        var assignedAt=b.assignedAt?new Date(b.assignedAt).toLocaleString():'—';
-        var bDate=b.bookingDate?new Date(b.bookingDate).toLocaleDateString():'—';
+        var bDate=formatDate(b.bookingDate);
+        var scheduleTime=formatTime(b.startTime)+' – '+formatTime(b.endTime);
         var deadline=b.acceptanceDeadline?new Date(b.acceptanceDeadline):null;
         var remaining=deadline?(deadline.getTime()-Date.now()):null;
         var deadlineText='No deadline set';
@@ -2513,7 +2554,7 @@
         if(deadline){
           if(remaining<0){deadlineText='Deadline passed';deadlineClass='bg-danger text-white';}
           else if(remaining<30*60*1000){deadlineText='Expires in '+Math.ceil(remaining/60000)+' min';deadlineClass='bg-warning text-dark';}
-          else {deadlineText='Accept by '+deadline.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});deadlineClass='bg-info text-dark';}
+          else {deadlineText='Accept by '+deadline.toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' PHT';deadlineClass='bg-info text-dark';}
         }
         var assignmentId=b.assignmentId||'';
         return '<div class="workflow-record-card">'+
@@ -2527,7 +2568,7 @@
           '</div>'+
           '<div class="workflow-record-grid">'+
             '<span><i class="bi bi-calendar3 me-1" style="color:#94a3b8;"></i>'+bDate+'</span>'+
-            '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>'+(b.startTime||'—')+' - '+(b.endTime||'—')+'</span>'+
+            '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>'+scheduleTime+' <small class="text-muted">PHT</small></span>'+
             '<span><i class="bi bi-geo-alt me-1" style="color:#94a3b8;"></i>'+(b.address||'—')+'</span>'+
           '</div>'+
           (tech?'<div class="workflow-record-actions">'+
@@ -2731,7 +2772,7 @@
 
   AU.Pending.load=function(){
     Promise.all([
-      fetch(APPOINTMENTS_API+'/list?stage=pending_review&page=1&limit=500').then(appointmentResponseJson),
+      fetch(APPOINTMENTS_API+'/list?stage=pending_review&page=1&limit=100&compact=true').then(appointmentResponseJson),
       fetch(APPOINTMENTS_API+'/flow-stats').then(appointmentResponseJson)
     ]).then(function(res){
       _pdAll=res[0].bookings||[];
@@ -2822,7 +2863,7 @@
         '<td><span class="payment-badge '+pc+'">'+pl+'</span>'+(isCOD&&b.paymentStatus!=='paid'?'<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>':'')+'</td>'+
         '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+
         '<button class="btn btn-sm btn-primary" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye me-1"></i>View</button>'+
-        (overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\')" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
+        (overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\',this)" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
         '</div></td></tr>';
     }).join('');
   };
@@ -2868,20 +2909,27 @@
 
   AU.Pending.loadPage=function(pg){AU.Pending.applyFilters(pg);};
 
-  AU.Pending.verifyPayment=function(id){
+  AU.Pending.verifyPayment=async function(id,button){
     if(!confirm('Verify payment for this booking?'))return;
-    fetch(APPOINTMENTS_API+'/'+id+'/verify-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:'Payment verified by operations staff'})})
-    .then(function(r){return r.json();}).then(function(data){
-      if(data.success){
-        fetch(APPOINTMENTS_API+'/'+id+'/move-to-queue',{method:'POST'}).
-        then(function(){
-          showNotification({type:'success',title:'Payment Verified',message:'Booking has been verified and moved to assignment queue.',duration:4000});
-          var queueTabBtn=document.querySelector('.au-tab-btn[data-bs-target="#tab-queue"]');
-          if(queueTabBtn){var bsTab=new bootstrap.Tab(queueTabBtn);bsTab.show();}
-          else{AU.Pending.load();}
-        });
-      }else showNotification({type:'error',title:'Verification Failed',message:data.error||'Failed to verify payment.',duration:5000});
-    }).catch(function(){showNotification({type:'error',title:'Error',message:'An error occurred while verifying payment.',duration:5000});});
+    var originalHtml=button?button.innerHTML:'';
+    if(button){button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Verifying';}
+    try{
+      var data=await fetch(APPOINTMENTS_API+'/'+id+'/verify-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:'Payment verified by operations staff'})}).then(appointmentResponseJson);
+      if(!data.success||data.destination!=='assignment_queue')throw new Error(data.error||'The booking was not moved to the assignment queue.');
+
+      // Remove the verified record immediately, then refresh the Pending view
+      // from the server without navigating the operator away from this tab.
+      _pdAll=_pdAll.filter(function(booking){return String(booking._id)!==String(id);});
+      AU.Pending.applyFilters(_pdPage);
+      var pendingBadge=document.getElementById('tabPendingBadge');
+      if(pendingBadge){var pendingCount=Math.max(0,Number(pendingBadge.textContent||0)-1);pendingBadge.textContent=pendingCount||'';}
+
+      showNotification({type:'success',title:'Payment Verified',message:'Booking is ready in the Assignment Queue. You will remain on Pending Payment.',duration:4000});
+      AU.Pending.load();
+    }catch(error){
+      showNotification({type:'error',title:'Verification Failed',message:error.message||'An error occurred while verifying payment.',duration:5000});
+      if(button){button.disabled=false;button.innerHTML=originalHtml;}
+    }
   };
 
   AU.Pending.openReviewReschedule=function(id){
@@ -3224,26 +3272,24 @@
         var isEsc=b.escalated||rc>=3;
         var hist=b.cancellationHistory||[];
         var last=hist.length>0?hist[hist.length-1]:null;
-        // Overdue when the scheduled service window has fully elapsed
-        // (mirrors server-side isBookingPast: endTime, else start + duration)
-        var overdue=false;
-        if(b.bookingDate){
-          var aqParseMin=function(t){if(!t)return NaN;var m=String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);if(!m)return NaN;var h=Number(m[1])%12;if(m[3]&&/pm/i.test(m[3]))h+=12;return h*60+Number(m[2]||0);};
-          var vd=new Date(b.bookingDate);
-          var eMin=aqParseMin(b.endTime);
-          if(!Number.isFinite(eMin)){var sMin=aqParseMin(b.startTime);eMin=Number.isFinite(sMin)?sMin+(Number(b.serviceDurationMinutes)||60):NaN;}
-          if(Number.isFinite(eMin))vd.setHours(Math.floor(eMin/60),eMin%60,0,0);else vd.setHours(23,59,59,999);
-          overdue=vd.getTime()<Date.now();
+        // The API owns assignment eligibility. The browser fallback mirrors
+        // the same Manila start-time + 30-minute grace policy for old payloads.
+        var overdue=b.assignmentTiming&&typeof b.assignmentTiming.isExpired==='boolean'?b.assignmentTiming.isExpired:false;
+        if((!b.assignmentTiming||typeof b.assignmentTiming.isExpired!=='boolean')&&b.bookingDate){
+          var sMin=appointmentTimeMinutes(b.startTime);
+          var cutoff=appointmentDateTime(b.bookingDate,Number.isFinite(sMin)?sMin+30:NaN);
+          overdue=!!cutoff&&cutoff.getTime()<Date.now();
+          if(!cutoff)overdue=!!b.autoReschedulePending;
         }
-        if(!overdue)overdue=!!b.autoReschedulePending;
         var custName=(b.customer?b.customer.name:'').replace(/'/g,"\\'");
         var servName=((b.service?b.service.name:'')||(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'')).replace(/'/g,"\\'");
-        var schedDate=b.bookingDate?new Date(b.bookingDate).toISOString().slice(0,10):'';
+        var schedDate=b.bookingDate?appointmentDateKey(b.bookingDate):'';
         var schedTime=String(b.startTime||'').replace(/'/g,"\\'");
         var queueStatusLabel=statusLabel(b.status);
-        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(b.maintenance&&b.maintenance.isMaintenance?'<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-calendar2-check me-1"></i>Preventive Maintenance</span>':'')+(overdue?'<span class="aq-overdue-badge"><i class="bi bi-alarm-fill"></i>Past Schedule &middot; Needs Resolution</span>':'')+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+(isWaitingCustomer?'<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Waiting for Customer</span>':'')+(overdue?'':'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+queueStatusLabel+'</span>')+'</div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
-        (overdue?'<div class="aq-reassign-alert aq-overdue-alert"><i class="bi bi-alarm me-1"></i><strong>Exceeded Schedule</strong> \u2014 The scheduled time has already passed. Resolve this booking via the Resolution Center before assigning.</div>':'')+
-        (b.status==='pending_reassignment'&&!overdue?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 Previous technician '+(last?last.action:'declined')+' this job.</div>':'')+
+        var reassignmentMessage=last&&last.action==='auto_reschedule'?'The previous assignment was reset automatically. Select and notify a technician for this future schedule.':'Previous technician '+(last?last.action:'declined')+' this job.';
+        return '<div class="aq-booking-card"><div class="aq-booking-header"><div><div class="aq-booking-id">#'+b._id.toString().slice(-8).toUpperCase()+'</div><div class="aq-booking-customer">'+(b.customer?b.customer.name:'Customer')+'</div><div class="aq-booking-service">'+(b.service?b.service.name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'Service'))+(b.isMultiService?' (Multi-Service)':'')+'</div></div><div class="text-end d-flex flex-column align-items-end gap-1">'+(b.maintenance&&b.maintenance.isMaintenance?'<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle"><i class="bi bi-calendar2-check me-1"></i>Preventive Maintenance</span>':'')+(overdue?'<span class="aq-overdue-badge"><i class="bi bi-alarm-fill"></i>Assignment Window Expired &middot; Needs Resolution</span>':'')+(isEsc?'<span class="aq-escalation-badge"><i class="bi bi-exclamation-triangle-fill"></i>Escalated ('+rc+'x)</span>':'')+(isWaitingCustomer?'<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Waiting for Customer</span>':'')+(overdue?'':'<span class="badge '+(statusColors[b.status]||'bg-secondary')+'">'+queueStatusLabel+'</span>')+'</div></div><div class="aq-detail-grid"><div class="aq-detail-item"><i class="bi bi-calendar"></i> '+formatDate(b.bookingDate)+'</div><div class="aq-detail-item"><i class="bi bi-clock"></i> '+formatTime(b.startTime)+'</div><div class="aq-detail-item"><i class="bi bi-geo-alt"></i> '+((b.location?b.location.address:'No address')||'No address').substring(0,30)+'</div><div class="aq-detail-item"><i class="bi bi-cash"></i> \u20B1'+Number(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</div><div class="aq-detail-item"><i class="bi bi-credit-card"></i> '+(b.paymentMethod||'cod').toUpperCase()+'</div><div class="aq-detail-item"><i class="bi bi-person"></i> '+(b.technician?b.technician.name:'Unassigned')+'</div>'+(rc>0?'<div class="aq-detail-item"><i class="bi bi-arrow-repeat"></i> Reassigned '+rc+' time'+(rc>1?'s':'')+'</div>':'')+'</div>'+
+        (overdue?'<div class="aq-reassign-alert aq-overdue-alert"><i class="bi bi-alarm me-1"></i><strong>Assignment Window Expired</strong> \u2014 No technician was confirmed within 30 minutes after the scheduled start. Reschedule this booking before assigning.</div>':'')+
+        (b.status==='pending_reassignment'&&!overdue?'<div class="aq-reassign-alert"><i class="bi bi-arrow-repeat me-1"></i><strong>Needs Reassignment</strong> \u2014 '+reassignmentMessage+'</div>':'')+
         (hist.length>0?'<div class="aq-cancel-history"><div class="aq-cancel-history-title"><i class="bi bi-clock-history me-1"></i>Cancellation History</div>'+hist.slice(-3).reverse().map(function(h){return '<div class="aq-cancel-history-item"><span class="action-badge action-'+(h.action==='auto_reschedule'?'reassigned':h.action)+'">'+h.action+'</span><span><strong>'+h.technicianName+'</strong> \u2014 '+(h.reason||'No reason')+' <small class="text-muted">'+new Date(h.timestamp).toLocaleDateString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})+'</small></span></div>';}).join('')+'</div>':'')+
         (canAssign&&!overdue?'<div id="aqRec-'+b._id+'" class="border rounded-3 p-3 mt-3" style="background:#f8fafc"><div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div></div>':'')+
         (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
@@ -4415,12 +4461,13 @@
     var linkedBookingId=params.get('sel');
     if(initialTab==='equipment'||initialTab==='waiting-reassign'||initialTab==='waitingReassign') initialTab='queue';
     var tabEl=document.getElementById('tab-'+initialTab);
-    if(tabEl&&typeof bootstrap!=='undefined'){
-      var bsTab=new bootstrap.Tab(document.querySelector('.au-tab-btn[data-bs-target="#tab-'+initialTab+'"]'));
-      bsTab.show();
-    }
-    loaded[initialTab]=true;
-    loadTab(initialTab);
+    var tabButton=document.querySelector('.au-tab-btn[data-bs-target="#tab-'+initialTab+'"]');
+    if(!tabEl||!tabButton){initialTab='overview';tabButton=document.querySelector('.au-tab-btn[data-bs-target="#tab-overview"]');}
+    // Bootstrap emits shown.bs.tab when changing tabs, and that event already
+    // calls switchTab/loadTab. Only call switchTab directly when the requested
+    // tab starts active, preventing duplicate initial API requests.
+    if(tabButton&&tabButton.classList.contains('active'))switchTab(initialTab);
+    else if(tabButton&&typeof bootstrap!=='undefined')bootstrap.Tab.getOrCreateInstance(tabButton).show();
     loadBookingResolutionCount();
     // Calendar "Open full record" links include the selected booking ID.
     // Open that exact record after the workspace and Bootstrap modal are ready.

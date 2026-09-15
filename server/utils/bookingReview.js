@@ -1,4 +1,5 @@
 const PENDING_REVIEW_STATUS = "pending";
+const { manilaDateTime } = require("./bookingDateTime");
 
 function parseClock(value) {
   const text = String(value || "").trim().toLowerCase();
@@ -27,8 +28,6 @@ function preferredWindowEnd(value) {
 function requestedScheduleCutoff(booking) {
   const dateValue = booking?.preferredDate || booking?.bookingDate;
   if (!dateValue) return null;
-  const cutoff = new Date(dateValue);
-  if (Number.isNaN(cutoff.getTime())) return null;
 
   const explicitEnd = parseClock(booking.endTime);
   const selectedEnd = parseClock(booking.selectedTimeLabel);
@@ -37,14 +36,13 @@ function requestedScheduleCutoff(booking) {
   const clock = explicitEnd || selectedEnd || preferredEnd || start;
 
   if (clock) {
-    cutoff.setHours(clock.hours, clock.minutes, 0, 0);
+    let cutoffMinutes = clock.hours * 60 + clock.minutes;
     if (!explicitEnd && !selectedEnd && !preferredEnd && start) {
-      cutoff.setMinutes(cutoff.getMinutes() + Math.max(30, Number(booking.serviceDurationMinutes) || 60));
+      cutoffMinutes += Math.max(30, Number(booking.serviceDurationMinutes) || 60);
     }
-  } else {
-    cutoff.setHours(23, 59, 59, 999);
+    return manilaDateTime(dateValue, cutoffMinutes);
   }
-  return cutoff;
+  return manilaDateTime(dateValue, 24 * 60 - 1, 59 * 1000 + 999);
 }
 
 function bookingReviewState(booking, now = new Date()) {

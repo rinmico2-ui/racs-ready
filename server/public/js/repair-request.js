@@ -24,7 +24,6 @@ const RepairState = {
   location: { address: '', lat: null, lng: null },
   distanceKm: 0,
   travelFare: 0,
-  diagnosticFee: 0,
   paymentMethod: 'gcash',
   gcashNumber: '',
   gcashProof: null,
@@ -72,10 +71,14 @@ fetch('/api/services/payment-policy')
   .catch(() => console.warn('Using the default 10% downpayment policy.'));
 
 function currentRepairItem() {
+  const unitType = (document.getElementById('unitType')?.value || '').trim();
+  const pricing = repairUnitPricing(unitType);
   return {
     type: 'repair',
-    unitType: (document.getElementById('unitType')?.value || '').trim(),
-    applianceTypeName: (document.getElementById('unitType')?.value || '').trim(),
+    unitType,
+    applianceTypeName: unitType,
+    unitCategory: pricing.unitCategory,
+    inspectionFee: pricing.inspectionFee,
     brand: (document.getElementById('unitBrand')?.value || '').trim(),
     model: (document.getElementById('unitModel')?.value || '').trim(),
     problemDescription: (document.getElementById('problemDescription')?.value || '').trim(),
@@ -152,11 +155,17 @@ function addCurrentRepairItem() {
 }
 function editRepairItem(index) {
   const item = RepairState.serviceItems.splice(index, 1)[0]; if (!item) return;
-  const category = Object.keys(unitTypesByCategory).find(key => unitTypesByCategory[key].some(type => type.value === item.unitType));
+  const category = item.unitCategory || Object.keys(unitTypesByCategory).find(key => unitTypesByCategory[key].some(type => type.value === item.unitType));
   if (category) {
     selectUnitCategory(category);
     const chip = [...document.querySelectorAll('.sub-unit-chip')].find(element => element.dataset.value === item.unitType);
     if (chip) selectSubUnit(item.unitType, chip);
+    const customInput = document.getElementById('customRepairUnitType');
+    if (customInput) {
+      customInput.value = item.unitType;
+      document.getElementById('unitType').value = item.unitType;
+      RepairState.unitType = item.unitType;
+    }
   } else {
     document.getElementById('unitType').value = item.unitType; RepairState.unitType = item.unitType;
   }
@@ -217,9 +226,12 @@ function setupQuantityControls() {
 
 // Build unitTypesByCategory dynamically from server-provided data
 const unitTypesByCategory = {};
+const customRepairCategories = new Set();
 (window._serviceCategories || []).forEach(cat => {
+  if (cat.isCustom) customRepairCategories.add(cat.slug);
   unitTypesByCategory[cat.slug] = (cat.unitTypes || []).map(ut => ({
-    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label
+    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label,
+    inspectionFee: ut.inspectionFee
   }));
 });
 // Fallback if no categories loaded from DB
@@ -247,6 +259,45 @@ if (!Object.keys(unitTypesByCategory).length) {
   ];
 }
 
+function repairDefaultInspectionFee() {
+  const fee = Number(window._repairInspectionDefaultFee);
+  return Number.isFinite(fee) && fee >= 0 ? fee : 500;
+}
+
+function selectedRepairUnitCategory() {
+  return document.querySelector('.unit-category-card.active')?.dataset.category || '';
+}
+
+function repairUnitPricing(unitType, categoryHint = selectedRepairUnitCategory()) {
+  if (categoryHint && customRepairCategories.has(categoryHint)) {
+    return { unitCategory: categoryHint, inspectionFee: repairDefaultInspectionFee() };
+  }
+  for (const [category, types] of Object.entries(unitTypesByCategory)) {
+    const unit = types.find(type => type.value === unitType);
+    if (!unit) continue;
+    const override = unit.inspectionFee === '' || unit.inspectionFee == null
+      ? null
+      : Number(unit.inspectionFee);
+    return {
+      unitCategory: category,
+      inspectionFee: Number.isFinite(override) && override >= 0
+        ? override
+        : repairDefaultInspectionFee(),
+    };
+  }
+  return { unitCategory: '', inspectionFee: repairDefaultInspectionFee() };
+}
+
+function repairInspectionSubtotal(items = repairItemsForSubmission()) {
+  return items.reduce((sum, item) => {
+    const configured = Number(item.inspectionFee);
+    const fee = Number.isFinite(configured) && configured >= 0
+      ? configured
+      : repairUnitPricing(item.unitType).inspectionFee;
+    return sum + (fee * Math.max(1, Number(item.quantity) || 1));
+  }, 0);
+}
+
 function selectUnitCategory(category) {
   // Update active card
   document.querySelectorAll('.unit-category-card').forEach(card => {
@@ -264,12 +315,29 @@ function selectUnitCategory(category) {
   chipsContainer.innerHTML = '';
 
   const types = unitTypesByCategory[category] || [];
+  if (!types.length && customRepairCategories.has(category)) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'customRepairUnitType';
+    input.className = 'form-control';
+    input.maxLength = 100;
+    input.placeholder = 'Enter the appliance or equipment type';
+    input.setAttribute('aria-label', 'Custom appliance or equipment type');
+    input.addEventListener('input', () => {
+      const value = input.value.trim();
+      unitTypeInput.value = value;
+      RepairState.unitType = value;
+    });
+    chipsContainer.appendChild(input);
+  }
   types.forEach(type => {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'sub-unit-chip';
     chip.innerHTML = `<i class="bi ${type.icon}"></i>${type.label}`;
     chip.dataset.value = type.value;
+    const displayFee = type.inspectionFee == null ? repairDefaultInspectionFee() : Number(type.inspectionFee);
+    chip.title = `Inspection fee: ₱${displayFee.toLocaleString('en-PH')}`;
     chip.onclick = function () { selectSubUnit(type.value, this); };
     chipsContainer.appendChild(chip);
   });
@@ -1008,7 +1076,7 @@ function prefillCustomerContact() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function getTotalInitialFee() {
-  return ((RepairState.diagnosticFee || 500) * Math.max(1, totalRepairUnits())) + (RepairState.travelFare || 0);
+  return repairInspectionSubtotal() + (RepairState.travelFare || 0);
 }
 
 function getMinDownpayment() {
@@ -1122,10 +1190,8 @@ function populateReview() {
   }
 
   // Calculate fees
-  const diagnosticFee = RepairState.diagnosticFee || 500;
-  RepairState.diagnosticFee = diagnosticFee;
   const unitCount = Math.max(1, totalRepairUnits());
-  const diagnosticTotal = diagnosticFee * unitCount;
+  const diagnosticTotal = repairInspectionSubtotal(allItems);
   const total = diagnosticTotal + (RepairState.travelFare || 0);
 
   document.getElementById('reviewDiagnosticFee').textContent = unitCount > 1
@@ -1290,9 +1356,6 @@ async function submitRepairRequest() {
       formData.append('projectScheduling', JSON.stringify(psPayload));
     }
 
-    // Fees
-    formData.append('diagnosticFee', RepairState.diagnosticFee || 500);
-
     // Payment
     formData.append('paymentMethod', RepairState.paymentMethod);
     if (RepairState.paymentMethod === 'gcash') {
@@ -1353,10 +1416,12 @@ async function submitRepairRequest() {
         document.getElementById('receiptUnitType').textContent = repairItems.length > 1
           ? `${repairItems.length} repair appliances (${submittedUnitCount} units)`
           : representative.unitType + (representative.brand ? ' - ' + representative.brand : '');
-        const receiptDiagnosticTotal = (RepairState.diagnosticFee || 500) * submittedUnitCount;
+        const receiptDiagnosticTotal = Number(result.inspectionFeeTotal);
+        const receiptTravelFare = Number(result.travelFare);
+        const receiptTotalFee = Number(result.totalFee);
         document.getElementById('receiptDiagnosticFee').textContent = '\u20B1' + receiptDiagnosticTotal.toLocaleString();
-        document.getElementById('receiptTravelFare').textContent = '\u20B1' + (RepairState.travelFare || 0).toLocaleString();
-        document.getElementById('receiptTotalFee').textContent = '\u20B1' + (receiptDiagnosticTotal + (RepairState.travelFare || 0)).toLocaleString();
+        document.getElementById('receiptTravelFare').textContent = '\u20B1' + receiptTravelFare.toLocaleString();
+        document.getElementById('receiptTotalFee').textContent = '\u20B1' + receiptTotalFee.toLocaleString();
         document.getElementById('receiptDate').textContent = result.createdAt ? new Date(result.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) : new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
         document.getElementById('receiptTime').textContent = RepairState.preferredTime || '—';
         document.getElementById('receiptPayment').textContent = RepairState.paymentMethod === 'gcash' ? 'GCash' : 'Cash';

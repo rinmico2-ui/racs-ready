@@ -2,6 +2,7 @@
   const resolvedServiceCategoriesApiBase = typeof serviceCategoriesApiBase === "string" ? serviceCategoriesApiBase : "/api/admin/service-categories";
   const resolvedServiceCategoriesCorePath = typeof serviceCategoriesCorePath === "string" ? serviceCategoriesCorePath : "/admin/services/core";
   const resolvedServiceCategoriesCanManage = typeof serviceCategoriesCanManage === "boolean" ? serviceCategoriesCanManage : true;
+  const resolvedRepairInspectionDefaultFee = typeof repairInspectionDefaultFee !== "undefined" && Number.isFinite(Number(repairInspectionDefaultFee)) ? Number(repairInspectionDefaultFee) : 500;
 %>
 <div class="admin-dashboard container-fluid py-4 service-categories-page">
   <%- include('../../../partials/dashboard-styles') %>
@@ -93,8 +94,8 @@
     .sc-custom-toggle input{margin-top:3px}
     .sc-custom-toggle strong{display:block;color:#334155;font-size:.76rem}
     .sc-custom-toggle span{display:block;margin-top:2px;color:#7b8799;font-size:.66rem;line-height:1.4}
-    .sc-unit-headings{display:grid;grid-template-columns:1fr 1fr 130px 34px;gap:8px;padding:0 12px 6px;color:#94a3b8;font-size:.6rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}
-    .sc-unit-row{display:grid;grid-template-columns:1fr 1fr 130px 34px;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:7px}
+    .sc-unit-headings{display:grid;grid-template-columns:1fr 1fr 120px 150px 34px;gap:8px;padding:0 12px 6px;color:#94a3b8;font-size:.6rem;font-weight:750;text-transform:uppercase;letter-spacing:.05em}
+    .sc-unit-row{display:grid;grid-template-columns:1fr 1fr 120px 150px 34px;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:9px;margin-bottom:7px}
     .sc-unit-row input{flex:1}
     .sc-unit-row .btn{flex-shrink:0}
     .sc-modal .modal-footer{border-top:1px solid #e3eaf2!important;padding:14px 22px!important;background:#f8fafc}
@@ -141,7 +142,7 @@
       .sc-unit-headings{display:none}
       .sc-unit-row{grid-template-columns:1fr 38px}
       .sc-unit-row input{grid-column:1}
-      .sc-unit-row .btn{grid-column:2;grid-row:1/4;height:38px}
+      .sc-unit-row .btn{grid-column:2;grid-row:1/5;height:38px}
     }
     @media(max-width:420px){
       .sc-kpi-grid{grid-template-columns:1fr}
@@ -173,6 +174,23 @@
     <div class="sc-kpi" style="--sc-accent:#059669;--sc-tint:#ecfdf5"><div class="sc-kpi-icon"><i class="bi bi-check-circle"></i></div><div><div class="sc-kpi-value"><%= cats.filter(c=>c.active).length %></div><div class="sc-kpi-label">Active Categories</div><div class="sc-kpi-note">Currently visible to customers</div></div></div>
     <div class="sc-kpi" style="--sc-accent:#d97706;--sc-tint:#fffbeb"><div class="sc-kpi-icon"><i class="bi bi-tags"></i></div><div><div class="sc-kpi-value"><%= cats.reduce((s,c)=>s+(c.unitTypes || []).length,0) %></div><div class="sc-kpi-label">Unit Types</div><div class="sc-kpi-note">Selectable equipment formats</div></div></div>
     <div class="sc-kpi" style="--sc-accent:#7c3aed;--sc-tint:#f5f3ff"><div class="sc-kpi-icon"><i class="bi bi-input-cursor-text"></i></div><div><div class="sc-kpi-value"><%= cats.filter(c=>c.isCustom).length %></div><div class="sc-kpi-label">Custom Input</div><div class="sc-kpi-note">Free-text customer option</div></div></div>
+  </div>
+
+  <!-- Repair inspection pricing -->
+  <div class="dash-card mb-4" id="inspectionPricingCard">
+    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+      <div>
+        <div class="sc-toolbar-heading"><div class="sc-toolbar-mark"><i class="bi bi-cash-coin"></i></div><div><h2 class="sc-toolbar-title">Default Inspection Fee</h2><span class="sc-result-count">Fallback for unit types without an override</span></div></div>
+      </div>
+      <div class="d-flex align-items-end gap-2 flex-wrap">
+        <div>
+          <label class="sc-form-label" for="defaultInspectionFee">Company-wide fee</label>
+          <div class="input-group"><span class="input-group-text">₱</span><input class="form-control sc-form-control" id="defaultInspectionFee" type="number" min="0" max="100000" step="0.01" value="<%= resolvedRepairInspectionDefaultFee %>" <%= resolvedServiceCategoriesCanManage ? '' : 'disabled' %> /></div>
+        </div>
+        <% if (resolvedServiceCategoriesCanManage) { %><button type="button" class="sc-add-btn" id="saveDefaultInspectionFeeBtn" onclick="saveDefaultInspectionFee()"><i class="bi bi-floppy"></i> Save Default</button><% } %>
+      </div>
+    </div>
+    <p class="sc-form-section-note mt-3 mb-0">Set an override for expensive or specialized appliance inspections inside each category. Leave an override blank to inherit this default.</p>
   </div>
 
   <!-- Category Table -->
@@ -213,7 +231,7 @@
             <td data-label="Unit Types">
               <div class="sc-unit-list">
                 <% (cat.unitTypes || []).forEach(function(ut) { %>
-                  <span class="sc-unit-chip"><i class="bi <%= ut.icon %>"></i> <%= ut.label %></span>
+                  <span class="sc-unit-chip"><i class="bi <%= ut.icon %>"></i> <%= ut.label %> · ₱<%= Number(ut.inspectionFee != null ? ut.inspectionFee : resolvedRepairInspectionDefaultFee).toLocaleString('en-PH') %><%= ut.inspectionFee == null ? ' default' : '' %></span>
                 <% }); %>
                 <% if (!(cat.unitTypes || []).length) { %><span class="text-muted small"><i class="bi bi-input-cursor-text me-1"></i>Customer provides the unit type</span><% } %>
               </div>
@@ -277,7 +295,7 @@
             <div><div class="sc-form-section-title"><i class="bi bi-tags"></i> Unit types</div><p class="sc-form-section-note">Add the equipment formats customers can select under this category.</p></div>
             <button type="button" class="sc-add-btn" onclick="addUnitTypeRow()" id="addUnitTypeBtn"><i class="bi bi-plus"></i> Add Unit Type</button>
           </div>
-          <div class="sc-unit-headings" aria-hidden="true"><span>System value</span><span>Customer label</span><span>Icon</span><span></span></div>
+          <div class="sc-unit-headings" aria-hidden="true"><span>System value</span><span>Customer label</span><span>Icon</span><span>Inspection fee</span><span></span></div>
           <div id="unitTypeRows"></div>
         </section>
       </div>
@@ -356,7 +374,7 @@
   });
 
   // ── Unit type rows ──
-  window.addUnitTypeRow = function(value = '', label = '', icon = 'bi-circle') {
+  window.addUnitTypeRow = function(value = '', label = '', icon = 'bi-circle', inspectionFee = '') {
     const container = document.getElementById('unitTypeRows');
     const row = document.createElement('div');
     row.className = 'sc-unit-row';
@@ -364,6 +382,7 @@
       <input type="text" class="form-control form-control-sm sc-form-control" placeholder="split-type" aria-label="Unit type value" data-field="value" value="${escapeAttribute(value)}" />
       <input type="text" class="form-control form-control-sm sc-form-control" placeholder="Split Type" aria-label="Unit type label" data-field="label" value="${escapeAttribute(label)}" />
       <input type="text" class="form-control form-control-sm sc-form-control" placeholder="bi-window" aria-label="Unit type icon" data-field="icon" value="${escapeAttribute(icon)}" />
+      <div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" min="0" max="100000" step="0.01" class="form-control sc-form-control" placeholder="Default" aria-label="Inspection fee override" data-field="inspectionFee" value="${escapeAttribute(inspectionFee)}" /></div>
       <button type="button" class="sc-action-btn danger" title="Remove unit type" aria-label="Remove unit type" onclick="this.closest('.sc-unit-row').remove()"><i class="bi bi-trash"></i></button>
     `;
     container.appendChild(row);
@@ -376,7 +395,10 @@
       const value = row.querySelector('[data-field="value"]').value.trim();
       const label = row.querySelector('[data-field="label"]').value.trim();
       const icon = row.querySelector('[data-field="icon"]').value.trim() || 'bi-circle';
-      if (value && label) types.push({ value, label, icon });
+      const feeInput = row.querySelector('[data-field="inspectionFee"]').value.trim();
+      const inspectionFee = feeInput === '' ? null : Number(feeInput);
+      if (feeInput !== '' && (!Number.isFinite(inspectionFee) || inspectionFee < 0 || inspectionFee > 100000)) throw new Error('Each inspection fee must be between ₱0 and ₱100,000.');
+      if (value && label) types.push({ value, label, icon, inspectionFee });
     });
     return types;
   }
@@ -415,7 +437,7 @@
     document.getElementById('catIsCustom').checked = !!cat.isCustom;
     document.getElementById('unitTypeRows').innerHTML = '';
     document.getElementById('unitTypesSection').classList.toggle('d-none', !!cat.isCustom);
-    (cat.unitTypes || []).forEach(ut => addUnitTypeRow(ut.value, ut.label, ut.icon));
+    (cat.unitTypes || []).forEach(ut => addUnitTypeRow(ut.value, ut.label, ut.icon, ut.inspectionFee == null ? '' : ut.inspectionFee));
     if (!(cat.unitTypes || []).length && !cat.isCustom) addUnitTypeRow();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('categoryModal')).show();
   };
@@ -424,14 +446,19 @@
   window.saveCategory = async function() {
     if (!CAN_MANAGE) return;
     const id = document.getElementById('modalCatId').value;
-    const payload = {
-      name: document.getElementById('catName').value.trim(),
-      slug: document.getElementById('catSlug').value.trim(),
-      icon: document.getElementById('catIcon').value.trim(),
-      iconColor: document.getElementById('catIconColor').value,
-      isCustom: document.getElementById('catIsCustom').checked,
-      unitTypes: document.getElementById('catIsCustom').checked ? [] : getUnitTypesFromForm()
-    };
+    let payload;
+    try {
+      payload = {
+        name: document.getElementById('catName').value.trim(),
+        slug: document.getElementById('catSlug').value.trim(),
+        icon: document.getElementById('catIcon').value.trim(),
+        iconColor: document.getElementById('catIconColor').value,
+        isCustom: document.getElementById('catIsCustom').checked,
+        unitTypes: document.getElementById('catIsCustom').checked ? [] : getUnitTypesFromForm()
+      };
+    } catch (error) {
+      return notify('error', error.message);
+    }
     if (!payload.name || !payload.slug) return notify('error', 'Name and slug are required.');
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(payload.slug)) return notify('error', 'Use lowercase letters, numbers, and single hyphens for the slug.');
     if (!payload.isCustom && !payload.unitTypes.length) return notify('error', 'Add at least one unit type or mark this as a custom category.');
@@ -453,6 +480,29 @@
       notify('error', e.message || 'Network error.');
       saveButton.disabled = false;
       saveButton.innerHTML = originalButton;
+    }
+  };
+
+  window.saveDefaultInspectionFee = async function() {
+    if (!CAN_MANAGE) return;
+    const input = document.getElementById('defaultInspectionFee');
+    const fee = Number(input?.value);
+    if (!Number.isFinite(fee) || fee < 0 || fee > 100000) return notify('error', 'Default inspection fee must be between ₱0 and ₱100,000.');
+    const button = document.getElementById('saveDefaultInspectionFeeBtn');
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+    try {
+      const response = await authFetch(`${API}/inspection-pricing`, { method: 'PATCH', body: JSON.stringify({ defaultInspectionFee: fee }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || 'Unable to save the default inspection fee.');
+      input.value = data.defaultInspectionFee;
+      notify('success', 'Default inspection fee was updated.');
+      window.setTimeout(() => location.reload(), 700);
+    } catch (error) {
+      notify('error', error.message || 'Network error.');
+      button.disabled = false;
+      button.innerHTML = original;
     }
   };
 

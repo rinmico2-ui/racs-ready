@@ -10884,6 +10884,10 @@ async function handleBookingSubmission() {
       const result = await response.json();
       console.log('✅ Booking created successfully:', result);
 
+      // Give the browser enough time to paint and run the progress motion;
+      // otherwise a fast local response makes the loader appear static/flash.
+      await waitForCarLoadingMinimum();
+
       // Hide car loading modal
       hideCarLoadingModal();
 
@@ -10973,6 +10977,15 @@ async function handleBookingSubmission() {
 /**
  * Show car loading animation modal
  */
+let carLoadingStartedAt = 0;
+
+function waitForCarLoadingMinimum(minimumMs = 900) {
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const target = reduceMotion ? 200 : minimumMs;
+  const remaining = Math.max(0, target - (Date.now() - carLoadingStartedAt));
+  return remaining ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
+}
+
 function showCarLoadingModal() {
   const modal = document.getElementById('carLoadingModal');
   if (!modal) {
@@ -10989,6 +11002,7 @@ function showCarLoadingModal() {
     keyboard: false
   });
 
+  carLoadingStartedAt = Date.now();
   bsModal.show();
 }
 
@@ -11121,6 +11135,7 @@ async function prepareBookingData() {
         repairIssue: service.repairIssue || service.problemDescription || null,
         problemDescription: service.problemDescription || service.repairIssue || null,
         unitType: service.unitType || null,
+        unitCategory: service.unitCategory || null,
         initialCost: service.type === 'repair' ? (service.unitPrice || service.price || 0) : undefined
       };
       // Convert repair photos to base64 if present
@@ -11507,9 +11522,12 @@ window.viewBookingHistory = viewBookingHistory;
 // ═══════════════════════════════════════════════════════════════════════════
 
 const unitTypesByCategory = {};
+const customRepairCategories = new Set();
 (window._serviceCategories || []).forEach(cat => {
+  if (cat.isCustom) customRepairCategories.add(cat.slug);
   unitTypesByCategory[cat.slug] = (cat.unitTypes || []).map(ut => ({
-    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label
+    value: ut.value, icon: ut.icon || 'bi-circle', label: ut.label,
+    inspectionFee: ut.inspectionFee
   }));
 });
 if (!Object.keys(unitTypesByCategory).length) {
@@ -11536,6 +11554,35 @@ if (!Object.keys(unitTypesByCategory).length) {
   ];
 }
 
+function repairDefaultInspectionFee() {
+  const fee = Number(window._repairInspectionDefaultFee);
+  return Number.isFinite(fee) && fee >= 0 ? fee : 500;
+}
+
+function selectedRepairUnitCategory() {
+  return document.querySelector('.unit-category-card.active')?.dataset.category || '';
+}
+
+function repairUnitPricing(unitType, categoryHint = selectedRepairUnitCategory()) {
+  if (categoryHint && customRepairCategories.has(categoryHint)) {
+    return { unitCategory: categoryHint, inspectionFee: repairDefaultInspectionFee() };
+  }
+  for (const [category, types] of Object.entries(unitTypesByCategory)) {
+    const unit = types.find(type => type.value === unitType);
+    if (!unit) continue;
+    const override = unit.inspectionFee === '' || unit.inspectionFee == null
+      ? null
+      : Number(unit.inspectionFee);
+    return {
+      unitCategory: category,
+      inspectionFee: Number.isFinite(override) && override >= 0
+        ? override
+        : repairDefaultInspectionFee(),
+    };
+  }
+  return { unitCategory: '', inspectionFee: repairDefaultInspectionFee() };
+}
+
 function selectUnitCategory(category) {
   document.querySelectorAll('.unit-category-card').forEach(card => {
     card.classList.toggle('active', card.dataset.category === category);
@@ -11547,12 +11594,25 @@ function selectUnitCategory(category) {
   if (!chipsContainer || !subSection) return;
   chipsContainer.innerHTML = '';
   const types = unitTypesByCategory[category] || [];
+  if (!types.length && customRepairCategories.has(category)) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'customRepairUnitType';
+    input.className = 'form-control';
+    input.maxLength = 100;
+    input.placeholder = 'Enter the appliance or equipment type';
+    input.setAttribute('aria-label', 'Custom appliance or equipment type');
+    input.addEventListener('input', () => { unitTypeInput.value = input.value.trim(); });
+    chipsContainer.appendChild(input);
+  }
   types.forEach(type => {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'sub-unit-chip';
     chip.innerHTML = `<i class="bi ${type.icon}"></i>${type.label}`;
     chip.dataset.value = type.value;
+    const displayFee = type.inspectionFee == null ? repairDefaultInspectionFee() : Number(type.inspectionFee);
+    chip.title = `Inspection fee: ₱${displayFee.toLocaleString('en-PH')}`;
     chip.onclick = function () { selectSubUnit(type.value, this); };
     chipsContainer.appendChild(chip);
   });
@@ -11667,9 +11727,13 @@ function setSelectedRepairBrand(brand) {
 }
 
 function getCurrentRepairItem() {
+  const unitType = (document.getElementById('unitType') || {}).value || '';
+  const pricing = repairUnitPricing(unitType);
   return {
     type: 'repair',
-    unitType: (document.getElementById('unitType') || {}).value || '',
+    unitType,
+    unitCategory: pricing.unitCategory,
+    inspectionFee: pricing.inspectionFee,
     brand: getSelectedRepairBrand(),
     model: (document.getElementById('unitModel') || {}).value || '',
     problemDescription: (document.getElementById('repairProblemDescription') || {}).value || '',
@@ -11688,7 +11752,7 @@ function addCurrentRepairItem() {
   if (item.problemDescription.length < 10) return showAlert('Please describe the problem in at least 10 characters.', 'warning');
   if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`Cannot add more than ${MAX_BOOKING_UNITS} units`, 'warning');
 
-  const diagnosticFee = 500;
+  const diagnosticFee = item.inspectionFee;
   const serviceItem = {
     id: 'repair-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
     serviceId: null,
@@ -11714,6 +11778,7 @@ function addCurrentRepairItem() {
     costUpdatedByTechnician: false,
     diagnosisNotes: null,
     unitType: item.unitType,
+    unitCategory: item.unitCategory,
     problemDescription: item.problemDescription,
     photos: [...repairPhotos],
   };
@@ -11731,7 +11796,7 @@ window.addCurrentRepairItem = addCurrentRepairItem;
 function editRepairItem(index) {
   const item = BookingState.selectedServices[index];
   if (!item || item.type !== 'repair') return;
-  const category = Object.keys(unitTypesByCategory).find(key =>
+  const category = item.unitCategory || Object.keys(unitTypesByCategory).find(key =>
     unitTypesByCategory[key].some(type => type.value === item.unitType)
   );
   if (category) {
@@ -11739,6 +11804,12 @@ function editRepairItem(index) {
     setTimeout(() => {
       const chip = [...document.querySelectorAll('.sub-unit-chip')].find(c => c.dataset.value === item.unitType);
       if (chip) selectSubUnit(item.unitType, chip);
+      const customInput = document.getElementById('customRepairUnitType');
+      if (customInput) {
+        customInput.value = item.unitType;
+        const unitTypeInput = document.getElementById('unitType');
+        if (unitTypeInput) unitTypeInput.value = item.unitType;
+      }
     }, 50);
   } else {
     const unitTypeInput = document.getElementById('unitType');

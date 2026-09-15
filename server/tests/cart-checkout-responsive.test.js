@@ -75,7 +75,7 @@ test("blocked device location never blocks manual checkout location", () => {
 });
 
 test("checkout map uses the shared Esri hybrid provider", () => {
-  assert.match(wizard, /createEsriHybridLayer\(\{ maxZoom:20 \}\)/);
+  assert.match(wizard, /createEsriHybridLayer\(\)/);
   assert.doesNotMatch(wizard, /tileLayer\('https:\/\/\{s\}\.tile\.openstreetmap\.org/);
   assert.doesNotMatch(wizard, /basemaps\.cartocdn\.com|_streetMapLayer\.on\('tileerror'/);
 });

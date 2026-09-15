@@ -16,10 +16,10 @@ const Technician = require('../models/Technician');
 const { BookingStatus, PaymentStatus, FlowStages } = require('../models/BookingStatus');
 const { generateAssistantReport } = require('../utils/aiTechnicianAssistant');
 const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
-const { isBookingPast } = require('../utils/bookingPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
+const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('../utils/bookingDateTime');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
 const { requirePermission } = require('../middleware/requirePermission');
@@ -128,32 +128,15 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
       }
     }
 
-    // Flow stage counts (filtered by date if provided)
-    const stats = {};
-    for (const [key, stage] of Object.entries(FlowStages)) {
-      const count = await BookingService.countDocuments({ ...dateFilter, status: { $in: stage.statuses } });
-      stats[key] = { ...stage, count };
-    }
-
-    // Individual status counts for the pipeline UI
+    // Collect the dashboard in one database round trip. The previous version
+    // issued stage and status count queries sequentially, making this endpoint
+    // dominate the Pending tab's load time as booking volume increased.
     const allStatuses = [
       'pending', 'awaiting_assignment', 'assigned', 'confirmed',
       'on-the-way', 'in-progress', 'completed', 'expired'
     ];
-    const statusCounts = {};
-    for (const status of allStatuses) {
-      statusCounts[status] = await BookingService.countDocuments({ ...dateFilter, status });
-    }
-
-    // Summary counts
-    const totalBookings = await BookingService.countDocuments(dateFilter);
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-    const todayBookings = await BookingService.countDocuments({
-      createdAt: { $gte: todayStart, $lte: todayEnd }
-    });
-
-    // Revenue: include both COMPLETED and REPAIR_COMPLETED statuses
     const allCompletedStatuses = [
       BookingStatus.COMPLETED,
       BookingStatus.REPAIR_COMPLETED,
@@ -161,34 +144,51 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
       BookingStatus.WARRANTY_CLAIM,
     ];
     const revenueMatch = { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, ...dateFilter };
-    const revenueResult = await BookingService.aggregate([
-      { $match: revenueMatch },
-      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-    ]);
-    const filteredRevenue = revenueResult[0]?.total || 0;
+    const [dashboard = {}] = await BookingService.aggregate([{
+      $facet: {
+        filteredStatuses: [
+          { $match: dateFilter },
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ],
+        todayBookings: [
+          { $match: { createdAt: { $gte: todayStart, $lte: todayEnd } } },
+          { $count: 'count' },
+        ],
+        allTimeBookings: [{ $count: 'count' }],
+        filteredRevenue: [
+          { $match: revenueMatch },
+          { $group: { _id: null, total: { $sum: '$totalPrice' } } },
+        ],
+        totalRevenue: [
+          { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID } },
+          { $group: { _id: null, total: { $sum: '$totalPrice' } } },
+        ],
+        todayRevenue: [
+          { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, updatedAt: { $gte: todayStart, $lte: todayEnd } } },
+          { $group: { _id: null, total: { $sum: '$totalPrice' } } },
+        ],
+        ratings: [
+          { $match: { status: { $in: allCompletedStatuses }, customerRating: { $gt: 0 } } },
+          { $group: { _id: null, avg: { $avg: '$customerRating' }, count: { $sum: 1 } } },
+        ],
+      },
+    }]);
 
-    const totalRevenueResult = await BookingService.aggregate([
-      { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID } },
-      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-    ]);
-    const totalRevenue = totalRevenueResult[0]?.total || 0;
-
-    const todayRevenue = await BookingService.aggregate([
-      { $match: { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, updatedAt: { $gte: todayStart, $lte: todayEnd } } },
-      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-    ]);
-    const todayRevenueAmount = todayRevenue[0]?.total || 0;
-
-    // Average rating from all completed jobs (including repair completed)
-    const ratingAgg = await BookingService.aggregate([
-      { $match: { status: { $in: allCompletedStatuses }, customerRating: { $gt: 0 } } },
-      { $group: { _id: null, avg: { $avg: '$customerRating' }, count: { $sum: 1 } } }
-    ]);
-    const avgRating = ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null;
-    const totalRatings = ratingAgg[0]?.count || 0;
-
-    // Count all bookings (no date filter) for "all time" reference
-    const allTimeBookings = await BookingService.countDocuments();
+    const statusCountMap = new Map((dashboard.filteredStatuses || []).map(row => [row._id, row.count]));
+    const totalBookings = [...statusCountMap.values()].reduce((sum, count) => sum + count, 0);
+    const stats = Object.fromEntries(Object.entries(FlowStages).map(([key, stage]) => [
+      key,
+      { ...stage, count: stage.statuses.reduce((sum, status) => sum + (statusCountMap.get(status) || 0), 0) },
+    ]));
+    const statusCounts = Object.fromEntries(allStatuses.map(status => [status, statusCountMap.get(status) || 0]));
+    const todayBookings = dashboard.todayBookings?.[0]?.count || 0;
+    const allTimeBookings = dashboard.allTimeBookings?.[0]?.count || 0;
+    const filteredRevenue = dashboard.filteredRevenue?.[0]?.total || 0;
+    const totalRevenue = dashboard.totalRevenue?.[0]?.total || 0;
+    const todayRevenueAmount = dashboard.todayRevenue?.[0]?.total || 0;
+    const rating = dashboard.ratings?.[0];
+    const avgRating = rating ? Math.round(rating.avg * 10) / 10 : null;
+    const totalRatings = rating?.count || 0;
 
     res.json({
       stages: stats,
@@ -279,14 +279,30 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     }
 
     const total = await BookingService.countDocuments(query);
-    const bookings = await BookingService.find(query)
+    let bookingQuery = BookingService.find(query)
       .sort(sort)
       .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+      .limit(limit);
+    if (req.query.compact === 'true') {
+      bookingQuery = bookingQuery.select([
+        'bookingReference', 'workOrderNumber', 'status', 'preferredDate', 'bookingDate',
+        'preferredTime', 'selectedTimeLabel', 'startTime', 'endTime', 'serviceDurationMinutes',
+        'customer.name', 'customer.email', 'service.name',
+        'services.name', 'services.type', 'services.brand', 'services.model',
+        'services.hpDescription', 'services.hp', 'services.applianceTypeName', 'services.applianceType',
+        'services.problemDescription', 'services.repairIssue',
+        'serviceType', 'serviceModel',
+        'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
+        'createdAt', 'updatedAt',
+      ].join(' '));
+    }
+    const bookings = await bookingQuery.lean();
 
     res.json({
-      bookings: bookings.map(booking => withBookingReviewState(booking)),
+      bookings: bookings.map(booking => ({
+        ...withBookingReviewState(booking),
+        assignmentTiming: assignmentTimingState(booking),
+      })),
       pagination: {
         page,
         limit,
@@ -399,7 +415,18 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
       booking.balanceAmount = 0;
     }
 
-    booking.status = BookingStatus.PAYMENT_VERIFIED;
+    booking.transitionStatus(BookingStatus.PAYMENT_VERIFIED, {
+      changedBy: req.user._id,
+      changedByModel: 'User',
+      changedByName: req.user.name || req.user.email || 'Operations staff',
+      reason: 'Payment verified',
+    });
+    booking.transitionStatus(BookingStatus.AWAITING_ASSIGNMENT, {
+      changedBy: req.user._id,
+      changedByModel: 'User',
+      changedByName: req.user.name || req.user.email || 'Operations staff',
+      reason: 'Payment verified; moved to assignment queue',
+    });
     booking.paymentVerifiedAt = new Date();
     booking.paymentVerifiedBy = req.user._id;
     if (req.body.notes) booking.notes = req.body.notes;
@@ -428,9 +455,19 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
       referenceModel: 'BookingService',
       link: '/admin/appointments/pending',
       io,
+    }).catch(error => {
+      // Notification delivery must not roll back a payment decision that has
+      // already been saved and moved into the assignment queue.
+      console.warn('[AppointmentManagement] Payment verification notification failed:', error.message);
     });
 
-    res.json({ success: true, booking, isCOD, balanceAmount: booking.balanceAmount });
+    res.json({
+      success: true,
+      booking,
+      isCOD,
+      balanceAmount: booking.balanceAmount,
+      destination: 'assignment_queue',
+    });
   } catch (error) {
     console.error('âŒ Error verifying payment:', error);
     res.status(500).json({ error: 'Failed to verify payment' });
@@ -553,9 +590,9 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
     // Reject assignment of past bookings â€” require reschedule instead
-    if (isBookingPast(booking)) {
+    if (isAssignmentWindowExpired(booking)) {
       return res.status(400).json({
-        error: 'Cannot assign a technician to an appointment whose scheduled time has passed. Please reschedule to a future date/time first.',
+        error: 'The technician-assignment window has expired. Please reschedule this appointment before assigning.',
       });
     }
 
@@ -610,8 +647,8 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       const tStart = _parseMin(booking.startTime);
       const tEnd = _endMin(booking);
       if (Number.isFinite(tStart) && Number.isFinite(tEnd)) {
-        const dayS = new Date(booking.bookingDate); dayS.setHours(0, 0, 0, 0);
-        const dayE = new Date(booking.bookingDate); dayE.setHours(23, 59, 59, 999);
+        const dayS = manilaDateTime(booking.bookingDate, 0);
+        const dayE = manilaDateTime(booking.bookingDate, 24 * 60, -1);
         const conflict = await BookingService.findOne({
           _id: { $ne: booking._id },
           technicianId,
@@ -631,13 +668,12 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     // Compute acceptance deadline
     function calculateAcceptanceDeadline(bookingDate, assignedAt) {
       const now = new Date(assignedAt || new Date());
-      const bd = new Date(bookingDate);
-      const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
-      const startOfBooking = new Date(bd); startOfBooking.setHours(0, 0, 0, 0);
-      const daysUntil = Math.round((startOfBooking - startOfToday) / (1000 * 60 * 60 * 24));
+      const todayKey = manilaDateKey(now);
+      const bookingKey = manilaDateKey(bookingDate);
+      const daysUntil = Math.round((Date.parse(bookingKey + 'T00:00:00Z') - Date.parse(todayKey + 'T00:00:00Z')) / (1000 * 60 * 60 * 24));
       if (daysUntil <= 0) return new Date(now.getTime() + 30 * 60 * 1000);
       if (daysUntil === 1) {
-        const today6pm = new Date(now); today6pm.setHours(18, 0, 0, 0);
+        const today6pm = manilaDateTime(now, 18 * 60);
         if (today6pm > now) return today6pm;
         return new Date(now.getTime() + 30 * 60 * 1000);
       }
@@ -684,6 +720,9 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     booking.assignedAt = new Date();
     booking.assignedBy = req.user._id;
     booking.assignmentId = assignment._id;
+    booking.autoReschedulePending = false;
+    booking.autoRescheduleAt = undefined;
+    booking.autoRescheduleReason = undefined;
 
     if (isRepair) {
       // Keep the item-level lifecycle in sync for repair bookings created by
@@ -1799,6 +1838,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
     }
 
     Object.assign(booking, bookingReviewState(booking));
+    booking.assignmentTiming = assignmentTimingState(booking);
     res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary });
   } catch (error) {
     console.error('âŒ Error fetching booking detail:', error);
@@ -1891,9 +1931,9 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
           .json({ error: `Booking is in "${booking.status}" status, not pending_reassignment` });
       }
 
-      if (isBookingPast(booking)) {
+      if (isAssignmentWindowExpired(booking)) {
         return res.status(409).json({
-          error: 'Cannot auto-assign a technician to an appointment whose scheduled time has passed. Please resolve it via the Booking Resolution Center.',
+          error: 'The technician-assignment window has expired. Please resolve it via the Booking Resolution Center.',
           code: 'PAST_DATE_BOOKING',
           redirect: '/admin/appointments/attention?issue=past_date',
         });

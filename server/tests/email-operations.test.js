@@ -5,7 +5,11 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const ejs = require("ejs");
-const { buildMailerStatus, resolveMailProvider } = require("../utils/mailer");
+const {
+  buildMailerStatus,
+  resolveMailProvider,
+  buildBookingPaymentEmailDetails,
+} = require("../utils/mailer");
 
 const emailPage = path.join(__dirname, "../views/pages/admin/Settings/Email.ejs");
 
@@ -42,6 +46,61 @@ test("mailer status identifies missing variables for the active provider", () =>
     "SMTP_USER is missing",
     "SMTP_PASS is missing",
   ]);
+});
+
+test("booking email payment details include the submitted downpayment and remaining balance", () => {
+  const details = buildBookingPaymentEmailDetails({
+    paymentMethod: "cod",
+    estimatedFee: 5000,
+    downpaymentPercentage: 10,
+    downpaymentAmount: 500,
+    balanceAmount: 4500,
+    paymentStatus: "pending",
+  });
+
+  assert.equal(details.downpaymentAmount, 500);
+  assert.equal(details.balanceAmount, 4500);
+  assert.match(details.amountRows, /Downpayment submitted \(10%\)/);
+  assert.match(details.amountRows, /₱500\.00/);
+  assert.match(details.amountRows, /₱4,500\.00/);
+  assert.equal(details.verificationLabel, "Pending receipt verification");
+});
+
+test("full-payment booking emails do not present a downpayment balance", () => {
+  const details = buildBookingPaymentEmailDetails({
+    paymentMethod: "gcash",
+    estimatedFee: 5000,
+    downpaymentAmount: 5000,
+    balanceAmount: 0,
+    paymentStatus: "pending",
+  });
+
+  assert.match(details.amountRows, /Full payment submitted/);
+  assert.doesNotMatch(details.amountRows, /Balance due at completion/);
+  assert.equal(details.balanceAmount, 0);
+});
+
+test("booking email repairs a legacy zero-balance default for a downpayment plan", () => {
+  const details = buildBookingPaymentEmailDetails({
+    paymentMethod: "cod",
+    estimatedFee: 5000,
+    downpaymentAmount: 500,
+    balanceAmount: 0,
+  });
+
+  assert.equal(details.balanceAmount, 4500);
+  assert.match(details.amountRows, /₱4,500\.00/);
+});
+
+test("customer booking confirmation passes authoritative payment breakdown into the mailer", () => {
+  const routeSource = fs.readFileSync(path.join(__dirname, "../routes/bookingRoutesNew.js"), "utf8");
+  const mailerSource = fs.readFileSync(path.join(__dirname, "../utils/mailer.js"), "utf8");
+
+  assert.match(routeSource, /downpaymentPercentage:\s*booking\.downpaymentPercentage/);
+  assert.match(routeSource, /downpaymentAmount:\s*booking\.downpaymentAmount/);
+  assert.match(routeSource, /balanceAmount:\s*booking\.balanceAmount/);
+  assert.match(mailerSource, /\$\{paymentDetails\.amountRows\}/);
+  assert.match(mailerSource, /Pending receipt verification/);
 });
 
 test("email operations page renders with valid browser JavaScript and unique ids", async () => {

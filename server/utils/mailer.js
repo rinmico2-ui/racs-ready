@@ -253,6 +253,61 @@ async function verifyMailerConfiguration() {
 }
 
 // ─── Booking Confirmation Email (to customer) ───────────────────────────────
+function buildBookingPaymentEmailDetails({
+  paymentMethod,
+  estimatedFee,
+  downpaymentPercentage,
+  downpaymentAmount,
+  balanceAmount,
+  paymentStatus,
+}) {
+  const method = String(paymentMethod || "cod").toLowerCase();
+  const total = Math.max(0, Number(estimatedFee) || 0);
+  const isDownpaymentPlan = ["cod", "cash", "downpayment", "gcash_downpayment"].includes(method);
+  const configuredPercentage = Number(downpaymentPercentage);
+  const suppliedDownpayment = Number(downpaymentAmount);
+  const suppliedBalance = Number(balanceAmount);
+  const resolvedPercentage = Number.isFinite(configuredPercentage) && configuredPercentage > 0
+    ? configuredPercentage
+    : Number.isFinite(suppliedDownpayment) && total > 0
+      ? Math.round((suppliedDownpayment / total) * 10000) / 100
+      : 10;
+  const resolvedDownpayment = isDownpaymentPlan
+    ? Number.isFinite(suppliedDownpayment) && suppliedDownpayment > 0
+      ? suppliedDownpayment
+      : Math.round(total * resolvedPercentage / 100)
+    : total;
+  const calculatedBalance = Math.max(0, total - resolvedDownpayment);
+  const resolvedBalance = isDownpaymentPlan
+    ? Number.isFinite(suppliedBalance) && (suppliedBalance > 0 || calculatedBalance === 0)
+      ? suppliedBalance
+      : calculatedBalance
+    : 0;
+  const currency = value => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const normalizedStatus = String(paymentStatus || "pending").toLowerCase();
+  const verificationLabel = ["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
+    ? "Payment recorded"
+    : "Pending receipt verification";
+  const payLabel = isDownpaymentPlan
+    ? "GCash reservation downpayment; balance at service completion"
+    : "Full payment via GCash";
+  const amountRows = isDownpaymentPlan
+    ? `
+      <tr><td style="padding:6px 0;color:#6c757d;">Downpayment submitted (${resolvedPercentage}%)</td><td style="padding:6px 0;font-weight:700;color:#d97706;">${currency(resolvedDownpayment)}</td></tr>
+      <tr><td style="padding:6px 0;color:#6c757d;">Balance due at completion</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(resolvedBalance)}</td></tr>`
+    : `
+      <tr><td style="padding:6px 0;color:#6c757d;">Full payment submitted</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(total)}</td></tr>`;
+  return {
+    payLabel,
+    feeDisplay: total > 0 ? currency(total) : "To be confirmed",
+    amountRows,
+    verificationLabel,
+    downpaymentPercentage: resolvedPercentage,
+    downpaymentAmount: resolvedDownpayment,
+    balanceAmount: resolvedBalance,
+  };
+}
+
 async function sendBookingConfirmationEmail({
   to,
   customerName,
@@ -263,6 +318,10 @@ async function sendBookingConfirmationEmail({
   totalLabel,
   paymentMethod,
   estimatedFee,
+  downpaymentPercentage,
+  downpaymentAmount,
+  balanceAmount,
+  paymentStatus,
   locationAddress,
   issueDescription,
   travelMins,
@@ -272,12 +331,14 @@ async function sendBookingConfirmationEmail({
   const subject = isConfirmed
     ? `Booking Confirmed – ${bookingReference} | CALIDRO RACS`
     : `Booking Request Received – ${bookingReference} | CALIDRO RACS`;
-  const feeDisplay = estimatedFee
-    ? `₱${Number(estimatedFee).toFixed(2)}`
-    : "To be confirmed";
-  const payLabel = paymentMethod === "gcash"
-    ? "Full payment via GCash"
-    : "Reservation downpayment via GCash; balance at service completion";
+  const paymentDetails = buildBookingPaymentEmailDetails({
+    paymentMethod,
+    estimatedFee,
+    downpaymentPercentage,
+    downpaymentAmount,
+    balanceAmount,
+    paymentStatus,
+  });
   const durationHr =
     serviceDuration >= 60
       ? `${Math.floor(serviceDuration / 60)}h${serviceDuration % 60 ? ` ${serviceDuration % 60}m` : ""}`
@@ -342,8 +403,10 @@ td{vertical-align:top;font-size:14px;}
 
     <div class="section-title">Payment</div>
     <table>
-      <tr><td style="padding:6px 0;color:#6c757d;">Method</td><td style="padding:6px 0;">${payLabel}</td></tr>
-      <tr><td style="padding:6px 0;color:#6c757d;">Estimated Fee</td><td style="padding:6px 0;font-weight:700;color:#198754;">${feeDisplay}</td></tr>
+      <tr><td style="padding:6px 0;color:#6c757d;">Payment plan</td><td style="padding:6px 0;">${paymentDetails.payLabel}</td></tr>
+      <tr><td style="padding:6px 0;color:#6c757d;">Estimated service total</td><td style="padding:6px 0;font-weight:700;">${paymentDetails.feeDisplay}</td></tr>
+      ${paymentDetails.amountRows}
+      <tr><td style="padding:6px 0;color:#6c757d;">Verification</td><td style="padding:6px 0;font-weight:600;">${paymentDetails.verificationLabel}</td></tr>
     </table>
 
     <p style="margin-top:24px;font-size:13px;color:#6c757d;">If you need to cancel or reschedule, please contact us at least 24 hours before your appointment.</p>
@@ -844,6 +907,40 @@ async function sendBookingExpiredEmail({ to, customerName, bookingReference, ser
   ${premiumFooter()}
 </div></body></html>`;
   return sendMail({ to, subject, html });
+}
+
+// ─── Assignment Delay / Rescheduling Review Email ────────────────────────────
+async function sendBookingAssignmentDelayedEmail({
+  to,
+  customerName,
+  bookingReference,
+  serviceName,
+  scheduledDateLabel,
+  scheduledTime,
+}) {
+  if (!to) return false;
+  const subject = `Schedule Update – ${bookingReference} | CALIDRO RACS`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles('#f59e0b','#d97706')}</head><body>
+<div class="wrap">
+  <div class="header"><h1>We’re Arranging a New Schedule</h1><div class="ref-badge">${bookingReference}</div></div>
+  <div class="body">
+    <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${customerName || 'Customer'}</strong>,</p>
+    <p style="color:#475569;line-height:1.6;">We were unable to confirm a technician within the assignment window for your appointment. Our operations team is now reviewing the booking and will coordinate a new service schedule with you.</p>
+    <div class="status-pill" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">Schedule Review in Progress</div>
+    <div class="section-title">Booking Details</div>
+    <table>
+      <tr class="detail-row"><td>Reference</td><td style="font-weight:700;">${bookingReference}</td></tr>
+      <tr class="detail-row"><td>Service</td><td>${serviceName || 'Service'}</td></tr>
+      <tr class="detail-row"><td>Original Date</td><td>${scheduledDateLabel || 'N/A'}</td></tr>
+      <tr class="detail-row"><td>Original Time</td><td>${scheduledTime || 'N/A'}</td></tr>
+    </table>
+    <div class="note-box" style="margin-top:20px;"><strong>Your booking remains active.</strong> Any verified payment remains recorded. You do not need to create or pay for another booking.</div>
+    <p style="color:#475569;font-size:13px;line-height:1.6;margin-top:20px;">We apologize for the inconvenience. You will receive another notification as soon as a replacement schedule is ready.</p>
+    <a href="${process.env.APP_BASE_URL || ''}/tracking" class="btn" style="background:#f59e0b;">View My Schedule</a>
+  </div>
+  ${premiumFooter()}
+</div></body></html>`;
+  return sendMail({ to, subject, html, source: 'booking_assignment_delayed' });
 }
 
 // ─── Technician Declined Email ────────────────────────────────────────────────
@@ -1372,6 +1469,7 @@ module.exports = {
   sendEmail,
   sendResetEmail,
   sendBookingConfirmationEmail,
+  buildBookingPaymentEmailDetails,
   sendRepairRequestSubmittedEmail,
   sendTechnicianNotificationEmail,
   sendWalkInCredentialsEmail,
@@ -1380,6 +1478,7 @@ module.exports = {
   sendTechArrivalNotificationEmail,
   sendBookingAcceptedEmail,
   sendBookingExpiredEmail,
+  sendBookingAssignmentDelayedEmail,
   sendTechnicianDeclinedEmail,
   sendTechnicianArrivedEmail,
   sendWorkStartedEmail,

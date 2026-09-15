@@ -46,3 +46,13 @@ test('legacy technician cards and action groups cannot force phone overflow', ()
   assert.match(responsive, /\.tracker-status-card \.status-meta\s*\{[^}]*minmax\(0, 1fr\)/s);
   assert.match(responsive, /\.profile-technician-page \.card-body\.p-4/);
 });
+
+test('technician notifications stay centered inside the mobile viewport', () => {
+  assert.match(responsive, /#notifDropdown\s*\{[^}]*position:\s*fixed\s*!important/s);
+  assert.match(responsive, /#notifDropdown\s*\{[^}]*left:\s*50%\s*!important/s);
+  assert.match(responsive, /#notifDropdown\s*\{[^}]*width:\s*min\(380px, calc\(100vw - 1\.5rem\)\)\s*!important/s);
+  assert.match(responsive, /#notifDropdown\s*\{[^}]*transform:\s*translateX\(-50%\)\s*!important/s);
+  assert.match(responsive, /#notifList\s*\{[^}]*100dvh/s);
+  assert.doesNotMatch(navbar, /#notifDropdown\s*\{[^}]*left:\s*0/s);
+  assert.doesNotMatch(navbar, /#notifDropdown\s*\{[^}]*border-left:\s*none/s);
+});

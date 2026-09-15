@@ -10,6 +10,7 @@ function orderIssueLabel(issueType) {
   return ({
     payment_review_overdue: "Payment review overdue",
     assignment_overdue: "Assignment overdue",
+    dispatch_overdue: "Dispatch overdue",
     pickup_overdue: "Pickup overdue",
   })[issueType] || "Order review";
 }

@@ -239,8 +239,8 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
-            <div class="kpi-title"><i class="bi bi-qr-code me-1"></i>Daily Attendance QR</div>
-            <span class="inv-kpi-sub">Technicians and secretaries scan this code after login to check in.</span>
+            <div class="kpi-title"><i class="bi bi-qr-code me-1"></i>Rotating Attendance QR</div>
+            <span class="inv-kpi-sub">The security code refreshes automatically to prevent screenshot sharing.</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #0ea5e9, #38bdf8);">
             <i class="bi bi-qr-code"></i>
@@ -249,7 +249,7 @@
 
         <div class="text-center py-2">
           <h5 class="text-secondary mb-1" id="lblTodayDate">-- -- --</h5>
-          <p class="text-muted small mb-3">Today's QR is valid until 9:00 AM cutoff.</p>
+          <p class="text-muted small mb-3" id="qrSecurityText">Generating a short-lived security code…</p>
 
           <div class="d-inline-block p-3 bg-white border rounded-3 mb-3 shadow-sm" style="min-height: 250px;">
             <img id="imgQrCode" alt="Daily Attendance QR Code" style="width: 220px; height: 220px; display: none;" />
@@ -263,7 +263,7 @@
             <i class="bi bi-info-circle me-1"></i> Cutoff time is <strong>9:00 AM</strong>. Scans after 9:00 AM will be automatically marked as <strong>Late</strong>.
           </div>
 
-          <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Regenerate</button>
+          <button id="btnRegenerate" class="btn-ss outline btn-sm"><i class="bi bi-arrow-clockwise"></i> Refresh Now</button>
         </div>
       </div>
     </div>
@@ -521,6 +521,7 @@
     const lblTodayDate = document.getElementById("lblTodayDate");
     const imgQrCode = document.getElementById("imgQrCode");
     const qrLoading = document.getElementById("qrLoading");
+    const qrSecurityText = document.getElementById("qrSecurityText");
     const btnRegenerate = document.getElementById("btnRegenerate");
     const tblRosterBody = document.getElementById("tblRosterBody");
     const rosterRecordCount = document.getElementById("rosterRecordCount");
@@ -541,14 +542,31 @@
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     lblTodayDate.textContent = new Date().toLocaleDateString(undefined, options);
 
-    // Load QR code token
-    async function loadQrToken() {
+    let qrRefreshTimer = null;
+
+    function displayQr(data) {
+      if (!data.qrImage) throw new Error("No QR image returned from server.");
+      imgQrCode.src = data.qrImage;
+      qrLoading.classList.remove("d-flex");
+      qrLoading.classList.add("d-none");
+      imgQrCode.style.display = "inline";
+      const seconds = data.security && data.security.ttlSeconds ? data.security.ttlSeconds : 45;
+      qrSecurityText.textContent = `Security code rotates every ${seconds} seconds. Keep this screen open.`;
+      clearTimeout(qrRefreshTimer);
+      qrRefreshTimer = setTimeout(() => loadQrToken(true), Math.max(5000, Number(data.refreshAfterMs) || 30000));
+    }
+
+    // Load a fresh short-lived QR challenge without flashing the placeholder
+    // during background refreshes.
+    async function loadQrToken(silent = false) {
       try {
-        qrLoading.classList.replace("d-none", "d-flex");
-        if (!qrLoading.classList.contains("d-flex")) qrLoading.classList.add("d-flex");
-        imgQrCode.style.display = "none";
+        if (!silent) {
+          qrLoading.classList.replace("d-none", "d-flex");
+          if (!qrLoading.classList.contains("d-flex")) qrLoading.classList.add("d-flex");
+          imgQrCode.style.display = "none";
+        }
         
-        const res = await fetch("/api/admin/attendance/qr-token");
+        const res = await fetch("/api/admin/attendance/qr-token", { cache: 'no-store' });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.error || `HTTP error ${res.status}: ${res.statusText}`);
@@ -556,35 +574,34 @@
         
         const data = await res.json();
         
-        if (data.qrImage) {
-          imgQrCode.src = data.qrImage;
-          qrLoading.classList.replace("d-flex", "d-none");
-          imgQrCode.style.display = "inline";
-        } else {
-          throw new Error("No QR image returned from server.");
-        }
+        displayQr(data);
       } catch (err) {
         console.error("loadQrToken error:", err);
-        alert("Failed to load QR code token: " + err.message);
+        clearTimeout(qrRefreshTimer);
+        qrRefreshTimer = setTimeout(() => loadQrToken(true), 5000);
+        if (!silent) alert("Failed to load QR code: " + err.message);
       }
     }
 
     // Regenerate QR Code token
     btnRegenerate.addEventListener("click", async () => {
-      if (!confirm("Are you sure you want to regenerate today's QR Code? Previous QR codes scanned today will still have checked-in status, but future scans must use the new code.")) return;
       try {
         qrLoading.classList.replace("d-none", "d-flex");
         if (!qrLoading.classList.contains("d-flex")) qrLoading.classList.add("d-flex");
         imgQrCode.style.display = "none";
         
         const res = await fetch("/api/admin/attendance/regenerate-token", { method: "POST" });
-        if (!res.ok) throw new Error("Failed to regenerate token");
-        
-        await loadQrToken();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Failed to refresh QR code");
+        displayQr(data);
       } catch (err) {
         console.error(err);
-        alert("Failed to regenerate token.");
+        alert("Failed to refresh QR code.");
       }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) loadQrToken(true);
     });
 
     // Load today's roster and check-ins
@@ -645,8 +662,12 @@
         ? '<span class="badge rounded-pill" style="background:#fce7f3;color:#be185d">Secretary</span>'
         : '<span class="badge rounded-pill" style="background:#dbeafe;color:#1d4ed8">Technician</span>';
 
-      const methodStr = tech.method === "qr_scan" 
-        ? '<span class="text-success"><i class="bi bi-qr-code"></i> Scan</span>'
+      const methodStr = tech.method === "qr_scan"
+        ? tech.verificationLevel === 'layered'
+          ? `<span class="text-success" title="Registered device and GPS verified${tech.checkInDistanceMeters != null ? `; ${Math.round(tech.checkInDistanceMeters)}m from company` : ''}"><i class="bi bi-shield-check"></i> QR + GPS</span>`
+          : tech.verificationLevel === 'signed'
+            ? '<span class="text-success" title="Short-lived signed QR verified"><i class="bi bi-shield-check"></i> Signed QR</span>'
+            : '<span class="text-warning" title="Legacy attendance record"><i class="bi bi-exclamation-triangle"></i> Legacy QR</span>'
         : tech.method === "manual"
         ? '<span class="text-primary"><i class="bi bi-pencil-square"></i> Manual</span>'
         : "—";
@@ -712,7 +733,32 @@
           const techId = e.target.getAttribute("data-staff-id");
           const staffType = e.target.getAttribute("data-staff-type");
           const status = e.target.value;
-          await updateTechnician(techId, { status, staffType });
+          const reasonResult = await Swal.fire({
+            icon: 'warning',
+            title: 'Manual Attendance Override',
+            text: `Explain why this record must be changed to ${status}. This action is audited.`,
+            input: 'textarea',
+            inputPlaceholder: 'Example: QR scanner unavailable; presence verified by supervisor.',
+            inputAttributes: { maxlength: '500', 'aria-label': 'Attendance override reason' },
+            showCancelButton: true,
+            confirmButtonText: 'Apply Override',
+            confirmButtonColor: '#dc2626',
+            inputValidator: value => {
+              const reason = String(value || '').trim();
+              if (reason.length < 5) return 'Enter at least 5 characters.';
+              if (reason.length > 500) return 'Reason cannot exceed 500 characters.';
+              return undefined;
+            },
+          });
+          if (!reasonResult.isConfirmed) {
+            e.target.value = '';
+            return;
+          }
+          await updateTechnician(techId, {
+            status,
+            staffType,
+            overrideReason: String(reasonResult.value).trim(),
+          });
         });
       });
 
@@ -812,13 +858,14 @@
           body: JSON.stringify(body)
         });
 
-        if (!res.ok) throw new Error("Failed to update status");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Failed to update status");
 
         // Reload data
         await loadRoster();
       } catch (err) {
         console.error(err);
-        alert("Failed to update staff status.");
+        alert(err.message || "Failed to update staff status.");
       }
     }
 
@@ -870,9 +917,13 @@
             : ['On Leave','Sick Leave'].includes(row.attendanceStatus) ? 'badge-leave' : 'badge-absent';
           const localDate = new Date(row.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', month:'short', day:'numeric', year:'numeric' });
           const localTime = value => value ? new Date(value).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour:'2-digit', minute:'2-digit' }) : '--';
-          const source = row.method === 'qr_scan' && row.qrVerified
-            ? '<span class="text-success"><i class="bi bi-shield-check me-1"></i>Verified QR</span>'
-            : '<span class="text-primary"><i class="bi bi-person-gear me-1"></i>Admin entry</span>';
+          const source = row.verificationLevel === 'layered'
+            ? `<span class="text-success" title="Registered device and GPS verified"><i class="bi bi-shield-check me-1"></i>QR + Device + GPS${row.checkInDistanceMeters != null ? ` (${Math.round(row.checkInDistanceMeters)}m)` : ''}</span>`
+            : row.verificationLevel === 'signed'
+              ? '<span class="text-success"><i class="bi bi-shield-check me-1"></i>Signed QR</span>'
+              : row.verificationLevel === 'legacy'
+                ? '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Legacy QR</span>'
+                : '<span class="text-primary"><i class="bi bi-person-gear me-1"></i>Admin override</span>';
           return `<tr><td class="ps-4 fw-semibold">${localDate}</td><td><div class="fw-semibold">${historyEscape(row.name)}</div><div class="small text-muted">${historyEscape(row.email)}</div></td><td class="text-capitalize">${historyEscape(row.role)}</td><td><span class="status-badge ${badge}">${historyEscape(row.attendanceStatus)}</span></td><td>${localTime(row.checkInTime)}</td><td>${localTime(row.checkOutTime)}</td><td class="fw-semibold">${Number(row.hoursWorked || 0).toFixed(2)} h</td><td>${source}</td></tr>`;
         }).join('');
       } catch (error) {

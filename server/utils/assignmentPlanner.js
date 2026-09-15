@@ -3,7 +3,7 @@ const Technician = require('../models/Technician');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
-const { isBookingPast } = require('./bookingPolicy');
+const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('./bookingDateTime');
 
 const ACTIVE_BOOKING_STATUSES = [
   'assigned','confirmed','scheduled','on-the-way','arrived','in-progress','ongoing',
@@ -33,8 +33,7 @@ function bookingWindow(booking) {
 }
 
 function dateKey(value) {
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return manilaDateKey(value);
 }
 
 function coordinates(entity) {
@@ -59,8 +58,10 @@ async function buildAssignmentPlan(bookings, options = {}) {
   if (!rows.length) return [];
   const techs = await Technician.find({ active: { $ne: false } }).select('_id user name phone email rating availabilityStatus location').lean();
   const techIds = techs.map(t => t._id);
-  const minDate = new Date(Math.min(...rows.map(b => new Date(b.bookingDate).getTime()))); minDate.setHours(0,0,0,0);
-  const maxDate = new Date(Math.max(...rows.map(b => new Date(b.bookingDate).getTime()))); maxDate.setHours(23,59,59,999);
+  const scheduleDays = rows.map(b => manilaDateTime(b.bookingDate, 0)).filter(Boolean);
+  if (!scheduleDays.length) return [];
+  const minDate = new Date(Math.min(...scheduleDays.map(date => date.getTime())));
+  const maxDate = new Date(Math.max(...scheduleDays.map(date => date.getTime())) + 24 * 60 * 60 * 1000 - 1);
   const [schedules, leaves, existing, activeAssignments] = await Promise.all([
     TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean(),
     LeaveRequest.find({ technicianId: { $in: techIds }, status:'approved', startDate:{ $lte:maxDate }, endDate:{ $gte:minDate } }).lean(),
@@ -76,8 +77,23 @@ async function buildAssignmentPlan(bookings, options = {}) {
 
   const result = [];
   for (const booking of rows) {
-    const key = dateKey(booking.bookingDate); const date = new Date(booking.bookingDate); const day = date.getDay();
+    const key = dateKey(booking.bookingDate); const date = manilaDateTime(booking.bookingDate, 12 * 60); const day = date.getUTCDay();
     const target = bookingWindow(booking); const bookingCoords = coordinates(booking);
+    const timing = assignmentTimingState(booking);
+    if (timing.isExpired) {
+      result.push({
+        bookingId:String(booking._id),
+        bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,
+        customerName:booking.customer?.name||'Customer',
+        serviceName:booking.service?.name||'Service',
+        bookingDate:booking.bookingDate,
+        startTime:booking.startTime,
+        assignmentTiming:timing,
+        recommended:null,
+        candidates:[],
+      });
+      continue;
+    }
     const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
     const candidates = [];
     for (const tech of techs) {
@@ -85,7 +101,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
       const working=schedule?.workingDays?.find(w => w.dayOfWeek===day);
       const rest=schedule?.restDates?.some(r => dateKey(r?.date || r)===key);
       const nonWorking=schedule?.nonWorkingWeekdays?.some(w => Number(w?.dayOfWeek ?? w)===day);
-      const onLeave=leaves.some(l => String(l.technicianId)===tid && date >= new Date(new Date(l.startDate).setHours(0,0,0,0)) && date <= new Date(new Date(l.endDate).setHours(23,59,59,999)));
+      const onLeave=leaves.some(l => String(l.technicianId)===tid && key >= dateKey(l.startDate) && key <= dateKey(l.endDate));
       if (!working || rest || nonWorking || onLeave || priorTechIds.has(tid) || !Number.isFinite(target.start)) continue;
       if (target.start < Number(working.startMinutes||480) || target.end > Number(working.endMinutes||1020)) continue;
       const dayJobs=(allocations.get(tid)||[]).filter(a => a.date===key);
@@ -110,7 +126,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
     candidates.sort((a,b)=>b.score-a.score || a.currentWorkload-b.currentWorkload || (a.distanceKm??9999)-(b.distanceKm??9999));
     const recommended=candidates[0]||null;
     if (recommended && options.reservePlan !== false) allocations.get(recommended.technicianId).push({ ...target,date:key,bookingId:String(booking._id),planned:true });
-    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,recommended,candidates:candidates.slice(0,5) });
+    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,assignmentTiming:timing,recommended,candidates:candidates.slice(0,5) });
   }
   return result;
 }
@@ -118,14 +134,22 @@ async function buildAssignmentPlan(bookings, options = {}) {
 async function createReviewedAssignment(bookingId, technicianId, actor, responseMinutes=30) {
   const booking=await BookingService.findById(bookingId);
   if (!booking || !['awaiting_assignment','pending_reassignment'].includes(booking.status)) throw new Error('Booking is no longer awaiting assignment');
-  if (isBookingPast(booking)) throw new Error('Cannot assign a technician — the scheduled time has passed. Please reschedule to a future date/time first.');
+  if (isAssignmentWindowExpired(booking)) throw new Error('The technician-assignment window has expired. Please reschedule to a future date/time first.');
   const fresh=(await buildAssignmentPlan([booking],{reservePlan:false}))[0];
   const candidate=fresh?.candidates?.find(c=>c.technicianId===String(technicianId));
   if (!candidate) throw new Error('Technician is no longer eligible for this schedule');
   const tech=await Technician.findById(technicianId).lean();
   const minutes=Math.min(720,Math.max(5,Number(responseMinutes)||30));
   const assignment=await Assignment.create({bookingId:booking._id,technicianId:tech._id,customerName:booking.customer?.name||'',customerPhone:booking.customer?.phone||'',customerEmail:booking.customer?.email||'',serviceType:booking.serviceType||'core',serviceName:booking.service?.name||'',servicePrice:booking.totalPrice||booking.estimatedFee||0,bookingDate:booking.bookingDate,startTime:booking.startTime||'',endTime:booking.endTime||'',address:booking.location?.address||booking.bookingLocation?.address||'',status:'pending_acceptance',responseSLAMinutes:minutes,acceptanceDeadline:new Date(Date.now()+minutes*60000),notes:[{text:'Assigned from admin-reviewed recommendation plan',by:actor?._id,byName:actor?.name||actor?.email||'Admin'}]});
-  booking.status='assigned'; booking.technicianId=tech._id; booking.technician={_id:tech._id,name:tech.name,phone:tech.phone,email:tech.email}; booking.assignmentId=assignment._id; booking.assignedAt=new Date(); booking.assignedBy=actor?._id;
+  booking.status='assigned';
+  booking.technicianId=tech._id;
+  booking.technician={_id:tech._id,name:tech.name,phone:tech.phone,email:tech.email};
+  booking.assignmentId=assignment._id;
+  booking.assignedAt=new Date();
+  booking.assignedBy=actor?._id;
+  booking.autoReschedulePending=false;
+  booking.autoRescheduleAt=undefined;
+  booking.autoRescheduleReason=undefined;
   await booking.save();
   return {booking,assignment,technician:tech,candidate};
 }

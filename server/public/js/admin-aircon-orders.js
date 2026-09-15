@@ -18,17 +18,38 @@ document.addEventListener("DOMContentLoaded", function () {
   // ═══ HELPERS ═════════════════════════════════════════════════════════════════
   const esc = v => String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
   const currency = v => "\u20B1" + Number(v||0).toLocaleString();
-  const fmtDate = d => d ? new Date(d).toLocaleDateString("en-PH",{year:"numeric",month:"short",day:"numeric"}) : "-";
-  const fmtDateShort = d => d ? new Date(d).toLocaleDateString("en-PH",{month:"short",day:"numeric"}) : "-";
-  const toLocalDateStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const MANILA_TIME_ZONE = "Asia/Manila";
+  const fmtDate = d => d ? new Date(d).toLocaleDateString("en-PH",{timeZone:MANILA_TIME_ZONE,year:"numeric",month:"short",day:"numeric"}) : "-";
+  const fmtDateShort = d => d ? new Date(d).toLocaleDateString("en-PH",{timeZone:MANILA_TIME_ZONE,month:"short",day:"numeric"}) : "-";
+  const toLocalDateStr = value => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("en-CA",{timeZone:MANILA_TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date);
+    const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${fields.year}-${fields.month}-${fields.day}`;
+  };
+  const fmtSingleTime = value => {
+    const raw = String(value || "").trim();
+    const match = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!match) return raw;
+    let hour = Number(match[1]);
+    const minute = Number(match[2] || 0);
+    const meridiem = match[3] && match[3].toUpperCase();
+    if (minute > 59 || hour > (meridiem ? 12 : 23) || (meridiem && hour < 1)) return raw;
+    if (meridiem) {
+      hour %= 12;
+      if (meridiem === "PM") hour += 12;
+    }
+    return `${hour % 12 || 12}:${String(minute).padStart(2,"0")} ${hour >= 12 ? "PM" : "AM"}`;
+  };
   const fmtTime = t => {
     if (!t) return "—";
-    const parts = t.match(/(\d+)(?::(\d+))?\s*(AM|PM)/i);
-    if (parts) return t;
-    const h = parseInt(t);
-    if (isNaN(h)) return t;
-    return h >= 12 ? (h === 12 ? "12:00 PM" : (h - 12) + ":00 PM") : (h === 0 ? "12:00 AM" : h + ":00 AM");
+    const values = String(t).trim().split(/\s*(?:-|–|—)\s*/);
+    return values.length > 1 ? values.map(fmtSingleTime).join(" – ") : fmtSingleTime(values[0]);
   };
+  const fmtManilaDateTime = value => value
+    ? new Date(value).toLocaleString("en-PH",{timeZone:MANILA_TIME_ZONE,month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit",hour12:true})+" PHT"
+    : "—";
   const orderRef = o => o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
   const orderStatusLabel = o => {
     if (o && o.status === "preparing_unit") {
@@ -296,11 +317,11 @@ document.addEventListener("DOMContentLoaded", function () {
           ${prepBadge}
         </div>
       </div>
-      ${o.isPastDate ? `<div class="ao-overdue-alert"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>Requested schedule passed.</strong> ${esc(o.attentionReason || 'Admin review is required before this order can continue.')}</span></div>` : ''}
+      ${o.isPastDate ? `<div class="ao-overdue-alert"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${esc(o.attentionTitle || 'Requested schedule passed')}.</strong> ${esc(o.attentionReason || 'Admin review is required before this order can continue.')}</span></div>` : ''}
       <div class="ao-detail-grid workflow-record-grid">
         <div class="ao-detail-item"><i class="bi bi-box-seam"></i> ${esc(items.substring(0,40))}${items.length>40?'...':''}</div>
         <div class="ao-detail-item"><i class="bi bi-calendar"></i> ${date}</div>
-        ${time !== "—" ? `<div class="ao-detail-item"><i class="bi bi-clock"></i> ${time}</div>` : ''}
+        ${time !== "—" ? `<div class="ao-detail-item"><i class="bi bi-clock"></i> ${time} <small class="text-muted">PHT</small></div>` : ''}
         <div class="ao-detail-item"><i class="bi bi-tag"></i> ${FULFILL_LABELS[o.fulfillmentType]||o.fulfillmentType}</div>
         <div class="ao-detail-item"><i class="bi bi-cash"></i> ${currency(o.total)}</div>
         <div class="ao-detail-item"><i class="bi bi-credit-card"></i> <span class="${pBadge}">${pStatus}</span></div>
@@ -349,10 +370,10 @@ document.addEventListener("DOMContentLoaded", function () {
     return !hasTech && !o.isPastDate && o.fulfillmentType !== "customer_pickup" &&
       ["preparing_unit","technician_declined"].includes(o.status) && paymentIsVerified(o);
   }
-  function assignmentTimestamp(o) {
-    const history = Array.isArray(o.statusHistory) ? o.statusHistory : [];
-    const entry = history.slice().reverse().find(item => item.status === "technician_assigned");
-    return entry && entry.timestamp ? new Date(entry.timestamp) : null;
+  function isAssignmentQueueOrder(o) {
+    const hasTech = o.technicianId || (o.technician && o.technician.name);
+    return !hasTech && o.fulfillmentType !== "customer_pickup" &&
+      ["preparing_unit","technician_declined"].includes(o.status) && paymentIsVerified(o);
   }
   function markReadyBtn(id) {
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoMarkReadyForPickup('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Mark Ready</button>`;
@@ -422,15 +443,15 @@ document.addEventListener("DOMContentLoaded", function () {
     if (canAssign(o)) actions += assignBtn(o);
     if (o.isPastDate) actions += resolutionBtn(o);
     if (!o.isPastDate && isPickup && o.status === "preparing_unit") actions += markReadyBtn(o._id);
-    if (!o.isPastDate && isPickup && o.status === "ready_for_pickup") actions += confirmPickupBtn(o._id);
+    if (isPickup && o.status === "ready_for_pickup") actions += confirmPickupBtn(o._id);
     return `<tr>
       <td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="window._aoViewOrder('${esc(o._id)}')">${esc(orderRef(o))}</button><div class="small text-muted mt-1">${fmtDateShort(o.createdAt)}</div>${o.salesChannel === "walk_in" ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle mt-1"><i class="bi bi-shop me-1"></i>Walk-in POS</span>' : ''}</td>
       <td><strong>${esc(o.customer?.name || "Customer")}</strong><div class="small text-muted">${esc(o.customer?.phone || o.customer?.email || "")}</div></td>
       <td><div style="max-width:210px;white-space:normal;">${products}</div></td>
       <td><strong>${esc(FULFILL_LABELS[o.fulfillmentType] || niceStatus(o.fulfillmentType))}</strong><div class="small mt-1">${overviewPreparation(o)}</div></td>
-      <td><span class="text-nowrap">${fmtDate(scheduledDate)}</span><div class="small text-muted">${fmtTime(o.timeSlot)}</div></td>
+      <td><span class="text-nowrap">${fmtDate(scheduledDate)}</span><div class="small text-muted">${fmtTime(o.timeSlot)}${o.timeSlot ? ' PHT' : ''}</div></td>
       <td class="fw-bold text-nowrap">${currency(o.total)}</td>
-      <td>${o.isPastDate ? '<span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span><div class="small text-danger fw-semibold mt-1">Past schedule</div>' : `<span class="ao-st-badge ao-st-${esc(o.status)}">${esc(orderStatusLabel(o))}</span>`}</td>
+      <td>${o.isPastDate ? `<span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span><div class="small text-danger fw-semibold mt-1">${esc(o.attentionTitle || "Past schedule")}</div>` : `<span class="ao-st-badge ao-st-${esc(o.status)}">${esc(orderStatusLabel(o))}</span>`}</td>
       <td>${technician === "Unassigned" ? '<span class="text-muted">Unassigned</span>' : `<strong>${esc(technician)}</strong>`}</td>
       <td><div class="d-flex flex-nowrap justify-content-center align-items-center gap-1">${actions}</div></td>
     </tr>`;
@@ -548,8 +569,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ═══ READY TO ASSIGN TAB ═════════════════════════════════════════════════════
   function assignQueueMatchesFilter(o) {
-    if (assignQueueFilter === "awaiting") return o.status === "preparing_unit";
-    if (assignQueueFilter === "reassignment") return o.status === "technician_declined";
+    if (assignQueueFilter === "expired") return o.isPastDate === true;
+    if (assignQueueFilter === "awaiting") return !o.isPastDate && o.status === "preparing_unit";
+    if (assignQueueFilter === "reassignment") return !o.isPastDate && o.status === "technician_declined";
     if (assignQueueFilter === "installation") return o.fulfillmentType === "delivery_installation";
     if (assignQueueFilter === "delivery") return o.fulfillmentType === "delivery_only";
     return true;
@@ -573,7 +595,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const dispatchReady = dispatchStatus === "ready";
     const kitReady = ["confirmed", "completed"].includes(kitStatus);
     const kitBlocked = kitStatus === "blocked";
-    const statusBadge = isReassignment
+    const statusBadge = o.isPastDate
+      ? `<span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>${esc(o.attentionTitle || "Schedule Needs Resolution")}</span>`
+      : isReassignment
       ? '<span class="badge bg-danger"><i class="bi bi-arrow-repeat me-1"></i>Needs Reassignment</span>'
       : '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Awaiting Assignment</span>';
     const dispatchIcon = dispatchReady ? "ready" : "pending";
@@ -608,7 +632,9 @@ document.addEventListener("DOMContentLoaded", function () {
         <div class="ao-assign-detail"><i class="bi bi-boxes"></i>${unitCount} unit${unitCount === 1 ? "" : "s"}</div>
         <div class="ao-assign-detail"><i class="bi bi-credit-card"></i>${esc(String(o.paymentStatus || "pending").replace(/_/g, " "))}</div>
       </div>
-      ${isReassignment ? '<div class="ao-assign-alert"><i class="bi bi-arrow-repeat"></i><span><strong>Previous assignment was declined.</strong> Select another eligible technician; the order schedule remains unchanged.</span></div>' : ''}
+      ${o.isPastDate
+        ? `<div class="ao-assign-alert"><i class="bi bi-clock-history"></i><span><strong>${esc(o.attentionTitle || "Schedule expired")}.</strong> ${esc(o.attentionReason || "Set a new customer schedule before assigning a technician.")}</span></div>`
+        : isReassignment ? '<div class="ao-assign-alert"><i class="bi bi-arrow-repeat"></i><span><strong>Previous assignment was declined.</strong> Select another eligible technician; the order schedule remains unchanged.</span></div>' : ''}
       <div class="ao-assign-readiness">
         <div class="ao-assign-ready-item">
           <div class="ao-assign-ready-icon ${dispatchIcon}"><i class="bi ${dispatchReady ? 'bi-check2-circle' : 'bi-box-seam'}"></i></div>
@@ -619,13 +645,10 @@ document.addEventListener("DOMContentLoaded", function () {
           <div><div class="ao-assign-ready-title">${kitTitle}</div><div class="ao-assign-ready-sub">${kitCopy}</div></div>
         </div>
       </div>
-      <div id="aoAssignRec-${esc(o._id)}" class="border rounded-3 p-3 mt-3" style="background:#f8fafc;">
-        <div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div>
-      </div>
+      ${o.isPastDate ? '' : `<div id="aoAssignRec-${esc(o._id)}" class="border rounded-3 p-3 mt-3" style="background:#f8fafc;"><div class="d-flex align-items-center gap-2 text-muted small"><span class="spinner-border spinner-border-sm"></span>Analyzing the best technician...</div></div>`}
       <div class="ao-assign-actions">
         <button class="btn btn-sm btn-outline-secondary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
-        ${unitPreparedBtn(o)}
-        ${assignBtn(o)}
+        ${o.isPastDate ? resolutionBtn(o) : unitPreparedBtn(o)+assignBtn(o)}
       </div>
     </div>`;
   }
@@ -680,12 +703,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function assignmentPlanDate(row) {
     if (!row || !row.scheduledDate) return "";
-    const date = new Date(row.scheduledDate);
-    if (Number.isNaN(date.getTime())) return "";
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    return toLocalDateStr(row.scheduledDate);
   }
 
   async function submitReviewedOrderAssignment(row, technicianId) {
@@ -742,11 +760,11 @@ document.addEventListener("DOMContentLoaded", function () {
       <thead><tr><th>Order</th><th>Schedule</th><th>Recommended Assignment</th><th>Why</th></tr></thead>
       <tbody>${assignQueuePlan.map((row, index) => {
         if (!row.candidates || !row.candidates.length) {
-          return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(row.timeSlot || '—')}</small></td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>`;
+          return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(fmtTime(row.timeSlot))} PHT</small></td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>`;
         }
         const options = row.candidates.map((candidate, candidateIndex) => `<option value="${esc(candidate.technicianId)}" ${candidateIndex === 0 ? 'selected' : ''}>${esc(candidate.name)}${candidateIndex === 0 ? ' ★' : ''} — score ${esc(candidate.score)}</option>`).join("");
         const reasons = (row.recommended.reasons || []).slice(0, 3).map(reason => `<div><i class="bi bi-check2 text-success"></i> ${esc(reason)}</div>`).join("");
-        return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)} · ${esc(FULFILL_LABELS[row.fulfillmentType] || row.fulfillmentType)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(row.timeSlot || '—')}</small></td><td><select class="form-select form-select-sm ao-bulk-tech-select" data-index="${index}">${options}</select></td><td class="small text-muted">${reasons}</td></tr>`;
+        return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)} · ${esc(FULFILL_LABELS[row.fulfillmentType] || row.fulfillmentType)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(fmtTime(row.timeSlot))} PHT</small></td><td><select class="form-select form-select-sm ao-bulk-tech-select" data-index="${index}">${options}</select></td><td class="small text-muted">${reasons}</td></tr>`;
       }).join("")}</tbody></table></div>`;
     body.querySelectorAll('.ao-bulk-tech-select').forEach(select => select.addEventListener('change', renderOrderBulkSummary));
     document.getElementById('aoConfirmBulkPlan').disabled = !body.querySelector('.ao-bulk-tech-select');
@@ -838,16 +856,17 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading assignable orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,technician_declined", limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      assignQueueOrders = (data.orders || []).filter(canAssign);
+      assignQueueOrders = (data.orders || []).filter(isAssignmentQueueOrder);
       assignQueueRecommendations = {};
       assignQueuePlanLoaded = false;
-      const awaiting = assignQueueOrders.filter(o => o.status === "preparing_unit").length;
-      const reassignment = assignQueueOrders.filter(o => o.status === "technician_declined").length;
+      const awaiting = assignQueueOrders.filter(o => !o.isPastDate && o.status === "preparing_unit").length;
+      const reassignment = assignQueueOrders.filter(o => !o.isPastDate && o.status === "technician_declined").length;
       const installation = assignQueueOrders.filter(o => o.fulfillmentType === "delivery_installation").length;
       const delivery = assignQueueOrders.filter(o => o.fulfillmentType === "delivery_only").length;
+      const expired = assignQueueOrders.filter(o => o.isPastDate).length;
 
       setText("aoTabAssignBadge", assignQueueOrders.length);
       setText("aoAssignPillAll", assignQueueOrders.length);
@@ -855,9 +874,11 @@ document.addEventListener("DOMContentLoaded", function () {
       setText("aoAssignPillReassign", reassignment);
       setText("aoAssignPillInstall", installation);
       setText("aoAssignPillDelivery", delivery);
+      setText("aoAssignPillExpired", expired);
       renderStats("aoAssignStats", [
         { icon: "bi-hourglass-split", color: "amber", value: awaiting, label: "Awaiting Assignment", sub: "New technician selections" },
         { icon: "bi-arrow-repeat", color: "red", value: reassignment, label: "Need Reassignment", sub: "Previous technician declined" },
+        { icon: "bi-exclamation-diamond", color: "red", value: expired, label: "Schedule Recovery", sub: "Future schedule required" },
         { icon: "bi-tools", color: "purple", value: installation, label: "Delivery + Install", sub: "Daily kit after acceptance" },
         { icon: "bi-truck", color: "cyan", value: delivery, label: "Delivery Only", sub: "Installation kit not required" },
       ]);
@@ -875,19 +896,18 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading pickup orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ limit: 100, fulfillmentType: "customer_pickup" }));
+      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,ready_for_pickup", limit: 100, fulfillmentType: "customer_pickup" }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []);
       const pendingPickup = orders.filter(o => o.status === "ready_for_pickup");
       const preparing = orders.filter(o => o.status === "preparing_unit");
-      const completedPickup = orders.filter(o => o.status === "completed");
 
       setText("aoTabPickupBadge", pendingPickup.length);
       renderStats("aoPickupStats", [
         { icon: "bi-bag-check", color: "green", value: pendingPickup.length, label: "Ready for Pickup", sub: "Awaiting customer" },
         { icon: "bi-gear", color: "blue", value: preparing.length, label: "Preparing", sub: "Being prepared" },
-        { icon: "bi-check-circle", color: "purple", value: completedPickup.length, label: "Picked Up", sub: "Completed pickups" },
+        { icon: "bi-exclamation-diamond", color: "red", value: orders.filter(o => o.isPastDate).length, label: "Schedule Recovery", sub: "Past pickup dates" },
       ]);
 
       const allRelevant = [...preparing, ...pendingPickup];
@@ -901,7 +921,9 @@ document.addEventListener("DOMContentLoaded", function () {
         if (o.isPastDate) actions += resolutionBtn(o);
         if (!o.isPastDate && o.status === "preparing_unit") {
           actions += markReadyBtn(o._id);
-        } else if (!o.isPastDate && o.status === "ready_for_pickup") {
+        } else if (o.status === "ready_for_pickup") {
+          // A late physical handover is still a real completion. Recording it
+          // closes the generated overdue case without inventing a new date.
           actions += confirmPickupBtn(o._id);
         }
         return orderCard(o, actions);
@@ -917,20 +939,16 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "technician_assigned", limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      const orders = (data.orders || []).filter(o => o.status === "technician_assigned");
+      const orders = data.orders || [];
 
       setText("aoTabWaitingBadge", orders.length);
       renderStats("aoWaitingStats", [
         { icon: "bi-person-badge", color: "purple", value: orders.length, label: "Waiting for Acceptance", sub: "Tech pending" },
-        { icon: "bi-clock-history", color: "amber", value: orders.filter(o => {
-          const assignedAt = assignmentTimestamp(o);
-          if (!assignedAt) return false;
-          const hours = (Date.now() - assignedAt.getTime()) / 3600000;
-          return hours > 2;
-        }).length, label: "Overdue (>2 hrs)" },
+        { icon: "bi-clock-history", color: "amber", value: orders.filter(o => o.isAcceptanceOverdue && !o.isPastDate).length, label: "Response SLA Expired", sub: "Safe to requeue" },
+        { icon: "bi-exclamation-diamond", color: "red", value: orders.filter(o => o.isPastDate).length, label: "Schedule Recovery", sub: "New customer schedule required" },
       ]);
 
       if (!orders.length) {
@@ -939,15 +957,14 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       container.innerHTML = orders.map(o => {
-        const assignmentDate = assignmentTimestamp(o);
-        const assignedAt = assignmentDate ? assignmentDate.toLocaleString() : '—';
-        const isAcceptanceOverdue = assignmentDate && (Date.now() - assignmentDate.getTime()) > 2 * 3600000;
+        const assignedAt = fmtManilaDateTime(o.assignedAt);
+        const isAcceptanceOverdue = o.isAcceptanceOverdue === true && !o.isPastDate;
         const techName = o.technician?.name || 'Unknown';
         return orderCard(o, `
           <button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
-          ${unitPreparedBtn(o)}
+          ${o.isPastDate ? resolutionBtn(o) : unitPreparedBtn(o)}
           ${isAcceptanceOverdue ? `<button class="btn btn-sm btn-warning ao-action-btn" onclick="window._aoRequeueAssignment('${esc(o._id)}','${esc(orderRef(o))}')"><i class="bi bi-arrow-repeat me-1"></i>Requeue</button>` : ''}
-          <span class="small text-muted ms-2">Assigned to ${esc(techName)} at ${assignedAt}</span>
+          <span class="small text-muted ms-2">Assigned to ${esc(techName)} at ${esc(assignedAt)}</span>
         `);
       }).join("");
     } catch(err) {
@@ -962,10 +979,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     try {
       const activeStatuses = ["technician_accepted","out_for_delivery","arrived","installing"];
-      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: activeStatuses.join(","), limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      const orders = (data.orders || []).filter(o => activeStatuses.includes(o.status));
+      const orders = data.orders || [];
 
       setText("aoTabActiveBadge", orders.length);
       renderStats("aoActiveStats", [
@@ -973,6 +990,7 @@ document.addEventListener("DOMContentLoaded", function () {
         { icon: "bi-truck", color: "amber", value: orders.filter(o=>o.status==="out_for_delivery").length, label: "En Route", sub: "Heading to customer" },
         { icon: "bi-geo-alt", color: "cyan", value: orders.filter(o=>o.status==="arrived").length, label: "Arrived", sub: "On site" },
         { icon: "bi-tools", color: "rose", value: orders.filter(o=>o.status==="installing").length, label: "Installing" },
+        { icon: "bi-exclamation-diamond", color: "red", value: orders.filter(o=>o.isPastDate).length, label: "Schedule Recovery", sub: "Accepted but not dispatched" },
       ]);
 
       if (!orders.length) {
@@ -980,7 +998,7 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
       }
 
-      container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id) + (o.status === "technician_accepted" ? unitPreparedBtn(o) : ""))).join("");
+      container.innerHTML = orders.map(o => orderCard(o, viewBtn(o._id) + (o.isPastDate ? resolutionBtn(o) : (o.status === "technician_accepted" ? unitPreparedBtn(o) : "")))).join("");
     } catch(err) {
       container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
     }
@@ -992,10 +1010,10 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading completed orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "completed,cancelled", limit: 100 }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
-      const orders = (data.orders || []).filter(o => o.status === "completed" || o.status === "cancelled");
+      const orders = data.orders || [];
       const completed = orders.filter(o => o.status === "completed");
       const revenue = completed.reduce((s,o) => s + (o.total || 0), 0);
 
@@ -1034,7 +1052,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!o) { modalBody.innerHTML = '<p class="text-center text-danger">Order not found</p>'; return; }
 
       const refText = o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
-      modalSubtitle.textContent = o.isPastDate ? `${refText} · Past schedule · Needs resolution` : refText;
+      modalSubtitle.textContent = o.isPastDate ? `${refText} · ${o.attentionTitle || 'Past schedule'} · Needs resolution` : refText;
 
       const pStatus = (o.paymentStatus||"pending").toLowerCase();
       const pBadgeClass = pStatus==="paid"?"bg-success":pStatus==="failed"?"bg-danger":"bg-warning text-dark";
@@ -1050,7 +1068,7 @@ document.addEventListener("DOMContentLoaded", function () {
             : `<span class="ao-st-badge ao-st-${o.status}">${esc(orderStatusLabel(o))}</span>`}
           <span class="ao-st-fulfillment">${esc(FULFILL_LABELS[o.fulfillmentType]||o.fulfillmentType)}</span>
         </div>
-        ${o.isPastDate ? `<div class="ao-overdue-alert" style="margin:0 0 14px;"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>Requested schedule passed.</strong> Normal payment, preparation, pickup, and assignment actions are paused. Review the case and record the approved outcome in the Resolution Center.</span></div>` : ''}
+        ${o.isPastDate ? `<div class="ao-overdue-alert" style="margin:0 0 14px;"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${esc(o.attentionTitle || 'Requested schedule passed')}.</strong> ${esc(o.attentionReason || 'Review the case and confirm a future schedule in the Resolution Center.')}</span></div>` : ''}
 
         <div class="pm-grid">
           <div class="pm-card">
@@ -1083,7 +1101,7 @@ document.addEventListener("DOMContentLoaded", function () {
               <div class="pm-row"><span class="pm-lbl">Sales Channel</span><span class="pm-val">${o.salesChannel === 'walk_in' ? '<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><i class="bi bi-shop me-1"></i>Walk-in POS</span>' : esc(niceStatus(o.salesChannel || 'online'))}</span></div>
               ${o.pickupDate?`<div class="pm-row"><span class="pm-lbl">Pickup Date</span><span class="pm-val">${fmtDate(o.pickupDate)}</span></div>`:''}
               ${o.delivery&&o.delivery.preferredDate?`<div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${fmtDate(o.delivery.preferredDate)}</span></div>`:''}
-              ${o.timeSlot?`<div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${fmtTime(o.timeSlot)}</span></div>`:''}
+              ${o.timeSlot?`<div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${fmtTime(o.timeSlot)} <small class="text-muted">PHT</small></span></div>`:''}
               ${o.delivery&&o.delivery.notes?`<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;">${esc(o.delivery.notes)}</span></div>`:''}
             </div>
           </div>
@@ -1159,7 +1177,7 @@ document.addEventListener("DOMContentLoaded", function () {
           html += `<div style="position:relative;padding-bottom:0.75rem;padding-left:1rem;">
             <div style="position:absolute;left:-1.5rem;top:2px;width:14px;height:14px;border-radius:50%;border:2px solid #e2e8f0;background:#fff;${dot}"></div>
             <div class="fw-semibold small">${esc(orderStatusLabel({ status: h.status, fulfillmentType: o.fulfillmentType }))}</div>
-            <div style="font-size:0.72rem;color:#94a3b8;">${new Date(h.timestamp).toLocaleString("en-PH")}</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">${fmtManilaDateTime(h.timestamp)}</div>
             ${h.note?'<div style="font-size:0.75rem;color:#64748b;">'+esc(h.note)+'</div>':''}
           </div>`;
         });
@@ -1179,7 +1197,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!o.isPastDate && isPickup && o.status === "preparing_unit") {
         footerBtns += `<button type="button" class="btn btn-sm btn-success fw-bold" onclick="window._aoMarkReadyForPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-check2-circle me-1"></i>Mark Ready for Pickup</button>`;
       }
-      if (!o.isPastDate && isPickup && o.status === "ready_for_pickup") {
+      if (isPickup && o.status === "ready_for_pickup") {
         footerBtns += `<button type="button" class="btn btn-sm btn-dark fw-bold" onclick="window._aoConfirmPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
       }
       if (canAssign(o)) {
@@ -1530,7 +1548,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (dateInput) {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
       dateInput.min = toLocalDateStr(tomorrow);
-      dateInput.value = prefDate ? prefDate.substring(0, 10) : "";
+      dateInput.value = prefDate ? toLocalDateStr(prefDate) : "";
     }
     if (timeSelect) timeSelect.value = prefTime || "";
     if (noteInput) noteInput.value = "";

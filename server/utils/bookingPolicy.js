@@ -368,19 +368,11 @@ function deriveCapacityEnd(booking, defaultServiceDuration) {
  */
 function computeBookingEndDateTime(booking) {
   if (!booking || !booking.bookingDate) return null;
-  const base = new Date(booking.bookingDate);
-  if (isNaN(base.getTime())) return null;
-
-  // Normalise to midnight of the booking day
-  const y = base.getFullYear();
-  const mo = base.getMonth();
-  const d = base.getDate();
-  const localBase = new Date(y, mo, d, 0, 0, 0, 0);
+  const { manilaDateTime } = require('./bookingDateTime');
 
   const endMin = parseTimeValue(booking.endTime);
   if (Number.isFinite(endMin)) {
-    localBase.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
-    return localBase;
+    return manilaDateTime(booking.bookingDate, endMin);
   }
 
   // Fallback: start + duration
@@ -389,8 +381,7 @@ function computeBookingEndDateTime(booking) {
   if (!Number.isFinite(startMin)) return null;
 
   const totalMin = startMin + duration;
-  localBase.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
-  return localBase;
+  return manilaDateTime(booking.bookingDate, totalMin);
 }
 
 /**

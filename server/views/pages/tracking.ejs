@@ -1646,12 +1646,41 @@
     }
   });
 
+  // An assignment exception is not a cancellation. Update My Schedule in
+  // place and clearly tell the customer that operations is arranging a new
+  // schedule while the booking and recorded payment remain active.
+  socket.on("booking:auto-reschedule-pending", (data) => {
+    const booking = bookings.find(b => String(b._id || b.id) === String(data.bookingId));
+    if (booking) {
+      booking.status = data.status || 'pending_reassignment';
+      booking.technicianId = null;
+      booking.technician = null;
+      renderScheduleList();
+      const selected = getSelectedBooking();
+      if (selected && String(selected._id || selected.id) === String(data.bookingId)) {
+        renderBookingDetails(selected);
+        refreshTechnicianLocation(selected);
+      }
+    }
+    showTechLateAlert({
+      ...data,
+      alertKind: 'schedule-review',
+      alertTitle: 'Service Schedule Update',
+    });
+  });
+
   // Listen for technician late notifications
   socket.on("booking:technician-late", (data) => {
     showTechLateAlert(data);
   });
 
   function showTechLateAlert(data) {
+    const scheduleReview = data.alertKind === 'schedule-review';
+    const alertTitle = data.alertTitle || 'Technician Running Late';
+    const alertBackground = scheduleReview
+      ? 'linear-gradient(135deg,#b45309,#d97706)'
+      : 'linear-gradient(135deg,#f59e0b,#d97706)';
+    const alertIcon = scheduleReview ? 'bi-calendar2-week' : 'bi-clock-history';
     let container = document.getElementById('custLateAlertContainer');
     if (!container) {
       container = document.createElement('div');
@@ -1660,17 +1689,17 @@
       document.body.appendChild(container);
     }
     const el = document.createElement('div');
-    el.style.cssText = 'pointer-events:auto;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;padding:16px 20px;border-radius:16px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(245,158,11,0.35);animation:custLateSlideIn 0.4s ease;position:relative;overflow:hidden;';
+    el.style.cssText = 'pointer-events:auto;background:'+alertBackground+';color:#fff;padding:16px 20px;border-radius:16px;font-size:0.85rem;font-weight:600;box-shadow:0 8px 32px rgba(245,158,11,0.35);animation:custLateSlideIn 0.4s ease;position:relative;overflow:hidden;';
     el.innerHTML = `
       <div style="position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.1);"></div>
       <div style="display:flex;align-items:flex-start;gap:12px;position:relative;z-index:1;">
         <div style="width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <i class="bi bi-clock-history" style="font-size:1.1rem;"></i>
+          <i class="bi ${alertIcon}" style="font-size:1.1rem;"></i>
         </div>
         <div style="flex:1;">
-          <div style="font-weight:700;font-size:0.9rem;margin-bottom:2px;">Technician Running Late</div>
+          <div style="font-weight:700;font-size:0.9rem;margin-bottom:2px;">${alertTitle}</div>
           <div style="font-size:0.78rem;font-weight:400;opacity:0.9;line-height:1.4;">${data.message || 'Your technician is running a bit late. They are on their way.'}</div>
-          <div style="font-size:0.7rem;opacity:0.7;margin-top:6px;">${data.scheduledTime ? 'Scheduled: ' + data.scheduledTime : ''} • ${data.delayMinutes ? data.delayMinutes + ' min late' : ''}</div>
+          ${scheduleReview ? '' : `<div style="font-size:0.7rem;opacity:0.7;margin-top:6px;">${data.scheduledTime ? 'Scheduled: ' + data.scheduledTime : ''} • ${data.delayMinutes ? data.delayMinutes + ' min late' : ''}</div>`}
         </div>
         <button onclick="this.closest('#custLateAlertContainer > div').style.animation='custLateSlideOut 0.3s ease forwards';setTimeout(()=>this.closest('#custLateAlertContainer > div').remove(),300);" style="background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.8rem;">&times;</button>
       </div>`;
@@ -3060,7 +3089,7 @@
 
   // ── Leaflet Map ───────────────────────────────────────────────────────
   let mapDefaultLat = 14.676049, mapDefaultLng = 121.043731;
-  const map = L.map("customerTrackMap", { maxZoom: 19 }).setView([mapDefaultLat, mapDefaultLng], 12);
+  const map = L.map("customerTrackMap", { maxZoom: 22 }).setView([mapDefaultLat, mapDefaultLng], 12);
   window._trkMap = map;
   window.createEsriHybridLayer().addTo(map);
 

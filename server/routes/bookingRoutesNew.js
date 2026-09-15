@@ -15,6 +15,7 @@ const { getDownpaymentPercentage, getGcashRecipientNumber, calculatePaymentBreak
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
+const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -238,6 +239,23 @@ router.post('/create-new', async (req, res) => {
       }
     }
 
+    // Repair pricing is always resolved from the active server catalog. Client
+    // totals are display-only and must never determine the amount charged.
+    const repairPricing = await resolveRepairInspectionFees(parsedServices);
+    parsedServices = parsedServices.map((service, index) => {
+      const pricing = repairPricing[index];
+      if (!pricing) return service;
+      const itemQuantity = Number(service.quantity) || 1;
+      return {
+        ...service,
+        unitCategory: pricing.categorySlug || service.unitCategory || null,
+        unitType: pricing.unitType || service.unitType,
+        unitPrice: pricing.fee,
+        totalPrice: pricing.fee * itemQuantity,
+        initialCost: pricing.fee,
+      };
+    });
+
     // ── Compute capacity end point ──────────────────────────────────────
     // The customer's startTime is their requested service start time.
     // The endTime stored is the capacity end point (for overlap checks on
@@ -331,6 +349,7 @@ router.post('/create-new', async (req, res) => {
       airconTypeName: svc.airconTypeName || null,
       applianceType: svc.applianceType || null,
       applianceTypeName: svc.applianceTypeName || null,
+      unitCategory: svc.unitCategory || null,
       brand: svc.brand || null,
       duration: svc.duration != null ? Number(svc.duration) : null,
       isAirconService: Boolean(svc.isAirconService),
@@ -441,7 +460,9 @@ router.post('/create-new', async (req, res) => {
       // Pricing and travel
       totalPrice: authoritativeTotal,
       estimatedFee: authoritativeTotal,
-      totalInitialCost: parsedServices[0].initialCost || 0,
+      totalInitialCost: cleanServices
+        .filter(service => service.type === 'repair')
+        .reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0),
       travelFare: travelFare || 0,
       travelTime: travelDurationMinutes || 0,
       distanceKm: distanceKm || 0,
@@ -632,6 +653,10 @@ router.post('/create-new', async (req, res) => {
           totalLabel: `₱${booking.estimatedFee}`,
           paymentMethod: bookingPaymentMethod,
           estimatedFee: booking.estimatedFee,
+          downpaymentPercentage: booking.downpaymentPercentage,
+          downpaymentAmount: booking.downpaymentAmount,
+          balanceAmount: booking.balanceAmount,
+          paymentStatus: booking.paymentStatus,
           locationAddress: booking.location.address,
           issueDescription: null,
           travelMins: 0,
@@ -722,6 +747,9 @@ router.post('/create-new', async (req, res) => {
     console.error('Error stack:', error.stack);
     if (savedBooking?.status === 'cancelled' && savedBooking.cancellationReason === 'Maintenance cycle could not be reserved.') {
       return res.status(error.status || 409).json({ error: error.message });
+    }
+    if (!savedBooking && error.status) {
+      return res.status(error.status).json({ error: error.message });
     }
     // A committed booking is successful even if later notification/payment
     // follow-up fails. Returning 500 here would invite a duplicate retry.
@@ -1168,7 +1196,7 @@ router.post('/create-repair', (req, res, next) => {
     const {
       unitType, brand, model, problemDescription,
       address, lat, lng, distanceKm, travelFare,
-      diagnosticFee, paymentMethod,
+      paymentMethod,
       gcashNumber, cashNumber, downpaymentAmount,
       preferredDate, preferredTime,
       quantity, isProject, projectScheduling, serviceItems
@@ -1179,6 +1207,7 @@ router.post('/create-repair', (req, res, next) => {
     if (!Array.isArray(repairItems) || !repairItems.length) repairItems = [{ unitType, brand, model, problemDescription, quantity }];
     repairItems = repairItems.slice(0, 20).map(item => ({
       unitType: String(item.unitType || item.applianceTypeName || '').trim(),
+      unitCategory: String(item.unitCategory || item.repairCategory || '').trim(),
       brand: String(item.brand || '').trim(), model: String(item.model || '').trim(),
       problemDescription: String(item.problemDescription || item.repairIssue || '').trim(),
       quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(item.quantity) || 1)),
@@ -1189,11 +1218,6 @@ router.post('/create-repair', (req, res, next) => {
     // ── Step 1: Input Validation ──────────────────────────────────────────
     const errors = [];
     if (totalRepairUnits > schedulingEngine.MAX_BOOKING_UNITS) errors.push(`A repair booking can contain at most ${schedulingEngine.MAX_BOOKING_UNITS} units.`);
-    if (!unitType || unitType.trim().length < 2) errors.push('Unit type is required');
-    if (!brand || brand.trim().length < 2) errors.push('Brand is required');
-    if (!problemDescription || problemDescription.trim().length < 10) {
-      errors.push('Problem description must be at least 10 characters');
-    }
     if (!address || address.trim().length < 5) errors.push('Valid address is required');
     const latNum = parseFloat(lat);
     const lngNum = parseFloat(lng);
@@ -1220,6 +1244,10 @@ router.post('/create-repair', (req, res, next) => {
         errors
       });
     }
+
+    const repairPricing = await resolveRepairInspectionFees(
+      repairItems.map(item => ({ ...item, type: 'repair' })),
+    );
 
     const now = new Date();
 
@@ -1305,9 +1333,11 @@ router.post('/create-repair', (req, res, next) => {
     const gcashProofUrl = req.files?.gcashProof?.[0] ? '/uploads/repairs/' + req.files.gcashProof[0].filename : '';
     const cashProofUrl = req.files?.cashProof?.[0] ? '/uploads/repairs/' + req.files.cashProof[0].filename : '';
 
-    const diagFee = diagnosticFee ? parseFloat(diagnosticFee) : 500;
-    const totalDiagnosticFee = diagFee * totalRepairUnits;
-    const tFare = travelFare ? parseFloat(travelFare) : 0;
+    const totalDiagnosticFee = repairItems.reduce(
+      (sum, item, index) => sum + (repairPricing[index].fee * item.quantity),
+      0,
+    );
+    const tFare = Math.max(0, Number(travelFare) || 0);
     const repairDownpaymentPercentage = await getDownpaymentPercentage();
     const repairPaymentBreakdown = calculatePaymentBreakdown(totalDiagnosticFee + tFare, repairDownpaymentPercentage);
 
@@ -1329,14 +1359,15 @@ router.post('/create-repair', (req, res, next) => {
       // Store even a single repair as a service item so it can later coexist
       // with core services or additional repair appliances.
       isMultiService: repairItems.length > 1,
-      services: repairItems.map(item => ({
+      services: repairItems.map((item, index) => ({
         name: `${item.unitType} Repair`,
         type: 'repair',
         quantity: item.quantity,
-        unitPrice: diagFee,
-        totalPrice: diagFee * item.quantity,
-        initialCost: diagFee,
+        unitPrice: repairPricing[index].fee,
+        totalPrice: repairPricing[index].fee * item.quantity,
+        initialCost: repairPricing[index].fee,
         duration: inspectionDuration,
+        unitCategory: repairPricing[index].categorySlug || item.unitCategory || null,
         applianceType: item.unitType.toLowerCase().replace(/\s+/g, '_'),
         applianceTypeName: item.unitType,
         brand: item.brand,
@@ -1535,11 +1566,23 @@ router.post('/create-repair', (req, res, next) => {
       workOrderNumber: booking.workOrderNumber,
       bookingId: booking._id,
       status: booking.status,
+      createdAt: booking.createdAt,
+      inspectionFeeTotal: totalDiagnosticFee,
+      travelFare: tFare,
+      totalFee: totalDiagnosticFee + tFare,
+      inspectionFees: repairItems.map((item, index) => ({
+        unitType: item.unitType,
+        quantity: item.quantity,
+        fee: repairPricing[index].fee,
+      })),
       message: 'Repair request submitted successfully.',
     });
   } catch (err) {
     console.error('❌ Repair request creation failed:', err.message);
-    res.status(500).json({ success: false, message: 'Failed to create repair request: ' + err.message });
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.status ? err.message : 'Failed to create repair request. Please try again.',
+    });
   }
 });
 

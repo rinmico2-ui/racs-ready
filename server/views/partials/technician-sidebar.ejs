@@ -1,3 +1,4 @@
+<% const sidebarTechnician = (typeof technician !== 'undefined' && technician) ? technician : {}; %>
 <div class="sidebar" id="sidebar">
   <!-- Sidebar Header -->
   <div class="sidebar-header premium-card">
@@ -9,12 +10,12 @@
         <i class="bi bi-tools me-1"></i>Service Team
       </span>
       <span class="admin-name">
-        <%= technician.name || 'Technician' %>
+        <%= sidebarTechnician.name || 'Technician' %>
       </span>
       <span class="admin-role">
         <span
-          class="status-dot <%= (technician.availabilityStatus === 'Available' || technician.availabilityStatus === 'On The Way' || technician.availabilityStatus === 'In Progress') ? 'online' : 'offline' %>"></span>
-        <%= technician.availabilityStatus || 'Offline' %>
+          class="status-dot <%= (sidebarTechnician.availabilityStatus === 'Available' || sidebarTechnician.availabilityStatus === 'On The Way' || sidebarTechnician.availabilityStatus === 'In Progress') ? 'online' : 'offline' %>"></span>
+        <%= sidebarTechnician.availabilityStatus || 'Offline' %>
       </span>
     </div>
   </div>
@@ -48,6 +49,13 @@
         <span class="nav-label">Orders</span>
         <span class="nav-badge" id="ordersBadge" style="display:none;">0</span>
         <span class="nav-tooltip">Orders</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a href="/technician/calendar" class="nav-link" data-permission="assignments.self.view">
+        <i class="bi bi-calendar4-week nav-icon"></i>
+        <span class="nav-label">My Calendar</span>
+        <span class="nav-tooltip">Bookings and orders</span>
       </a>
     </li>
     <li class="nav-item">

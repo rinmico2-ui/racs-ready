@@ -64,11 +64,11 @@
 
           <!-- Check Out Button (shown after check-in) -->
           <div class="att-checkout-wrap" id="checkoutWrap" style="display:none;">
-            <button class="att-checkout-btn" id="checkoutBtn" onclick="handleCheckOut()">
+            <button type="button" class="att-checkout-btn" id="checkoutBtn" onclick="handleCheckOut()">
               <i class="bi bi-box-arrow-right"></i>
               <span>Check Out</span>
             </button>
-            <p class="att-checkout-hint">Your availability will be set to Offline</p>
+            <p class="att-checkout-hint">Fresh location proof is captured; your availability will be set to Offline</p>
           </div>
         </div>
 
@@ -103,22 +103,22 @@
             </div>
             <!-- Scanner -->
             <div id="scannerSection">
-              <p class="text-muted small mb-3">Scan the admin's daily QR code to check in for today.</p>
+              <p class="text-muted small mb-3">Use your registered device near the company location, then scan the rotating admin QR.</p>
               <div id="scannerPlaceholder" class="att-scanner-box">
                 <i class="bi bi-camera-video"></i>
                 <p>Camera preview</p>
               </div>
               <div id="reader" style="display:none;border-radius:12px;overflow:hidden;"></div>
               <div class="mt-3 att-scanner-controls">
-                <button id="btnStartScanner" class="att-sm-btn green" onclick="startScanner()">
+                <button type="button" id="btnStartScanner" class="att-sm-btn green" onclick="startScanner()">
                   <i class="bi bi-qr-code-scan"></i> Scan QR
                 </button>
-                <button id="btnStopScanner" class="att-sm-btn red" onclick="stopScanner()" style="display:none;">
+                <button type="button" id="btnStopScanner" class="att-sm-btn red" onclick="stopScanner()" style="display:none;">
                   <i class="bi bi-stop-circle"></i> Stop
                 </button>
               </div>
               <div class="mt-3">
-                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Check-in time determines if you're Present or Late</small>
+                <small class="text-muted"><i class="bi bi-shield-check me-1"></i>QR, registered device, and precise location are verified</small>
               </div>
             </div>
           </div>
@@ -708,6 +708,61 @@
   let html5Qrcode = null;
   let timerInterval = null;
   let checkInTime = null;
+  let pendingAttendanceLocation = null;
+  let scanSubmissionInFlight = false;
+
+  function requestAttendanceLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('This browser does not support location. Use your registered mobile device.'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        position => resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracyMeters: position.coords.accuracy,
+          capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
+        }),
+        error => {
+          const messages = {
+            1: 'Precise location permission is required for attendance. Enable it in your browser settings and try again.',
+            2: 'Your location could not be determined. Turn on GPS, move near a window, and try again.',
+            3: 'Location verification timed out. Turn on GPS and try again.',
+          };
+          reject(new Error(messages[error.code] || 'Unable to verify your location.'));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      );
+    });
+  }
+
+  async function showAttendanceFailure(data, fallback) {
+    if (data && data.code === 'TRUSTED_DEVICE_REQUIRED') {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Registered Device Required',
+        text: data.error || 'Sign in again on this device and select Trust this device.',
+        confirmButtonColor: '#2563eb',
+      });
+      return;
+    }
+    const locationCodes = ['LOCATION_REQUIRED', 'LOCATION_INACCURATE', 'LOCATION_STALE', 'OUTSIDE_GEOFENCE', 'OUTSIDE_WORKSITE_GEOFENCE', 'GEOFENCE_NOT_CONFIGURED'];
+    if (data && locationCodes.includes(data.code)) {
+      await Swal.fire({
+        icon: data.code === 'GEOFENCE_NOT_CONFIGURED' ? 'error' : 'warning',
+        title: data.code === 'OUTSIDE_GEOFENCE'
+          ? 'Outside Check-In Area'
+          : data.code === 'OUTSIDE_WORKSITE_GEOFENCE'
+            ? 'Outside Approved Check-Out Area'
+            : 'Location Verification Failed',
+        text: data.error || fallback,
+        confirmButtonColor: '#2563eb',
+      });
+      return;
+    }
+    showToast((data && data.error) || fallback, 'danger');
+  }
 
   // ── Init ──────────────────────────────────────────────────────────────
   document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
@@ -873,13 +928,15 @@
 
     const btn = document.getElementById('checkoutBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking Out...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verifying Location...';
 
     try {
+      const attendanceLocation = await requestAttendanceLocation();
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking Out...';
       const res = await fetch('/api/technician/attendance/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ location: attendanceLocation })
       });
       const data = await res.json();
 
@@ -917,17 +974,19 @@
         if (choice.isConfirmed) window.location.href = '/technician/expenses?new=1';
         if (choice.isDenied) {
           btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verifying Location...';
+          const confirmedLocation = await requestAttendanceLocation();
           btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Checking Out...';
-          const confirmedRes = await fetch('/api/technician/attendance/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ noExpensesToday:true }) });
+          const confirmedRes = await fetch('/api/technician/attendance/checkout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ noExpensesToday:true, location: confirmedLocation }) });
           const confirmedData = await confirmedRes.json();
-          if (!confirmedRes.ok) { showToast(confirmedData.error || 'Check-out failed', 'danger'); btn.disabled=false; btn.innerHTML='<i class="bi bi-box-arrow-right"></i> Check Out'; return; }
+          if (!confirmedRes.ok) { await showAttendanceFailure(confirmedData, 'Check-out failed'); btn.disabled=false; btn.innerHTML='<i class="bi bi-box-arrow-right"></i> Check Out'; return; }
           showToast('No expenses recorded. Checked out successfully!', 'success'); stopTimer(); checkInTime=null; loadStatus();
         }
         return;
       }
 
       if (!res.ok) {
-        showToast(data.error || 'Check-out failed', 'danger');
+        await showAttendanceFailure(data, 'Check-out failed');
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
         return;
@@ -939,14 +998,28 @@
       checkInTime = null;
       loadStatus();
     } catch(e) {
-      showToast('Network error', 'danger');
+      showToast(e.message || 'Network error', 'danger');
       btn.disabled = false;
       btn.innerHTML = '<i class="bi bi-box-arrow-right"></i> Check Out';
     }
   };
 
   // ── QR Scanner ────────────────────────────────────────────────────────
-  window.startScanner = function() {
+  window.startScanner = async function() {
+    const startButton = document.getElementById('btnStartScanner');
+    startButton.disabled = true;
+    startButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verifying Location...';
+    try {
+      pendingAttendanceLocation = await requestAttendanceLocation();
+    } catch (error) {
+      pendingAttendanceLocation = null;
+      startButton.disabled = false;
+      startButton.innerHTML = '<i class="bi bi-qr-code-scan"></i> Scan QR';
+      await Swal.fire({ icon: 'warning', title: 'Location Required', text: error.message, confirmButtonColor: '#2563eb' });
+      return;
+    }
+    startButton.disabled = false;
+    startButton.innerHTML = '<i class="bi bi-qr-code-scan"></i> Scan QR';
     document.getElementById('scannerPlaceholder').style.display = 'none';
     document.getElementById('reader').style.display = 'block';
     document.getElementById('btnStartScanner').style.display = 'none';
@@ -973,11 +1046,13 @@
       () => {}
     ).catch(err => {
       showToast('Camera access denied', 'warning');
+      pendingAttendanceLocation = null;
       stopScanner();
     });
   };
 
   window.stopScanner = function() {
+    pendingAttendanceLocation = null;
     if (html5Qrcode) {
       html5Qrcode.stop().then(() => { html5Qrcode.clear(); html5Qrcode = null; }).catch(() => {});
     }
@@ -990,6 +1065,10 @@
   };
 
   async function processQRScan(token) {
+    if (scanSubmissionInFlight) return;
+    scanSubmissionInFlight = true;
+    const location = pendingAttendanceLocation;
+    pendingAttendanceLocation = null;
     stopScanner();
     document.getElementById('scanStatusBadge').textContent = 'Verifying...';
     document.getElementById('scanStatusBadge').className = 'badge bg-info';
@@ -998,14 +1077,19 @@
       const res = await fetch('/api/technician/attendance/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ token, location })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Scan failed');
+      if (!res.ok) {
+        await showAttendanceFailure(data, 'Scan failed');
+        return;
+      }
       showToast('Check-in verified! Status: ' + (data.attendanceStatus || 'Present'), 'success');
       loadStatus();
     } catch(e) {
-      showToast(e.message, 'danger');
+      showToast(e.message || 'Network error', 'danger');
+    } finally {
+      scanSubmissionInFlight = false;
       document.getElementById('scanStatusBadge').textContent = 'Ready';
       document.getElementById('scanStatusBadge').className = 'badge bg-success';
     }

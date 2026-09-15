@@ -1,5 +1,29 @@
 const mongoose = require("mongoose");
 
+const attendanceEvidenceSchema = new mongoose.Schema(
+  {
+    latitude: { type: Number, min: -90, max: 90 },
+    longitude: { type: Number, min: -180, max: 180 },
+    accuracyMeters: { type: Number, min: 0 },
+    capturedAt: Date,
+    receivedAt: Date,
+    distanceFromCompanyMeters: { type: Number, min: 0 },
+    geofenceRadiusMeters: { type: Number, min: 0 },
+    withinCompanyGeofence: Boolean,
+    verifiedGeofenceType: { type: String, enum: ["company", "worksite"] },
+    verifiedGeofenceId: { type: String, maxlength: 64 },
+    verifiedGeofenceLabel: { type: String, maxlength: 160 },
+    distanceFromVerifiedSiteMeters: { type: Number, min: 0 },
+    trustedDeviceVerified: { type: Boolean, default: false },
+    ipAddress: { type: String, maxlength: 128 },
+    userAgent: { type: String, maxlength: 512 },
+    qrChallengeId: { type: String, maxlength: 64 },
+    qrIssuedAt: Date,
+    qrExpiresAt: Date,
+  },
+  { _id: false },
+);
+
 /**
  * Daily attendance record for each technician.
  * Created when a technician scans the daily QR code
@@ -83,9 +107,12 @@ const technicianAttendanceSchema = new mongoose.Schema(
      * Daily QR token used during scan.
      * Useful for auditing.
      */
-    token: {
-      type: String,
-    },
+    token: { type: String, select: false },
+
+    // v1 = legacy/manual record, v2 = trusted-device + signed QR + GPS evidence
+    securityVersion: { type: Number, default: 1 },
+    checkInEvidence: { type: attendanceEvidenceSchema, default: undefined },
+    checkOutEvidence: { type: attendanceEvidenceSchema, default: undefined },
 
     /**
      * Admin who performed override.

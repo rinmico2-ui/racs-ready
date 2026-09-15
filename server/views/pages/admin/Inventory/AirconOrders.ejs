@@ -8,6 +8,11 @@
   const ordersResolutionApi = typeof ordersResolutionApiBase === 'string'
     ? ordersResolutionApiBase
     : '/api/admin';
+  const ordersOperationsCalendarUrl = typeof operationsCalendarPath === 'string'
+    ? operationsCalendarPath
+    : (typeof ordersWorkspaceRole === 'string' && ordersWorkspaceRole === 'secretary'
+      ? '/secretary/operations/calendar'
+      : '/admin/operations/calendar');
 %>
 <style>
   /* Google Fonts (Inter + Outfit) loaded via admin.ejs layout */
@@ -238,9 +243,12 @@
           <p>Manage delivery, installation, and customer pickup through separate operational workspaces</p>
         </div>
       </div>
-      <% if (ordersResolutionEnabled) { %>
-        <a class="btn btn-light fw-bold" href="<%= ordersResolutionUrl %>?source=order" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="aoResolutionCount">0</span></a>
-      <% } %>
+      <div class="au-hero-actions">
+        <a class="btn btn-light fw-bold" href="<%= ordersOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
+        <% if (ordersResolutionEnabled) { %>
+          <a class="btn btn-light fw-bold" href="<%= ordersResolutionUrl %>?source=order" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="aoResolutionCount">0</span></a>
+        <% } %>
+      </div>
     </div>
   </div>
 
@@ -320,7 +328,7 @@
 
     <!-- ═══ READY TO ASSIGN TAB ═══ -->
     <div class="tab-pane fade" id="ao-tab-assign" role="tabpanel">
-      <div class="ao-stats" id="aoAssignStats" style="grid-template-columns:repeat(4,1fr);"></div>
+      <div class="ao-stats" id="aoAssignStats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));"></div>
       <div class="ao-assign-toolbar">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
           <div class="ao-assign-search"><i class="bi bi-search"></i><input type="search" id="aoAssignSearchInput" placeholder="Search reference, customer or product..." aria-label="Search assignment queue"></div>
@@ -334,6 +342,7 @@
           <button class="ao-assign-pill active" type="button" data-assign-filter="all"><i class="bi bi-clipboard-check-fill"></i>All Queue <span class="ao-assign-pill-count" id="aoAssignPillAll">0</span></button>
           <button class="ao-assign-pill" type="button" data-assign-filter="awaiting"><span class="rounded-circle bg-warning" style="width:7px;height:7px;"></span>Awaiting Assignment <span class="ao-assign-pill-count" id="aoAssignPillAwaiting">0</span></button>
           <button class="ao-assign-pill" type="button" data-assign-filter="reassignment"><span class="rounded-circle bg-danger" style="width:7px;height:7px;"></span>Need Reassignment <span class="ao-assign-pill-count" id="aoAssignPillReassign">0</span></button>
+          <button class="ao-assign-pill" type="button" data-assign-filter="expired"><i class="bi bi-exclamation-diamond"></i>Schedule Recovery <span class="ao-assign-pill-count" id="aoAssignPillExpired">0</span></button>
           <button class="ao-assign-pill" type="button" data-assign-filter="installation"><i class="bi bi-tools"></i>Delivery + Install <span class="ao-assign-pill-count" id="aoAssignPillInstall">0</span></button>
           <button class="ao-assign-pill" type="button" data-assign-filter="delivery"><i class="bi bi-truck"></i>Delivery Only <span class="ao-assign-pill-count" id="aoAssignPillDelivery">0</span></button>
         </div>
@@ -353,7 +362,7 @@
 
     <!-- ═══ WAITING FOR ACCEPTANCE TAB ═══ -->
     <div class="tab-pane fade" id="ao-tab-waiting" role="tabpanel">
-      <div class="ao-stats" id="aoWaitingStats" style="grid-template-columns:repeat(2,1fr);"></div>
+      <div class="ao-stats" id="aoWaitingStats" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));"></div>
       <div id="aoWaitingContainer" class="workflow-record-list">
         <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
       </div>
@@ -361,7 +370,7 @@
 
     <!-- ═══ IN PROGRESS TAB ═══ -->
     <div class="tab-pane fade" id="ao-tab-active" role="tabpanel">
-      <div class="ao-stats" id="aoActiveStats" style="grid-template-columns:repeat(4,1fr);"></div>
+      <div class="ao-stats" id="aoActiveStats" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));"></div>
       <div id="aoActiveContainer" class="workflow-record-list">
         <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading active orders...</p></div>
       </div>
@@ -544,4 +553,4 @@
   resolutionPath: <%- JSON.stringify(ordersResolutionUrl).replace(/</g, '\\u003c') %>,
   resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
 };</script>
-<script src="/js/admin-aircon-orders.js?v=20260905.1"></script>
+<script src="/js/admin-aircon-orders.js?v=20260914.2"></script>

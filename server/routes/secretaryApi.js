@@ -10,8 +10,12 @@ const { requirePermission } = require("../middleware/requirePermission");
 const audit = require("../utils/audit");
 const Inventory = require("../models/Inventory");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
-const SiteSetting = require("../models/SiteSetting");
 const { attendanceDay } = require("../utils/attendanceTime");
+const {
+	verifyAttendanceChallenge,
+	securityErrorResponse,
+	safeAttendanceRecord,
+} = require("../utils/attendanceSecurity");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { normalizeLifecycleReason, archiveRecord } = require("../utils/dataLifecycle");
 const {
@@ -52,7 +56,7 @@ router.get("/attendance/status", async (req, res, next) => {
 			attendanceStatus: record
 				? (record.checkOutTime ? "Checked Out" : record.status)
 				: "Not Checked In",
-			record,
+			record: safeAttendanceRecord(record),
 		});
 	} catch (error) {
 		next(error);
@@ -66,11 +70,7 @@ router.post("/attendance/scan", async (req, res, next) => {
 
 		const now = new Date();
 		const day = attendanceDay(now);
-		const tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
-		const configuredToken = tokenSetting && tokenSetting.value;
-		if (!configuredToken || configuredToken.date !== day.key || configuredToken.token !== token) {
-			return res.status(400).json({ error: "This attendance QR code is invalid or expired." });
-		}
+		const challenge = verifyAttendanceChallenge(token, now);
 
 		const existing = await SecretaryAttendance.findOne({ userId: req.user._id, date: day.start });
 		if (existing && existing.checkInTime) {
@@ -87,9 +87,10 @@ router.post("/attendance/scan", async (req, res, next) => {
 					checkOutTime: null,
 					qrVerified: true,
 					method: "qr_scan",
-					token,
+					qrChallengeId: challenge.challengeId,
 					updatedBy: req.user._id,
 				},
+				$unset: { token: 1 },
 			},
 			{ upsert: true, returnDocument: "after", runValidators: true },
 		);
@@ -102,11 +103,12 @@ router.post("/attendance/scan", async (req, res, next) => {
 			req,
 			entityId: record._id,
 			entityType: "SecretaryAttendance",
-			details: { status, checkInTime: now },
+			details: { status, checkInTime: now, challengeId: challenge.challengeId },
 		}).catch(() => {});
 
-		return res.json({ message: `Checked in as ${status}.`, attendanceStatus: status, record });
+		return res.json({ message: `Checked in as ${status}.`, attendanceStatus: status, record: safeAttendanceRecord(record) });
 	} catch (error) {
+		if (securityErrorResponse(res, error)) return;
 		if (error && error.code === 11000) {
 			return res.status(409).json({ error: "Attendance has already been recorded for today." });
 		}
@@ -142,7 +144,7 @@ router.post("/attendance/checkout", async (req, res, next) => {
 			details: { checkOutTime: now, hoursWorked },
 		}).catch(() => {});
 
-		return res.json({ message: "Checked out successfully.", hoursWorked, record });
+		return res.json({ message: "Checked out successfully.", hoursWorked, record: safeAttendanceRecord(record) });
 	} catch (error) {
 		next(error);
 	}
@@ -259,6 +261,8 @@ router.patch("/repair-services/:id", (req, res, next) => secretaryServiceImageUp
 const serviceCategories = require("../controllers/serviceCategoryController");
 router.get("/service-categories", serviceCategories.list);
 router.post("/service-categories", serviceCategories.create);
+router.get("/service-categories/inspection-pricing", serviceCategories.getInspectionPricing);
+router.patch("/service-categories/inspection-pricing", serviceCategories.updateInspectionPricing);
 router.patch("/service-categories/:id", serviceCategories.update);
 router.delete("/service-categories/:id", serviceCategories.deactivate);
 router.patch("/service-categories/:id/reorder", serviceCategories.reorder);

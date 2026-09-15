@@ -1,4 +1,8 @@
-<div class="admin-dashboard container-fluid py-4 appointments-calendar">
+<%
+  const calendarRole = typeof calendarWorkspaceRole === 'string' ? calendarWorkspaceRole : 'admin';
+  const calendarIsTechnicianView = calendarRole === 'technician';
+%>
+<div class="admin-dashboard container-fluid py-4 appointments-calendar<%= calendarIsTechnicianView ? ' technician-calendar' : '' %>">
   <%- include('../../../partials/dashboard-styles') %>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/main.min.css" rel="stylesheet" />
 
@@ -546,12 +550,12 @@
       <div class="cal-hero-left">
         <div class="cal-hero-icon"><i class="bi bi-calendar4-week"></i></div>
         <div>
-          <h1 class="cal-hero-title">Operations Calendar</h1>
-          <p class="cal-hero-sub">Coordinate service bookings, deliveries, installations, and customer pickups.</p>
+          <h1 class="cal-hero-title"><%= calendarIsTechnicianView ? 'My Calendar' : 'Operations Calendar' %></h1>
+          <p class="cal-hero-sub"><%= calendarIsTechnicianView ? 'See your assigned service bookings, deliveries, and installations in one schedule.' : 'Coordinate service bookings, deliveries, installations, and customer pickups.' %></p>
         </div>
       </div>
       <div class="cal-hero-right">
-        <span class="cal-live-badge">Live schedule</span>
+        <span class="cal-live-badge"><%= calendarIsTechnicianView ? 'My schedule' : 'Live schedule' %></span>
         <span class="cal-hero-range" id="calendarRangeLabel">Current range</span>
       </div>
     </div>
@@ -564,11 +568,11 @@
     </article>
     <article class="cal-summary-card" style="--metric-color:#d97706;--metric-bg:#fffbeb;">
       <span class="cal-summary-icon"><i class="bi bi-person-exclamation"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricUnassigned">0</div><div class="cal-summary-label">Unassigned bookings</div></div>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricUnassigned">0</div><div class="cal-summary-label"><%= calendarIsTechnicianView ? "Today's work" : 'Unassigned bookings' %></div></div>
     </article>
     <article class="cal-summary-card" style="--metric-color:#059669;--metric-bg:#ecfdf5;">
       <span class="cal-summary-icon"><i class="bi bi-activity"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricActive">0</div><div class="cal-summary-label">Active field work</div></div>
+      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricActive">0</div><div class="cal-summary-label"><%= calendarIsTechnicianView ? 'Active jobs' : 'Active field work' %></div></div>
     </article>
     <article class="cal-summary-card" style="--metric-color:#ea580c;--metric-bg:#fff7ed;">
       <span class="cal-summary-icon"><i class="bi bi-truck"></i></span>
@@ -587,10 +591,10 @@
         <div class="filter-controls">
           <div class="cal-search" id="calSearchWrap">
             <i class="bi bi-search"></i>
-            <input type="search" id="calSearchInput" placeholder="Search customer, reference, service..." aria-label="Search calendar records" autocomplete="off">
+            <input type="search" id="calSearchInput" placeholder="Search customer, reference, service or product..." aria-label="Search calendar records" autocomplete="off">
             <button type="button" class="cal-search-clear" id="calSearchClear" aria-label="Clear calendar search"><i class="bi bi-x-lg"></i></button>
           </div>
-          <div class="tech-filter-wrapper" id="techFilterWrapper">
+          <% if (!calendarIsTechnicianView) { %><div class="tech-filter-wrapper" id="techFilterWrapper">
             <button class="tech-filter-trigger" id="techFilterTrigger">
               <i class="bi bi-person-badge"></i>
               <span id="techFilterLabel">All Technicians</span>
@@ -614,12 +618,12 @@
             <button data-view="timeGridWeek"><i class="bi bi-calendar-week"></i> Week</button>
             <button data-view="timeGridDay"><i class="bi bi-calendar-day"></i> Day</button>
             <button data-view="listWeek"><i class="bi bi-list-ul"></i> List</button>
-          </div>
+          </div><% } %>
         </div>
       </div>
 
       <div class="cal-body">
-        <div id="calendarSpinner" class="calendar-spinner" role="status" aria-label="Loading appointments"></div>
+        <div id="calendarSpinner" class="calendar-spinner" role="status" aria-label="Loading operations schedule"></div>
         <div id="adminAppointmentsCalendar"></div>
       </div>
     </section>
@@ -628,7 +632,7 @@
       <div class="list-head">
         <div>
           <h5 id="selectedDateLabel">Selected Date</h5>
-          <small id="selectedDateSub">Appointments for this day</small>
+          <small id="selectedDateSub">Bookings and orders for this day</small>
         </div>
         <span id="selectedDateCount" class="list-count">0</span>
       </div>
@@ -644,7 +648,7 @@
           <div class="d-flex align-items-center gap-3">
             <div class="ent-modal-icon bg-white bg-opacity-25"><i class="bi bi-calendar-check text-white"></i></div>
             <div style="min-width:0;">
-              <h6 class="modal-title fw-bold mb-0" id="calDetailTitle" style="font-size:1rem;">Appointment Details</h6>
+              <h6 class="modal-title fw-bold mb-0" id="calDetailTitle" style="font-size:1rem;">Schedule Details</h6>
               <small class="text-white text-opacity-75" id="calDetailSubtitle" style="font-size:0.78rem;">Scheduled record information</small>
             </div>
           </div>
@@ -664,11 +668,17 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
+      const calendarIsTechnician = <%- JSON.stringify(calendarIsTechnicianView) %>;
       const calendarTechniciansApi = <%- JSON.stringify(typeof calendarTechniciansApi === 'string' ? calendarTechniciansApi : '/api/admin/technicians').replace(/</g, '\\u003c') %>;
       const calendarSchedulesApi = <%- JSON.stringify(typeof calendarSchedulesApi === 'string' ? calendarSchedulesApi : '/api/admin/technician-schedules').replace(/</g, '\\u003c') %>;
       const calendarAppointmentsApi = <%- JSON.stringify(typeof calendarAppointmentsApi === 'string' ? calendarAppointmentsApi : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
+      const calendarAppointmentsListApi = <%- JSON.stringify(typeof calendarAppointmentsListApi === 'string' ? calendarAppointmentsListApi : '/api/appointments').replace(/</g, '\\u003c') %>;
+      const calendarOrdersApi = <%- JSON.stringify(typeof calendarOrdersApi === 'string' ? calendarOrdersApi : '/api/orders').replace(/</g, '\\u003c') %>;
+      const calendarOrdersListApi = <%- JSON.stringify(typeof calendarOrdersListApi === 'string' ? calendarOrdersListApi : '/api/orders/all').replace(/</g, '\\u003c') %>;
       const calendarBookingsPath = <%- JSON.stringify(typeof calendarBookingsPath === 'string' ? calendarBookingsPath : '/admin/appointments').replace(/</g, '\\u003c') %>;
       const calendarOrdersPath = <%- JSON.stringify(typeof calendarOrdersPath === 'string' ? calendarOrdersPath : '/admin/appointments/orders').replace(/</g, '\\u003c') %>;
+      const calendarBookingsQueryParam = <%- JSON.stringify(typeof calendarBookingsQueryParam === 'string' ? calendarBookingsQueryParam : 'sel').replace(/</g, '\\u003c') %>;
+      const calendarOrdersQueryParam = <%- JSON.stringify(typeof calendarOrdersQueryParam === 'string' ? calendarOrdersQueryParam : 'order').replace(/</g, '\\u003c') %>;
       if (!window.FullCalendar || !window.FullCalendar.Calendar) {
         const host = document.getElementById("adminAppointmentsCalendar");
         if (host) host.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Calendar library failed to load. Please refresh.</div>';
@@ -747,6 +757,14 @@
         { key: "repair_scheduled",     label: "Repair Scheduled",    color: "#7c3aed" },
         { key: "repair_in_progress",   label: "Repair Active",       color: "#16a34a" },
         { key: "waiting_parts",        label: "Waiting Parts",       color: "#ea580c" },
+        { key: "pending_acceptance",   label: "Pending Acceptance",  color: "#f59e0b" },
+        { key: "accepted",             label: "Accepted",            color: "#3b82f6" },
+        { key: "en_route",             label: "En Route",            color: "#0ea5e9" },
+        { key: "on_site",              label: "On Site",             color: "#8b5cf6" },
+        { key: "in_progress",           label: "In Progress",         color: "#2563eb" },
+        { key: "declined",              label: "Declined",            color: "#ef4444" },
+        { key: "no_show",               label: "No Show",             color: "#6b7280" },
+        { key: "no_show_reported",      label: "No-show Review",      color: "#dc2626" },
         { key: "completed",            label: "Completed",           color: "#16a34a" },
         { key: "repair_approved",      label: "Repair Approved",     color: "#059669" },
         { key: "rejected",             label: "Rejected",            color: "#dc2626" },
@@ -840,6 +858,9 @@
       function customerName(a) { return a.customerName || (a.customer && a.customer.name) || (a.customer && (a.customer.firstName||"")+" "+(a.customer.lastName||"")).trim() || a.customer || "Customer"; }
       function technicianName(a) { return a.technicianName || (a.technician && a.technician.name) || (a.technicianId && a.technicianId.name) || "Unassigned"; }
       function technicianId(a) { return (a.technicianId && (a.technicianId._id || a.technicianId)) || (a.technician && a.technician._id) || null; }
+      function objectIdValue(value) { return value && (value._id || value.id || value); }
+      function appointmentDetailId(appointment) { return String(calendarIsTechnician ? (objectIdValue(appointment.bookingId) || objectIdValue(appointment._id)) : objectIdValue(appointment._id) || ""); }
+      function appointmentWorkspaceId(appointment) { return String(objectIdValue(appointment._id) || appointmentDetailId(appointment)); }
 
       function timeLabel(a) {
         const minutes = appointmentTimeMinutes(a);
@@ -883,12 +904,17 @@
       }
 
       function updateSummary() {
-        const activeStatuses = new Set(["confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "inspection_in_progress", "repair_in_progress"]);
+        const activeStatuses = new Set(["confirmed", "scheduled", "on-the-way", "arrived", "in-progress", "inspection_in_progress", "repair_in_progress", "accepted", "en_route", "on_site", "in_progress"]);
+        const activeOrderStatuses = new Set(["technician_assigned", "technician_accepted", "out_for_delivery", "arrived", "installing"]);
         const unassigned = state.appointments.filter(item => !technicianId(item) && !["completed", "cancelled", "rejected", "expired"].includes(String(item.status || "").toLowerCase())).length;
-        const active = state.appointments.filter(item => activeStatuses.has(String(item.status || "").toLowerCase())).length;
+        const activeBookings = state.appointments.filter(item => activeStatuses.has(String(item.status || "").toLowerCase())).length;
+        const activeOrders = state.showOrders ? state.orders.filter(item => activeOrderStatuses.has(String(item.status || "").toLowerCase())).length : 0;
+        const todayKey = toDateKey(new Date());
+        const todayBookings = state.appointments.filter(item => toDateKey(item.bookingDate || item.date || item.start) === todayKey).length;
+        const todayOrders = state.showOrders ? state.orders.filter(item => toDateKey(orderScheduledDate(item)) === todayKey).length : 0;
         if (dom.metricBookings) dom.metricBookings.textContent = Number(state.appointments.length).toLocaleString();
-        if (dom.metricUnassigned) dom.metricUnassigned.textContent = Number(unassigned).toLocaleString();
-        if (dom.metricActive) dom.metricActive.textContent = Number(active).toLocaleString();
+        if (dom.metricUnassigned) dom.metricUnassigned.textContent = Number(calendarIsTechnician ? todayBookings + todayOrders : unassigned).toLocaleString();
+        if (dom.metricActive) dom.metricActive.textContent = Number(activeBookings + activeOrders).toLocaleString();
         if (dom.metricOrders) dom.metricOrders.textContent = Number(state.showOrders ? state.orders.length : 0).toLocaleString();
       }
 
@@ -914,6 +940,7 @@
       }
 
       async function fetchTechnicians() {
+        if (calendarIsTechnician) return [];
         try {
           const res = await fetch(calendarTechniciansApi, { credentials: "same-origin", cache: "no-store" });
           if (!res.ok) return [];
@@ -987,6 +1014,7 @@
       }
 
       async function fetchTechnicianSchedules() {
+        if (calendarIsTechnician) return {};
         try {
           const res = await fetch(calendarSchedulesApi, { credentials: "same-origin", cache: "no-store" });
           if (!res.ok) return {};
@@ -1147,7 +1175,8 @@
         // Add appointment events
         if (state.showBookings && filtered.length > 0) {
           calendar.addEventSource(filtered.map(a => {
-            const id = String(a._id || a.id || "");
+            const id = appointmentWorkspaceId(a);
+            const detailId = appointmentDetailId(a);
             const s = String(a.status || "pending").toLowerCase();
             const tid = technicianId(a);
             const techColor = tid ? getTechColor(tid) : null;
@@ -1159,7 +1188,7 @@
               allDay: !hasTime,
               color: techColor || getColor(s),
               classNames: [s, tid ? "tech-"+String(tid) : ""].filter(Boolean),
-              extendedProps: { raw: a, type: "appointment" },
+              extendedProps: { raw: a, type: "appointment", detailId, workspaceId: id },
             };
           }));
         }
@@ -1193,9 +1222,9 @@
 
       /* ── Sidebar List ───────────────────────────────────────────── */
       function renderDateList() {
-        const source = (state.appointments.length > 0 ? state.appointments : state.allAppointments);
+        const source = state.showBookings ? state.appointments : [];
         const dayItems = source.filter(a => toDateKey(a.bookingDate || a.date || a.start) === state.selectedDateKey).sort((a, b) => eventStart(a).getTime() - eventStart(b).getTime());
-        const orderSource = (state.orders.length > 0 ? state.orders : state.allOrders);
+        const orderSource = state.showOrders ? state.orders : [];
         const orderItems = state.showOrders ? orderSource.filter(o => {
           const d = orderScheduledDate(o);
           return d && toDateKey(d) === state.selectedDateKey;
@@ -1212,12 +1241,14 @@
         let html = '';
         // Appointment items
         dayItems.forEach(a => {
-          const id = a._id || a.id || "";
+          const id = appointmentWorkspaceId(a);
+          const detailId = appointmentDetailId(a);
           const s = String(a.status || "pending").toLowerCase();
           const tid = technicianId(a);
           const tname = technicianName(a);
           const tcolor = tid ? getTechColor(tid) : "#94a3b8";
-          html += `<article class="appt-item" data-id="${escHtml(id)}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${escHtml(id)}','appt')"><div class="appt-row1"><span class="appt-time">${escHtml(timeLabel(a))}</span><span class="appt-name">${escHtml(customerName(a))}</span><span class="appt-status-label">${escHtml(prettyStatus(s))}</span></div><div class="appt-row2"><span>${escHtml(serviceName(a))}</span><span class="appt-sep">&middot;</span><span><span class="tdot" style="background:${tcolor}"></span>${escHtml(tname)}</span><span class="appt-sep">&middot;</span><span>${escHtml(a.bookingReference || a.workOrderNumber || "\u2014")}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(id)}','appt')" title="View details" aria-label="View ${escHtml(customerName(a))} booking"><i class="bi bi-chevron-right"></i></button></article>`;
+          const assignmentLabel = calendarIsTechnician ? "My assignment" : tname;
+          html += `<article class="appt-item" data-id="${escHtml(id)}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${escHtml(detailId)}','appt','${escHtml(id)}')"><div class="appt-row1"><span class="appt-time">${escHtml(timeLabel(a))}</span><span class="appt-name">${escHtml(customerName(a))}</span><span class="appt-status-label">${escHtml(prettyStatus(s))}</span></div><div class="appt-row2"><span>${escHtml(serviceName(a))}</span><span class="appt-sep">&middot;</span><span><span class="tdot" style="background:${tcolor}"></span>${escHtml(assignmentLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(a.bookingReference || a.workOrderNumber || "\u2014")}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(detailId)}','appt','${escHtml(id)}')" title="View details" aria-label="View ${escHtml(customerName(a))} booking"><i class="bi bi-chevron-right"></i></button></article>`;
         });
         // Order items
         orderItems.forEach(o => {
@@ -1235,15 +1266,18 @@
       }
 
       /* ── Detail Modal ───────────────────────────────────────────── */
-      window.openCalDetail = async function(id, type) {
+      window.openCalDetail = async function(id, type, workspaceId) {
         try {
           const isOrder = type === 'order';
+          const targetId = workspaceId || id;
           const openRecord = document.getElementById("calDetailOpenRecord");
           const detailSubtitle = document.getElementById("calDetailSubtitle");
-          if (openRecord) openRecord.href = isOrder ? calendarOrdersPath + "?order=" + encodeURIComponent(id) : calendarBookingsPath + "?sel=" + encodeURIComponent(id);
+          if (openRecord) openRecord.href = isOrder
+            ? calendarOrdersPath + "?" + encodeURIComponent(calendarOrdersQueryParam) + "=" + encodeURIComponent(targetId)
+            : calendarBookingsPath + "?" + encodeURIComponent(calendarBookingsQueryParam) + "=" + encodeURIComponent(targetId);
           if (detailSubtitle) detailSubtitle.textContent = isOrder ? "Order fulfillment schedule" : "Service booking schedule";
           if (isOrder) {
-            const res = await fetch("/api/orders/" + id);
+            const res = await fetch(calendarOrdersApi + "/" + id, { credentials: "same-origin", cache: "no-store" });
             if (!res.ok) throw new Error("Failed to fetch order");
             const data = await res.json();
             const o = data.order;
@@ -1277,7 +1311,7 @@
             const date = new Date(b.bookingDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
             const stLabel = (b.status || "pending").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
             const stColor = b.status === "completed" ? "success" : b.status === "confirmed" ? "primary" : b.status === "cancelled" || b.status === "rejected" ? "danger" : b.status === "in-progress" ? "success" : "warning";
-            document.getElementById("calDetailTitle").textContent = "Appointment " + (b.bookingReference || b.workOrderNumber || "#" + b._id.toString().slice(-8).toUpperCase());
+            document.getElementById("calDetailTitle").textContent = "Booking " + (b.bookingReference || b.workOrderNumber || "#" + b._id.toString().slice(-8).toUpperCase());
             const techIdStr = technicianId(b);
             const techCol = techIdStr ? getTechColor(techIdStr) : "#94a3b8";
             const timeline = (b.statusHistory || []).slice(-5).map(h => `<div class="ent-timeline-item"><span class="ent-timeline-dot current"></span><span class="ent-timeline-text"><strong>${(h.status || "").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</strong> — ${new Date(h.timestamp || h.date || new Date()).toLocaleString()}</span></div>`).join("") || '<div class="ent-timeline-item"><span class="ent-timeline-dot"></span><span class="ent-timeline-text">No history available</span></div>';
@@ -1296,15 +1330,15 @@
         } catch (e) {
           console.error(e);
           window.location.href = type === "order"
-            ? calendarOrdersPath + "?order=" + encodeURIComponent(id)
-            : calendarBookingsPath + "?sel=" + encodeURIComponent(id);
+            ? calendarOrdersPath + "?" + encodeURIComponent(calendarOrdersQueryParam) + "=" + encodeURIComponent(workspaceId || id)
+            : calendarBookingsPath + "?" + encodeURIComponent(calendarBookingsQueryParam) + "=" + encodeURIComponent(workspaceId || id);
         }
       };
 
       /* ── Fetch Data ─────────────────────────────────────────────── */
       async function fetchAppointmentsForRange(start, end) {
         const params = new URLSearchParams({ limit: "2000", start, end });
-        const res = await fetch("/api/appointments?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        const res = await fetch(calendarAppointmentsListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
         if (!res.ok) throw new Error("appointments fetch failed: " + res.status);
         const json = await res.json();
         return json.items || json.appointments || [];
@@ -1312,7 +1346,7 @@
 
       async function fetchOrdersForRange(start, end) {
         const params = new URLSearchParams({ limit: "100", page: "1", scheduledFrom: start, scheduledTo: end });
-        const firstResponse = await fetch("/api/orders/all?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        const firstResponse = await fetch(calendarOrdersListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
         if (!firstResponse.ok) throw new Error("orders fetch failed: " + firstResponse.status);
         const firstPage = await firstResponse.json();
         const orders = [...(firstPage.orders || [])];
@@ -1322,7 +1356,7 @@
           for (let page = 2; page <= pages; page += 1) {
             const nextParams = new URLSearchParams(params);
             nextParams.set("page", String(page));
-            requests.push(fetch("/api/orders/all?" + nextParams.toString(), { credentials: "same-origin", cache: "no-store" }).then(response => response.ok ? response.json() : { orders: [] }));
+            requests.push(fetch(calendarOrdersListApi + "?" + nextParams.toString(), { credentials: "same-origin", cache: "no-store" }).then(response => response.ok ? response.json() : { orders: [] }));
           }
           const remainingPages = await Promise.all(requests);
           remainingPages.forEach(result => orders.push(...(result.orders || [])));
@@ -1366,7 +1400,9 @@
           const type = info.event.extendedProps.type || 'appt';
           if (id) {
             const cleanId = id.replace(/^(appt-|order-)/, '');
-            openCalDetail(cleanId, type);
+            const detailId = info.event.extendedProps.detailId || cleanId;
+            const workspaceId = info.event.extendedProps.workspaceId || cleanId;
+            openCalDetail(detailId, type, workspaceId);
           }
         },
         eventContent(arg) {
@@ -1427,14 +1463,14 @@
               state.schedules = schedules;
               state.workingDaysMap = computeWorkingDaysMap(schedules);
               state.allAppointments = appts;
-              state.allOrders = orders.filter(o => o.status !== "cancelled" && o.status !== "completed" && orderScheduledDate(o));
+              state.allOrders = orders.filter(o => orderScheduledDate(o));
               console.log("[Calendar] loaded", state.allAppointments.length, "appointments,", state.allOrders.length, "orders for range", start, "to", end);
               applyFilters();
               buildFilterBar();
               renderDateList();
             } catch (err) {
               console.error(err);
-              dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load appointments.</div>';
+              dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load the operations schedule.</div>';
               dom.selectedDateCount.textContent = "0";
             } finally {
               if (dom.calendarSpinner) dom.calendarSpinner.style.display = "none";

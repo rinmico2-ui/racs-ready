@@ -2832,6 +2832,7 @@
 <script>
 (function() {
   var _page=1,_status='today',_search='',_orders=[],_allOrders=[],_selectedId=null;
+  var linkedOrderId = new URLSearchParams(window.location.search).get('order');
   var SCFG={
     pending_payment:{label:'Pending Payment',cls:'pending'}, preparing_unit:{label:'Preparing Unit',cls:'preparing'},
     technician_assigned:{label:'Needs Response',cls:'assigned'}, technician_accepted:{label:'Accepted',cls:'accepted'},
@@ -2944,6 +2945,11 @@
     return normalized ? normalized : '';
   }
 
+  function orderNeedsScheduleRecovery(order) {
+    return Boolean(order && order.isPastDate === true &&
+      ['technician_assigned','technician_accepted','preparing_unit'].includes(order.status));
+  }
+
   function isTodayOrder(order) {
     var value = order && order.delivery && order.delivery.preferredDate;
     if(!value) return false;
@@ -3013,8 +3019,11 @@
       var isDone = order.status === 'completed';
       var isNext = index === nextIndex && !isCurrent && !isDone;
       var cfg = SCFG[order.status] || {label:String(order.status || 'Pending').replace(/_/g,' ')};
-      var statusText = isCurrent ? 'Current' : (isNext ? 'Next' : cfg.label);
-      var statusStyle = isCurrent
+      var scheduleRecovery = orderNeedsScheduleRecovery(order);
+      var statusText = scheduleRecovery ? 'Missed Schedule' : (isCurrent ? 'Current' : (isNext ? 'Next' : cfg.label));
+      var statusStyle = scheduleRecovery
+        ? 'background:#fef3c7;color:#92400e;'
+        : isCurrent
         ? 'background:#dbeafe;color:#1d4ed8;'
         : isNext
           ? 'background:#fef3c7;color:#92400e;'
@@ -3036,7 +3045,8 @@
         '<span class="today-work-order-status" style="'+statusStyle+'">'+esc(statusText)+'</span></div>' +
         '<div class="today-work-order-meta"><i class="bi bi-person me-1"></i>'+esc(customer) +
         '<span class="mx-1">&middot;</span><i class="bi bi-geo-alt me-1"></i>'+esc(address) +
-        '<span class="mx-1">&middot;</span>'+esc(fulfillmentLabel(order.fulfillmentType))+'</div></div>' +
+        '<span class="mx-1">&middot;</span>'+esc(fulfillmentLabel(order.fulfillmentType))+
+        (scheduleRecovery ? '<span class="mx-1">&middot;</span><span style="color:#92400e;font-weight:700;"><i class="bi bi-alarm-fill me-1"></i>Awaiting reschedule</span>' : '')+'</div></div>' +
         '<button type="button" class="today-work-order-open" onclick="window.viewOrder(\''+id+'\')">Open Order <i class="bi bi-arrow-right"></i></button>' +
         '</article>';
     }).join('');
@@ -3062,7 +3072,7 @@
       document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
     }
     
-    fetch(url)
+    return fetch(url)
     .then(async function(r) {
       var payload = await r.json();
       if(!r.ok) throw new Error(payload.error || 'Unable to load technician orders.');
@@ -3137,12 +3147,13 @@
       var dtime = esc(o.timeSlot || 'TBD');
       var addr = (o.delivery && o.delivery.address) ? esc(o.delivery.address.length > 26 ? o.delivery.address.slice(0, 26) + '…' : o.delivery.address) : 'No address';
       var live = ['out_for_delivery', 'arrived', 'installing'].includes(o.status);
+      var scheduleRecovery = orderNeedsScheduleRecovery(o);
       h += '<div class="to-order-card tjc' + sel + (live ? ' tjc-live' : '') + '" data-id="' + id + '" role="button" tabindex="0">';
       h += '<div class="tjc-date"><div class="tjc-date-day">' + day + '</div><div class="tjc-date-month">' + month + '</div></div>';
       h += '<div class="tjc-main">';
-      h += '<div class="tjc-top"><div class="tjc-title">' + items + '</div><span class="tjc-status" style="background:' + p.bg + ';color:' + p.text + ';">' + esc(sc.label) + '</span></div>';
+      h += '<div class="tjc-top"><div class="tjc-title">' + items + '</div><span class="tjc-status" style="background:' + (scheduleRecovery ? '#fef3c7' : p.bg) + ';color:' + (scheduleRecovery ? '#92400e' : p.text) + ';">' + esc(scheduleRecovery ? 'Missed Schedule' : sc.label) + '</span></div>';
       h += '<div class="tjc-meta"><span><i class="bi bi-clock me-1"></i>' + dtime + '</span><span><i class="bi bi-geo-alt me-1"></i>' + addr + '</span></div>';
-      h += '<div class="tjc-meta"><span><i class="bi bi-person me-1"></i>' + cust + '</span>' + (live ? '<span class="tjc-live-badge"><span class="tjc-pulse"></span>Live</span>' : '') + '</div>';
+      h += '<div class="tjc-meta"><span><i class="bi bi-person me-1"></i>' + cust + '</span>' + (live ? '<span class="tjc-live-badge"><span class="tjc-pulse"></span>Live</span>' : '') + (scheduleRecovery ? '<span style="color:#92400e;font-weight:700;"><i class="bi bi-alarm-fill me-1"></i>Scheduled time passed — awaiting reschedule</span>' : '') + '</div>';
       h += '</div>';
       h += '<div class="tjc-action"><button class="tjc-view" onclick="event.stopPropagation();window.viewOrder(\'' + id + '\')">View <i class="bi bi-arrow-right"></i></button></div>';
       h += '</div>';
@@ -3159,7 +3170,9 @@
     setT('kpiInstalling',s.installing);
     setT('kpiCompleted', s.completed);
     setT('heroTotal',   s.totalOrders);
-    setT('heroActive',  Number(s.outForDelivery||0) + Number(s.installing||0));
+    setT('heroActive',  s.active != null
+      ? s.active
+      : Number(s.pendingPrep||0) + Number(s.outForDelivery||0) + Number(s.arrived||0) + Number(s.installing||0));
   }
 
   window.viewOrder = function(id) {
@@ -3193,14 +3206,18 @@
     document.getElementById('detailPanelCustomer').textContent = o.customer?.name || 'Customer';
     document.getElementById('detailPanelRef').textContent = 'Order #' + (o.orderReference||o._id.substring(o._id.length-6).toUpperCase());
     var b=SCFG[o.status]||{label:o.status,cls:''};
-    document.getElementById('detailPanelStatusBadge').textContent = b.label;
-    document.getElementById('detailPanelStatusBadge').className = 'detail-status-badge to-detail-status ' + statusBadgeClass(o.status);
+    var scheduleRecovery = orderNeedsScheduleRecovery(o);
+    document.getElementById('detailPanelStatusBadge').textContent = scheduleRecovery ? 'Missed Schedule' : b.label;
+    document.getElementById('detailPanelStatusBadge').className = 'detail-status-badge to-detail-status ' + (scheduleRecovery ? 'pending' : statusBadgeClass(o.status));
     
     var flow = getFlow(o.fulfillmentType);
     var ai = getFlowIndex(o.status, o.fulfillmentType);
     var liveStatuses = ['out_for_delivery','arrived','installing'];
     var isLive = liveStatuses.indexOf(o.status) !== -1;
     var act = ORDER_PROGRESS_ACTIONS[o.status] || { t: b.label, s: 'In progress', icon: 'bi-circle' };
+    if(scheduleRecovery) {
+      act = { t:o.attentionTitle || 'Dispatch Window Expired', s:o.attentionReason || 'Operations must confirm a new customer schedule before this order can continue.', icon:'bi-alarm-fill' };
+    }
     if(o.fulfillmentType === 'delivery_installation' && ['technician_accepted','preparing_unit'].includes(o.status)) {
       var kitState = o.preparation?.installation?.status || 'pending';
       act = ['confirmed','completed'].includes(kitState)
@@ -3211,7 +3228,7 @@
     var opHtml = '<div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>';
     if(isLive) opHtml += '<span class="trk-live-tag"><span class="trk-pulse-dot"></span> LIVE</span>';
     opHtml += '</div><div class="trk-card-body">';
-    opHtml += '<div class="trk-current-action '+(isLive?'live':'')+'"><div class="trk-current-action-icon"><i class="bi '+esc(isLive?'bi-arrow-repeat':act.icon)+'"></i></div><div class="trk-current-action-text"><div class="trk-current-action-title">'+esc(act.t)+'</div><div class="trk-current-action-sub">'+esc(act.s)+'</div></div></div>';
+    opHtml += '<div class="trk-current-action '+(isLive?'live':'')+'"'+(scheduleRecovery?' style="background:#fffbeb;border-color:#fde68a;"':'')+'><div class="trk-current-action-icon"><i class="bi '+esc(isLive?'bi-arrow-repeat':act.icon)+'"></i></div><div class="trk-current-action-text"><div class="trk-current-action-title">'+esc(act.t)+'</div><div class="trk-current-action-sub">'+esc(act.s)+'</div></div></div>';
     opHtml += '<div class="trk-task-list">';
     flow.forEach(function(step, i) {
       var state = i < ai ? 'done' : (i === ai ? 'active' : '');
@@ -3269,12 +3286,15 @@
     var requiredItems = installPrep.requiredItems || [];
     var history = (o.statusHistory || []).slice().reverse().slice(0, 8);
     var h = '<div class="to-detail-shell">';
+    if(scheduleRecovery) {
+      h += '<div class="alert alert-warning mb-3" role="alert"><i class="bi bi-alarm-fill me-2"></i><strong>Scheduled delivery window passed.</strong> This order cannot be accepted or marked En Route until operations confirms a new schedule with the customer.</div>';
+    }
     h += '<section class="to-detail-overview"><div class="to-detail-overview-main"><div class="to-detail-overview-icon"><i class="bi bi-box-seam"></i></div><div><div class="to-detail-eyebrow">Assigned order</div><h4>'+esc(itemsLabel)+'</h4><p>Order #'+esc(reference)+' · '+esc(fulfillmentLabel(o.fulfillmentType))+'</p></div></div><div class="to-detail-total"><span>Order total</span><strong>'+esc(peso(o.total))+'</strong></div></section>';
     h += '<div class="to-detail-summary">';
     h += '<div class="to-summary-cell"><span>Schedule</span><strong>'+esc(schedule)+'</strong></div>';
     h += '<div class="to-summary-cell"><span>Fulfillment</span><strong>'+esc(fulfillmentLabel(o.fulfillmentType))+'</strong></div>';
     h += '<div class="to-summary-cell"><span>Customer</span><strong>'+esc(o.customer?.name || 'Customer')+'</strong></div>';
-    h += '<div class="to-summary-cell"><span>Current status</span><strong>'+esc(b.label)+'</strong></div></div>';
+    h += '<div class="to-summary-cell"><span>Current status</span><strong>'+esc(scheduleRecovery ? 'Missed Schedule' : b.label)+'</strong></div></div>';
     h += '<div class="to-detail-grid"><div class="to-detail-column">';
 
     h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-geo-alt-fill"></i>Customer &amp; Destination</h6></div><div class="to-detail-card-body"><div class="to-info-list">';
@@ -3314,7 +3334,7 @@
     h += '<div class="to-readiness-row"><div class="to-readiness-name"><i class="bi bi-box-seam"></i>Unit &amp; dispatch</div><span class="to-state-pill '+(dispatchReady?'ready':dispatchPrep.status==='blocked'?'blocked':'pending')+'">'+esc(String(dispatchPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
     if(o.fulfillmentType === 'delivery_installation') {
       h += '<div class="to-readiness-row"><div><div class="to-readiness-name"><i class="bi bi-tools"></i>Installation Daily Kit</div>'+(requiredItems.length?'<div class="to-item-meta">'+requiredItems.length+' required kit item'+(requiredItems.length===1?'':'s')+'</div>':'')+'</div><span class="to-state-pill '+(installReady?'ready':prepBlocked?'blocked':'pending')+'">'+esc(String(installPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
-      h += '<button type="button" class="to-detail-link odk-inline-link" onclick="openOrderDailyKit(\''+esc(preparationDate)+'\')"><i class="bi bi-box2-heart"></i>Open Daily Preparation <i class="bi bi-arrow-right"></i></button>';
+      if(!scheduleRecovery) h += '<button type="button" class="to-detail-link odk-inline-link" onclick="openOrderDailyKit(\''+esc(preparationDate)+'\')"><i class="bi bi-box2-heart"></i>Open Daily Preparation <i class="bi bi-arrow-right"></i></button>';
     }
     if(prepBlockers.length) h += '<ul class="to-blocker-list">'+prepBlockers.map(function(reason){return '<li>'+esc(reason)+'</li>';}).join('')+'</ul>';
     h += '</div></section>';
@@ -3347,7 +3367,9 @@
     var ftype = o.fulfillmentType;
     var oid = esc(o._id);
     
-    if(s === 'technician_assigned') {
+    if(scheduleRecovery) {
+      aHtml += '<div class="alert alert-warning mb-0 py-2 px-3" role="status"><i class="bi bi-lock-fill me-2"></i><strong>Awaiting reschedule</strong> — Accept and En Route are locked until operations updates the customer schedule.</div>';
+    } else if(s === 'technician_assigned') {
       aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
       aHtml += '<button class="to-btn to-btn-decline" data-action="decline" data-id="'+oid+'"><i class="bi bi-x-lg"></i>Decline</button>';
     } else if(s === 'technician_accepted' || s === 'preparing_unit') {
@@ -3381,6 +3403,11 @@
 
   window.doAccept = async function(id) {
     try {
+      var assignedOrder = _orders.find(o=>String(o._id)===String(id));
+      if(orderNeedsScheduleRecovery(assignedOrder)) {
+        await Swal.fire({title:'Missed Schedule',text:'This order must be rescheduled by operations before you can accept it.',icon:'warning'});
+        return;
+      }
       const res = await fetch('/api/orders/'+id+'/accept', {method:'POST'});
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || "Failed to accept");
@@ -3478,6 +3505,10 @@
   window.doStatus = async function(id, status) {
     try {
       const order = _orders.find(o => String(o._id) === String(id)) || {};
+      if(status === 'out_for_delivery' && orderNeedsScheduleRecovery(order)) {
+        await Swal.fire({title:'Missed Schedule',text:'En Route is locked until operations confirms a new customer schedule.',icon:'warning'});
+        return;
+      }
       var evidence={};
       if(status==='arrived'||status==='installing') {
         evidence=await captureOrderStageProof(status);
@@ -3504,6 +3535,11 @@
         });
         await Swal.fire({title:'Departure Preparation Required',text:data.error || 'Complete all departure checks before going En Route.',icon:'warning',confirmButtonText:kitBlocked?'Open Daily Preparation':'OK'});
         if(kitBlocked) openOrderDailyKit(orderDateKey(order.delivery?.preferredDate));
+        fetchOrders();
+        return;
+      }
+      if(!res.ok && data.code === 'ORDER_SCHEDULE_PASSED') {
+        await Swal.fire({title:'Missed Schedule',text:data.error || 'Operations must confirm a new customer schedule before departure.',icon:'warning'});
         fetchOrders();
         return;
       }
@@ -3588,8 +3624,19 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  // Init
-  fetchOrders();
+  // Calendar deep links open the selected order in the complete order workspace.
+  if(linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) {
+    _status = 'all';
+    document.querySelectorAll('#toStatusTabs button').forEach(function(button) {
+      var active = button.getAttribute('data-status') === 'all';
+      button.classList.toggle('active', active);
+      button.classList.toggle('btn-primary', active);
+      button.classList.toggle('btn-outline-secondary', !active);
+    });
+  }
+  fetchOrders().then(function() {
+    if(linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) window.viewOrder(linkedOrderId);
+  });
 
 })();
 </script>

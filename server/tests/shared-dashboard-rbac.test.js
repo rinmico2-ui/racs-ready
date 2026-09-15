@@ -216,6 +216,7 @@ test("operational admin notifications receive secretary-safe destinations", () =
   assert.equal(toSecretaryNotificationLink("/admin/appointments/queue"), "/secretary/appointments?tab=queue");
   assert.equal(toSecretaryNotificationLink("/admin/appointments/attention?status=no-show"), "/secretary/operations/resolution-center?status=no-show");
   assert.equal(toSecretaryNotificationLink("/admin/appointments/orders?status=pending"), "/secretary/inventory/ordered-products?status=pending");
+  assert.equal(toSecretaryNotificationLink("/admin/operations/calendar?date=2026-09-14"), "/secretary/operations/calendar?date=2026-09-14");
   assert.equal(toSecretaryNotificationLink("/admin/payments/remittance"), "");
   assert.equal(toSecretaryNotificationLink("/admin/roles"), "");
 
@@ -270,7 +271,13 @@ test("sidebar renders the current navigation group open across page loads", asyn
 test("secretary bookings and calendar render the same views as admin", async () => {
   const pages = fs.readFileSync(path.join(__dirname, "../routes/pages.js"), "utf8");
   assert.equal((pages.match(/res\.render\("pages\/admin\/Appointments\/AppointmentsUnified"/g) || []).length, 2);
+  // One shared renderer serves admin/secretary; the second render is the
+  // technician's ownership-scoped version of the same calendar view.
   assert.equal((pages.match(/res\.render\("pages\/admin\/Appointments\/Calendar"/g) || []).length, 2);
+  assert.match(pages, /"\/admin\/operations\/calendar"[\s\S]*?renderOperationsCalendar\(res, "admin"\)/);
+  assert.match(pages, /"\/secretary\/operations\/calendar"[\s\S]*?renderOperationsCalendar\(res, "secretary"\)/);
+  assert.match(pages, /"\/admin\/appointments\/calendar"[\s\S]*?res\.redirect\("\/admin\/operations\/calendar"\)/);
+  assert.match(pages, /"\/secretary\/calendar"[\s\S]*?res\.redirect\("\/secretary\/operations\/calendar"\)/);
   assert.doesNotMatch(pages, /res\.render\("pages\/secretary\/Appointments\/(Appointments|Calendar|BookingRequest)"/);
 
   const bookingHtml = await ejs.renderFile(path.join(viewsRoot, "Appointments/AppointmentsUnified.ejs"), {
@@ -286,6 +293,7 @@ test("secretary bookings and calendar render the same views as admin", async () 
   assert.match(bookingHtml, /var APPOINTMENTS_TOOLS_API = "\/api\/secretary\/tools"/);
   assert.match(bookingHtml, /var APPOINTMENTS_CAN_RESOLVE = true/);
   assert.match(bookingHtml, /href="\/secretary\/operations\/resolution-center\?source=booking"/);
+  assert.match(bookingHtml, /href="\/secretary\/operations\/calendar"/);
   assert.match(bookingHtml, /var APPOINTMENTS_RESOLUTION_API = "\/api\/secretary\/operations"/);
   assert.doesNotMatch(bookingHtml, /\/api\/admin\/appointments/);
   assert.match(bookingHtml, /id="bookingResolutionCount"/);
@@ -294,12 +302,16 @@ test("secretary bookings and calendar render the same views as admin", async () 
     calendarTechniciansApi: "/api/secretary/technicians",
     calendarSchedulesApi: "/api/secretary/technician-schedules",
     calendarAppointmentsApi: "/api/secretary/appointments",
+    calendarAppointmentsListApi: "/api/appointments",
+    calendarOrdersApi: "/api/orders",
     calendarBookingsPath: "/secretary/appointments",
     calendarOrdersPath: "/secretary/inventory/ordered-products",
   });
   assert.match(calendarHtml, /const calendarTechniciansApi = "\/api\/secretary\/technicians"/);
   assert.match(calendarHtml, /const calendarSchedulesApi = "\/api\/secretary\/technician-schedules"/);
   assert.match(calendarHtml, /const calendarAppointmentsApi = "\/api\/secretary\/appointments"/);
+  assert.match(calendarHtml, /const calendarAppointmentsListApi = "\/api\/appointments"/);
+  assert.match(calendarHtml, /const calendarOrdersApi = "\/api\/orders"/);
   assert.match(calendarHtml, /href="\/secretary\/appointments"/);
 });
 
@@ -388,12 +400,12 @@ test("secretary inventory routes render the admin-grade inventory views", () => 
 
   for (const view of [
     "pages/admin/Inventory/InventoryList",
-    "pages/admin/Inventory/DeliveryCalendar",
     "pages/admin/Inventory/AirconOrders",
     "pages/admin/Inventory/StockHistory",
   ]) {
     assert.match(secretaryInventory, new RegExp(`res\\.render\\("${view.replaceAll("/", "\\/")}"`));
   }
+  assert.match(secretaryInventory, /"\/secretary\/inventory\/deliveries"[\s\S]*?res\.redirect\("\/secretary\/operations\/calendar"\)/);
   assert.doesNotMatch(secretaryInventory, /pages\/secretary\/Inventory\//);
 });
 
@@ -430,6 +442,7 @@ test("shared inventory views use secretary-safe endpoints and role-aware resolut
   assert.match(ordersHtml, /role: "secretary"/);
   assert.match(ordersHtml, /canResolve: true/);
   assert.match(ordersHtml, /href="\/secretary\/operations\/resolution-center\?source=order"/);
+  assert.match(ordersHtml, /href="\/secretary\/operations\/calendar"/);
   assert.match(ordersHtml, /resolutionApiBase: "\/api\/secretary\/operations"/);
 });
 

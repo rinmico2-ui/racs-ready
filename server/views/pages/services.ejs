@@ -72,6 +72,7 @@
         window._projectLaborRatePerDay = Number("<%= typeof projectLaborRatePerDay !== 'undefined' ? projectLaborRatePerDay : 0 %>");
         window._companyBaseLocation = null;
         window._airconInstallFee = Number("<%= typeof airconInstallFee !== 'undefined' ? airconInstallFee : 1500 %>");
+        window._repairInspectionDefaultFee = Number("<%= typeof repairInspectionDefaultFee !== 'undefined' ? repairInspectionDefaultFee : 500 %>");
       </script>
 
       <script>
@@ -1084,10 +1085,12 @@
                       <!-- Door handles -->
                       <rect x="168" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
                       <rect x="213" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
-                      <!-- RACS Logo panel -->
-                      <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
-                      <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
-                      <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                      <!-- Keep the branding readable when the vehicle SVG is flipped to face forward. -->
+                      <g class="racs-van-brand" role="img" aria-label="RACS AC Services">
+                        <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
+                        <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
+                        <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                      </g>
                       <!-- AC unit icon on van -->
                       <g transform="translate(255, 95)">
                         <rect x="0" y="0" width="35" height="45" rx="4" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
@@ -2353,7 +2356,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260911-booking-draft-v2';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260913-repair-brand-select-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260914-submission-motion-v1&inspection-pricing=20260915-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2957,3 +2960,4 @@ document.addEventListener("DOMContentLoaded",()=>{
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
 <link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260911-service-added-check">
+<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

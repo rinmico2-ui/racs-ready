@@ -75,6 +75,7 @@ test("request policy separates read access from management operations", () => {
   assert.equal(resolve("secretary", "GET", "/api/secretary/stock-adjustments"), "inventory.view");
   assert.equal(resolve("secretary", "POST", "/secretary/pointofsale"), "orders.manage");
   assert.equal(resolve("secretary", "GET", "/secretary/operations/resolution-center"), "appointments.view");
+  assert.equal(resolve("secretary", "GET", "/secretary/operations/calendar"), "appointments.view");
   assert.equal(resolve("secretary", "POST", "/api/pos/checkout"), "orders.manage");
   assert.equal(resolve("secretary", "GET", "/api/walk-in-aircon/products"), "orders.view");
   assert.equal(resolve("secretary", "POST", "/api/walk-in-aircon/checkout"), "orders.manage");

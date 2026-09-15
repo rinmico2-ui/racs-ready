@@ -494,6 +494,8 @@ router.patch("/repair-services/:id", (req, res, next) => serviceImageUpload(req,
 const serviceCategories = require("../controllers/serviceCategoryController");
 router.get("/service-categories", serviceCategories.list);
 router.post("/service-categories", serviceCategories.create);
+router.get("/service-categories/inspection-pricing", serviceCategories.getInspectionPricing);
+router.patch("/service-categories/inspection-pricing", serviceCategories.updateInspectionPricing);
 router.patch("/service-categories/:id", serviceCategories.update);
 router.delete("/service-categories/:id", serviceCategories.deactivate);
 router.post("/service-categories/:id/restore", serviceCategories.restore);
@@ -3149,45 +3151,46 @@ router.patch("/settings/company-location", async (req, res, next) => {
 });
 
 // â”€â”€â”€ Attendance Settings & Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const crypto = require("crypto");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
 const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
+const { createAttendanceChallenge, securityConfig } = require("../utils/attendanceSecurity");
 
-// helper to get or create today's QR token
-async function getOrCreateDailyToken() {
-  const todayStr = attendanceDay().key;
-  let tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
-
-  if (tokenSetting) {
-    const val = tokenSetting.value;
-    if (val && val.date === todayStr) {
-      return val.token;
-    }
-  }
-
-  // Generate a new secure token for today
-  const newToken = crypto.randomBytes(16).toString("hex");
-  await SiteSetting.findOneAndUpdate(
-    { key: "attendance_qr_token" },
-    { value: { date: todayStr, token: newToken } },
-    { upsert: true, returnDocument: "after" }
-  );
-  return newToken;
+async function buildAttendanceQrResponse() {
+  const now = new Date();
+  const challenge = createAttendanceChallenge(now);
+  const todayStr = attendanceDay(now).key;
+  const qrPayload = JSON.stringify({
+    token: challenge.token,
+    date: todayStr,
+    expiresAt: challenge.expiresAt.toISOString(),
+  });
+  const qrImage = await QRCode.toDataURL(qrPayload, { width: 220, margin: 1 });
+  const config = securityConfig();
+  return {
+    date: todayStr,
+    qrImage,
+    expiresAt: challenge.expiresAt,
+    refreshAfterMs: challenge.refreshAfterMs,
+    security: {
+      rotating: true,
+      ttlSeconds: config.qrTtlSeconds,
+      geofenceRadiusMeters: config.geofenceRadiusMeters,
+      maxGpsAccuracyMeters: config.maxGpsAccuracyMeters,
+    },
+    challengeId: challenge.challengeId,
+  };
 }
 
 /** GET /api/admin/attendance/qr-token */
 router.get("/attendance/qr-token", async (req, res, next) => {
   try {
-    const token = await getOrCreateDailyToken();
-    const todayStr = attendanceDay().key;
-
-    // Generate QR code data URL
-    const qrPayload = JSON.stringify({ token: token, date: todayStr });
-    const qrImage = await QRCode.toDataURL(qrPayload, { width: 220, margin: 1 });
-
-    return res.json({ token, date: todayStr, qrImage });
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    const response = await buildAttendanceQrResponse();
+    const { challengeId, ...publicResponse } = response;
+    return res.json(publicResponse);
   } catch (err) {
     next(err);
   }
@@ -3196,13 +3199,8 @@ router.get("/attendance/qr-token", async (req, res, next) => {
 /** POST /api/admin/attendance/regenerate-token */
 router.post("/attendance/regenerate-token", async (req, res, next) => {
   try {
-    const todayStr = attendanceDay().key;
-    const newToken = crypto.randomBytes(16).toString("hex");
-    await SiteSetting.findOneAndUpdate(
-      { key: "attendance_qr_token" },
-      { value: { date: todayStr, token: newToken } },
-      { upsert: true }
-    );
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const response = await buildAttendanceQrResponse();
 
     await audit.logEvent({
       actor: req.user._id,
@@ -3210,10 +3208,11 @@ router.post("/attendance/regenerate-token", async (req, res, next) => {
       action: "attendance.qr.regenerate",
       module: "admin",
       req,
-      details: { date: todayStr }
+      details: { date: response.date, challengeId: response.challengeId }
     }).catch(() => { });
 
-    return res.json({ message: "QR Code Token regenerated successfully", token: newToken, date: todayStr });
+    const { challengeId, ...publicResponse } = response;
+    return res.json({ message: "Rotating attendance QR refreshed.", ...publicResponse });
   } catch (err) {
     next(err);
   }
@@ -3278,7 +3277,13 @@ router.get("/attendance/today", async (req, res, next) => {
         checkInTime: record ? record.checkInTime : null,
         checkOutTime: record ? record.checkOutTime : null,
         method: record ? record.method : null,
-        updatedBy: record ? record.updatedBy : null
+        updatedBy: record ? record.updatedBy : null,
+        verificationLevel: !record ? null
+          : record.method === "manual" ? "manual"
+          : Number(record.securityVersion) >= 2 ? "layered"
+          : "legacy",
+        checkInDistanceMeters: record?.checkInEvidence?.distanceFromCompanyMeters ?? null,
+        checkInAccuracyMeters: record?.checkInEvidence?.accuracyMeters ?? null,
       };
     }));
 
@@ -3306,6 +3311,10 @@ router.get("/attendance/today", async (req, res, next) => {
         checkOutTime: record ? record.checkOutTime : null,
         method: record ? record.method : null,
         updatedBy: record ? record.updatedBy : null,
+        verificationLevel: !record ? null
+          : record.method === "manual" ? "manual"
+          : record.qrChallengeId ? "signed"
+          : "legacy",
       };
     });
 
@@ -3320,6 +3329,7 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
   try {
     const { staffId } = req.params;
     const { status, availabilityStatus, staffType } = req.body;
+    const overrideReason = String(req.body.overrideReason || "").trim();
 
     if (!mongoose.Types.ObjectId.isValid(staffId)) {
       return res.status(400).json({ error: "Invalid staff ID" });
@@ -3328,6 +3338,9 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
     const validStatuses = ["Absent", "Present", "Late", "On Leave", "Sick Leave", "Checked Out"];
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({ error: "Invalid attendance status" });
+    }
+    if (status && (overrideReason.length < 5 || overrideReason.length > 500)) {
+      return res.status(400).json({ error: "An override reason between 5 and 500 characters is required." });
     }
 
     if (staffType === "secretary") {
@@ -3350,9 +3363,11 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
           method: "manual",
           qrVerified: false,
           updatedBy: req.user._id,
+          remarks: overrideReason,
           ...(status === "Checked Out" ? { checkOutTime: now } : { checkOutTime: null }),
           ...(["Absent", "On Leave", "Sick Leave"].includes(status) ? { checkInTime: null } : {}),
         },
+        $unset: { token: 1, qrChallengeId: 1 },
       };
       if (["Present", "Late", "Checked Out"].includes(status) && !current?.checkInTime) {
         update.$set.checkInTime = now;
@@ -3371,7 +3386,7 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
         req,
         entityId: record._id,
         entityType: "SecretaryAttendance",
-        details: { status, staffType: "secretary" },
+        details: { status, staffType: "secretary", overrideReason },
       }).catch(() => {});
       return res.json({ message: "Secretary attendance updated", attendance: record });
     }
@@ -3397,20 +3412,35 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
 
       // Upsert daily attendance record
       const startOfToday = attendanceDay().start;
+      const currentAttendance = await TechnicianAttendance.findOne({
+        technicianId: tech._id,
+        date: startOfToday,
+      }).select("checkInTime").lean();
 
       const updateData = {
-        method: "manual",
-        updatedBy: req.user._id,
-        userId: tech.user,
+        $set: {
+          method: "manual",
+          updatedBy: req.user._id,
+          userId: tech.user,
+          qrVerified: false,
+          securityVersion: 1,
+          remarks: overrideReason,
+        },
+        $unset: { token: 1, checkInEvidence: 1, checkOutEvidence: 1 },
       };
 
       if (status === "Checked Out") {
-        updateData.status = "Present"; // Keep standard present/late status for reports
-        updateData.checkOutTime = new Date();
+        updateData.$set.status = "Present"; // Keep standard present/late status for reports
+        updateData.$set.checkOutTime = new Date();
       } else {
-        updateData.status = status;
-        updateData.$setOnInsert = { checkInTime: new Date() };
-        updateData.$unset = { checkOutTime: 1 }; // Clear checkout if status is changed back
+        updateData.$set.status = status;
+        updateData.$unset.checkOutTime = 1; // Clear checkout if status is changed back
+      }
+      if (["Present", "Late", "Checked Out"].includes(status) && !currentAttendance?.checkInTime) {
+        updateData.$set.checkInTime = new Date();
+      }
+      if (["Absent", "On Leave", "Sick Leave"].includes(status)) {
+        updateData.$unset.checkInTime = 1;
       }
 
       await TechnicianAttendance.findOneAndUpdate(
@@ -3437,7 +3467,7 @@ router.patch("/attendance/:staffId", async (req, res, next) => {
       action: "attendance.manual.update",
       module: "admin",
       req,
-      details: updates
+      details: { ...updates, ...(status ? { overrideReason } : {}) }
     }).catch(() => { });
 
     return res.json({ message: "Technician attendance/availability updated", technician: tech });
@@ -3554,6 +3584,19 @@ function attendanceHistoryRow(record, staff) {
     method: record.method,
     qrVerified: Boolean(record.qrVerified),
     remarks: record.remarks || "",
+    verificationLevel: record.method === "manual"
+      ? "manual"
+      : Number(record.securityVersion) >= 2
+        ? "layered"
+        : record.qrChallengeId
+          ? "signed"
+          : "legacy",
+    checkInDistanceMeters: record.checkInEvidence?.distanceFromCompanyMeters ?? null,
+    checkInAccuracyMeters: record.checkInEvidence?.accuracyMeters ?? null,
+    checkOutDistanceMeters: record.checkOutEvidence?.distanceFromCompanyMeters ?? null,
+    checkOutAccuracyMeters: record.checkOutEvidence?.accuracyMeters ?? null,
+    checkOutVerifiedSiteType: record.checkOutEvidence?.verifiedGeofenceType ?? null,
+    checkOutDistanceFromVerifiedSiteMeters: record.checkOutEvidence?.distanceFromVerifiedSiteMeters ?? null,
   };
 }
 
@@ -7141,6 +7184,10 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
           totalLabel: `${totalMinutes} min`,
           paymentMethod: booking.paymentMethod || "cod",
           estimatedFee: booking.quotation?.totalCost || 0,
+          downpaymentPercentage: booking.downpaymentPercentage,
+          downpaymentAmount: booking.downpaymentAmount,
+          balanceAmount: booking.balanceAmount,
+          paymentStatus: booking.paymentStatus,
           locationAddress: booking.location?.address || "",
           issueDescription: isReschedule
             ? "Your repair has been rescheduled. The technician will return to complete the repair work."
@@ -8733,7 +8780,7 @@ router.post("/review-reschedule/:id/reschedule", async (req, res, next) => {
     // 2. Send socket notification to customer
     if (io && booking.customerId) {
       try {
-        io.to("customer-" + booking.customerId).emit("booking:rescheduled", {
+        io.to("customer:" + booking.customerId).emit("booking:rescheduled", {
           bookingId: booking._id,
           bookingReference: bookingRef,
           message: customerScheduleMessage,

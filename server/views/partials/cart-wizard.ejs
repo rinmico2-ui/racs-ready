@@ -721,9 +721,11 @@
                 <line x1="220" y1="80" x2="220" y2="155" stroke="#1e40af" stroke-width="2"/>
                 <rect x="168" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
                 <rect x="213" y="115" width="12" height="4" rx="2" fill="#94a3b8"/>
-                <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
-                <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
-                <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                <g class="racs-van-brand" role="img" aria-label="RACS AC Services">
+                  <rect x="150" y="90" width="90" height="50" rx="6" fill="#fff" opacity="0.95"/>
+                  <text x="195" y="112" font-family="Arial Black,sans-serif" font-size="16" font-weight="900" fill="#1e40af" text-anchor="middle" letter-spacing="2">RACS</text>
+                  <text x="195" y="128" font-family="Arial,sans-serif" font-size="8" font-weight="600" fill="#64748b" text-anchor="middle">AC SERVICES</text>
+                </g>
                 <g transform="translate(255, 95)">
                   <rect x="0" y="0" width="35" height="45" rx="4" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
                   <rect x="4" y="5" width="27" height="20" rx="2" fill="#dbeafe"/>
@@ -1281,6 +1283,27 @@
 
     function prefersReducedCheckoutMotion() {
       return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function waitForOrderLoadingMinimum(startedAt, minimumMs) {
+      const target = prefersReducedCheckoutMotion() ? 200 : (minimumMs || 900);
+      const remaining = Math.max(0, target - (Date.now() - startedAt));
+      return remaining ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
+    }
+
+    function hideModalBeforeLoading(modalElement, modalInstance) {
+      if (!modalElement || !modalInstance || !modalElement.classList.contains('show')) return Promise.resolve();
+      return new Promise(resolve => {
+        let finished = false;
+        const done = () => {
+          if (finished) return;
+          finished = true;
+          resolve();
+        };
+        modalElement.addEventListener('hidden.bs.modal', done, { once:true });
+        modalInstance.hide();
+        setTimeout(done, 500);
+      });
     }
 
     function focusCheckoutControl(selector, delay) {
@@ -2282,7 +2305,7 @@
       L.control.zoom({ position:'bottomright' }).addTo(leafletMap);
       L.control.scale({ position:'bottomleft', imperial:false, maxWidth:120 }).addTo(leafletMap);
 
-      _streetMapLayer = window.createEsriHybridLayer({ maxZoom:20 }).addTo(leafletMap);
+      _streetMapLayer = window.createEsriHybridLayer().addTo(leafletMap);
 
       const customPinIcon = L.divIcon({ className:'custom-map-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body"></div>' });
       leafletMarker = L.marker([defaultLat, defaultLng], { icon:customPinIcon, draggable:true, keyboard:true, title:'Delivery location' }).addTo(leafletMap);
@@ -2451,9 +2474,11 @@
       nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
 
       // Show the van loading modal
-      const checkoutModal = bootstrap.Modal.getInstance(document.getElementById('checkoutOrderModal'));
-      if (checkoutModal) checkoutModal.hide();
+      const checkoutModalElement = document.getElementById('checkoutOrderModal');
+      const checkoutModal = bootstrap.Modal.getInstance(checkoutModalElement);
+      await hideModalBeforeLoading(checkoutModalElement, checkoutModal);
       const loadingModal = new bootstrap.Modal(document.getElementById('orderLoadingModal'));
+      const loadingStartedAt = Date.now();
       loadingModal.show();
 
       const orderItems = CART_ITEMS.map(it => ({
@@ -2524,6 +2549,10 @@
         // Order success - clear cart
         await fetch('/api/aircon-cart/clear', { method: 'POST' });
 
+        // Keep the loader visible long enough to communicate progress even
+        // when localhost responds almost immediately.
+        await waitForOrderLoadingMinimum(loadingStartedAt, 900);
+
         // Hide loading modal and show success in checkout modal
         const loadingModalInstance = bootstrap.Modal.getInstance(document.getElementById('orderLoadingModal'));
         if (loadingModalInstance) loadingModalInstance.hide();
@@ -2564,3 +2593,4 @@
     }
   })();
 </script>
+<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

@@ -231,6 +231,7 @@ function requiredPermissionForRequest(user, req) {
     if (path.startsWith("/secretary/appointments/booking-requests")) return "booking_requests.view";
     if (path.startsWith("/secretary/pointofsale")) return "orders.manage";
     if (path.startsWith("/secretary/operations/resolution-center")) return "appointments.view";
+    if (path.startsWith("/secretary/operations/calendar")) return "appointments.view";
     if (path.startsWith("/secretary/appointments/walk-in") || path.startsWith("/secretary/appointments/reschedule") || path.startsWith("/secretary/appointments/repair-scheduling")) return "appointments.manage";
     if (path.startsWith("/secretary/appointments") || path.startsWith("/secretary/calendar")) return "appointments.view";
     if (path.startsWith("/secretary/projects")) return "appointments.view";
@@ -276,7 +277,7 @@ function requiredPermissionForRequest(user, req) {
     if (path.startsWith("/technician/tracking")) return "tracking.self.manage";
     if (path.startsWith("/technician/remittances")) return "remittances.self.manage";
     if (path.startsWith("/technician/warranty-claims")) return "warranties.self.manage";
-    if (path.startsWith("/technician/orders") || path.startsWith("/technician/assignments") || path.startsWith("/technician/schedule") || path.startsWith("/technician/projects")) return "assignments.self.view";
+    if (path.startsWith("/technician/orders") || path.startsWith("/technician/assignments") || path.startsWith("/technician/calendar") || path.startsWith("/technician/schedule") || path.startsWith("/technician/projects")) return "assignments.self.view";
 
     if (path.startsWith("/api/technician/attendance") || path.startsWith("/api/technician/leave-requests") || path.startsWith("/api/technician/availability")) return "attendance.self.manage";
     if (path.startsWith("/api/technician/remittances")) return "remittances.self.manage";

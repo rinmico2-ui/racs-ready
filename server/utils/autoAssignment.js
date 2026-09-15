@@ -217,8 +217,8 @@ async function autoAssignBooking(bookingId, options = {}) {
 
     // Past-date guard: a booking whose scheduled time already elapsed must be
     // rescheduled via the Resolution Center, not auto-assigned.
-    const { isBookingPast } = require('./bookingPolicy');
-    if (isBookingPast(booking)) {
+    const { isAssignmentWindowExpired } = require('./bookingDateTime');
+    if (isAssignmentWindowExpired(booking)) {
       await session.abortTransaction();
       session.endSession();
       return {
@@ -274,6 +274,9 @@ async function autoAssignBooking(bookingId, options = {}) {
     booking.assignedAt = new Date();
     booking.assignedBy = null;
     booking.assignmentId = assignment._id;
+    booking.autoReschedulePending = false;
+    booking.autoRescheduleAt = undefined;
+    booking.autoRescheduleReason = undefined;
     booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
     booking.cancellationHistory.push({
       technicianId: null,

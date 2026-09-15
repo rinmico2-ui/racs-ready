@@ -4,6 +4,7 @@
  * All routes require: authenticated + role === "technician"
  */
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");
@@ -20,10 +21,31 @@ const { dayBounds: dailyKitDayBounds, syncDailyKit, confirmDailyKit } = require(
 const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
 const { getRepairLaborFees, normalizeRepairComplexity } = require('../utils/repairLaborPricing');
 const { isBookingPast } = require('../utils/bookingPolicy');
+const { manilaDateTime } = require('../utils/bookingDateTime');
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require('../utils/uploadSecurity');
 const { escapeRegex } = require('../utils/stringSecurity');
 const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
 const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remittancePolicy');
+const trustedDevices = require('../utils/trustedDevices');
+const {
+  verifyAttendanceChallenge,
+  verifyAttendanceLocation,
+  requestMetadata,
+  securityErrorResponse,
+  safeAttendanceRecord,
+} = require('../utils/attendanceSecurity');
+
+// Keep technician workspace counts on the same lifecycle vocabulary used by
+// the assignment list. Expired rows are superseded assignment attempts, not
+// current or historical jobs that should be counted as technician work.
+const TECHNICIAN_ACTIVE_ASSIGNMENT_STATUSES = [
+  "accepted",
+  "en_route",
+  "on_site",
+  "waiting_for_customer",
+  "in_progress",
+];
+const TECHNICIAN_HIDDEN_ASSIGNMENT_STATUSES = ["expired"];
 
 async function configuredBookingWarranty(booking, completedAt) {
   return buildBookingWarrantyCoverage(booking, completedAt);
@@ -1099,7 +1121,7 @@ router.get("/appointments/:id", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const booking = await BookingService.findById(id)
-      .select("status quotation inspection diagnosis serviceType services workOrderNumber customer technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod repairPaymentProof customerRating customerRatingComment service serviceId address completedAt")
+      .select("status quotation inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod repairPaymentProof customerRating customerRatingComment service serviceId address completedAt")
       .lean();
     if (!booking) return res.status(404).json({ error: "Appointment not found" });
     if (!technicianIds.includes(String(booking.technicianId || ""))) {
@@ -1508,10 +1530,36 @@ router.delete("/tool-usage/:usageId", async (req, res, next) => {
 });
 
 // ── Attendance Scanning ──────────────────────────────────────────────────────
-const SiteSetting = require("../models/SiteSetting");
 const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const { attendanceDay } = require("../utils/attendanceTime");
+
+const attendanceActionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 12,
+  keyGenerator: req => String(req.user._id),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: "ATTENDANCE_RATE_LIMITED", error: "Too many attendance attempts. Wait a minute and try again." },
+});
+
+async function verifyAttendanceDevice(req, res) {
+  const verified = await trustedDevices.validateAndRotate(req, res, req.user);
+  if (verified) return true;
+  audit.logEvent({
+    actor: req.user._id,
+    target: req.user._id,
+    action: "attendance.device.denied",
+    module: "technician",
+    req,
+    details: { code: "TRUSTED_DEVICE_REQUIRED" },
+  }).catch(() => {});
+  res.status(403).json({
+    code: "TRUSTED_DEVICE_REQUIRED",
+    error: "Attendance can only be recorded from your registered device. Sign in again and select Trust this device.",
+  });
+  return false;
+}
 
 /**
  * GET /api/technician/attendance/status
@@ -1538,7 +1586,7 @@ router.get("/attendance/status", async (req, res, next) => {
     const record = await TechnicianAttendance.findOne({
       technicianId: tech._id,
       date: startOfToday,
-    }).lean();
+    }).select("date status checkInTime checkOutTime qrVerified method remarks noExpensesTodayConfirmed noExpensesTodayConfirmedAt createdAt updatedAt").lean();
 
     // Compute effective availability from attendance state (single source of truth)
     const availabilityStatus = await resolveAvailabilityStatus(tech, record, activeLeave, { syncDb: true });
@@ -1556,7 +1604,7 @@ router.get("/attendance/status", async (req, res, next) => {
     return res.json({
       attendanceStatus,
       availabilityStatus,
-      record,
+      record: safeAttendanceRecord(record),
       isOnLeave,
       leaveType,
     });
@@ -1567,95 +1615,31 @@ router.get("/attendance/status", async (req, res, next) => {
 
 /**
  * POST /api/technician/attendance/checkin
- * Body: { lat?, lng? }
- * Button-based check-in with optional GPS coordinates.
- * Enterprise alternative to QR scanning.
+ * Deliberately disabled: technician self-service check-in must go through the
+ * rotating QR + trusted device + geofence flow. Admin overrides remain audited.
  */
-router.post("/attendance/checkin", async (req, res, next) => {
-  try {
-    const { lat, lng } = req.body;
-
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const day = attendanceDay();
-    const startOfToday = day.start;
-
-    // Check for approved leave
-    const LeaveRequest = require("../models/LeaveRequest");
-    const activeLeave = await LeaveRequest.findOne({
-      technicianId: tech._id,
-      status: "approved",
-      startDate: { $lte: startOfToday },
-      endDate: { $gte: startOfToday },
-    }).lean();
-    if (activeLeave) {
-      return res.status(400).json({ error: "You are currently on approved leave." });
-    }
-
-    // Check if already checked in
-    const existing = await TechnicianAttendance.findOne({ technicianId: tech._id, date: startOfToday });
-    if (existing && ["Present", "Late"].includes(existing.status)) {
-      return res.status(400).json({ error: "You have already checked in today." });
-    }
-
-    // Determine status against the business timezone, independent of server host.
-    const now = new Date();
-    const status = now > day.lateCutoff ? "Late" : "Present";
-
-    // Update technician model
-    tech.availabilityStatus = "Available";
-    if (lat && lng) {
-      tech.location = { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] };
-    }
-    await tech.save();
-
-    // Create or update attendance record
-    const attendanceRecord = await TechnicianAttendance.findOneAndUpdate(
-      { technicianId: tech._id, date: startOfToday },
-      {
-        userId: req.user._id,
-        status,
-        checkInTime: now,
-        method: "manual",
-        token: "button_" + now.getTime(),
-      },
-      { upsert: true, returnDocument: "after" }
-    );
-
-    await audit.logEvent({
-      actor: req.user._id,
-      target: tech._id,
-      action: "attendance.checkin.button",
-      module: "technician",
-      req,
-      details: { status, checkInTime: now, lat, lng }
-    }).catch(() => { });
-
-    return res.json({
-      message: `Checked in as ${status}.`,
-      attendanceStatus: status,
-      availabilityStatus: "Available",
-      record: attendanceRecord
-    });
-  } catch (err) {
-    next(err);
-  }
+router.post("/attendance/checkin", attendanceActionLimiter, async (_req, res) => {
+  return res.status(403).json({
+    code: "ADMIN_OVERRIDE_REQUIRED",
+    error: "Manual technician check-in is disabled. Scan the rotating QR code or ask an administrator for an audited override.",
+  });
 });
 
 /**
  * POST /api/technician/attendance/checkout
- * Body: { lat?, lng? }
- * Records check-out time for today with optional GPS.
+ * Body: { location: { latitude, longitude, accuracyMeters, capturedAt }, noExpensesToday? }
+ * Records check-out using a registered device and fresh GPS evidence.
  */
-router.post("/attendance/checkout", async (req, res, next) => {
+router.post("/attendance/checkout", attendanceActionLimiter, async (req, res, next) => {
   try {
-    const { lat, lng, noExpensesToday } = req.body;
+    const { noExpensesToday } = req.body;
+    if (!(await verifyAttendanceDevice(req, res))) return;
 
+    const now = new Date();
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const day = attendanceDay();
+    const day = attendanceDay(now);
     const startOfToday = day.start;
 
     const record = await TechnicianAttendance.findOne({
@@ -1670,6 +1654,45 @@ router.post("/attendance/checkout", async (req, res, next) => {
     if (record.checkOutTime) {
       return res.status(400).json({ error: "You have already checked out today." });
     }
+
+    const Assignment = require("../models/Assignment");
+    const [activeAssignments, completedAssignments] = await Promise.all([
+      Assignment.find({
+        technicianId: tech._id,
+        $or: [
+          { status: { $in: ["en_route", "on_site", "waiting_for_customer", "in_progress"] } },
+          { status: "accepted", bookingDate: { $lte: day.end } },
+        ],
+      }).select("_id status serviceName").lean(),
+      Assignment.find({
+        technicianId: tech._id,
+        status: "completed",
+        completedAt: { $gte: day.start, $lte: day.end },
+      }).select("_id serviceName address coordinates").lean(),
+    ]);
+    if (activeAssignments.length) {
+      return res.status(409).json({
+        code: "ACTIVE_JOB_REMAINING",
+        error: `Complete or resolve your active job${activeAssignments.length > 1 ? "s" : ""} before checking out.`,
+        activeJobs: activeAssignments.length,
+      });
+    }
+
+    const locationEvidence = await verifyAttendanceLocation(req.body.location || req.body, {
+      now,
+      enforceAllowedGeofence: true,
+      allowedSites: completedAssignments.map(assignment => ({
+        id: assignment._id,
+        label: assignment.serviceName || assignment.address || "Completed worksite",
+        latitude: assignment.coordinates && assignment.coordinates.lat,
+        longitude: assignment.coordinates && assignment.coordinates.lng,
+      })),
+    });
+    const evidence = {
+      ...locationEvidence,
+      ...requestMetadata(req),
+      trustedDeviceVerified: true,
+    };
 
     // ── Remittance gate (hard block): every peso collected today must be ──
     // submitted for remittance before the technician can check out. Unlike
@@ -1692,7 +1715,6 @@ router.post("/attendance/checkout", async (req, res, next) => {
     }
 
     const Expense = require("../models/Expense");
-    const Assignment = require("../models/Assignment");
     const endOfToday = day.end;
     const [todayExpenseCount, completedJobsToday] = await Promise.all([
       Expense.countDocuments({ technicianId: tech._id, expenseDate: { $gte: startOfToday, $lte: endOfToday } }),
@@ -1701,21 +1723,30 @@ router.post("/attendance/checkout", async (req, res, next) => {
     if (todayExpenseCount === 0 && noExpensesToday !== true) {
       return res.status(409).json({ code: "EXPENSE_CONFIRMATION_REQUIRED", error: "No expenses have been logged today.", completedJobsToday });
     }
+    const attendanceUpdate = {
+      checkOutTime: now,
+      checkOutEvidence: evidence,
+      securityVersion: 2,
+    };
     if (todayExpenseCount === 0 && noExpensesToday === true) {
-      record.noExpensesTodayConfirmed = true;
-      record.noExpensesTodayConfirmedAt = new Date();
+      attendanceUpdate.noExpensesTodayConfirmed = true;
+      attendanceUpdate.noExpensesTodayConfirmedAt = now;
     }
-
-    const now = new Date();
-    record.checkOutTime = now;
-    await record.save();
+    const checkedOutRecord = await TechnicianAttendance.findOneAndUpdate(
+      { _id: record._id, checkOutTime: null },
+      { $set: attendanceUpdate },
+      { returnDocument: "after", runValidators: true },
+    );
+    if (!checkedOutRecord) {
+      return res.status(409).json({ error: "You have already checked out today." });
+    }
 
     // Set technician availability status to Offline on checkout
     tech.availabilityStatus = "Offline";
     await tech.save();
 
     // Calculate total hours worked
-    const hoursWorked = ((now - new Date(record.checkInTime)) / 3600000).toFixed(2);
+    const hoursWorked = ((now - new Date(checkedOutRecord.checkInTime)) / 3600000).toFixed(2);
 
     await audit.logEvent({
       actor: req.user._id,
@@ -1723,15 +1754,39 @@ router.post("/attendance/checkout", async (req, res, next) => {
       action: "attendance.checkout.success",
       module: "technician",
       req,
-      details: { checkOutTime: now, hoursWorked, lat, lng }
+      entityId: checkedOutRecord._id,
+      entityType: "TechnicianAttendance",
+      details: {
+        checkOutTime: now,
+        hoursWorked,
+        trustedDeviceVerified: true,
+        latitude: evidence.latitude,
+        longitude: evidence.longitude,
+        accuracyMeters: evidence.accuracyMeters,
+        distanceFromCompanyMeters: evidence.distanceFromCompanyMeters,
+        verifiedGeofenceType: evidence.verifiedGeofenceType,
+        verifiedGeofenceId: evidence.verifiedGeofenceId,
+        distanceFromVerifiedSiteMeters: evidence.distanceFromVerifiedSiteMeters,
+      }
     }).catch(() => { });
 
     return res.json({
       message: "Checked out successfully.",
       hoursWorked: parseFloat(hoursWorked),
-      record
+      record: safeAttendanceRecord(checkedOutRecord)
     });
   } catch (err) {
+    if (err && err.name === "AttendanceSecurityError") {
+      audit.logEvent({
+        actor: req.user._id,
+        target: req.user._id,
+        action: "attendance.checkout.denied",
+        module: "technician",
+        req,
+        details: { code: err.code },
+      }).catch(() => {});
+    }
+    if (securityErrorResponse(res, err)) return;
     next(err);
   }
 });
@@ -1748,9 +1803,10 @@ router.get("/attendance/history", async (req, res, next) => {
     const records = await TechnicianAttendance.find({ technicianId: tech._id })
       .sort({ date: -1 })
       .limit(30)
+      .select("date status checkInTime checkOutTime qrVerified method remarks noExpensesTodayConfirmed createdAt updatedAt")
       .lean();
 
-    return res.json({ records, count: records.length });
+    return res.json({ records: records.map(safeAttendanceRecord), count: records.length });
   } catch (err) {
     next(err);
   }
@@ -1758,20 +1814,36 @@ router.get("/attendance/history", async (req, res, next) => {
 
 /**
  * POST /api/technician/attendance/scan
- * Body: { token }
- * Marks the technician as present or late depending on scan time.
+ * Body: { token, location: { latitude, longitude, accuracyMeters, capturedAt } }
+ * Requires a rotating QR, registered device, and company geofence proof.
  */
-router.post("/attendance/scan", async (req, res, next) => {
+router.post("/attendance/scan", attendanceActionLimiter, async (req, res, next) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: "QR Token is required" });
+    if (!(await verifyAttendanceDevice(req, res))) return;
+
+    const now = new Date();
+    const challenge = verifyAttendanceChallenge(token, now);
+    const locationEvidence = await verifyAttendanceLocation(req.body.location || req.body, {
+      now,
+      enforceCompanyGeofence: true,
+    });
+    const evidence = {
+      ...locationEvidence,
+      ...requestMetadata(req),
+      trustedDeviceVerified: true,
+      qrChallengeId: challenge.challengeId,
+      qrIssuedAt: challenge.issuedAt,
+      qrExpiresAt: challenge.expiresAt,
+    };
 
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     // Check for approved leave — block scanning
     const LeaveRequest = require("../models/LeaveRequest");
-    const day = attendanceDay();
+    const day = attendanceDay(now);
     const startOfToday = day.start;
     const activeLeave = await LeaveRequest.findOne({
       technicianId: tech._id,
@@ -1783,14 +1855,6 @@ router.post("/attendance/scan", async (req, res, next) => {
       return res.status(400).json({ error: "You are currently on approved leave. Scanning is disabled." });
     }
 
-    // Validate the token
-    const todayStr = day.key;
-    const tokenSetting = await SiteSetting.findOne({ key: "attendance_qr_token" }).lean();
-
-    if (!tokenSetting || !tokenSetting.value || tokenSetting.value.date !== todayStr || tokenSetting.value.token !== token) {
-      return res.status(400).json({ error: "Invalid or expired QR code for today." });
-    }
-
     // Check if already checked in today
     const existing = await TechnicianAttendance.findOne({ technicianId: tech._id, date: startOfToday });
     if (existing && ["Present", "Late"].includes(existing.status)) {
@@ -1798,27 +1862,31 @@ router.post("/attendance/scan", async (req, res, next) => {
     }
 
     // Determine status against the business timezone, independent of server host.
-    const now = new Date();
     const status = now > day.lateCutoff ? "Late" : "Present";
-
-    // Update technician model
-    // Update technician model availability
-    tech.availabilityStatus = "Available"; // Set availability to Available on check-in
-    await tech.save();
 
     // Create or update attendance record
     const attendanceRecord = await TechnicianAttendance.findOneAndUpdate(
-      { technicianId: tech._id, date: startOfToday },
       {
+        technicianId: tech._id,
+        date: startOfToday,
+        $or: [{ checkInTime: null }, { checkInTime: { $exists: false } }],
+      },
+      { $set: {
         userId: req.user._id,
         status,
         checkInTime: now,
+        checkOutTime: null,
         qrVerified: true,
         method: "qr_scan",
-        token
-      },
-      { upsert: true, returnDocument: "after" }
+        securityVersion: 2,
+        checkInEvidence: evidence,
+      }, $unset: { token: 1 } },
+      { upsert: true, returnDocument: "after", runValidators: true }
     );
+
+    tech.availabilityStatus = "Available";
+    tech.location = { type: "Point", coordinates: [evidence.longitude, evidence.latitude] };
+    await tech.save();
 
     await audit.logEvent({
       actor: req.user._id,
@@ -1826,16 +1894,42 @@ router.post("/attendance/scan", async (req, res, next) => {
       action: "attendance.scan.success",
       module: "technician",
       req,
-      details: { status, checkInTime: now }
+      entityId: attendanceRecord._id,
+      entityType: "TechnicianAttendance",
+      details: {
+        status,
+        checkInTime: now,
+        challengeId: challenge.challengeId,
+        trustedDeviceVerified: true,
+        latitude: evidence.latitude,
+        longitude: evidence.longitude,
+        accuracyMeters: evidence.accuracyMeters,
+        distanceFromCompanyMeters: evidence.distanceFromCompanyMeters,
+        geofenceRadiusMeters: evidence.geofenceRadiusMeters,
+      }
     }).catch(() => { });
 
     return res.json({
       message: `Attendance marked as ${status}. Availability status set to Available.`,
       attendanceStatus: status,
       availabilityStatus: "Available",
-      record: attendanceRecord
+      record: safeAttendanceRecord(attendanceRecord)
     });
   } catch (err) {
+    if (err && err.name === "AttendanceSecurityError") {
+      audit.logEvent({
+        actor: req.user._id,
+        target: req.user._id,
+        action: "attendance.checkin.denied",
+        module: "technician",
+        req,
+        details: { code: err.code },
+      }).catch(() => {});
+    }
+    if (securityErrorResponse(res, err)) return;
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: "Attendance has already been recorded for today." });
+    }
     next(err);
   }
 });
@@ -2516,12 +2610,26 @@ router.get("/kpis", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id }).lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const baseFilter = { technicianId: tech._id };
+    // KPI cards and tab badges must describe the same work displayed by the
+    // assignments endpoint. Projects have their own technician workspace and
+    // must not inflate Today/All/Active counts here.
+    const projectBookingIds = await BookingService.find({ isProject: true }).distinct("_id");
+    const baseFilter = {
+      technicianId: tech._id,
+      status: { $nin: TECHNICIAN_HIDDEN_ASSIGNMENT_STATUSES },
+      ...(projectBookingIds.length ? { bookingId: { $nin: projectBookingIds } } : {}),
+    };
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const completedStandardFilter = { ...baseFilter, status: "completed" };
+    completedStandardFilter.bookingId = {
+      ...(baseFilter.bookingId || {}),
+      $ne: null,
+    };
+    const completedStandardBookingIds = await Assignment.find(completedStandardFilter)
+      .distinct("bookingId");
+
+    const todayStart = manilaDateTime(new Date(), 0);
+    const todayEnd = manilaDateTime(new Date(), 24 * 60, -1);
 
     const [totalCount, statusCounts, todayCount, revenueResult, availableCount, toolCostResult, expenseResult] = await Promise.all([
       Assignment.countDocuments(baseFilter),
@@ -2532,13 +2640,17 @@ router.get("/kpis", async (req, res, next) => {
       Assignment.countDocuments({
         ...baseFilter,
         bookingDate: { $gte: todayStart, $lte: todayEnd },
+        status: { $nin: ["cancelled", "declined", "expired", "no_show", "no_show_reported"] },
       }),
       Assignment.aggregate([
         { $match: { ...baseFilter, status: "completed" } },
+        // One booking can retain more than one assignment attempt. Financial
+        // value belongs to the completed booking once, not once per attempt.
+        { $group: { _id: "$bookingId" } },
         {
           $lookup: {
             from: "bookingservices",
-            localField: "bookingId",
+            localField: "_id",
             foreignField: "_id",
             as: "booking",
           }
@@ -2612,21 +2724,23 @@ router.get("/kpis", async (req, res, next) => {
         bookingDate: { $gte: todayStart },
       }),
       ServiceToolUsage.aggregate([
-        { $match: { technicianId: tech._id, lifecycleStatus: { $ne: "voided" } } },
         {
-          $lookup: {
-            from: "bookingservices",
-            localField: "bookingId",
-            foreignField: "_id",
-            as: "booking"
-          }
+          $match: {
+            technicianId: tech._id,
+            bookingId: { $in: completedStandardBookingIds },
+            lifecycleStatus: { $ne: "voided" },
+          },
         },
-        { $unwind: { path: "$booking", preserveNullAndEmptyArrays: true } },
-        { $match: { "booking.status": "completed" } },
         { $group: { _id: null, totalPartsCost: { $sum: { $ifNull: ["$toolCost", 0] } } } }
       ]),
       Expense.aggregate([
-        { $match: { technicianId: tech._id, status: { $ne: "rejected" } } },
+        {
+          $match: {
+            technicianId: tech._id,
+            bookingId: { $in: completedStandardBookingIds },
+            status: "approved",
+          },
+        },
         { $group: { _id: null, totalExpenses: { $sum: "$amount" } } }
       ]),
     ]);
@@ -2636,7 +2750,10 @@ router.get("/kpis", async (req, res, next) => {
 
     const completed = statusMap["completed"] || 0;
     const pending = statusMap["pending_acceptance"] || 0;
-    const active = (statusMap["accepted"] || 0) + (statusMap["en_route"] || 0) + (statusMap["on_site"] || 0) + (statusMap["in_progress"] || 0);
+    const active = TECHNICIAN_ACTIVE_ASSIGNMENT_STATUSES.reduce(
+      (sum, status) => sum + (statusMap[status] || 0),
+      0,
+    );
     const declined = statusMap["declined"] || 0;
     const cancelled = statusMap["cancelled"] || 0;
     const revenue = revenueResult.length > 0 ? revenueResult[0].revenue : 0;
@@ -2752,14 +2869,13 @@ router.get("/assignments", async (req, res, next) => {
 
     if (status && status !== "all") {
       if (status === "active") {
-        filter.status = { $in: ["accepted", "en_route", "on_site", "in_progress"] };
+        filter.status = { $in: TECHNICIAN_ACTIVE_ASSIGNMENT_STATUSES };
       } else if (status === "today") {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const todayEnd = new Date();
-        todayEnd.setHours(23, 59, 59, 999);
+        const todayStart = manilaDateTime(new Date(), 0);
+        const todayEnd = manilaDateTime(new Date(), 24 * 60, -1);
         // Only apply if date is not explicitly set
         if (!date) filter.bookingDate = { $gte: todayStart, $lte: todayEnd };
+        filter.status = { $nin: ["cancelled", "declined", "expired", "no_show", "no_show_reported"] };
       } else if (status === "upcoming") {
         filter.status = { $in: ["pending_acceptance", "accepted"] };
         filter.bookingDate = { $gte: new Date() };
@@ -2769,7 +2885,7 @@ router.get("/assignments", async (req, res, next) => {
     } else if (!status || status === "all") {
       // Hide expired assignments from the "all" tab — they are superseded by
       // the reassignment and should not clutter the technician's list.
-      filter.status = { $ne: "expired" };
+      filter.status = { $nin: TECHNICIAN_HIDDEN_ASSIGNMENT_STATUSES };
     }
 
     if (search) {
@@ -2895,6 +3011,13 @@ router.get("/assignments", async (req, res, next) => {
       }
     }
 
+    // Send one authoritative missed-schedule decision to every technician UI
+    // surface. Cards and detail actions must not independently disagree about
+    // whether an unstarted visit can still begin.
+    for (const item of items) {
+      item.scheduleMissed = assertNotMissedSchedule(item);
+    }
+
     return res.json({
       items,
       total,
@@ -2997,6 +3120,7 @@ router.get("/assignments/:id", async (req, res, next) => {
       }
     }
 
+    assignment.scheduleMissed = assertNotMissedSchedule(assignment);
     return res.json({ assignment, techLocation: tech.location });
   } catch (err) {
     next(err);
@@ -10735,6 +10859,18 @@ router.post("/repairs/:bookingId/en-route", async (req, res, next) => {
     const inspectionTechId = String(booking.inspection?.technicianId || '');
     if (techId !== String(tech._id) && inspectionTechId !== String(tech._id)) {
       return res.status(403).json({ error: "You are not assigned to this repair" });
+    }
+
+    if (isBookingPast({
+      bookingDate: booking.bookingDate,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      serviceDurationMinutes: booking.serviceDurationMinutes,
+    })) {
+      return res.status(409).json({
+        error: "The scheduled service window has passed. Wait for operations to confirm a new customer schedule before going En Route.",
+        code: "SCHEDULE_MISSED",
+      });
     }
 
     if (!booking.technicianAssistant?.summary || !booking.technicianAssistant?.verifiedByTechnician) {

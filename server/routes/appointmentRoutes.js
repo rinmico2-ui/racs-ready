@@ -1043,6 +1043,12 @@ router.post("/create", auth.authenticate, auth.requireRole("customer"), async (r
               totalLabel,
               paymentMethod: paymentMethod || "cod",
               estimatedFee: fee || 0,
+              downpaymentPercentage: appointment.downpaymentPercentage,
+              downpaymentAmount: appointment.downpaymentAmount,
+              balanceAmount: Number(appointment.balanceAmount) > 0
+                ? appointment.balanceAmount
+                : Math.max(0, Number(fee || 0) - Number(appointment.downpaymentAmount || 0)),
+              paymentStatus: appointment.paymentStatus,
               locationAddress: customerLocation?.address || "",
               issueDescription: issueDescription || "",
               travelMins: travelMins || 0,
@@ -2512,6 +2518,10 @@ router.post(
             totalLabel,
             paymentMethod: appt.paymentMethod,
             estimatedFee: appt.estimatedFee,
+            downpaymentPercentage: appt.downpaymentPercentage,
+            downpaymentAmount: appt.downpaymentAmount,
+            balanceAmount: appt.balanceAmount,
+            paymentStatus: appt.paymentStatus,
             locationAddress: (appt.location && appt.location.address) || "",
             issueDescription: appt.issueDescription || "",
             travelMins,

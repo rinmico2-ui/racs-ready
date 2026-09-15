@@ -5,7 +5,10 @@ const { lifecycleFields } = require('../utils/dataLifecycle');
 const unitTypeSchema = new mongoose.Schema({
   value: { type: String, required: true },
   label: { type: String, required: true },
-  icon: { type: String, default: 'bi-circle' }
+  icon: { type: String, default: 'bi-circle' },
+  // Optional override. When omitted, the company-wide repair inspection fee
+  // is used. This is a catalog value; bookings keep their own price snapshot.
+  inspectionFee: { type: Number, min: 0, max: 100000, default: undefined }
 }, { _id: true });
 
 const serviceCategorySchema = new mongoose.Schema({

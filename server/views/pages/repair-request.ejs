@@ -3475,6 +3475,6 @@
 </style>
 
 <link rel="stylesheet" href="/css/enterprise-calendar.css">
-<script>window._serviceCategories = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>;</script>
+<script>window._serviceCategories = <%- JSON.stringify(typeof serviceCategories !== 'undefined' ? serviceCategories : []) %>; window._repairInspectionDefaultFee = Number("<%= typeof repairInspectionDefaultFee !== 'undefined' ? repairInspectionDefaultFee : 500 %>");</script>
 <script src="/js/enterprise-calendar.js"></script>
-<script src="/js/repair-request.js?v=20260912-payment-config-v1"></script>
+<script src="/js/repair-request.js?v=20260915-inspection-pricing-v1"></script>

@@ -36,6 +36,7 @@ const notificationSchema = new mongoose.Schema(
         "booking_delay",
         "booking_delay_customer",
         "booking_delay_tech",
+        "booking_assignment_delayed",
         "booking_expired",
         "booking_no_show",
         "booking_no_show_report",

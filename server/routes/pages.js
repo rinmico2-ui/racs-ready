@@ -75,9 +75,14 @@ router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
 
 const CoreService = require("../models/CoreService");
 const RepairService = require("../models/RepairService");
+const {
+  DEFAULT_REPAIR_INSPECTION_FEE,
+  getDefaultRepairInspectionFee,
+} = require("../utils/repairInspectionPricing");
 
 router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let initialServices = { coreServices: [], repairs: [] };
+  let repairInspectionDefaultFee = DEFAULT_REPAIR_INSPECTION_FEE;
   let publicStats = { servicesCompleted: 0, satisfactionPercentage: 0, activeTechnicians: 0, yearsExperience: 0, averageRating: 0, ratingCount: 0 };
   try {
     const core = await CoreService.find({ active: true }).lean().limit(100);
@@ -97,7 +102,10 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let serviceCategories = [];
   try {
     const ServiceCategory = require("../models/ServiceCategory");
-    serviceCategories = await ServiceCategory.find({ active: true }).sort({ order: 1 }).lean();
+    [serviceCategories, repairInspectionDefaultFee] = await Promise.all([
+      ServiceCategory.find({ active: true }).sort({ order: 1 }).lean(),
+      getDefaultRepairInspectionFee(),
+    ]);
   } catch (e) { /* fallback to empty — JS will handle */ }
 
   // load the admin-configured fare per km (falls back to 40 if not set)
@@ -128,6 +136,7 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     technicianLocation: defaultTechnicianLocation,
     initialServices,
     serviceCategories,
+    repairInspectionDefaultFee,
     // supply the admin's GCash number for the QR code
     adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || "",
     farePerKm,
@@ -147,9 +156,13 @@ router.get("/repair-request", pageAuth.requireCustomerOrGuest, async (req, res) 
 
   // Load dynamic service categories for the repair request form
   let serviceCategories = [];
+  let repairInspectionDefaultFee = DEFAULT_REPAIR_INSPECTION_FEE;
   try {
     const ServiceCategory = require("../models/ServiceCategory");
-    serviceCategories = await ServiceCategory.find({ active: true }).sort({ order: 1 }).lean();
+    [serviceCategories, repairInspectionDefaultFee] = await Promise.all([
+      ServiceCategory.find({ active: true }).sort({ order: 1 }).lean(),
+      getDefaultRepairInspectionFee(),
+    ]);
   } catch (e) { /* fallback to empty — JS will handle */ }
 
   res.render("pages/repair-request", {
@@ -158,6 +171,7 @@ router.get("/repair-request", pageAuth.requireCustomerOrGuest, async (req, res) 
     farePerKm,
     technicianLocation: defaultTechnicianLocation,
     serviceCategories,
+    repairInspectionDefaultFee,
   });
 });
 
@@ -1240,6 +1254,7 @@ router.get(
       appointmentsCanResolve: true,
       appointmentsResolutionPath: "/admin/operations/resolution-center",
       appointmentsResolutionApiBase: "/api/admin",
+      operationsCalendarPath: "/admin/operations/calendar",
     });
   },
 );
@@ -1262,21 +1277,34 @@ router.get(
   },
 );
 
-// Admin - Appointments Calendar
+function renderOperationsCalendar(res, role) {
+  const isSecretary = role === "secretary";
+  res.render("pages/admin/Appointments/Calendar", {
+    title: "Operations Calendar",
+    calendarWorkspaceRole: role,
+    layout: isSecretary ? "layouts/secretary" : "layouts/admin",
+    calendarTechniciansApi: isSecretary ? "/api/secretary/technicians" : "/api/admin/technicians",
+    calendarSchedulesApi: isSecretary ? "/api/secretary/technician-schedules" : "/api/admin/technician-schedules",
+    calendarAppointmentsApi: isSecretary ? "/api/secretary/appointments" : "/api/admin/appointments",
+    calendarAppointmentsListApi: "/api/appointments",
+    calendarOrdersApi: "/api/orders",
+    calendarBookingsPath: isSecretary ? "/secretary/appointments" : "/admin/appointments",
+    calendarOrdersPath: isSecretary ? "/secretary/inventory/ordered-products" : "/admin/appointments/orders",
+  });
+}
+
+// Shared operations schedule: service bookings and order fulfillment.
+router.get(
+  "/admin/operations/calendar",
+  pageAuth.requireRole("admin"),
+  (req, res) => renderOperationsCalendar(res, "admin"),
+);
+
+// Preserve bookmarked links from the previous booking-only navigation.
 router.get(
   "/admin/appointments/calendar",
   pageAuth.requireRole("admin"),
-  (req, res) => {
-    res.render("pages/admin/Appointments/Calendar", {
-      title: "Appointments Calendar",
-      layout: "layouts/admin",
-      calendarTechniciansApi: "/api/admin/technicians",
-      calendarSchedulesApi: "/api/admin/technician-schedules",
-      calendarAppointmentsApi: "/api/admin/appointments",
-      calendarBookingsPath: "/admin/appointments",
-      calendarOrdersPath: "/admin/appointments/orders",
-    });
-  },
+  (req, res) => res.redirect("/admin/operations/calendar"),
 );
 router.get(
   "/admin/appointments/booking-requests",
@@ -1539,12 +1567,12 @@ router.get(
   },
 );
 
-// Delivery Calendar — redirect to unified Appointments Calendar
+// Legacy delivery-calendar URLs now resolve to the shared Operations Calendar.
 router.get(
   "/admin/inventory/deliveries",
   pageAuth.requireRole("admin"),
   (req, res) => {
-    res.redirect("/admin/appointments/calendar");
+    res.redirect("/admin/operations/calendar");
   },
 );
 
@@ -1560,6 +1588,7 @@ router.get(
       ordersCanResolve: true,
       ordersResolutionPath: "/admin/operations/resolution-center",
       ordersResolutionApiBase: "/api/admin",
+      operationsCalendarPath: "/admin/operations/calendar",
     });
   },
 );
@@ -1762,7 +1791,10 @@ router.get(
   async (req, res) => {
     try {
       const ServiceCategory = require("../models/ServiceCategory");
-      const serviceCategories = await ServiceCategory.find({}).sort({ order: 1 }).lean();
+      const [serviceCategories, repairInspectionDefaultFee] = await Promise.all([
+        ServiceCategory.find({}).sort({ order: 1 }).lean(),
+        getDefaultRepairInspectionFee(),
+      ]);
       res.render("pages/admin/Services/ServiceCategories", {
         title: "Repair",
         layout: "layouts/admin",
@@ -1770,6 +1802,7 @@ router.get(
         serviceCategoriesApiBase: "/api/admin/service-categories",
         serviceCategoriesCorePath: "/admin/services/core",
         serviceCategoriesCanManage: true,
+        repairInspectionDefaultFee,
       });
     } catch (err) {
       console.error("/admin/services/service-categories failed", err && err.message);
@@ -1780,6 +1813,7 @@ router.get(
         serviceCategoriesApiBase: "/api/admin/service-categories",
         serviceCategoriesCorePath: "/admin/services/core",
         serviceCategoriesCanManage: true,
+        repairInspectionDefaultFee: DEFAULT_REPAIR_INSPECTION_FEE,
       });
     }
   },
@@ -1868,13 +1902,41 @@ router.get(
   },
 );
 
-// personal schedule view — redirects to unified My Work page
+// Personal schedule view — legacy path redirects to the unified technician calendar.
 router.get(
   "/technician/schedule",
   pageAuth.requireRole("technician"),
   (req, res) => {
-    res.redirect("/technician/assignments");
+    res.redirect("/technician/calendar");
   }
+);
+
+router.get(
+  "/technician/calendar",
+  pageAuth.requireRole("technician"),
+  async (req, res, next) => {
+    try {
+      const Technician = require("../models/Technician");
+      const tech = await Technician.findOne({ user: req.user._id }).lean();
+
+      res.render("pages/admin/Appointments/Calendar", {
+        title: "My Calendar",
+        layout: "layouts/technician",
+        technician: tech || {},
+        calendarWorkspaceRole: "technician",
+        calendarAppointmentsApi: "/api/technician/appointments",
+        calendarAppointmentsListApi: "/api/technician/calendar",
+        calendarOrdersApi: "/api/orders",
+        calendarOrdersListApi: "/api/orders/technician/all",
+        calendarBookingsPath: "/technician/assignments",
+        calendarBookingsQueryParam: "id",
+        calendarOrdersPath: "/technician/orders",
+        calendarOrdersQueryParam: "order",
+      });
+    } catch (e) {
+      next(e);
+    }
+  },
 );
 
 // technician analytics page
@@ -3628,6 +3690,7 @@ router.get("/secretary/appointments", pageAuth.requireRole("secretary"), (req, r
     appointmentsCanResolve: res.locals.can("appointments.manage"),
     appointmentsResolutionPath: "/secretary/operations/resolution-center",
     appointmentsResolutionApiBase: "/api/secretary/operations",
+    operationsCalendarPath: "/secretary/operations/calendar",
   });
 });
 
@@ -3665,19 +3728,15 @@ router.get(
 );
 
 router.get(
+  "/secretary/operations/calendar",
+  pageAuth.requireRole("secretary"),
+  (req, res) => renderOperationsCalendar(res, "secretary"),
+);
+
+router.get(
   "/secretary/calendar",
   pageAuth.requireRole("secretary"),
-  (req, res) => {
-    res.render("pages/admin/Appointments/Calendar", {
-      title: "Appointments Calendar",
-      layout: "layouts/secretary",
-      calendarTechniciansApi: "/api/secretary/technicians",
-      calendarSchedulesApi: "/api/secretary/technician-schedules",
-      calendarAppointmentsApi: "/api/secretary/appointments",
-      calendarBookingsPath: "/secretary/appointments",
-      calendarOrdersPath: "/secretary/inventory/ordered-products",
-    });
-  },
+  (req, res) => res.redirect("/secretary/operations/calendar"),
 );
 
 router.get(
@@ -3821,7 +3880,10 @@ router.get(
   async (req, res) => {
     try {
       const ServiceCategory = require("../models/ServiceCategory");
-      const serviceCategories = await ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean();
+      const [serviceCategories, repairInspectionDefaultFee] = await Promise.all([
+        ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean(),
+        getDefaultRepairInspectionFee(),
+      ]);
       res.render("pages/admin/Services/ServiceCategories", {
         title: "Repair",
         layout: "layouts/secretary",
@@ -3829,6 +3891,7 @@ router.get(
         serviceCategoriesApiBase: "/api/secretary/service-categories",
         serviceCategoriesCorePath: "/secretary/services/core",
         serviceCategoriesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
+        repairInspectionDefaultFee,
       });
     } catch (err) {
       console.error("/secretary/services/repair failed", err && err.message);
@@ -3839,6 +3902,7 @@ router.get(
         serviceCategoriesApiBase: "/api/secretary/service-categories",
         serviceCategoriesCorePath: "/secretary/services/core",
         serviceCategoriesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
+        repairInspectionDefaultFee: DEFAULT_REPAIR_INSPECTION_FEE,
       });
     }
   },
@@ -3865,14 +3929,7 @@ router.get(
 router.get(
   "/secretary/inventory/deliveries",
   pageAuth.requireRole("secretary"),
-  (req, res) => {
-    res.render("pages/admin/Inventory/DeliveryCalendar", {
-      title: "Delivery Calendar",
-      layout: "layouts/secretary",
-      deliveryInventoryApiBase: "/api/secretary/inventory",
-      deliveryInventoryPath: "/secretary/inventory",
-    });
-  },
+  (req, res) => res.redirect("/secretary/operations/calendar"),
 );
 
 router.get(
@@ -3886,6 +3943,7 @@ router.get(
       ordersCanResolve: res.locals.can("appointments.manage") && res.locals.can("orders.manage"),
       ordersResolutionPath: "/secretary/operations/resolution-center",
       ordersResolutionApiBase: "/api/secretary/operations",
+      operationsCalendarPath: "/secretary/operations/calendar",
     });
   },
 );

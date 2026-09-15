@@ -26,6 +26,7 @@ const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercare
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderAssignmentPlan } = require("../utils/orderAssignmentPlanner");
 const { orderFulfillmentScopeFilter } = require("../utils/orderFulfillmentScope");
+const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
 const {
   REVIEWABLE_ORDER_STATUSES,
   orderAttentionState,
@@ -42,6 +43,15 @@ const {
   validateCheckoutSelection,
   validatePickupDate,
 } = require("../utils/orderCheckoutPolicy");
+
+const TECHNICIAN_ORDER_FULFILLMENT_TYPES = ["delivery_only", "delivery_installation"];
+const TECHNICIAN_ACTIVE_ORDER_STATUSES = [
+  "preparing_unit",
+  "technician_accepted",
+  "out_for_delivery",
+  "arrived",
+  "installing",
+];
 
 // â”€â”€ Multer config for GCash receipt uploads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const gcashUploadDir = path.join(__dirname, "../public/uploads/gcash-receipts");
@@ -237,7 +247,14 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     const scopeFilter = orderFulfillmentScopeFilter(fulfillmentGroup, fulfillmentType);
     const filter = { ...scopeFilter };
 
-    if (status && status !== "all") filter.status = status;
+    if (status && status !== "all") {
+      const validStatuses = new Set(Order.schema.path("status").enumValues || []);
+      const requestedStatuses = String(status).split(",").map((value) => value.trim()).filter(Boolean);
+      if (!requestedStatuses.length || requestedStatuses.some((value) => !validStatuses.has(value))) {
+        return res.status(400).json({ error: "One or more order status filters are invalid." });
+      }
+      filter.status = requestedStatuses.length === 1 ? requestedStatuses[0] : { $in: requestedStatuses };
+    }
     if (technicianId && require("mongoose").isValidObjectId(technicianId)) filter.technicianId = technicianId;
     if (preparation === "dispatch_pending") filter["preparation.dispatch.status"] = { $ne: "ready" };
     if (preparation === "dispatch_ready") filter["preparation.dispatch.status"] = "ready";
@@ -256,8 +273,16 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
 
     if (scheduledFrom || scheduledTo) {
       const scheduledRange = {};
-      if (scheduledFrom) scheduledRange.$gte = new Date(`${scheduledFrom}T00:00:00`);
-      if (scheduledTo) scheduledRange.$lte = new Date(`${scheduledTo}T23:59:59.999`);
+      if (scheduledFrom) {
+        const fromDate = parseDateOnly(scheduledFrom);
+        if (!fromDate) return res.status(400).json({ error: "Invalid scheduled-from date." });
+        scheduledRange.$gte = manilaDateTime(fromDate, 0);
+      }
+      if (scheduledTo) {
+        const toDate = parseDateOnly(scheduledTo);
+        if (!toDate) return res.status(400).json({ error: "Invalid scheduled-to date." });
+        scheduledRange.$lte = manilaDateTime(toDate, 24 * 60, -1);
+      }
       filter.$and = [
         ...(filter.$and || []),
         { $or: [
@@ -734,11 +759,23 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
       return res.status(404).json({ error: "Technician record not found" });
     }
 
-    const { status, fulfillmentType, search, from, to, page = 1, limit = 50 } = req.query;
-    const filter = { technicianId: tech._id };
+    const { status, fulfillmentType, search, from, to, scheduledFrom, scheduledTo, page = 1, limit = 50 } = req.query;
+    // This endpoint powers the technician Orders workspace. Customer pickup is
+    // intentionally outside that workspace, so both rows and KPIs share this
+    // exact delivery/installation scope.
+    const technicianOrderScope = {
+      technicianId: tech._id,
+      fulfillmentType: { $in: TECHNICIAN_ORDER_FULFILLMENT_TYPES },
+    };
+    const filter = { ...technicianOrderScope };
 
     if (status && status !== "all") filter.status = status;
-    if (fulfillmentType && fulfillmentType !== "all") filter.fulfillmentType = fulfillmentType;
+    if (fulfillmentType && fulfillmentType !== "all") {
+      if (!TECHNICIAN_ORDER_FULFILLMENT_TYPES.includes(fulfillmentType)) {
+        return res.status(400).json({ error: "Invalid technician fulfillment type." });
+      }
+      filter.fulfillmentType = fulfillmentType;
+    }
 
     if (search) {
       const safeSearch = String(search).slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -748,6 +785,27 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
         { "customer.name": regex },
         { "customer.email": regex },
         { "items.modelLine": regex },
+      ];
+    }
+
+    if (scheduledFrom || scheduledTo) {
+      const scheduledRange = {};
+      if (scheduledFrom) {
+        const fromDate = parseDateOnly(scheduledFrom);
+        if (!fromDate) return res.status(400).json({ error: "Invalid scheduled-from date." });
+        scheduledRange.$gte = manilaDateTime(fromDate, 0);
+      }
+      if (scheduledTo) {
+        const toDate = parseDateOnly(scheduledTo);
+        if (!toDate) return res.status(400).json({ error: "Invalid scheduled-to date." });
+        scheduledRange.$lte = manilaDateTime(toDate, 24 * 60, -1);
+      }
+      filter.$and = [
+        ...(filter.$and || []),
+        { $or: [
+          { "delivery.preferredDate": scheduledRange },
+          { pickupDate: scheduledRange },
+        ] },
       ];
     }
 
@@ -762,31 +820,39 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     }
 
     const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
-    const [orders, total] = await Promise.all([
+    const [orders, total, statusCounts] = await Promise.all([
       Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
       Order.countDocuments(filter),
+      Order.aggregate([
+        { $match: technicianOrderScope },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
     ]);
 
-    const [totalOrders, pendingPrep, outForDelivery, installing, completed, cancelled, awaitingAcceptance] = await Promise.all([
-      Order.countDocuments({ technicianId: tech._id }),
-      Order.countDocuments({ technicianId: tech._id, status: { $in: ["preparing_unit", "technician_accepted"] } }),
-      Order.countDocuments({ technicianId: tech._id, status: "out_for_delivery" }),
-      Order.countDocuments({ technicianId: tech._id, status: "installing" }),
-      Order.countDocuments({ technicianId: tech._id, status: "completed" }),
-      Order.countDocuments({ technicianId: tech._id, status: "cancelled" }),
-      Order.countDocuments({ technicianId: tech._id, status: "technician_assigned" }),
-    ]);
+    const statusMap = Object.fromEntries(statusCounts.map(row => [row._id, row.count]));
+    const totalOrders = statusCounts.reduce((sum, row) => sum + row.count, 0);
+    const pendingPrep = (statusMap.preparing_unit || 0) + (statusMap.technician_accepted || 0);
+    const outForDelivery = statusMap.out_for_delivery || 0;
+    const arrived = statusMap.arrived || 0;
+    const installing = statusMap.installing || 0;
+    const completed = statusMap.completed || 0;
+    const cancelled = statusMap.cancelled || 0;
+    const awaitingAcceptance = statusMap.technician_assigned || 0;
+    const active = TECHNICIAN_ACTIVE_ORDER_STATUSES.reduce(
+      (sum, orderStatus) => sum + (statusMap[orderStatus] || 0),
+      0,
+    );
 
     res.json({
-      orders,
+      orders: orders.map((order) => withOrderAttentionState(order)),
       total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)),
-      kpi: { totalOrders, pendingPrep, outForDelivery, installing, completed, cancelled, awaitingAcceptance },
+      kpi: { totalOrders, pendingPrep, outForDelivery, arrived, installing, completed, cancelled, awaitingAcceptance, active },
     });
   } catch (err) {
     console.error("GET /api/orders/technician/all error:", err);
@@ -1204,6 +1270,12 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
     if (order.status !== "technician_assigned") {
       return res.status(400).json({ error: "Order is not awaiting acceptance" });
     }
+    if (orderAttentionState(order).isPastDate) {
+      return res.status(409).json({
+        error: "This delivery schedule has passed. Operations must confirm a new customer schedule before acceptance.",
+        code: "ORDER_SCHEDULE_PASSED",
+      });
+    }
     order.technicianAcceptance = {
       status: "accepted",
       respondedAt: new Date(),
@@ -1336,6 +1408,12 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     let departureKit = null;
     if (status === "out_for_delivery") {
+      if (orderAttentionState(order).isPastDate) {
+        return res.status(409).json({
+          error: "This dispatch window has passed. Ask operations to confirm a new customer schedule before departure.",
+          code: "ORDER_SCHEDULE_PASSED",
+        });
+      }
       if (order.fulfillmentType === "delivery_installation") {
         if (!order.delivery?.preferredDate) {
           return res.status(409).json({ error: "The installation has no scheduled work date.", code: "ORDER_SCHEDULE_REQUIRED" });
@@ -1545,6 +1623,12 @@ router.post("/:id/mark-ready-for-pickup", authenticate, requireRole(["admin", "s
     }
     if (order.status !== "preparing_unit") {
       return res.status(400).json({ error: `Order must be in "preparing_unit" status. Current: ${order.status}` });
+    }
+    if (orderAttentionState(order).isPastDate) {
+      return res.status(409).json({
+        error: "This pickup date has passed. Confirm a new date with the customer before marking the order ready.",
+        code: "ORDER_SCHEDULE_PASSED",
+      });
     }
     order.pushStatus("ready_for_pickup", req.body.note || "Unit ready for customer pickup", {
       actor: req.user && req.user._id, actorRole: req.user && req.user.role,
@@ -1981,24 +2065,23 @@ router.post("/:id/reschedule-reject", authenticate, requireRole(["admin", "secre
 router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { scheduledDate, timeSlot, reason } = req.body || {};
-    if (!scheduledDate || !timeSlot) {
-      return res.status(400).json({ error: "A new date and time are required." });
-    }
+    if (!scheduledDate) return res.status(400).json({ error: "A new date is required." });
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: `Order status "${order.status}" cannot be rescheduled from the attention queue.` });
     }
+    const isPickup = order.fulfillmentType === "customer_pickup";
+    if (!isPickup && !timeSlot) return res.status(400).json({ error: "A new delivery time is required." });
 
-    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(String(scheduledDate))
-      ? new Date(`${scheduledDate}T00:00:00`)
-      : new Date(scheduledDate);
-    if (Number.isNaN(parsedDate.getTime())) return res.status(400).json({ error: "The replacement date is invalid." });
+    const parsedDateValue = parseDateOnly(scheduledDate);
+    const parsedDate = parsedDateValue ? manilaDateTime(parsedDateValue, 0) : null;
+    if (!parsedDate) return res.status(400).json({ error: "The replacement date is invalid." });
 
     const proposed = order.toObject();
-    proposed.timeSlot = timeSlot;
-    if (order.fulfillmentType === "customer_pickup") proposed.pickupDate = parsedDate;
+    proposed.timeSlot = isPickup ? null : timeSlot;
+    if (isPickup) proposed.pickupDate = parsedDate;
     else proposed.delivery = { ...(proposed.delivery || {}), preferredDate: parsedDate };
 
     const cutoff = requestedOrderCutoff(proposed);
@@ -2007,17 +2090,17 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     }
     const previousKitTarget = orderKitTarget(order);
 
-    if (order.fulfillmentType === "customer_pickup") {
+    if (isPickup) {
       order.pickupDate = parsedDate;
     } else {
       order.delivery = order.delivery || {};
       order.delivery.preferredDate = parsedDate;
     }
-    order.timeSlot = timeSlot;
+    order.timeSlot = isPickup ? null : timeSlot;
     order.rescheduleRequest = {
       requested: true,
       requestedDate: scheduledDate,
-      requestedTime: timeSlot,
+      requestedTime: isPickup ? "" : timeSlot,
       reason: reason || "Past requested schedule replaced by admin",
       requestedBy: req.user._id,
       requestedAt: new Date(),
@@ -2027,7 +2110,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     };
     order.pushStatus(
       order.status,
-      `Admin rescheduled order to ${scheduledDate} at ${timeSlot}. ${reason || "Customer schedule updated after admin delay."}`,
+      `Admin rescheduled order to ${scheduledDate}${isPickup ? "" : ` at ${timeSlot}`}. ${reason || "Customer schedule updated after admin delay."}`,
       { actor: req.user._id, actorRole: req.user.role, actorName: req.user.name || req.user.email || "Admin" }
     );
     await order.save();
@@ -2035,7 +2118,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     if (order.bookingId) {
       await BookingService.findByIdAndUpdate(order.bookingId, {
         bookingDate: parsedDate,
-        startTime: timeSlot,
+        startTime: isPickup ? "" : timeSlot,
       }).catch(() => {});
     }
     const assignedTech = order.technicianId ? await Technician.findById(order.technicianId).lean() : null;
@@ -2047,7 +2130,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
       await createNotification({
         type: "order_rescheduled",
         title: "Order Schedule Updated",
-        message: `Your order ${order.orderReference || ""} is now scheduled for ${scheduledDate} at ${timeSlot}.`,
+        message: `Your order ${order.orderReference || ""} is now scheduled for ${scheduledDate}${isPickup ? "" : ` at ${timeSlot}`}.`,
         userId: order.userId,
         role: "customer",
         referenceId: order._id,
@@ -2077,6 +2160,20 @@ router.post("/:id/requeue-assignment", authenticate, requireRole(["admin", "secr
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (order.status !== "technician_assigned") {
       return res.status(409).json({ error: "Only an order waiting for technician acceptance can be requeued." });
+    }
+    const assignmentTiming = orderAttentionState(order);
+    if (assignmentTiming.isPastDate) {
+      return res.status(409).json({
+        error: "The customer schedule has passed. Set a new schedule before changing the assignment.",
+        code: "ORDER_SCHEDULE_PASSED",
+      });
+    }
+    if (!assignmentTiming.isAcceptanceOverdue) {
+      return res.status(409).json({
+        error: `The technician still has time to respond. Requeue becomes available after the ${assignmentTiming.responseMinutes}-minute response window.`,
+        code: "ORDER_ACCEPTANCE_WINDOW_ACTIVE",
+        acceptanceDeadlineAt: assignmentTiming.acceptanceDeadlineAt,
+      });
     }
 
     const previousTechnicianId = order.technicianId;
@@ -2145,7 +2242,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     // Use the scheduledDate if given, otherwise fall back to order's existing preferredDate
     const finalScheduledDate = scheduledDate || (order.delivery && order.delivery.preferredDate
-      ? (() => { const d = new Date(order.delivery.preferredDate); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()
+      ? manilaDateKey(order.delivery.preferredDate)
       : null);
     if (!finalScheduledDate) {
       return res.status(400).json({ error: "Set a future delivery date before assigning a technician." });

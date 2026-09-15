@@ -174,7 +174,7 @@
           <select class="form-select" id="resolutionIssue" aria-label="Issue type">
             <option value="">All issue types</option>
             <optgroup label="Bookings"><option value="no_show">No-show</option><option value="past_date">Past date</option><option value="incomplete">Incomplete service</option><option value="no_technician">No technician</option><option value="technician_issue">Technician issue</option><option value="schedule_conflict">Schedule conflict</option><option value="customer_reschedule">Customer reschedule</option><option value="cancelled">Cancellation review</option></optgroup>
-            <optgroup label="Orders"><option value="payment_review_overdue">Payment review overdue</option><option value="assignment_overdue">Assignment overdue</option><option value="pickup_overdue">Pickup overdue</option></optgroup>
+            <optgroup label="Orders"><option value="payment_review_overdue">Payment review overdue</option><option value="assignment_overdue">Assignment overdue</option><option value="dispatch_overdue">Dispatch overdue</option><option value="pickup_overdue">Pickup overdue</option></optgroup>
           </select>
           <select class="form-select" id="resolutionSeverity" aria-label="Severity"><option value="">All priorities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option></select>
           <button class="btn btn-outline-secondary btn-sm px-3" id="resolutionClear" type="button"><i class="bi bi-x-circle me-1"></i>Clear</button>
@@ -405,7 +405,7 @@
   const queryParams = new URLSearchParams(window.location.search);
   const requestedFilter = queryParams.get('issue') || queryParams.get('status') || '';
   const legacyFilterMap = { 'no-show-reported':'no_show', pending_reassignment:'technician_issue', 're-scheduled':'customer_reschedule', awaiting_assignment:'no_technician' };
-  const validIssueFilters = ['no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'pickup_overdue'];
+  const validIssueFilters = ['no_show', 'cancelled', 'incomplete', 'no_technician', 'technician_issue', 'schedule_conflict', 'customer_reschedule', 'past_date', 'payment_review_overdue', 'assignment_overdue', 'dispatch_overdue', 'pickup_overdue'];
   let currentFilter = legacyFilterMap[requestedFilter] || (validIssueFilters.includes(requestedFilter) ? requestedFilter : '');
   let currentSource = ['booking', 'order'].includes(queryParams.get('source')) ? queryParams.get('source') : '';
   if (currentSource === 'order' && !RESOLUTION_CAN_VIEW_ORDERS) currentSource = '';
@@ -443,6 +443,7 @@
     customer_reschedule: { label:'Customer Reschedule', icon:'bi-calendar2-week', color:'#0369a1', background:'#f0f9ff' },
     payment_review_overdue: { label:'Payment Review Overdue', icon:'bi-credit-card-2-front', color:'#b45309', background:'#fffbeb' },
     assignment_overdue: { label:'Assignment Overdue', icon:'bi-person-x', color:'#c2410c', background:'#fff7ed' },
+    dispatch_overdue: { label:'Dispatch Overdue', icon:'bi-truck-front', color:'#b91c1c', background:'#fef2f2' },
     pickup_overdue: { label:'Pickup Overdue', icon:'bi-bag-x', color:'#7c3aed', background:'#f5f3ff' },
   };
 
@@ -670,7 +671,7 @@
   function openOrderResolutionForCase(id) {
     const item = findResolutionCase('order', id);
     if (!item) { showToast('error', 'The order resolution case is no longer available. Refresh the queue.'); return; }
-    rescheduleOrder(item.id, item.reference || 'Order', item.phone || '', item.email || '');
+    rescheduleOrder(item.id, item.reference || 'Order', item.phone || '', item.email || '', item.fulfillmentType || 'delivery_installation');
   }
 
   function contactPhoneHref(value) {
@@ -839,25 +840,26 @@
     }
   }
 
-  async function rescheduleOrder(orderId, reference, phone = '', email = '') {
+  async function rescheduleOrder(orderId, reference, phone = '', email = '', fulfillmentType = 'delivery_installation') {
     let scheduledDate = '';
     let timeSlot = '';
     let reason = '';
+    const isPickup = fulfillmentType === 'customer_pickup';
     const customerContact = contactActions({ phone, email, customer:reference });
     if (window.Swal) {
       const tomorrow = new Date(Date.now() + 86400000);
       const minDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
       const result = await Swal.fire({
         title:`Set schedule · ${escapeHtml(reference)}`,
-        html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}<label class="form-label small fw-bold">New delivery or pickup date</label><input id="rcOrderDate" type="date" min="${minDate}" class="form-control mb-3"><label class="form-label small fw-bold">Time window</label><select id="rcOrderTime" class="form-select mb-3"><option value="">Select time</option><option value="09:00">9:00 AM</option><option value="10:00">10:00 AM</option><option value="13:00">1:00 PM</option><option value="14:00">2:00 PM</option><option value="15:00">3:00 PM</option></select><label class="form-label small fw-bold">Resolution note</label><textarea id="rcOrderReason" class="form-control" rows="2" placeholder="Customer contacted; replacement schedule confirmed"></textarea></div>`,
+        html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}<label class="form-label small fw-bold">New ${isPickup ? 'pickup' : 'delivery'} date</label><input id="rcOrderDate" type="date" min="${minDate}" class="form-control mb-3">${isPickup ? '' : '<label class="form-label small fw-bold">Time window (PHT)</label><select id="rcOrderTime" class="form-select mb-3"><option value="">Select time</option><option value="09:00">9:00 AM</option><option value="10:00">10:00 AM</option><option value="13:00">1:00 PM</option><option value="14:00">2:00 PM</option><option value="15:00">3:00 PM</option></select>'}<label class="form-label small fw-bold">Resolution note</label><textarea id="rcOrderReason" class="form-control" rows="2" placeholder="Customer contacted; replacement schedule confirmed"></textarea></div>`,
         showCancelButton:true,
         confirmButtonText:'Save future schedule',
         confirmButtonColor:'#2563eb',
         focusConfirm:false,
         preConfirm:() => {
           const date = document.getElementById('rcOrderDate').value;
-          const time = document.getElementById('rcOrderTime').value;
-          if (!date || !time) { Swal.showValidationMessage('Choose both a future date and time.'); return false; }
+          const time = isPickup ? '' : document.getElementById('rcOrderTime').value;
+          if (!date || (!isPickup && !time)) { Swal.showValidationMessage(isPickup ? 'Choose a future pickup date.' : 'Choose both a future date and time.'); return false; }
           return { date, time, reason:document.getElementById('rcOrderReason').value.trim() };
         },
       });
@@ -868,8 +870,8 @@
     } else {
       scheduledDate = prompt('New date (YYYY-MM-DD):') || '';
       if (!scheduledDate) return;
-      timeSlot = prompt('New time (for example 09:00):') || '';
-      if (!timeSlot) return;
+      timeSlot = isPickup ? '' : (prompt('New time (for example 09:00):') || '');
+      if (!isPickup && !timeSlot) return;
       reason = prompt('Resolution note (optional):') || '';
     }
     try {

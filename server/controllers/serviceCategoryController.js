@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
 const ServiceCategory = require("../models/ServiceCategory");
 const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
+const audit = require("../utils/audit");
+const {
+  getDefaultRepairInspectionFee,
+  parseInspectionFee,
+  setDefaultRepairInspectionFee,
+} = require("../utils/repairInspectionPricing");
 
 const ICON_COLORS = new Set(["blue", "amber", "violet", "green", "red", "cyan"]);
 
@@ -10,11 +16,15 @@ function text(value, max = 120) {
 
 function normalizedUnitTypes(value) {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 50).map((unit) => ({
-    value: text(unit?.value, 100),
-    label: text(unit?.label, 100),
-    icon: text(unit?.icon, 60) || "bi-circle",
-  })).filter((unit) => unit.value && unit.label);
+  return value.slice(0, 50).map((unit) => {
+    const inspectionFee = parseInspectionFee(unit?.inspectionFee, { allowEmpty: true });
+    return {
+      value: text(unit?.value, 100),
+      label: text(unit?.label, 100),
+      icon: text(unit?.icon, 60) || "bi-circle",
+      ...(inspectionFee == null ? {} : { inspectionFee }),
+    };
+  }).filter((unit) => unit.value && unit.label);
 }
 
 function categoryPayload(body = {}, partial = false) {
@@ -42,8 +52,37 @@ function sendError(res, error) {
 
 exports.list = async (_req, res) => {
   try {
-    const categories = await ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean();
-    return res.json({ success: true, categories });
+    const [categories, defaultInspectionFee] = await Promise.all([
+      ServiceCategory.find({}).sort({ order: 1, name: 1 }).lean(),
+      getDefaultRepairInspectionFee(),
+    ]);
+    return res.json({ success: true, categories, defaultInspectionFee });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, error: error.message });
+    return sendError(res, error);
+  }
+};
+
+exports.getInspectionPricing = async (_req, res) => {
+  try {
+    return res.json({ success: true, defaultInspectionFee: await getDefaultRepairInspectionFee() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+exports.updateInspectionPricing = async (req, res) => {
+  try {
+    const defaultInspectionFee = await setDefaultRepairInspectionFee(req.body?.defaultInspectionFee);
+    await audit.logEvent({
+      actor: req.user?._id,
+      target: req.user?._id,
+      action: "serviceCategory.inspectionPricing.update",
+      module: "services",
+      req,
+      details: { defaultInspectionFee },
+    }).catch(() => {});
+    return res.json({ success: true, message: "Default repair inspection fee updated.", defaultInspectionFee });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ success: false, error: error.message });
     return sendError(res, error);
