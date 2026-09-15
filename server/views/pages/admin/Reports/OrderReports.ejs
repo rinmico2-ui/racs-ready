@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="/css/analytics.css">
-<link rel="stylesheet" href="/css/service-report-focused.css?v=20260906-filter-performance">
-<link rel="stylesheet" href="/css/order-report-focused.css?v=20260906-motion-refine">
+<link rel="stylesheet" href="/css/service-report-focused.css?v=20260915-photo-evidence">
+<link rel="stylesheet" href="/css/order-report-focused.css?v=20260915-photo-evidence">
 <link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
 
 <%
@@ -17,6 +17,9 @@
   const cancellationReasons = Array.isArray(A.cancellationReasons) ? A.cancellationReasons : [];
   const recentOrders = Array.isArray(A.recentOrders) ? A.recentOrders : [];
   const topProducts = Array.isArray(A.topProducts) ? A.topProducts : [];
+  const photoEvidenceReports = typeof orderPhotoEvidence !== 'undefined' && Array.isArray(orderPhotoEvidence) ? orderPhotoEvidence : [];
+  const photoEvidenceCount = photoEvidenceReports.reduce((total, item) => total + (Array.isArray(item.photos) ? item.photos.length : 0), 0);
+  const formatDate = value => value ? new Date(value).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' }) : '—';
   const advancedActive = [F.paymentStatus, F.paymentMethod, F.technician, F.q, F.brand]
     .filter(Boolean).length + ((F.minValue !== null && F.minValue !== undefined) || (F.maxValue !== null && F.maxValue !== undefined) ? 1 : 0);
   const attentionItems = [];
@@ -70,7 +73,7 @@
     <article class="sr-kpi kpi-enterprise <%= Number(A.actionRequiredOrders) ? 'is-provisional' : '' %>" data-accent="amber"><div class="sr-kpi-top"><span class="sr-kpi-icon amber"><i class="bi bi-exclamation-diamond"></i></span><span class="sr-kpi-context">₱<%= money(A.outstandingBalance) %> outstanding</span></div><span class="sr-kpi-label">Orders requiring attention</span><strong><%= number(A.actionRequiredOrders) %></strong><small>Overdue, unassigned, reschedule, decline, or ledger exceptions</small></article>
   </section>
 
-  <nav class="sr-tabs" aria-label="Order analysis sections"><div class="nav" role="tablist"><button class="sr-tab active" id="order-overview-tab" data-bs-toggle="tab" data-bs-target="#order-overview" type="button" role="tab" aria-selected="true">Overview</button><button class="sr-tab" id="order-fulfillment-tab" data-bs-toggle="tab" data-bs-target="#order-fulfillment" type="button" role="tab" aria-selected="false">Fulfillment</button><button class="sr-tab" id="order-cash-tab" data-bs-toggle="tab" data-bs-target="#order-cash" type="button" role="tab" aria-selected="false">Cash &amp; margin</button><button class="sr-tab" id="order-products-tab" data-bs-toggle="tab" data-bs-target="#order-products" type="button" role="tab" aria-selected="false">Products</button><button class="sr-tab" id="order-records-tab" data-bs-toggle="tab" data-bs-target="#order-records" type="button" role="tab" aria-selected="false">Records</button></div></nav>
+  <nav class="sr-tabs" aria-label="Order analysis sections"><div class="nav" role="tablist"><button class="sr-tab active" id="order-overview-tab" data-bs-toggle="tab" data-bs-target="#order-overview" type="button" role="tab" aria-selected="true">Overview</button><button class="sr-tab" id="order-fulfillment-tab" data-bs-toggle="tab" data-bs-target="#order-fulfillment" type="button" role="tab" aria-selected="false">Fulfillment</button><button class="sr-tab" id="order-cash-tab" data-bs-toggle="tab" data-bs-target="#order-cash" type="button" role="tab" aria-selected="false">Cash &amp; margin</button><button class="sr-tab" id="order-products-tab" data-bs-toggle="tab" data-bs-target="#order-products" type="button" role="tab" aria-selected="false">Products</button><button class="sr-tab" id="order-photos-tab" data-bs-toggle="tab" data-bs-target="#order-photos" type="button" role="tab" aria-selected="false">Report photos <span class="sr-tab-count"><%= number(photoEvidenceCount) %></span></button><button class="sr-tab" id="order-records-tab" data-bs-toggle="tab" data-bs-target="#order-records" type="button" role="tab" aria-selected="false">Records</button></div></nav>
 
   <div class="tab-content sr-tab-content">
     <div class="tab-pane fade show active" id="order-overview" role="tabpanel" aria-labelledby="order-overview-tab">
@@ -105,10 +108,50 @@
       <div class="sr-data-warning"><i class="bi bi-lightbulb"></i><div><strong>Brand is retained as a filter, not a competing chart</strong><p>The product ranking already includes brand and model. This avoids presenting two highly overlapping portfolio views.</p></div></div>
     </div>
 
+    <div class="tab-pane fade" id="order-photos" role="tabpanel" aria-labelledby="order-photos-tab">
+      <section class="sr-card sr-evidence-section" aria-labelledby="order-photos-title">
+        <header class="sr-card-header">
+          <div><span class="sr-card-kicker">Fulfillment evidence</span><h2 id="order-photos-title">Order report photos</h2><p>Product images, arrival and installation evidence, completion proof, and payment records for the selected filters.</p></div>
+          <span class="sr-evidence-total"><i class="bi bi-images" aria-hidden="true"></i><strong><%= number(photoEvidenceCount) %></strong><small>photo<%= photoEvidenceCount === 1 ? '' : 's' %></small></span>
+        </header>
+        <% if (photoEvidenceReports.length) { %>
+          <div class="sr-evidence-grid">
+            <% photoEvidenceReports.forEach(function(item) { %>
+              <article class="sr-evidence-card">
+                <header><div><span class="sr-evidence-reference"><%= item.reference %></span><h3><%= item.product %></h3></div><span class="sr-evidence-status <%= item.status %>"><%= nice(item.status) %></span></header>
+                <div class="sr-evidence-photos">
+                  <% item.photos.forEach(function(photo) { %>
+                    <button type="button" class="sr-evidence-photo" data-order-evidence-photo data-evidence-title="<%= item.reference %> · <%= photo.label %>" data-evidence-meta="<%= item.product %> · <%= nice(item.fulfillment) %>" aria-label="View <%= photo.label %> for <%= item.reference %>">
+                      <img src="<%= photo.url %>" alt="<%= photo.label %> for <%= item.reference %>" loading="lazy" decoding="async">
+                      <span><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i><%= photo.label %></span>
+                    </button>
+                  <% }); %>
+                </div>
+                <div class="sr-evidence-details">
+                  <div><i class="bi bi-person" aria-hidden="true"></i><span><strong><%= item.customer %></strong><small>Customer</small></span></div>
+                  <div><i class="bi bi-person-gear" aria-hidden="true"></i><span><strong><%= item.technician %></strong><small>Fulfillment owner</small></span></div>
+                  <div><i class="bi bi-calendar3" aria-hidden="true"></i><span><strong><%= formatDate(item.date) %></strong><small>Recorded</small></span></div>
+                </div>
+              </article>
+            <% }); %>
+          </div>
+        <% } else { %>
+          <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No order photos in this report period</strong><p>Photos appear after product, payment, arrival, installation, or completion evidence is attached. Current order filters also apply to this gallery.</p></div>
+        <% } %>
+      </section>
+    </div>
+
     <div class="tab-pane fade" id="order-records" role="tabpanel" aria-labelledby="order-records-tab">
       <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit detail</span><h2>Recent matching orders</h2><p>Latest 12 records in the selected cohort. Use Manage Orders for the complete workflow.</p></div><a class="sr-inline-link" href="/admin/appointments/orders">Manage all orders <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Date</th><th>Reference</th><th>Customer</th><th>Fulfillment</th><th>Payment</th><th>Status</th><th class="text-end">Units</th><th class="text-end">Order value</th></tr></thead><tbody><% if (recentOrders.length) { recentOrders.forEach(function(order) { %><tr><td><%= new Date(order.date).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' }) %></td><td><strong><%= order.reference %></strong></td><td><%= order.customer %></td><td><%= nice(order.fulfillment) %></td><td><span class="sr-badge"><%= nice(order.payment) %></span></td><td><span class="sr-badge"><%= nice(order.status) %></span></td><td class="text-end"><%= number(order.items) %></td><td class="text-end"><strong>₱<%= money(order.total) %></strong></td></tr><% }); } else { %><tr><td colspan="8" class="sr-empty">No orders match the selected filters.</td></tr><% } %></tbody></table></div></section>
     </div>
   </div>
+</div>
+
+<div class="modal fade sr-evidence-modal" id="orderEvidenceModal" tabindex="-1" aria-labelledby="orderEvidenceTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><div><h2 class="modal-title" id="orderEvidenceTitle">Order photo</h2><p id="orderEvidenceMeta"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close photo preview"></button></div>
+    <div class="modal-body"><img id="orderEvidencePreview" src="" alt="Selected order report photo"></div>
+  </div></div>
 </div>
 
 <%- include('../../../partials/chart-drilldown-modal') %>
@@ -133,6 +176,21 @@
   const exportButton = document.getElementById('exportOrders');
   if (!A.reportStart || !A.reportEnd) { exportButton.disabled = true; exportButton.title = 'Report data must load before export'; }
   else exportButton.addEventListener('click', () => { const params = new URLSearchParams(new FormData(filterForm)); params.delete('range'); params.set('from', A.reportStart); params.set('to', A.reportEnd); window.location.href = '/api/admin/reports/orders/export?' + params.toString(); });
+  const evidenceModalElement = document.getElementById('orderEvidenceModal');
+  const evidencePreview = document.getElementById('orderEvidencePreview');
+  document.querySelectorAll('[data-order-evidence-photo]').forEach(button => {
+    const thumbnail = button.querySelector('img');
+    if (thumbnail) thumbnail.addEventListener('error', () => { button.classList.add('is-broken'); button.disabled = true; });
+    button.addEventListener('click', () => {
+      if (!evidenceModalElement || !evidencePreview || !thumbnail || typeof bootstrap === 'undefined') return;
+      evidencePreview.src = thumbnail.currentSrc || thumbnail.src;
+      evidencePreview.alt = thumbnail.alt;
+      document.getElementById('orderEvidenceTitle').textContent = button.dataset.evidenceTitle || 'Order photo';
+      document.getElementById('orderEvidenceMeta').textContent = button.dataset.evidenceMeta || '';
+      bootstrap.Modal.getOrCreateInstance(evidenceModalElement).show();
+    });
+  });
+  if (evidenceModalElement) evidenceModalElement.addEventListener('hidden.bs.modal', () => { if (evidencePreview) evidencePreview.removeAttribute('src'); });
   if (typeof Chart === 'undefined') return;
   Chart.defaults.font.family = 'Inter, sans-serif'; Chart.defaults.color = '#64748b';
   const baseOptions = { responsive:true, maintainAspectRatio:false, animation:{duration:reduceMotion?0:420,easing:'easeOutQuart'}, plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:7,padding:16,font:{size:10}}},tooltip:{backgroundColor:'#0f172a',padding:10,cornerRadius:8}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,border:{display:false},grid:{color:'#edf1f6'},ticks:{font:{size:10}}}} };

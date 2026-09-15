@@ -410,6 +410,61 @@ router.use("/:id", auth.authenticate, async (req, res, next) => {
   }
 });
 
+// Serve a booking's completion proof through its authenticated booking URL.
+// Uploads are intentionally not public, and this keeps customer access scoped
+// to bookings they own instead of relying on the generic /uploads fallback.
+router.get("/:id/completion-photo", async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const booking = await BookingService.findById(req.params.id)
+      .select("customerId technicianId proofPhoto")
+      .lean();
+    if (!booking) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+    if (!(await canAccessBooking(req.user, booking))) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const storedPhoto = String(booking.proofPhoto || "").trim();
+    const match = storedPhoto.match(
+      /^\/uploads\/(completion-proofs|proofs)\/([A-Za-z0-9][A-Za-z0-9._-]*\.(?:jpe?g|png|webp))$/i,
+    );
+    if (!match) {
+      return res.status(404).json({ error: "Completion photo not found" });
+    }
+
+    const uploadRoot = path.join(__dirname, "../public/uploads", match[1]);
+    const absolutePhotoPath = path.resolve(uploadRoot, match[2]);
+    if (!isPathWithin(uploadRoot, absolutePhotoPath)) {
+      return res.status(400).json({ error: "Invalid completion photo path" });
+    }
+
+    let photoStat;
+    try {
+      photoStat = await fs.promises.stat(absolutePhotoPath);
+    } catch (error) {
+      if (error && error.code === "ENOENT") {
+        return res.status(404).json({ error: "Completion photo not found" });
+      }
+      throw error;
+    }
+    if (!photoStat.isFile()) {
+      return res.status(404).json({ error: "Completion photo not found" });
+    }
+
+    res.set("Cache-Control", "private, no-store");
+    return res.sendFile(absolutePhotoPath, (error) => {
+      if (error) next(error);
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 /**
  * Assert that a proposed time slot does not overlap existing bookings for a technician.
  *

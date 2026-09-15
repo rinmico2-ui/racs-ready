@@ -260,9 +260,9 @@
               <div style="font-size:0.78rem;font-weight:700;color:#166534;">Completion Photo</div>
               <div style="font-size:0.72rem;color:#15803d;">Technician submitted proof of service</div>
             </div>
-            <a id="trkProofPhotoLink" href="#" target="_blank" class="btn btn-sm btn-outline-success ms-auto" style="border-radius:8px;font-size:0.72rem;font-weight:600;white-space:nowrap;">
+            <button id="trkProofPhotoLink" type="button" class="btn btn-sm btn-outline-success ms-auto" style="border-radius:8px;font-size:0.72rem;font-weight:600;white-space:nowrap;" onclick="openCompletionPhotoViewer()">
               <i class="bi bi-eye me-1"></i>View
-            </a>
+            </button>
           </div>
         </div>
         <!-- Stars -->
@@ -303,8 +303,24 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
-  <!-- RESCHEDULE MODAL                                                  -->
+  <!-- COMPLETION PHOTO VIEWER                                           -->
   <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="trk-completion-photo-viewer d-none" id="trkCompletionPhotoViewer" role="dialog" aria-modal="true" aria-labelledby="trkCompletionPhotoTitle" aria-hidden="true">
+    <div class="trk-completion-photo-backdrop" onclick="closeCompletionPhotoViewer()"></div>
+    <div class="trk-completion-photo-dialog" onclick="event.stopPropagation()">
+      <header>
+        <div><span>Service evidence</span><h5 id="trkCompletionPhotoTitle">Completion Photo</h5></div>
+        <button type="button" class="trk-completion-photo-close" onclick="closeCompletionPhotoViewer()" aria-label="Close completion photo"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+      </header>
+      <div class="trk-completion-photo-stage">
+        <div class="trk-completion-photo-loading" id="trkCompletionPhotoLoading"><span class="spinner-border" aria-hidden="true"></span><p>Loading completion photo...</p></div>
+        <img class="d-none" id="trkCompletionPhotoImage" src="" alt="Technician completion proof">
+        <div class="trk-completion-photo-error d-none" id="trkCompletionPhotoError"><i class="bi bi-image" aria-hidden="true"></i><strong>Photo unavailable</strong><p>The completion photo could not be loaded. Refresh the booking and try again.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESCHEDULE MODAL -->
   <div class="trk-rating-modal" id="trkLegacyRescheduleModal" style="display:none;">
     <div class="trk-rating-backdrop" onclick="closeRescheduleModal()"></div>
     <div class="trk-rating-dialog" style="max-width:480px;" onclick="event.stopPropagation()">
@@ -1445,6 +1461,52 @@
   @keyframes trkCheckAnim { to { stroke-dashoffset: 0; } }
   .trk-rating-success h5 { font-weight: 800; color: #1e293b; margin: 0; font-size: 1.2rem; }
 
+  .trk-completion-photo-viewer {
+    position: fixed; inset: 0; z-index: 10020; display: flex;
+    align-items: center; justify-content: center; padding: 18px;
+  }
+  .trk-completion-photo-backdrop {
+    position: absolute; inset: 0; background: rgba(2, 6, 23, 0.82);
+    backdrop-filter: blur(7px);
+  }
+  .trk-completion-photo-dialog {
+    position: relative; width: min(920px, 100%); max-height: calc(100vh - 36px);
+    max-height: calc(100dvh - 36px);
+    display: flex; flex-direction: column; overflow: hidden; border-radius: 18px;
+    background: #fff; box-shadow: 0 30px 80px rgba(0,0,0,0.42);
+    animation: trkSlideUp 0.25s cubic-bezier(0.16,1,0.3,1);
+  }
+  .trk-completion-photo-dialog > header {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 17px; border-bottom: 1px solid #e2e8f0;
+  }
+  .trk-completion-photo-dialog > header span {
+    display: block; margin-bottom: 2px; color: #16a34a; font-size: 0.62rem;
+    font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .trk-completion-photo-dialog > header h5 { margin: 0; color: #172033; font-size: 1rem; font-weight: 800; }
+  .trk-completion-photo-close {
+    width: 38px; height: 38px; display: grid; flex: 0 0 38px; place-items: center;
+    border: 1px solid #dbe3ed; border-radius: 10px; background: #fff; color: #475569;
+  }
+  .trk-completion-photo-close:hover { background: #f1f5f9; color: #0f172a; }
+  .trk-completion-photo-stage {
+    min-height: 280px; flex: 1 1 auto; display: grid; place-items: center;
+    overflow: auto; padding: 12px; background: #0f172a;
+  }
+  .trk-completion-photo-stage img {
+    width: 100%; max-height: calc(100vh - 130px); max-height: calc(100dvh - 130px); display: block;
+    border-radius: 9px; object-fit: contain;
+  }
+  .trk-completion-photo-loading, .trk-completion-photo-error {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    max-width: 360px; padding: 28px; color: #cbd5e1; text-align: center;
+  }
+  .trk-completion-photo-loading .spinner-border { width: 2rem; height: 2rem; color: #60a5fa; }
+  .trk-completion-photo-loading p, .trk-completion-photo-error p { margin: 10px 0 0; font-size: 0.75rem; line-height: 1.5; }
+  .trk-completion-photo-error > i { margin-bottom: 10px; color: #94a3b8; font-size: 2rem; }
+  .trk-completion-photo-error strong { color: #f8fafc; font-size: 0.9rem; }
+
   /* ── Reschedule Calendar ─────────────────────────────────────────── */
   .rsc-day {
     width: 100%; aspect-ratio: 1; border-radius: 10px; border: none; background: #f8fafc;
@@ -2486,14 +2548,7 @@
 
     document.getElementById('trkRatingServiceName').textContent = `How was your ${getServiceName(booking)} service?`;
 
-    const proofSection = document.getElementById('trkProofPhotoSection');
-    const proofLink = document.getElementById('trkProofPhotoLink');
-    if (booking.proofPhoto) {
-      proofLink.href = booking.proofPhoto;
-      proofSection.classList.remove('d-none');
-    } else {
-      proofSection.classList.add('d-none');
-    }
+    setRatingProofPhoto(booking);
 
     // Prefill with existing rating when editing
     selectedRating = isEdit && existing > 0 ? existing : 0;
@@ -2790,6 +2845,98 @@
   const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
   const ratingDismissed = new Set();
 
+  function normalizeCompletionPhotoUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(raw)) return raw;
+    try {
+      const parsed = new URL(raw, window.location.origin);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+      return parsed.href;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function completionPhotoViewerUrl(photoUrl, bookingId) {
+    const normalizedUrl = normalizeCompletionPhotoUrl(photoUrl);
+    const normalizedBookingId = String(bookingId || '').trim();
+    if (!normalizedUrl || !normalizedBookingId || normalizedUrl.startsWith('data:')) {
+      return normalizedUrl;
+    }
+    try {
+      const parsed = new URL(normalizedUrl, window.location.origin);
+      const isLocalCompletionProof = parsed.origin === window.location.origin
+        && /^\/uploads\/(?:completion-proofs|proofs)\/[^/]+$/i.test(parsed.pathname);
+      return isLocalCompletionProof
+        ? `/api/appointments/${encodeURIComponent(normalizedBookingId)}/completion-photo`
+        : normalizedUrl;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function setRatingProofPhoto(booking) {
+    const proofSection = document.getElementById('trkProofPhotoSection');
+    const proofButton = document.getElementById('trkProofPhotoLink');
+    if (!proofSection || !proofButton) return;
+    const photoUrl = normalizeCompletionPhotoUrl(booking && booking.proofPhoto);
+    proofButton.dataset.photoUrl = photoUrl;
+    proofButton.dataset.bookingId = String((booking && (booking._id || booking.id)) || '');
+    proofSection.classList.toggle('d-none', !photoUrl);
+    if (!photoUrl) window.closeCompletionPhotoViewer(false);
+  }
+
+  window.openCompletionPhotoViewer = function() {
+    const proofButton = document.getElementById('trkProofPhotoLink');
+    const viewer = document.getElementById('trkCompletionPhotoViewer');
+    const image = document.getElementById('trkCompletionPhotoImage');
+    const loading = document.getElementById('trkCompletionPhotoLoading');
+    const error = document.getElementById('trkCompletionPhotoError');
+    const photoUrl = completionPhotoViewerUrl(
+      proofButton && proofButton.dataset.photoUrl,
+      proofButton && proofButton.dataset.bookingId,
+    );
+    if (!viewer || !image || !loading || !error || !photoUrl) return;
+
+    image.onload = function() {
+      loading.classList.add('d-none');
+      error.classList.add('d-none');
+      image.classList.remove('d-none');
+    };
+    image.onerror = function() {
+      loading.classList.add('d-none');
+      image.classList.add('d-none');
+      error.classList.remove('d-none');
+    };
+    image.classList.add('d-none');
+    error.classList.add('d-none');
+    loading.classList.remove('d-none');
+    viewer.classList.remove('d-none');
+    viewer.setAttribute('aria-hidden', 'false');
+    image.src = photoUrl;
+    viewer.querySelector('.trk-completion-photo-close')?.focus();
+  };
+
+  window.closeCompletionPhotoViewer = function(restoreFocus = true) {
+    const viewer = document.getElementById('trkCompletionPhotoViewer');
+    const image = document.getElementById('trkCompletionPhotoImage');
+    if (!viewer) return;
+    viewer.classList.add('d-none');
+    viewer.setAttribute('aria-hidden', 'true');
+    if (image) {
+      image.onload = null;
+      image.onerror = null;
+      image.removeAttribute('src');
+    }
+    if (restoreFocus) document.getElementById('trkProofPhotoLink')?.focus();
+  };
+
+  document.addEventListener('keydown', function(event) {
+    const viewer = document.getElementById('trkCompletionPhotoViewer');
+    if (event.key === 'Escape' && viewer && !viewer.classList.contains('d-none')) window.closeCompletionPhotoViewer();
+  });
+
   function checkAndShowRatingModal(booking) {
     if (!booking) return;
     // NEVER touch the modal if it's already open or was dismissed
@@ -2807,14 +2954,7 @@
     document.getElementById('trkRatingServiceName').textContent = `How was your ${getServiceName(booking)} service?`;
 
     // Proof photo section
-    const proofSection = document.getElementById('trkProofPhotoSection');
-    const proofLink = document.getElementById('trkProofPhotoLink');
-    if (booking.proofPhoto) {
-      proofLink.href = booking.proofPhoto;
-      proofSection.classList.remove('d-none');
-    } else {
-      proofSection.classList.add('d-none');
-    }
+    setRatingProofPhoto(booking);
 
     // Reset state
     selectedRating = 0;
@@ -2845,6 +2985,7 @@
   }
 
   window.closeRatingModal = function() {
+    window.closeCompletionPhotoViewer(false);
     if (ratingBookingId) ratingDismissed.add(String(ratingBookingId));
     document.getElementById('trkRatingModal').style.display = 'none';
     isRatingModalOpen = false;

@@ -148,6 +148,11 @@
 .order-report .or-finance-flow strong { display: block; margin-top: 4px; color: #26354c; font-size: .86rem; }
 .order-report .or-definition-note { margin: 0; padding: 12px 17px; border-top: 1px solid #edf1f6; color: var(--sr-muted); font-size: .63rem; line-height: 1.5; }
 .order-report .sr-table td .sr-badge { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-report .sr-evidence-status.completed { background: #e5f7ef; color: #047857; }
+.order-report .sr-evidence-status.arrived,
+.order-report .sr-evidence-status.out_for_delivery { background: #e7f0ff; color: #1d4ed8; }
+.order-report .sr-evidence-status.installing { background: #f1eafe; color: #6d28d9; }
+.order-report .sr-evidence-status.cancelled { background: #feecec; color: #b91c1c; }
 
 @media (max-width: 991px) {
   .order-report .sr-filter-secondary { grid-template-columns: 1fr; }

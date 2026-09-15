@@ -2314,6 +2314,7 @@ router.get(
     const reportFilters = parseOrderReportFilters(req.query);
     let filters = { range: "90", from: "", to: "", ...reportFilters };
     let filterOptions = { brands: [], technicians: [] };
+    let orderPhotoEvidence = [];
     try {
       const Order = require("../models/Order");
       const Payment = require("../models/Payment");
@@ -2415,16 +2416,71 @@ router.get(
       analytics.reportStart = localDateKey(start);
       analytics.reportEnd = localDateKey(end);
       analytics.appliedFilters = serializableOrderFilters(reportFilters);
+      const paymentsByOrder = new Map();
+      payments.forEach(payment => {
+        const key = String(payment.orderId || "");
+        if (!key) return;
+        if (!paymentsByOrder.has(key)) paymentsByOrder.set(key, []);
+        paymentsByOrder.get(key).push(payment);
+      });
+      const technicianById = new Map(technicians.map(technician => [String(technician._id), technician]));
+      const displayableOrderImage = value => {
+        const url = String(value || "").trim();
+        if (!url || /\/images\/products\/default\.png(?:\?|$)/i.test(url)) return "";
+        if (/^\/(?:uploads|images)\//i.test(url)) return url;
+        if (/^https?:\/\//i.test(url)) return url;
+        if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(url)) return url;
+        return "";
+      };
+      orderPhotoEvidence = orders.map(order => {
+        const candidates = [];
+        const addPhoto = (value, label) => candidates.push({ url: value, label });
+        addPhoto(order.arrivalProofUrl, "Arrival proof");
+        addPhoto(order.startProofUrl, "Installation start");
+        addPhoto(order.proofPhoto, "Completion proof");
+        addPhoto(order.gcashProofUrl, "GCash payment proof");
+        (paymentsByOrder.get(String(order._id)) || []).forEach(payment => {
+          addPhoto(payment.proofUrl, "Customer payment proof");
+          addPhoto(payment.customerPhotoUrl, "Customer confirmation");
+          addPhoto(payment.remittanceProofUrl, "Remittance proof");
+          addPhoto(payment.refundProofUrl, "Refund proof");
+        });
+        (order.items || []).forEach(item => {
+          const productName = [item.brand, item.modelLine || item.name].filter(Boolean).join(" ") || "Ordered product";
+          addPhoto(item.imageUrl, productName);
+        });
+        const seen = new Set();
+        const photos = candidates.reduce((items, candidate) => {
+          const url = displayableOrderImage(candidate.url);
+          if (!url || seen.has(url)) return items;
+          seen.add(url);
+          items.push({ url, label: candidate.label });
+          return items;
+        }, []).slice(0, 12);
+        if (!photos.length) return null;
+        const technician = technicianById.get(String(order.technicianId || order.technician?._id || ""));
+        return {
+          orderId: String(order._id),
+          reference: order.orderReference || `#${String(order._id).slice(-6).toUpperCase()}`,
+          customer: order.customer?.name || "Customer not recorded",
+          product: (order.items || []).map(item => [item.brand, item.modelLine || item.name].filter(Boolean).join(" ")).filter(Boolean).join(", ") || "Order items",
+          technician: technician?.name || order.technician?.name || (order.fulfillmentType === "customer_pickup" ? "Customer pickup" : "Unassigned"),
+          status: order.status || "unknown",
+          fulfillment: order.fulfillmentType || "unknown",
+          date: order.completedAt || order.updatedAt || order.createdAt,
+          photos,
+        };
+      }).filter(Boolean).sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0)).slice(0, 24);
       filters = { range, from: req.query.from || "", to: req.query.to || "", start, end, ...reportFilters };
       filterOptions = {
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, reportError: null });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
       empty.appliedFilters = serializableOrderFilters(reportFilters);
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
     }
   }
 );

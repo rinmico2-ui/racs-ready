@@ -31,7 +31,7 @@ const MONGODB_AUTH_SOURCE =
 
 const email = (
   process.env.ADMIN_EMAIL ||
-  'sorianovincin@gmail.com'
+  'calidrorefandairconservices@gmail.com'
 )
   .trim()
   .toLowerCase();

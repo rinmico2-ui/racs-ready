@@ -9,6 +9,11 @@ const ejs = require("ejs");
 const templatePath = path.join(__dirname, "..", "views", "pages", "admin", "Reports", "OrderReports.ejs");
 const template = fs.readFileSync(templatePath, "utf8");
 const focusedCss = fs.readFileSync(path.join(__dirname, "..", "public", "css", "order-report-focused.css"), "utf8");
+const pageRoutes = fs.readFileSync(path.join(__dirname, "..", "routes", "pages.js"), "utf8");
+const orderRoute = pageRoutes.slice(
+  pageRoutes.indexOf('"/admin/reports/orders"'),
+  pageRoutes.indexOf('"/technician/warranty-claims"'),
+);
 const analytics = {
   totalOrders: 0, validOrders: 0, grossOrderValue: 0, recognizedRevenue: 0, recognizedOrders: 0,
   grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, ledgerMismatchCount: 0,
@@ -38,6 +43,7 @@ test("order report renders focused progressive analysis and valid browser JavaSc
 test("order report separates executive, fulfillment, cash, product, and record decisions", () => {
   for (const label of ["Valid orders placed", "Completed order value", "Net collections", "Orders requiring attention"]) assert.match(template, new RegExp(label));
   for (const tab of ["Overview", "Fulfillment", "Cash &amp; margin", "Products", "Records"]) assert.match(template, new RegExp(">" + tab + "<"));
+  assert.match(template, /Report photos/);
   for (const measure of ["Median cycle", "90th percentile", "On-time completion", "Active backlog aging", "Cancellation reasons"]) assert.match(template, new RegExp(measure));
   assert.match(template, /Financial time bases/);
   assert.doesNotMatch(template, /Executive outlook/);
@@ -50,4 +56,40 @@ test("order report motion is polished and accessibility-aware", () => {
   assert.match(focusedCss, /prefers-reduced-motion:\s*reduce/);
   assert.match(template, /prefers-reduced-motion:\s*reduce/);
   assert.match(template, /duration:reduceMotion\?0:420/);
+});
+
+test("order analytics shows filtered fulfillment and payment photo evidence", () => {
+  const evidence = [{
+    reference: "ORD-2026-1042",
+    customer: "Sample Customer",
+    product: "Carrier Optima",
+    technician: "Sample Technician",
+    status: "completed",
+    fulfillment: "delivery_installation",
+    date: "2026-09-15T08:00:00.000Z",
+    photos: [
+      { url: "/uploads/order-proofs/arrival.webp", label: "Arrival proof" },
+      { url: "/uploads/completion-proofs/done.webp", label: "Completion proof" },
+    ],
+  }];
+  const html = ejs.render(template, {
+    analytics,
+    analyticsJson: JSON.stringify(analytics),
+    filters: { range:"30", from:"", to:"", activeCount:0, fulfillment:"", status:"", paymentStatus:"", paymentMethod:"", technician:"", q:"", brand:"", minValue:null, maxValue:null },
+    filterOptions: { technicians:[], brands:[] },
+    orderPhotoEvidence: evidence,
+  }, { filename:templatePath });
+
+  assert.match(html, /id="order-photos-tab"/);
+  assert.match(html, /id="order-photos"/);
+  assert.match(html, /Order report photos/);
+  assert.match(html, /src="\/uploads\/order-proofs\/arrival\.webp"/);
+  assert.match(html, /data-order-evidence-photo/);
+  assert.match(html, /id="orderEvidenceModal"/);
+  assert.match(html, /loading="lazy"/);
+  for (const field of ["arrivalProofUrl", "startProofUrl", "proofPhoto", "gcashProofUrl", "remittanceProofUrl", "refundProofUrl", "imageUrl"]) {
+    assert.match(orderRoute, new RegExp(field));
+  }
+  assert.match(orderRoute, /orderPhotoEvidence = orders\.map/);
+  assert.match(orderRoute, /res\.render\("pages\/admin\/Reports\/OrderReports"[\s\S]*orderPhotoEvidence/);
 });
