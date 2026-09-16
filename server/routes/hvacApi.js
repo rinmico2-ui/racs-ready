@@ -18,6 +18,10 @@ const {
 const { escapeRegex } = require("../utils/stringSecurity");
 const audit = require("../utils/audit");
 const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
+const {
+  normalizeProductVariantSerialNumbers,
+  normalizeVariantSerialNumbers,
+} = require("../utils/hvacSerialNumbers");
 
 // Ensure upload directory exists
 const uploadDir = path.join(__dirname, "../public/uploads/hvac");
@@ -48,6 +52,16 @@ const upload = multer({
     }
   },
 });
+
+function productImageUpload(req, res, next) {
+  upload.single("image")(req, res, (error) => {
+    if (!error) return next();
+    const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? "Product images must be 5MB or smaller."
+      : error.message || "The product image could not be uploaded.";
+    return res.status(400).json({ error: message });
+  });
+}
 
 // Shared HVAC inventory API. RBAC middleware separately enforces
 // inventory.view versus inventory.manage for secretary requests.
@@ -117,6 +131,65 @@ async function handleCategory(categoryValue) {
   return null;
 }
 
+async function assertSerialNumbersAvailable(variants, excludedProductId = null) {
+  const serialNumbers = (variants || []).flatMap(
+    (variant) => variant.serialNumbers || [],
+  );
+  if (!serialNumbers.length) return;
+  const filter = { "variants.serialNumbers": { $in: serialNumbers } };
+  if (excludedProductId) filter._id = { $ne: excludedProductId };
+  const duplicateProduct = await HVACProduct.findOne(filter)
+    .select("variants.serialNumbers")
+    .lean();
+  if (!duplicateProduct) return;
+  const used = new Set(
+    (duplicateProduct.variants || []).flatMap((variant) => variant.serialNumbers || []),
+  );
+  const duplicate = serialNumbers.find((serialNumber) => used.has(serialNumber));
+  throw Object.assign(
+    new Error(`Serial number ${duplicate || "entered"} is already assigned to another aircon.`),
+    { status: 409, code: "HVAC_SERIAL_ALREADY_ASSIGNED" },
+  );
+}
+
+function duplicateInventoryError(err) {
+  if (!err || err.code !== 11000) return null;
+  const keyPattern = err.keyPattern || {};
+  const duplicatePath = Object.keys(keyPattern)[0] || "";
+  const indexHint = `${err.message || ""} ${err.index || ""}`;
+  const value = err.keyValue && duplicatePath
+    ? err.keyValue[duplicatePath]
+    : undefined;
+  const suffix = value !== undefined && value !== null && String(value) !== "undefined"
+    ? ` "${String(value)}"`
+    : "";
+
+  if (duplicatePath === "variants.serialNumbers" || /variants\.serialNumbers/i.test(indexHint)) {
+    return {
+      error: `Serial number${suffix} is already assigned to another aircon.`,
+      code: "HVAC_SERIAL_ALREADY_ASSIGNED",
+    };
+  }
+  if (duplicatePath === "variants.sku" || /variants\.sku/i.test(indexHint)) {
+    return { error: `SKU${suffix} is already assigned to another aircon.`, code: "HVAC_SKU_ALREADY_ASSIGNED" };
+  }
+  if (duplicatePath === "variants.barcode" || /variants\.barcode/i.test(indexHint)) {
+    return { error: `Barcode${suffix} is already assigned to another aircon.`, code: "HVAC_BARCODE_ALREADY_ASSIGNED" };
+  }
+  return {
+    error: "An aircon with the same unique inventory value already exists.",
+    code: "HVAC_DUPLICATE_VALUE",
+  };
+}
+
+function sendInventoryError(res, err) {
+  const duplicate = duplicateInventoryError(err);
+  return res.status(err.status || (duplicate ? 409 : 500)).json({
+    error: duplicate?.error || err.message,
+    ...(duplicate?.code || err.code ? { code: duplicate?.code || err.code } : {}),
+  });
+}
+
 // ─── HVAC Product Management ─────────────────────────────────────────────────────
 
 /**
@@ -133,7 +206,12 @@ router.get("/hvac", async (req, res, next) => {
       : lifecycle === "all" ? {} : { active: true };
     
     if (search) {
-      filter.modelLine = new RegExp(escapeRegex(search), 'i');
+      const searchPattern = new RegExp(escapeRegex(search), 'i');
+      filter.$or = [
+        { modelLine: searchPattern },
+        { "variants.sku": searchPattern },
+        { "variants.serialNumbers": searchPattern },
+      ];
     }
     
     if (brand) {
@@ -205,7 +283,7 @@ router.get("/hvac/:id", async (req, res, next) => {
  * POST /api/admin/hvac
  * Create a new HVAC product
  */
-router.post("/hvac", upload.single("image"), async (req, res, next) => {
+router.post("/hvac", productImageUpload, async (req, res, next) => {
   let uploadedImage = null;
   try {
     let {
@@ -214,6 +292,8 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       category,
       type,
       inverter,
+      status,
+      warranty,
       description,
       imageUrl,
       specifications,
@@ -260,12 +340,20 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       });
     }
 
+    variants = normalizeProductVariantSerialNumbers(variants);
+    await assertSerialNumbersAvailable(variants);
+
     if (req.file) {
       uploadedImage = await uploadProductImage(req.file);
       imageUrl = uploadedImage.imageUrl;
     }
 
     // Create product
+    const productSpecifications = specifications || {};
+    if (warranty !== undefined) {
+      productSpecifications.warranty = String(warranty).trim() || "1 Year Compressor, 1 Year Parts";
+    }
+
     const product = new HVACProduct({
       modelLine: modelLine.trim(),
       brand,
@@ -275,7 +363,7 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       description: description?.trim() || null,
       imageUrl: imageUrl?.trim() || "/images/products/default.png",
       imagePublicId: uploadedImage?.imagePublicId || null,
-      specifications: specifications || {},
+      specifications: productSpecifications,
       salesChannel: salesChannel || 'both',
       supplier: supplier?.trim() || null,
       variants: variants.map(v => ({
@@ -285,6 +373,9 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       createdBy: req.user?._id,
       updatedBy: req.user?._id
     });
+
+    if (status) product.status = status;
+    else product.updateOverallStatus();
 
     await product.save();
     
@@ -297,9 +388,11 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
       product
     });
   } catch (err) {
-    if (uploadedImage?.imagePublicId) await deleteProductImage(uploadedImage.imagePublicId).catch(() => {});
+    if (uploadedImage) {
+      await deleteProductImage(uploadedImage.imagePublicId, uploadedImage.imageUrl).catch(() => {});
+    }
     console.error("createHVACProduct 500:", err);
-    return res.status(err.status || 500).json({ error: err.message });
+    return sendInventoryError(res, err);
   }
 });
 
@@ -307,9 +400,10 @@ router.post("/hvac", upload.single("image"), async (req, res, next) => {
  * PATCH /api/admin/hvac/:id
  * Update an HVAC product
  */
-router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
+router.patch("/hvac/:id", productImageUpload, async (req, res, next) => {
   let uploadedImage = null;
   let previousImagePublicId = null;
+  let previousImageUrl = null;
   try {
     const { id } = req.params;
     
@@ -331,6 +425,8 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
       category,
       type,
       inverter,
+      status,
+      warranty,
       description,
       imageUrl,
       specifications,
@@ -353,6 +449,7 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
     if (category) category = await handleCategory(category);
 
     previousImagePublicId = product.imagePublicId;
+    previousImageUrl = product.imageUrl;
     if (req.file) {
       uploadedImage = await uploadProductImage(req.file);
       imageUrl = uploadedImage.imageUrl;
@@ -373,19 +470,43 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
       else if (imageChanged) product.imagePublicId = null;
     }
     if (specifications !== undefined) product.specifications = specifications || {};
+    if (warranty !== undefined) {
+      if (!product.specifications) product.specifications = {};
+      product.specifications.warranty = String(warranty).trim() || "1 Year Compressor, 1 Year Parts";
+    }
     if (salesChannel !== undefined) product.salesChannel = salesChannel;
     if (supplier !== undefined) product.supplier = supplier?.trim() || null;
     if (variants && variants.length > 0) {
-      product.variants = variants.map(v => ({
+      const variantsWithExistingSerials = variants.map((variantData) => {
+        const existingVariant = variantData && variantData._id
+          ? product.variants.id(variantData._id)
+          : null;
+        const existingData = existingVariant
+          ? existingVariant.toObject({ depopulate: true })
+          : {};
+        return {
+          ...existingData,
+          ...variantData,
+          serialNumbers: variantData.serialNumbers === undefined && existingVariant
+            ? existingVariant.serialNumbers
+            : variantData.serialNumbers,
+        };
+      });
+      const normalizedVariants = normalizeProductVariantSerialNumbers(variantsWithExistingSerials);
+      await assertSerialNumbersAvailable(normalizedVariants, product._id);
+      product.variants = normalizedVariants.map(v => ({
         ...v,
         status: v.quantity > 0 ? 'in_stock' : 'out_of_stock'
       }));
     }
 
+    if (status !== undefined) product.status = status;
+    else if (variants && variants.length > 0) product.updateOverallStatus();
+
     product.updatedBy = req.user?._id;
     await product.save();
-    if (uploadedImage?.imagePublicId && previousImagePublicId) {
-      await deleteProductImage(previousImagePublicId).catch(() => {});
+    if (product.imageUrl !== previousImageUrl && previousImageUrl !== "/images/products/default.png") {
+      await deleteProductImage(previousImagePublicId, previousImageUrl).catch(() => {});
     }
 
     // Populate for response
@@ -397,9 +518,11 @@ router.patch("/hvac/:id", upload.single("image"), async (req, res, next) => {
       product
     });
   } catch (err) {
-    if (uploadedImage?.imagePublicId) await deleteProductImage(uploadedImage.imagePublicId).catch(() => {});
+    if (uploadedImage) {
+      await deleteProductImage(uploadedImage.imagePublicId, uploadedImage.imageUrl).catch(() => {});
+    }
     console.error("updateHVACProduct 500:", err);
-    return res.status(err.status || 500).json({ error: err.message });
+    return sendInventoryError(res, err);
   }
 });
 
@@ -438,7 +561,7 @@ router.post("/hvac/:id/variants", async (req, res, next) => {
     const qty = parseFloat(quantity) || 0;
     const msl = parseFloat(minStockLevel) || 3;
 
-    const newVariant = {
+    const newVariant = normalizeVariantSerialNumbers({
       _id: new mongoose.Types.ObjectId(),
       capacity: String(capacity),
       btu: parseFloat(btu) || 0,
@@ -447,8 +570,16 @@ router.post("/hvac/:id/variants", async (req, res, next) => {
       quantity: qty,
       minStockLevel: msl,
       status: qty > 0 ? (qty <= msl ? 'low_stock' : 'in_stock') : 'out_of_stock',
-      active: true
-    };
+      active: true,
+      serialNumbers: variantData.serialNumbers,
+    });
+
+    const candidateVariants = [
+      ...product.variants.map((variant) => variant.toObject()),
+      newVariant,
+    ];
+    normalizeProductVariantSerialNumbers(candidateVariants);
+    await assertSerialNumbersAvailable([newVariant], product._id);
 
     product.variants.push(newVariant);
     product.updateOverallStatus();
@@ -461,7 +592,7 @@ router.post("/hvac/:id/variants", async (req, res, next) => {
     });
   } catch (err) {
     console.error("createHVACVariant 500:", err);
-    return res.status(500).json({ error: err.message });
+    return sendInventoryError(res, err);
   }
 });
 
@@ -503,6 +634,20 @@ router.patch("/hvac/:id/variants/:variantId", async (req, res, next) => {
     if (costPrice !== undefined) variant.costPrice = parseFloat(costPrice) || 0;
     if (quantity !== undefined) variant.quantity = parseFloat(quantity) || 0;
     if (minStockLevel !== undefined) variant.minStockLevel = parseFloat(minStockLevel) || 3;
+    const normalizedVariant = normalizeVariantSerialNumbers({
+      ...variant.toObject(),
+      serialNumbers: variantData.serialNumbers !== undefined
+        ? variantData.serialNumbers
+        : variant.serialNumbers,
+    });
+    const candidateVariants = product.variants.map((candidate) =>
+      String(candidate._id) === String(variant._id)
+        ? normalizedVariant
+        : candidate.toObject(),
+    );
+    normalizeProductVariantSerialNumbers(candidateVariants);
+    await assertSerialNumbersAvailable([normalizedVariant], product._id);
+    variant.serialNumbers = normalizedVariant.serialNumbers;
 
     const qty = variant.quantity;
     const msl = variant.minStockLevel;
@@ -518,7 +663,7 @@ router.patch("/hvac/:id/variants/:variantId", async (req, res, next) => {
     });
   } catch (err) {
     console.error("updateHVACVariant 500:", err);
-    return res.status(500).json({ error: err.message });
+    return sendInventoryError(res, err);
   }
 });
 

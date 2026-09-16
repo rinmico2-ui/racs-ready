@@ -27,6 +27,7 @@ const { escapeRegex } = require('../utils/stringSecurity');
 const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
 const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remittancePolicy');
 const trustedDevices = require('../utils/trustedDevices');
+const { storeCompletionProof } = require('../utils/completionProofStorage');
 const {
   verifyAttendanceChallenge,
   verifyAttendanceLocation,
@@ -68,18 +69,8 @@ function assertNotMissedSchedule(assignment) {
 }
 
 // ── Proof of completion upload config ──────────────────────────────────
-const proofUploadDir = path.join(__dirname, "../public/uploads/completion-proofs");
-if (!fs.existsSync(proofUploadDir)) fs.mkdirSync(proofUploadDir, { recursive: true });
-
-const proofStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, proofUploadDir),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, "proof-" + uniqueSuffix + imageExtensionFor(file));
-  },
-});
 const proofUpload = multer({
-  storage: proofStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     cb(null, isAllowedImage(file));
@@ -6318,11 +6309,28 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
       }
 
       const booking = await BookingService.findById(assignment.bookingId);
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
       if (booking && ["cod", "cash", "cash_onsite", "gcash_downpayment"].includes(booking.paymentMethod) && !booking.balanceCollected && (booking.balanceAmount || 0) > 0) {
         return res.status(400).json({ error: "You must collect the remaining balance before completing this job." });
       }
 
-      const proofUrl = "/uploads/completion-proofs/" + req.file.filename;
+      let storedProof;
+      try {
+        storedProof = await storeCompletionProof(req.file, {
+          assignmentId: assignment._id,
+          bookingId: assignment.bookingId,
+          uploadedBy: req.user._id,
+        });
+      } catch (storageError) {
+        console.error("Completion proof storage error:", storageError);
+        return res.status(Number(storageError && storageError.status) || 500).json({
+          error: storageError && storageError.status
+            ? storageError.message
+            : "Could not store the completion photo. Please try again.",
+        });
+      }
+
+      const proofUrl = `/api/appointments/${assignment.bookingId}/completion-photo`;
       const completedAt = new Date();
       const configuredWarranty = await configuredBookingWarranty(booking || { serviceType: assignment.serviceType }, completedAt);
       const warrantyCoverage = configuredWarranty.coverage;
@@ -6332,7 +6340,8 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         $set: {
           status: "completed",
           completedAt,
-          "proofPhoto": proofUrl,
+          proofPhoto: proofUrl,
+          completionProofFileId: storedProof.fileId,
         },
         $push: {
           notes: {
@@ -6352,6 +6361,7 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
           status: "completed",
           completedAt,
           proofPhoto: proofUrl,
+          completionProofFileId: storedProof.fileId,
         };
         if (warrantyCoverage) bookingCompletion.warranty = warrantyCoverage;
         await BookingService.findByIdAndUpdate(assignment.bookingId, {
@@ -6360,7 +6370,10 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
       } else {
         // For repair services, just attach the proof photo without overwriting status
         await BookingService.findByIdAndUpdate(assignment.bookingId, {
-          $set: { proofPhoto: proofUrl },
+          $set: {
+            proofPhoto: proofUrl,
+            completionProofFileId: storedProof.fileId,
+          },
         });
       }
 

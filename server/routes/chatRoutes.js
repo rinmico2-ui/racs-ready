@@ -17,38 +17,97 @@ const {
   mapRepairCategory,
   mapRepairService,
 } = require("../utils/chatServiceKnowledge");
+const {
+  detectIntent: detectChatIntent,
+  extractIntroducedName,
+  tokenizeChatText,
+} = require("../utils/chatIntent");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INTELLIGENT AI ENGINE — Gemini-powered with local fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_KEYS = (process.env.GEMINI_API_KEY || "").split(",").map((k) => k.trim()).filter(Boolean);
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MAX_OUTPUT_TOKENS = Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || 4500;
 const GEMINI_BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}`;
-let geminiUnavailableUntil = 0;
+let geminiKeyIndex = 0;
+const geminiKeyCooldowns = new Map();
 let geminiLastError = null;
 
-function canUseGemini() {
-  return Boolean(GEMINI_API_KEY) && Date.now() >= geminiUnavailableUntil;
+function getAvailableGeminiKey() {
+  const now = Date.now();
+  if (!GEMINI_KEYS.length) return null;
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const idx = (geminiKeyIndex + i) % GEMINI_KEYS.length;
+    const key = GEMINI_KEYS[idx];
+    if (now >= (geminiKeyCooldowns.get(key) || 0)) {
+      geminiKeyIndex = idx;
+      return key;
+    }
+  }
+  return null;
 }
 
-async function recordGeminiHttpError(response, operation) {
+function canUseGemini() {
+  return getAvailableGeminiKey() !== null;
+}
+
+async function recordGeminiHttpError(response, operation, apiKey) {
   let detail = "";
   try {
     const payload = await response.json();
     detail = payload?.error?.message || "";
   } catch (_) {}
   const permanentConfigError = [400, 401, 403, 404].includes(response.status);
-  const cooldownMs = permanentConfigError ? 5 * 60 * 1000 : 30 * 1000;
-  geminiUnavailableUntil = Date.now() + cooldownMs;
-  geminiLastError = { status: response.status, detail: detail.slice(0, 240), at: new Date().toISOString() };
-  console.error(`[Chat] Gemini ${operation} error: ${response.status}${detail ? ` - ${detail}` : ""}; retrying after ${Math.round(cooldownMs / 1000)}s`);
+  const quotaExceeded = response.status === 429;
+  const cooldownMs = quotaExceeded
+    ? 10 * 60 * 1000
+    : permanentConfigError
+      ? 5 * 60 * 1000
+      : 5 * 1000;
+  geminiKeyCooldowns.set(apiKey, Date.now() + cooldownMs);
+  if (quotaExceeded) {
+    const nextIdx = GEMINI_KEYS.indexOf(apiKey) + 1;
+    if (nextIdx < GEMINI_KEYS.length) {
+      geminiKeyIndex = nextIdx;
+      console.log(`[Chat] Gemini key #${GEMINI_KEYS.indexOf(apiKey) + 1} quota hit, rotating to key #${nextIdx + 1}`);
+    } else {
+      console.log(`[Chat] Gemini all ${GEMINI_KEYS.length} keys exhausted, cooling down ${Math.round(cooldownMs / 1000)}s`);
+    }
+  }
+  geminiLastError = { status: response.status, detail: detail.slice(0, 240), at: new Date().toISOString(), keyIndex: GEMINI_KEYS.indexOf(apiKey) + 1 };
+  console.error(`[Chat] Gemini ${operation} error: ${response.status}${detail ? ` - ${detail}` : ""} (key #${GEMINI_KEYS.indexOf(apiKey) + 1}/${GEMINI_KEYS.length}); retrying after ${Math.round(cooldownMs / 1000)}s`);
 }
 
 // OpenRouter (free-tier LLMs, no credit card required) — primary provider
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.1-8b-instruct:free";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ_KEYS = (process.env.GROQ_API_KEY || "").split(",").map((k) => k.trim()).filter(Boolean);
+const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+let groqKeyIndex = 0;
+const groqKeyCooldowns = new Map();
+let groqLastError = null;
+
+function getAvailableGroqKey() {
+  const now = Date.now();
+  if (!GROQ_KEYS.length) return null;
+  for (let i = 0; i < GROQ_KEYS.length; i++) {
+    const idx = (groqKeyIndex + i) % GROQ_KEYS.length;
+    const key = GROQ_KEYS[idx];
+    if (now >= (groqKeyCooldowns.get(key) || 0)) {
+      groqKeyIndex = idx;
+      return key;
+    }
+  }
+  return null;
+}
+
+function canUseGroq() {
+  return getAvailableGroqKey() !== null;
+}
 
 // ─── Dynamic Knowledge Cache ───────────────────────────────────────────────
 let kb = null;
@@ -270,12 +329,13 @@ function knowledgeToContext(k) {
 
 // ─── Gemini API Call (Non-Streaming) ───────────────────────────────────────
 async function callGemini(systemPrompt, conversationHistory, userMessage) {
-  if (!canUseGemini()) return null;
+  const apiKey = getAvailableGeminiKey();
+  if (!apiKey) return null;
 
   const contents = buildGeminiContents(conversationHistory, userMessage);
 
   try {
-    const response = await fetch(`${GEMINI_BASE_URL}:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${GEMINI_BASE_URL}:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -285,14 +345,14 @@ async function callGemini(systemPrompt, conversationHistory, userMessage) {
           temperature: 0.7,
           topP: 0.95,
           topK: 40,
-          maxOutputTokens: 1024,
+          maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
         },
       }),
       signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
-      await recordGeminiHttpError(response, "generateContent");
+      await recordGeminiHttpError(response, "generateContent", apiKey);
       return null;
     }
 
@@ -309,10 +369,11 @@ async function callGemini(systemPrompt, conversationHistory, userMessage) {
 
 // ─── Gemini API Call (Streaming) ───────────────────────────────────────────
 async function callGeminiStream(systemPrompt, conversationHistory, userMessage, onChunk) {
-  if (!canUseGemini()) return null;
+  const apiKey = getAvailableGeminiKey();
+  if (!apiKey) return null;
 
   const contents = buildGeminiContents(conversationHistory, userMessage);
-  const streamUrl = `${GEMINI_BASE_URL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+  const streamUrl = `${GEMINI_BASE_URL}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
   try {
     const response = await fetch(streamUrl, {
@@ -325,14 +386,14 @@ async function callGeminiStream(systemPrompt, conversationHistory, userMessage, 
           temperature: 0.7,
           topP: 0.95,
           topK: 40,
-          maxOutputTokens: 1024,
+          maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
         },
       }),
       signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
-      await recordGeminiHttpError(response, "streamGenerateContent");
+      await recordGeminiHttpError(response, "streamGenerateContent", apiKey);
       return null;
     }
 
@@ -422,6 +483,64 @@ async function callOpenRouter(systemPrompt, conversationHistory, userMessage) {
 }
 
 // ─── OpenRouter API Call (Streaming) ───────────────────────────────────────
+// Groq is already configured for the technician assistant, so reuse it as a
+// genuine model fallback when the customer-facing Gemini quota is exhausted.
+async function callGroq(systemPrompt, conversationHistory, userMessage) {
+  const apiKey = getAvailableGroqKey();
+  if (!apiKey) return null;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...conversationHistory.slice(-10).map((message) => ({
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.content,
+    })),
+    { role: "user", content: userMessage },
+  ];
+
+  try {
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages,
+        temperature: 0.7,
+        max_tokens: 1024,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if (!response.ok) {
+      const quotaExceeded = response.status === 429;
+      const cooldownMs = quotaExceeded ? 10 * 60 * 1000 : 5 * 1000;
+      groqKeyCooldowns.set(apiKey, Date.now() + cooldownMs);
+      if (quotaExceeded) {
+        const nextIdx = GROQ_KEYS.indexOf(apiKey) + 1;
+        if (nextIdx < GROQ_KEYS.length) {
+          groqKeyIndex = nextIdx;
+          console.log(`[Chat] Groq key #${GROQ_KEYS.indexOf(apiKey) + 1} quota hit, rotating to key #${nextIdx + 1}`);
+        } else {
+          console.log(`[Chat] Groq all ${GROQ_KEYS.length} keys exhausted, cooling down ${Math.round(cooldownMs / 1000)}s`);
+        }
+      }
+      groqLastError = { status: response.status, at: new Date().toISOString(), keyIndex: GROQ_KEYS.indexOf(apiKey) + 1 };
+      console.error(`[Chat] Groq API error: ${response.status} (key #${GROQ_KEYS.indexOf(apiKey) + 1}/${GROQ_KEYS.length})`);
+      return null;
+    }
+
+    const data = await response.json();
+    const text = data?.choices?.[0]?.message?.content;
+    return typeof text === "string" && text.trim() ? text.trim() : null;
+  } catch (err) {
+    console.error("[Chat] Groq call failed:", err.message);
+    return null;
+  }
+}
+
 async function callOpenRouterStream(systemPrompt, conversationHistory, userMessage, onChunk) {
   if (!OPENROUTER_API_KEY) return null;
 
@@ -636,6 +755,9 @@ function buildSystemPrompt(knowledgeContext, session, customerContext = "No cust
   const conversationSummary = session.topicsDiscussed.length > 0
     ? `Topics discussed so far: ${session.topicsDiscussed.join(", ")}.`
     : "This is the start of the conversation.";
+  const customerNameContext = session.customerName
+    ? `The customer introduced themselves as ${session.customerName}. Use their name naturally, but not in every reply.`
+    : "The customer has not shared a preferred name.";
 
   const prompt = `You are RACS AI, the customer-facing assistant for RACS (Reliable Air Conditioning Services), an air-conditioning and appliance-service company in the Philippines. Your primary job is to help customers understand products, core services, and repair services; identify whether their appliance is supported; troubleshoot safely; choose an appropriate aircon; and take the correct booking or support action.
 
@@ -713,6 +835,7 @@ ${customerContext}
 
 ## CONVERSATION CONTEXT
 ${conversationSummary}
+${customerNameContext}
 Turn number: ${session.turnCount}
 Current time: Good ${timeOfDay}!
 
@@ -900,9 +1023,9 @@ function detectIntent(text) {
 // ─── Sentiment Detection ───────────────────────────────────────────────────
 function detectSentiment(text) {
   const lower = text.toLowerCase();
-  if (/angry|frustrat|terrible|awful|useless|stupid|incompetent|hate|putang|gago|tang|bob|ulol/i.test(lower)) return "angry";
-  if (/sad|disappoint|unhappy|worried|concerned|nabigo|lungkot/i.test(lower)) return "sad";
-  if (/happy|great|awesome|love|amazing|excellent|ganda|galing|sulit/i.test(lower)) return "happy";
+  if (/angry|frustrat|terrible|awful|useless|stupid|incompetent|hate|putang|gago|tang|bob|ulol|ayoko|naiinis|inis|galit/i.test(lower)) return "angry";
+  if (/sad|disappoint|unhappy|worried|concerned|nabigo|lungkot|di ako|hindi ako|ok|okay|masama|malungkot|nahihirapan|sakit|problem|trouble|issue|need help|tulong|saklolo/i.test(lower)) return "sad";
+  if (/happy|great|awesome|love|amazing|excellent|ganda|galing|sulit|salamat|thank|good|nice/i.test(lower)) return "happy";
   return "neutral";
 }
 
@@ -921,6 +1044,7 @@ function getSession(id) {
       topicsDiscussed: [],
       turnCount: 0,
       sentiment: "neutral",
+      customerName: null,
       lastProduct: null,
       lastService: null,
       lastActive: Date.now(),
@@ -952,6 +1076,7 @@ setInterval(() => {
 // ─── Suggestion Chips ──────────────────────────────────────────────────────
 function getSuggests(intent) {
   const suggestMap = {
+    introduction: [],
     greeting: ["Products", "All Services", "Appliance Repairs", "Track Booking"],
     farewell: ["Products", "Services", "Emergency"],
     thanks: ["Products", "Services", "Book a Service", "Contact"],
@@ -987,9 +1112,11 @@ function buildFallbackResponse(text, session) {
 
 // ─── Main Response Generator ───────────────────────────────────────────────
 async function generateResponse(text, session, knowledge, customerContext = "") {
-  const [intent, score] = detectIntent(text);
+  const [intent, score] = detectChatIntent(text);
   const sentiment = detectSentiment(text);
   const previousIntent = session.lastIntent;
+  const introducedName = extractIntroducedName(text);
+  if (introducedName) session.customerName = introducedName;
 
   // Update session
   session.turnCount++;
@@ -1032,9 +1159,10 @@ async function generateResponse(text, session, knowledge, customerContext = "") 
 
   if (intent === "no") {
     const noResponses = [
-      "No problem at all! Is there anything else I can help you with?",
-      "Sure thing! Just let me know if you need anything else.",
-      "Alright! I'm here whenever you need me.",
+      "Sige, no problem! Nandito lang ako kung may kailangan ka. 😊",
+      "Walang problema! Just let me know if you need anything else.",
+      "Okay lang! I'm here whenever you need me — whether it's aircon, repair, or anything else.",
+      "Sure thing! Ingat ka, and feel free to come back anytime.",
     ];
     return {
       text: noResponses[Math.floor(Math.random() * noResponses.length)],
@@ -1066,11 +1194,25 @@ async function generateResponse(text, session, knowledge, customerContext = "") 
     console.log("[Chat] Gemini unavailable:", e.message);
   }
 
+  try {
+    const knowledgeContext = knowledgeToContext(knowledge);
+    const systemPrompt = buildSystemPrompt(knowledgeContext, session, customerContext);
+    const groqReply = await callGroq(systemPrompt, session.history, text);
+    if (groqReply) {
+      return { text: groqReply, suggests: getSuggests(intent), intent };
+    }
+  } catch (e) {
+    console.log("[Chat] Groq unavailable:", e.message);
+  }
+
   // Local intelligent response
   console.log("[Chat] Using local AI — intent:", intent, "score:", score);
   let response;
 
   switch (intent) {
+    case "introduction":
+      response = buildIntroductionResponse(text, session);
+      break;
     case "greeting":
       response = buildGreetingResponse(session);
       break;
@@ -1382,6 +1524,11 @@ function buildServiceResponse(knowledge, text, session) {
   return response;
 }
 
+function buildIntroductionResponse(text, session) {
+  const name = extractIntroducedName(text) || session.customerName || "there";
+  return `Nice to meet you, **${name}**! I'm RACS AI. What can I help you with today?`;
+}
+
 // ─── Booking ───────────────────────────────────────────────────────────────
 function buildBookingResponse(knowledge, session) {
   return `**Book a service**\n\n1. Open the [Core Service page](/core-service).\n2. Choose the service and enter the actual number of units.\n3. Select your location and preferred schedule.\n4. Review the calculated amount before confirming.\n\nAfter submission, follow assignments, large-project progress, and payments in [My Schedule](/tracking). For help, contact **${knowledge.company.phone}**.`;
@@ -1541,7 +1688,47 @@ function buildAMCResponse(knowledge) {
 // ─── Intelligent Fallback ──────────────────────────────────────────────────
 function buildIntelligentFallback(text, session, knowledge) {
   const lower = text.toLowerCase();
-  const words = tokenize(text);
+  const words = tokenizeChatText(text);
+
+  // Filipino appliance name mappings
+  const filipinoApplianceMap = {
+    ref: "refrigerator", fridge: "refrigerator", refrigerator: "refrigerator",
+    washing: "washing machine", washer: "washing machine",
+    microwave: "microwave", turbo: "turbobroiler",
+    fan: "electric fan", electricfan: "electric fan",
+    aircon: "air conditioner", ac: "air conditioner",
+    rice: "rice cooker", water: "water dispenser",
+  };
+
+  // Check for Filipino appliance references (e.g., "sa ref", "yung fridge", "tungkol sa aircon")
+  const applianceMatch = lower.match(/\b(ref|fridge|refrigerator|washing|washer|microwave|turbo|turbobroiler|fan|electric\s*fan|aircon|ac|rice\s*cooker|water\s*dispenser)\b/i);
+  if (applianceMatch) {
+    const applianceKeyword = applianceMatch[1].replace(/\s+/g, "");
+    const applianceName = filipinoApplianceMap[applianceKeyword] || applianceKeyword;
+    // Find matching services in knowledge base
+    const matchingServices = (knowledge.services || []).filter(s =>
+      (s.applianceName || "").toLowerCase().includes(applianceName) ||
+      (s.applianceNames || []).some(n => n.toLowerCase().includes(applianceName))
+    );
+    if (matchingServices.length > 0) {
+      const svc = matchingServices[0];
+      const price = svc.initialFee ? `₱${svc.initialFee.toLocaleString()} initial inspection fee` : (svc.price || "Contact for price");
+      return `**${svc.name || applianceName} Repair**\n\nService type: ${svc.kind || "Repair inspection"}\nAppliance: ${svc.applianceName || applianceName}\nPrice: ${price}\n\n${svc.description || "The technician must inspect the appliance before confirming the fault, required parts, labor, and final repair quotation."}\n\nTo request this service, open the Core Service page, or contact **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Core Services | Pricing`;
+    }
+    return `We offer **${applianceName}** repair services. The initial inspection fee is **₱${(knowledge.services && knowledge.services[0]) ? (knowledge.services[0].initialFee || 500) : 500}**.\n\nAfter the technician inspects the unit, they'll provide a final quotation for parts and labor.\n\nTo book, visit **/core-service** or call **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Contact`;
+  }
+
+  // Check for Filipino "problem/not working" phrases
+  if (/(?:hindi|di)\s+(?:gumagana|gumamit|umiikot|umiilaw|nagrerespond)/i.test(lower) ||
+      /(?:ayaw|wala)\s+(?:gumana|gumamit|umiikot)/i.test(lower) ||
+      /sira|problema|nadale|nasira|wasak|nabutas/i.test(lower)) {
+    return `I'm sorry to hear that! For appliance troubleshooting:\n\n**Quick checks:**\n- Is the unit plugged in and getting power?\n- Check the circuit breaker\n- Try resetting the unit (unplug for 30 seconds)\n\nIf the problem persists, it's best to have a technician inspect it. Book a repair at **/core-service** or call **${knowledge.company.phone}**.\n\n**Initial inspection fee:** ₱500\nAfter diagnosis, the technician will provide a full quotation.\n\nBook a Service | Emergency | Troubleshooting`;
+  }
+
+  // Check for Filipino pricing phrases
+  if (/(?:magkano|presyo|halaga|gastos|presyo ng|magkano ang)/i.test(lower)) {
+    return `Here's a quick pricing overview:\n\n- **Installation:** ₱${(knowledge.installFee || 1500).toLocaleString()}\n- **Delivery:** ₱${knowledge.farePerKm || 30}/km (Store Pickup: FREE)\n- **Repair inspection:** ₱500 initial fee (per appliance)\n- **Aircon units:** ₱${(knowledge.products[0]?.minPrice || 25500).toLocaleString()} – ₱${(knowledge.products[0]?.maxPrice || 45500).toLocaleString()}\n\nWant the price for a specific product or service? Just ask!\n\nProducts | Services | Book a Service`;
+  }
 
   // Check for question patterns
   const isQuestion = /\?$|^(what|how|why|when|where|who|which|can|could|would|should|is|are|do|does|tell|explain|help|give|show|list|name)/i.test(text);
@@ -1644,10 +1831,11 @@ router.post("/", async (req, res) => {
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
+    const requestContext = [EXTERNAL_CHAT_CONTEXT, customerData.context].filter(Boolean).join("\n\n");
 
     const result = isCustomerAccountQuestion(message)
       ? { text: buildCustomerStatusResponse(customerData), suggests: ["Track full details", "Book a Service", "Contact"], intent: "account_status" }
-      : await generateResponse(message, session, knowledge, EXTERNAL_CHAT_CONTEXT);
+      : await generateResponse(message, session, knowledge, requestContext);
 
     // Save to session history
     session.history.push({ role: "user", content: message, ts: Date.now() });
@@ -1675,6 +1863,31 @@ router.post("/", async (req, res) => {
 
 // ─── Streaming Endpoint ────────────────────────────────────────────────────
 router.post("/stream", async (req, res) => {
+  let sseStarted = false;
+  const startSse = () => {
+    if (sseStarted || res.headersSent) return;
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    sseStarted = true;
+  };
+  const sendSse = (payload) => {
+    if (res.writableEnded) return;
+    startSse();
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    if (typeof res.flush === "function") res.flush();
+  };
+  const finishSse = () => {
+    if (res.writableEnded) return;
+    startSse();
+    res.write("data: [DONE]\n\n");
+    if (typeof res.flush === "function") res.flush();
+    res.end();
+  };
+
   try {
     const { message, history = [], sessionId } = req.body;
 
@@ -1682,14 +1895,21 @@ router.post("/stream", async (req, res) => {
       return res.status(400).json({ error: "Message must be between 1 and 2000 characters" });
     }
 
+    // Establish the connection before database/provider work so mobile clients
+    // and reverse proxies do not mistake a slow first token for a failed stream.
+    startSse();
+
     const knowledge = await loadKnowledge();
     const session = getSession(chatSessionKey(req, sessionId));
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
+    const requestContext = [EXTERNAL_CHAT_CONTEXT, customerData.context].filter(Boolean).join("\n\n");
 
     // Update session state
-    const [intent] = detectIntent(message);
+    const [intent] = detectChatIntent(message);
+    const introducedName = extractIntroducedName(message);
+    if (introducedName) session.customerName = introducedName;
     const sentiment = detectSentiment(message);
     session.turnCount++;
     session.sentiment = sentiment;
@@ -1697,17 +1917,10 @@ router.post("/stream", async (req, res) => {
     session.intentCount[intent] = (session.intentCount[intent] || 0) + 1;
     if (!session.topicsDiscussed.includes(intent)) session.topicsDiscussed.push(intent);
 
-    // Set SSE headers
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-
     if (isCustomerAccountQuestion(message)) {
       const statusText = buildCustomerStatusResponse(customerData);
-      res.write(`data: ${JSON.stringify({ text: statusText, done: true, fullText: statusText, suggests: ["Track full details", "Book a Service", "Contact"] })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
+      sendSse({ text: statusText, done: true, fullText: statusText, suggests: ["Track full details", "Book a Service", "Contact"] });
+      finishSse();
       session.history.push({ role: "user", content: message, ts: Date.now() });
       session.history.push({ role: "bot", content: statusText, ts: Date.now() });
       return;
@@ -1716,30 +1929,39 @@ router.post("/stream", async (req, res) => {
     // Handle angry sentiment — no streaming, immediate escalation
     if (sentiment === "angry") {
       const escalationText = `I understand your frustration, and I'm sorry about the experience. For account-specific help, contact **${knowledge.company.phone}** or **${knowledge.company.email}**, and include your booking reference.`;
-      res.write(`data: ${JSON.stringify({ text: escalationText, done: true, fullText: escalationText })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
+      sendSse({ text: escalationText, done: true, fullText: escalationText });
+      finishSse();
 
       session.history.push({ role: "user", content: message, ts: Date.now() });
       session.history.push({ role: "bot", content: escalationText, ts: Date.now() });
       return;
     }
 
+    // Handle simple local intents immediately (no need for AI)
+    const localIntents = ["no", "greeting", "farewell", "thanks", "yes"];
+    if (localIntents.includes(intent)) {
+      const result = await generateResponse(message, session, knowledge, requestContext);
+      sendSse({ text: result.text, done: true, fullText: result.text, suggests: result.suggests });
+      finishSse();
+      session.history.push({ role: "user", content: message, ts: Date.now() });
+      session.history.push({ role: "bot", content: result.text, ts: Date.now() });
+      return;
+    }
+
     // Try OpenRouter streaming first (free, intelligent)
     if (OPENROUTER_API_KEY) {
       const knowledgeContext = knowledgeToContext(knowledge);
-      const systemPrompt = buildSystemPrompt(knowledgeContext, session, EXTERNAL_CHAT_CONTEXT);
+      const systemPrompt = buildSystemPrompt(knowledgeContext, session, requestContext);
 
       let orFull = "";
       const orSent = await callOpenRouterStream(systemPrompt, session.history, message, (chunk) => {
         orFull += chunk;
-        res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        sendSse({ text: chunk });
       });
 
       if (orSent) {
-        res.write(`data: ${JSON.stringify({ done: true, fullText: orSent, suggests: getSuggests(intent) })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
+        sendSse({ done: true, fullText: orSent, suggests: getSuggests(intent) });
+        finishSse();
 
         session.history.push({ role: "user", content: message, ts: Date.now() });
         session.history.push({ role: "bot", content: orSent, ts: Date.now() });
@@ -1753,10 +1975,11 @@ router.post("/stream", async (req, res) => {
     // Try Gemini streaming
     if (canUseGemini()) {
       const knowledgeContext = knowledgeToContext(knowledge);
-      const systemPrompt = buildSystemPrompt(knowledgeContext, session, EXTERNAL_CHAT_CONTEXT);
+      const systemPrompt = buildSystemPrompt(knowledgeContext, session, requestContext);
+      const geminiKey = getAvailableGeminiKey();
 
       let fullText = "";
-      const streamUrl = `${GEMINI_BASE_URL}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+      const streamUrl = `${GEMINI_BASE_URL}:streamGenerateContent?alt=sse&key=${geminiKey}`;
 
       const contents = buildGeminiContents(session.history, message);
 
@@ -1771,7 +1994,7 @@ router.post("/stream", async (req, res) => {
               temperature: 0.7,
               topP: 0.95,
               topK: 40,
-              maxOutputTokens: 1024,
+              maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS,
             },
           }),
           signal: AbortSignal.timeout(30000),
@@ -1801,27 +2024,29 @@ router.post("/stream", async (req, res) => {
                   const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
                   if (text) {
                     fullText += text;
-                    res.write(`data: ${JSON.stringify({ text })}\n\n`);
+                    sendSse({ text });
                   }
                 } catch (e) {}
               }
             }
           }
 
-          // Send done event
-          res.write(`data: ${JSON.stringify({ done: true, fullText, suggests: getSuggests(intent) })}\n\n`);
-          res.write("data: [DONE]\n\n");
-          res.end();
+          if (fullText.trim()) {
+            sendSse({ done: true, fullText, suggests: getSuggests(intent) });
+            finishSse();
 
-          // Save to session
-          session.history.push({ role: "user", content: message, ts: Date.now() });
-          session.history.push({ role: "bot", content: fullText, ts: Date.now() });
-          if (session.history.length > 50) session.history = session.history.slice(-50);
+            // Save to session
+            session.history.push({ role: "user", content: message, ts: Date.now() });
+            session.history.push({ role: "bot", content: fullText, ts: Date.now() });
+            if (session.history.length > 50) session.history = session.history.slice(-50);
 
-          console.log(`[Chat Stream] intent=${intent} sentiment=${sentiment} turn=${session.turnCount} len=${fullText.length}`);
-          return;
+            console.log(`[Chat Stream] intent=${intent} sentiment=${sentiment} turn=${session.turnCount} len=${fullText.length}`);
+            return;
+          }
+          console.warn("[Chat Stream] Gemini returned an empty stream; using fallback response");
+        } else {
+          await recordGeminiHttpError(response, "streamGenerateContent", geminiKey);
         }
-        await recordGeminiHttpError(response, "streamGenerateContent");
       } catch (streamErr) {
         console.error("[Chat Stream] Gemini stream error:", streamErr.message);
       }
@@ -1829,16 +2054,16 @@ router.post("/stream", async (req, res) => {
 
     // Fallback: non-streaming response (OpenRouter → Gemini → local)
     const knowledgeContext = knowledgeToContext(knowledge);
-    const systemPrompt = buildSystemPrompt(knowledgeContext, session, customerData.context);
+    const systemPrompt = buildSystemPrompt(knowledgeContext, session, requestContext);
 
     let fbReply = null;
     if (OPENROUTER_API_KEY) fbReply = await callOpenRouter(systemPrompt, session.history, message);
     if (!fbReply && canUseGemini()) fbReply = await callGemini(systemPrompt, session.history, message);
+    if (!fbReply && canUseGroq()) fbReply = await callGroq(systemPrompt, session.history, message);
 
     if (fbReply) {
-      res.write(`data: ${JSON.stringify({ text: fbReply, done: true, fullText: fbReply, suggests: getSuggests(intent) })}\n\n`);
-      res.write("data: [DONE]\n\n");
-      res.end();
+      sendSse({ text: fbReply, done: true, fullText: fbReply, suggests: getSuggests(intent) });
+      finishSse();
 
       session.history.push({ role: "user", content: message, ts: Date.now() });
       session.history.push({ role: "bot", content: fbReply, ts: Date.now() });
@@ -1848,10 +2073,9 @@ router.post("/stream", async (req, res) => {
 
     // Final fallback — local intent response
     console.log("[Chat Stream] All AI unavailable, using local fallback");
-    const result = await generateResponse(message, session, knowledge, customerData.context);
-    res.write(`data: ${JSON.stringify({ text: result.text, done: true, fullText: result.text, suggests: result.suggests })}\n\n`);
-    res.write("data: [DONE]\n\n");
-    res.end();
+    const result = await generateResponse(message, session, knowledge, requestContext);
+    sendSse({ text: result.text, done: true, fullText: result.text, suggests: result.suggests });
+    finishSse();
 
     session.history.push({ role: "user", content: message, ts: Date.now() });
     session.history.push({ role: "bot", content: result.text, ts: Date.now() });
@@ -1859,9 +2083,9 @@ router.post("/stream", async (req, res) => {
 
   } catch (err) {
     console.error("[Chat Stream] Error:", err.message);
-    res.write(`data: ${JSON.stringify({ text: "I'm having trouble responding right now. Please try again or use the Contact page for assistance.", done: true })}\n\n`);
-    res.write("data: [DONE]\n\n");
-    res.end();
+    if (!res.headersSent) startSse();
+    sendSse({ text: "I'm having trouble responding right now. Please try again or use the Contact page for assistance.", done: true });
+    finishSse();
   }
 });
 
@@ -1870,14 +2094,25 @@ router.get("/health", async (req, res) => {
   const knowledge = await loadKnowledge();
   res.json({
     status: "ok",
-    mode: OPENROUTER_API_KEY ? "openrouter-ai" : GEMINI_API_KEY ? "gemini-ai" : "local-ai",
+    mode: OPENROUTER_API_KEY
+      ? "openrouter-ai"
+      : canUseGemini()
+        ? "gemini-ai"
+        : canUseGroq()
+          ? "groq-ai"
+          : "local-ai",
     openrouterConfigured: !!OPENROUTER_API_KEY,
     openrouterModel: OPENROUTER_API_KEY ? OPENROUTER_MODEL : null,
-    geminiConfigured: !!GEMINI_API_KEY,
-    geminiModel: GEMINI_API_KEY ? GEMINI_MODEL : null,
+    geminiConfigured: GEMINI_KEYS.length > 0,
+    geminiKeysCount: GEMINI_KEYS.length,
+    geminiModel: GEMINI_KEYS.length ? GEMINI_MODEL : null,
     geminiAvailable: canUseGemini(),
-    geminiCooldownUntil: geminiUnavailableUntil > Date.now() ? new Date(geminiUnavailableUntil).toISOString() : null,
     geminiLastError,
+    groqConfigured: GROQ_KEYS.length > 0,
+    groqKeysCount: GROQ_KEYS.length,
+    groqModel: GROQ_KEYS.length ? GROQ_MODEL : null,
+    groqAvailable: canUseGroq(),
+    groqLastError,
     products: knowledge.products.length,
     services: knowledge.services.length,
     activeSessions: sessions.size,

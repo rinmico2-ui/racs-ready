@@ -34,6 +34,10 @@ const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const { enrichCustomerBooking } = require("../utils/customerBookingPresentation");
+const {
+  findCompletionProof,
+  openCompletionProofDownload,
+} = require("../utils/completionProofStorage");
 
 function isPathWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
@@ -420,13 +424,33 @@ router.get("/:id/completion-photo", async (req, res, next) => {
     }
 
     const booking = await BookingService.findById(req.params.id)
-      .select("customerId technicianId proofPhoto")
+      .select("customerId technicianId proofPhoto +completionProofFileId")
       .lean();
     if (!booking) {
       return res.status(404).json({ error: "Appointment not found" });
     }
     if (!(await canAccessBooking(req.user, booking))) {
       return res.status(403).json({ error: "Forbidden" });
+    }
+
+    if (booking.completionProofFileId) {
+      const storedFile = await findCompletionProof(booking.completionProofFileId);
+      if (!storedFile) {
+        return res.status(404).json({ error: "Completion photo not found" });
+      }
+      res.set({
+        "Cache-Control": "private, no-store",
+        "Content-Type": storedFile.contentType || "application/octet-stream",
+        "Content-Length": String(storedFile.length),
+        "X-Content-Type-Options": "nosniff",
+      });
+      const downloadStream = openCompletionProofDownload(booking.completionProofFileId);
+      downloadStream.once("error", (error) => {
+        if (!res.headersSent) return next(error);
+        return res.destroy(error);
+      });
+      downloadStream.pipe(res);
+      return;
     }
 
     const storedPhoto = String(booking.proofPhoto || "").trim();

@@ -28,7 +28,7 @@ test("service dialogs require deliberate acknowledgement", () => {
   assert.match(servicesScript, /allowOutsideClick: false/);
   assert.match(servicesScript, /confirmButtonText: 'Review Details'/);
   assert.match(servicesScript, /confirmButtonText: 'Continue'/);
-  assert.match(servicesView, /services-multi\.js\?v=20260914-submission-motion-v1/);
+  assert.match(servicesView, /services-multi\.js\?v=20260915-address-search-v2/);
 });
 
 test("service-added confirmation appears after the configurator closes", () => {
@@ -50,6 +50,14 @@ test("address lookup is user-triggered instead of API-backed autocomplete", () =
     servicesScript,
     /addressSearchBtn\.addEventListener\('click',[\s\S]*?fetchAddressSuggestions\(query\)/
   );
+  assert.match(
+    servicesScript,
+    /input\.addEventListener\('keydown',[\s\S]*?event\.key !== 'Enter'[\s\S]*?fetchAddressSuggestions\(query\)/
+  );
+  assert.match(servicesScript, /displaySuggestions\(data, true\)/);
+  assert.match(servicesScript, /function applyAddressSearchResult/);
+  assert.match(servicesScript, /function resetServiceLocationForTypedAddress/);
+  assert.match(servicesView, /Type an address and press Enter or tap Search/);
 });
 
 test("core-service configuration advances from brand to type to HP", () => {

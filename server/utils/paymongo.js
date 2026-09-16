@@ -15,6 +15,86 @@ function getPublicKey() {
   return key;
 }
 
+function isPaymongoConfigured() {
+  return Boolean(
+    String(process.env.PAYMONGO_SECRET_KEY || "").trim()
+    && String(process.env.PAYMONGO_WEBHOOK_SECRET || "").trim(),
+  );
+}
+
+/**
+ * Create a hosted PayMongo Checkout Session for card payments. Card numbers,
+ * expiry dates and CVCs are entered on PayMongo's page and never touch RACS.
+ */
+async function createCardCheckoutSession({
+  amount,
+  description,
+  successUrl,
+  cancelUrl,
+  referenceNumber,
+  billingName,
+  billingEmail,
+  billingPhone,
+  metadata = {},
+}) {
+  const key = getSecretKey();
+  const amountCentavos = Math.round(Number(amount) * 100);
+  if (!Number.isSafeInteger(amountCentavos) || amountCentavos < 100) {
+    throw new Error("Card payment amount must be at least ₱1.00.");
+  }
+  if (!successUrl || !cancelUrl) {
+    throw new Error("Card checkout redirect URLs are required.");
+  }
+
+  const billing = {};
+  if (billingName) billing.name = String(billingName).trim();
+  if (billingEmail) billing.email = String(billingEmail).trim();
+  if (billingPhone) billing.phone = String(billingPhone).trim();
+
+  const safeDescription = String(description || "RACS payment").trim().slice(0, 255);
+  const payload = {
+    data: {
+      attributes: {
+        billing: Object.keys(billing).length ? billing : undefined,
+        cancel_url: String(cancelUrl),
+        description: safeDescription,
+        line_items: [{
+          amount: amountCentavos,
+          currency: "PHP",
+          description: safeDescription,
+          name: "RACS payment",
+          quantity: 1,
+        }],
+        payment_method_types: ["card"],
+        reference_number: String(referenceNumber || "RACS").slice(0, 100),
+        send_email_receipt: true,
+        show_description: true,
+        show_line_items: true,
+        success_url: String(successUrl),
+        metadata,
+      },
+    },
+  };
+
+  const resp = await axios.post(`${API_BASE}/checkout_sessions`, payload, {
+    auth: { username: key, password: "" },
+    headers: { "Content-Type": "application/json" },
+    timeout: 15000,
+  });
+  const session = resp.data?.data;
+  const attrs = session?.attributes || {};
+  if (!session?.id || !attrs.checkout_url) {
+    throw new Error("PayMongo did not return a usable card checkout session.");
+  }
+  return {
+    checkoutSessionId: session.id,
+    checkoutUrl: attrs.checkout_url,
+    referenceNumber: attrs.reference_number || referenceNumber,
+    status: attrs.status || "active",
+    amountPHP: amountCentavos / 100,
+  };
+}
+
 /**
  * Create a GCash Source via PayMongo Sources API.
  * Returns { sourceId, checkoutUrl, status } on success.
@@ -225,6 +305,8 @@ function verifyWebhook(rawBody, signatureHeader, secret) {
 }
 
 module.exports = {
+  isPaymongoConfigured,
+  createCardCheckoutSession,
   createGcashSource,
   createPaymentLink,
   getSource,

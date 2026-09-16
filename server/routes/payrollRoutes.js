@@ -11,6 +11,7 @@ const SecretaryAttendance = require("../models/SecretaryAttendance");
 const EmployeeCompensation = require("../models/EmployeeCompensation");
 const { createNotification } = require("../utils/notify");
 const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
+const { payslipNumberFor, canViewPayslip } = require("../utils/payslipPresentation");
 const {
   calculateBasicPay,
   calculateOvertimePay,
@@ -94,7 +95,22 @@ function assertPayDateForPeriod(payDate, periodEnd) {
 }
 
 async function assertPayrollSeparationOfDuties(record, actorId, action) {
-  const activeAdminCount = await User.countDocuments({ role: "admin", active: { $ne: false } });
+  // Small deployments commonly have one payroll operator plus dormant admin
+  // accounts. Keep maker-checker available for organizations that explicitly
+  // require it without blocking the default single-operator workflow.
+  const separationRequired = ["1", "true", "yes", "on"].includes(
+    String(process.env.PAYROLL_SEPARATION_OF_DUTIES || "").trim().toLowerCase(),
+  );
+  if (!separationRequired) return;
+
+  const activeAdminCount = await User.countDocuments({
+    role: "admin",
+    active: { $ne: false },
+    blocked: { $ne: true },
+    archivedAt: null,
+    accountStatus: { $ne: "invited" },
+    emailVerified: { $ne: false },
+  });
   const violation = separationOfDutiesViolation({
     activeAdminCount,
     createdBy: record.createdBy,
@@ -103,12 +119,12 @@ async function assertPayrollSeparationOfDuties(record, actorId, action) {
     action,
   });
   if (violation === "creator_cannot_approve") {
-    const error = new Error("A different administrator must approve payroll created by you.");
+    const error = new Error("Payroll separation of duties is enabled. A different active administrator must approve payroll created by you.");
     error.status = 409;
     throw error;
   }
   if (violation === "approver_cannot_pay") {
-    const error = new Error("A different administrator must record payment for payroll you approved.");
+    const error = new Error("Payroll separation of duties is enabled. A different active administrator must record payment for payroll you approved.");
     error.status = 409;
     throw error;
   }
@@ -250,6 +266,8 @@ function populatePayroll(query) {
     .populate("employee", "firstName lastName email role active")
     .populate("createdBy", "firstName lastName")
     .populate("approvedBy", "firstName lastName")
+    .populate("payslipIssuedBy", "firstName lastName")
+    .populate("attendanceExceptionOverride.authorizedBy", "firstName lastName")
     .populate("paidBy", "firstName lastName")
     .populate("voidedBy", "firstName lastName")
     .populate("compensationRecord", "payType baseRate overtimeRate effectiveFrom effectiveTo");
@@ -652,6 +670,40 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+router.get("/:id/payslip", async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ error: "Payslip not found." });
+    }
+
+    const record = await populatePayroll(Payroll.findById(req.params.id)).lean();
+    if (!record) return res.status(404).json({ error: "Payslip not found." });
+    if (!canViewPayslip(req.user, record)) {
+      return res.status(403).json({ error: "You cannot view this payslip." });
+    }
+
+    res.set({
+      "Cache-Control": "private, no-store, max-age=0",
+      Pragma: "no-cache",
+      "X-Robots-Tag": "noindex, noarchive, nosnippet",
+    });
+
+    return res.render("pages/shared/Payslip", {
+      layout: false,
+      record,
+      payslipNumber: payslipNumberFor(record),
+      company: {
+        name: res.locals.companyName || "CALIDRO RACS",
+        address: res.locals.companyAddress || "San Leonardo, Nueva Ecija",
+        phone: res.locals.companyPhone || "",
+        email: res.locals.companyEmail || "",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/:id", async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ error: "Payroll record not found." });
@@ -806,9 +858,22 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
     if (calculation.overtimeHours > 0 && !String(record.overtimeNote || "").trim()) {
       return res.status(409).json({ error: "Add an overtime approval reason before approving this payroll." });
     }
-    if (hasBlockingAttendanceExceptions(calculation.compensation, calculation.attendance)) {
+    const hasAttendanceBlock = hasBlockingAttendanceExceptions(calculation.compensation, calculation.attendance);
+    const attendanceOverrideRequested = req.body && req.body.attendanceExceptionOverride === true;
+    const attendanceOverrideReason = String((req.body && req.body.attendanceExceptionReason) || "").trim().slice(0, 500);
+    if (hasAttendanceBlock && !attendanceOverrideRequested) {
       return res.status(409).json({
-        error: "Resolve missing, incomplete, or unverified attendance before approval.",
+        error: "Resolve the attendance exceptions or approve with a documented exception reason.",
+        code: "ATTENDANCE_EXCEPTION_OVERRIDE_REQUIRED",
+        requiresOverride: true,
+        warnings: calculation.warnings,
+      });
+    }
+    if (hasAttendanceBlock && attendanceOverrideReason.length < 10) {
+      return res.status(400).json({
+        error: "Enter an attendance exception reason of at least 10 characters.",
+        code: "ATTENDANCE_EXCEPTION_REASON_REQUIRED",
+        requiresOverride: true,
         warnings: calculation.warnings,
       });
     }
@@ -822,6 +887,7 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
       return res.status(409).json({ error: "Deductions must be lower than gross pay before approval." });
     }
     const approvedAt = new Date();
+    const payslipNumber = payslipNumberFor(record);
     const approvedRecord = await Payroll.findOneAndUpdate(
       { _id: record._id, status: "draft", updatedAt: record.updatedAt },
       {
@@ -829,6 +895,10 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
           status: "approved",
           approvedBy: req.user._id,
           approvedAt,
+          payslipNumber,
+          payslipVersion: record.payslipVersion || 1,
+          payslipIssuedAt: approvedAt,
+          payslipIssuedBy: req.user._id,
           basicPay: calculation.basicPay,
           overtimeHours: calculation.overtimeHours,
           overtimePay: calculation.overtimePay,
@@ -838,6 +908,21 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
           overtimeRate: calculation.compensation.overtimeRate,
           compensationRecord: calculation.compensation._id,
           calculationWarnings: calculation.warnings,
+          attendanceExceptionOverride: hasAttendanceBlock
+            ? {
+              applied: true,
+              reason: attendanceOverrideReason,
+              authorizedBy: req.user._id,
+              authorizedAt: approvedAt,
+              warnings: calculation.warnings,
+            }
+            : {
+              applied: false,
+              reason: "",
+              authorizedBy: null,
+              authorizedAt: null,
+              warnings: [],
+            },
           calculatedAt: approvedAt,
           ...computedTotals,
         },
@@ -847,7 +932,7 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
     if (!approvedRecord) {
       return res.status(409).json({ error: "Payroll changed while it was being approved. Refresh and review the latest draft." });
     }
-    await audit.logEvent({ actor: req.user._id, target: approvedRecord.employee, action: "payroll.approved", module: "payroll", req, entityId: approvedRecord._id, entityType: "Payroll", category: "payment", details: { netPay: approvedRecord.netPay, calculationWarnings: approvedRecord.calculationWarnings } });
+    await audit.logEvent({ actor: req.user._id, target: approvedRecord.employee, action: "payroll.approved", module: "payroll", req, entityId: approvedRecord._id, entityType: "Payroll", category: "payment", details: { netPay: approvedRecord.netPay, payslipNumber: approvedRecord.payslipNumber, calculationWarnings: approvedRecord.calculationWarnings, attendanceExceptionOverride: approvedRecord.attendanceExceptionOverride } });
 
     // Notify the employee
     const io = req.app.get("io");
@@ -856,7 +941,7 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
     await createNotification({
       type: "payroll_approved",
       title: "Payroll Approved",
-      message: `Your payroll for ${periodLabel} (${fmtMoney(approvedRecord.netPay)}) has been approved and is ready for payment.`,
+      message: `Your payroll for ${periodLabel} (${fmtMoney(approvedRecord.netPay)}) has been approved. Your payslip is now available.`,
       userId: approvedRecord.employee,
       role: approvedRecord.employeeRole,
       referenceId: approvedRecord._id,
@@ -866,7 +951,7 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
       io,
     });
 
-    res.json({ message: "Payroll approved and now visible to the staff member." });
+    res.json({ message: "Payroll approved and payslip issued to the staff member.", payslipNumber: approvedRecord.payslipNumber });
   } catch (error) { next(error); }
 });
 

@@ -139,6 +139,10 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     repairInspectionDefaultFee,
     // supply the admin's GCash number for the QR code
     adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || "",
+    cardPaymentsConfigured: Boolean(
+      String(process.env.PAYMONGO_SECRET_KEY || "").trim()
+      && String(process.env.PAYMONGO_WEBHOOK_SECRET || "").trim(),
+    ),
     farePerKm,
     projectLaborRatePerDay,
     publicStats,
@@ -1502,6 +1506,15 @@ router.get("/admin/inventory/equipment-returns", pageAuth.requireRole("admin"), 
     title: "Equipment Returns Queue",
     layout: "layouts/admin",
   });
+});
+router.get("/admin/inventory/technician-tools", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Inventory/TechnicianTools", {
+    title: "Technician Tools",
+    layout: "layouts/admin",
+  });
+});
+router.get("/admin/technician-tools", pageAuth.requireRole("admin"), (req, res) => {
+  res.redirect("/admin/inventory/technician-tools");
 });
 router.get(
   "/admin/inventory/repair-parts",

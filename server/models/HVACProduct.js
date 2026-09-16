@@ -104,6 +104,37 @@ const hpVariantSchema = new mongoose.Schema(
       sparse: true,
     },
 
+    // Manufacturer serial registry for physical units under this HP variant.
+    // It may include reserved/sold units because fulfillment records the final
+    // handover serial after aggregate stock has already been decremented.
+    serialNumbers: {
+      type: [String],
+      // Keep an empty registry absent rather than storing []. MongoDB indexes an
+      // empty array as an undefined multikey value, which can create false
+      // duplicate-key conflicts in the sparse unique serial-number index.
+      default: undefined,
+      set: (values) => {
+        const normalized = Array.isArray(values)
+          ? values.map((value) => String(value || "").trim().toUpperCase()).filter(Boolean)
+          : [];
+        return normalized.length ? normalized : undefined;
+      },
+      validate: [
+        {
+          validator(values) {
+            return values.every((value) => /^[A-Z0-9][A-Z0-9._/-]{0,119}$/.test(value));
+          },
+          message: "Serial numbers may contain only letters, numbers, dots, slashes, underscores, or hyphens",
+        },
+        {
+          validator(values) {
+            return new Set(values).size === values.length;
+          },
+          message: "Serial numbers must be unique within an HP variant",
+        },
+      ],
+    },
+
     // Variant-specific specifications
     specifications: {
       refrigerantType: {
@@ -315,7 +346,20 @@ hvacProductSchema.index({ modelLine: 1, brand: 1 });
 hvacProductSchema.index({ brand: 1, type: 1 });
 hvacProductSchema.index({ "variants.capacity": 1 });
 hvacProductSchema.index({ "variants.status": 1 });
+hvacProductSchema.index({ "variants.serialNumbers": 1 }, { unique: true, sparse: true });
 hvacProductSchema.index({ active: 1, status: 1 });
+
+hvacProductSchema.pre("validate", function validateSerialRegistry() {
+  const serialNumbers = (this.variants || []).flatMap(
+    (variant) => variant.serialNumbers || [],
+  );
+  if (new Set(serialNumbers).size !== serialNumbers.length) {
+    this.invalidate(
+      "variants",
+      "A serial number cannot be assigned to more than one HP variant",
+    );
+  }
+});
 
 // ─── Virtual Fields ─────────────────────────────────────────────────────────
 

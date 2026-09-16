@@ -14,7 +14,7 @@ const paymentSchema = new mongoose.Schema({
   // method used by customer (gcash, cod, bank, paymongo, etc.)
   method: {
     type: String,
-    enum: ["gcash", "cod", "cash", "bank", "paymongo", "other"],
+    enum: ["gcash", "card", "cod", "cash", "bank", "paymongo", "other"],
     required: true,
   },
 
@@ -34,6 +34,7 @@ const paymentSchema = new mongoose.Schema({
   gatewayId: String,       // resource ID returned by gateway
   gatewayType: String,     // e.g. payment_intent, source
   gatewayStatus: String,   // raw status from provider
+  gatewayCheckoutUrl: { type: String, select: false },
   webhookEvents: { type: Array }, // store raw webhook payloads
 
   reference: String, // e.g. GCash transaction code or notes

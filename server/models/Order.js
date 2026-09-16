@@ -267,7 +267,7 @@ const orderSchema = new mongoose.Schema(
     // downpayment, while individual Payment records retain the real channel.
     paymentMethod: {
       type: String,
-      enum: ["cod", "gcash", "paymongo", "other", "cash_onsite", "gcash_full", "gcash_downpayment", "cash", "downpayment"],
+      enum: ["cod", "gcash", "card", "paymongo", "other", "cash_onsite", "gcash_full", "gcash_downpayment", "cash", "downpayment"],
       default: "cod",
     },
     paymentStatus: {

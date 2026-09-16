@@ -102,7 +102,7 @@
   position: absolute;
   bottom: 70px;
   right: 0;
-  width: min(440px, calc(100vw - 48px));
+  width: min(520px, calc(100vw - 48px));
   height: clamp(520px, 70vh, 640px);
   max-height: calc(100vh - 110px);
   background: #ffffff;
@@ -324,9 +324,9 @@
 }
 
 .racbot-msg-inner {
-  max-width: 680px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 16px;
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -370,7 +370,7 @@
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   border-radius: 16px 16px 4px 16px;
   padding: 10px 16px;
-  max-width: 85%;
+  max-width: 90%;
   font-size: 14.5px;
   line-height: 1.5;
   color: #ffffff;
@@ -383,6 +383,11 @@
   line-height: 1.65;
   color: #1e293b;
   word-wrap: break-word;
+}
+
+.racbot-assistant-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .racbot-msg-row.user .racbot-msg-meta {
@@ -622,9 +627,9 @@
 }
 
 .racbot-typing-inner {
-  max-width: 680px;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 16px;
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -850,9 +855,21 @@
 
 /* ── Mobile ── */
 @media (max-width: 640px) {
+  body.racbot-mobile-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   .racs-ai-chatbot {
     bottom: 16px;
     right: 16px;
+  }
+
+  .racs-ai-chatbot.chat-open {
+    inset: 0;
+    width: 100%;
+    height: var(--racbot-viewport-height, 100dvh);
+    pointer-events: none;
   }
 
   .racbot-toggle {
@@ -863,40 +880,123 @@
     right: 0;
   }
 
+  .racs-ai-chatbot.chat-open .racbot-toggle {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .racbot-window {
     position: fixed;
-    bottom: 16px;
-    right: 16px;
-    left: 16px;
-    top: auto;
-    width: auto;
-    height: min(520px, calc(100dvh - 96px));
-    max-height: calc(100dvh - 96px);
-    border-radius: 14px;
-    transform-origin: bottom right;
+    top: var(--racbot-viewport-top, 0px);
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: 100%;
+    height: var(--racbot-viewport-height, 100dvh);
+    max-height: var(--racbot-viewport-height, 100dvh);
+    border-radius: 0;
+    transform-origin: bottom center;
+    pointer-events: auto;
   }
 
   .racbot-window.expanded {
-    bottom: 0;
+    bottom: auto;
     right: 0;
     left: 0;
-    top: 0;
+    top: var(--racbot-viewport-top, 0px);
     border-radius: 0;
-    height: 100dvh;
-    max-height: none;
-    width: 100vw;
+    height: var(--racbot-viewport-height, 100dvh);
+    max-height: var(--racbot-viewport-height, 100dvh);
+    width: 100%;
+  }
+
+  .racbot-header {
+    min-height: 58px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+  }
+
+  .racbot-header-left {
+    min-width: 0;
+    gap: 9px;
+  }
+
+  .racbot-header-titles {
+    min-width: 0;
+  }
+
+  .racbot-header-title,
+  .racbot-header-model {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .racbot-header-actions {
+    flex-shrink: 0;
+  }
+
+  .racbot-header-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .racbot-header-btn#racbotToggleSize {
+    display: none;
+  }
+
+  .racbot-messages {
+    min-height: 0;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .racbot-msg-inner {
-    padding: 0 16px;
+    padding: 0 14px;
+    gap: 8px;
+  }
+
+  .racbot-msg-row {
+    padding: 13px 0;
+  }
+
+  .racbot-user-bubble,
+  .racbot-assistant-content {
+    overflow-wrap: anywhere;
+  }
+
+  .racbot-msg-meta {
+    opacity: 1;
+  }
+
+  .racbot-action-btn,
+  .racbot-chip,
+  .racbot-suggestion {
+    touch-action: manipulation;
   }
 
   .racbot-input-area {
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 12px;
+    flex-shrink: 0;
+    padding: 9px 10px calc(9px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .racbot-input-container {
+    min-height: 48px;
+    padding-left: 13px;
+  }
+
+  .racbot-input {
+    font-size: 16px;
+    max-height: 96px;
+  }
+
+  .racbot-send {
+    width: 38px;
+    height: 38px;
   }
 
   .racbot-welcome {
-    padding: 32px 24px;
+    padding: 28px 18px;
   }
 }
 
@@ -912,8 +1012,19 @@
   }
 
   .racbot-header-btn {
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 520px) {
+  .racbot-footer {
+    display: none;
+  }
+
+  .racbot-welcome {
+    padding-top: 18px;
+    padding-bottom: 18px;
   }
 }
 
@@ -975,6 +1086,8 @@
   const companyName = chatbot.dataset.companyName || 'CALIDRO RACS';
   let lastFocusedElement = null;
   let isExpanded = false;
+  const mobileChatMedia = window.matchMedia('(max-width: 640px)');
+  let viewportUpdateFrame = null;
 
   // ── Init ───────────────────────────────────────────────────────────────
   function init() {
@@ -1004,6 +1117,17 @@
     // Monitor scroll for floating "scroll to bottom" button
     messages.addEventListener('scroll', onMessagesScroll, { passive: true });
     if (scrollBottomBtn) scrollBottomBtn.addEventListener('click', scrollBottom);
+    window.addEventListener('resize', scheduleChatViewportUpdate, { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', scheduleChatViewportUpdate, { passive: true });
+      window.visualViewport.addEventListener('scroll', scheduleChatViewportUpdate, { passive: true });
+    }
+    if (typeof mobileChatMedia.addEventListener === 'function') {
+      mobileChatMedia.addEventListener('change', updateChatViewport);
+    } else if (typeof mobileChatMedia.addListener === 'function') {
+      mobileChatMedia.addListener(updateChatViewport);
+    }
+    updateChatViewport();
 
     if (history.length > 0) {
       renderHistory();
@@ -1017,6 +1141,7 @@
     const opening = !win.classList.contains('active');
     if (opening) {
       win.classList.add('active');
+      updateChatViewport();
       lastFocusedElement = document.activeElement;
       setTimeout(() => {
         win.focus();
@@ -1032,6 +1157,7 @@
 
   function closeChat() {
     win.classList.remove('active', 'expanded');
+    updateChatViewport();
     isExpanded = false;
     updateSizeIcon();
     document.removeEventListener('keydown', onKeyDown);
@@ -1040,6 +1166,35 @@
       lastFocusedElement.focus();
       lastFocusedElement = null;
     }
+  }
+
+  function scheduleChatViewportUpdate() {
+    if (viewportUpdateFrame) cancelAnimationFrame(viewportUpdateFrame);
+    viewportUpdateFrame = requestAnimationFrame(() => {
+      viewportUpdateFrame = null;
+      updateChatViewport();
+    });
+  }
+
+  function updateChatViewport() {
+    const isOpen = win.classList.contains('active');
+    const isMobile = mobileChatMedia.matches;
+    chatbot.classList.toggle('chat-open', isOpen && isMobile);
+    document.body.classList.toggle('racbot-mobile-open', isOpen && isMobile);
+
+    if (!isMobile) {
+      chatbot.style.removeProperty('--racbot-viewport-height');
+      chatbot.style.removeProperty('--racbot-viewport-top');
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    const height = Math.max(240, Math.round(viewport ? viewport.height : window.innerHeight));
+    const top = Math.max(0, Math.round(viewport ? viewport.offsetTop : 0));
+    chatbot.style.setProperty('--racbot-viewport-height', height + 'px');
+    chatbot.style.setProperty('--racbot-viewport-top', top + 'px');
+
+    if (isOpen) requestAnimationFrame(scrollBottom);
   }
 
   function onKeyDown(e) {
@@ -1169,30 +1324,42 @@
     appendMessage('user', text, userTime);
     history.push({ role: 'user', content: text, timestamp: userTime });
 
+    const requestPayload = {
+      message: text,
+      // Exclude the current message because `message` is added separately.
+      history: history.slice(0, -1).slice(-20),
+      sessionId: getOrCreateSessionId(),
+    };
+
     // Show typing
     showTyping();
+
+    let streamingRow = null;
 
     try {
       abortController = new AbortController();
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          // Exclude the current message because `message` is added separately.
-          history: history.slice(0, -1).slice(-20),
-          sessionId: getOrCreateSessionId(),
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify(requestPayload),
         signal: abortController.signal,
       });
-
-      hideTyping();
 
       if (!response.ok) {
         let detail = 'The assistant could not respond.';
         try { detail = (await response.json()).error || detail; } catch (_) {}
         throw new Error(detail);
       }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('text/event-stream') || !response.body || typeof response.body.getReader !== 'function') {
+        throw new Error('Streaming is unavailable in this browser.');
+      }
+
+      hideTyping();
 
       // Create assistant message container
       const msgRow = document.createElement('div');
@@ -1202,12 +1369,16 @@
       msgInner.innerHTML = '<div class="racbot-msg-avatar" aria-hidden="true"><i class="bi bi-snow2"></i></div>';
       const body = document.createElement('div');
       body.className = 'racbot-msg-body';
+      const wrap = document.createElement('div');
+      wrap.className = 'racbot-assistant-wrap';
       const contentDiv = document.createElement('div');
       contentDiv.className = 'racbot-assistant-content';
-      body.appendChild(contentDiv);
+      wrap.appendChild(contentDiv);
+      body.appendChild(wrap);
       msgInner.appendChild(body);
       msgRow.appendChild(msgInner);
       messages.appendChild(msgRow);
+      streamingRow = msgRow;
 
       // Read stream
       const reader = response.body.getReader();
@@ -1215,7 +1386,9 @@
       let fullText = '';
       let buffer = '';
       let lastSuggests = null;
+      let replySaved = false;
 
+      readStream:
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1226,11 +1399,12 @@
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') break readStream;
 
             try {
               const parsed = JSON.parse(data);
+              if (parsed.error) throw new Error(parsed.error);
               if (parsed.text) {
                 fullText += parsed.text;
                 contentDiv.innerHTML = formatMarkdown(fullText);
@@ -1238,20 +1412,28 @@
               }
               if (parsed.done) {
                 if (parsed.suggests) lastSuggests = parsed.suggests;
-                history.push({ role: 'bot', content: parsed.fullText || fullText, timestamp: new Date().toISOString() });
+                const completedText = parsed.fullText || fullText;
+                if (!completedText.trim()) throw new Error('The assistant returned an empty response.');
+                history.push({ role: 'bot', content: completedText, timestamp: new Date().toISOString() });
                 saveHistory();
+                replySaved = true;
               }
-            } catch (e) {}
+            } catch (parseError) {
+              if (parseError instanceof SyntaxError) continue;
+              throw parseError;
+            }
           }
         }
       }
 
+      if (!fullText.trim()) throw new Error('The assistant returned an empty response.');
+
       if (lastSuggests && lastSuggests.length) {
-        renderSuggestions(contentDiv.parentElement, lastSuggests);
+        renderSuggestions(body, lastSuggests);
       }
 
       // If stream didn't send a done event, save what we have
-      if (fullText && !history.some(h => h.role === 'bot' && h.content === fullText)) {
+      if (!replySaved) {
         history.push({ role: 'bot', content: fullText, timestamp: new Date().toISOString() });
         saveHistory();
       }
@@ -1267,21 +1449,62 @@
           <button class="racbot-action-btn" onclick="racbotThumbsUp(this)" title="Good response"><i class="bi bi-hand-thumbs-up"></i></button>
           <button class="racbot-action-btn" onclick="racbotThumbsDown(this)" title="Bad response"><i class="bi bi-hand-thumbs-down"></i></button>
         </div>`;
-      msgInner.appendChild(meta);
+      wrap.appendChild(meta);
 
     } catch (err) {
-      hideTyping();
-      if (err.name !== 'AbortError') {
-        const fallback = "I'm having trouble connecting. Please try again" + (companyPhone ? " or call **" + companyPhone + "** for immediate help." : ".");
-        appendMessage('bot', fallback, new Date().toISOString());
-        history.push({ role: 'bot', content: fallback, timestamp: new Date().toISOString() });
-        saveHistory();
+      if (streamingRow) streamingRow.remove();
+
+      if (err.name !== 'AbortError' || win.classList.contains('active')) {
+        if (!document.getElementById('racbotTyping')) showTyping();
+
+        try {
+          const fallbackController = new AbortController();
+          const fallbackTimeout = setTimeout(() => fallbackController.abort(), 45000);
+          let fallbackResponse;
+          try {
+            fallbackResponse = await fetch('/api/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify(requestPayload),
+              signal: fallbackController.signal,
+            });
+          } finally {
+            clearTimeout(fallbackTimeout);
+          }
+
+          if (!fallbackResponse.ok) throw new Error('The fallback assistant could not respond.');
+          const fallbackData = await fallbackResponse.json();
+          if (!fallbackData.reply || typeof fallbackData.reply !== 'string') {
+            throw new Error('The fallback assistant returned an invalid response.');
+          }
+
+          hideTyping();
+          const fallbackTime = fallbackData.timestamp || new Date().toISOString();
+          appendMessage('bot', fallbackData.reply, fallbackTime);
+          history.push({ role: 'bot', content: fallbackData.reply, timestamp: fallbackTime });
+          saveHistory();
+
+          if (fallbackData.suggests && fallbackData.suggests.length) {
+            const latestBody = messages.lastElementChild && messages.lastElementChild.querySelector('.racbot-msg-body');
+            renderSuggestions(latestBody, fallbackData.suggests);
+          }
+        } catch (fallbackError) {
+          hideTyping();
+          const fallback = "I'm having trouble connecting. Please try again" + (companyPhone ? " or call **" + companyPhone + "** for immediate help." : ".");
+          const fallbackTime = new Date().toISOString();
+          appendMessage('bot', fallback, fallbackTime);
+          history.push({ role: 'bot', content: fallback, timestamp: fallbackTime });
+          saveHistory();
+        }
       }
     }
 
     isStreaming = false;
     abortController = null;
-    input.focus();
+    if (win.classList.contains('active') && !mobileChatMedia.matches) input.focus();
   }
 
   // ── Append Message ─────────────────────────────────────────────────────
@@ -1306,10 +1529,12 @@
       body.appendChild(meta);
     } else {
       inner.innerHTML = '<div class="racbot-msg-avatar" aria-hidden="true"><i class="bi bi-snow2"></i></div>';
+      const wrap = document.createElement('div');
+      wrap.className = 'racbot-assistant-wrap';
       const content = document.createElement('div');
       content.className = 'racbot-assistant-content';
       content.innerHTML = formatMarkdown(text);
-      body.appendChild(content);
+      wrap.appendChild(content);
 
       const meta = document.createElement('div');
       meta.className = 'racbot-msg-meta';
@@ -1320,7 +1545,8 @@
           <button class="racbot-action-btn" onclick="racbotThumbsUp(this)" title="Good response"><i class="bi bi-hand-thumbs-up"></i></button>
           <button class="racbot-action-btn" onclick="racbotThumbsDown(this)" title="Bad response"><i class="bi bi-hand-thumbs-down"></i></button>
         </div>`;
-      body.appendChild(meta);
+      wrap.appendChild(meta);
+      body.appendChild(wrap);
     }
 
     inner.appendChild(body);

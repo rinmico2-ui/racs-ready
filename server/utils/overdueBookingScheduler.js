@@ -459,7 +459,7 @@ async function checkForDelayedBookings() {
             ? new Date(booking.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
             : 'TBD';
           const timeLabel = booking.startTime || 'TBD';
-          sendTechnicianLateEmail({
+          await sendTechnicianLateEmail({
             to: customerEmail,
             customerName,
             bookingReference: booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
@@ -468,7 +468,7 @@ async function checkForDelayedBookings() {
             dateLabel,
             timeLabel,
             delayMinutes,
-          }).catch(err => console.error('[MAILER] Failed to send late email:', err.message));
+          });
         } catch (mailErr) {
           console.error('[MAILER] Late email error:', mailErr.message);
         }
@@ -532,7 +532,7 @@ async function checkForDelayedBookings() {
             serviceName: booking.serviceName,
             scheduledTime: booking.startTime,
             delayMinutes: delayMinutes,
-            message: `Your technician (${techName}) for ${booking.serviceName || 'service'} is running ${delayMinutes} minute(s) late. They are on their way.`,
+            message: `Your technician (${techName}) for ${booking.serviceName || 'service'} has not departed yet and is ${delayMinutes} minute(s) late. Our operations team has been alerted.`,
           });
           console.log(`[delay-monitor] Notified customer (${customerName}) about delay for booking ${booking.bookingReference || booking._id}`);
         } catch (_) {}
@@ -543,7 +543,7 @@ async function checkForDelayedBookings() {
           await createNotification({
             type: 'booking_delay_customer',
             title: 'Technician Running Late',
-            message: `Your technician (${techName}) for ${booking.serviceName || 'service'} is running ${delayMinutes} minute(s) late. They are on their way.`,
+            message: `Your technician (${techName}) for ${booking.serviceName || 'service'} has not departed yet and is ${delayMinutes} minute(s) late. Our operations team has been alerted.`,
             userId: customerId,
             referenceId: booking._id,
             referenceModel: 'BookingService',

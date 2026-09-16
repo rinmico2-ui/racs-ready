@@ -100,3 +100,27 @@ test("chatbot renders once on landing and nowhere else in the public layout", as
   assert.doesNotMatch(otherPageHtml, /id="racsChatbot"/);
   assert.doesNotMatch(chatbotSource, /initDraggable|racbot_drag_pos|pointerdown/);
 });
+
+test("chatbot falls back from streaming and uses the visible mobile viewport", () => {
+  const chatbotSource = fs.readFileSync(path.join(viewsDirectory, "partials", "chatbot.ejs"), "utf8");
+  const chatRouteSource = fs.readFileSync(path.join(__dirname, "..", "routes", "chatRoutes.js"), "utf8");
+
+  assert.match(chatbotSource, /fetch\('\/api\/chat\/stream'/);
+  assert.match(chatbotSource, /fetch\('\/api\/chat'/);
+  assert.match(chatbotSource, /window\.visualViewport/);
+  assert.match(chatbotSource, /--racbot-viewport-height/);
+  assert.match(chatbotSource, /racbot-mobile-open/);
+  assert.match(chatRouteSource, /Cache-Control", "no-cache, no-transform"/);
+  assert.match(chatRouteSource, /res\.flushHeaders\(\)/);
+  assert.match(chatRouteSource, /Gemini returned an empty stream; using fallback response/);
+  assert.match(chatRouteSource, /const groqReply = await callGroq/);
+});
+
+test("project authentication does not intercept the public chatbot API", () => {
+  const projectRouteSource = fs.readFileSync(path.join(__dirname, "..", "routes", "projectRoutes.js"), "utf8");
+
+  assert.doesNotMatch(projectRouteSource, /router\.use\(auth\.authenticate\)/);
+  for (const protectedPrefix of ["/projects", "/work-orders", "/technician", "/issues", "/expenses", "/scheduling"]) {
+    assert.match(projectRouteSource, new RegExp(`"${protectedPrefix}"`));
+  }
+});

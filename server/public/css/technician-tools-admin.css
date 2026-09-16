@@ -1,0 +1,264 @@
+.tta-page {
+  --tta-ink: #0f172a;
+  --tta-muted: #64748b;
+  --tta-line: #e2e8f0;
+  --tta-soft: #f8fafc;
+  color: var(--tta-ink);
+  font-family: "Inter", sans-serif;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.tta-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 30px 34px;
+  border-radius: 22px;
+  color: #fff;
+  background: linear-gradient(125deg, #0f172a 0%, #1e3a8a 52%, #2563eb 100%);
+  box-shadow: 0 18px 42px rgba(30, 64, 175, .18);
+}
+
+.tta-hero::after {
+  position: absolute;
+  inset: -90px -100px auto auto;
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
+  content: "";
+}
+
+.tta-hero-copy,
+.tta-hero-actions { position: relative; z-index: 1; }
+.tta-eyebrow,
+.tta-modal-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.tta-eyebrow { color: #bfdbfe; }
+.tta-hero h1 {
+  margin: 0;
+  font-family: "Outfit", sans-serif;
+  font-size: clamp(1.55rem, 2.8vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+.tta-hero p { max-width: 750px; margin: 8px 0 0; color: rgba(255, 255, 255, .72); font-size: .9rem; }
+.tta-hero-actions { display: flex; gap: 9px; flex-shrink: 0; }
+.tta-hero-actions .btn { display: inline-flex; align-items: center; gap: 7px; border-radius: 10px; font-weight: 700; }
+
+.tta-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 13px;
+  margin: 18px 0;
+}
+.tta-metric {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--tta-line);
+  border-radius: 16px;
+  background: #fff;
+  color: inherit;
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, .04);
+}
+button.tta-metric { transition: border-color .18s, box-shadow .18s, transform .18s; }
+button.tta-metric:hover,
+button.tta-metric:focus-visible { transform: translateY(-2px); border-color: #93c5fd; box-shadow: 0 10px 24px rgba(37, 99, 235, .1); }
+.tta-metric-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  font-size: 1.05rem;
+}
+.tta-metric-icon.tta-blue { color: #2563eb; background: #eff6ff; }
+.tta-metric-icon.tta-green { color: #059669; background: #ecfdf5; }
+.tta-metric-icon.tta-amber { color: #d97706; background: #fffbeb; }
+.tta-metric-icon.tta-violet { color: #7c3aed; background: #f5f3ff; }
+.tta-metric-icon.tta-cyan { color: #0891b2; background: #ecfeff; }
+.tta-metric strong { display: block; font-family: "Outfit", sans-serif; font-size: 1.5rem; line-height: 1; }
+.tta-metric small { display: block; overflow: hidden; margin-top: 5px; color: var(--tta-muted); font-size: .69rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+.tta-panel {
+  min-height: 340px;
+  padding: 20px;
+  border: 1px solid var(--tta-line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 7px 26px rgba(15, 23, 42, .05);
+}
+.tta-toolbar { display: grid; grid-template-columns: 170px minmax(170px, 220px) minmax(180px, 220px) minmax(250px, 1fr); gap: 12px; }
+.tta-control { min-width: 0; }
+.tta-control > span:first-child { display: block; margin: 0 0 6px 2px; color: #475569; font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tta-control .form-control,
+.tta-control .form-select { height: 42px; border-color: var(--tta-line); border-radius: 10px; font-size: .82rem; }
+.tta-search { position: relative; display: block; }
+.tta-search > i { position: absolute; z-index: 2; top: 50%; left: 13px; color: #94a3b8; transform: translateY(-50%); }
+.tta-search .form-control { padding-left: 38px; }
+.tta-context-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 18px 2px 12px; }
+.tta-result-context { color: var(--tta-muted); font-size: .78rem; font-weight: 600; }
+.tta-legend { display: flex; gap: 13px; color: var(--tta-muted); font-size: .68rem; font-weight: 700; }
+.tta-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.tta-dot { width: 7px; height: 7px; border-radius: 50%; }
+.tta-dot-ready { background: #10b981; }
+.tta-dot-pending { background: #f59e0b; }
+.tta-dot-blocked { background: #ef4444; }
+.tta-alert { display: none; margin-bottom: 12px; padding: 11px 13px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: .8rem; font-weight: 600; }
+.tta-alert.show { display: block; }
+.tta-loading,
+.tta-empty { min-height: 255px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--tta-muted); text-align: center; }
+.tta-loading strong { font-size: .82rem; }
+.tta-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: #eff6ff; color: #2563eb; font-size: 1.55rem; }
+.tta-empty h2 { margin: 2px 0 0; font: 800 1.05rem "Outfit", sans-serif; color: var(--tta-ink); }
+.tta-empty p { margin: 0 0 4px; font-size: .82rem; }
+.tta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.tta-card {
+  overflow: hidden;
+  border: 1px solid var(--tta-line);
+  border-radius: 16px;
+  background: #fff;
+  transition: border-color .18s, box-shadow .18s, transform .18s;
+}
+.tta-card:hover { transform: translateY(-2px); border-color: #bfdbfe; box-shadow: 0 12px 28px rgba(30, 64, 175, .08); }
+.tta-card.tta-card-attention { border-color: #fed7aa; }
+.tta-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 16px 12px; }
+.tta-person { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.tta-avatar { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; background: linear-gradient(145deg, #dbeafe, #eff6ff); color: #1d4ed8; font: 800 .82rem "Outfit", sans-serif; }
+.tta-person h2 { overflow: hidden; margin: 0; font: 800 .94rem "Outfit", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.tta-person p { overflow: hidden; margin: 4px 0 0; color: var(--tta-muted); font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.tta-status { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 5px 9px; border-radius: 999px; font-size: .65rem; font-weight: 800; text-transform: capitalize; }
+.tta-status-ready { color: #047857; background: #d1fae5; }
+.tta-status-attention { color: #b45309; background: #fef3c7; }
+.tta-status-pending { color: #475569; background: #f1f5f9; }
+.tta-status-completed { color: #1d4ed8; background: #dbeafe; }
+.tta-card-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 16px; border: 1px solid #eef2f7; border-radius: 12px; background: var(--tta-soft); }
+.tta-card-stat { padding: 10px 6px; border-right: 1px solid #e8edf3; text-align: center; }
+.tta-card-stat:last-child { border-right: 0; }
+.tta-card-stat strong { display: block; font: 800 .88rem "Outfit", sans-serif; }
+.tta-card-stat small { display: block; margin-top: 2px; color: var(--tta-muted); font-size: .59rem; font-weight: 700; text-transform: uppercase; }
+.tta-item-preview { display: flex; flex-wrap: wrap; gap: 6px; min-height: 29px; padding: 13px 16px 11px; }
+.tta-item-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 180px; padding: 5px 8px; border-radius: 7px; background: #f1f5f9; color: #475569; font-size: .66rem; font-weight: 700; }
+.tta-item-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tta-item-more { background: #eff6ff; color: #2563eb; }
+.tta-card-warning { display: flex; align-items: flex-start; gap: 7px; margin: 0 16px 11px; padding: 8px 10px; border-radius: 9px; background: #fff7ed; color: #9a3412; font-size: .67rem; font-weight: 700; }
+.tta-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 16px; border-top: 1px solid #eef2f7; background: #fbfdff; }
+.tta-card-jobs { overflow: hidden; color: var(--tta-muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.tta-view-btn { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 7px 10px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font-size: .7rem; font-weight: 800; }
+.tta-view-btn:hover { background: #1d4ed8; }
+
+.tta-modal-content { overflow: hidden; border: 0; border-radius: 18px; }
+.tta-modal-header { align-items: flex-start; padding: 20px 22px; }
+.tta-modal-eyebrow { margin-bottom: 3px; color: #bfdbfe; font-size: .62rem; }
+.tta-modal-header .modal-title { font-size: 1.16rem; }
+.tta-modal-subtitle { margin-top: 4px; color: rgba(255, 255, 255, .7); font-size: .72rem; }
+.tta-modal-body { padding: 20px 22px; background: #f8fafc; }
+.tta-modal-footer { padding: 13px 20px; background: #fff; }
+.tta-detail-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.tta-detail-stat { padding: 12px; border: 1px solid var(--tta-line); border-radius: 11px; background: #fff; }
+.tta-detail-stat small { display: block; color: var(--tta-muted); font-size: .61rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.tta-detail-stat strong { display: block; margin-top: 4px; font: 800 .95rem "Outfit", sans-serif; }
+.tta-detail-section { margin-top: 16px; }
+.tta-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.tta-detail-heading h3 { margin: 0; font: 800 .86rem "Outfit", sans-serif; }
+.tta-detail-heading span { color: var(--tta-muted); font-size: .67rem; }
+.tta-job-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tta-job-link { display: flex; align-items: center; gap: 9px; min-width: 200px; padding: 9px 11px; border: 1px solid var(--tta-line); border-radius: 10px; background: #fff; color: var(--tta-ink); text-decoration: none; }
+.tta-job-link:hover { border-color: #93c5fd; color: #1d4ed8; }
+.tta-job-icon { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; flex: 0 0 31px; border-radius: 8px; background: #eff6ff; color: #2563eb; }
+.tta-job-link strong,
+.tta-job-link small { display: block; }
+.tta-job-link strong { font-size: .72rem; }
+.tta-job-link small { margin-top: 2px; color: var(--tta-muted); font-size: .62rem; }
+.tta-table-wrap { overflow-x: auto; border: 1px solid var(--tta-line); border-radius: 12px; background: #fff; }
+.tta-table { width: 100%; min-width: 860px; border-collapse: collapse; }
+.tta-table th { padding: 9px 11px; border-bottom: 1px solid var(--tta-line); background: #f8fafc; color: var(--tta-muted); font-size: .61rem; font-weight: 800; letter-spacing: .045em; text-align: left; text-transform: uppercase; }
+.tta-table td { padding: 11px; border-bottom: 1px solid #eef2f7; color: #334155; font-size: .72rem; vertical-align: middle; }
+.tta-table tbody tr:last-child td { border-bottom: 0; }
+.tta-item-name { font-weight: 800; color: var(--tta-ink); }
+.tta-item-code { margin-top: 3px; color: var(--tta-muted); font-size: .62rem; }
+.tta-kind { display: inline-flex; padding: 4px 7px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: .61rem; font-weight: 800; text-transform: capitalize; }
+.tta-kind-equipment { background: #eff6ff; color: #1d4ed8; }
+.tta-kind-consumable { background: #ecfeff; color: #0e7490; }
+.tta-kind-repair_part { background: #f5f3ff; color: #6d28d9; }
+.tta-row-delta { background: #fffbeb; }
+.tta-mini-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: .61rem; font-weight: 800; text-transform: capitalize; }
+.tta-mini-status.checked_out,
+.tta-mini-status.issued,
+.tta-mini-status.in_custody,
+.tta-mini-status.standard_kit,
+.tta-mini-status.returned { background: #dcfce7; color: #047857; }
+.tta-mini-status.unavailable,
+.tta-mini-status.damaged { background: #fee2e2; color: #b91c1c; }
+.tta-mini-status.pending,
+.tta-mini-status.reserved { background: #fef3c7; color: #b45309; }
+.tta-usage-bar { width: 100px; height: 5px; margin-top: 5px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.tta-usage-bar span { display: block; height: 100%; border-radius: inherit; background: #0891b2; }
+.tta-job-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tta-job-tag { max-width: 145px; overflow: hidden; padding: 3px 6px; border-radius: 5px; background: #f1f5f9; color: #475569; font-size: .58rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.tta-issue-note { max-width: 220px; margin-top: 5px; color: #b45309; font-size: .59rem; font-weight: 700; }
+.tta-no-items { padding: 28px; color: var(--tta-muted); text-align: center; font-size: .76rem; }
+
+@media (max-width: 1199px) {
+  .tta-metrics { grid-template-columns: repeat(3, 1fr); }
+  .tta-toolbar { grid-template-columns: repeat(3, 1fr); }
+  .tta-search-control { grid-column: 1 / -1; }
+}
+
+@media (max-width: 767px) {
+  .tta-hero { align-items: flex-start; flex-direction: column; padding: 23px 20px; border-radius: 17px; }
+  .tta-hero-actions { width: 100%; }
+  .tta-hero-actions .btn { flex: 1; justify-content: center; padding-inline: 10px; font-size: .76rem; }
+  .tta-metrics { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .tta-metric { padding: 12px; }
+  .tta-metric-icon { width: 36px; height: 36px; flex-basis: 36px; }
+  .tta-metric strong { font-size: 1.2rem; }
+  .tta-metric small { font-size: .61rem; }
+  .tta-panel { padding: 14px; border-radius: 16px; }
+  .tta-toolbar { grid-template-columns: 1fr; }
+  .tta-search-control { grid-column: auto; }
+  .tta-context-row { align-items: flex-start; flex-direction: column; }
+  .tta-legend { width: 100%; justify-content: space-between; }
+  .tta-grid { grid-template-columns: 1fr; }
+  .tta-card-head { padding-inline: 13px; }
+  .tta-card-stats { margin-inline: 13px; }
+  .tta-card-stat { padding-inline: 3px; }
+  .tta-card-stat small { font-size: .54rem; }
+  .tta-item-preview,
+  .tta-card-footer { padding-inline: 13px; }
+  .tta-card-footer { align-items: flex-start; flex-direction: column; }
+  .tta-view-btn { width: 100%; justify-content: center; }
+  #ttaDetailModal .modal-dialog { width: auto; max-width: none; min-height: calc(100% - 1rem); margin: .5rem; }
+  #ttaDetailModal .modal-content { max-height: calc(100vh - 1rem); border-radius: 15px; }
+  .tta-modal-header,
+  .tta-modal-body { padding: 17px 15px; }
+  .tta-detail-summary { grid-template-columns: repeat(2, 1fr); }
+  .tta-job-link { width: 100%; min-width: 0; }
+  .tta-modal-footer { justify-content: stretch; }
+  .tta-modal-footer .btn { flex: 1; }
+}
+
+@media (max-width: 420px) {
+  .tta-metrics { grid-template-columns: 1fr; }
+  .tta-metric { min-height: 62px; }
+  .tta-hero-actions { flex-direction: column; }
+}

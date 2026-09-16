@@ -1265,10 +1265,18 @@ router.get("/payment-policy", async (_req, res) => {
       getDownpaymentPercentage(),
       getGcashRecipientNumber(),
     ]);
-    return res.json({ downpaymentPercentage, gcashNumber, gcashConfigured: Boolean(gcashNumber) });
+    return res.json({
+      downpaymentPercentage,
+      gcashNumber,
+      gcashConfigured: Boolean(gcashNumber),
+      cardConfigured: Boolean(
+        String(process.env.PAYMONGO_SECRET_KEY || "").trim()
+        && String(process.env.PAYMONGO_WEBHOOK_SECRET || "").trim(),
+      ),
+    });
   } catch (err) {
     logger.warn("Failed to load payment policy", { error: err && err.message });
-    return res.json({ downpaymentPercentage: 10, gcashNumber: "", gcashConfigured: false });
+    return res.json({ downpaymentPercentage: 10, gcashNumber: "", gcashConfigured: false, cardConfigured: false });
   }
 });
 

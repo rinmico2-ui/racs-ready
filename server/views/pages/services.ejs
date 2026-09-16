@@ -68,6 +68,7 @@
 
       <script>
         window.adminGcashNumber = "<%= adminGcashNumber %>";
+        window.cardPaymentsConfigured = <%= cardPaymentsConfigured ? 'true' : 'false' %>;
         window._farePerKm = Number("<%= typeof farePerKm !== 'undefined' ? farePerKm : 40 %>");
         window._projectLaborRatePerDay = Number("<%= typeof projectLaborRatePerDay !== 'undefined' ? projectLaborRatePerDay : 0 %>");
         window._companyBaseLocation = null;
@@ -441,7 +442,7 @@
                   </div>
                   <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions"></div>
                 </div>
-                <p class="location-hint mb-0 mt-2" id="locationStatus"><i class="bi bi-shield-lock me-1"></i>Your precise pin is used only for scheduling, routing, and travel-fare calculation.</p>
+                <p class="location-hint mb-0 mt-2" id="locationStatus"><i class="bi bi-search me-1"></i>Type an address and press Enter or tap Search. Your precise pin is used only for scheduling and routing.</p>
               </div>
 
               <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
@@ -614,16 +615,23 @@
               <div class="rv-card mb-3">
                 <div class="rv-card-body">
                   <div class="rv-section-title"><i class="bi bi-credit-card"></i>Payment Option</div>
-                  <p class="small text-muted mb-3">Choose a full GCash payment or reserve the schedule with a GCash downpayment. The downpayment option is not a cash payment today.</p>
+                  <p class="small text-muted mb-3">Pay securely by card, pay in full through GCash, or reserve the schedule with a GCash downpayment.</p>
                   <div class="ent-payment-tabs customer-payment-options row mb-3" role="group" aria-label="Payment options">
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-4">
+                    <button type="button" class="ent-payment-tab payment-method-card payment-card-green" data-method="card" aria-pressed="false" <%= cardPaymentsConfigured ? '' : 'disabled aria-disabled="true"' %>>
+                      <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                      <span class="payment-method-icon"><i class="bi bi-credit-card-2-front fs-3"></i></span>
+                      <span class="payment-method-copy"><strong>Credit / Debit Card</strong><span><%= cardPaymentsConfigured ? 'Secure hosted checkout through PayMongo.' : 'Card checkout is being configured.' %></span></span>
+                    </button>
+                    </div>
+                    <div class="col-12 col-md-4">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-blue" data-method="gcash" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
                       <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete booking amount through GCash.</span></span>
                     </button>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-4">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-amber" data-method="cod" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
@@ -633,6 +641,26 @@
                   </div>
                   <input class="d-none" type="radio" name="paymentMethod" id="payGcash" value="gcash">
                   <input class="d-none" type="radio" name="paymentMethod" id="payDeposit" value="cod">
+                  <input class="d-none" type="radio" name="paymentMethod" id="payCard" value="card">
+
+                  <div id="cardFields" class="payment-section customer-payment-panel d-none">
+                    <h6 class="customer-payment-panel-title"><i class="bi bi-credit-card-2-front text-success"></i>Secure Card Payment</h6>
+                    <div class="rounded-3 p-4 mb-3" style="background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #bbf7d0;">
+                      <div class="d-flex align-items-start gap-3">
+                        <div class="d-flex align-items-center justify-content-center rounded-2" style="width:48px;height:48px;background:#059669;flex-shrink:0;">
+                          <i class="bi bi-shield-lock-fill text-white" style="font-size:1.25rem;"></i>
+                        </div>
+                        <div>
+                          <h6 class="fw-bold mb-2" style="color:#065f46;">Pay on PayMongo's secure checkout</h6>
+                          <p class="small text-muted mb-2">After you confirm the booking, you will be redirected to PayMongo to enter your card details and complete payment.</p>
+                          <div class="small fw-semibold" style="color:#047857;"><i class="bi bi-check-circle-fill me-1"></i>RACS never receives or stores your card number or CVC.</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="customer-payment-summary">
+                      <div class="customer-payment-summary-row"><span>Amount charged after confirmation</span><strong id="cardAmountDisplay">&#8369;0</strong></div>
+                    </div>
+                  </div>
 
                   <div id="gcashFields" class="payment-section customer-payment-panel d-none">
                     <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i>GCash Payment</h6>
@@ -2356,7 +2384,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260911-booking-draft-v2';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260914-submission-motion-v1&inspection-pricing=20260915-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260915-address-search-v2&inspection-pricing=20260915-v1':'/js/services.js?v=20260912-payment-config-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2716,22 +2744,20 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
   }
   function selectPaymentMethod(method){
-    method=method==='gcash'?'gcash':'cod';
+    method=['gcash','cod','card'].includes(method)?method:'cod';
+    if(method==='card'&&!window.cardPaymentsConfigured) return;
     var gcashFields=document.getElementById('gcashFields');
     var cashFields=document.getElementById('cashFields');
+    var cardFields=document.getElementById('cardFields');
     var payGcash=document.getElementById('payGcash');
     var payDeposit=document.getElementById('payDeposit');
-    if(method==='gcash'){
-      if(gcashFields) gcashFields.classList.remove('d-none');
-      if(cashFields) cashFields.classList.add('d-none');
-      if(payGcash) payGcash.checked=true;
-      if(payDeposit) payDeposit.checked=false;
-    } else {
-      if(gcashFields) gcashFields.classList.add('d-none');
-      if(cashFields) cashFields.classList.remove('d-none');
-      if(payGcash) payGcash.checked=false;
-      if(payDeposit) payDeposit.checked=true;
-    }
+    var payCard=document.getElementById('payCard');
+    if(gcashFields) gcashFields.classList.toggle('d-none',method!=='gcash');
+    if(cashFields) cashFields.classList.toggle('d-none',method!=='cod');
+    if(cardFields) cardFields.classList.toggle('d-none',method!=='card');
+    if(payGcash) payGcash.checked=method==='gcash';
+    if(payDeposit) payDeposit.checked=method==='cod';
+    if(payCard) payCard.checked=method==='card';
     var bs=getBookingState();
     bs.paymentMethod=method;
     if(typeof window.saveBookingProgress==='function') window.saveBookingProgress();

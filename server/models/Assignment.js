@@ -98,6 +98,11 @@ const assignmentSchema = new mongoose.Schema(
     completedAt: { type: Date },
     // technician proof-of-completion photo
     proofPhoto: { type: String, trim: true },
+    completionProofFileId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+      select: false,
+    },
     cancelledAt: { type: Date },
     expiredAt: { type: Date },
     expiredReason: { type: String, trim: true, maxlength: 500 },

@@ -402,6 +402,78 @@
     .pw-muted-note { font-size:.68rem; color:#64748b; line-height:1.45; }
     @media (max-width: 991px) { .pw-process { grid-template-columns:1fr 1fr; row-gap:16px; } .pw-process-step:nth-child(2)::after { display:none; } }
     @media (max-width: 575px) { .pw-process { grid-template-columns:1fr; } .pw-process-step::after { display:none !important; } .pw-readiness { align-items:flex-start; flex-direction:column; } }
+
+    /* Canonical payroll modal shell — shared by all six workflows */
+    .pw-modal-dialog { width: calc(100% - 2rem); margin: 1rem auto; }
+    .pw-modal-shell {
+      border: 0 !important; border-radius: 18px !important; overflow: hidden;
+      margin: 0 !important;
+      max-height: calc(100dvh - 2rem) !important; background: #fff;
+      box-shadow: 0 28px 80px rgba(15,23,42,.24), 0 0 0 1px rgba(148,163,184,.12);
+      display: flex; flex-direction: column;
+    }
+    .pw-modal-shell .pw-modal-header,
+    .pw-modal-shell .pw-ent-header { min-height: 82px; padding: 1.15rem 1.4rem; align-items: center; }
+    .pw-modal-shell .pw-ent-close { width:40px; height:40px; }
+    .pw-modal-shell .pw-modal-header { position: relative; overflow: hidden; }
+    .pw-modal-shell .pw-modal-header::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:linear-gradient(90deg,#3b82f6,#8b5cf6,#14b8a6); }
+    .pw-modal-shell .pw-ent-body,
+    .pw-modal-shell .pw-modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .pw-modal-shell .pw-comp-body { padding:1.25rem 1.4rem; }
+    .pw-modal-shell .pw-ent-body::-webkit-scrollbar,
+    .pw-modal-shell .pw-modal-body::-webkit-scrollbar { width: 8px; }
+    .pw-modal-shell .pw-ent-body::-webkit-scrollbar-thumb,
+    .pw-modal-shell .pw-modal-body::-webkit-scrollbar-thumb { border: 2px solid #fff; border-radius: 999px; background: #cbd5e1; }
+    .pw-modal-shell .pw-ent-footer,
+    .pw-modal-shell .pw-modal-footer { min-height: 68px; padding: .85rem 1.4rem; border-top: 1px solid #e2e8f0; background: #fff; display:flex; align-items:center; justify-content:flex-end; gap:10px; flex-shrink:0; }
+    .pw-modal-shell .pw-step-actions { position: sticky; bottom: -1rem; z-index: 4; margin: .75rem -1.75rem -1rem; padding: .85rem 1.75rem; background: rgba(255,255,255,.97); box-shadow: 0 -8px 20px rgba(15,23,42,.05); backdrop-filter: blur(8px); }
+    .pw-ent-header-paid::before { background: linear-gradient(135deg,#312e81 0%,#4338ca 55%,#4f46e5 100%); }
+    .pw-ent-header-paid::after { background: linear-gradient(90deg,#818cf8,#a78bfa,#c4b5fd); }
+    .pw-ent-icon-paid { background: rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); }
+    .pw-payment-note { display:flex; align-items:flex-start; gap:9px; padding:11px 13px; margin-bottom:16px; border:1px solid #c7d2fe; border-radius:10px; background:#eef2ff; color:#3730a3; font-size:.76rem; line-height:1.45; }
+    .pw-payment-note i { margin-top:1px; flex:0 0 auto; }
+    .pw-modal-shell :is(button,input,select,textarea):focus-visible { outline:3px solid rgba(59,130,246,.28); outline-offset:2px; }
+    .pw-modal-shell :is(.pw-ent-btn,.pw-btn-save,.pw-btn-next,.pw-btn-back):disabled { opacity:.58; cursor:not-allowed; transform:none; box-shadow:none; }
+    body.modal-open .modal-backdrop.show { opacity:.58; backdrop-filter:blur(2px); }
+
+    @media (max-width: 575px) {
+      #payrollModal, #viewPayrollModal, #approveModal, #paidModal, #voidModal, #compModal { padding:0 !important; }
+      .pw-modal-dialog { width:100%; max-width:none !important; min-height:100%; height:100%; margin:0; align-items:stretch; }
+      .pw-modal-shell { width:100%; min-height:100dvh; max-height:100dvh !important; border-radius:0 !important; }
+      .pw-modal-shell .pw-modal-header,
+      .pw-modal-shell .pw-ent-header { min-height:72px; padding:.9rem 1rem; }
+      .pw-modal-shell .pw-modal-icon,
+      .pw-modal-shell .pw-ent-icon { width:40px; height:40px; border-radius:11px; font-size:1rem; }
+      .pw-modal-shell .pw-ent-close { width:44px; height:44px; border-radius:12px; }
+      .pw-modal-shell .pw-modal-title,
+      .pw-modal-shell .pw-ent-title { font-size:.95rem; }
+      .pw-modal-shell .pw-modal-sub,
+      .pw-modal-shell .pw-ent-sub { font-size:.68rem; }
+      .pw-modal-shell .pw-ent-header-right { gap:6px; }
+      .pw-modal-shell .pw-ent-status-pill { padding:4px 8px; font-size:.59rem; }
+      .pw-modal-shell .pw-stepper { padding:.7rem 1rem; }
+      .pw-modal-shell .pw-step-panel { padding:1rem; }
+      .pw-modal-shell .pw-ent-body { padding:1rem; }
+      .pw-modal-shell .pw-comp-body { padding:1rem; }
+      .pw-modal-shell .pw-section-card,
+      .pw-modal-shell .pw-ent-section-card { border-radius:12px; padding:1rem; }
+      .pw-modal-shell .pw-step-actions { bottom:-1rem; margin:.75rem -1rem -1rem; padding:.8rem 1rem calc(.8rem + env(safe-area-inset-bottom)); }
+      .pw-modal-shell .pw-ent-footer,
+      .pw-modal-shell .pw-modal-footer { padding:.75rem 1rem calc(.75rem + env(safe-area-inset-bottom)); }
+      .pw-modal-shell .pw-ent-footer > button,
+      .pw-modal-shell .pw-modal-footer > button { flex:1; justify-content:center; min-height:44px; padding:9px 12px; }
+      .pw-modal-shell .pw-step-actions > button { min-height:44px; justify-content:center; padding:9px 13px; }
+      .pw-modal-shell .pw-ent-view-grid { gap:12px; }
+      .pw-modal-shell .pw-ent-att-grid,
+      .pw-modal-shell .pw-att-grid { gap:6px; }
+      .pw-modal-shell .pw-ent-att-item,
+      .pw-modal-shell .pw-att-item { padding:9px 4px; }
+      .pw-modal-shell .row.g-3 { --bs-gutter-y:.75rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pw-modal-shell *, .pw-modal-shell *::before, .pw-modal-shell *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; }
+    }
   </style>
 
   <!-- Header -->
@@ -420,7 +492,7 @@
   <div class="pw-process" aria-label="Payroll workflow">
     <div class="pw-process-step"><div class="pw-process-num">1</div><div><strong>Configure pay policy</strong><span>Set an effective-dated daily, hourly, or monthly rate.</span></div></div>
     <div class="pw-process-step"><div class="pw-process-num">2</div><div><strong>Build a payroll draft</strong><span>Select a completed period; attendance and rates calculate pay.</span></div></div>
-    <div class="pw-process-step"><div class="pw-process-num">3</div><div><strong>Review and approve</strong><span>Resolve attendance warnings and verify additions or deductions.</span></div></div>
+    <div class="pw-process-step"><div class="pw-process-num">3</div><div><strong>Review and issue payslip</strong><span>Verify all amounts; approval publishes the employee's payslip.</span></div></div>
     <div class="pw-process-step"><div class="pw-process-num">4</div><div><strong>Record payment</strong><span>Post the payment method, date, and transaction reference.</span></div></div>
   </div>
 
@@ -619,9 +691,9 @@
 <!-- ═══════════════════════════════════════════════════════════════════ -->
 
 <!-- Create / Edit Payroll Modal -->
-<div class="modal fade" id="payrollModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
-    <div class="modal-content pw-modal">
+<div class="modal fade" id="payrollModal" tabindex="-1" aria-labelledby="payrollModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-modal pw-modal-shell">
       <!-- Header -->
       <div class="pw-modal-header">
         <div class="pw-modal-header-left">
@@ -631,7 +703,7 @@
             <p class="pw-modal-sub" id="payrollModalSub">Create an internal draft from a pay policy and attendance period</p>
           </div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="pw-ent-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
       </div>
 
       <!-- Stepper -->
@@ -930,9 +1002,9 @@
 </div>
 
 <!-- View Payroll Detail Modal -->
-<div class="modal fade" id="viewPayrollModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content pw-ent-modal">
+<div class="modal fade" id="viewPayrollModal" tabindex="-1" aria-labelledby="viewModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-ent-modal pw-modal-shell">
       <div class="pw-ent-header pw-ent-header-view">
         <div class="pw-ent-header-left">
           <div class="pw-ent-icon pw-ent-icon-view"><i class="bi bi-eye-fill"></i></div>
@@ -954,14 +1026,14 @@
 </div>
 
 <!-- Approve Payroll Modal -->
-<div class="modal fade" id="approveModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content pw-ent-modal">
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-ent-modal pw-modal-shell">
       <div class="pw-ent-header pw-ent-header-approve">
         <div class="pw-ent-header-left">
           <div class="pw-ent-icon pw-ent-icon-approve"><i class="bi bi-check2-circle"></i></div>
           <div class="pw-ent-title-group">
-            <h6 class="pw-ent-title">Review &amp; Approve Draft</h6>
+            <h6 class="pw-ent-title" id="approveModalTitle">Review &amp; Approve Draft</h6>
             <p class="pw-ent-sub">Approval publishes the payslip but does not record payment</p>
           </div>
         </div>
@@ -979,27 +1051,27 @@
 </div>
 
 <!-- Mark Paid Modal -->
-<div class="modal fade" id="paidModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:14px;border:none;overflow:hidden;box-shadow:0 16px 48px rgba(15,23,42,0.12);">
-      <div class="modal-header" style="border:none;padding:1.25rem 1.5rem 0.5rem;">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
-          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;"><i class="bi bi-credit-card"></i></div>
-          <div>
-            <h6 style="margin:0;font-weight:700;font-size:0.95rem;color:#0f172a;">Record Payroll Payment</h6>
-            <p style="margin:0;font-size:0.72rem;color:#94a3b8;" id="paidModalSub">Post the completed disbursement details</p>
+<div class="modal fade" id="paidModal" tabindex="-1" aria-labelledby="paidModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-ent-modal pw-modal-shell">
+      <div class="pw-ent-header pw-ent-header-paid">
+        <div class="pw-ent-header-left">
+          <div class="pw-ent-icon pw-ent-icon-paid"><i class="bi bi-credit-card"></i></div>
+          <div class="pw-ent-title-group">
+            <h6 class="pw-ent-title" id="paidModalTitle">Record Payroll Payment</h6>
+            <p class="pw-ent-sub" id="paidModalSub">Post the completed disbursement details</p>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="pw-ent-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
       </div>
-      <div class="modal-body" style="padding:0 1.5rem 1.25rem;">
-        <div class="pw-muted-note mb-3"><i class="bi bi-shield-lock me-1"></i>Record this only after the employee has been paid. Paid payroll runs are final and cannot be voided.</div>
+      <div class="pw-ent-body">
+        <div class="pw-payment-note"><i class="bi bi-shield-lock-fill"></i><span>Record this only after the employee has been paid. Paid payroll runs are final and cannot be voided.</span></div>
         <form id="paidForm">
           <input type="hidden" id="paidPayrollId" />
           <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label-sm">Payment Method *</label>
-              <select id="paidMethod" class="form-select-sm-custom" required>
+              <label class="pw-ent-label" for="paidMethod">Payment Method *</label>
+              <select id="paidMethod" class="pw-ent-select" required>
                 <option value="">Select method...</option>
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
@@ -1008,39 +1080,39 @@
               </select>
             </div>
             <div class="col-md-6">
-              <label class="form-label-sm">Payment Date</label>
-              <input type="date" id="paidDate" class="form-control-sm-custom" />
+              <label class="pw-ent-label" for="paidDate">Payment Date *</label>
+              <input type="date" id="paidDate" class="pw-ent-input" required />
             </div>
           </div>
           <div class="row g-3 mb-3">
             <div class="col-md-6">
-              <label class="form-label-sm" id="paidReferenceLabel">Reference No.</label>
-              <input type="text" id="paidReference" class="form-control-sm-custom" maxlength="120" placeholder="Optional reference..." />
+              <label class="pw-ent-label" for="paidReference" id="paidReferenceLabel">Reference No.</label>
+              <input type="text" id="paidReference" class="pw-ent-input" maxlength="120" placeholder="Required for non-cash payments" />
             </div>
             <div class="col-md-6">
-              <label class="form-label-sm">Proof URL</label>
-              <input type="url" id="paidProof" class="form-control-sm-custom" maxlength="500" placeholder="Optional https:// URL..." />
+              <label class="pw-ent-label" for="paidProof">Proof URL</label>
+              <input type="url" id="paidProof" class="pw-ent-input" maxlength="500" placeholder="Optional https:// URL" />
             </div>
           </div>
         </form>
-        <div class="d-flex gap-2 justify-content-end">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;font-size:0.82rem;">Cancel</button>
-          <button type="button" id="btnConfirmPaid" class="btn btn-primary" style="border-radius:8px;font-size:0.82rem;font-weight:600;"><i class="bi bi-check-lg me-1"></i>Mark as Paid</button>
-        </div>
+      </div>
+      <div class="pw-ent-footer">
+        <button type="button" class="pw-ent-btn pw-ent-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnConfirmPaid" class="pw-ent-btn pw-ent-btn-primary"><i class="bi bi-check-lg"></i>Mark as Paid</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Void Payroll Modal -->
-<div class="modal fade" id="voidModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content pw-ent-modal">
+<div class="modal fade" id="voidModal" tabindex="-1" aria-labelledby="voidModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-ent-modal pw-modal-shell">
       <div class="pw-ent-header pw-ent-header-void">
         <div class="pw-ent-header-left">
           <div class="pw-ent-icon pw-ent-icon-void"><i class="bi bi-x-octagon"></i></div>
           <div class="pw-ent-title-group">
-            <h6 class="pw-ent-title">Void Payroll</h6>
+            <h6 class="pw-ent-title" id="voidModalTitle">Void Payroll</h6>
             <p class="pw-ent-sub">Retained for audit; excluded from active payroll</p>
           </div>
         </div>
@@ -1066,9 +1138,9 @@
 </div>
 
 <!-- Add/Edit Compensation Modal -->
-<div class="modal fade" id="compModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content pw-modal" style="max-height:90vh;">
+<div class="modal fade" id="compModal" tabindex="-1" aria-labelledby="compModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered pw-modal-dialog">
+    <div class="modal-content pw-modal pw-modal-shell">
       <!-- Header -->
       <div class="pw-modal-header">
         <div class="pw-modal-header-left">
@@ -1078,10 +1150,10 @@
             <p class="pw-modal-sub" id="compModalSub">Configure an effective-dated employee pay policy</p>
           </div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="pw-ent-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
       </div>
 
-      <div class="pw-modal-body" style="padding:1.25rem 1.75rem;">
+      <div class="pw-modal-body pw-comp-body">
         <form id="compForm">
           <input type="hidden" id="compId" value="" />
 
@@ -1190,9 +1262,9 @@
       </div>
 
       <!-- Footer -->
-      <div style="padding:0 1.75rem 1.5rem;display:flex;justify-content:flex-end;gap:10px;">
-        <button type="button" class="pw-btn-back" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" id="btnSaveComp" class="pw-btn-save"><i class="bi bi-check2-circle"></i> Save Pay Rate</button>
+      <div class="pw-modal-footer">
+        <button type="button" class="pw-ent-btn pw-ent-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnSaveComp" class="pw-ent-btn pw-ent-btn-success"><i class="bi bi-check2-circle"></i> Save Pay Rate</button>
       </div>
     </div>
   </div>
@@ -1216,6 +1288,23 @@
   };
   const fmt = (n) => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtDate = (d) => { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }); };
+
+  function setModalButtonBusy(button, busy, label = 'Saving...') {
+    if (!button) return false;
+    if (busy) {
+      if (button.disabled) return false;
+      button.dataset.idleHtml = button.innerHTML;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>${esc(label)}`;
+      return true;
+    }
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    if (button.dataset.idleHtml) button.innerHTML = button.dataset.idleHtml;
+    delete button.dataset.idleHtml;
+    return true;
+  }
 
   let allStaff = [];
   let allRecords = [];
@@ -1462,6 +1551,9 @@
 
   function getRecordActions(r) {
     let html = `<div class="pw-row-actions"><button class="pw-row-action" onclick="window._pw.viewRecord('${r._id}')"><i class="bi bi-eye me-1"></i>View</button>`;
+    if (['approved', 'paid', 'voided'].includes(r.status)) {
+      html += `<a class="pw-row-action" href="${API}/${encodeURIComponent(r._id)}/payslip" target="_blank" rel="noopener noreferrer"><i class="bi bi-receipt me-1"></i>Payslip</a>`;
+    }
     if (r.status === 'draft') {
       html += `<button class="pw-row-action" onclick="window._pw.editRecord('${r._id}')"><i class="bi bi-pencil me-1"></i>Edit</button>`;
       html += `<button class="pw-row-action success" onclick="window._pw.openApprove('${r._id}')"><i class="bi bi-check2-circle me-1"></i>Review</button>`;
@@ -2004,6 +2096,8 @@
       notes: document.getElementById('pfNotes').value || '',
     };
 
+    const button = document.getElementById('btnSavePayroll');
+    if (!setModalButtonBusy(button, true, editingId ? 'Updating...' : 'Saving...')) return;
     try {
       const url = editingId ? API + '/' + editingId : API;
       const method = editingId ? 'PATCH' : 'POST';
@@ -2022,7 +2116,12 @@
       editingId = null;
       loadRecords();
       showCalcMsg(wasEditing ? 'Payroll draft updated.' : 'Payroll draft created. Review and approve it when the inputs are final.', 'success');
-    } catch(e) { console.error('Save error:', e); showCalcMsg('Failed to save payroll.', 'error'); }
+    } catch(e) {
+      console.error('Save error:', e);
+      showCalcMsg('Failed to save payroll.', 'error');
+    } finally {
+      setModalButtonBusy(button, false);
+    }
   }
 
   // ── View Record ───────────────────────────────────────────────
@@ -2138,6 +2237,7 @@
                     <span class="pw-ent-audit-dot"></span>
                     <div><span class="pw-ent-audit-text"><strong>Calculation</strong> server verified · v${Number(r.calculationVersion || 1)}</span></div>
                   </div>
+                  ${r.attendanceExceptionOverride && r.attendanceExceptionOverride.applied ? `<div class="pw-ent-audit-item"><span class="pw-ent-audit-dot" style="background:#f59e0b;"></span><div><span class="pw-ent-audit-text"><strong>Attendance exception authorized</strong> by ${r.attendanceExceptionOverride.authorizedBy ? esc(r.attendanceExceptionOverride.authorizedBy.firstName + ' ' + r.attendanceExceptionOverride.authorizedBy.lastName) : 'administrator'}</span><span class="pw-ent-audit-time">${esc(r.attendanceExceptionOverride.reason || '—')}</span></div></div>` : ''}
                   ${r.approvedBy ? `<div class="pw-ent-audit-item"><span class="pw-ent-audit-dot green"></span><div><span class="pw-ent-audit-text"><strong>Approved</strong> by ${esc(r.approvedBy.firstName + ' ' + r.approvedBy.lastName)}</span><span class="pw-ent-audit-time">${fmtDate(r.approvedAt)}</span></div></div>` : ''}
                   ${r.voidedBy ? `<div class="pw-ent-audit-item"><span class="pw-ent-audit-dot red"></span><div><span class="pw-ent-audit-text"><strong>Voided</strong> by ${esc(r.voidedBy.firstName + ' ' + r.voidedBy.lastName)}</span><span class="pw-ent-audit-time">${esc(r.voidReason || '—')}</span></div></div>` : ''}
                 </div>
@@ -2157,6 +2257,12 @@
     if (!r) return;
     document.getElementById('approveModal').dataset.id = id;
     const emp = r.employee || {};
+    const att = r.attendanceSummary || {};
+    const hasBlockingAttendance = r.payType !== 'monthly' && (
+      Number(att.present || 0) + Number(att.late || 0) === 0 ||
+      Number(att.incompleteShifts || 0) > 0 ||
+      Number(att.unverifiedEntries || 0) > 0
+    );
     const warnings = (r.calculationWarnings || []).map(item => `<li>${esc(item)}</li>`).join('');
     document.getElementById('approveSummary').innerHTML = `
       <div class="pw-ent-summary">
@@ -2171,24 +2277,71 @@
         <div class="pw-ent-summary-row pw-ent-summary-total"><span class="pw-ent-summary-label" style="font-weight:700;color:#065f46;">Net Pay</span><span>${fmt(r.netPay)}</span></div>
       </div>
       <div class="pw-ent-warning"><i class="bi bi-info-circle-fill"></i><span>Approval recalculates the amounts, locks the run, and publishes the payslip. It does not record payment.</span></div>
-      ${warnings ? `<div class="pw-ent-warning" style="background:#fef3c7;border-color:#fde68a;color:#92400e;"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Warnings</strong><ul class="mb-0 mt-1">${warnings}</ul></div></div>` : ''}`;
+      ${warnings ? `<div class="pw-ent-warning" style="background:#fef3c7;border-color:#fde68a;color:#92400e;"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Warnings</strong><ul class="mb-0 mt-1">${warnings}</ul></div></div>` : ''}
+      ${hasBlockingAttendance ? `
+        <div id="attendanceOverridePanel" class="pw-ent-field" style="border:1px solid #fecaca;background:#fff7f7;border-radius:10px;padding:12px 14px;">
+          <div style="display:flex;align-items:flex-start;gap:9px;">
+            <input id="attendanceOverrideConfirm" type="checkbox" style="margin-top:3px;" />
+            <label for="attendanceOverrideConfirm" style="font-size:.78rem;font-weight:700;color:#991b1b;line-height:1.4;cursor:pointer;">I reviewed the source attendance records and authorize this documented exception.</label>
+          </div>
+          <label class="pw-ent-label mt-3" for="attendanceOverrideReason">Exception reason *</label>
+          <textarea id="attendanceOverrideReason" class="pw-ent-textarea" rows="3" maxlength="500" disabled placeholder="Explain why payroll may be approved despite the attendance exception..."></textarea>
+          <div class="pw-muted-note mt-1">Minimum 10 characters. This reason and the warnings will be retained in the payroll audit trail.</div>
+        </div>` : ''}`;
+    const overrideConfirm = document.getElementById('attendanceOverrideConfirm');
+    if (overrideConfirm) {
+      overrideConfirm.addEventListener('change', () => {
+        const reason = document.getElementById('attendanceOverrideReason');
+        reason.disabled = !overrideConfirm.checked;
+        if (overrideConfirm.checked) reason.focus();
+        else reason.value = '';
+      });
+    }
     new bootstrap.Modal(document.getElementById('approveModal')).show();
   }
 
   async function confirmApprove() {
     const id = document.getElementById('approveModal').dataset.id;
+    const button = document.getElementById('btnConfirmApprove');
+    if (button.disabled) return;
+    const overrideConfirm = document.getElementById('attendanceOverrideConfirm');
+    const overrideReason = document.getElementById('attendanceOverrideReason');
+    if (overrideConfirm && !overrideConfirm.checked) {
+      showCalcMsg('Review and acknowledge the attendance exception before approval.', 'error');
+      return;
+    }
+    if (overrideReason && overrideReason.value.trim().length < 10) {
+      showCalcMsg('Enter an attendance exception reason of at least 10 characters.', 'error');
+      overrideReason.focus();
+      return;
+    }
     try {
-      const res = await fetch(API + '/' + id + '/approve', { method: 'POST', credentials: 'same-origin' });
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Publishing...';
+      const res = await fetch(API + '/' + id + '/approve', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendanceExceptionOverride: Boolean(overrideConfirm && overrideConfirm.checked),
+          attendanceExceptionReason: overrideReason ? overrideReason.value.trim() : '',
+        }),
+      });
       const data = await res.json();
       if (!res.ok) {
-        const warningText = Array.isArray(data.warnings) && data.warnings.length ? ' ' + data.warnings.join(' ') : '';
+        const warningText = !data.requiresOverride && Array.isArray(data.warnings) && data.warnings.length ? ' ' + data.warnings.join(' ') : '';
         showCalcMsg((data.error || 'Approval failed.') + warningText, 'error');
         return;
       }
       bootstrap.Modal.getInstance(document.getElementById('approveModal')).hide();
       loadRecords();
       showCalcMsg('Payroll approved.', 'success');
-    } catch(e) { showCalcMsg('Failed to approve.', 'error'); }
+    } catch(e) {
+      showCalcMsg('Failed to approve.', 'error');
+    } finally {
+      button.disabled = false;
+      button.innerHTML = '<i class="bi bi-check-lg"></i>Approve &amp; Publish';
+    }
   }
 
   // ── Paid ──────────────────────────────────────────────────────
@@ -2214,6 +2367,8 @@
     if (method !== 'cash' && !reference) { showCalcMsg('Enter the transaction reference for this non-cash payment.', 'error'); return; }
     const proof = document.getElementById('paidProof');
     if (proof.value && !proof.checkValidity()) { showCalcMsg('Enter a valid HTTP or HTTPS proof URL.', 'error'); return; }
+    const button = document.getElementById('btnConfirmPaid');
+    if (!setModalButtonBusy(button, true, 'Recording...')) return;
     try {
       const res = await fetch(API + '/' + id + '/paid', {
         method: 'POST',
@@ -2231,7 +2386,11 @@
       bootstrap.Modal.getInstance(document.getElementById('paidModal')).hide();
       loadRecords();
       showCalcMsg('Payment recorded.', 'success');
-    } catch(e) { showCalcMsg('Failed to mark as paid.', 'error'); }
+    } catch(e) {
+      showCalcMsg('Failed to mark as paid.', 'error');
+    } finally {
+      setModalButtonBusy(button, false);
+    }
   }
 
   function syncPaymentEvidence() {
@@ -2253,6 +2412,8 @@
     const id = document.getElementById('voidPayrollId').value;
     const reason = document.getElementById('voidReason').value.trim();
     if (!reason) { showCalcMsg('A reason is required to void.', 'error'); return; }
+    const button = document.getElementById('btnConfirmVoid');
+    if (!setModalButtonBusy(button, true, 'Voiding...')) return;
     try {
       const res = await fetch(API + '/' + id + '/void', {
         method: 'POST',
@@ -2265,7 +2426,11 @@
       bootstrap.Modal.getInstance(document.getElementById('voidModal')).hide();
       loadRecords();
       showCalcMsg('Payroll voided.', 'success');
-    } catch(e) { showCalcMsg('Failed to void.', 'error'); }
+    } catch(e) {
+      showCalcMsg('Failed to void.', 'error');
+    } finally {
+      setModalButtonBusy(button, false);
+    }
   }
 
   // ── Compensation ──────────────────────────────────────────────
@@ -2393,6 +2558,8 @@
       if (!confirmation.isConfirmed) return;
     }
 
+    const button = document.getElementById('btnSaveComp');
+    if (!setModalButtonBusy(button, true, id ? 'Updating...' : 'Saving...')) return;
     try {
       const url = id ? API + '/compensation/' + id : API + '/compensation';
       const method = id ? 'PATCH' : 'POST';
@@ -2409,7 +2576,11 @@
       document.getElementById('compEffectiveFrom').disabled = false;
       loadCompensation();
       showCalcMsg(id ? 'Pay rate updated.' : 'Pay rate added.', 'success');
-    } catch(e) { showCalcMsg('Failed to save compensation.', 'error'); }
+    } catch(e) {
+      showCalcMsg('Failed to save compensation.', 'error');
+    } finally {
+      setModalButtonBusy(button, false);
+    }
   }
 
   async function endComp(id) {

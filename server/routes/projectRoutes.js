@@ -6,8 +6,13 @@ const path = require("path");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
 
-// All project data is operational and requires a current, enabled account.
-router.use(auth.authenticate);
+// This router is mounted at /api, so authentication must be limited to the
+// project API families it owns. A router-wide guard would also capture later
+// public APIs such as /api/chat and /api/holidays.
+router.use(
+  ["/projects", "/work-orders", "/technician", "/issues", "/expenses", "/scheduling"],
+  auth.authenticate,
+);
 
 router.use("/projects/:id", async (req, res, next) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {

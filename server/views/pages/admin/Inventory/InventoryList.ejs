@@ -200,7 +200,7 @@
       <label class="rp-filter-label" for="airconSearchInput"><i class="bi bi-search me-1"></i>Search Aircon</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" class="form-control" id="airconSearchInput" placeholder="Model, SKU, or Brand..." />
+        <input type="text" class="form-control" id="airconSearchInput" placeholder="Model, SKU, serial, or brand..." />
       </div>
     </div>
     <div class="rp-filter-group">
@@ -322,14 +322,14 @@
               <label class="inv-field-label" for="invImage"><i class="bi bi-image me-1"></i>Product Image</label>
               <div class="row align-items-center g-3">
                 <div class="col-md-7">
-                  <input type="file" id="invImage" class="d-none" accept="image/*" />
+                  <input type="file" id="invImage" class="d-none" accept="image/jpeg,image/png,image/webp" />
                   <div class="d-flex align-items-center gap-3 p-3 border rounded" style="background:#f8fafc;">
                     <label for="invImage" class="btn btn-outline-primary btn-sm">
                       <i class="bi bi-upload me-1"></i> Choose Image
                     </label>
                     <span id="invImageName" class="text-muted small">No file chosen</span>
                   </div>
-                  <div class="inv-field-hint">Upload product image (JPG, PNG, max 5MB)</div>
+                  <div class="inv-field-hint">Upload product image (JPG, PNG, or WebP, max 5MB)</div>
                 </div>
                 <div class="col-md-5">
                   <div class="d-flex align-items-center gap-3" style="min-height:80px;">
@@ -759,6 +759,12 @@
       border-color: #2563eb;
       background: #fff;
       box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
+    }
+    .inv-serial-input {
+      min-height: 92px;
+      padding-left: 14px;
+      resize: vertical;
+      line-height: 1.45;
     }
     .inv-input:focus + .inv-input-icon,
     .inv-input-wrapper:focus-within .inv-input-icon {
@@ -1300,6 +1306,39 @@
       return '₱ ' + Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    function escapeInventoryText(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function parseInventorySerialNumbers(value) {
+      const values = Array.isArray(value) ? value : String(value || '').split(/[\r\n,]+/);
+      return values.map(serial => String(serial || '').trim().toUpperCase()).filter(Boolean);
+    }
+
+    function variantSerialValidationMessage(variants) {
+      const allSerials = [];
+      for (const variant of variants) {
+        const serials = parseInventorySerialNumbers(variant.serialNumbers);
+        allSerials.push(...serials);
+      }
+      if (new Set(allSerials).size !== allSerials.length) {
+        return 'Every aircon unit must have a unique serial number.';
+      }
+      return '';
+    }
+
+    function variantSerialSummary(variant) {
+      const serials = parseInventorySerialNumbers(variant && variant.serialNumbers);
+      if (!serials.length) return '<small class="text-muted">Serials not recorded</small>';
+      const preview = serials.slice(0, 2).join(', ') + (serials.length > 2 ? ` +${serials.length - 2}` : '');
+      return `<small title="${escapeInventoryText(serials.join(', '))}"><i class="bi bi-upc-scan me-1"></i>${escapeInventoryText(preview)}</small>`;
+    }
+
     function makeSparkData(count) {
       const c = Math.max(0, count || 0);
       if (c === 0) return [0,0,0,0,0,0,0];
@@ -1395,6 +1434,7 @@
           sellingPrice: item.sellingPrice,
           quantity: item.quantity || 0,
           minStockLevel: item.minStockLevel || 3,
+          serialNumbers: item.serialNumbers || [],
           _id: item._id
         });
         
@@ -1460,7 +1500,7 @@
           '<td>' +
             '<div class="text-muted small mb-1">Type: <strong>' + (product.type || 'Split Type') + '</strong></div>' +
             '<div class="text-muted small">Technology: <strong>' + (product.inverter ? 'Inverter' : 'Non-Inverter') + '</strong></div>' +
-            (product.warranty ? '<div class="text-muted small">Warranty: <strong>' + product.warranty + '</strong></div>' : '') +
+            ((product.specifications?.warranty || product.warranty) ? '<div class="text-muted small">Warranty: <strong>' + escapeInventoryText(product.specifications?.warranty || product.warranty) + '</strong></div>' : '') +
           '</td>' +
           '<td>' +
             '<div class="inv-variant-grid">' +
@@ -1468,6 +1508,7 @@
                 '<span class="inv-variant-pill">' + 
                 '<strong>' + (v.capacity || 'N/A') + ' HP</strong>' + 
                 (v.btu ? '<small>' + v.btu + ' BTU</small>' : '') +
+                variantSerialSummary(v) +
                 '</span>'
               ).join('') +
             '</div>' +
@@ -1556,7 +1597,8 @@
         const modelName = (product.modelLine || '').toLowerCase();
         const brandName = ((product.brand && product.brand.name) || product.brand || '').toLowerCase();
         const skuMatch = (product.variants || []).some(v => (v.sku || '').toLowerCase().includes(q));
-        const textMatch = q ? (modelName.includes(q) || brandName.includes(q) || skuMatch) : true;
+        const serialMatch = (product.variants || []).some(v => (v.serialNumbers || []).some(serial => String(serial).toLowerCase().includes(q)));
+        const textMatch = q ? (modelName.includes(q) || brandName.includes(q) || skuMatch || serialMatch) : true;
         const statusMatch = status === 'all' || (product.variants || []).some(v => v.status === status);
         return textMatch && statusMatch;
       });
@@ -1621,7 +1663,7 @@
     // ── Data Fetch ─────────────────────────────────────────────────────────────
     async function loadInventory() {
       try {
-        const r = await fetch(inventoryApiBase);
+        const r = await fetch(inventoryApiBase + '?limit=500');
         if (!r.ok) throw new Error('fail');
         const j = await r.json();
         await renderItems(j.products || []);
@@ -1664,7 +1706,7 @@
         console.error('Error loading brands and categories:', error);
       }
     }
-    loadBrandsAndCategories();
+    const inventoryCatalogReady = loadBrandsAndCategories();
 
     // ── Add New Item Button Event Listener ───────────────────────────────────────
     const addBtn = document.getElementById('openAddItemBtn');
@@ -1694,6 +1736,7 @@
       const variantRow = document.createElement('div');
       variantRow.className = 'col-12';
       variantRow.id = `variant_${variantId}`;
+      if (variantData?._id) variantRow.dataset.variantId = String(variantData._id);
       
       variantRow.innerHTML = `
         <div class="border rounded p-3 bg-white">
@@ -1740,6 +1783,11 @@
                 <option value="out_of_stock" ${variantData?.status === 'out_of_stock' ? 'selected' : ''}>Out of Stock</option>
               </select>
             </div>
+            <div class="col-12">
+              <label class="inv-field-label small">Unit Serial Numbers</label>
+              <textarea class="inv-input inv-serial-input" rows="3" data-field="serialNumbers" placeholder="One serial number per line">${escapeInventoryText((variantData?.serialNumbers || []).join('\n'))}</textarea>
+              <div class="form-text">One manufacturer serial per line. Add known stock, reserved, or previously handed-over units to keep a searchable registry.</div>
+            </div>
           </div>
         </div>
       `;
@@ -1781,10 +1829,14 @@
       
       Array.from(container.children).forEach(variantRow => {
         const variantData = {};
+        if (variantRow.dataset.variantId) variantData._id = variantRow.dataset.variantId;
         variantRow.querySelectorAll('[data-field]').forEach(input => {
           const field = input.dataset.field;
-          const value = input.type === 'number' ? 
-            (parseFloat(input.value) || 0) : input.value;
+          const value = input.dataset.field === 'serialNumbers'
+            ? parseInventorySerialNumbers(input.value)
+            : input.type === 'number'
+              ? (parseFloat(input.value) || 0)
+              : input.value;
           variantData[field] = value;
         });
         
@@ -1809,12 +1861,14 @@
     }
 
     // ── Image Upload Logic ───────────────────────────────────────────────────────
-    let uploadedImageData = null;
+    let selectedImageFile = null;
+    let removeImageRequested = false;
     
     // Image upload event listener
     document.getElementById('invImage').addEventListener('change', function(e) {
       const file = e.target.files[0];
       const nameEl = document.getElementById('invImageName');
+      selectedImageFile = null;
       if (file) {
         if (nameEl) nameEl.textContent = file.name;
         // Validate file size (5MB max)
@@ -1826,18 +1880,20 @@
         }
         
         // Validate file type
-        if (!file.type.startsWith('image/')) {
-          showFormAlert('danger', 'Please select a valid image file');
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          showFormAlert('danger', 'Please select a JPG, PNG, or WebP image.');
           e.target.value = '';
           if (nameEl) nameEl.textContent = 'No file chosen';
           return;
         }
+
+        selectedImageFile = file;
+        removeImageRequested = false;
         
         // Read and preview the image
         const reader = new FileReader();
         reader.onload = function(e) {
-          uploadedImageData = e.target.result;
-          showImagePreview(uploadedImageData);
+          showImagePreview(e.target.result);
         };
         reader.readAsDataURL(file);
       } else {
@@ -1847,7 +1903,8 @@
     
     // Remove image button
     document.getElementById('removeImageBtn').addEventListener('click', function() {
-      uploadedImageData = null;
+      selectedImageFile = null;
+      removeImageRequested = true;
       document.getElementById('invImage').value = '';
       hideImagePreview();
     });
@@ -1895,8 +1952,9 @@
     }
 
     // ── Modal Logic ────────────────────────────────────────────────────────────
-    function openModal(item) {
+    async function openModal(item) {
       try {
+        await inventoryCatalogReady;
         const mEl = document.getElementById('addItemModal');
         if (!mEl) {
           console.error('addItemModal element not found');
@@ -1916,7 +1974,8 @@
         hideFormAlert();
 
         // Reset image state
-        uploadedImageData = null;
+        selectedImageFile = null;
+        removeImageRequested = false;
         const invImageEl = document.getElementById('invImage');
         if (invImageEl) invImageEl.value = '';
 
@@ -1963,7 +2022,7 @@
           if (statusEl) statusEl.value = item.status || '';
           
           const warrantyEl = document.getElementById('invWarranty');
-          if (warrantyEl) warrantyEl.value = item.warranty || '';
+          if (warrantyEl) warrantyEl.value = item.specifications?.warranty || item.warranty || '';
           
           const descriptionEl = document.getElementById('invDescription');
           if (descriptionEl) descriptionEl.value = item.description || '';
@@ -1990,6 +2049,7 @@
               quantity: item.quantity,
               minStockLevel: item.minStockLevel,
               status: item.status,
+              serialNumbers: item.serialNumbers || [],
               _id: item._id
             });
           }
@@ -2021,9 +2081,13 @@
 
     // ── Event Delegation ──────────────────────────────────────────────────────
     document.body.addEventListener('click', function (e) {
+      if (!e.target.closest('.edit-inventory, .edit-variant, .edit-grouped, .manage-variants')) return;
+      if (e.__racsInventoryActionHandled) return;
+      e.__racsInventoryActionHandled = true;
       // Edit individual item
-      if (e.target.matches('.edit-inventory')) {
-        const id = e.target.dataset.id;
+      if (e.target.matches('.edit-inventory') || e.target.closest('.edit-inventory')) {
+        const btn = e.target.matches('.edit-inventory') ? e.target : e.target.closest('.edit-inventory');
+        const id = btn.dataset.id;
         const item = inventoryData.find((i) => i._id === id);
         if (item) openModal(item);
       }
@@ -2045,20 +2109,7 @@
           i.modelLine === modelName && 
           ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
         );
-        if (item && item.variants && item.variants.length > 0) {
-          // Pass the first variant for editing
-          const firstVariant = {
-            ...item,
-            capacity: item.variants[0].capacity,
-            btu: item.variants[0].btu,
-            sellingPrice: item.variants[0].sellingPrice,
-            costPrice: item.variants[0].costPrice,
-            quantity: item.variants[0].quantity,
-            minStockLevel: item.variants[0].minStockLevel,
-            variantId: item.variants[0]._id
-          };
-          openModal(firstVariant);
-        }
+        if (item) openModal(item);
       }
 
       // Manage variants for grouped item
@@ -2107,6 +2158,7 @@
             costPrice: variant.costPrice,
             quantity: variant.quantity,
             minStockLevel: variant.minStockLevel,
+            serialNumbers: variant.serialNumbers || [],
             _id: variant._id
           });
         });
@@ -2180,6 +2232,12 @@
               <input type="number" class="form-control" data-field="minStockLevel" data-variant-id="${variantId}" placeholder="3" min="0" />
             </div>
           </div>
+          <div class="rp-form-card">
+            <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-upc-scan"></i></div>Unit Serials</div>
+            <label class="rp-form-label"><i class="bi bi-hash"></i>Serial Numbers</label>
+            <textarea class="form-control" rows="8" data-field="serialNumbers" data-variant-id="${variantId}" placeholder="One serial number per line"></textarea>
+            <div class="form-text mt-2">One manufacturer serial per line. Serial numbers are normalized to uppercase and remain searchable after stock is reserved.</div>
+          </div>
         </div>
         <div class="d-flex justify-content-end gap-2 mt-3">
           ${variantData ? `<button type="button" class="btn btn-outline-danger remove-variant2" data-variant-id="${variantId}" title="Remove this variant">
@@ -2201,6 +2259,7 @@
         const costPriceInput = variantRow.querySelector(`[data-field="costPrice"]`);
         const quantityInput = variantRow.querySelector(`[data-field="quantity"]`);
         const minStockLevelInput = variantRow.querySelector(`[data-field="minStockLevel"]`);
+        const serialNumbersInput = variantRow.querySelector(`[data-field="serialNumbers"]`);
         
         if (capacitySelect) {
           const cap = parseFloat(variantData.capacity);
@@ -2215,6 +2274,7 @@
         if (costPriceInput) costPriceInput.value = variantData.costPrice || '';
         if (quantityInput) quantityInput.value = variantData.quantity || '';
         if (minStockLevelInput) minStockLevelInput.value = variantData.minStockLevel || '';
+        if (serialNumbersInput) serialNumbersInput.value = (variantData.serialNumbers || []).join('\n');
       }
 
       // Add margin listeners
@@ -2275,9 +2335,18 @@
         const variantData = { _id: variantId };
         variantRow.querySelectorAll('[data-field]').forEach(input => {
           const field = input.dataset.field;
-          variantData[field] = input.type === 'number' ? 
-            (parseFloat(input.value) || 0) : input.value;
+          variantData[field] = field === 'serialNumbers'
+            ? parseInventorySerialNumbers(input.value)
+            : input.type === 'number'
+              ? (parseFloat(input.value) || 0)
+              : input.value;
         });
+
+        const serialValidationMessage = variantSerialValidationMessage([variantData]);
+        if (serialValidationMessage) {
+          showInvToast(serialValidationMessage, 'error');
+          return;
+        }
         
         // Find the product
         const product = inventoryData.find(i => i._id === currentEditingProduct);
@@ -2292,7 +2361,7 @@
           brand: (product.brand && product.brand.name) || product.brand,
           type: product.type,
           inverter: product.inverter,
-          warranty: product.warranty,
+          warranty: product.specifications?.warranty || product.warranty,
           description: product.description,
           imageUrl: product.imageUrl,
           variant: variantData // Send variant data separately
@@ -2348,9 +2417,12 @@
 
     // ── Event Delegation for Main Inventory ────────────────────────────────────────
     document.body.addEventListener('click', function (e) {
+      if (e.__racsInventoryActionHandled) return;
+      e.__racsInventoryActionHandled = true;
       // Edit individual item
-      if (e.target.matches('.edit-inventory')) {
-        const id = e.target.dataset.id;
+      if (e.target.matches('.edit-inventory') || e.target.closest('.edit-inventory')) {
+        const btn = e.target.matches('.edit-inventory') ? e.target : e.target.closest('.edit-inventory');
+        const id = btn.dataset.id;
         const item = inventoryData.find((i) => i._id === id);
         if (item) openModal(item);
       }
@@ -2372,20 +2444,7 @@
           i.modelLine === modelName && 
           ((i.brand && i.brand.name) || i.brand || 'Unknown') === brandName
         );
-        if (item && item.variants && item.variants.length > 0) {
-          // Pass the first variant for editing
-          const firstVariant = {
-            ...item,
-            capacity: item.variants[0].capacity,
-            btu: item.variants[0].btu,
-            sellingPrice: item.variants[0].sellingPrice,
-            costPrice: item.variants[0].costPrice,
-            quantity: item.variants[0].quantity,
-            minStockLevel: item.variants[0].minStockLevel,
-            variantId: item.variants[0]._id
-          };
-          openModal(firstVariant);
-        }
+        if (item) openModal(item);
       }
 
       // Manage variants for grouped item
@@ -2512,82 +2571,68 @@
       if (variants.length === 0) {
         return showFormAlert('warning', 'At least one variant with capacity and selling price is required.');
       }
+      const serialValidationMessage = variantSerialValidationMessage(variants);
+      if (serialValidationMessage) {
+        return showFormAlert('warning', serialValidationMessage);
+      }
 
       const isEdit = !!editingId;
 
       const data = {
         modelLine, brand, category, type, inverter,
-        status, warranty, description,
+        warranty, description,
         salesChannel: 'both',
-        variants: variants
+        variants
       };
+      if (status) data.status = status;
+      if (removeImageRequested && !selectedImageFile) {
+        data.imageUrl = '/images/products/default.png';
+      }
 
-      // Handle image upload
-      if (uploadedImageData) {
-        // Convert base64 to blob and create FormData
-        const response = await fetch(uploadedImageData);
-        const blob = await response.blob();
-        const formData = new FormData();
-        
-        // Add all fields to FormData
-        Object.keys(data).forEach(key => {
-          if (typeof data[key] === 'object' && data[key] !== null) {
-            formData.append(key, JSON.stringify(data[key]));
-          } else {
-            formData.append(key, data[key]);
-          }
-        });
-        formData.append('image', blob, 'product.jpg');
-        
-        try {
-          let url = inventoryApiBase;
-          let method = 'POST';
-          if (editingId) { url += '/' + editingId; method = 'PATCH'; }
+      const originalSaveHtml = saveBtn.innerHTML;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Saving...';
 
-          const r = await fetch(url, {
-            method,
-            body: formData, // Don't set Content-Type header for FormData
+      try {
+        const url = editingId ? `${inventoryApiBase}/${editingId}` : inventoryApiBase;
+        const method = editingId ? 'PATCH' : 'POST';
+        let requestOptions;
+
+        if (selectedImageFile) {
+          const formData = new FormData();
+          Object.entries(data).forEach(([key, value]) => {
+            if (value === undefined || value === null) return;
+            formData.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
           });
-          if (r.ok) {
-            const m = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
-            m && m.hide();
-            editingId = null;
-            uploadedImageData = null;
-            showInvToast(`${isEdit ? 'Product updated' : 'Product added'} successfully!`, 'success');
-            loadInventory();
-          } else {
-            const j = await r.json();
-            showFormAlert('danger', j.error || 'Failed to save HVAC product.');
-          }
-        } catch (e) {
-          showFormAlert('danger', 'Network error: ' + e.message);
-        }
-      } else {
-        // Save without image
-        try {
-          let url = inventoryApiBase;
-          let method = 'POST';
-          if (editingId) { url += '/' + editingId; method = 'PATCH'; }
-
-          const r = await fetch(url, {
+          formData.append('image', selectedImageFile, selectedImageFile.name);
+          requestOptions = { method, body: formData };
+        } else {
+          requestOptions = {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
-          });
-          if (r.ok) {
-            const m = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
-            m && m.hide();
-            editingId = null;
-            uploadedImageData = null;
-            showInvToast(`${isEdit ? 'Product updated' : 'Product added'} successfully!`, 'success');
-            loadInventory();
-          } else {
-            const j = await r.json();
-            showFormAlert('danger', j.error || 'Failed to save HVAC product.');
-          }
-        } catch (e) {
-          showFormAlert('danger', 'Network error: ' + e.message);
+          };
         }
+
+        const response = await fetch(url, requestOptions);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to save HVAC product.');
+        }
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addItemModal'));
+        modal && modal.hide();
+        editingId = null;
+        selectedImageFile = null;
+        removeImageRequested = false;
+        document.getElementById('invImage').value = '';
+        showInvToast(`${isEdit ? 'Product updated' : 'Product added'} successfully!`, 'success');
+        await loadInventory();
+      } catch (error) {
+        showFormAlert('danger', error.message || 'Unable to save the HVAC product.');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalSaveHtml;
       }
     });
   })();

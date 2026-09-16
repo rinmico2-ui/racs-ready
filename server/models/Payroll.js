@@ -60,6 +60,13 @@ const payrollSchema = new mongoose.Schema(
     calculationVersion: { type: Number, default: 1, min: 1 },
     calculatedAt: { type: Date, default: Date.now },
     calculationWarnings: { type: [String], default: [] },
+    attendanceExceptionOverride: {
+      applied: { type: Boolean, default: false },
+      reason: { type: String, trim: true, maxlength: 500, default: "" },
+      authorizedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      authorizedAt: Date,
+      warnings: { type: [String], default: [] },
+    },
     compensationRecord: { type: mongoose.Schema.Types.ObjectId, ref: "EmployeeCompensation" },
     status: {
       type: String,
@@ -67,6 +74,18 @@ const payrollSchema = new mongoose.Schema(
       default: "draft",
       index: true,
     },
+    payslipNumber: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: 40,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    payslipVersion: { type: Number, default: 1, min: 1 },
+    payslipIssuedAt: Date,
+    payslipIssuedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     payType: {
       type: String,
       enum: ["daily", "hourly", "monthly"],

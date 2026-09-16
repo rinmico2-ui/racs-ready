@@ -671,11 +671,11 @@
               <span class="pd-badge-stock out"><i class="bi bi-x-circle-fill"></i> Out of Stock</span>
               <% } %>
               <% if (p.inverter) { %><span class="pd-badge-tag"><i class="bi bi-lightning-fill"></i>Inverter</span><% } %>
-              <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>" id="pdMainImage">
+              <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>" id="pdMainImage" onerror="this.src='/images/products/default.png'">
             </div>
             <div class="pd-thumbs" id="pdThumbs">
               <div class="pd-thumb active" onclick="pdSetImage(this, '<%= p.imageUrl %>')">
-                <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>">
+                <img src="<%= p.imageUrl %>" alt="<%= p.modelLine %>" onerror="this.src='/images/products/default.png'">
               </div>
             </div>
           </div>
@@ -863,7 +863,7 @@
           <a href="/products/<%= r._id %>" style="text-decoration:none; color:inherit;">
             <div class="pd-related-card">
               <div class="pd-related-img">
-                <img src="<%= r.imageUrl %>" alt="<%= r.modelLine %>" loading="lazy">
+                <img src="<%= r.imageUrl %>" alt="<%= r.modelLine %>" loading="lazy" onerror="this.src='/images/products/default.png'">
               </div>
               <div class="pd-related-body">
                 <div class="pd-related-brand"><%= r.brand %></div>
@@ -926,7 +926,10 @@
 
     window.pdSetImage = function(el, src) {
       var img = document.getElementById('pdMainImage');
-      if (img) img.src = src;
+      if (img) {
+        img.onerror = function() { this.src = '/images/products/default.png'; };
+        img.src = src;
+      }
       document.querySelectorAll('.pd-thumb').forEach(function(t) { t.classList.remove('active'); });
       if (el) el.classList.add('active');
     };

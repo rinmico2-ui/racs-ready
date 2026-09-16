@@ -1642,10 +1642,12 @@ function setupLocationAutoProgress() {
     if (value.length >= 10) { // Minimum address length
       debounceTimer = setTimeout(() => {
         console.log('📍 Location entered, waiting for Next Step button');
-        newInput.classList.add('is-valid');
+        const confirmedAddress = String(BookingState?.customerLocation?.address || '').trim();
+        const isConfirmed = Boolean(confirmedAddress && newInput.value.trim() === confirmedAddress);
+        newInput.classList.toggle('is-valid', isConfirmed);
 
         // Store location
-        if (typeof BookingState !== 'undefined') {
+        if (typeof BookingState !== 'undefined' && !isConfirmed) {
           BookingState.location = value;
         }
 
@@ -1676,8 +1678,34 @@ function setupAddressAutocomplete(input) {
       addressSuggestionAbortController.abort();
       addressSuggestionAbortController = null;
     }
+    const searchButton = document.getElementById('serviceAddressSearchBtn');
+    if (searchButton) {
+      searchButton.disabled = false;
+      searchButton.innerHTML = '<i class="bi bi-search"></i>';
+    }
     suggestContainer.classList.add('d-none');
     if (query.length < 3) suggestContainer.innerHTML = '';
+
+    // Typed text is not an authoritative service point. If the customer edits
+    // a selected address, invalidate the old coordinates so checkout cannot
+    // silently submit the previous pin under a new address label.
+    const selectedAddress = String(BookingState?.customerLocation?.address || '').trim();
+    if (selectedAddress && query !== selectedAddress) {
+      resetServiceLocationForTypedAddress(query);
+    }
+  });
+
+  // Pressing Enter is an explicit lookup, just like tapping Search. This keeps
+  // the field natural on desktop and mobile without API-backed autocomplete.
+  input.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const query = input.value.trim();
+    if (query.length < 3) {
+      showError('Enter at least 3 characters to search for an address');
+      return;
+    }
+    fetchAddressSuggestions(query);
   });
 
   // Hide suggestions when clicking outside
@@ -1716,7 +1744,9 @@ function fetchAddressSuggestions(query) {
     .then(data => {
       if (requestToken !== addressSuggestionRequestToken) return;
       if (data && data.length > 0) {
-        displaySuggestions(data);
+        // Pin the best match immediately, while leaving alternatives visible
+        // so the customer can choose a more precise result.
+        displaySuggestions(data, true);
       } else {
         suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-secondary"><i class="bi bi-search me-2"></i>No matching address found. Add a municipality or province.</div>';
         suggestContainer.classList.remove('d-none');
@@ -1740,7 +1770,7 @@ function fetchAddressSuggestions(query) {
 /**
  * Display address suggestions
  */
-function displaySuggestions(suggestions) {
+function displaySuggestions(suggestions, selectBestMatch = false) {
   const suggestContainer = document.getElementById('locationSuggest');
   const locationInput = document.getElementById("locationInput");
 
@@ -1748,10 +1778,12 @@ function displaySuggestions(suggestions) {
 
   suggestContainer.innerHTML = '';
 
-  suggestions.forEach(suggestion => {
-    const item = document.createElement('div');
+  suggestions.forEach((suggestion, index) => {
+    const item = document.createElement('button');
+    item.type = 'button';
     item.className = 'list-group-item list-group-item-action suggestion-item';
     item.style.cursor = 'pointer';
+    item.dataset.suggestionIndex = String(index);
 
     // Format the display name
     let displayName = suggestion.display_name;
@@ -1780,12 +1812,11 @@ function displaySuggestions(suggestions) {
     item.appendChild(row);
 
     item.addEventListener('click', () => {
-      locationInput.value = suggestion.display_name;
-      locationInput.classList.add('is-valid');
+      const handled = applyAddressSearchResult(suggestion, suggestion.display_name, 'Selected address result');
       suggestContainer.classList.add('d-none');
 
-      // Geocode and update map
-      if (suggestion.lat && suggestion.lon) {
+      // Compatibility fallback for legacy provider rows.
+      if (!handled && suggestion.lat && suggestion.lon) {
         const lat = parseFloat(suggestion.lat);
         const lng = parseFloat(suggestion.lon);
 
@@ -1822,6 +1853,116 @@ function displaySuggestions(suggestions) {
   });
 
   suggestContainer.classList.remove('d-none');
+
+  if (selectBestMatch && suggestions[0]) {
+    const applied = applyAddressSearchResult(suggestions[0], locationInput.value, 'Best address match');
+    const firstResult = suggestContainer.querySelector('[data-suggestion-index="0"]');
+    if (applied && firstResult) {
+      firstResult.classList.add('active');
+      firstResult.setAttribute('aria-current', 'true');
+    }
+  }
+}
+
+function resetServiceLocationForTypedAddress(query) {
+  ++customerLocationRequestToken;
+  ++routeRequestToken;
+  BookingState.location = query;
+  BookingState.customerLocation = null;
+  BookingState.userCoordinates = null;
+
+  if (BookingState.map) {
+    if (BookingState.userMarker && BookingState.map.hasLayer(BookingState.userMarker)) {
+      BookingState.map.removeLayer(BookingState.userMarker);
+    }
+    if (BookingState.routeLine && BookingState.map.hasLayer(BookingState.routeLine)) {
+      BookingState.map.removeLayer(BookingState.routeLine);
+    }
+    (BookingState.routeMarkers || []).forEach(marker => {
+      if (marker && BookingState.map.hasLayer(marker)) BookingState.map.removeLayer(marker);
+    });
+  }
+  BookingState.userMarker = null;
+  BookingState.routeLine = null;
+  BookingState.routeMarkers = [];
+
+  const input = document.getElementById('locationInput');
+  if (input) input.classList.remove('is-valid');
+  const panel = document.getElementById('serviceMapSelection');
+  const selectionStatus = document.getElementById('serviceMapSelectionStatus');
+  const selectionAddress = document.getElementById('serviceMapAddress');
+  const coordinates = document.getElementById('serviceMapCoordinates');
+  const source = document.getElementById('serviceMapSource');
+  const locationStatus = document.getElementById('locationStatus');
+  const distance = document.getElementById('mapInfoDistance');
+  const duration = document.getElementById('mapInfoDuration');
+  const fare = document.getElementById('mapInfoFare');
+  const routeMethod = document.getElementById('serviceRouteMethod');
+  const fitButton = document.getElementById('fitServiceRouteBtn');
+  if (panel) panel.classList.remove('has-location');
+  if (selectionStatus) selectionStatus.textContent = 'Search required';
+  if (selectionAddress) selectionAddress.textContent = 'Press Enter or tap Search to pin this typed address.';
+  if (coordinates) coordinates.textContent = 'Not selected';
+  if (source) source.textContent = 'Typed address not yet pinned';
+  if (locationStatus) locationStatus.innerHTML = '<i class="bi bi-search me-1"></i>Press Enter or tap Search, then verify the map pin.';
+  if (distance) {
+    distance.textContent = '—';
+    delete distance.dataset.ready;
+  }
+  if (duration) duration.textContent = '—';
+  if (fare) fare.textContent = '—';
+  if (routeMethod) routeMethod.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Waiting for service pin';
+  if (fitButton) fitButton.disabled = true;
+  scheduleBookingProgressSave();
+}
+
+function applyAddressSearchResult(result, fallbackAddress, source) {
+  const lat = Number.parseFloat(result?.lat);
+  const lng = Number.parseFloat(result?.lon ?? result?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    showError('The selected address did not provide valid map coordinates. Please choose another result.');
+    return false;
+  }
+
+  const address = String(result?.display_name || fallbackAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`).trim();
+  const selectionToken = ++customerLocationRequestToken;
+  ++routeRequestToken;
+  const locationInput = document.getElementById('locationInput');
+  if (locationInput) {
+    locationInput.value = address;
+    locationInput.classList.add('is-valid');
+  }
+  BookingState.customerLocation = { address, lat, lng };
+  BookingState.location = address;
+  BookingState.userCoordinates = { lat, lng };
+  updateServiceMapSelectionUI(lat, lng, address, source || 'Address search result');
+  scheduleBookingProgressSave();
+
+  const renderWhenReady = (attempt = 0) => {
+    if (selectionToken !== customerLocationRequestToken) return;
+    if (!BookingState.map) {
+      if (attempt === 0) initializeMap();
+      if (attempt < 50) setTimeout(() => renderWhenReady(attempt + 1), 100);
+      else showError('Your address is saved, but the map is still loading. Please refresh if the pin does not appear.');
+      return;
+    }
+    BookingState.map.setView([lat, lng], 16);
+    const marker = setCustomerLocationMarker(lat, lng, address, source || 'Address search result');
+    if (marker) marker.openPopup();
+    if (BookingState.companyBaseCoordinates) drawRoute();
+    else setupCompanyBaseMarkerAfterMap();
+  };
+
+  Promise.resolve(window._companyBaseLocationPromise || window._companyBaseLocation)
+    .then(company => {
+      if (company && Number.isFinite(Number(company.lat)) && Number.isFinite(Number(company.lng))) {
+        BookingState.companyBaseCoordinates = { lat: Number(company.lat), lng: Number(company.lng) };
+        BookingState.companyBaseAddress = company.address || BookingState.companyBaseAddress || '';
+      }
+    })
+    .catch(() => undefined)
+    .finally(() => renderWhenReady());
+  return true;
 }
 
 /**

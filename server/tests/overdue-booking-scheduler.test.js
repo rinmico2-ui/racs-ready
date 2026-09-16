@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const BookingService = require("../models/BookingService");
 const {
@@ -31,6 +33,18 @@ test("delay notification is emitted once per scheduled occurrence", () => {
   assert.equal(shouldNotifyDelay({}, scheduled), true);
   assert.equal(shouldNotifyDelay({ delayNotifiedAt: new Date("2026-08-30T09:00:00.000Z") }, scheduled), true);
   assert.equal(shouldNotifyDelay({ delayNotifiedAt: new Date("2026-08-31T09:30:00.000Z") }, scheduled), false);
+});
+
+test("late technician monitoring has a real customer email contract", () => {
+  const scheduler = fs.readFileSync(path.join(__dirname, "../utils/overdueBookingScheduler.js"), "utf8");
+  const mailer = fs.readFileSync(path.join(__dirname, "../utils/mailer.js"), "utf8");
+  const mailerExports = require("../utils/mailer");
+  assert.match(scheduler, /await sendTechnicianLateEmail\(\{/);
+  assert.doesNotMatch(scheduler, /They are on their way/);
+  assert.match(mailer, /async function sendTechnicianLateEmail\(/);
+  assert.match(mailer, /source: 'booking_technician_late'/);
+  assert.match(mailer, /sendTechnicianLateEmail,/);
+  assert.equal(typeof mailerExports.sendTechnicianLateEmail, "function");
 });
 
 test("monitor projections include every lifecycle field used after querying", async () => {

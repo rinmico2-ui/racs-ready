@@ -17,6 +17,7 @@
     "import-holidays": "node server/scripts/importNagerHolidays.js",
     "migrate:inventory-classes": "node server/scripts/migrateInventoryClasses.js",
     "migrate:hvac-images": "node server/scripts/migrateHVACImagesToCloudinary.js",
+    "migrate:completion-proofs": "node server/scripts/migrateCompletionProofsToGridFS.js",
     "migrate:booking-service-items": "node server/scripts/migrateBookingServiceItems.js",
     "migrate:payroll-indexes": "node server/scripts/migratePayrollIndexes.js",
     "migrate:order-preparation": "node server/scripts/backfill-order-preparation.js",

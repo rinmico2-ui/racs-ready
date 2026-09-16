@@ -1747,6 +1747,8 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
  * GET /api/admin/appointments/:id
  * Get full booking details for admin view
  */
+router.get('/daily-kits', requireRole(['admin', 'secretary']), listDailyKits);
+
 router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const booking = await BookingService.findById(req.params.id)
@@ -2281,24 +2283,197 @@ router.get('/equipment-assignments', requireRole(['admin', 'secretary']), async 
 });
 
 /** Admin audit view of consolidated technician preparation. */
-router.get('/daily-kits', requireRole(['admin', 'secretary']), async (req, res) => {
+async function listDailyKits(req, res) {
   try {
     const DailyKit = require('../models/DailyKit');
-    const { date } = req.query;
-    const start = date ? new Date(`${date}T00:00:00`) : new Date();
-    if (Number.isNaN(start.getTime())) return res.status(400).json({ error: 'Invalid date' });
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start); end.setDate(end.getDate() + 1);
+    const Order = require('../models/Order');
+    const { dayBounds } = require('../utils/dailyKitService');
+    const { parseCalendarDate } = require('../utils/calendarDateRange');
+    const date = String(req.query.date || '').trim();
+    const selectedDate = date ? parseCalendarDate(date) : new Date();
+    if (date && !selectedDate) {
+      return res.status(400).json({ error: 'Date must be a valid YYYY-MM-DD value' });
+    }
+    const { start, end } = dayBounds(selectedDate);
     const kits = await DailyKit.find({ workDate: { $gte: start, $lt: end } })
-      .populate('technicianId', 'name')
-      .populate('items.bookingIds', 'bookingReference service services')
-      .sort({ status: 1 }).lean();
-    return res.json({ success: true, date: start, kits });
+      .populate('technicianId', 'name availabilityStatus')
+      .sort({ status: 1, createdAt: 1 })
+      .lean();
+
+    const uniqueIds = (values) => [...new Set(values.filter(Boolean).map(String))];
+    const bookingIds = uniqueIds(kits.flatMap(kit => [
+      ...(kit.bookingIds || []),
+      ...(kit.items || []).flatMap(item => item.bookingIds || []),
+      ...(kit.deltaItems || []).flatMap(item => item.bookingIds || []),
+    ]));
+    const orderIds = uniqueIds(kits.flatMap(kit => [
+      ...(kit.orderIds || []),
+      ...(kit.items || []).flatMap(item => item.orderIds || []),
+      ...(kit.deltaItems || []).flatMap(item => item.orderIds || []),
+    ]));
+    const kitIds = kits.map(kit => kit._id);
+
+    const [bookings, orders, custody, technicians] = await Promise.all([
+      BookingService.find({ _id: { $in: bookingIds } })
+        .select('bookingReference customer service services serviceType status bookingDate startTime')
+        .lean(),
+      Order.find({ _id: { $in: orderIds } })
+        .select('orderReference customer items fulfillmentType status delivery.preferredDate')
+        .lean(),
+      EquipmentAssignment.find({ dailyKitId: { $in: kitIds } })
+        .select('dailyKitId equipmentId equipmentName equipmentCode quantity consumable status checkedOutAt expectedReturnAt returnedAt condition damageDescription bookingId orderIds')
+        .lean(),
+      Technician.find({ active: { $ne: false }, archivedAt: null })
+        .select('name availabilityStatus')
+        .sort({ name: 1 })
+        .lean(),
+    ]);
+
+    const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
+    const orderMap = new Map(orders.map(order => [String(order._id), order]));
+    const custodyByKit = new Map();
+    for (const row of custody) {
+      const key = String(row.dailyKitId);
+      if (!custodyByKit.has(key)) custodyByKit.set(key, []);
+      custodyByKit.get(key).push(row);
+    }
+
+    const compactBooking = (id) => {
+      const booking = bookingMap.get(String(id));
+      if (!booking) return { id: String(id), type: 'booking', reference: `Booking ${String(id).slice(-6).toUpperCase()}`, label: 'Service booking' };
+      return {
+        id: String(booking._id),
+        type: 'booking',
+        reference: booking.bookingReference || `Booking ${String(booking._id).slice(-6).toUpperCase()}`,
+        label: booking.service?.name || booking.services?.[0]?.name || (booking.serviceType === 'repair' ? 'Repair service' : 'Service booking'),
+        customer: booking.customer?.name || 'Customer',
+        status: booking.status || '',
+        href: `/admin/appointments?sel=${booking._id}`,
+      };
+    };
+    const compactOrder = (id) => {
+      const order = orderMap.get(String(id));
+      if (!order) return { id: String(id), type: 'order', reference: `Order ${String(id).slice(-6).toUpperCase()}`, label: 'Installation order' };
+      const unitNames = uniqueIds((order.items || []).map(item => item.name)).slice(0, 2);
+      return {
+        id: String(order._id),
+        type: 'order',
+        reference: order.orderReference || `Order ${String(order._id).slice(-6).toUpperCase()}`,
+        label: unitNames.join(', ') || 'Installation order',
+        customer: order.customer?.name || 'Customer',
+        status: order.status || '',
+        href: `/admin/appointments/orders?order=${order._id}`,
+      };
+    };
+    const compactCustody = (row) => ({
+      id: String(row._id),
+      equipmentId: row.equipmentId ? String(row.equipmentId) : null,
+      name: row.equipmentName,
+      code: row.equipmentCode || '',
+      quantity: Number(row.quantity || 0),
+      consumable: Boolean(row.consumable),
+      status: row.status,
+      checkedOutAt: row.checkedOutAt || null,
+      expectedReturnAt: row.expectedReturnAt || null,
+      returnedAt: row.returnedAt || null,
+      condition: row.condition || '',
+      damageDescription: row.damageDescription || '',
+    });
+    const compactItem = (item, kitCustody, isDelta = false) => {
+      const itemAssignmentId = item.equipmentAssignmentId && String(item.equipmentAssignmentId);
+      const ledger = kitCustody.find(row => itemAssignmentId
+        ? String(row._id) === itemAssignmentId
+        : item.toolId && String(row.equipmentId) === String(item.toolId));
+      const jobs = [
+        ...(item.bookingIds || []).map(compactBooking),
+        ...(item.orderIds || []).map(compactOrder),
+      ];
+      return {
+        id: String(item._id),
+        name: item.name,
+        code: item.toolCode || ledger?.equipmentCode || '',
+        category: item.category,
+        source: item.source,
+        quantity: Number(item.quantity || 0),
+        unit: item.unit || 'pcs',
+        checkoutStatus: item.checkoutStatus,
+        quantityIssued: Number(item.quantityIssued || 0),
+        quantityUsed: Number(item.quantityUsed || 0),
+        quantityReturned: Number(item.quantityReturned || 0),
+        isDelta,
+        conflict: item.conflict || null,
+        resolution: item.resolution || null,
+        exception: item.exception || null,
+        custody: ledger ? compactCustody(ledger) : null,
+        jobs,
+      };
+    };
+
+    const payload = kits.map((kit) => {
+      const kitCustody = custodyByKit.get(String(kit._id)) || [];
+      const items = (kit.items || []).map(item => compactItem(item, kitCustody));
+      const deltaItems = (kit.deltaItems || []).map(item => compactItem(item, kitCustody, true));
+      const jobs = [
+        ...(kit.bookingIds || []).map(compactBooking),
+        ...(kit.orderIds || []).map(compactOrder),
+      ];
+      const unresolved = [...items, ...deltaItems].filter(item =>
+        item.checkoutStatus === 'unavailable'
+        && !item.exception?.approved
+        && (!item.resolution?.status || item.resolution.status === 'admin_notified'));
+      return {
+        id: String(kit._id),
+        workDate: kit.workDate,
+        status: kit.status,
+        hasDelta: Boolean(kit.hasDelta),
+        generatedAt: kit.generatedAt || null,
+        confirmedAt: kit.confirmedAt || null,
+        completedAt: kit.completedAt || null,
+        technician: kit.technicianId ? {
+          id: String(kit.technicianId._id),
+          name: kit.technicianId.name,
+          availabilityStatus: kit.technicianId.availabilityStatus || '',
+        } : null,
+        counts: {
+          equipment: items.filter(item => item.category === 'equipment').length,
+          consumables: items.filter(item => item.category === 'consumable').length,
+          repairParts: items.filter(item => item.category === 'repair_part').length,
+          jobs: uniqueIds(jobs.map(job => `${job.type}:${job.id}`)).length,
+          unresolved: unresolved.length,
+        },
+        jobs,
+        items,
+        deltaItems,
+        custody: kitCustody.map(compactCustody),
+      };
+    }).sort((a, b) => String(a.technician?.name || '').localeCompare(String(b.technician?.name || '')));
+
+    const allItems = payload.flatMap(kit => [...kit.items, ...kit.deltaItems]);
+    const summary = {
+      kits: payload.length,
+      ready: payload.filter(kit => ['confirmed', 'in_progress'].includes(kit.status) && !kit.hasDelta && kit.counts.unresolved === 0).length,
+      attention: payload.filter(kit => kit.hasDelta || kit.counts.unresolved > 0).length,
+      checkedOut: custody.filter(row => ['checked_out', 'in_use'].includes(row.status)).reduce((sum, row) => sum + Number(row.quantity || 0), 0),
+      issued: allItems.reduce((sum, item) => sum + Number(item.quantityIssued || 0), 0),
+      used: allItems.reduce((sum, item) => sum + Number(item.quantityUsed || 0), 0),
+    };
+
+    return res.json({
+      success: true,
+      date: start,
+      summary,
+      technicians: technicians.map(technician => ({
+        id: String(technician._id),
+        name: technician.name,
+        availabilityStatus: technician.availabilityStatus || '',
+      })),
+      kits: payload,
+    });
   } catch (error) {
     console.error('Error fetching daily kits:', error);
-    return res.status(500).json({ error: 'Failed to fetch daily kits' });
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to fetch daily kits' });
   }
-});
+}
 
 /**
  * GET /api/admin/appointments/equipment-bookings

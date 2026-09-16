@@ -1,4 +1,5 @@
 const fs = require("fs");
+const path = require("path");
 const { v2: cloudinary } = require("cloudinary");
 const {
   hasValidStoredImageSignature,
@@ -67,11 +68,22 @@ async function uploadProductImage(file, options = {}) {
   };
 }
 
-async function deleteProductImage(imagePublicId) {
-  if (!imagePublicId || !isCloudinaryConfigured()) return;
-  await cloudinary.uploader.destroy(String(imagePublicId), {
-    resource_type: "image",
-    invalidate: true,
+async function deleteProductImage(imagePublicId, imageUrl = "") {
+  if (imagePublicId && isCloudinaryConfigured()) {
+    await cloudinary.uploader.destroy(String(imagePublicId), {
+      resource_type: "image",
+      invalidate: true,
+    });
+    return;
+  }
+
+  const localMatch = String(imageUrl || "").match(/^\/uploads\/hvac\/([^/?#]+)$/);
+  if (!localMatch) return;
+  const uploadRoot = path.resolve(__dirname, "../public/uploads/hvac");
+  const imagePath = path.resolve(uploadRoot, path.basename(localMatch[1]));
+  if (path.dirname(imagePath) !== uploadRoot) return;
+  await fs.promises.unlink(imagePath).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
   });
 }
 

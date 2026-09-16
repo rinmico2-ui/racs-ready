@@ -10,6 +10,9 @@ const notificationModel = read('models/Notification.js');
 const tracking = read('views/pages/tracking.ejs');
 const adminApi = read('routes/adminApi.js');
 const appointmentRoutes = read('routes/appointmentRoutes.js');
+const technicianApi = read('routes/technicianApi.js');
+const completionProofStorage = read('utils/completionProofStorage.js');
+const bookingModel = read('models/BookingService.js');
 
 test('expired assignment creates a durable customer notification and email', () => {
   assert.match(notificationModel, /"booking_assignment_delayed"/);
@@ -49,9 +52,22 @@ test('customer rating modal previews completion photos inside the application', 
 
 test('completion photos are streamed from an authorized booking endpoint', () => {
   assert.match(appointmentRoutes, /router\.get\("\/:id\/completion-photo"/);
-  assert.match(appointmentRoutes, /\.select\("customerId technicianId proofPhoto"\)/);
+  assert.match(appointmentRoutes, /\.select\("customerId technicianId proofPhoto \+completionProofFileId"\)/);
   assert.match(appointmentRoutes, /canAccessBooking\(req\.user, booking\)/);
+  assert.match(appointmentRoutes, /findCompletionProof\(booking\.completionProofFileId\)/);
+  assert.match(appointmentRoutes, /openCompletionProofDownload\(booking\.completionProofFileId\)/);
   assert.match(appointmentRoutes, /completion-proofs\|proofs/);
   assert.match(appointmentRoutes, /fs\.promises\.stat\(absolutePhotoPath\)/);
   assert.match(appointmentRoutes, /res\.sendFile\(absolutePhotoPath/);
+});
+
+test('new completion photos use persistent GridFS storage', () => {
+  assert.match(completionProofStorage, /new mongoose\.mongo\.GridFSBucket/);
+  assert.match(completionProofStorage, /bucketName: BUCKET_NAME/);
+  assert.match(completionProofStorage, /imageMimeFromSignature\(file\.buffer\)/);
+  assert.match(technicianApi, /storage: multer\.memoryStorage\(\)/);
+  assert.match(technicianApi, /storeCompletionProof\(req\.file/);
+  assert.match(technicianApi, /completionProofFileId: storedProof\.fileId/);
+  assert.match(technicianApi, /`\/api\/appointments\/\$\{assignment\.bookingId\}\/completion-photo`/);
+  assert.match(bookingModel, /completionProofFileId:[\s\S]*select: false/);
 });

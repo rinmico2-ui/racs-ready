@@ -286,6 +286,11 @@ const bookingSchema = new mongoose.Schema({
 
   // technician proof-of-completion photo (uploaded when job is marked completed)
   proofPhoto: { type: String },
+  completionProofFileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    select: false,
+  },
 
   bookingDate: { type: Date, required: true },
   startTime: { type: String },
@@ -752,7 +757,7 @@ const bookingSchema = new mongoose.Schema({
   // Legacy payment-plan field. `cod` means a GCash reservation downpayment
   // followed by balance collection at completion; Payment.method records the
   // actual channel used for each transaction.
-  paymentMethod: { type: String, enum: ["cod", "gcash", "other"], default: "cod" },
+  paymentMethod: { type: String, enum: ["cod", "gcash", "card", "other"], default: "cod" },
 
   // downpayment / proof information (customer-submitted when booking)
   gcashNumber: { type: String }, // raw mobile number entered by customer (optional reference)
@@ -831,7 +836,7 @@ const bookingSchema = new mongoose.Schema({
 
   // legacy fields kept for backwards compatibility
   paymentProof: { type: String }, // base64 data URL or URL to uploaded proof image
-  gateway: { type: String, enum: ["gcash", "cod", "other"] },
+  gateway: { type: String, enum: ["gcash", "cod", "paymongo", "other"] },
   gatewayId: String,
   gatewayStatus: String,
 

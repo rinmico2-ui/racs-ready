@@ -944,6 +944,66 @@ async function sendBookingAssignmentDelayedEmail({
 }
 
 // ─── Technician Declined Email ────────────────────────────────────────────────
+// Customer notice for an accepted/confirmed booking whose technician has not
+// departed after the operational grace period. This is distinct from an
+// assignment failure: the booking remains active and confirmed.
+async function sendTechnicianLateEmail({
+  to,
+  customerName,
+  bookingReference,
+  techName,
+  serviceName,
+  dateLabel,
+  timeLabel,
+  delayMinutes,
+}) {
+  if (!to) return false;
+  const escapeHtml = (value) => String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+  const safeReference = escapeHtml(bookingReference || 'Appointment');
+  const safeCustomer = escapeHtml(customerName || 'Customer');
+  const safeTechnician = escapeHtml(techName || 'Assigned technician');
+  const safeService = escapeHtml(serviceName || 'Service');
+  const safeDate = escapeHtml(dateLabel || 'See your booking');
+  const safeTime = escapeHtml(timeLabel || 'See your booking');
+  const minutes = Math.max(0, Math.round(Number(delayMinutes) || 0));
+  const trackingUrl = `${process.env.APP_BASE_URL || ''}/tracking`;
+  const subject = `Technician Delay Update - ${bookingReference || 'Appointment'} | CALIDRO RACS`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">${premiumStyles('#f59e0b','#d97706')}</head><body>
+<div class="wrap">
+  <div class="header"><h1>Technician Departure Delayed</h1><div class="ref-badge">${safeReference}</div></div>
+  <div class="body">
+    <p style="margin-top:0;font-size:16px;color:#1e293b;">Hi <strong>${safeCustomer}</strong>,</p>
+    <p style="color:#475569;line-height:1.65;">Your technician, <strong>${safeTechnician}</strong>, has not departed for your appointment yet. The CALIDRO RACS operations team has been alerted and is following up.</p>
+    <div class="status-pill" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;">Departure delayed by ${minutes} minute${minutes === 1 ? '' : 's'}</div>
+    <div class="section-title">Appointment Details</div>
+    <table>
+      <tr class="detail-row"><td>Reference</td><td style="font-weight:700;">${safeReference}</td></tr>
+      <tr class="detail-row"><td>Service</td><td>${safeService}</td></tr>
+      <tr class="detail-row"><td>Date</td><td>${safeDate}</td></tr>
+      <tr class="detail-row"><td>Scheduled time</td><td>${safeTime}</td></tr>
+      <tr class="detail-row"><td>Technician</td><td>${safeTechnician}</td></tr>
+    </table>
+    <div class="note-box" style="margin-top:20px;"><strong>Your booking remains active.</strong> You do not need to create another booking or make another payment.</div>
+    <p style="color:#475569;font-size:13px;line-height:1.6;margin-top:20px;">Please check tracking for the latest verified status. We will notify you when the technician departs or if the schedule needs to change.</p>
+    <a href="${escapeHtml(trackingUrl)}" class="btn" style="background:#f59e0b;">View Live Booking Status</a>
+  </div>
+  ${premiumFooter()}
+</div></body></html>`;
+  const text = `Hi ${customerName || 'Customer'},\n\nYour technician, ${techName || 'the assigned technician'}, has not departed for appointment ${bookingReference || ''} yet. The CALIDRO RACS operations team has been alerted.\n\nService: ${serviceName || 'Service'}\nDate: ${dateLabel || 'See your booking'}\nScheduled time: ${timeLabel || 'See your booking'}\nDelay: ${minutes} minute${minutes === 1 ? '' : 's'}\n\nYour booking remains active. View the latest verified status: ${trackingUrl}`;
+  return sendMail({
+    to,
+    subject,
+    html,
+    text,
+    source: 'booking_technician_late',
+  });
+}
+
 async function sendTechnicianDeclinedEmail({ to, customerName, bookingReference, serviceName, reason }) {
   if (!to) return false;
   const subject = `Booking Update – ${bookingReference} | CALIDRO RACS`;
@@ -1479,6 +1539,7 @@ module.exports = {
   sendBookingAcceptedEmail,
   sendBookingExpiredEmail,
   sendBookingAssignmentDelayedEmail,
+  sendTechnicianLateEmail,
   sendTechnicianDeclinedEmail,
   sendTechnicianArrivedEmail,
   sendWorkStartedEmail,

@@ -3,8 +3,8 @@ const axios = require("axios");
 // Existing delivery-only orders remain readable, but new checkouts must end
 // in either professional installation or an explicit store pickup.
 const FULFILLMENT_TYPES = new Set(["delivery_installation", "customer_pickup"]);
-const DELIVERY_PAYMENT_METHODS = new Set(["cod", "gcash_full"]);
-const PICKUP_PAYMENT_METHODS = new Set(["cash_onsite", "gcash_full"]);
+const DELIVERY_PAYMENT_METHODS = new Set(["card", "cod", "gcash_full"]);
+const PICKUP_PAYMENT_METHODS = new Set(["card", "cash_onsite", "gcash_full"]);
 const MAX_CHECKOUT_LINE_ITEMS = 50;
 const MAX_CHECKOUT_UNITS = 40;
 

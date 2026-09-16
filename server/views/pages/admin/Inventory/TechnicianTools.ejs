@@ -1,0 +1,110 @@
+<link rel="stylesheet" href="/css/technician-tools-admin.css?v=20260915">
+
+<div class="tta-page">
+  <section class="tta-hero">
+    <div class="tta-hero-copy">
+      <span class="tta-eyebrow"><i class="bi bi-shield-check"></i> Inventory accountability</span>
+      <h1>Technician Tools</h1>
+      <p>Review every technician's Daily Kit, job coverage, issued materials, equipment custody, and preparation blockers.</p>
+    </div>
+    <div class="tta-hero-actions">
+      <a class="btn btn-outline-light" href="/admin/inventory/equipment-returns"><i class="bi bi-arrow-return-left"></i> Returns queue</a>
+      <button class="btn btn-light" id="ttaRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </div>
+  </section>
+
+  <section class="tta-metrics" aria-label="Technician tool summary">
+    <button class="tta-metric" data-quick-filter="all" type="button">
+      <span class="tta-metric-icon tta-blue"><i class="bi bi-briefcase"></i></span>
+      <span><strong id="ttaKitCount">—</strong><small>Daily Kits</small></span>
+    </button>
+    <button class="tta-metric" data-quick-filter="ready" type="button">
+      <span class="tta-metric-icon tta-green"><i class="bi bi-check2-circle"></i></span>
+      <span><strong id="ttaReadyCount">—</strong><small>Ready to deploy</small></span>
+    </button>
+    <button class="tta-metric" data-quick-filter="attention" type="button">
+      <span class="tta-metric-icon tta-amber"><i class="bi bi-exclamation-triangle"></i></span>
+      <span><strong id="ttaAttentionCount">—</strong><small>Needs attention</small></span>
+    </button>
+    <button class="tta-metric" data-quick-filter="custody" type="button">
+      <span class="tta-metric-icon tta-violet"><i class="bi bi-box-arrow-right"></i></span>
+      <span><strong id="ttaCustodyCount">—</strong><small>Items in custody</small></span>
+    </button>
+    <div class="tta-metric">
+      <span class="tta-metric-icon tta-cyan"><i class="bi bi-droplet-half"></i></span>
+      <span><strong id="ttaUsageCount">—</strong><small>Consumables used</small></span>
+    </div>
+  </section>
+
+  <section class="tta-panel">
+    <div class="tta-toolbar">
+      <label class="tta-control tta-date-control">
+        <span>Work date</span>
+        <input class="form-control" id="ttaDate" type="date">
+      </label>
+      <label class="tta-control">
+        <span>Technician</span>
+        <select class="form-select" id="ttaTechnician"><option value="all">All technicians</option></select>
+      </label>
+      <label class="tta-control">
+        <span>Preparation</span>
+        <select class="form-select" id="ttaStatus">
+          <option value="all">All preparation states</option>
+          <option value="ready">Ready to deploy</option>
+          <option value="attention">Needs attention</option>
+          <option value="pending">Pending preparation</option>
+          <option value="custody">Has active custody</option>
+          <option value="completed">Completed</option>
+        </select>
+      </label>
+      <label class="tta-control tta-search-control">
+        <span>Search</span>
+        <span class="tta-search"><i class="bi bi-search"></i><input class="form-control" id="ttaSearch" type="search" placeholder="Technician, item, code, booking, or order" autocomplete="off"></span>
+      </label>
+    </div>
+
+    <div class="tta-context-row">
+      <div id="ttaResultContext" class="tta-result-context" aria-live="polite">Loading technician preparation…</div>
+      <div class="tta-legend" aria-label="Status legend">
+        <span><i class="tta-dot tta-dot-ready"></i> Ready</span>
+        <span><i class="tta-dot tta-dot-pending"></i> Pending</span>
+        <span><i class="tta-dot tta-dot-blocked"></i> Attention</span>
+      </div>
+    </div>
+
+    <div id="ttaAlert" class="tta-alert" role="alert"></div>
+    <div id="ttaLoading" class="tta-loading">
+      <span class="spinner-border text-primary" aria-hidden="true"></span>
+      <strong>Loading Daily Kits…</strong>
+    </div>
+    <div id="ttaEmpty" class="tta-empty" hidden>
+      <span class="tta-empty-icon"><i class="bi bi-briefcase"></i></span>
+      <h2>No Daily Kits found</h2>
+      <p>No technician preparation matches this date and the selected filters.</p>
+      <button class="btn btn-outline-primary" id="ttaClearFilters" type="button">Clear filters</button>
+    </div>
+    <div id="ttaGrid" class="tta-grid" aria-live="polite"></div>
+  </section>
+</div>
+
+<div class="modal fade" id="ttaDetailModal" tabindex="-1" aria-labelledby="ttaDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content tta-modal-content">
+      <div class="modal-header tta-modal-header">
+        <div>
+          <span class="tta-modal-eyebrow">Daily Preparation</span>
+          <h5 class="modal-title" id="ttaDetailTitle">Technician Daily Kit</h5>
+          <div class="tta-modal-subtitle" id="ttaDetailSubtitle"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body tta-modal-body" id="ttaDetailBody"></div>
+      <div class="modal-footer tta-modal-footer">
+        <a class="btn btn-outline-secondary" href="/admin/inventory/equipment-returns"><i class="bi bi-arrow-return-left"></i> Manage returns</a>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/technician-tools-admin.js?v=20260915" defer></script>
