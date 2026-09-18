@@ -1,10 +1,11 @@
 const axios = require("axios");
+const { manilaDateKey } = require("./bookingDateTime");
 
 // Existing delivery-only orders remain readable, but new checkouts must end
 // in either professional installation or an explicit store pickup.
 const FULFILLMENT_TYPES = new Set(["delivery_installation", "customer_pickup"]);
-const DELIVERY_PAYMENT_METHODS = new Set(["card", "cod", "gcash_full"]);
-const PICKUP_PAYMENT_METHODS = new Set(["card", "cash_onsite", "gcash_full"]);
+const DELIVERY_PAYMENT_METHODS = new Set(["cod", "gcash_full"]);
+const PICKUP_PAYMENT_METHODS = new Set(["cash_onsite", "gcash_full"]);
 const MAX_CHECKOUT_LINE_ITEMS = 50;
 const MAX_CHECKOUT_UNITS = 40;
 
@@ -33,8 +34,8 @@ function parseDateOnly(value) {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
   return date;
 }
 
@@ -85,9 +86,7 @@ function validateCheckoutItems(items) {
 
 function isFutureBusinessDate(date, now = new Date()) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  return date.getTime() > today.getTime();
+  return manilaDateKey(date) > manilaDateKey(now);
 }
 
 function normalizeStoreHours(value) {
@@ -106,7 +105,7 @@ function validatePickupDate(value, storeHours, now = new Date()) {
     throw new OrderCheckoutError("Choose a valid future pickup date.", 400, "ORDER_PICKUP_DATE_INVALID");
   }
   const hours = normalizeStoreHours(storeHours);
-  const day = hours.find(row => row.dayOfWeek === date.getDay());
+  const day = hours.find(row => row.dayOfWeek === date.getUTCDay());
   if (!day?.open || day.endMinutes <= day.startMinutes) {
     throw new OrderCheckoutError("The store is closed on the selected pickup date.", 409, "ORDER_PICKUP_STORE_CLOSED");
   }

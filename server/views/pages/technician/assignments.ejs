@@ -15957,8 +15957,14 @@ function preparationEscapeHtml(value) {
     document.getElementById('inspPayAddress').textContent = address ? (address.length > 50 ? address.substring(0, 50) + '...' : address) : '—';
 
     // Show booking payment method
-    const methodLabels = { cod: 'GCash downpayment + balance at completion', cash: 'Cash', cash_onsite: 'Cash at store pickup', gcash: 'Full payment via GCash', maya: 'Maya', bank_transfer: 'Bank Transfer' };
-    document.getElementById('inspPayBookingMethod').textContent = methodLabels[paymentMethod] || paymentMethod;
+    const paymentChannel = booking.paymentChannel || assignment?.paymentChannel || 'gcash';
+    const paymentChannelName = ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[paymentChannel] || 'selected method';
+    const methodLabels = { cash: 'Cash', cash_onsite: 'Cash at store pickup', maya: 'Maya', bank_transfer: 'Bank Transfer' };
+    document.getElementById('inspPayBookingMethod').textContent = paymentMethod === 'cod'
+      ? `Downpayment via ${paymentChannelName} + balance at completion`
+      : paymentMethod === 'gcash'
+        ? `Full payment via ${paymentChannelName}`
+        : (methodLabels[paymentMethod] || paymentMethod);
 
     // Show findings summary
     const findingsBox = document.getElementById('inspPayFindingsBox');

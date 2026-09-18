@@ -95,6 +95,9 @@ function saveBookingProgress() {
       paymentMethod: ['gcash', 'cod'].includes(BookingState.paymentMethod)
         ? BookingState.paymentMethod
         : null,
+      paymentChannel: ['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)
+        ? BookingState.paymentChannel
+        : null,
       currentStep: normalizeBookingStep(BookingState.currentStep, 1),
       maxReachedStep: normalizeBookingStep(BookingState.maxReachedStep, 1),
       savedAt: Date.now()
@@ -156,6 +159,9 @@ function restoreBookingProgress() {
       BookingState.isProject = data.isProject === true;
       BookingState.paymentMethod = ['gcash', 'cod'].includes(data.paymentMethod)
         ? data.paymentMethod
+        : null;
+      BookingState.paymentChannel = ['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(data.paymentChannel)
+        ? data.paymentChannel
         : null;
       BookingState.currentStep = normalizeBookingStep(data.currentStep || data.maxReachedStep, 1);
       BookingState.maxReachedStep = Math.max(
@@ -238,6 +244,16 @@ function restoreBookingProgressUI() {
   if (typeof displayTotalFee === 'function') displayTotalFee();
   if (typeof updateReviewContent === 'function') updateReviewContent();
   if (typeof updatePaymentAmounts === 'function') updatePaymentAmounts();
+
+  if (BookingState.currentStep >= 6 && BookingState.paymentMethod) {
+    if (typeof window.selectPaymentMethod === 'function') {
+      window.selectPaymentMethod(BookingState.paymentMethod);
+    }
+    if (BookingState.paymentChannel && typeof window.selectBookingPaymentChannel === 'function') {
+      window.selectBookingPaymentChannel(BookingState.paymentChannel);
+    }
+    document.getElementById('bookingPaymentRestoreNotice')?.classList.remove('d-none');
+  }
 }
 
 function clearBookingProgress() {
@@ -255,6 +271,11 @@ window.addEventListener('pagehide', saveBookingProgress);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveBookingProgress();
 });
+window.addEventListener('pageshow', event => {
+  if (!event.persisted || BookingState.currentStep < 6 || !BookingState.paymentMethod) return;
+  restoreBookingProgressUI();
+  document.getElementById('bookingPaymentRestoreNotice')?.classList.remove('d-none');
+});
 
 // Auto-save on step changes
 const _origShowStep = typeof showStep === 'function' ? showStep : null;
@@ -268,8 +289,21 @@ fetch('/api/services/payment-policy')
   .then(response => response.ok ? response.json() : Promise.reject(new Error('Payment policy unavailable')))
   .then(data => {
     const percentage = Number(data.downpaymentPercentage);
+    window.paymentMethodsConfig = data.methods || {};
+    document.querySelectorAll('#bookingPaymentChannelSection .payment-channel-card').forEach(button => {
+      const method = window.paymentMethodsConfig[button.dataset.channel];
+      if (!method) return;
+      button.disabled = method.available !== true;
+      button.title = button.disabled ? `${method.label || 'This method'} is not currently available.` : '';
+      if (method.label && button.dataset.channel === 'other') button.textContent = method.label;
+    });
     if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
       window.adminGcashNumber = String(data.gcashNumber || '');
+      const gcashChannelButton = document.querySelector('#bookingPaymentChannelSection [data-channel="gcash"]');
+      if (gcashChannelButton) {
+        gcashChannelButton.disabled = !window.adminGcashNumber;
+        gcashChannelButton.title = gcashChannelButton.disabled ? 'GCash receiving details are not configured.' : '';
+      }
     }
     if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
       BookingState.downpaymentPercentage = percentage;
@@ -10900,6 +10934,17 @@ function initializePaymentStep() {
     });
   });
 
+  document.querySelectorAll('#bookingPaymentChannelSection .payment-channel-card').forEach(button => {
+    const methodConfig = window.paymentMethodsConfig?.[button.dataset.channel];
+    if ((methodConfig && methodConfig.available !== true) || (!methodConfig && button.dataset.channel === 'gcash' && !String(window.adminGcashNumber || '').trim())) {
+      button.disabled = true;
+      button.title = `${paymentChannelLabel(button.dataset.channel)} is not currently available.`;
+    }
+    if (button.dataset.paymentChannelBound === 'true') return;
+    button.dataset.paymentChannelBound = 'true';
+    button.addEventListener('click', () => selectBookingPaymentChannel(button.dataset.channel));
+  });
+
   // Confirm booking button
   if (confirmBookingBtn && confirmBookingBtn.dataset.paymentSubmitBound !== 'true') {
     confirmBookingBtn.dataset.paymentSubmitBound = 'true';
@@ -10908,6 +10953,7 @@ function initializePaymentStep() {
 
   if (BookingState.paymentMethod && typeof window.selectPaymentMethod === 'function') {
     window.selectPaymentMethod(BookingState.paymentMethod);
+    if (BookingState.paymentChannel) selectBookingPaymentChannel(BookingState.paymentChannel);
   } else {
     if (gcashFields) gcashFields.classList.add('d-none');
     if (cashFields) cashFields.classList.add('d-none');
@@ -10956,7 +11002,7 @@ function updatePaymentAmounts() {
       cashBreakdown.style.display = 'block';
     }
   }
-  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via GCash now to secure your schedule. Settle the remaining balance at service completion using an accepted on-site payment method.`;
+  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via ${paymentChannelLabel(BookingState.paymentChannel)} now to reserve your schedule. This amount is deducted from the total; settle the remaining balance at service completion.`;
   if (cashDownLabel) cashDownLabel.textContent = `Downpayment now (${BookingState.downpaymentPercentage || 10}%)`;
 }
 
@@ -10965,12 +11011,80 @@ function isValidPhilippineMobile(value) {
   return /^(?:09\d{9}|639\d{9})$/.test(digits);
 }
 
+function paymentChannelLabel(channel) {
+  const configured = window.paymentMethodsConfig?.[channel]?.label;
+  return configured || ({ card: 'Credit / Debit Card', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+}
+
+function selectBookingPaymentChannel(channel) {
+  const allowed = ['card', 'gcash', 'maya', 'bank_transfer', 'other'];
+  if (!allowed.includes(channel)) return;
+  const configuredMethod = window.paymentMethodsConfig?.[channel];
+  if (configuredMethod && configuredMethod.available !== true) return;
+  if (!configuredMethod && channel === 'gcash' && !String(window.adminGcashNumber || '').trim()) return;
+
+  const previousChannel = BookingState.paymentChannel;
+  BookingState.paymentChannel = channel;
+  const hidden = document.getElementById('bookingPaymentChannel');
+  if (hidden) hidden.value = channel;
+  document.querySelectorAll('#bookingPaymentChannelSection .payment-channel-card').forEach(button => {
+    const selected = button.dataset.channel === channel;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+
+  const label = paymentChannelLabel(channel);
+  const isGcash = channel === 'gcash';
+  const isCard = channel === 'card';
+  const help = document.getElementById('bookingChannelHelp');
+  if (help) help.textContent = isCard
+    ? 'Pay by credit or debit card at the RACS store before service. No card details are collected online.'
+    : isGcash
+    ? 'Send to the displayed GCash number, then upload your receipt.'
+    : `${configuredMethod?.accountName ? `${configuredMethod.accountName} · ` : ''}${configuredMethod?.accountNumber || `Use the ${label} receiving details`}. Enter the transaction reference and upload your receipt.`;
+  document.getElementById('fullPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
+  document.getElementById('depositPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
+  const plan = BookingState.paymentMethod;
+  document.getElementById('gcashFields')?.classList.toggle('d-none', isCard || plan !== 'gcash');
+  document.getElementById('cashFields')?.classList.toggle('d-none', isCard || plan !== 'cod');
+  document.getElementById('bookingCardCheckoutNotice')?.classList.toggle('d-none', !isCard);
+
+  [
+    { input: 'gcashNumber', label: 'fullPaymentReferenceLabel', help: 'fullPaymentReferenceHelp' },
+    { input: 'cashNumber', label: 'depositPaymentReferenceLabel', help: 'depositPaymentReferenceHelp' },
+  ].forEach(config => {
+    const input = document.getElementById(config.input);
+    const labelNode = document.getElementById(config.label);
+    const helpNode = document.getElementById(config.help);
+    if (labelNode) labelNode.innerHTML = `${isGcash ? 'GCash sender number' : `${label} transaction reference`} <span class="text-danger">*</span>`;
+    if (helpNode) helpNode.textContent = isGcash
+      ? 'Enter the mobile number used to send the payment.'
+      : 'Enter the transaction or reference number shown on your receipt.';
+    if (input) {
+      if (previousChannel && previousChannel !== channel) input.value = '';
+      input.placeholder = isGcash ? '09XXXXXXXXX' : 'Transaction or reference number';
+      input.inputMode = isGcash ? 'tel' : 'text';
+      input.autocomplete = isGcash ? 'tel' : 'off';
+    }
+  });
+  const fullTitle = document.getElementById('fullPaymentPanelTitle');
+  const fullHeading = document.getElementById('fullPaymentHeading');
+  const depositTitle = document.getElementById('depositPaymentPanelTitle');
+  if (fullTitle) fullTitle.innerHTML = `<i class="bi bi-credit-card text-success"></i>Full Payment via ${label}`;
+  if (fullHeading) fullHeading.textContent = `Full Payment via ${label}`;
+  if (depositTitle) depositTitle.innerHTML = `<i class="bi bi-wallet2 text-warning"></i>Downpayment via ${label}`;
+  updatePaymentAmounts();
+  saveBookingProgress();
+}
+window.selectBookingPaymentChannel = selectBookingPaymentChannel;
+window.paymentChannelLabel = paymentChannelLabel;
+
 function paymentProofValidationMessage(file) {
-  if (!file) return 'Upload the GCash receipt before continuing.';
+  if (!file) return 'Upload the payment receipt before continuing.';
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(file.type || '').toLowerCase())) {
-    return 'The GCash receipt must be a JPG, PNG, or WEBP image.';
+    return 'The payment receipt must be a JPG, PNG, or WEBP image.';
   }
-  if (file.size > 5 * 1024 * 1024) return 'The GCash receipt must be 5 MB or smaller.';
+  if (file.size > 5 * 1024 * 1024) return 'The payment receipt must be 5 MB or smaller.';
   return '';
 }
 
@@ -11000,6 +11114,17 @@ async function handleBookingSubmission() {
     const validationResult = validateBookingData();
     if (!validationResult.valid) {
       throw new Error(validationResult.error);
+    }
+
+    const projectSchedule = isLargeScaleSelection()
+      || (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode())
+      || BookingState.isProject === true
+      || !!BookingState.projectScheduling;
+    if (!projectSchedule && typeof EnterpriseCalendar.validateSelectedSlot === 'function') {
+      const stillAvailable = await EnterpriseCalendar.validateSelectedSlot();
+      if (!stillAvailable) {
+        throw new Error('That Philippine time slot has passed or was just reserved. Please return to Schedule and choose another available time.');
+      }
     }
 
     // Show car loading animation
@@ -11211,26 +11336,39 @@ function validateBookingData() {
   if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
     return { valid: false, error: 'Please select a payment option' };
   }
+  const paymentChannel = BookingState.paymentChannel;
+  if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
+    return { valid: false, error: 'Please select how you will send the payment.' };
+  }
+  if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
+    return { valid: false, error: 'That payment method is currently unavailable. Please choose another method.' };
+  }
 
   // Validate payment fields
-  if (BookingState.paymentMethod === 'gcash') {
+  if (BookingState.paymentMethod === 'gcash' && paymentChannel !== 'card') {
     const gcashNumber = document.getElementById('gcashNumber')?.value?.trim();
     const gcashProof = document.getElementById('gcashProof')?.files[0];
 
-    if (!String(window.adminGcashNumber || '').trim()) {
+    if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
       return { valid: false, error: 'Online payment is not configured. Please contact the store before continuing.' };
     }
-    if (!isValidPhilippineMobile(gcashNumber)) {
+    if (paymentChannel === 'gcash' && !isValidPhilippineMobile(gcashNumber)) {
       return { valid: false, error: 'Enter the Philippine mobile number used to send the GCash payment.' };
+    }
+    if (paymentChannel !== 'gcash' && String(gcashNumber || '').length < 3) {
+      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.' };
     }
     const proofError = paymentProofValidationMessage(gcashProof);
     if (proofError) return { valid: false, error: proofError };
-  } else if (BookingState.paymentMethod === 'cod') {
+  } else if (BookingState.paymentMethod === 'cod' && paymentChannel !== 'card') {
     const cashNumber = document.getElementById('cashNumber')?.value?.trim();
     const cashProof = document.getElementById('cashProof')?.files[0];
 
-    if (!isValidPhilippineMobile(cashNumber)) {
-      return { valid: false, error: 'Enter your mobile number for the downpayment.' };
+    if (paymentChannel === 'gcash' && !isValidPhilippineMobile(cashNumber)) {
+      return { valid: false, error: 'Enter the Philippine mobile number used for the GCash downpayment.' };
+    }
+    if (paymentChannel !== 'gcash' && String(cashNumber || '').length < 3) {
+      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.' };
     }
     const proofError = paymentProofValidationMessage(cashProof);
     if (proofError) return { valid: false, error: proofError };
@@ -11336,6 +11474,7 @@ async function prepareBookingData() {
 
     // Payment
     paymentMethod: BookingState.paymentMethod,
+    paymentChannel: BookingState.paymentChannel,
     paymentStatus: 'pending',
     status: 'pending'
   };
@@ -11369,8 +11508,10 @@ async function prepareBookingData() {
   }
 
   // Add payment-specific fields
-  if (BookingState.paymentMethod === 'gcash') {
-    bookingData.gcashNumber = document.getElementById('gcashNumber')?.value;
+  if (BookingState.paymentMethod === 'gcash' && BookingState.paymentChannel !== 'card') {
+    const paymentReference = document.getElementById('gcashNumber')?.value;
+    bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
+    bookingData.paymentReference = paymentReference;
 
     // Process file upload dynamically
     const proofFile = document.getElementById('gcashProof')?.files[0];
@@ -11381,8 +11522,10 @@ async function prepareBookingData() {
         console.error("Failed to parse proof image:", e);
       }
     }
-  } else if (BookingState.paymentMethod === 'cod') {
-    bookingData.gcashNumber = document.getElementById('cashNumber')?.value;
+  } else if (BookingState.paymentMethod === 'cod' && BookingState.paymentChannel !== 'card') {
+    const paymentReference = document.getElementById('cashNumber')?.value;
+    bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
+    bookingData.paymentReference = paymentReference;
     bookingData.paymentNotes = document.getElementById('cashNotes')?.value;
 
     // Process Cash proof file upload
@@ -11486,9 +11629,10 @@ function showBookingSuccessModal(result) {
   if (time) time.textContent = BookingState.selectedTimeSlot?.label || 'Time';
   if (location) location.textContent = BookingState.customerLocation?.address || 'Location';
   if (paymentMethod) {
+    const channelLabel = paymentChannelLabel(BookingState.paymentChannel);
     paymentMethod.textContent = BookingState.paymentMethod === 'gcash'
-      ? 'Current amount paid in full via GCash'
-      : `${BookingState.downpaymentPercentage || 10}% GCash downpayment; balance due at completion`;
+      ? `Full payment via ${channelLabel}`
+      : `${BookingState.downpaymentPercentage || 10}% downpayment via ${channelLabel}; balance due at completion`;
   }
 
   // Show payment breakdown

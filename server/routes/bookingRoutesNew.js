@@ -11,7 +11,14 @@ const RepairService = require('../models/RepairService');
 const { createNotification } = require('../utils/notify');
 const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
 const audit = require('../utils/audit');
-const { getDownpaymentPercentage, getGcashRecipientNumber, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
+const {
+  getDownpaymentPercentage,
+  getGcashRecipientNumber,
+  calculatePaymentBreakdown,
+  normalizePaymentChannel,
+  paymentRecordMethod,
+  getPaymentMethods,
+} = require('../utils/paymentPolicy');
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
@@ -50,6 +57,7 @@ router.post('/create-new', async (req, res) => {
       startTime,
       endTime,
       paymentMethod,
+      paymentChannel,
       paymentReference,
       downpaymentAmount: _clientDownpaymentAmount,
       paymentNotes,
@@ -117,16 +125,27 @@ router.post('/create-new', async (req, res) => {
     if (!['gcash', 'cod'].includes(bookingPaymentMethod)) {
       return res.status(400).json({ error: 'Choose a supported payment option.' });
     }
-    if (!(await getGcashRecipientNumber())) {
-      return res.status(503).json({ error: 'GCash checkout is temporarily unavailable. Please contact the store.' });
+    const normalizedPaymentChannel = normalizePaymentChannel(paymentChannel);
+    if (!normalizedPaymentChannel) {
+      return res.status(400).json({ error: 'Choose a supported payment method.' });
+    }
+    const configuredPaymentMethods = await getPaymentMethods();
+    if (!configuredPaymentMethods[normalizedPaymentChannel]?.available) {
+      return res.status(503).json({ error: 'That payment method is currently unavailable. Choose another method or contact the store.' });
     }
     const senderDigits = String(gcashNumber || '').replace(/\D/g, '');
-    if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
+    if (normalizedPaymentChannel === 'gcash' && !/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
       return res.status(400).json({ error: 'Enter the Philippine mobile number used for the GCash payment.' });
     }
-    const normalizedGcashNumber = senderDigits.startsWith('63') ? `0${senderDigits.slice(2)}` : senderDigits;
-    if (!hasValidImageDataUrl(proofImageBase64)) {
-      return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP GCash receipt no larger than 5 MB.' });
+    const normalizedGcashNumber = normalizedPaymentChannel === 'gcash'
+      ? (senderDigits.startsWith('63') ? `0${senderDigits.slice(2)}` : senderDigits)
+      : null;
+    const normalizedPaymentReference = String(paymentReference || '').trim().slice(0, 120);
+    if (!['gcash', 'card'].includes(normalizedPaymentChannel) && normalizedPaymentReference.length < 3) {
+      return res.status(400).json({ error: 'Enter the transaction or payment reference for the selected payment method.' });
+    }
+    if (normalizedPaymentChannel !== 'card' && !hasValidImageDataUrl(proofImageBase64)) {
+      return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP payment receipt no larger than 5 MB.' });
     }
     
     // ========================================
@@ -470,8 +489,9 @@ router.post('/create-new', async (req, res) => {
 
       // Payment
       paymentMethod: bookingPaymentMethod,
+      paymentChannel: normalizedPaymentChannel,
       paymentStatus: 'pending',
-      paymentReference: null,
+      paymentReference: normalizedPaymentReference || normalizedGcashNumber,
       gcashNumber: normalizedGcashNumber,
       downpaymentPercentage: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentPercentage : 100,
       downpaymentAmount: bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal,
@@ -491,7 +511,7 @@ router.post('/create-new', async (req, res) => {
       } : undefined,
       
       // Legacy payment fields
-      gateway: 'gcash',
+      gateway: paymentRecordMethod(normalizedPaymentChannel),
       
       // Timestamps
       createdAt: new Date(),
@@ -586,18 +606,18 @@ router.post('/create-new', async (req, res) => {
       const Payment = require('../models/Payment');
 
       const paymentAmount = bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal;
-      // Both choices use a manual GCash transfer at booking time. "cod"
-      // describes how the remaining balance will be collected, not the deposit channel.
-      const paymentSchemaMethod = bookingPaymentMethod === 'cod' ? 'gcash' : bookingPaymentMethod;
+      const paymentSchemaMethod = paymentRecordMethod(normalizedPaymentChannel);
 
       const paymentDoc = new Payment({
         bookingId: booking._id,
         amount: paymentAmount,
         method: paymentSchemaMethod,
         type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'final',
-        gateway: paymentSchemaMethod,
-        reference: paymentReference || normalizedGcashNumber,
-        notes: paymentNotes || `GCash sender: ${normalizedGcashNumber}`,
+        gateway: normalizedPaymentChannel === 'card' ? 'other' : paymentSchemaMethod,
+        reference: normalizedPaymentReference || normalizedGcashNumber,
+        notes: paymentNotes || (normalizedPaymentChannel === 'card'
+          ? 'Card payment selected for in-person collection; no card credentials were collected'
+          : `${normalizedPaymentChannel} payment submitted by customer`),
         status: 'pending',
         proofUrl: proofImageBase64 || null
       });
@@ -652,6 +672,7 @@ router.post('/create-new', async (req, res) => {
           timeLabel: booking.startTime, // requested start time only
           totalLabel: `₱${booking.estimatedFee}`,
           paymentMethod: bookingPaymentMethod,
+          paymentChannel: normalizedPaymentChannel,
           estimatedFee: booking.estimatedFee,
           downpaymentPercentage: booking.downpaymentPercentage,
           downpaymentAmount: booking.downpaymentAmount,
@@ -729,6 +750,7 @@ router.post('/create-new', async (req, res) => {
       technicianEmail: booking.technician?.email || (technician ? (technician.userEmail || technician.email) : ''),
       estimatedFee: booking.estimatedFee,
       paymentMethod: bookingPaymentMethod,
+      paymentChannel: normalizedPaymentChannel,
       _id: booking._id,
       booking: {
         bookingReference: booking.bookingReference,

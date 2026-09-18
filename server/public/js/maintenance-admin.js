@@ -1,6 +1,6 @@
 (function () {
   const requestedStatus = new URLSearchParams(window.location.search).get("status");
-  const allowedStatuses = ["all", "upcoming", "due", "overdue", "scheduled", "completed", "paused"];
+  const allowedStatuses = ["all", "upcoming", "due", "overdue", "responses", "scheduled", "completed", "paused"];
   const state = { status: allowedStatuses.includes(requestedStatus) ? requestedStatus : "all", search: "", page: 1, pages: 1, rows: new Map(), selectedId: null, timer: null, services: [] };
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value == null ? "" : value)
@@ -8,6 +8,12 @@
   const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" }) : "Not set";
   const inputDate = (value) => value ? new Date(value).toISOString().slice(0, 10) : "";
   const outreachLabel = (value) => String(value || "not_contacted").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  const responseLabel = (value) => ({
+    booking_started: "Ready to book",
+    callback_requested: "Callback requested",
+    remind_later: "Reminder requested",
+    declined: "Not booking now",
+  })[String(value || "")] || "No response";
 
   function customerName(customer) {
     return customer?.name || [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || "Customer";
@@ -22,6 +28,7 @@
     $("maintKpiDueSoon").textContent = summary.dueSoon || 0;
     $("maintKpiDue").textContent = summary.due || 0;
     $("maintKpiOverdue").textContent = summary.overdue || 0;
+    $("maintKpiResponses").textContent = summary.responses || 0;
     $("maintKpiScheduled").textContent = summary.scheduled || 0;
     $("maintKpiCompleted").textContent = summary.completed || 0;
   }
@@ -32,8 +39,12 @@
       const asset = row.assetId || {};
       const customer = row.customerId || {};
       const booking = row.bookingId;
+      const customerResponse = row.customerResponse || {};
+      const responseBadge = ["booking_started", "callback_requested"].includes(customerResponse.status) && !customerResponse.acknowledgedAt
+        ? `<div class="mt-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-chat-square-check me-1"></i>${escapeHtml(responseLabel(customerResponse.status))}</span></div>`
+        : "";
       return `<tr>
-        <td><div class="maintenance-primary">${escapeHtml(customerName(customer))}</div><div class="maintenance-secondary">${escapeHtml(customer.phone || customer.email || "No contact")}</div><div class="mt-1"><span class="badge bg-light text-dark border">${escapeHtml(outreachLabel(row.outreach?.status))}</span></div></td>
+        <td><div class="maintenance-primary">${escapeHtml(customerName(customer))}</div><div class="maintenance-secondary">${escapeHtml(customer.phone || customer.email || "No contact")}</div><div class="mt-1"><span class="badge bg-light text-dark border">${escapeHtml(outreachLabel(row.outreach?.status))}</span></div>${responseBadge}</td>
         <td><div class="maintenance-primary">${escapeHtml(equipmentLabel(asset))}</div><div class="maintenance-secondary">${escapeHtml(asset.equipment?.unitLabel || "Unit")} ${asset.equipment?.serialNumber ? `| SN ${escapeHtml(asset.equipment.serialNumber)}` : ""}</div></td>
         <td><div class="maintenance-primary">${escapeHtml(asset.originReference || "-")}</div><div class="maintenance-secondary">${escapeHtml(asset.originType || "record")}</div></td>
         <td><div class="maintenance-primary">${formatDate(row.dueDate)}</div><div class="maintenance-secondary">Cycle ${Number(row.cycleNumber || 1)}</div></td>
@@ -77,6 +88,7 @@
     const locked = ["scheduled", "completed"].includes(row.status);
     const openCycle = ["upcoming", "due", "overdue"].includes(row.status) && !row.bookingId;
     const outreach = row.outreach || {};
+    const customerResponse = row.customerResponse || {};
     $("maintenanceDetailBody").innerHTML = `
       <div class="mb-3"><div class="maintenance-primary">${escapeHtml(equipmentLabel(asset))}</div><div class="maintenance-secondary">${escapeHtml(asset.originReference || "")} | ${escapeHtml(asset.serviceAddress || "No address recorded")}</div></div>
       <div class="border rounded-3 p-3 mb-3 bg-light">
@@ -85,6 +97,11 @@
           <div class="d-flex gap-2">${customer.phone ? `<a class="btn btn-sm btn-outline-primary" href="tel:${escapeHtml(customer.phone)}"><i class="bi bi-telephone me-1"></i>Call</a>` : ""}${customer.email ? `<a class="btn btn-sm btn-outline-primary" href="mailto:${escapeHtml(customer.email)}"><i class="bi bi-envelope me-1"></i>Email</a>` : ""}</div>
         </div>
       </div>
+      ${customerResponse.status && customerResponse.status !== "none" ? `<div class="border border-warning-subtle rounded-3 p-3 mb-3 bg-warning-subtle">
+        <div class="d-flex justify-content-between align-items-start gap-3"><div><div class="maintenance-secondary">Customer aftercare response</div><div class="maintenance-primary">${escapeHtml(responseLabel(customerResponse.status))}</div></div><span class="maintenance-secondary">${formatDate(customerResponse.respondedAt)}</span></div>
+        ${customerResponse.remindAt ? `<div class="maintenance-secondary mt-2">Preferred time: ${escapeHtml(new Date(customerResponse.remindAt).toLocaleString("en-PH"))}</div>` : ""}
+        ${customerResponse.note ? `<div class="small mt-2">${escapeHtml(customerResponse.note)}</div>` : ""}
+      </div>` : ""}
       ${openCycle ? `<div class="border rounded-3 p-3 mb-3">
         <div class="maintenance-primary mb-2">Customer follow-up</div>
         <div class="row g-3">

@@ -691,6 +691,28 @@ const EnterpriseCalendar = (() => {
     }
   }
 
+  async function validateSelectedSlot() {
+    if (_mode === 'project') return true;
+    if (!_selectedDate || !_selectedSlot) return false;
+    const selectedMinutes = timeToMinutes(_selectedSlot.startTime || _selectedSlot.label);
+    const result = await fetchTimeSlotsFromAPI(_selectedDate);
+    const stillAvailable = Number.isFinite(selectedMinutes)
+      && Array.isArray(result?.slots)
+      && result.slots.some(slot => slot.available === true && !slot.isPast
+        && timeToMinutes(slot.startTime) === selectedMinutes);
+    if (stillAvailable) return true;
+
+    _selectedSlot = null;
+    if (window.BookingState) {
+      window.BookingState.selectedTimeSlot = null;
+      window.BookingState.selectedTime = null;
+      if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
+    }
+    if (window.RepairState) window.RepairState.preferredTime = '';
+    await loadTimeSlots(_selectedDate);
+    return false;
+  }
+
   function timeToMinutes(t) {
     const match = String(t || '').trim().match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
     if (!match) return NaN;
@@ -1545,6 +1567,7 @@ const EnterpriseCalendar = (() => {
     getSelectedDate,
     getSelectedEndDate,
     getSelectedSlot,
+    validateSelectedSlot,
     onSelect,
     isProjectMode,
     getMode,

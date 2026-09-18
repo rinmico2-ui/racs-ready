@@ -1,9 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const mongoose = require("mongoose");
 const CustomerAsset = require("../models/CustomerAsset");
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
 const BookingService = require("../models/BookingService");
+const Notification = require("../models/Notification");
 const {
   clampIntervalDays,
   addDays,
@@ -183,4 +186,57 @@ test("admin-assisted maintenance uses a standard assignable booking contract", a
   assert.equal(booking.maintenance.isMaintenance, true);
   assert.equal(booking.status, "awaiting_assignment");
   assert.equal(String(booking.maintenance.scheduleId), String(scheduleId));
+});
+
+test("customer aftercare responses are durable, auditable, and notification-safe", async () => {
+  const schedule = new MaintenanceSchedule({
+    assetId: sourceId,
+    customerId,
+    cycleKey: "customer-response-cycle",
+    cycleNumber: 1,
+    dueDate: new Date("2026-11-24T00:00:00.000Z"),
+    sourceCompletionType: "booking",
+    customerResponse: {
+      status: "callback_requested",
+      respondedAt: new Date("2026-09-17T02:00:00.000Z"),
+      remindAt: new Date("2026-09-18T02:00:00.000Z"),
+      note: "Please call after lunch.",
+      history: [{ status: "callback_requested", note: "Please call after lunch." }],
+    },
+  });
+  await schedule.validate();
+  assert.equal(schedule.customerResponse.history.length, 1);
+  const notification = new Notification({
+    type: "maintenance_customer_response",
+    title: "Aftercare Callback Requested",
+    message: "A customer requested a callback.",
+    role: "admin",
+    referenceId: schedule._id,
+    referenceModel: "MaintenanceSchedule",
+  });
+  await notification.validate();
+  schedule.customerResponse.status = "unsupported";
+  await assert.rejects(schedule.validate(), /customerResponse\.status/);
+});
+
+test("aftercare center exposes customer intent, warranty overview, and admin response queue", () => {
+  const root = path.join(__dirname, "..");
+  const maintenanceRoutes = fs.readFileSync(path.join(root, "routes", "maintenanceRoutes.js"), "utf8");
+  const warrantyRoutes = fs.readFileSync(path.join(root, "routes", "warrantyRoutes.js"), "utf8");
+  const customerClient = fs.readFileSync(path.join(root, "public", "js", "maintenance-customer.js"), "utf8");
+  const adminClient = fs.readFileSync(path.join(root, "public", "js", "maintenance-admin.js"), "utf8");
+  const page = fs.readFileSync(path.join(root, "views", "pages", "maintenance.ejs"), "utf8");
+  const adminPage = fs.readFileSync(path.join(root, "views", "pages", "admin", "Maintenance", "Maintenance.ejs"), "utf8");
+
+  assert.match(maintenanceRoutes, /schedules\/:id\/respond/);
+  assert.match(maintenanceRoutes, /maintenance_customer_response/);
+  assert.match(maintenanceRoutes, /status === "responses"/);
+  assert.match(warrantyRoutes, /router\.get\("\/overview"/);
+  assert.match(customerClient, /\/api\/warranty-claims\/overview/);
+  assert.match(customerClient, /callback_requested/);
+  assert.match(customerClient, /remind_later/);
+  assert.match(adminClient, /callback_requested/);
+  assert.match(adminPage, /Customer Responses/);
+  assert.match(page, /Aftercare Center/);
+  assert.match(page, /Warranty &amp; claims/);
 });

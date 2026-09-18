@@ -204,6 +204,16 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// PayMongo must receive the exact raw request body for signature validation.
+// Mount only the webhook before JSON parsing and trusted-origin enforcement;
+// customer card actions remain behind the normal authenticated API stack.
+const paymongoRoutes = require("./routes/paymongoRoutes");
+app.post(
+  "/api/paymongo/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  paymongoRoutes.webhookHandler,
+);
+
 // Throttle and reject untrusted browser mutations before parsing potentially
 // large request bodies.
 app.use("/api", apiLimiter, requireTrustedOrigin);
@@ -413,6 +423,8 @@ app.use("/api/bookings", bookingRoutes);
 const bookingRoutesNew = require("./routes/bookingRoutesNew");
 app.use("/api/bookings", bookingRoutesNew);
 
+app.use("/api/paymongo", paymongoRoutes);
+
 const appointmentRoutes = require("./routes/appointmentRoutes");
 console.log("[startup] appointmentRoutes type", typeof appointmentRoutes);
 if (appointmentRoutes && typeof appointmentRoutes === "function") {
@@ -501,9 +513,6 @@ app.use("/api/chat", chatLimiter, chatRoutes);
 // Public holidays (supports multiple providers: google or nager)
 const holidayRoutes = require("./routes/holidayRoutes");
 app.use("/api/holidays", holidayRoutes);
-
-// Online gateway processing is intentionally disabled. Payments are recorded
-// manually by technicians and verified through the admin remittance workflow.
 
 // Error handling middleware
 app.use((err, req, res, next) => {

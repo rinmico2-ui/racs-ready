@@ -20,6 +20,7 @@ router.use(auth.authenticate);
 const ACTIVE_DUE_STATUSES = ["upcoming", "due", "overdue"];
 const OUTREACH_STATUSES = ["not_contacted", "contacted", "interested", "callback_requested", "declined", "unreachable"];
 const OUTREACH_METHODS = ["phone", "email", "sms", "in_person", "other"];
+const CUSTOMER_RESPONSE_STATUSES = ["booking_started", "callback_requested", "remind_later", "declined"];
 
 function isMaintenanceService(service) {
   return /maintenan|clean|preventive|tune.?up/i.test(String(service?.name || service?.title || service?.slug || ""));
@@ -118,7 +119,13 @@ async function summaryFor(filter) {
   const now = new Date();
   const policy = await getAftercarePolicy();
   const dueSoonCutoff = new Date(now.getTime() + policy.reminders.firstReminderDays * 24 * 60 * 60 * 1000);
-  const [upcoming, due, overdue, scheduled, completed, paused, dueSoon] = await Promise.all([
+  const responseFilter = {
+    ...filter,
+    status: { $in: ACTIVE_DUE_STATUSES },
+    "customerResponse.status": { $in: ["booking_started", "callback_requested"] },
+    "customerResponse.acknowledgedAt": null,
+  };
+  const [upcoming, due, overdue, scheduled, completed, paused, dueSoon, responses, actionable] = await Promise.all([
     MaintenanceSchedule.countDocuments({ ...filter, status: "upcoming" }),
     MaintenanceSchedule.countDocuments({ ...filter, status: "due" }),
     MaintenanceSchedule.countDocuments({ ...filter, status: "overdue" }),
@@ -130,8 +137,20 @@ async function summaryFor(filter) {
       status: "upcoming",
       dueDate: { $gte: now, $lte: dueSoonCutoff },
     }),
+    MaintenanceSchedule.countDocuments(responseFilter),
+    MaintenanceSchedule.countDocuments({
+      ...filter,
+      $or: [
+        { status: { $in: ["due", "overdue"] } },
+        {
+          status: { $in: ACTIVE_DUE_STATUSES },
+          "customerResponse.status": { $in: ["booking_started", "callback_requested"] },
+          "customerResponse.acknowledgedAt": null,
+        },
+      ],
+    }),
   ]);
-  return { upcoming, due, overdue, scheduled, completed, paused, dueSoon, actionable: due + overdue };
+  return { upcoming, due, overdue, scheduled, completed, paused, dueSoon, responses, actionable };
 }
 
 router.get("/badge", async (req, res, next) => {
@@ -173,10 +192,19 @@ router.get("/admin/overview", requireAdmin, async (req, res, next) => {
     const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 25));
     const status = String(req.query.status || "all");
     const search = String(req.query.search || "").trim().slice(0, 100);
-    const filter = status === "all" ? {} : { status };
+    const clauses = [];
+    if (status === "responses") {
+      clauses.push({
+        status: { $in: ACTIVE_DUE_STATUSES },
+        "customerResponse.status": { $in: ["booking_started", "callback_requested"] },
+        "customerResponse.acknowledgedAt": null,
+      });
+    } else if (status !== "all") {
+      clauses.push({ status });
+    }
     if (status === "upcoming") {
       const policy = await getAftercarePolicy();
-      filter.dueDate = { $lte: new Date(Date.now() + policy.reminders.firstReminderDays * 24 * 60 * 60 * 1000) };
+      clauses.push({ dueDate: { $lte: new Date(Date.now() + policy.reminders.firstReminderDays * 24 * 60 * 60 * 1000) } });
     }
 
     if (search) {
@@ -192,8 +220,9 @@ router.get("/admin/overview", requireAdmin, async (req, res, next) => {
       const matchingCustomers = await require("../models/User").find({
         $or: [{ firstName: re }, { lastName: re }, { name: re }, { email: re }],
       }).distinct("_id");
-      filter.$or = [{ assetId: { $in: matchingAssets } }, { customerId: { $in: matchingCustomers } }];
+      clauses.push({ $or: [{ assetId: { $in: matchingAssets } }, { customerId: { $in: matchingCustomers } }] });
     }
+    const filter = clauses.length > 1 ? { $and: clauses } : (clauses[0] || {});
 
     const [schedules, total, summary] = await Promise.all([
       MaintenanceSchedule.find(filter)
@@ -260,6 +289,8 @@ router.patch("/admin/schedules/:id/outreach", requireAdmin, async (req, res, nex
           "outreach.method": status === "not_contacted" ? "" : method,
           "outreach.notes": notes,
           "outreach.nextFollowUpAt": nextFollowUpAt,
+          "customerResponse.acknowledgedAt": now,
+          "customerResponse.acknowledgedBy": req.user._id,
           ...(status === "not_contacted" ? {} : { "outreach.lastContactedAt": now }),
         },
         $push: {
@@ -424,6 +455,8 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
           "outreach.status": "interested",
           "outreach.lastContactedAt": new Date(),
           "outreach.notes": String(req.body?.notes || "Customer confirmed maintenance booking.").trim().slice(0, 1000),
+          "customerResponse.acknowledgedAt": new Date(),
+          "customerResponse.acknowledgedBy": req.user._id,
         },
         $push: {
           "outreach.history": {
@@ -467,6 +500,84 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
   } finally {
     if (session) await session.endSession();
   }
+});
+
+router.post("/schedules/:id/respond", auth.requireRole("customer"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid schedule id" });
+    const status = String(req.body?.status || "").trim();
+    if (!CUSTOMER_RESPONSE_STATUSES.includes(status)) return res.status(400).json({ error: "Choose a valid aftercare response." });
+    const note = String(req.body?.note || "").trim().slice(0, 500);
+    const now = new Date();
+    let remindAt = null;
+    if (req.body?.remindAt) {
+      remindAt = new Date(req.body.remindAt);
+      const latestAllowed = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+      if (Number.isNaN(remindAt.getTime()) || remindAt <= now || remindAt > latestAllowed) {
+        return res.status(400).json({ error: "Choose a future date within the next 180 days." });
+      }
+    }
+    if (status === "remind_later" && !remindAt) return res.status(400).json({ error: "Choose when you want to be reminded." });
+
+    const schedule = await MaintenanceSchedule.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        customerId: customerId(req),
+        status: { $in: ACTIVE_DUE_STATUSES },
+        bookingId: null,
+      },
+      {
+        $set: {
+          "customerResponse.status": status,
+          "customerResponse.respondedAt": now,
+          "customerResponse.remindAt": remindAt,
+          "customerResponse.reminderSentAt": null,
+          "customerResponse.note": note,
+          "customerResponse.acknowledgedAt": null,
+          "customerResponse.acknowledgedBy": null,
+        },
+        $push: { "customerResponse.history": { status, respondedAt: now, remindAt, note } },
+      },
+      { returnDocument: "after", runValidators: true },
+    ).populate("assetId");
+    if (!schedule) return res.status(409).json({ error: "This maintenance cycle is already booked or unavailable." });
+
+    const equipment = schedule.assetId?.equipment || {};
+    const unit = [equipment.brand, equipment.model, equipment.capacity ? `${equipment.capacity} ${equipment.capacityUnit || "HP"}` : ""]
+      .filter(Boolean).join(" ") || equipment.applianceTypeName || "equipment";
+    if (["booking_started", "callback_requested"].includes(status)) {
+      const callback = status === "callback_requested";
+      await createNotification({
+        type: "maintenance_customer_response",
+        title: callback ? "Aftercare Callback Requested" : "Customer Started Maintenance Booking",
+        message: `${req.user.name || req.user.email || "A customer"} ${callback ? "requested contact about" : "is ready to book"} maintenance for ${unit}.`,
+        role: "admin",
+        referenceId: schedule._id,
+        referenceModel: "MaintenanceSchedule",
+        link: "/admin/maintenance?status=responses",
+        priority: "high",
+        io: req.app.get("io") || global.io,
+      });
+    }
+    await audit.logEvent({
+      actor: req.user._id,
+      target: schedule._id,
+      action: `maintenance.customer_response.${status}`,
+      module: "maintenance",
+      req,
+      details: { status, remindAt, note },
+    }).catch(() => {});
+
+    const query = new URLSearchParams({
+      maintenanceScheduleId: String(schedule._id),
+      assetId: String(schedule.assetId?._id || schedule.assetId),
+    });
+    return res.json({
+      success: true,
+      schedule,
+      bookingUrl: status === "booking_started" ? `/services?${query.toString()}` : null,
+    });
+  } catch (error) { return next(error); }
 });
 
 router.get("/schedules/:id/booking-intent", auth.requireRole("customer"), async (req, res, next) => {

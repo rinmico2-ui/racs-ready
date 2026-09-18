@@ -248,22 +248,17 @@
         </div>
       </div>
 
-      <!-- Payment Policy -->
+      <!-- Payment Methods -->
       <div class="ss-card">
         <div class="ss-card-head">
-          <div class="ch-icon amber"><i class="bi bi-percent"></i></div>
-          <h3>Payment Policy</h3>
+          <div class="ch-icon amber"><i class="bi bi-credit-card-2-front"></i></div>
+          <h3>Payment Methods</h3>
         </div>
         <div class="ss-card-body">
           <div id="paymentPolicyAlert" class="alert d-none" role="alert"></div>
           <form id="paymentPolicyForm">
-            <div class="row g-3 align-items-end">
-              <div class="col-md-6">
-                <label class="form-label" for="gcashRecipientNumber">GCash Receiving Number</label>
-                <input type="tel" class="form-control" id="gcashRecipientNumber" inputmode="numeric" autocomplete="tel" placeholder="09XXXXXXXXX" maxlength="13">
-                <div class="form-text">Customers see this number and its QR code during checkout. Leave blank only to disable GCash checkout.</div>
-              </div>
-              <div class="col-md-3">
+            <div class="row g-3 align-items-end mb-4">
+              <div class="col-md-4">
                 <label class="form-label" for="downpaymentPercentage">Required Downpayment</label>
                 <div class="input-group">
                   <input type="number" class="form-control" id="downpaymentPercentage" min="1" max="100" step="0.01" value="10" required>
@@ -271,10 +266,50 @@
                 </div>
                 <div class="form-text">Applied to new orders and bookings.</div>
               </div>
-              <div class="col-md-3 text-md-end">
-                <button type="submit" class="btn-ss primary" id="paymentPolicySaveBtn"><i class="bi bi-floppy"></i> Save Payment Policy</button>
+              <div class="col-md-8">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3 bg-light">
+                  <div><strong>In-person card collection</strong><div class="small text-muted">Customers select card online, then pay at the RACS store. No online card processor is used.</div></div>
+                  <span class="badge bg-primary" id="cardCollectionStatus">No gateway required</span>
+                </div>
               </div>
             </div>
+
+            <div class="border rounded-3 mb-3 overflow-hidden">
+              <div class="d-flex align-items-center justify-content-between p-3 bg-light border-bottom">
+                <div><strong><i class="bi bi-credit-card me-2 text-primary"></i>Credit / Debit Card</strong><div class="small text-muted">In-person payment at the RACS store; staff confirms payment manually.</div></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="paymentCardEnabled"><label class="form-check-label" for="paymentCardEnabled">Enabled</label></div>
+              </div>
+              <div class="p-3 small text-muted"><i class="bi bi-shield-lock me-1"></i>The website never asks for or stores card numbers, expiry dates, or CVC values.</div>
+            </div>
+
+            <div class="border rounded-3 mb-3 overflow-hidden">
+              <div class="d-flex align-items-center justify-content-between p-3 bg-light border-bottom">
+                <strong><i class="bi bi-phone me-2 text-primary"></i>GCash</strong>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="paymentGcashEnabled"><label class="form-check-label" for="paymentGcashEnabled">Enabled</label></div>
+              </div>
+              <div class="row g-3 p-3">
+                <div class="col-md-4"><label class="form-label" for="gcashAccountName">Account Name</label><input class="form-control" id="gcashAccountName" maxlength="120"></div>
+                <div class="col-md-4"><label class="form-label" for="gcashRecipientNumber">Receiving Number</label><input type="tel" class="form-control" id="gcashRecipientNumber" inputmode="numeric" autocomplete="tel" placeholder="09XXXXXXXXX" maxlength="13"></div>
+                <div class="col-md-4"><label class="form-label" for="gcashInstructions">Customer Instructions</label><input class="form-control" id="gcashInstructions" maxlength="500" placeholder="Optional transfer note"></div>
+              </div>
+            </div>
+
+            <div class="border rounded-3 mb-3 overflow-hidden">
+              <div class="d-flex align-items-center justify-content-between p-3 bg-light border-bottom"><strong>Maya</strong><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="paymentMayaEnabled"><label class="form-check-label" for="paymentMayaEnabled">Enabled</label></div></div>
+              <div class="row g-3 p-3"><div class="col-md-4"><label class="form-label" for="mayaAccountName">Account Name</label><input class="form-control" id="mayaAccountName" maxlength="120"></div><div class="col-md-4"><label class="form-label" for="mayaAccountNumber">Receiving Number</label><input class="form-control" id="mayaAccountNumber" maxlength="120"></div><div class="col-md-4"><label class="form-label" for="mayaInstructions">Customer Instructions</label><input class="form-control" id="mayaInstructions" maxlength="500"></div></div>
+            </div>
+
+            <div class="border rounded-3 mb-3 overflow-hidden">
+              <div class="d-flex align-items-center justify-content-between p-3 bg-light border-bottom"><strong><i class="bi bi-bank me-2"></i>Bank Transfer</strong><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="paymentBankEnabled"><label class="form-check-label" for="paymentBankEnabled">Enabled</label></div></div>
+              <div class="row g-3 p-3"><div class="col-md-3"><label class="form-label" for="bankName">Bank</label><input class="form-control" id="bankName" maxlength="120"></div><div class="col-md-3"><label class="form-label" for="bankAccountName">Account Name</label><input class="form-control" id="bankAccountName" maxlength="120"></div><div class="col-md-3"><label class="form-label" for="bankAccountNumber">Account Number</label><input class="form-control" id="bankAccountNumber" maxlength="120"></div><div class="col-md-3"><label class="form-label" for="bankInstructions">Customer Instructions</label><input class="form-control" id="bankInstructions" maxlength="500"></div></div>
+            </div>
+
+            <div class="border rounded-3 mb-3 overflow-hidden">
+              <div class="d-flex align-items-center justify-content-between p-3 bg-light border-bottom"><strong><i class="bi bi-wallet2 me-2"></i>Other Transfer</strong><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="paymentOtherEnabled"><label class="form-check-label" for="paymentOtherEnabled">Enabled</label></div></div>
+              <div class="row g-3 p-3"><div class="col-md-3"><label class="form-label" for="otherPaymentLabel">Display Name</label><input class="form-control" id="otherPaymentLabel" maxlength="60" value="Other Transfer"></div><div class="col-md-3"><label class="form-label" for="otherAccountName">Account Name</label><input class="form-control" id="otherAccountName" maxlength="120"></div><div class="col-md-3"><label class="form-label" for="otherAccountNumber">Account / Reference</label><input class="form-control" id="otherAccountNumber" maxlength="120"></div><div class="col-md-3"><label class="form-label" for="otherInstructions">Customer Instructions</label><input class="form-control" id="otherInstructions" maxlength="500"></div></div>
+            </div>
+
+            <div class="text-end"><button type="submit" class="btn-ss primary" id="paymentPolicySaveBtn"><i class="bi bi-floppy"></i> Save Payment Methods</button></div>
           </form>
         </div>
       </div>
@@ -672,6 +707,13 @@
   var gcashInput = document.getElementById('gcashRecipientNumber');
   var btn = document.getElementById('paymentPolicySaveBtn');
   var alertBox = document.getElementById('paymentPolicyAlert');
+  var fieldIds = {
+    card: { enabled:'paymentCardEnabled' },
+    gcash: { enabled:'paymentGcashEnabled', accountName:'gcashAccountName', accountNumber:'gcashRecipientNumber', instructions:'gcashInstructions' },
+    maya: { enabled:'paymentMayaEnabled', accountName:'mayaAccountName', accountNumber:'mayaAccountNumber', instructions:'mayaInstructions' },
+    bank_transfer: { enabled:'paymentBankEnabled', bankName:'bankName', accountName:'bankAccountName', accountNumber:'bankAccountNumber', instructions:'bankInstructions' },
+    other: { enabled:'paymentOtherEnabled', label:'otherPaymentLabel', accountName:'otherAccountName', accountNumber:'otherAccountNumber', instructions:'otherInstructions' }
+  };
 
   function showPaymentAlert(message, type) {
     if (!alertBox) return;
@@ -680,11 +722,41 @@
     alertBox.classList.remove('d-none');
   }
 
+  function applyMethods(methods) {
+    Object.keys(fieldIds).forEach(function(channel) {
+      var method = methods && methods[channel] || {};
+      Object.keys(fieldIds[channel]).forEach(function(key) {
+        var element = document.getElementById(fieldIds[channel][key]);
+        if (!element) return;
+        if (key === 'enabled') element.checked = method.enabled === true;
+        else element.value = method[key] || '';
+      });
+    });
+    var cardToggle = document.getElementById('paymentCardEnabled');
+    if (cardToggle) {
+      cardToggle.disabled = false;
+      cardToggle.title = 'Card payments are collected in person.';
+    }
+  }
+
+  function readMethods() {
+    var methods = {};
+    Object.keys(fieldIds).forEach(function(channel) {
+      methods[channel] = {};
+      Object.keys(fieldIds[channel]).forEach(function(key) {
+        var element = document.getElementById(fieldIds[channel][key]);
+        methods[channel][key] = key === 'enabled' ? !!element.checked : String(element.value || '').trim();
+      });
+    });
+    return methods;
+  }
+
   fetch('/api/admin/settings/payment-policy', { credentials: 'same-origin' })
     .then(function(response) { return response.ok ? response.json() : null; })
     .then(function(data) {
       if (data && data.downpaymentPercentage != null) input.value = data.downpaymentPercentage;
       if (data && gcashInput) gcashInput.value = data.gcashNumber || '';
+      if (data) applyMethods(data.methods);
     })
     .catch(function() { showPaymentAlert('Unable to load the payment policy.', 'warning'); });
 
@@ -708,7 +780,7 @@
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ downpaymentPercentage: percentage, gcashNumber: gcashNumber }),
+      body: JSON.stringify({ downpaymentPercentage: percentage, gcashNumber: gcashNumber, methods: readMethods() }),
     })
       .then(function(response) {
         return response.json().then(function(data) { return { ok: response.ok, data: data }; });
@@ -717,14 +789,13 @@
         if (!result.ok) throw new Error(result.data.error || 'Failed to save payment policy.');
         input.value = result.data.downpaymentPercentage;
         if (gcashInput) gcashInput.value = result.data.gcashNumber || '';
-        showPaymentAlert(result.data.gcashConfigured
-          ? 'Payment policy saved. GCash checkout is ready for customers.'
-          : 'Payment policy saved. GCash checkout is disabled until a receiving number is added.', result.data.gcashConfigured ? 'success' : 'warning');
+        applyMethods(result.data.methods);
+        showPaymentAlert('Payment methods saved. Customer checkout now uses this configuration.', 'success');
       })
       .catch(function(error) { showPaymentAlert(error.message || 'Unable to save the payment policy.', 'danger'); })
       .finally(function() {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-floppy"></i> Save Payment Policy';
+        btn.innerHTML = '<i class="bi bi-floppy"></i> Save Payment Methods';
       });
   });
 })();

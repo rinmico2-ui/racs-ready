@@ -679,7 +679,7 @@
   }
 </style>
 
-<link rel="stylesheet" href="/css/customer-payment.css?v=20260912-consistent-payment-v1" />
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260916-payment-channels-v2" />
 <link rel="stylesheet" href="/css/cart-checkout-ux.css?v=20260912-checkout-flow-v3" />
 
 <!-- RACS Van Loading Modal -->
@@ -1049,31 +1049,58 @@
           <div class="wizard-step-intro">
             <p>Choose when to pay. The amount due now is shown before you upload a receipt.</p>
           </div>
+
+          <div id="cartCheckoutRestoreNotice" class="alert alert-info d-none mx-md-3" role="status">
+            <i class="bi bi-arrow-clockwise me-2"></i><strong>Checkout restored.</strong>
+            Your details and payment choice were saved. For your security, please re-enter the payment reference and select the receipt image again.
+          </div>
           
           <div class="row g-3 px-md-3 customer-payment-options" id="paymentOptionsContainer">
              <!-- Options dynamically rendered by JS based on fulfillment type -->
           </div>
           <input type="hidden" id="wizardPaymentMethod" value="">
 
-          <!-- GCash Details Panel (shown when a GCash method is picked) -->
+          <div id="orderPaymentChannelSection" class="payment-channel-section d-none mx-md-3">
+            <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>Pay via</div>
+            <div class="payment-channel-options" role="group" aria-label="Payment method">
+              <button type="button" class="payment-channel-card" data-channel="card" aria-pressed="false"><i class="bi bi-credit-card me-1"></i>Card</button>
+              <button type="button" class="payment-channel-card" data-channel="gcash" aria-pressed="false">GCash</button>
+              <button type="button" class="payment-channel-card" data-channel="maya" aria-pressed="false">Maya</button>
+              <button type="button" class="payment-channel-card" data-channel="bank_transfer" aria-pressed="false">Bank Transfer</button>
+              <button type="button" class="payment-channel-card" data-channel="other" aria-pressed="false">Other Transfer</button>
+            </div>
+            <input type="hidden" id="wizardPaymentChannel" value="">
+            <div id="wizardPaymentChannelHelp" class="form-text mt-2">Select how you will send the payment.</div>
+          </div>
+
+          <div id="orderCardCheckoutNotice" class="alert alert-primary d-none mx-md-3 mt-3 mb-0" role="status">
+            <div class="d-flex gap-2"><i class="bi bi-credit-card fs-5"></i><div><strong>Pay by card in person</strong><div class="small">Place the order now, then pay by credit or debit card at the RACS store. Do not enter or send card details through this website.</div></div></div>
+          </div>
+
+          <div id="orderDownpaymentReason" class="downpayment-reason mx-md-3" role="note">
+            <i class="bi bi-info-circle-fill"></i>
+            <div><strong>Why is a downpayment required?</strong><br>It reserves the selected aircon unit and installation schedule, and lets RACS prepare the unit, materials, technician, and delivery. It is deducted from the order total and is not an additional fee.</div>
+          </div>
+
+          <!-- Payment evidence panel -->
           <div id="gcashFieldsWizard" class="d-none mt-3 px-md-3">
             <div class="gcash-checkout-card customer-payment-panel">
-              <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
+              <h6 class="customer-payment-panel-title"><i class="bi bi-credit-card text-success"></i><span id="wizardGcashHeading">Payment</span></h6>
 
               <div class="rounded-3 p-3 mb-3 customer-payment-instructions" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #16a34a;">
                 <div class="d-flex align-items-center gap-2 mb-2">
                   <i class="bi bi-phone text-success fs-4"></i>
-                  <span class="fw-semibold">Send your payment through GCash</span>
+                  <span id="wizardPaymentInstructionTitle" class="fw-semibold">Send your payment</span>
                 </div>
                 <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;">
-                  <li>Scan the QR code or use the displayed GCash number.</li>
+                  <li id="wizardPaymentInstructionFirst">Use the payment details provided by RACS.</li>
                   <li>Send the exact amount shown in the summary.</li>
                   <li>Upload the successful transaction receipt.</li>
                 </ol>
               </div>
 
               <!-- QR Code -->
-              <div class="text-center mb-3 customer-payment-qr">
+              <div id="wizardPaymentQrBlock" class="text-center mb-3 customer-payment-qr">
                 <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
                 <img id="gcashQrImageWizard" src="" alt="GCash QR Code" class="img-thumbnail" style="max-width:220px;border-radius:12px;" />
                 <div class="customer-payment-recipient">GCash number: <strong id="gcashNumberDisplayWizard">Not configured</strong></div>
@@ -1082,16 +1109,16 @@
               <!-- Sender and receipt evidence -->
               <div class="customer-payment-fields">
               <div>
-                <label class="form-label text-muted fw-bold">GCash Sender Number <span class="text-danger">*</span></label>
-                <input id="wizardGcashSenderNumber" class="form-control" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXXX" />
-                <div class="form-text">Enter the number used to send this payment.</div>
+                <label id="wizardPaymentReferenceLabel" class="form-label text-muted fw-bold">Payment Reference <span class="text-danger">*</span></label>
+                <input id="wizardGcashSenderNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" />
+                <div id="wizardPaymentReferenceHelp" class="form-text">Enter the reference shown on your payment receipt.</div>
               </div>
               <div>
                 <label class="form-label text-muted fw-bold">Receipt Screenshot <span class="text-danger">*</span></label>
                 <input id="gcashProofWizard" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required />
                 <div class="form-text">Accepted: image files only (JPG, PNG, WEBP). Max 5MB.</div>
                 <div id="gcashProofWarning" class="mt-2 p-2 rounded-3 d-none" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:0.8rem;font-weight:600;">
-                  <i class="bi bi-exclamation-triangle-fill me-1"></i>Please upload your GCash receipt before proceeding.
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>Please upload your payment receipt before proceeding.
                 </div>
                 <img id="gcashProofPreviewWizard" alt="GCash receipt preview" class="d-none customer-payment-proof-preview" />
               </div>
@@ -1199,7 +1226,7 @@
   </div>
 </div>
 
-<script src="/js/checkout-calendar.js?v=20260912-checkout-mobile"></script>
+<script src="/js/checkout-calendar.js?v=20260917-card-checkout-v1"></script>
 
 <script>
   let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
@@ -1221,10 +1248,18 @@
     .then(r => r.json())
     .then(data => {
       const percentage = Number(data.downpaymentPercentage);
+      window.paymentMethodsConfig = data.methods || {};
       if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
         window.adminGcashNumber = String(data.gcashNumber || '');
       }
       window.gcashConfigurationLoaded = true;
+      document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
+        const method = window.paymentMethodsConfig[button.dataset.channel];
+        if (!method) return;
+        button.disabled = method.available !== true;
+        button.title = button.disabled ? `${method.label || 'This method'} is not currently available.` : '';
+        if (button.dataset.channel === 'other' && method.label) button.textContent = method.label;
+      });
       if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
         window.downpaymentPercentage = percentage;
         const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;
@@ -1280,6 +1315,80 @@
     let _checkoutRequestId = '';
     let _guidedFocusTimer = null;
     let _autoAdvanceTimer = null;
+    let _cartDraftSaveTimer = null;
+    let _restoringCartDraft = false;
+
+    const CART_CHECKOUT_DRAFT_KEY = 'racs_cart_checkout_draft_v1';
+    const CART_CHECKOUT_DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+    function cartCheckoutSignature() {
+      return CART_ITEMS.map(item => {
+        const inventoryId = item?.inventoryId?._id || item?.inventoryId || '';
+        return `${inventoryId}:${Number(item?.quantity) || 1}`;
+      }).sort().join('|');
+    }
+
+    function checkoutFieldValue(id) {
+      return document.getElementById(id)?.value || '';
+    }
+
+    function readCartCheckoutDraft() {
+      try {
+        const raw = localStorage.getItem(CART_CHECKOUT_DRAFT_KEY);
+        if (!raw) return null;
+        const draft = JSON.parse(raw);
+        const expired = !draft?.savedAt || Date.now() - Number(draft.savedAt) > CART_CHECKOUT_DRAFT_MAX_AGE_MS;
+        if (expired || draft.cartSignature !== cartCheckoutSignature()) {
+          localStorage.removeItem(CART_CHECKOUT_DRAFT_KEY);
+          return null;
+        }
+        return draft;
+      } catch (_) {
+        try { localStorage.removeItem(CART_CHECKOUT_DRAFT_KEY); } catch (_) {}
+        return null;
+      }
+    }
+
+    function saveCartCheckoutDraft() {
+      if (_checkoutSubmitting || _restoringCartDraft || !selectedFulfillment) return false;
+      try {
+        const draft = {
+          savedAt: Date.now(),
+          cartSignature: cartCheckoutSignature(),
+          currentStep,
+          selectedFulfillment,
+          paymentMethod: checkoutFieldValue('wizardPaymentMethod'),
+          paymentChannel: checkoutFieldValue('wizardPaymentChannel'),
+          contactNumber: checkoutFieldValue('wizardContact'),
+          address: checkoutFieldValue('wizardAddress'),
+          notes: checkoutFieldValue('wizardNotes'),
+          latitude: checkoutFieldValue('wizardLat'),
+          longitude: checkoutFieldValue('wizardLng'),
+          preferredDate: checkoutFieldValue('wizardDate'),
+          timeSlot: checkoutFieldValue('wizardTimeSlot'),
+          pickupDate: checkoutFieldValue('wizardPickupDate'),
+          routeDistanceKm: _routeDistanceKm,
+          routeDurationMin: _routeDurationMin,
+          transportationFee: _transportFee,
+          checkoutRequestId: _checkoutRequestId
+        };
+        // Payment references and receipt files are intentionally excluded.
+        localStorage.setItem(CART_CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function scheduleCartCheckoutDraftSave() {
+      clearTimeout(_cartDraftSaveTimer);
+      _cartDraftSaveTimer = setTimeout(saveCartCheckoutDraft, 120);
+    }
+
+    function clearCartCheckoutDraft() {
+      clearTimeout(_cartDraftSaveTimer);
+      try { localStorage.removeItem(CART_CHECKOUT_DRAFT_KEY); } catch (_) {}
+    }
 
     function prefersReducedCheckoutMotion() {
       return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1343,7 +1452,7 @@
 
     function receiptValidationMessage(file) {
       const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
-      if (!file) return 'Please upload your GCash receipt screenshot.';
+      if (!file) return 'Please upload your payment receipt screenshot.';
       if (!allowedTypes.has(String(file.type || '').toLowerCase())) return 'Receipt must be a JPG, PNG, or WEBP image.';
       if (file.size > 5 * 1024 * 1024) return 'Receipt image must be 5 MB or smaller.';
       return '';
@@ -1398,6 +1507,53 @@
       }]);
     }
 
+    function setCheckoutFieldValue(id, value) {
+      const input = document.getElementById(id);
+      if (input && value !== undefined && value !== null) input.value = String(value);
+    }
+
+    function restoreCartCheckoutDraft(draft) {
+      if (!draft?.selectedFulfillment) return;
+      _restoringCartDraft = true;
+      try {
+        window.selectFulfillment(draft.selectedFulfillment);
+        clearTimeout(_autoAdvanceTimer);
+
+        setCheckoutFieldValue('wizardContact', draft.contactNumber);
+        setCheckoutFieldValue('wizardAddress', draft.address);
+        setCheckoutFieldValue('wizardNotes', draft.notes);
+        setCheckoutFieldValue('wizardLat', draft.latitude);
+        setCheckoutFieldValue('wizardLng', draft.longitude);
+        setCheckoutFieldValue('wizardDate', draft.preferredDate);
+        setCheckoutFieldValue('wizardTimeSlot', draft.timeSlot);
+        setCheckoutFieldValue('wizardPickupDate', draft.pickupDate);
+        if (fpDatePickup && draft.pickupDate) fpDatePickup.setDate(draft.pickupDate, false);
+
+        _routeDistanceKm = Number(draft.routeDistanceKm) || 0;
+        _routeDurationMin = Number(draft.routeDurationMin) || 0;
+        _transportFee = Number(draft.transportationFee) || 0;
+        _checkoutRequestId = draft.checkoutRequestId || _checkoutRequestId || createCheckoutRequestId();
+
+        let targetStep = Math.min(4, Math.max(1, Number(draft.currentStep) || 1));
+        const needsReceipt = ['gcash_full', 'cod'].includes(draft.paymentMethod);
+        // Browsers do not allow a file input to be restored. Return manual
+        // payments to the payment step so they cannot submit without evidence.
+        if (needsReceipt && targetStep > 3) targetStep = 3;
+        if (targetStep >= 3) {
+          renderPaymentOptions();
+          if (draft.paymentMethod) window.selectPaymentMethods(draft.paymentMethod);
+          if (draft.paymentChannel) window.selectOrderPaymentChannel(draft.paymentChannel);
+          setCheckoutFieldValue('wizardGcashSenderNumber', '');
+          const notice = document.getElementById('cartCheckoutRestoreNotice');
+          if (notice) notice.classList.toggle('d-none', !needsReceipt);
+        }
+        enterWizardStep(targetStep);
+      } finally {
+        clearTimeout(_autoAdvanceTimer);
+        _restoringCartDraft = false;
+      }
+    }
+
     window.openCheckoutWizard = function (dynamicCart) {
       if (dynamicCart) {
         CART_ITEMS = dynamicCart.items || [];
@@ -1408,16 +1564,20 @@
         return;
       }
 
+      const savedDraft = dynamicCart ? null : readCartCheckoutDraft();
+
       currentStep = 1;
       clearTimeout(_guidedFocusTimer);
       clearTimeout(_autoAdvanceTimer);
       selectedFulfillment = null;
       renderedPaymentFulfillment = null;
       document.getElementById('wizardPaymentMethod').value = '';
+      document.getElementById('wizardPaymentChannel').value = '';
       document.getElementById('paymentOptionsContainer').innerHTML = '';
       const receiptInput = document.getElementById('gcashProofWizard');
       if (receiptInput) receiptInput.value = '';
-      if (!_checkoutRequestId) _checkoutRequestId = createCheckoutRequestId();
+      _checkoutRequestId = savedDraft?.checkoutRequestId || _checkoutRequestId || createCheckoutRequestId();
+      document.getElementById('cartCheckoutRestoreNotice')?.classList.add('d-none');
 
       // Reset status badges
       document.querySelectorAll('.fulfill-card').forEach(c => {
@@ -1507,6 +1667,7 @@
 
       const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('checkoutOrderModal'));
       modal.show();
+      if (savedDraft) setTimeout(() => restoreCartCheckoutDraft(savedDraft), 80);
     };
     window.selectFulfillment = function (type) {
       selectedFulfillment = type;
@@ -1519,6 +1680,7 @@
         const totalQty = CART_ITEMS.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
         checkoutCalendar.setDuration(type === 'delivery_installation' ? Math.max(60, totalQty * 60) : 60);
       }
+      scheduleCartCheckoutDraftSave();
       scheduleCheckoutAdvance(1, 420);
     };
 
@@ -1622,22 +1784,43 @@
           };
         }
         if (paymentMethod === 'gcash_full' || paymentMethod === 'cod') {
-          if (!String(window.adminGcashNumber || '').trim()) {
+          const paymentChannel = document.getElementById('wizardPaymentChannel').value;
+          if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
+            return {
+              step: 3,
+              title: 'Choose a Payment Method',
+              message: 'Select GCash, Maya, bank transfer, or another transfer method.',
+              confirmButtonText: 'Choose Method',
+              focusSelector: '#orderPaymentChannelSection'
+            };
+          }
+          if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
+            return {
+              step: 3,
+              title: 'Payment Method Unavailable',
+              message: 'Choose another payment method or contact the store.',
+              confirmButtonText: 'Choose Method',
+              focusSelector: '#orderPaymentChannelSection'
+            };
+          }
+          if (paymentChannel === 'card') return null;
+          if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
             return {
               step: 3,
               title: 'GCash Is Not Configured',
-              message: 'Online payment is temporarily unavailable. Please contact the store before placing this order.',
-              confirmButtonText: 'Review Payment',
-              focusSelector: '#paymentOptionsContainer'
+              message: 'Choose another payment method or contact the store.',
+              confirmButtonText: 'Choose Method',
+              focusSelector: '#orderPaymentChannelSection'
             };
           }
-          const senderDigits = String(document.getElementById('wizardGcashSenderNumber')?.value || '').replace(/\D/g, '');
-          if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
+          const reference = String(document.getElementById('wizardGcashSenderNumber')?.value || '').trim();
+          const senderDigits = reference.replace(/\D/g, '');
+          if ((paymentChannel === 'gcash' && !/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) || (paymentChannel !== 'gcash' && reference.length < 3)) {
             return {
               step: 3,
-              title: 'Enter the GCash Sender Number',
-              message: 'Enter the Philippine mobile number used to send this payment.',
-              confirmButtonText: 'Enter Sender Number',
+              title: paymentChannel === 'gcash' ? 'Enter the GCash Sender Number' : 'Enter the Payment Reference',
+              message: paymentChannel === 'gcash' ? 'Enter the Philippine mobile number used to send this payment.' : 'Enter the transaction or reference number shown on your receipt.',
+              confirmButtonText: 'Enter Reference',
               focusSelector: '#wizardGcashSenderNumber'
             };
           }
@@ -1645,7 +1828,7 @@
           if (receiptMessage) {
             return {
               step: 3,
-              title: 'Upload a Valid GCash Receipt',
+              title: 'Upload a Valid Payment Receipt',
               message: receiptMessage,
               confirmButtonText: 'Upload Receipt',
               focusSelector: '#gcashProofWizard'
@@ -1674,6 +1857,7 @@
       }
       if (step === 4) populateReview();
       updateWizardUI();
+      scheduleCartCheckoutDraftSave();
     }
 
     function focusCheckoutRequirement(issue) {
@@ -1705,6 +1889,24 @@
     async function validateCheckoutStep(step) {
       if (step === 2 && selectedFulfillment !== 'customer_pickup' && _routeQuotePending) {
         try { await _routeQuotePending; } catch (_) {}
+      }
+      if (step === 2 && selectedFulfillment !== 'customer_pickup' && checkoutCalendar
+          && document.getElementById('wizardDate')?.value
+          && document.getElementById('wizardTimeSlot')?.value) {
+        const stillAvailable = await checkoutCalendar.validateSelectedSlot(
+          document.getElementById('wizardDate').value,
+          document.getElementById('wizardTimeSlot').value
+        );
+        if (!stillAvailable) {
+          await presentCheckoutStepIssue({
+            step: 2,
+            title: 'Time Slot No Longer Available',
+            message: 'That Philippine time slot has passed or was just reserved. Please choose a new available time.',
+            confirmButtonText: 'Choose Another Time',
+            focusSelector: '#checkoutCalendarContainer'
+          });
+          return false;
+        }
       }
       const issue = getCheckoutStepIssue(step);
       if (!issue) return true;
@@ -1777,6 +1979,64 @@
       nextBtn.removeAttribute('style');
     }
 
+    function orderPaymentChannelLabel(channel) {
+      const configured = window.paymentMethodsConfig?.[channel]?.label;
+      return configured || ({ card: 'Credit / Debit Card', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+    }
+
+    window.selectOrderPaymentChannel = function(channel) {
+      if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(channel)) return;
+      const configuredMethod = window.paymentMethodsConfig?.[channel];
+      if (configuredMethod && configuredMethod.available !== true) return;
+      if (!configuredMethod && channel === 'gcash' && !String(window.adminGcashNumber || '').trim()) return;
+      const label = orderPaymentChannelLabel(channel);
+      const isGcash = channel === 'gcash';
+      const isCard = channel === 'card';
+      document.getElementById('wizardPaymentChannel').value = channel;
+      document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
+        const selected = button.dataset.channel === channel;
+        button.classList.toggle('selected', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+      const help = document.getElementById('wizardPaymentChannelHelp');
+      if (help) help.textContent = isCard
+        ? 'Pay by credit or debit card at the RACS store. No card details are collected online.'
+        : isGcash
+        ? 'Send to the displayed GCash number, then upload your receipt.'
+        : `${configuredMethod?.accountName ? `${configuredMethod.accountName} · ` : ''}${configuredMethod?.accountNumber || `Use the ${label} receiving details`}. Enter the transaction reference and upload your receipt.`;
+      document.getElementById('wizardPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
+      document.getElementById('gcashFieldsWizard')?.classList.toggle('d-none', isCard);
+      document.getElementById('orderCardCheckoutNotice')?.classList.toggle('d-none', !isCard);
+      const referenceLabel = document.getElementById('wizardPaymentReferenceLabel');
+      const referenceHelp = document.getElementById('wizardPaymentReferenceHelp');
+      const referenceInput = document.getElementById('wizardGcashSenderNumber');
+      if (referenceLabel) referenceLabel.innerHTML = `${isGcash ? 'GCash Sender Number' : `${label} Transaction Reference`} <span class="text-danger">*</span>`;
+      if (referenceHelp) referenceHelp.textContent = isGcash
+        ? 'Enter the mobile number used to send this payment.'
+        : 'Enter the transaction or reference number shown on your receipt.';
+      if (referenceInput) {
+        referenceInput.value = '';
+        referenceInput.placeholder = isGcash ? '09XXXXXXXXX' : 'Transaction or reference number';
+        referenceInput.inputMode = isGcash ? 'tel' : 'text';
+        referenceInput.autocomplete = isGcash ? 'tel' : 'off';
+      }
+      const method = document.getElementById('wizardPaymentMethod').value;
+      const heading = document.getElementById('wizardGcashHeading');
+      if (heading) heading.textContent = method === 'cod' ? `Downpayment via ${label}` : `Full Payment via ${label}`;
+      const instructionTitle = document.getElementById('wizardPaymentInstructionTitle');
+      if (instructionTitle) instructionTitle.textContent = `Send your payment via ${label}`;
+      const instructionFirst = document.getElementById('wizardPaymentInstructionFirst');
+      if (instructionFirst) instructionFirst.textContent = isGcash
+        ? 'Scan the QR code or use the displayed GCash number.'
+        : `Use the ${label} payment details confirmed by RACS.`;
+      updateNextButtonState();
+      scheduleCartCheckoutDraftSave();
+    };
+
+    document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
+      button.addEventListener('click', () => window.selectOrderPaymentChannel(button.dataset.channel));
+    });
+
     window.selectPaymentMethods = function(method) {
       clearTimeout(_autoAdvanceTimer);
       document.getElementById('wizardPaymentMethod').value = method;
@@ -1790,7 +2050,15 @@
       if (gcashPanel) {
         gcashPanel.classList.toggle('d-none', !showGcashPanel);
       }
+      const channelSection = document.getElementById('orderPaymentChannelSection');
+      if (channelSection) channelSection.classList.toggle('d-none', !showGcashPanel);
       if (showGcashPanel) {
+        const currentChannel = document.getElementById('wizardPaymentChannel').value;
+        if (!currentChannel) {
+          const preferred = ['card','gcash','maya','bank_transfer','other'].find(channel => window.paymentMethodsConfig?.[channel]?.available)
+            || (String(window.adminGcashNumber || '').trim() ? 'gcash' : '');
+          if (preferred) window.selectOrderPaymentChannel(preferred);
+        }
         const qrImg = document.getElementById('gcashQrImageWizard');
         const gcashNum = (window.adminGcashNumber || '').trim();
         if (qrImg) {
@@ -1810,7 +2078,8 @@
           const labelEl = document.getElementById('wizardGcashLabel');
           if (labelEl) labelEl.textContent = method === 'cod' ? `Downpayment due now (${percentage}%)` : 'Full payment due now';
         }
-        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? 'Reservation Downpayment via GCash' : 'Full Payment via GCash';
+        const channelLabel = orderPaymentChannelLabel(document.getElementById('wizardPaymentChannel').value);
+        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? `Downpayment via ${channelLabel}` : `Full Payment via ${channelLabel}`;
         document.getElementById('gcashTotalDisplayWizard').textContent = '₱' + grandTotal.toLocaleString();
         document.getElementById('gcashBalanceDisplayWizard').textContent = '₱' + balance.toLocaleString();
         document.getElementById('gcashBalanceRowWizard').style.display = method === 'cod' ? 'flex' : 'none';
@@ -1828,12 +2097,14 @@
         // Hide warning for non-GCash methods
         const warning = document.getElementById('gcashProofWarning');
         if (warning) warning.classList.add('d-none');
+        document.getElementById('orderCardCheckoutNotice')?.classList.add('d-none');
       }
       // Update Next button state
       updateNextButtonState();
+      scheduleCartCheckoutDraftSave();
       if (method === 'cash_onsite') {
         scheduleCheckoutAdvance(3, 450);
-      } else if (showGcashPanel) {
+      } else if (showGcashPanel && document.getElementById('wizardPaymentChannel')?.value !== 'card') {
         focusCheckoutControl('#wizardGcashSenderNumber', 220);
       }
     };
@@ -1925,7 +2196,7 @@
             <div class="payment-method-icon">
               <i class="bi bi-phone fs-3"></i>
             </div>
-            <div class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash.</span></div>
+            <div class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method.</span></div>
           </button>
         </div>
         <div class="col-md-6">
@@ -1934,7 +2205,7 @@
             <div class="payment-method-icon">
               <i class="bi bi-wallet2 fs-3"></i>
             </div>
-            <div class="payment-method-copy"><strong>Reserve with Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</span></div>
+            <div class="payment-method-copy"><strong>Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% now to reserve the unit and schedule; settle the balance at handover.</span></div>
           </button>
         </div>
       `;
@@ -1957,7 +2228,7 @@
                 <div class="payment-method-icon">
                   <i class="bi bi-phone fs-3"></i>
                 </div>
-                <div class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash before pickup.</span></div>
+                <div class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method before pickup.</span></div>
               </button>
             </div>
          `;
@@ -1969,23 +2240,26 @@
       }
 
       container.innerHTML = html;
+      const downpaymentReason = document.getElementById('orderDownpaymentReason');
+      if (downpaymentReason) downpaymentReason.style.display = selectedFulfillment === 'customer_pickup' ? 'none' : 'flex';
 
-      const gcashConfigured = !!String(window.adminGcashNumber || '').trim();
-      if (!gcashConfigured) {
-        container.querySelectorAll('[data-method="gcash_full"], [data-method="cod"]').forEach(function(button) {
-          button.disabled = true;
-          button.setAttribute('aria-disabled', 'true');
-          button.removeAttribute('onclick');
-        });
-        const message = selectedFulfillment === 'customer_pickup'
-          ? 'GCash is currently unavailable. You can still pay in cash when you collect your order.'
-          : 'Online payment is being configured by the store. Please contact the store before arranging delivery and installation.';
-        container.insertAdjacentHTML('afterbegin', '<div class="col-12"><div class="checkout-payment-unavailable" role="status"><i class="bi bi-info-circle-fill"></i><span>' + message + '</span></div></div>');
-      }
-
-      // Reset GCash panel when switching fulfillment
+      // Reset payment details when switching fulfillment
       const gcashPanel = document.getElementById('gcashFieldsWizard');
       if (gcashPanel) gcashPanel.classList.add('d-none');
+      document.getElementById('orderPaymentChannelSection')?.classList.add('d-none');
+      document.getElementById('orderCardCheckoutNotice')?.classList.add('d-none');
+      const channelInput = document.getElementById('wizardPaymentChannel');
+      if (channelInput) channelInput.value = '';
+      document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
+        const method = window.paymentMethodsConfig?.[button.dataset.channel];
+        if (method) {
+          button.disabled = method.available !== true;
+          button.title = button.disabled ? `${method.label || 'This method'} is not currently available.` : '';
+        } else if (button.dataset.channel === 'gcash') {
+          button.disabled = !String(window.adminGcashNumber || '').trim();
+          button.title = button.disabled ? 'GCash receiving details are not configured.' : '';
+        }
+      });
     }
 
     window.refreshCheckoutPaymentOptions = function() {
@@ -2117,10 +2391,11 @@
       }
       
       const payMethod = document.getElementById('wizardPaymentMethod').value;
+      const selectedPaymentChannel = orderPaymentChannelLabel(document.getElementById('wizardPaymentChannel')?.value);
       const payLabels = {
         cash_onsite:  '💵 Pay in cash at store pickup',
-        gcash_full:   '📱 Full payment now via GCash',
-        cod:          `💳 Reserve with ${window.downpaymentPercentage || 10}% GCash downpayment; balance at installation handover`
+        gcash_full:   `📱 Full Payment via ${selectedPaymentChannel}`,
+        cod:          `💳 ${window.downpaymentPercentage || 10}% Downpayment via ${selectedPaymentChannel}; balance at installation handover`
       };
       details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
 
@@ -2521,7 +2796,11 @@
       }
 
       if (needsGcashProof) {
-        fd.append('gcashNumber', document.getElementById('wizardGcashSenderNumber')?.value.trim() || '');
+        const paymentChannel = document.getElementById('wizardPaymentChannel')?.value || '';
+        const paymentReference = document.getElementById('wizardGcashSenderNumber')?.value.trim() || '';
+        fd.append('paymentChannel', paymentChannel);
+        fd.append('paymentReference', paymentReference);
+        fd.append('gcashNumber', paymentChannel === 'gcash' ? paymentReference : '');
         const proofFile = document.getElementById('gcashProofWizard')?.files[0];
         if (proofFile) fd.append('gcashProof', proofFile);
       }
@@ -2548,7 +2827,7 @@
 
         // Order success - clear cart
         await fetch('/api/aircon-cart/clear', { method: 'POST' });
-
+        clearCartCheckoutDraft();
         // Keep the loader visible long enough to communicate progress even
         // when localhost responds almost immediately.
         await waitForOrderLoadingMinimum(loadingStartedAt, 900);
@@ -2585,12 +2864,34 @@
         // Hide loading modal on network error
         const loadingModalInstance = bootstrap.Modal.getInstance(document.getElementById('orderLoadingModal'));
         if (loadingModalInstance) loadingModalInstance.hide();
-        Swal.fire('Error', 'Network error. Try again.', 'error');
+        Swal.fire('Payment Not Started', e.message || 'Network error. Try again.', 'error');
         nextBtn.disabled = false;
         nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';
         _checkoutSubmitting = false;
       }
     }
+
+    const cartCheckoutModalElement = document.getElementById('checkoutOrderModal');
+    if (cartCheckoutModalElement) {
+      const persistChangedCheckoutField = event => {
+        if (event.target?.closest('#checkoutOrderModal')) scheduleCartCheckoutDraftSave();
+      };
+      cartCheckoutModalElement.addEventListener('input', persistChangedCheckoutField);
+      cartCheckoutModalElement.addEventListener('change', persistChangedCheckoutField);
+    }
+
+    function reopenSavedCartCheckout() {
+      const draft = readCartCheckoutDraft();
+      const modal = document.getElementById('checkoutOrderModal');
+      if (!draft || !modal || modal.classList.contains('show') || _checkoutSubmitting) return;
+      window.openCheckoutWizard();
+    }
+
+    window.addEventListener('pagehide', saveCartCheckoutDraft);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') saveCartCheckoutDraft();
+    });
+    window.addEventListener('pageshow', () => setTimeout(reopenSavedCartCheckout, 80));
   })();
 </script>
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

@@ -258,7 +258,12 @@ async function linkScheduleToBooking({ scheduleId, bookingId, customerId, sessio
       bookingId: null,
     },
     {
-      $set: { bookingId, status: "scheduled" },
+      $set: {
+        bookingId,
+        status: "scheduled",
+        "customerResponse.acknowledgedAt": new Date(),
+        "customerResponse.acknowledgedBy": customerId,
+      },
       $push: { history: { status: "scheduled", changedBy: customerId, changedByName: "Customer", reason: "Customer created maintenance booking" } },
     },
     { returnDocument: "after", ...(session ? { session } : {}) },

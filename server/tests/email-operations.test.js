@@ -80,6 +80,23 @@ test("full-payment booking emails do not present a downpayment balance", () => {
   assert.equal(details.balanceAmount, 0);
 });
 
+test("booking emails name the selected payment channel", () => {
+  const full = buildBookingPaymentEmailDetails({ paymentMethod: "gcash", paymentChannel: "maya", estimatedFee: 4000 });
+  const deposit = buildBookingPaymentEmailDetails({ paymentMethod: "cod", paymentChannel: "bank_transfer", estimatedFee: 4000, downpaymentAmount: 400, balanceAmount: 3600 });
+  assert.equal(full.payLabel, "Full payment via Maya");
+  assert.equal(deposit.payLabel, "Bank Transfer reservation downpayment; balance at service completion");
+});
+
+test("booking emails describe gateway-free card payments as due at the store", () => {
+  const full = buildBookingPaymentEmailDetails({ paymentMethod: "gcash", paymentChannel: "card", estimatedFee: 4000 });
+  const deposit = buildBookingPaymentEmailDetails({ paymentMethod: "cod", paymentChannel: "card", estimatedFee: 4000, downpaymentAmount: 400, balanceAmount: 3600 });
+  assert.equal(full.payLabel, "Full card payment at RACS store");
+  assert.equal(full.verificationLabel, "Payment due at RACS store");
+  assert.match(full.amountRows, /Full payment due at store/);
+  assert.equal(deposit.payLabel, "Card at RACS store reservation downpayment; balance at service completion");
+  assert.match(deposit.amountRows, /Downpayment due at store/);
+});
+
 test("booking email repairs a legacy zero-balance default for a downpayment plan", () => {
   const details = buildBookingPaymentEmailDetails({
     paymentMethod: "cod",

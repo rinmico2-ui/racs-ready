@@ -12,6 +12,7 @@
  */
 
 const SiteSetting = require("../models/SiteSetting");
+const { manilaSlotTiming } = require("./bookingDateTime");
 
 const DEFAULT_MIN_ADVANCE_MINUTES = 2 * 60; // 2 hours
 // Operational buffer padding applied to a booking's capacity end so that a
@@ -208,6 +209,20 @@ function getInspectionDurationMinutesSync() {
 async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBookingId) {
   if (!Number.isFinite(startMin) || !Number.isFinite(endMin) || endMin <= startMin) {
     throw new Error("Invalid time range for capacity check.");
+  }
+
+  const minAdvanceMinutes = await getMinAdvanceMinutes();
+  const slotTiming = manilaSlotTiming(bookingDate, startMin, {
+    minAdvanceMinutes,
+    safetyBufferMinutes: 30,
+  });
+  if (!slotTiming.valid) {
+    throw new Error("Invalid booking date or time.");
+  }
+  if (!slotTiming.allowed) {
+    throw new Error(
+      "This time slot has passed or no longer meets the required advance notice. Refresh the schedule and choose another available time."
+    );
   }
 
   const Technician = require("../models/Technician");

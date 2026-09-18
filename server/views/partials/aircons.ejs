@@ -1,5 +1,5 @@
 <!-- Aircon Product Page — Premium E-Commerce Design -->
-<link rel="stylesheet" href="/css/customer-payment.css?v=20260912-consistent-payment-v1">
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260916-payment-channels-v2">
 <%
   var airconGroups = (locals.grouped && Array.isArray(grouped)) ? grouped : [];
 %>
@@ -1665,28 +1665,54 @@
               <h4>Payment Option</h4>
               <p>Choose when to pay and which amount is due now.</p>
             </div>
+            <div id="directCheckoutRestoreNotice" class="alert alert-info d-none mx-md-3" role="status">
+              <i class="bi bi-arrow-clockwise me-2"></i><strong>Checkout restored.</strong>
+              Your order details and payment choice were saved. For your security, please re-enter the payment reference and select the receipt image again.
+            </div>
             <div class="row g-3 px-md-3 customer-payment-options" id="paymentOptionsContainer">
               <!-- Options rendered by JS based on fulfillment type -->
             </div>
 
-            <!-- GCash Fields Panel (Hidden initially) -->
+            <div id="directPaymentChannelSection" class="payment-channel-section" style="display:none;">
+              <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>Pay via</div>
+              <div class="payment-channel-options" role="group" aria-label="Payment method">
+                <button type="button" class="payment-channel-card" data-channel="card" aria-pressed="false"><i class="bi bi-credit-card me-1"></i>Card</button>
+                <button type="button" class="payment-channel-card" data-channel="gcash" aria-pressed="false">GCash</button>
+                <button type="button" class="payment-channel-card" data-channel="maya" aria-pressed="false">Maya</button>
+                <button type="button" class="payment-channel-card" data-channel="bank_transfer" aria-pressed="false">Bank Transfer</button>
+                <button type="button" class="payment-channel-card" data-channel="other" aria-pressed="false">Other Transfer</button>
+              </div>
+              <input type="hidden" id="directWizardPaymentChannel" value="">
+              <div id="directPaymentChannelHelp" class="form-text mt-2">Select how you will send the payment.</div>
+            </div>
+
+            <div id="directCardCheckoutNotice" class="alert alert-primary d-none mt-3 mb-0" role="status">
+              <div class="d-flex gap-2"><i class="bi bi-credit-card fs-5"></i><div><strong>Pay by card in person</strong><div class="small">Place the order now, then pay by credit or debit card at the RACS store. Do not enter or send card details through this website.</div></div></div>
+            </div>
+
+            <div id="directDownpaymentReason" class="downpayment-reason" role="note">
+              <i class="bi bi-info-circle-fill"></i>
+              <div><strong>Why is a downpayment required?</strong><br>It reserves the selected aircon unit and installation schedule, and lets RACS prepare the unit, materials, technician, and delivery. It is deducted from the order total and is not an additional fee.</div>
+            </div>
+
+            <!-- Payment evidence panel -->
             <div id="wizardGcashFieldsPanel" class="customer-payment-panel" style="display: none;">
-              <h6 class="customer-payment-panel-title"><i class="bi bi-phone-fill text-success"></i><span id="wizardGcashHeading">GCash Payment</span></h6>
+              <h6 class="customer-payment-panel-title"><i class="bi bi-credit-card text-success"></i><span id="wizardGcashHeading">Payment</span></h6>
               <div class="customer-payment-instructions mb-3">
-                <strong>Send your payment through GCash</strong>
-                <ol><li>Scan the QR code or use the displayed number.</li><li>Send the exact amount due now.</li><li>Upload the successful transaction receipt.</li></ol>
+                <strong id="directPaymentInstructionTitle">Send your payment</strong>
+                <ol><li id="directPaymentInstructionFirst">Use the payment details provided by RACS.</li><li>Send the exact amount due now.</li><li>Upload the successful transaction receipt.</li></ol>
               </div>
               <div class="row g-3">
-                <div class="col-md-5 border-md-end mb-3 mb-md-0 customer-payment-qr" style="border-color: #e2e8f0 !important;">
+                <div id="directPaymentQrBlock" class="col-md-5 border-md-end mb-3 mb-md-0 customer-payment-qr" style="border-color: #e2e8f0 !important;">
                   <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Scan to Pay</div>
                   <img id="wizardGcashQr" src="" alt="GCash QR" class="img-fluid" style="max-width: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
                   <div class="customer-payment-recipient">GCash number: <strong id="wizardGcashNumber">Not configured</strong></div>
                 </div>
                 <div class="col-md-7 ps-md-4 customer-payment-fields">
                   <div class="mb-3">
-                    <label class="form-label">GCash Sender Number <span class="text-danger">*</span></label>
-                    <input class="form-control" id="wizardGcashSenderNumber" inputmode="tel" autocomplete="tel" placeholder="09XXXXXXXXX">
-                    <div class="form-text">Enter the number used to send this payment.</div>
+                    <label id="directPaymentReferenceLabel" class="form-label">Payment Reference <span class="text-danger">*</span></label>
+                    <input class="form-control" id="wizardGcashSenderNumber" placeholder="Transaction or reference number" autocomplete="off">
+                    <div id="directPaymentReferenceHelp" class="form-text">Enter the reference shown on your payment receipt.</div>
                   </div>
                   <div class="mb-3">
                     <label class="form-label">Upload Receipt Screenshot <span class="text-danger">*</span></label>
@@ -1791,7 +1817,7 @@
 
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="/js/checkout-calendar.js?v=20260826-service-slot-parity"></script>
+  <script src="/js/checkout-calendar.js?v=20260917-manila-slots-v1"></script>
 
   <script>
     (function () {
@@ -1831,6 +1857,7 @@
         .then(r => r.json())
         .then(data => {
           const percentage = Number(data.downpaymentPercentage);
+          window.paymentMethodsConfig = data.methods || {};
           if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
             window.adminGcashNumber = String(data.gcashNumber || '');
           }
@@ -1839,6 +1866,14 @@
             const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;
             if (selectedMethod && typeof window.selectPaymentMethods === 'function') window.selectPaymentMethods(selectedMethod);
           }
+          document.querySelectorAll('#directPaymentChannelSection .payment-channel-card').forEach(button => {
+            const method = window.paymentMethodsConfig[button.dataset.channel];
+            if (!method) return;
+            button.disabled = method.available !== true;
+            button.title = button.disabled ? `${method.label || 'This method'} is not currently available.` : '';
+            if (button.dataset.channel === 'other' && method.label) button.textContent = method.label;
+          });
+          if (currentStep === 4) renderPaymentOptions();
         })
         .catch(() => console.warn('Using default downpayment policy'));
 
@@ -1864,6 +1899,83 @@
       let _routeDurationMin = 0;
       let _transportFee = 0;
       let _checkoutRequestId = '';
+      let _directCheckoutSubmitting = false;
+      let _directDraftSaveTimer = null;
+      let _restoringDirectDraft = false;
+
+      const DIRECT_CHECKOUT_DRAFT_KEY = 'racs_direct_order_draft_v1';
+      const DIRECT_CHECKOUT_DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+      function directCheckoutFieldValue(id) {
+        return document.getElementById(id)?.value || '';
+      }
+
+      function directCheckoutVariantId(groupIdx, variantIdx) {
+        return GROUPS[groupIdx]?.variants?.[variantIdx]?._id || '';
+      }
+
+      function readDirectCheckoutDraft() {
+        try {
+          const raw = localStorage.getItem(DIRECT_CHECKOUT_DRAFT_KEY);
+          if (!raw) return null;
+          const draft = JSON.parse(raw);
+          const expired = !draft?.savedAt || Date.now() - Number(draft.savedAt) > DIRECT_CHECKOUT_DRAFT_MAX_AGE_MS;
+          const currentVariant = GROUPS[Number(draft.groupIdx)]?.variants?.[Number(draft.variantIdx)];
+          const variantExists = String(currentVariant?._id || '') === String(draft.variantId || '') && Number(currentVariant?.quantity) > 0;
+          if (expired || !variantExists) {
+            localStorage.removeItem(DIRECT_CHECKOUT_DRAFT_KEY);
+            return null;
+          }
+          return draft;
+        } catch (_) {
+          try { localStorage.removeItem(DIRECT_CHECKOUT_DRAFT_KEY); } catch (_) {}
+          return null;
+        }
+      }
+
+      function saveDirectCheckoutDraft() {
+        if (_directCheckoutSubmitting || _restoringDirectDraft || selectedGroupIdx === null || selectedVariantIdx === null) return false;
+        try {
+          const draft = {
+            savedAt: Date.now(),
+            groupIdx: selectedGroupIdx,
+            variantIdx: selectedVariantIdx,
+            variantId: directCheckoutVariantId(selectedGroupIdx, selectedVariantIdx),
+            selectedQuantity,
+            selectedFulfillment,
+            currentStep,
+            paymentMethod: directCheckoutFieldValue('wizardPaymentMethod'),
+            paymentChannel: directCheckoutFieldValue('directWizardPaymentChannel'),
+            contactNumber: directCheckoutFieldValue('wizardContact'),
+            address: directCheckoutFieldValue('wizardAddress'),
+            notes: directCheckoutFieldValue('wizardNotes'),
+            latitude: directCheckoutFieldValue('wizardLat'),
+            longitude: directCheckoutFieldValue('wizardLng'),
+            preferredDate: directCheckoutFieldValue('wizardDate'),
+            timeSlot: directCheckoutFieldValue('wizardTimeSlot'),
+            pickupDate: directCheckoutFieldValue('wizardPickupDate'),
+            routeDistanceKm: _routeDistanceKm,
+            routeDurationMin: _routeDurationMin,
+            transportationFee: _transportFee,
+            checkoutRequestId: _checkoutRequestId
+          };
+          // Never persist payment references or uploaded receipt contents.
+          localStorage.setItem(DIRECT_CHECKOUT_DRAFT_KEY, JSON.stringify(draft));
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function scheduleDirectCheckoutDraftSave() {
+        clearTimeout(_directDraftSaveTimer);
+        _directDraftSaveTimer = setTimeout(saveDirectCheckoutDraft, 120);
+      }
+
+      function clearDirectCheckoutDraft() {
+        clearTimeout(_directDraftSaveTimer);
+        try { localStorage.removeItem(DIRECT_CHECKOUT_DRAFT_KEY); } catch (_) {}
+      }
 
       function createCheckoutRequestId() {
         if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -1930,7 +2042,71 @@
       });
 
       // ── Open wizard ─────────────────────────────────────────────────────
+      function setDirectCheckoutFieldValue(id, value) {
+        const input = document.getElementById(id);
+        if (input && value !== undefined && value !== null) input.value = String(value);
+      }
+
+      function restoreDirectCheckoutDraft(draft) {
+        if (!draft) return;
+        _restoringDirectDraft = true;
+        try {
+          window.selectVariant(Number(draft.variantIdx));
+          const variant = GROUPS[selectedGroupIdx]?.variants?.[selectedVariantIdx];
+          selectedQuantity = Math.min(Math.max(1, Number(draft.selectedQuantity) || 1), Number(variant?.quantity) || 1);
+          document.getElementById('wizardQuantity').textContent = String(selectedQuantity);
+          document.getElementById('wizardSelectedPrice').textContent = `₱${((Number(variant?.sellingPrice) || 0) * selectedQuantity).toLocaleString()}`;
+          if (checkoutCalendar) checkoutCalendar.setQuantity(selectedQuantity);
+
+          if (draft.selectedFulfillment) window.selectFulfillment(draft.selectedFulfillment);
+          setDirectCheckoutFieldValue('wizardContact', draft.contactNumber);
+          setDirectCheckoutFieldValue('wizardAddress', draft.address);
+          setDirectCheckoutFieldValue('wizardNotes', draft.notes);
+          setDirectCheckoutFieldValue('wizardLat', draft.latitude);
+          setDirectCheckoutFieldValue('wizardLng', draft.longitude);
+          setDirectCheckoutFieldValue('wizardDate', draft.preferredDate);
+          setDirectCheckoutFieldValue('wizardTimeSlot', draft.timeSlot);
+          setDirectCheckoutFieldValue('wizardPickupDate', draft.pickupDate);
+          if (fpDatePickup && draft.pickupDate) fpDatePickup.setDate(draft.pickupDate, false);
+
+          _routeDistanceKm = Number(draft.routeDistanceKm) || 0;
+          _routeDurationMin = Number(draft.routeDurationMin) || 0;
+          _transportFee = Number(draft.transportationFee) || 0;
+          _checkoutRequestId = draft.checkoutRequestId || createCheckoutRequestId();
+
+          let targetStep = Math.min(TOTAL_STEPS, Math.max(1, Number(draft.currentStep) || 1));
+          if (!draft.selectedFulfillment && targetStep > 2) targetStep = 2;
+          const needsReceipt = ['gcash_full', 'cod'].includes(draft.paymentMethod);
+          if (needsReceipt && targetStep > 4) targetStep = 4;
+
+          if (targetStep >= 3) {
+            const isDelivery = selectedFulfillment !== 'customer_pickup';
+            document.getElementById('deliveryFields').style.display = isDelivery ? 'block' : 'none';
+            document.getElementById('pickupFields').style.display = isDelivery ? 'none' : 'block';
+            if (isDelivery) setTimeout(() => initMap(), 250);
+          }
+          if (targetStep >= 4) {
+            renderPaymentOptions();
+            if (draft.paymentMethod) window.selectPaymentMethods(draft.paymentMethod);
+            if (draft.paymentChannel) window.selectDirectPaymentChannel(draft.paymentChannel);
+            setDirectCheckoutFieldValue('wizardGcashSenderNumber', '');
+            const notice = document.getElementById('directCheckoutRestoreNotice');
+            if (notice) notice.classList.toggle('d-none', !needsReceipt);
+          }
+          currentStep = targetStep;
+          if (targetStep === 5) populateReview();
+          updateWizardUI();
+        } finally {
+          _restoringDirectDraft = false;
+        }
+      }
+
       window.openProductWizard = function (gIdx) {
+        let savedDraft = readDirectCheckoutDraft();
+        if (savedDraft && Number(savedDraft.groupIdx) !== Number(gIdx)) {
+          clearDirectCheckoutDraft();
+          savedDraft = null;
+        }
         selectedGroupIdx = gIdx;
         selectedVariantIdx = null;
         selectedQuantity = 1;
@@ -1938,11 +2114,19 @@
         _routeDistanceKm = 0;
         _routeDurationMin = 0;
         _transportFee = 0;
-        _checkoutRequestId = '';
+        _checkoutRequestId = savedDraft?.checkoutRequestId || '';
         currentStep = 1;
 
         const g = GROUPS[gIdx];
         if (!g) return;
+        document.getElementById('directCheckoutRestoreNotice')?.classList.add('d-none');
+        setDirectCheckoutFieldValue('wizardPaymentMethod', '');
+        setDirectCheckoutFieldValue('directWizardPaymentChannel', '');
+        setDirectCheckoutFieldValue('wizardGcashSenderNumber', '');
+        const receiptInput = document.getElementById('wizardGcashProof');
+        if (receiptInput) receiptInput.value = '';
+        const receiptPreviewArea = document.getElementById('wizardGcashProofPreviewArea');
+        if (receiptPreviewArea) receiptPreviewArea.style.display = 'none';
 
         // Populate step 1
         document.getElementById('wizardProductImg').src = g.imageUrl || '/images/products/default.png';
@@ -2081,8 +2265,11 @@
         // Update cart count icon if needed
         updateCartBadge();
 
-        const modal = new bootstrap.Modal(document.getElementById('productOrderModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('productOrderModal'));
         modal.show();
+        if (savedDraft && Number(savedDraft.groupIdx) === Number(gIdx)) {
+          setTimeout(() => restoreDirectCheckoutDraft(savedDraft), 80);
+        }
       };
 
       // ── Select HP variant ───────────────────────────────────────────────
@@ -2109,6 +2296,7 @@
         document.getElementById('wizardQuantity').textContent = '1';
         document.getElementById('wizardMaxQuantity').textContent = v.quantity;
         document.getElementById('wizardQuantityContainer').style.display = 'block';
+        scheduleDirectCheckoutDraftSave();
       };
 
       window.updateQuantity = function(change) {
@@ -2125,6 +2313,7 @@
         
         // Update price display dynamically based on quantity
         document.getElementById('wizardSelectedPrice').textContent = `₱${(v.sellingPrice * newQ).toLocaleString()}`;
+        scheduleDirectCheckoutDraftSave();
       };
 
       // ── Select fulfillment ──────────────────────────────────────────────
@@ -2136,10 +2325,11 @@
         if (checkoutCalendar) {
           checkoutCalendar.setFulfillmentType(type);
         }
+        scheduleDirectCheckoutDraftSave();
       };
 
       // ── Wizard navigation ───────────────────────────────────────────────
-      window.wizardNext = function () {
+      window.wizardNext = async function () {
         if (!IS_LOGGED_IN) {
           window.location.href = '/login';
           return;
@@ -2164,6 +2354,14 @@
             if (!addr) { showPremiumAlert('Please enter your delivery address.'); return; }
             if (!contact) { showPremiumAlert('Please enter your contact number.'); return; }
             if (!date || !timeSlot) { showPremiumAlert('Please select a preferred date and time slot.', 'Schedule Required', 'warning'); return; }
+            if (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, timeSlot))) {
+              showPremiumAlert(
+                'That Philippine time slot has passed or was just reserved. Please choose a new available time.',
+                'Time Slot No Longer Available',
+                'warning'
+              );
+              return;
+            }
           } else {
             const pickupDate = document.getElementById('wizardPickupDate').value;
             if (!pickupDate) { showPremiumAlert('Please select a pickup date.'); return; }
@@ -2174,19 +2372,31 @@
           if (!payMethod) { showPremiumAlert('Please choose a payment option.'); return; }
 
           if (payMethod === 'gcash_full' || payMethod === 'cod') {
-            if (!String(window.adminGcashNumber || '').trim()) {
-              showPremiumAlert('Online payment is temporarily unavailable. Please contact the store before placing this order.', 'GCash Not Configured', 'warning');
+            const paymentChannel = document.getElementById('directWizardPaymentChannel')?.value || '';
+            if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
+              showPremiumAlert('Select card, GCash, Maya, bank transfer, or another payment method.', 'Payment Method Required', 'warning');
               return;
             }
-            const senderDigits = String(document.getElementById('wizardGcashSenderNumber')?.value || '').replace(/\D/g, '');
-            if (!/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) {
-              showPremiumAlert('Enter the Philippine mobile number used to send this payment.', 'Sender Number Required', 'warning');
+            if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
+              showPremiumAlert('Choose another payment method or contact the store.', 'Payment Method Unavailable', 'warning');
               return;
             }
-            const gcashProof = document.getElementById('wizardGcashProof').files[0];
-            if (!gcashProof) {
-              showPremiumAlert('Please upload a screenshot of your GCash receipt.', 'Missing Receipt', 'warning');
-              return;
+            if (paymentChannel !== 'card') {
+              if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
+                showPremiumAlert('Choose another payment method or contact the store.', 'GCash Not Configured', 'warning');
+                return;
+              }
+              const reference = String(document.getElementById('wizardGcashSenderNumber')?.value || '').trim();
+              const senderDigits = reference.replace(/\D/g, '');
+              if ((paymentChannel === 'gcash' && !/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) || (paymentChannel !== 'gcash' && reference.length < 3)) {
+                showPremiumAlert(paymentChannel === 'gcash' ? 'Enter the Philippine mobile number used to send this payment.' : 'Enter the transaction or reference number shown on your receipt.', 'Payment Reference Required', 'warning');
+                return;
+              }
+              const gcashProof = document.getElementById('wizardGcashProof').files[0];
+              if (!gcashProof) {
+                showPremiumAlert('Please upload a screenshot of your payment receipt.', 'Missing Receipt', 'warning');
+                return;
+              }
             }
           }
         }
@@ -2224,12 +2434,14 @@
         }
 
         updateWizardUI();
+        scheduleDirectCheckoutDraftSave();
       };
 
       window.wizardBack = function () {
         if (currentStep <= 1) return;
         currentStep--;
         updateWizardUI();
+        scheduleDirectCheckoutDraftSave();
       };
 
       // ── Update wizard UI ────────────────────────────────────────────────
@@ -2290,6 +2502,57 @@
       }
 
       // ── Payment options ──────────────────────────────────────────────────
+      function directPaymentChannelLabel(channel) {
+        const configured = window.paymentMethodsConfig?.[channel]?.label;
+        return configured || ({ card: 'Credit / Debit Card', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+      }
+
+      window.selectDirectPaymentChannel = function(channel) {
+        if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(channel)) return;
+        const configuredMethod = window.paymentMethodsConfig?.[channel];
+        if (configuredMethod && configuredMethod.available !== true) return;
+        if (!configuredMethod && channel === 'gcash' && !String(window.adminGcashNumber || '').trim()) return;
+        const label = directPaymentChannelLabel(channel);
+        const isGcash = channel === 'gcash';
+        const isCard = channel === 'card';
+        document.getElementById('directWizardPaymentChannel').value = channel;
+        document.querySelectorAll('#directPaymentChannelSection .payment-channel-card').forEach(button => {
+          const selected = button.dataset.channel === channel;
+          button.classList.toggle('selected', selected);
+          button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+        const help = document.getElementById('directPaymentChannelHelp');
+        if (help) help.textContent = isCard
+          ? 'Pay by credit or debit card at the RACS store. No card details are collected online.'
+          : isGcash
+          ? 'Send to the displayed GCash number, then upload your receipt.'
+          : `${configuredMethod?.accountName ? `${configuredMethod.accountName} - ` : ''}${configuredMethod?.accountNumber || `Use the ${label} receiving details`}. Enter the transaction reference and upload your receipt.`;
+        document.getElementById('wizardGcashFieldsPanel').style.display = isCard ? 'none' : 'block';
+        document.getElementById('directCardCheckoutNotice')?.classList.toggle('d-none', !isCard);
+        const qrBlock = document.getElementById('directPaymentQrBlock');
+        if (qrBlock) qrBlock.style.display = isGcash ? '' : 'none';
+        const referenceLabel = document.getElementById('directPaymentReferenceLabel');
+        const referenceHelp = document.getElementById('directPaymentReferenceHelp');
+        const referenceInput = document.getElementById('wizardGcashSenderNumber');
+        if (referenceLabel) referenceLabel.innerHTML = `${isGcash ? 'GCash Sender Number' : `${label} Transaction Reference`} <span class="text-danger">*</span>`;
+        if (referenceHelp) referenceHelp.textContent = isGcash ? 'Enter the mobile number used to send this payment.' : 'Enter the transaction or reference number shown on your receipt.';
+        if (referenceInput) {
+          referenceInput.value = '';
+          referenceInput.placeholder = isGcash ? '09XXXXXXXXX' : 'Transaction or reference number';
+          referenceInput.inputMode = isGcash ? 'tel' : 'text';
+          referenceInput.autocomplete = isGcash ? 'tel' : 'off';
+        }
+        const method = document.getElementById('wizardPaymentMethod').value;
+        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? `Downpayment via ${label}` : `Full Payment via ${label}`;
+        document.getElementById('directPaymentInstructionTitle').textContent = `Send your payment via ${label}`;
+        document.getElementById('directPaymentInstructionFirst').textContent = isGcash ? 'Scan the QR code or use the displayed number.' : `Use the ${label} payment details confirmed by RACS.`;
+        scheduleDirectCheckoutDraftSave();
+      };
+
+      document.querySelectorAll('#directPaymentChannelSection .payment-channel-card').forEach(button => {
+        button.addEventListener('click', () => window.selectDirectPaymentChannel(button.dataset.channel));
+      });
+
       window.selectPaymentMethods = function(method) {
         document.getElementById('wizardPaymentMethod').value = method;
         document.querySelectorAll('#productOrderModal .payment-method-card').forEach(c => {
@@ -2299,8 +2562,18 @@
 
         const gcashPanel = document.getElementById('wizardGcashFieldsPanel');
         const showGcash = method === 'gcash_full' || method === 'cod';
+        const channelSection = document.getElementById('directPaymentChannelSection');
+        if (channelSection) channelSection.style.display = showGcash ? 'block' : 'none';
         if (showGcash) {
-          gcashPanel.style.display = 'block';
+          const currentChannel = document.getElementById('directWizardPaymentChannel').value;
+          if (!currentChannel) {
+            const preferred = ['card', 'gcash', 'maya', 'bank_transfer', 'other'].find(channel => window.paymentMethodsConfig?.[channel]?.available)
+              || (String(window.adminGcashNumber || '').trim() ? 'gcash' : '');
+            if (preferred) window.selectDirectPaymentChannel(preferred);
+          }
+          const selectedChannel = document.getElementById('directWizardPaymentChannel').value;
+          gcashPanel.style.display = selectedChannel === 'card' ? 'none' : 'block';
+          document.getElementById('directCardCheckoutNotice')?.classList.toggle('d-none', selectedChannel !== 'card');
           const g = GROUPS[selectedGroupIdx];
           const v = g.variants[selectedVariantIdx];
           
@@ -2318,7 +2591,8 @@
           
           document.getElementById('wizardGcashAmount').textContent = `₱${amountToPay.toLocaleString()}`;
           document.getElementById('wizardGcashLabel').textContent = isDownpayment ? `Downpayment due now (${percentage}%)` : 'Full payment due now';
-          document.getElementById('wizardGcashHeading').textContent = isDownpayment ? 'Reservation Downpayment via GCash' : 'Full Payment via GCash';
+          const channelLabel = directPaymentChannelLabel(document.getElementById('directWizardPaymentChannel').value);
+          document.getElementById('wizardGcashHeading').textContent = isDownpayment ? `Downpayment via ${channelLabel}` : `Full Payment via ${channelLabel}`;
           document.getElementById('wizardGcashTotal').textContent = `₱${total.toLocaleString()}`;
           document.getElementById('wizardGcashBalance').textContent = `₱${balance.toLocaleString()}`;
           document.getElementById('wizardGcashBalanceRow').style.display = isDownpayment ? 'flex' : 'none';
@@ -2336,7 +2610,9 @@
           }
         } else {
           gcashPanel.style.display = 'none';
+          document.getElementById('directCardCheckoutNotice')?.classList.add('d-none');
         }
+        scheduleDirectCheckoutDraftSave();
       };
 
       // GCash proof preview
@@ -2360,6 +2636,19 @@
       function renderPaymentOptions() {
         const container = document.getElementById('paymentOptionsContainer');
         document.getElementById('wizardPaymentMethod').value = '';
+        document.getElementById('directWizardPaymentChannel').value = '';
+        document.getElementById('directPaymentChannelSection').style.display = 'none';
+        document.getElementById('directCardCheckoutNotice')?.classList.add('d-none');
+        document.querySelectorAll('#directPaymentChannelSection .payment-channel-card').forEach(button => {
+          const method = window.paymentMethodsConfig?.[button.dataset.channel];
+          if (method) {
+            button.disabled = method.available !== true;
+            button.title = button.disabled ? `${method.label || 'This method'} is not currently available.` : '';
+          } else if (button.dataset.channel === 'gcash') {
+            button.disabled = !String(window.adminGcashNumber || '').trim();
+            button.title = button.disabled ? 'GCash receiving details are not configured.' : '';
+          }
+        });
 
         let html = '';
 
@@ -2376,7 +2665,7 @@
               <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash before pickup.</span></span>
+                <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method before pickup.</span></span>
               </button>
             </div>
           `;
@@ -2388,20 +2677,22 @@
               <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Pay in Full Now</strong><span>Pay the complete order amount through GCash.</span></span>
+                <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method.</span></span>
               </button>
             </div>
             <div class="col-12 col-md-6">
               <button type="button" class="payment-method-card payment-card-amber" data-method="cod" aria-pressed="false" onclick="selectPaymentMethods('cod')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Reserve with Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% through GCash now; settle the balance at installation handover.</span></span>
+                <span class="payment-method-copy"><strong>Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% now to reserve the unit and schedule; settle the balance at handover.</span></span>
               </button>
             </div>
           `;
         }
 
         container.innerHTML = html;
+        const downpaymentReason = document.getElementById('directDownpaymentReason');
+        if (downpaymentReason) downpaymentReason.style.display = selectedFulfillment === 'customer_pickup' ? 'none' : 'flex';
       }
 
       // ── Populate review ─────────────────────────────────────────────────
@@ -2446,10 +2737,11 @@
 
         // Payment option
         const payMethod = document.getElementById('wizardPaymentMethod').value;
+        const selectedPaymentChannel = directPaymentChannelLabel(document.getElementById('directWizardPaymentChannel')?.value);
         const payLabels = {
           cash_onsite: 'Cash at store pickup',
-          gcash_full: 'Full payment now via GCash',
-          cod: `Reserve with ${window.downpaymentPercentage || 10}% GCash downpayment; balance at installation handover`
+          gcash_full: `Full Payment via ${selectedPaymentChannel}`,
+          cod: `${window.downpaymentPercentage || 10}% Downpayment via ${selectedPaymentChannel}; balance at installation handover`
         };
         details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
 
@@ -2738,6 +3030,8 @@
 
       // ── Submit order ────────────────────────────────────────────────────
       async function submitOrder() {
+        if (_directCheckoutSubmitting) return;
+        _directCheckoutSubmitting = true;
         const g = GROUPS[selectedGroupIdx];
         const v = g.variants[selectedVariantIdx];
         const nextBtn = document.getElementById('wizardNextBtn');
@@ -2776,9 +3070,15 @@
           formData.append('routeDurationMin', String(_routeDurationMin));
 
           if (payMethod === 'gcash_full' || payMethod === 'cod') {
-            const gcashProof = document.getElementById('wizardGcashProof').files[0];
-            if (gcashProof) formData.append('gcashProof', gcashProof);
-            formData.append('gcashNumber', document.getElementById('wizardGcashSenderNumber')?.value.trim() || '');
+            const paymentChannel = document.getElementById('directWizardPaymentChannel')?.value || '';
+            const paymentReference = document.getElementById('wizardGcashSenderNumber')?.value.trim() || '';
+            if (paymentChannel !== 'card') {
+              const gcashProof = document.getElementById('wizardGcashProof').files[0];
+              if (gcashProof) formData.append('gcashProof', gcashProof);
+            }
+            formData.append('paymentChannel', paymentChannel);
+            formData.append('paymentReference', paymentChannel === 'card' ? '' : paymentReference);
+            formData.append('gcashNumber', paymentChannel === 'gcash' ? paymentReference : '');
           }
 
           const res = await fetch('/api/orders', {
@@ -2795,10 +3095,13 @@
             }
             nextBtn.disabled = false;
             nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+            _directCheckoutSubmitting = false;
             return;
           }
 
           // Success — show confirmation
+          clearDirectCheckoutDraft();
+          _checkoutRequestId = '';
           const modalBody = document.querySelector('#productOrderModal .modal-body');
           modalBody.innerHTML = `
           <div class="text-center p-5" style="animation: fadeSlideUp 0.4s ease;">
@@ -2818,9 +3121,10 @@
           <button class="btn btn-sm" data-bs-dismiss="modal" style="border-radius: 50px; padding: 0.5rem 1.5rem; color: #64748b; background: rgba(100,116,139,0.08); border: 1px solid rgba(100,116,139,0.15); font-weight: 600;">Close</button>
         `;
         } catch (err) {
-          showPremiumAlert('Network error. Please try again.', 'Connection Error', 'error');
+          showPremiumAlert(err?.message || 'Network error. Please try again.', 'Connection Error', 'error');
           nextBtn.disabled = false;
           nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+          _directCheckoutSubmitting = false;
         }
       }
 
@@ -2955,7 +3259,22 @@
       if (wizardModal) {
         wizardModal.addEventListener('show.bs.modal', () => wizardModal.removeAttribute('aria-hidden'));
         wizardModal.addEventListener('hidden.bs.modal', () => wizardModal.setAttribute('aria-hidden', 'true'));
+        const persistDirectCheckoutField = () => scheduleDirectCheckoutDraftSave();
+        wizardModal.addEventListener('input', persistDirectCheckoutField);
+        wizardModal.addEventListener('change', persistDirectCheckoutField);
       }
+
+      function reopenSavedDirectCheckout() {
+        const draft = readDirectCheckoutDraft();
+        if (!IS_LOGGED_IN || !draft || !wizardModal || wizardModal.classList.contains('show') || _directCheckoutSubmitting) return;
+        window.openProductWizard(Number(draft.groupIdx));
+      }
+
+      window.addEventListener('pagehide', saveDirectCheckoutDraft);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveDirectCheckoutDraft();
+      });
+      window.addEventListener('pageshow', () => setTimeout(reopenSavedDirectCheckout, 80));
 
       // Call badge update on load
       updateCartBadge();

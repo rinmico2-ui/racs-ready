@@ -1,24 +1,56 @@
-<link rel="stylesheet" href="/css/maintenance.css?v=20260826">
+<link rel="stylesheet" href="/css/maintenance.css?v=20260917">
 
-<section class="container py-5 maintenance-shell" id="maintenanceCustomerApp" style="max-width:1080px;min-height:65vh;">
-  <header class="maintenance-head">
+<section class="container py-4 maintenance-shell aftercare-customer" id="maintenanceCustomerApp" style="max-width:1180px;min-height:65vh;">
+  <header class="maintenance-head aftercare-head">
     <div class="d-flex align-items-center gap-3">
-      <div class="maintenance-head-icon"><i class="bi bi-tools"></i></div>
-      <div><h1>My Maintenance</h1><p>Upcoming care schedules for equipment from your bookings and orders.</p></div>
+      <div class="maintenance-head-icon"><i class="bi bi-shield-check"></i></div>
+      <div><h1>Aftercare Center</h1><p>Maintenance schedules, warranty coverage, and service follow-up in one place.</p></div>
     </div>
-    <a href="/book-history" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history me-1"></i>Booking history</a>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="/book-history" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history me-1"></i>Bookings</a>
+      <a href="/my-orders" class="btn btn-sm btn-outline-secondary"><i class="bi bi-receipt me-1"></i>Orders</a>
+    </div>
   </header>
-  <div class="maintenance-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr));">
-    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Equipment</div><div class="maintenance-kpi-value" id="customerAssetCount">0</div></div>
-    <div class="maintenance-kpi"><div class="maintenance-kpi-label">Due Soon</div><div class="maintenance-kpi-value" id="customerDueSoon">0</div></div>
-    <div class="maintenance-kpi warning"><div class="maintenance-kpi-label">Due</div><div class="maintenance-kpi-value" id="customerDue">0</div></div>
-    <div class="maintenance-kpi danger"><div class="maintenance-kpi-label">Overdue</div><div class="maintenance-kpi-value" id="customerOverdue">0</div></div>
+
+  <div class="aftercare-alert d-none" id="aftercareAlert" role="status" aria-live="polite"></div>
+
+  <div class="maintenance-kpis aftercare-kpis">
+    <button class="maintenance-kpi aftercare-kpi-button" type="button" data-aftercare-tab="maintenance">
+      <div class="maintenance-kpi-label">Registered equipment</div><div class="maintenance-kpi-value" id="customerAssetCount">0</div>
+    </button>
+    <button class="maintenance-kpi warning aftercare-kpi-button" type="button" data-aftercare-tab="maintenance">
+      <div class="maintenance-kpi-label">Maintenance due</div><div class="maintenance-kpi-value" id="customerDueTotal">0</div>
+    </button>
+    <button class="maintenance-kpi aftercare-kpi-button" type="button" data-aftercare-tab="warranty">
+      <div class="maintenance-kpi-label">Active coverages</div><div class="maintenance-kpi-value" id="customerActiveCoverage">0</div>
+    </button>
+    <button class="maintenance-kpi danger aftercare-kpi-button" type="button" data-aftercare-tab="warranty">
+      <div class="maintenance-kpi-label">Open claims</div><div class="maintenance-kpi-value" id="customerActiveClaims">0</div>
+    </button>
   </div>
-  <div class="asset-grid" id="customerAssetGrid"></div>
-  <div class="maintenance-empty d-none" id="customerMaintenanceEmpty" style="border:1px solid #e2e8f0;border-radius:8px;">
-    <i class="bi bi-snow2 fs-3 d-block mb-2"></i>
-    No maintainable equipment is registered yet. Completed installations and service visits will appear here.
-  </div>
+
+  <nav class="aftercare-tabs" aria-label="Aftercare sections">
+    <button class="aftercare-tab active" type="button" data-aftercare-tab="maintenance"><i class="bi bi-calendar2-check"></i>Maintenance</button>
+    <button class="aftercare-tab" type="button" data-aftercare-tab="warranty"><i class="bi bi-shield-check"></i>Warranty &amp; claims</button>
+  </nav>
+
+  <section class="aftercare-panel" data-aftercare-panel="maintenance">
+    <div class="aftercare-section-head"><div><h2>Equipment care</h2><p>Current service cycles and customer responses.</p></div></div>
+    <div class="asset-grid" id="customerAssetGrid"></div>
+    <div class="maintenance-empty d-none" id="customerMaintenanceEmpty">
+      <i class="bi bi-calendar2-check fs-3 d-block mb-2"></i>
+      No maintainable equipment is registered yet.
+    </div>
+  </section>
+
+  <section class="aftercare-panel d-none" data-aftercare-panel="warranty">
+    <div class="aftercare-section-head"><div><h2>Coverage &amp; claims</h2><p>Coverage is preserved from the terms active when each service or order was completed.</p></div></div>
+    <div class="warranty-records" id="customerWarrantyRecords"></div>
+    <div class="maintenance-empty d-none" id="customerWarrantyEmpty">
+      <i class="bi bi-shield fs-3 d-block mb-2"></i>
+      No warranty records are available yet.
+    </div>
+  </section>
 </section>
 
 <div class="modal fade" id="installationDateModal" tabindex="-1" aria-hidden="true">
@@ -29,4 +61,18 @@
   </div></div>
 </div>
 
-<script src="/js/maintenance-customer.js?v=20260826"></script>
+<div class="modal fade" id="aftercareResponseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="aftercareResponseForm">
+    <div class="modal-header"><div><h5 class="modal-title" id="aftercareResponseTitle">Request a callback</h5><div class="small text-muted" id="aftercareResponseEquipment"></div></div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <input id="aftercareResponseScheduleId" type="hidden">
+      <input id="aftercareResponseStatus" type="hidden">
+      <div id="aftercareResponseDateGroup"><label class="form-label" for="aftercareResponseDate" id="aftercareResponseDateLabel">Preferred contact date</label><input class="form-control" id="aftercareResponseDate" type="datetime-local"></div>
+      <label class="form-label mt-3" for="aftercareResponseNote">Note <span class="text-muted fw-normal">(optional)</span></label>
+      <textarea class="form-control" id="aftercareResponseNote" rows="3" maxlength="500" placeholder="Best time to call, access details, or service concerns"></textarea>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="aftercareResponseSubmit" type="submit">Send request</button></div>
+  </form></div>
+</div>
+
+<script src="/js/maintenance-customer.js?v=20260917"></script>

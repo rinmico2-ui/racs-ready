@@ -1174,10 +1174,14 @@ const {
 } = require("../utils/aftercarePolicy");
 const {
   GCASH_RECIPIENT_SETTING_KEY,
+  PAYMENT_METHODS_SETTING_KEY,
   getDownpaymentPercentage,
   getGcashRecipientNumber,
+  getPaymentMethods,
   normalizeGcashRecipientNumber,
   normalizeDownpaymentPercentage,
+  normalizePaymentMethods,
+  methodHasRequiredDetails,
 } = require("../utils/paymentPolicy");
 
 /** GET /api/admin/settings/aftercare */
@@ -1529,11 +1533,12 @@ router.put("/settings/aftercare", async (req, res, next) => {
 /** GET /api/admin/settings/payment-policy */
 router.get("/settings/payment-policy", async (_req, res, next) => {
   try {
-    const [downpaymentPercentage, gcashNumber] = await Promise.all([
+    const [downpaymentPercentage, gcashNumber, methods] = await Promise.all([
       getDownpaymentPercentage(),
       getGcashRecipientNumber(),
+      getPaymentMethods(),
     ]);
-    return res.json({ downpaymentPercentage, gcashNumber, gcashConfigured: Boolean(gcashNumber) });
+    return res.json({ downpaymentPercentage, gcashNumber, gcashConfigured: Boolean(gcashNumber), methods, cardCollectionMode: "in_person" });
   } catch (err) {
     next(err);
   }
@@ -1553,6 +1558,21 @@ router.put("/settings/payment-policy", async (req, res, next) => {
     if (includesGcashNumber && suppliedGcashNumber && !gcashNumber) {
       return res.status(400).json({ error: "Enter a valid Philippine GCash number such as 09XXXXXXXXX." });
     }
+    const suppliedMethods = req.body?.methods && typeof req.body.methods === "object" ? req.body.methods : null;
+    const methods = normalizePaymentMethods(suppliedMethods || {}, gcashNumber || await getGcashRecipientNumber());
+    if (suppliedMethods) {
+      for (const channel of ["gcash", "maya", "bank_transfer", "other"]) {
+        if (methods[channel].enabled && !methodHasRequiredDetails(channel, methods[channel])) {
+          return res.status(400).json({ error: `Complete the required ${methods[channel].label} receiving details before enabling it.` });
+        }
+      }
+    }
+    const effectiveGcashInput = suppliedMethods ? methods.gcash.accountNumber : gcashNumber;
+    if (suppliedMethods && methods.gcash.enabled && !normalizeGcashRecipientNumber(effectiveGcashInput)) {
+      return res.status(400).json({ error: "Enter a valid Philippine GCash receiving number before enabling GCash." });
+    }
+    if (suppliedMethods) methods.gcash.accountNumber = normalizeGcashRecipientNumber(effectiveGcashInput) || "";
+
     const updates = [
       SiteSetting.findOneAndUpdate(
         { key: "downpaymentPercentage" },
@@ -1567,8 +1587,22 @@ router.put("/settings/payment-policy", async (req, res, next) => {
         { upsert: true, setDefaultsOnInsert: true },
       ));
     }
+    if (suppliedMethods) {
+      updates.push(SiteSetting.findOneAndUpdate(
+        { key: PAYMENT_METHODS_SETTING_KEY },
+        { value: methods },
+        { upsert: true, setDefaultsOnInsert: true },
+      ));
+      updates.push(SiteSetting.findOneAndUpdate(
+        { key: GCASH_RECIPIENT_SETTING_KEY },
+        { value: methods.gcash.accountNumber },
+        { upsert: true, setDefaultsOnInsert: true },
+      ));
+    }
     await Promise.all(updates);
-    const effectiveGcashNumber = includesGcashNumber ? gcashNumber : await getGcashRecipientNumber();
+    const effectiveGcashNumber = suppliedMethods
+      ? methods.gcash.accountNumber
+      : (includesGcashNumber ? gcashNumber : await getGcashRecipientNumber());
     await audit.logEvent({
       actor: req.user && req.user._id,
       target: req.user && req.user._id,
@@ -1579,13 +1613,19 @@ router.put("/settings/payment-policy", async (req, res, next) => {
         downpaymentPercentage,
         gcashConfigured: Boolean(effectiveGcashNumber),
         gcashLastFour: effectiveGcashNumber.slice(-4),
+        enabledPaymentMethods: suppliedMethods
+          ? Object.entries(methods).filter(([, method]) => method.enabled).map(([channel]) => channel)
+          : undefined,
       },
     }).catch(() => {});
+    const effectiveMethods = await getPaymentMethods();
     return res.json({
       message: "Payment policy saved successfully",
       downpaymentPercentage,
       gcashNumber: effectiveGcashNumber,
       gcashConfigured: Boolean(effectiveGcashNumber),
+      methods: effectiveMethods,
+      cardCollectionMode: "in_person",
     });
   } catch (err) {
     next(err);

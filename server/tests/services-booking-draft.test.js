@@ -75,7 +75,7 @@ test("large uploads and payment evidence are not written to localStorage", () =>
 test("successful submission disables re-saving and refreshed assets bypass stale browser caches", () => {
   assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled\) return false/);
   assert.match(servicesScript, /BookingState\.draftPersistenceDisabled = true;\s*localStorage\.removeItem/);
-  assert.match(servicesView, /enterprise-calendar\.js\?v=20260911-booking-draft-v2/);
-  assert.match(servicesView, /services-multi\.js\?v=20260915-address-search-v2/);
+  assert.match(servicesView, /enterprise-calendar\.js\?v=20260917-manila-slots-v1/);
+  assert.match(servicesView, /services-multi\.js\?v=20260917-card-checkout-v1/);
   assert.match(servicesView, /if\(typeof window\.saveBookingProgress==='function'\) window\.saveBookingProgress\(\)/);
 });

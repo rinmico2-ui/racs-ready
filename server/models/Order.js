@@ -270,6 +270,12 @@ const orderSchema = new mongoose.Schema(
       enum: ["cod", "gcash", "card", "paymongo", "other", "cash_onsite", "gcash_full", "gcash_downpayment", "cash", "downpayment"],
       default: "cod",
     },
+    paymentChannel: {
+      type: String,
+      enum: ["card", "gcash", "maya", "bank_transfer", "other"],
+      default: null,
+    },
+    paymentReference: { type: String, trim: true, maxlength: 120, default: null },
     paymentStatus: {
       type: String,
       enum: ["pending", "payment_collected", "waiting_for_remittance", "remitted", "verified", "rejected", "refunded", "paid", "failed", "partial"],

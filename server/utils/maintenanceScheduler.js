@@ -1,10 +1,22 @@
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
+const BookingService = require("../models/BookingService");
+const CustomerAsset = require("../models/CustomerAsset");
+const Order = require("../models/Order");
 const { createNotification } = require("./notify");
-const { effectiveScheduleStatus, syncMaintenanceFromBooking } = require("./maintenanceLifecycle");
+const { sendEmail } = require("./mailer");
+const {
+  effectiveScheduleStatus,
+  syncMaintenanceFromBooking,
+  syncMaintenanceFromOrder,
+} = require("./maintenanceLifecycle");
 const { DEFAULT_AFTERCARE_POLICY, getAftercarePolicy } = require("./aftercarePolicy");
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function safeEmailText(value) {
+  return String(value || "").replace(/[<>\r\n]/g, " ").replace(/&/g, "and").trim();
+}
 
 function reminderFor(schedule, now = new Date(), config = DEFAULT_AFTERCARE_POLICY.reminders) {
   if (!config.enabled) return null;
@@ -21,45 +33,64 @@ function reminderFor(schedule, now = new Date(), config = DEFAULT_AFTERCARE_POLI
 }
 
 async function checkMaintenanceReminders(now = new Date()) {
+  await reconcileMissingAftercare(now);
   await reconcileMaintenanceBookings(now);
+  let sent = await checkCustomerResponseReminders(now);
   const policy = await getAftercarePolicy();
-  if (!policy.reminders.enabled) return 0;
+  if (!policy.reminders.enabled) return sent;
   const schedules = await MaintenanceSchedule.find({
     status: { $in: ["upcoming", "due", "overdue"] },
     dueDate: { $lte: new Date(now.getTime() + policy.reminders.firstReminderDays * DAY_MS) },
-  }).populate("assetId", "equipment originReference");
+  })
+    .populate("assetId", "equipment originReference")
+    .populate("customerId", "firstName lastName name email");
 
-  let sent = 0;
   for (const schedule of schedules) {
     const effective = effectiveScheduleStatus(schedule, now);
-    if (schedule.status !== effective) schedule.status = effective;
     const reminder = reminderFor(schedule, now, policy.reminders);
     if (!reminder) {
-      if (schedule.isModified("status")) await schedule.save();
+      if (schedule.status !== effective) await MaintenanceSchedule.updateOne({ _id: schedule._id }, { $set: { status: effective } });
       continue;
     }
-    schedule.reminders = schedule.reminders || {};
-    schedule.reminders[reminder.field] = now;
-    schedule.history.push({ status: effective, changedByName: "Maintenance Monitor", reason: `Reminder sent: ${reminder.label}` });
-    await schedule.save();
+    const fieldPath = `reminders.${reminder.field}`;
+    const claimed = await MaintenanceSchedule.findOneAndUpdate(
+      { _id: schedule._id, status: { $in: ["upcoming", "due", "overdue"] }, [fieldPath]: null },
+      { $set: { [fieldPath]: now, status: effective } },
+      { returnDocument: "after" },
+    );
+    if (!claimed) continue;
 
     const equipment = schedule.assetId?.equipment || {};
     const unit = [equipment.brand, equipment.model, equipment.capacity ? `${equipment.capacity} ${equipment.capacityUnit || "HP"}` : ""].filter(Boolean).join(" ") || "air-conditioning unit";
+    const customerId = schedule.customerId?._id || schedule.customerId;
     const customerNotification = await createNotification({
       type: reminder.type,
       title: reminder.type === "maintenance_overdue" ? "Maintenance Overdue" : "Maintenance Reminder",
       message: `${unit} is ${reminder.label}. Review the recommended maintenance schedule.`,
-      userId: schedule.customerId,
+      userId: customerId,
       referenceId: schedule._id,
       referenceModel: "MaintenanceSchedule",
-      link: "/maintenance",
+      link: "/aftercare",
       priority: reminder.priority,
       io: global.io,
     });
     if (!customerNotification) {
-      schedule.reminders[reminder.field] = null;
-      await schedule.save();
+      await MaintenanceSchedule.updateOne({ _id: schedule._id, [fieldPath]: now }, { $set: { [fieldPath]: null } });
       continue;
+    }
+    await MaintenanceSchedule.updateOne(
+      { _id: schedule._id, [fieldPath]: now },
+      { $push: { history: { status: effective, changedByName: "Maintenance Monitor", reason: `Reminder sent: ${reminder.label}` } } },
+    );
+    if (schedule.customerId?.email) {
+      const customerName = safeEmailText(schedule.customerId.name || [schedule.customerId.firstName, schedule.customerId.lastName].filter(Boolean).join(" ") || "Customer");
+      const emailUnit = safeEmailText(unit);
+      const baseUrl = String(process.env.APP_BASE_URL || process.env.APP_URL || "").replace(/\/$/, "");
+      sendEmail(
+        schedule.customerId.email,
+        `Maintenance reminder - ${emailUnit}`,
+        `Hi ${customerName},\nYour ${emailUnit} is ${reminder.label}.\nReview your aftercare schedule${baseUrl ? `: ${baseUrl}/aftercare` : " in your CALIDRO RACS account"}.`,
+      ).catch((error) => console.warn("[maintenance-monitor] Customer reminder email failed:", error.message));
     }
     if (reminder.type === "maintenance_overdue" && policy.reminders.notifyAdminWhenOverdue) {
       await createNotification({
@@ -77,6 +108,104 @@ async function checkMaintenanceReminders(now = new Date()) {
     sent += 1;
   }
   return sent;
+}
+
+async function checkCustomerResponseReminders(now = new Date()) {
+  const schedules = await MaintenanceSchedule.find({
+    status: { $in: ["upcoming", "due", "overdue"] },
+    "customerResponse.status": "remind_later",
+    "customerResponse.remindAt": { $lte: now },
+    "customerResponse.reminderSentAt": null,
+  })
+    .populate("assetId", "equipment")
+    .populate("customerId", "firstName lastName name email");
+  let sent = 0;
+  for (const schedule of schedules) {
+    const claimed = await MaintenanceSchedule.findOneAndUpdate(
+      { _id: schedule._id, status: { $in: ["upcoming", "due", "overdue"] }, "customerResponse.status": "remind_later", "customerResponse.reminderSentAt": null },
+      { $set: { "customerResponse.reminderSentAt": now } },
+      { returnDocument: "after" },
+    );
+    if (!claimed) continue;
+    const equipment = schedule.assetId?.equipment || {};
+    const unit = [equipment.brand, equipment.model].filter(Boolean).join(" ") || equipment.applianceTypeName || "equipment";
+    const customerId = schedule.customerId?._id || schedule.customerId;
+    const notification = await createNotification({
+      type: "maintenance_due_soon",
+      title: "Your Aftercare Reminder",
+      message: `You asked us to remind you about maintenance for ${unit}. You can book now or request a callback.`,
+      userId: customerId,
+      referenceId: schedule._id,
+      referenceModel: "MaintenanceSchedule",
+      link: "/aftercare",
+      priority: "normal",
+      io: global.io,
+    });
+    if (!notification) {
+      await MaintenanceSchedule.updateOne({ _id: schedule._id, "customerResponse.reminderSentAt": now }, { $set: { "customerResponse.reminderSentAt": null } });
+      continue;
+    }
+    if (schedule.customerId?.email) {
+      const emailUnit = safeEmailText(unit);
+      const baseUrl = String(process.env.APP_BASE_URL || process.env.APP_URL || "").replace(/\/$/, "");
+      sendEmail(
+        schedule.customerId.email,
+        `Your requested aftercare reminder - ${emailUnit}`,
+        `Your requested reminder for ${emailUnit} is ready.\nBook maintenance or request a callback${baseUrl ? `: ${baseUrl}/aftercare` : " from your CALIDRO RACS account"}.`,
+      ).catch((error) => console.warn("[maintenance-monitor] Requested reminder email failed:", error.message));
+    }
+    sent += 1;
+  }
+  return sent;
+}
+
+async function reconcileMissingAftercare(now = new Date()) {
+  const cutoff = new Date(now.getTime() - 30 * DAY_MS);
+  const [bookings, orders] = await Promise.all([
+    BookingService.find({
+      status: { $in: ["completed", "repair_completed"] },
+      customerId: { $ne: null },
+      $or: [
+        { completedAt: { $gte: cutoff } },
+        { "repairCompletion.completedAt": { $gte: cutoff } },
+        { updatedAt: { $gte: cutoff } },
+      ],
+    }).sort({ updatedAt: -1 }).limit(250),
+    Order.find({
+      status: "completed",
+      userId: { $ne: null },
+      $or: [{ completedAt: { $gte: cutoff } }, { updatedAt: { $gte: cutoff } }],
+    }).sort({ updatedAt: -1 }).limit(250),
+  ]);
+  const [orderAssetIds, completedBookingScheduleIds] = await Promise.all([
+    CustomerAsset.distinct("originId", { originType: "order", originId: { $in: orders.map((order) => order._id) } }),
+    MaintenanceSchedule.distinct("sourceCompletionId", {
+      sourceCompletionType: "booking",
+      sourceCompletionId: { $in: bookings.map((booking) => booking._id) },
+    }),
+  ]);
+  const orderAssets = new Set(orderAssetIds.map(String));
+  const completedBookingSchedules = new Set(completedBookingScheduleIds.map(String));
+  let recovered = 0;
+  for (const booking of bookings) {
+    if (completedBookingSchedules.has(String(booking._id))) continue;
+    try {
+      const assets = await syncMaintenanceFromBooking(booking);
+      if (assets.length) recovered += 1;
+    } catch (error) {
+      console.error(`[maintenance-monitor] Failed to recover booking ${booking._id}:`, error.message);
+    }
+  }
+  for (const order of orders) {
+    if (orderAssets.has(String(order._id))) continue;
+    try {
+      const assets = await syncMaintenanceFromOrder(order);
+      if (assets.length) recovered += 1;
+    } catch (error) {
+      console.error(`[maintenance-monitor] Failed to recover order ${order._id}:`, error.message);
+    }
+  }
+  return recovered;
 }
 
 async function reconcileMaintenanceBookings(now = new Date()) {
@@ -108,4 +237,11 @@ function startMaintenanceScheduler() {
   }), CHECK_INTERVAL_MS);
 }
 
-module.exports = { reminderFor, reconcileMaintenanceBookings, checkMaintenanceReminders, startMaintenanceScheduler };
+module.exports = {
+  reminderFor,
+  reconcileMaintenanceBookings,
+  reconcileMissingAftercare,
+  checkCustomerResponseReminders,
+  checkMaintenanceReminders,
+  startMaintenanceScheduler,
+};

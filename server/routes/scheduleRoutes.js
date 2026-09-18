@@ -19,6 +19,7 @@ const {
   checkAdvanceNotice,
 } = require('../utils/bookingPolicy');
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
+const { manilaDateKey, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
 
 // ── Company-wide working hours (internal constants) ───────────────────────────
 const COMPANY_START_MINUTES = 480; // 8:00 AM (fallback default)
@@ -147,11 +148,11 @@ router.get('/available-dates', async (req, res) => {
     }
 
     // ── 5. Batch-fetch bookings for 60-day window (ONE query) ─────────────
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayKey = manilaDateKey(new Date());
+    const today = new Date(`${todayKey}T00:00:00.000Z`);
     const windowEnd = new Date(today);
-    windowEnd.setDate(today.getDate() + 60);
-    windowEnd.setHours(23, 59, 59, 999);
+    windowEnd.setUTCDate(today.getUTCDate() + 60);
+    windowEnd.setUTCHours(23, 59, 59, 999);
 
     const activeBookingStatuses = [
       'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
@@ -271,9 +272,9 @@ router.get('/available-dates', async (req, res) => {
 
     for (let i = 0; i < 60; i++) {
       const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() + i);
-      const dateKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-      const dayOfWeek = checkDate.getDay();
+      checkDate.setUTCDate(today.getUTCDate() + i);
+      const dateKey = `${checkDate.getUTCFullYear()}-${String(checkDate.getUTCMonth() + 1).padStart(2, '0')}-${String(checkDate.getUTCDate()).padStart(2, '0')}`;
+      const dayOfWeek = checkDate.getUTCDay();
 
       if (nonWorkingDateSet.has(dateKey)) { debugSkipHoliday++; continue; }
       if (checkDate.getTime() < earliestAllowedDate.getTime()) { debugSkipAdvance++; continue; }
@@ -345,8 +346,12 @@ router.get('/available-dates', async (req, res) => {
       for (let s = dayStartMin; s < dayEndMin; s += DAY_SLOT_INTERVAL) {
         const slotEnd = s + capacityPerSlot;
 
-        // Today: skip windows before advance-notice cutoff
-        if (i === 0 && s < earliestAllowedMinutes) continue;
+        // Apply the Philippine clock on every candidate. This remains correct
+        // when Node runs in UTC and also protects the midnight boundary.
+        if (!manilaSlotTiming(dateKey, s, {
+          minAdvanceMinutes,
+          safetyBufferMinutes: 30,
+        }).allowed) continue;
 
         // Count how many working techs are free for this start time
         // (only check start time — jobs may extend into overtime)
@@ -735,6 +740,10 @@ async function handleTimeSlots(req, res) {
     if ((!serviceId && !queryDuration) || !date) {
       return res.status(400).json({ error: 'Service ID (or duration) and date are required' });
     }
+    const requestedDateKey = strictManilaDateKey(date);
+    if (!requestedDateKey) {
+      return res.status(400).json({ error: 'Invalid date. Use YYYY-MM-DD.' });
+    }
 
     // ── 1. Resolve service or use explicit duration ───────────────────────
     let service = null;
@@ -781,9 +790,8 @@ async function handleTimeSlots(req, res) {
     }
 
     // ── 2. Validate date ──────────────────────────────────────────────────
-    const selectedDate = new Date(date);
-    selectedDate.setHours(0, 0, 0, 0);
-    const dayOfWeek = selectedDate.getDay();
+    const selectedDate = new Date(`${requestedDateKey}T00:00:00.000Z`);
+    const dayOfWeek = selectedDate.getUTCDay();
 
     const nonWorkingDays = await NonWorkingDay.find({
       active: { $ne: false },
@@ -909,19 +917,17 @@ async function handleTimeSlots(req, res) {
 
       // Advance notice filtering
       const minAdvMinutes = await getMinAdvanceMinutes();
-      const earliestAllowed = earliestAllowedDateTime(minAdvMinutes);
-      const earliestMinutes = earliestAllowed.getHours() * 60 + earliestAllowed.getMinutes();
-      const isToday = selectedDate.getTime() === new Date().setHours(0, 0, 0, 0);
       const now = new Date();
-      const cutoff = now.getHours() * 60 + now.getMinutes() + 30;
 
       const timeSlots = [];
       for (let slotStart = workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
         const slotEnd = slotStart + capacityPerSlot;
 
-        // Skip past slots for today
-        if (isToday && slotStart < cutoff) continue;
-        if (isToday && slotStart < earliestMinutes) continue;
+        if (!manilaSlotTiming(requestedDateKey, slotStart, {
+          now,
+          minAdvanceMinutes: minAdvMinutes,
+          safetyBufferMinutes: 30,
+        }).allowed) continue;
 
         // Check if this slot conflicts with any existing booking
         const hasConflict = bookedIntervals.some(b => slotStart < b.end && slotEnd > b.start);
@@ -949,8 +955,6 @@ async function handleTimeSlots(req, res) {
     }
 
     // ── 4. Capacity-based mode (customer-facing) ──────────────────────────
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
 
     const technicians = await Technician.find({ active: { $ne: false } });
     const techIds = technicians.map(t => t._id);
@@ -1107,11 +1111,6 @@ async function handleTimeSlots(req, res) {
     // Filter by advance notice
     const minAdvanceMinutes = await getMinAdvanceMinutes();
     const now = new Date();
-    const earliestAllowed = earliestAllowedDateTime(minAdvanceMinutes);
-    const earliestAllowedMinutes = earliestAllowed.getHours() * 60 + earliestAllowed.getMinutes();
-    const isToday = selectedDate.getTime() === startOfToday.getTime();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const cutoff = currentMinutes + 30;
 
     // ── Dynamic 30-minute interval slots ──────────────────────────────────
     // Generate a potential start time every 30 minutes within the
@@ -1124,10 +1123,11 @@ async function handleTimeSlots(req, res) {
     for (let slotStart = DAY_START; slotStart < DAY_END; slotStart += SLOT_INTERVAL) {
       const slotEnd = slotStart + capacityPerSlot;
 
-      // Skip slots in the past or before advance-notice cutoff
-      const isPastSlot = isToday && slotStart < cutoff;
-      const isBeforeAdvanceNotice = isToday && slotStart < earliestAllowedMinutes;
-      if (isPastSlot || isBeforeAdvanceNotice) continue;
+      if (!manilaSlotTiming(requestedDateKey, slotStart, {
+        now,
+        minAdvanceMinutes,
+        safetyBufferMinutes: 30,
+      }).allowed) continue;
 
       // Count how many technicians can handle this booking
       const availableCount = countFreeTechs(slotStart, slotEnd);
@@ -1359,6 +1359,8 @@ function minutesToTimeDisplay(timeStr) {
  */
 async function generateTimeSlots(technicianId, date, workingDay, capacityPerSlot) {
   const timeSlots = [];
+  const dateKey = strictManilaDateKey(date);
+  if (!dateKey) return timeSlots;
   
   // Get current date and time for comparison
   const now = new Date();
@@ -1377,9 +1379,6 @@ async function generateTimeSlots(technicianId, date, workingDay, capacityPerSlot
   
   // Load minimum advance notice for filtering
   const minAdvanceMinutes = await getMinAdvanceMinutes();
-  const earliestAllowed = earliestAllowedDateTime(minAdvanceMinutes);
-  const earliestMinutes = earliestAllowed.getHours() * 60 + earliestAllowed.getMinutes();
-  const isToday = slotDate.getTime() === today.getTime();
   
   // Get existing bookings for this date
   const startOfDay = new Date(date);
@@ -1422,20 +1421,11 @@ async function generateTimeSlots(technicianId, date, workingDay, capacityPerSlot
       slotStartTime.setHours(Math.floor(currentStart / 60), currentStart % 60, 0, 0);
       
       // For TODAY: check if slot start time is at least 30 minutes in the future
-      if (isToday) {
-        const todayBuffer = 30;
-        const cutoffTime = new Date(now.getTime() + todayBuffer * 60000);
-        
-        // Block if slot time has already passed or is within buffer
-        if (slotStartTime <= cutoffTime) {
-          continue; // Skip this slot
-        }
-
-        // Block slots that violate minimum advance booking notice
-        if (currentStart < earliestMinutes) {
-          continue; // Skip this slot
-        }
-      }
+      if (!manilaSlotTiming(dateKey, currentStart, {
+        now,
+        minAdvanceMinutes,
+        safetyBufferMinutes: 30,
+      }).allowed) continue;
       
       // Add available slot — only startTime is meaningful to the customer
       timeSlots.push({

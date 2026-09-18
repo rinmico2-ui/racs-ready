@@ -51,7 +51,7 @@ exports.createPayment = async (req, res, next) => {
       return res.status(400).json({ error: "bookingId is required" });
     if (amount == null || isNaN(Number(amount)) || Number(amount) <= 0)
       return res.status(400).json({ error: "Valid amount is required" });
-    if (!method || !["gcash", "cod", "bank", "paymongo", "other"].includes(method))
+    if (!method || !["gcash", "maya", "cod", "bank", "paymongo", "other"].includes(method))
       return res.status(400).json({ error: "Invalid payment method" });
     if (!["downpayment", "final", "adjustment"].includes(type))
       return res.status(400).json({ error: "Invalid payment type" });
@@ -167,6 +167,7 @@ exports.listPayments = async (req, res, next) => {
         customerName,
         customerEmail,
         bookingPaymentMethod: booking?.paymentMethod || order?.paymentMethod || null,
+        paymentChannel: booking?.paymentChannel || order?.paymentChannel || p.method || null,
         bookingPaymentStatus: booking?.paymentStatus || order?.paymentStatus || null,
       };
     });
@@ -332,7 +333,7 @@ exports.getPayment = async (req, res, next) => {
     const booking = payment.bookingId
       ? await BookingService.findById(payment.bookingId)
         .select(
-          "_id bookingReference bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentStatus gcashNumber paymentReference downpaymentPercentage downpaymentAmount balanceAmount paymentNotes paymentProof estimatedFee totalPrice travelFare travelTime issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
+          "_id bookingReference bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentChannel paymentStatus gcashNumber paymentReference downpaymentPercentage downpaymentAmount balanceAmount paymentNotes paymentProof estimatedFee totalPrice travelFare travelTime issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
         )
         .lean()
       : null;
@@ -363,6 +364,7 @@ exports.getPayment = async (req, res, next) => {
       bookingStatus: booking?.status || order?.status || "-",
       bookingPaymentStatus: booking?.paymentStatus || order?.paymentStatus || "-",
       bookingPaymentMethod: booking?.paymentMethod || order?.paymentMethod || "-",
+      paymentChannel: booking?.paymentChannel || order?.paymentChannel || payment?.method || "-",
       gcashNumber: booking?.gcashNumber || order?.gcashNumber || payment?.gcashNumber || "-",
       gcashReference: booking?.paymentReference || payment?.reference || "-",
       proofUrl: payment?.proofUrl || booking?.paymentProof || order?.gcashProofUrl || "",
@@ -393,33 +395,42 @@ exports.handleGatewayWebhook = async (evt) => {
   try {
     const eventType = evt?.data?.attributes?.type || evt?.type;
     const resource = evt?.data?.attributes?.data || evt?.data;
-    const gatewayId = resource?.id;
+    const checkoutPayment = resource?.attributes?.payments?.[0];
+    const gatewayId = checkoutPayment?.id || resource?.id;
     const metadata = resource?.attributes?.metadata || {};
 
     if (!eventType) return;
 
     const payment = await Payment.findOne({
       $or: [
+        ...(metadata.paymentId ? [{ _id: metadata.paymentId }] : []),
         ...(gatewayId ? [{ gatewayId }] : []),
         ...(metadata.bookingId ? [{ bookingId: metadata.bookingId }] : []),
+        ...(metadata.orderId ? [{ orderId: metadata.orderId }] : []),
       ],
     }).sort({ submittedAt: -1 });
 
     if (!payment) return;
 
-    payment.webhookEvents = payment.webhookEvents || [];
-    payment.webhookEvents.push(evt);
+    const eventId = evt?.data?.id || evt?.id;
+    payment.webhookEvents = (payment.webhookEvents || [])
+      .filter(existingEvent => (existingEvent?.data?.id || existingEvent?.id) !== eventId)
+      .concat(evt)
+      .slice(-25);
 
-    const gatewayStatus = resource?.attributes?.status || eventType;
+    const gatewayStatus = checkoutPayment?.attributes?.status || resource?.attributes?.status || eventType;
     payment.gatewayStatus = gatewayStatus;
 
-    if (eventType === "payment.paid" || gatewayStatus === "paid") {
+    const paidEvent = eventType === "payment.paid" || eventType === "checkout_session.payment.paid" || gatewayStatus === "paid";
+    const failedEvent = eventType === "payment.failed" || eventType === "checkout_session.payment.failed" || gatewayStatus === "failed";
+    const wasPaid = payment.status === "paid";
+    if (paidEvent) {
       // use canonical "paid" value for status (completed is legacy)
       payment.status = "paid";
       payment.completedAt = payment.completedAt || new Date();
       payment.gatewayType = "payment";
       if (gatewayId) payment.gatewayId = gatewayId;
-    } else if (eventType === "payment.failed" || gatewayStatus === "failed") {
+    } else if (failedEvent) {
       payment.status = "failed";
       payment.gatewayType = "payment";
       if (gatewayId) payment.gatewayId = gatewayId;
@@ -430,6 +441,38 @@ exports.handleGatewayWebhook = async (evt) => {
     }
 
     await payment.save();
+
+    if (paidEvent) {
+      const paymentStatus = payment.type === "downpayment" ? "partial" : "paid";
+      if (payment.bookingId) {
+        const booking = await BookingService.findById(payment.bookingId);
+        if (booking) {
+          booking.paymentStatus = paymentStatus;
+          booking.paymentGatewayStatus = "paid";
+          booking.paymentGatewayId = gatewayId;
+          booking.gateway = "paymongo";
+          booking.gatewayId = gatewayId;
+          booking.gatewayStatus = "paid";
+          if (!wasPaid) booking.amountPaid = Math.max(Number(booking.amountPaid || 0), Number(payment.amount || 0));
+          if (booking.status === "pending") booking.status = "confirmed";
+          await booking.save();
+        }
+      } else if (payment.orderId) {
+        const Order = require("../models/Order");
+        const order = await Order.findById(payment.orderId);
+        if (order) {
+          order.paymentStatus = paymentStatus;
+          if (order.status === "pending_payment") order.status = "preparing_unit";
+          await order.save();
+        }
+      }
+    } else if (failedEvent) {
+      if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, { paymentStatus: "failed", paymentGatewayStatus: "failed" });
+      if (payment.orderId) {
+        const Order = require("../models/Order");
+        await Order.findByIdAndUpdate(payment.orderId, { paymentStatus: "failed" });
+      }
+    }
   } catch (e) {
     console.warn("gateway webhook handler error", e.message);
   }

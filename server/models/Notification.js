@@ -64,6 +64,7 @@ const notificationSchema = new mongoose.Schema(
         "leave_rejected",
         "leave_requested",
         "maintenance_completed",
+        "maintenance_customer_response",
         "maintenance_due",
         "maintenance_due_soon",
         "maintenance_overdue",

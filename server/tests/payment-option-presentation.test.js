@@ -20,12 +20,14 @@ const paymentController = read("controllers/paymentController.js");
 const paymentPolicySource = read("utils/paymentPolicy.js");
 const paymentSettingsView = read("views/pages/admin/Settings/System.ejs");
 const adminApi = read("routes/adminApi.js");
+const paymongoRoutes = read("routes/paymongoRoutes.js");
 const serviceRoutes = read("routes/serviceRoutes.js");
+const appEntry = read("index.js");
 
 test("service checkout presents payment plans instead of a misleading cash method", () => {
   assert.match(servicesView, /Payment Option/);
-  assert.match(servicesView, /Pay in Full Now/);
-  assert.match(servicesView, /Reserve with Downpayment/);
+  assert.match(servicesView, /<strong>Full Payment<\/strong>/);
+  assert.match(servicesView, /<strong>Downpayment<\/strong>/);
   assert.match(servicesView, /data-method="cod" aria-pressed="false"/);
   assert.doesNotMatch(servicesView, /ent-payment-tab active[^>]*data-method="gcash"/);
   assert.match(servicesScript, /paymentOptionBound/);
@@ -33,7 +35,7 @@ test("service checkout presents payment plans instead of a misleading cash metho
 
 test("service and product checkout use one consistent customer payment layout", () => {
   for (const source of [servicesView, cartWizard, productWizard]) {
-    assert.match(source, /customer-payment\.css\?v=20260912-consistent-payment-v1/);
+    assert.match(source, /customer-payment\.css\?v=20260916-payment-channels-v2/);
     assert.match(source, /customer-payment-options/);
     assert.match(source, /payment-method-copy/);
     assert.match(source, /customer-payment-panel/);
@@ -54,15 +56,38 @@ test("service payment evidence is validated on both client and server", () => {
   assert.match(bookingRoutes, /\['gcash', 'cod'\]\.includes\(bookingPaymentMethod\)/);
 });
 
-test("product checkouts collect the GCash sender independently from delivery contact", () => {
+test("service and installation-order checkout separate payment plans from payment channels", () => {
+  for (const source of [servicesView, cartWizard, productWizard]) {
+    assert.match(source, /<strong>Full Payment<\/strong>/);
+    assert.match(source, /<strong>Downpayment<\/strong>/);
+    assert.match(source, /data-channel="card"/);
+    assert.match(source, /data-channel="gcash"/);
+    assert.match(source, /data-channel="maya"/);
+    assert.match(source, /data-channel="bank_transfer"/);
+    assert.match(source, /data-channel="other"/);
+    assert.match(source, /Why is a downpayment required\?/);
+    assert.match(source, /not an additional (?:fee|charge)/);
+    assert.doesNotMatch(source, /data-method="card"/);
+    assert.match(source, /Pay by card in person|Pay by credit or debit card at the RACS store/);
+  }
+  assert.match(servicesScript, /paymentChannel: BookingState\.paymentChannel/);
+  assert.match(bookingRoutes, /paymentChannel: normalizedPaymentChannel/);
+  assert.match(orderRoutes, /paymentChannel: normalizedPaymentChannel/);
+  assert.match(paymongoRoutes, /status\(410\)/);
+  assert.match(paymongoRoutes, /Card payments are collected in person/);
+});
+
+test("product checkouts collect a channel-specific reference independently from delivery contact", () => {
   for (const source of [cartWizard, productWizard]) {
     assert.match(source, /id="wizardGcashSenderNumber"/);
     assert.match(source, /GCash Sender Number/);
-    assert.match(source, /Reserve with Downpayment/);
+    assert.match(source, /Payment Reference/);
     assert.match(source, /Pay at Store Pickup/);
   }
-  assert.match(cartWizard, /fd\.append\('gcashNumber', document\.getElementById\('wizardGcashSenderNumber'\)/);
-  assert.match(productWizard, /formData\.append\('gcashNumber', document\.getElementById\('wizardGcashSenderNumber'\)/);
+  assert.match(cartWizard, /fd\.append\('paymentChannel', paymentChannel\)/);
+  assert.match(cartWizard, /fd\.append\('paymentReference', paymentReference\)/);
+  assert.match(productWizard, /formData\.append\('paymentChannel', paymentChannel\)/);
+  assert.match(productWizard, /formData\.append\('paymentReference'/);
 });
 
 test("pickup checkout does not offer the delivery downpayment plan", () => {
@@ -92,15 +117,30 @@ test("GCash recipient configuration is admin-managed and shared with customer ch
   assert.match(paymentPolicySource, /GCASH_RECIPIENT_SETTING_KEY/);
   assert.match(paymentPolicySource, /process\.env\.ADMIN_GCASH_NUMBER/);
   assert.match(paymentSettingsView, /id="gcashRecipientNumber"/);
-  assert.match(paymentSettingsView, /gcashNumber: gcashNumber/);
+  assert.match(paymentSettingsView, /methods: readMethods\(\)/);
   assert.match(adminApi, /gcashConfigured: Boolean\(effectiveGcashNumber\)/);
-  assert.match(serviceRoutes, /gcashNumber, gcashConfigured: Boolean\(gcashNumber\)/);
+  assert.match(serviceRoutes, /gcashNumber,/);
+  assert.match(serviceRoutes, /gcashConfigured: Boolean\(gcashNumber\)/);
+  assert.match(paymentPolicySource, /PAYMENT_METHODS_SETTING_KEY/);
+  assert.match(paymentSettingsView, /id="paymentCardEnabled"/);
 });
 
-test("unconfigured GCash is disabled in checkout and enforced on the server", () => {
-  assert.match(cartWizard, /checkout-payment-unavailable/);
-  assert.match(cartWizard, /button\.disabled = true/);
+test("unconfigured GCash disables only that channel while other methods remain available", () => {
+  assert.match(cartWizard, /method\.available !== true/);
+  assert.match(cartWizard, /data-channel="maya"/);
+  assert.match(cartWizard, /data-channel="card"/);
   assert.match(cartWizard, /window\.refreshCheckoutPaymentOptions/);
   assert.match(orderRoutes, /ORDER_GCASH_NOT_CONFIGURED/);
-  assert.match(bookingRoutes, /await getGcashRecipientNumber\(\)/);
+  assert.match(bookingRoutes, /configuredPaymentMethods\[normalizedPaymentChannel\]\?\.available/);
+});
+
+test("in-person card payment never asks the RACS UI for card credentials or starts a gateway checkout", () => {
+  for (const source of [servicesView, cartWizard, productWizard]) {
+    assert.doesNotMatch(source, /cardNumber|cvv|cvc|expiryMonth|expiryYear/i);
+    assert.match(source, /Do not enter or send card details through this website/);
+  }
+  assert.doesNotMatch(orderRoutes, /createCardCheckout|checkoutUrl/);
+  assert.doesNotMatch(bookingRoutes, /createCardCheckout|checkoutUrl/);
+  assert.match(orderRoutes, /gateway: normalizedPaymentChannel === "card" \? "other"/);
+  assert.match(bookingRoutes, /gateway: normalizedPaymentChannel === 'card' \? 'other'/);
 });

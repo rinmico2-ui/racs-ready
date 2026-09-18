@@ -20,7 +20,7 @@ const calendarScript = fs.readFileSync(
 
 test("cart checkout has one clear hierarchy and accessible choices", () => {
   assert.match(wizard, /cart-checkout-ux\.css\?v=20260912-checkout-flow-v3/);
-  assert.match(wizard, /checkout-calendar\.js\?v=20260912-checkout-mobile/);
+  assert.match(wizard, /checkout-calendar\.js\?v=20260917-card-checkout-v1/);
   assert.match(wizard, /aria-labelledby="wizardModalTitle"/);
   assert.match(wizard, /modal-fullscreen-sm-down/);
   assert.match(wizard, /role="navigation" aria-label="Checkout steps"/);

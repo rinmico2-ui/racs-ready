@@ -7,6 +7,7 @@ const TechnicianSchedule = require("../models/TechnicianSchedule");
 const BookingService = require("../models/BookingService");
 const NonWorkingDay = require("../models/NonWorkingDay");
 const LeaveRequest = require("../models/LeaveRequest");
+const { manilaSlotTiming, strictManilaDateKey } = require("../utils/bookingDateTime");
 
 const COMPANY_START_MINUTES = 480;
 const COMPANY_END_MINUTES = 1020;
@@ -370,14 +371,18 @@ router.get("/schedule/time-slots", async (req, res) => {
     if (!date) {
       return res.status(400).json({ error: "Date is required" });
     }
+    const dateKey = strictManilaDateKey(date);
+    if (!dateKey) {
+      return res.status(400).json({ error: "Invalid date. Use YYYY-MM-DD." });
+    }
 
     const serviceDuration = Number(queryDuration) || 60;
     const travelTime = 30;
     const bufferTime = 30;
     const capacityPerSlot = serviceDuration + travelTime + bufferTime;
 
-    const targetDate = new Date(date + "T00:00:00");
-    const dayOfWeek = targetDate.getDay();
+    const targetDate = new Date(`${dateKey}T00:00:00.000Z`);
+    const dayOfWeek = targetDate.getUTCDay();
 
     const technicians = await Technician.find({ active: { $ne: false } });
     const techIds = technicians.map(t => t._id);
@@ -400,9 +405,8 @@ router.get("/schedule/time-slots", async (req, res) => {
       }
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isToday = formatDateKey(targetDate) === formatDateKey(today);
+    const now = new Date();
+    const minAdvanceMinutes = 120;
 
     const activeBookingStatuses = [
       "pending", "payment_verified", "awaiting_assignment", "assigned",
@@ -471,23 +475,12 @@ router.get("/schedule/time-slots", async (req, res) => {
         techAvailableCount = Math.max(0, techAvailableCount - 1);
       }
 
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const bufferMinutes = 30;
-      const cutoff = currentMinutes + bufferMinutes;
-      const minAdvanceMinutes = 120;
-      const earliestMs = now.getTime() + minAdvanceMinutes * 60000;
-      const earliestDate = new Date(earliestMs);
-      let earliestMinutes = 0;
-      if (isToday) {
-        if (earliestDate.toDateString() === targetDate.toDateString()) {
-          earliestMinutes = earliestDate.getHours() * 60 + earliestDate.getMinutes();
-        } else {
-          earliestMinutes = 24 * 60;
-        }
-      }
-
-      const isPast = isToday && (s < cutoff || s < earliestMinutes);
+      const slotTiming = manilaSlotTiming(dateKey, s, {
+        now,
+        minAdvanceMinutes,
+        safetyBufferMinutes: 30,
+      });
+      const isPast = !slotTiming.allowed;
       const available = techAvailableCount > 0 && !isPast;
 
       timeSlots.push({

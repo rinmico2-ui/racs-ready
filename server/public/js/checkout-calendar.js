@@ -707,6 +707,52 @@ class CheckoutCalendar {
         return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
     }
 
+    async validateSelectedSlot(dateValue, timeValue) {
+        const selectedDate = dateValue
+            ? new Date(`${String(dateValue).slice(0, 10)}T00:00:00`)
+            : this.state.selectedDate;
+        const selectedTime = timeValue || this.state.selectedTimeSlot?.startTime;
+        if (!selectedDate || Number.isNaN(selectedDate.getTime()) || !selectedTime) return false;
+        const dateStr = this._formatKey(selectedDate);
+        const selectedMinutes = this._timeToMinutes(selectedTime);
+        if (!Number.isFinite(selectedMinutes)) return false;
+
+        try {
+            const params = new URLSearchParams({
+                date: dateStr,
+                duration: this.state.duration,
+                quantity: this.state.quantity,
+                travelTime: this.state.travelTime
+            });
+            const response = await fetch(`/api/schedule/time-slots?${params.toString()}`, {
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            if (!response.ok) throw new Error('Schedule validation failed');
+            const data = await response.json();
+            const stillAvailable = Array.isArray(data.timeSlots) && data.timeSlots.some(slot =>
+                slot.available === true && !slot.isPast && this._timeToMinutes(slot.startTime) === selectedMinutes
+            );
+            if (stillAvailable) {
+                this.state.selectedDate = selectedDate;
+                this.state.selectedTimeSlot = {
+                    startTime: selectedTime,
+                    label: selectedTime,
+                    startMinutes: selectedMinutes
+                };
+                return true;
+            }
+        } catch (error) {
+            console.warn('CheckoutCalendar: selected-slot validation failed', error);
+        }
+
+        this.state.selectedTimeSlot = null;
+        this.options.onTimeSelect('');
+        this.state.selectedDate = selectedDate;
+        await this.loadTimeSlots(selectedDate);
+        return false;
+    }
+
     clear() {
         this.state.selectedDate = null;
         this.state.selectedTimeSlot = null;

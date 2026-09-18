@@ -15,17 +15,22 @@
     delivery_only: 'Legacy Delivery Only', delivery_installation: 'Delivery + Installation', customer_pickup: 'Customer Pickup'
   };
   const paymentMethodLabels = {
-    cod: 'Reservation downpayment via GCash; balance at handover', cash_onsite: 'Cash at store pickup',
-    gcash: 'GCash', gcash_full: 'Full payment via GCash', gcash_downpayment: 'GCash downpayment',
+    cash_onsite: 'Cash at store pickup', gcash: 'GCash', gcash_downpayment: 'GCash downpayment',
     paymongo: 'PayMongo', cash: 'Cash', downpayment: 'Downpayment', other: 'Other'
   };
+  const paymentChannelLabels = { card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' };
+  const orderPaymentLabel = order => order.paymentMethod === 'cod'
+    ? `Downpayment via ${paymentChannelLabels[order.paymentChannel] || 'selected method'}; balance at handover`
+    : order.paymentMethod === 'gcash_full'
+      ? `Full payment via ${paymentChannelLabels[order.paymentChannel] || 'selected method'}`
+      : (paymentMethodLabels[order.paymentMethod] || order.paymentMethod || 'Not specified');
   const paymentStatusLabels = {
-    pending: 'Pending verification', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance',
+    pending: order.paymentChannel === 'card' ? 'Pay at RACS store' : 'Pending verification', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance',
     remitted: 'Remitted', verified: 'Verified', rejected: 'Rejected', refunded: 'Refunded', paid: 'Paid',
     failed: 'Failed', partial: 'Partially paid'
   };
   const guidance = {
-    pending_payment: 'Your payment submission is awaiting verification.',
+    pending_payment: order.paymentChannel === 'card' ? 'Pay by credit or debit card at the RACS store so we can begin processing your order.' : 'Your payment submission is awaiting verification.',
     preparing_unit: order.fulfillmentType === 'customer_pickup'
       ? 'Your unit is being prepared for store pickup.'
       : 'Your unit and installation requirements are being prepared.',
@@ -274,7 +279,7 @@
               <div class="od-cost-line total"><span>Order total</span><strong>&#8369;<%= peso(order.total) %></strong></div>
               <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="od-cost-line"><span>Required downpayment</span><strong>&#8369;<%= peso(order.downpaymentAmount) %></strong></div><% } %>
               <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(order.balanceAmount) %></strong></div>
-              <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= paymentMethodLabels[order.paymentMethod] || order.paymentMethod || 'Not specified' %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
+              <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= orderPaymentLabel(order) %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
               <% if (order.refundStatus && order.refundStatus !== 'none') { %><div class="od-notice refund mt-3"><strong>Refund <%= order.refundStatus %></strong><br>&#8369;<%= peso(order.refundAmount) %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></div><% } %>
             </div>
           </section>

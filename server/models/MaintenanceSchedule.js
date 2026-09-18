@@ -72,6 +72,30 @@ const maintenanceScheduleSchema = new mongoose.Schema(
         changedByName: { type: String, trim: true, default: "Administrator" },
       }],
     },
+    customerResponse: {
+      status: {
+        type: String,
+        enum: ["none", "booking_started", "callback_requested", "remind_later", "declined"],
+        default: "none",
+        index: true,
+      },
+      respondedAt: { type: Date, default: null },
+      remindAt: { type: Date, default: null, index: true },
+      reminderSentAt: { type: Date, default: null },
+      note: { type: String, trim: true, maxlength: 500, default: "" },
+      acknowledgedAt: { type: Date, default: null },
+      acknowledgedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      history: [{
+        status: {
+          type: String,
+          enum: ["booking_started", "callback_requested", "remind_later", "declined"],
+          required: true,
+        },
+        respondedAt: { type: Date, default: Date.now },
+        remindAt: { type: Date, default: null },
+        note: { type: String, trim: true, maxlength: 500, default: "" },
+      }],
+    },
     pausedAt: { type: Date, default: null },
     pausedReason: { type: String, trim: true, maxlength: 500, default: "" },
     history: [{
@@ -86,6 +110,7 @@ const maintenanceScheduleSchema = new mongoose.Schema(
 );
 
 maintenanceScheduleSchema.index({ customerId: 1, status: 1, dueDate: 1 });
+maintenanceScheduleSchema.index({ "customerResponse.status": 1, "customerResponse.acknowledgedAt": 1, status: 1 });
 maintenanceScheduleSchema.index({ assetId: 1, cycleNumber: 1 }, { unique: true });
 maintenanceScheduleSchema.index(
   { bookingId: 1 },

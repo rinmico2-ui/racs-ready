@@ -59,6 +59,64 @@ function manilaDateKey(value) {
   return `${parts.year}-${String(parts.month + 1).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
+function strictManilaDateKey(value) {
+  if (typeof value === 'string') {
+    const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+    if (!match) return '';
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const probe = new Date(Date.UTC(year, month - 1, day));
+    if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return '';
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  return manilaDateKey(value);
+}
+
+/**
+ * Evaluate a customer-facing schedule using Philippine wall-clock time.
+ * The result is independent of the timezone configured on the Node host.
+ */
+function manilaSlotTiming(dateValue, timeValue, options = {}) {
+  const dateKey = strictManilaDateKey(dateValue);
+  const startMinutes = parseAppointmentTime(timeValue);
+  const reference = options.now instanceof Date ? options.now : new Date(options.now || Date.now());
+  const minAdvanceMinutes = Math.max(0, Number(options.minAdvanceMinutes) || 0);
+  const safetyBufferMinutes = Math.max(0, Number(options.safetyBufferMinutes) || 0);
+  const requiredLeadMinutes = Math.max(minAdvanceMinutes, safetyBufferMinutes);
+  const slotStartAt = dateKey && Number.isFinite(startMinutes)
+    ? manilaDateTime(dateKey, startMinutes)
+    : null;
+
+  if (!slotStartAt || Number.isNaN(reference.getTime())) {
+    return {
+      valid: false,
+      allowed: false,
+      dateKey,
+      startMinutes,
+      slotStartAt: null,
+      requiredLeadMinutes,
+      actualLeadMinutes: NaN,
+      reason: 'invalid',
+    };
+  }
+
+  const actualLeadMinutes = Math.floor((slotStartAt.getTime() - reference.getTime()) / 60000);
+  const isPast = slotStartAt.getTime() <= reference.getTime();
+  const allowed = actualLeadMinutes >= requiredLeadMinutes;
+  return {
+    valid: true,
+    allowed,
+    isPast,
+    dateKey,
+    startMinutes,
+    slotStartAt,
+    requiredLeadMinutes,
+    actualLeadMinutes,
+    reason: allowed ? '' : (isPast ? 'past' : 'advance_notice'),
+  };
+}
+
 function assignmentTimingState(booking, now = new Date()) {
   const startMinutes = parseAppointmentTime(booking?.startTime);
   const scheduledStart = manilaDateTime(booking?.bookingDate, startMinutes);
@@ -90,6 +148,8 @@ module.exports = {
   manilaDateParts,
   manilaDateTime,
   manilaDateKey,
+  strictManilaDateKey,
+  manilaSlotTiming,
   parseAppointmentTime,
   assignmentTimingState,
   isAssignmentWindowExpired,

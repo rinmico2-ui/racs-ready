@@ -793,7 +793,7 @@
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-credit-card"></i></div><h3 class="pm-card-title">Payment Information</h3></div>
             <div class="pm-card-body">
-              <div class="pm-row"><span class="pm-lbl">Payment Option</span><span class="pm-val">${b.paymentMethod === 'gcash' ? 'Full GCash payment' : 'GCash downpayment + balance at completion'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Payment Option</span><span class="pm-val">${b.paymentMethod === 'gcash' ? 'Full payment via ' : 'Downpayment via '}${({gcash:'GCash',maya:'Maya',bank_transfer:'Bank Transfer',other:'Other Transfer'})[b.paymentChannel] || 'selected method'}${b.paymentMethod === 'cod' ? ' + balance at completion' : ''}</span></div>
               <div class="pm-row"><span class="pm-lbl">Payment Status</span><span class="pm-val">${b.paymentStatus === 'paid' ? '<i class="bi bi-check-circle text-success me-1"></i>Paid' : b.paymentStatus === 'partial' ? '<i class="bi bi-clock text-warning me-1"></i>Partial' : '<i class="bi bi-wallet text-info me-1"></i>Pending'}</span></div>
               ${b.paymentMethod === 'cod' ? `
               ${downpayment > 0 ? `<div class="pm-row"><span class="pm-lbl">Downpayment</span><span class="pm-val">₱${downpayment.toLocaleString()}</span></div>` : ''}

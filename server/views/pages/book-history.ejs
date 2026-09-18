@@ -2267,7 +2267,207 @@
       #bhDetailModal .bh-modal-footer .bh-btn-primary,
       #bhDetailModal .bh-modal-footer .bh-btn-secondary { width: 100%; }
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MOBILE RESPONSIVE — Booking History
+       Table → Card conversion, header wrap, filter & pagination
+       ═══════════════════════════════════════════════════════════════ */
+    @media (max-width: 767.98px) {
+      /* ── Header ── */
+      .book-history-premium .bh-header-premium .d-flex {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      .book-history-premium .bh-header-premium .d-flex > div:first-child {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .book-history-premium .bh-header-premium .btn {
+        flex: 0 0 auto;
+        align-self: flex-start;
+      }
+      .book-history-premium .bh-subtitle {
+        display: none;
+      }
+
+      /* ── Filter Card ── */
+      .book-history-premium .bh-filter-body .row {
+        gap: 0.75rem !important;
+      }
+      .book-history-premium .bh-filter-body .row > [class*="col-"] {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
+      .book-history-premium .bh-filter-body .row > .col-md-2:last-child {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
+      .book-history-premium .bh-btn-clear {
+        margin-top: 0;
+      }
+
+      /* ── Table → Card Layout ── */
+      .book-history-premium .bh-table-card {
+        border-radius: 14px;
+        overflow: visible;
+      }
+      .book-history-premium .table-responsive {
+        border: none;
+        overflow: visible;
+      }
+      .book-history-premium .bh-table thead {
+        display: none;
+      }
+      .book-history-premium .bh-table,
+      .book-history-premium .bh-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .book-history-premium .bh-table tbody tr {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.5rem 0.75rem;
+        padding: 1rem;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+        position: relative;
+        overflow: hidden;
+      }
+      .book-history-premium .bh-table tbody tr::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #cbd5e1;
+      }
+      .book-history-premium .bh-table tbody tr.bh-row--core::before { background: #3b82f6; }
+      .book-history-premium .bh-table tbody tr.bh-row--repair::before { background: #f59e0b; }
+      .book-history-premium .bh-table tbody tr.bh-row--mixed::before { background: #8b5cf6; }
+
+      .book-history-premium .bh-table tbody td {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        padding: 0;
+        border: none;
+        font-size: 0.85rem;
+        min-width: 0;
+      }
+      .book-history-premium .bh-table tbody td::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #94a3b8;
+        margin-bottom: 0.1rem;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Booking"] {
+        grid-column: 1 / -1;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Booking"]::before {
+        display: none;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Booking"] .bh-cell-meta {
+        font-size: 0.7rem;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Service"] {
+        grid-column: 1;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Status"] {
+        grid-column: 2;
+        grid-row: 2;
+        align-self: start;
+        justify-self: end;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Date"] {
+        grid-column: 1;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Location"] {
+        grid-column: 1 / -1;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        max-width: none;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Rating"] {
+        grid-column: 1;
+        text-align: left;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Rating"]::before {
+        display: none;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Actions"] {
+        grid-column: 1 / -1;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Actions"]::before {
+        display: none;
+      }
+
+      /* ── Actions: larger touch targets ── */
+      .book-history-premium .bh-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding-top: 0.25rem;
+        border-top: 1px solid #f1f5f9;
+        margin-top: 0.15rem;
+      }
+      .book-history-premium .bh-action-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        font-size: 0.95rem;
+      }
+
+      /* ── Hide less-important columns on mobile ── */
+      .book-history-premium .bh-table tbody td[data-label="Booking"] {
+        display: none;
+      }
+
+      /* ── Pagination ── */
+      .book-history-premium .bh-pagination {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+        text-align: center;
+      }
+      .book-history-premium .bh-page-buttons {
+        width: 100%;
+        justify-content: center;
+      }
+      .book-history-premium .bh-btn-page {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding: 0.6rem 1.5rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .book-history-premium .bh-header-premium {
+        padding: 1.1rem 1rem;
+      }
+      .book-history-premium .bh-title {
+        font-size: 1.25rem;
+      }
+      .book-history-premium .bh-avatar-premium {
+        width: 48px;
+        height: 48px;
+      }
+      .book-history-premium .bh-avatar-premium i {
+        font-size: 1.3rem;
+      }
+      .book-history-premium .bh-table tbody td[data-label="Status"]::before {
+        display: block;
+      }
+    }
   </style>
 
 <script src="/js/enterprise-calendar.js"></script>
-<script src="/js/book-history.js?v=20260913-repair-details-1"></script>
+<script src="/js/book-history.js?v=20260916-payment-channels-v1"></script>

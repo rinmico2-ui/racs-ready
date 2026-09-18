@@ -758,6 +758,7 @@ const bookingSchema = new mongoose.Schema({
   // followed by balance collection at completion; Payment.method records the
   // actual channel used for each transaction.
   paymentMethod: { type: String, enum: ["cod", "gcash", "card", "other"], default: "cod" },
+  paymentChannel: { type: String, enum: ["card", "gcash", "maya", "bank_transfer", "other"], default: "gcash" },
 
   // downpayment / proof information (customer-submitted when booking)
   gcashNumber: { type: String }, // raw mobile number entered by customer (optional reference)
@@ -836,7 +837,7 @@ const bookingSchema = new mongoose.Schema({
 
   // legacy fields kept for backwards compatibility
   paymentProof: { type: String }, // base64 data URL or URL to uploaded proof image
-  gateway: { type: String, enum: ["gcash", "cod", "paymongo", "other"] },
+  gateway: { type: String, enum: ["gcash", "maya", "bank", "cod", "paymongo", "other"] },
   gatewayId: String,
   gatewayStatus: String,
 

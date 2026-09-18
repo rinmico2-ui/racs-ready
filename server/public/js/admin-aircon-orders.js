@@ -13,6 +13,12 @@ document.addEventListener("DOMContentLoaded", function () {
   };
   const FULFILL_LABELS = { delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" };
   const PAYMENT_METHOD_LABELS = { cod: "GCash reservation downpayment + balance at handover", cash_onsite: "Cash at store pickup", gcash_full: "Full payment via GCash", gcash_downpayment: "GCash Downpayment", cash: "Cash", downpayment: "Downpayment" };
+  const PAYMENT_CHANNEL_LABELS = { gcash: "GCash", maya: "Maya", bank_transfer: "Bank Transfer", other: "Other Transfer" };
+  const paymentLabel = order => order.paymentMethod === "cod"
+    ? `Downpayment via ${PAYMENT_CHANNEL_LABELS[order.paymentChannel] || "selected method"} + balance at handover`
+    : order.paymentMethod === "gcash_full"
+      ? `Full payment via ${PAYMENT_CHANNEL_LABELS[order.paymentChannel] || "selected method"}`
+      : (PAYMENT_METHOD_LABELS[order.paymentMethod] || order.paymentMethod || "N/A");
   const LIMIT = 25;
 
   // ═══ HELPERS ═════════════════════════════════════════════════════════════════
@@ -544,7 +550,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       container.innerHTML = orders.map(o => {
-        const method = PAYMENT_METHOD_LABELS[o.paymentMethod] || o.paymentMethod || "N/A";
+        const method = paymentLabel(o);
         const pStatus = (o.paymentStatus||"pending").toLowerCase();
         const pBadge = `ao-st-payment ${pStatus==="paid"?"paid":pStatus==="failed"?"failed":"pending"}`;
         const isPickup = o.fulfillmentType === 'customer_pickup';
@@ -1121,7 +1127,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#fee2e2;color:#dc2626;"><i class="bi bi-credit-card"></i></div><h3 class="pm-card-title">Payment</h3></div>
             <div class="pm-card-body">
-              <div class="pm-row"><span class="pm-lbl">Method</span><span class="pm-val">${PAYMENT_METHOD_LABELS[o.paymentMethod]||o.paymentMethod||'N/A'}</span></div>
+              <div class="pm-row"><span class="pm-lbl">Method</span><span class="pm-val">${paymentLabel(o)}</span></div>
               <div class="pm-row"><span class="pm-lbl">Status</span><span class="pm-val"><span class="badge ${pBadgeClass}">${(o.paymentStatus||'Pending').toUpperCase()}</span></span></div>
               ${o.downpaymentAmount>0?`<div class="pm-row"><span class="pm-lbl">Downpayment (${Number(o.downpaymentPercentage||10)}%)</span><span class="pm-val">${currency(o.downpaymentAmount)}</span></div>`:''}
               ${o.balanceAmount>0?`<div class="pm-row"><span class="pm-lbl">Remaining Balance</span><span class="pm-val">${currency(o.balanceAmount)}</span></div>`:''}

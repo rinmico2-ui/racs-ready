@@ -139,10 +139,6 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     repairInspectionDefaultFee,
     // supply the admin's GCash number for the QR code
     adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || "",
-    cardPaymentsConfigured: Boolean(
-      String(process.env.PAYMONGO_SECRET_KEY || "").trim()
-      && String(process.env.PAYMONGO_WEBHOOK_SECRET || "").trim(),
-    ),
     farePerKm,
     projectLaborRatePerDay,
     publicStats,
@@ -461,7 +457,11 @@ router.get("/my-orders/:id", pageAuth.requireRole("customer"), async (req, res, 
 });
 
 router.get("/maintenance", pageAuth.requireRole("customer"), (req, res) => {
-  res.render("pages/maintenance", { title: "My Maintenance" });
+  res.render("pages/maintenance", { title: "Aftercare Center" });
+});
+
+router.get("/aftercare", pageAuth.requireRole("customer"), (req, res) => {
+  res.render("pages/maintenance", { title: "Aftercare Center" });
 });
 
 // Friendly cart URL for customer navigation and shared links.

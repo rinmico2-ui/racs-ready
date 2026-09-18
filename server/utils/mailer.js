@@ -255,6 +255,7 @@ async function verifyMailerConfiguration() {
 // ─── Booking Confirmation Email (to customer) ───────────────────────────────
 function buildBookingPaymentEmailDetails({
   paymentMethod,
+  paymentChannel,
   estimatedFee,
   downpaymentPercentage,
   downpaymentAmount,
@@ -264,6 +265,9 @@ function buildBookingPaymentEmailDetails({
   const method = String(paymentMethod || "cod").toLowerCase();
   const total = Math.max(0, Number(estimatedFee) || 0);
   const isDownpaymentPlan = ["cod", "cash", "downpayment", "gcash_downpayment"].includes(method);
+  const channel = String(paymentChannel || "gcash").toLowerCase();
+  const isInPersonCard = channel === "card";
+  const channelLabel = ({ card: "Card at RACS store", gcash: "GCash", maya: "Maya", bank_transfer: "Bank Transfer", bank: "Bank Transfer", other: "Other Transfer" })[channel] || "Selected Method";
   const configuredPercentage = Number(downpaymentPercentage);
   const suppliedDownpayment = Number(downpaymentAmount);
   const suppliedBalance = Number(balanceAmount);
@@ -285,18 +289,20 @@ function buildBookingPaymentEmailDetails({
     : 0;
   const currency = value => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const normalizedStatus = String(paymentStatus || "pending").toLowerCase();
-  const verificationLabel = ["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
+  const verificationLabel = isInPersonCard && !["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
+    ? "Payment due at RACS store"
+    : ["paid", "verified", "completed", "succeeded", "partial"].includes(normalizedStatus)
     ? "Payment recorded"
     : "Pending receipt verification";
   const payLabel = isDownpaymentPlan
-    ? "GCash reservation downpayment; balance at service completion"
-    : "Full payment via GCash";
+    ? `${channelLabel} reservation downpayment; balance at service completion`
+    : isInPersonCard ? "Full card payment at RACS store" : `Full payment via ${channelLabel}`;
   const amountRows = isDownpaymentPlan
     ? `
-      <tr><td style="padding:6px 0;color:#6c757d;">Downpayment submitted (${resolvedPercentage}%)</td><td style="padding:6px 0;font-weight:700;color:#d97706;">${currency(resolvedDownpayment)}</td></tr>
+      <tr><td style="padding:6px 0;color:#6c757d;">${isInPersonCard ? "Downpayment due at store" : "Downpayment submitted"} (${resolvedPercentage}%)</td><td style="padding:6px 0;font-weight:700;color:#d97706;">${currency(resolvedDownpayment)}</td></tr>
       <tr><td style="padding:6px 0;color:#6c757d;">Balance due at completion</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(resolvedBalance)}</td></tr>`
     : `
-      <tr><td style="padding:6px 0;color:#6c757d;">Full payment submitted</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(total)}</td></tr>`;
+      <tr><td style="padding:6px 0;color:#6c757d;">${isInPersonCard ? "Full payment due at store" : "Full payment submitted"}</td><td style="padding:6px 0;font-weight:700;color:#198754;">${currency(total)}</td></tr>`;
   return {
     payLabel,
     feeDisplay: total > 0 ? currency(total) : "To be confirmed",
@@ -317,6 +323,7 @@ async function sendBookingConfirmationEmail({
   timeLabel,
   totalLabel,
   paymentMethod,
+  paymentChannel,
   estimatedFee,
   downpaymentPercentage,
   downpaymentAmount,
@@ -333,6 +340,7 @@ async function sendBookingConfirmationEmail({
     : `Booking Request Received – ${bookingReference} | CALIDRO RACS`;
   const paymentDetails = buildBookingPaymentEmailDetails({
     paymentMethod,
+    paymentChannel,
     estimatedFee,
     downpaymentPercentage,
     downpaymentAmount,

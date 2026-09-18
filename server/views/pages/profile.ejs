@@ -55,28 +55,29 @@
           <p class="prof-email"><%= user.email || '' %></p>
         </div>
         <div class="prof-sidebar-stats">
-          <div class="prof-mini-stat">
+          <button class="prof-mini-stat clickable" onclick="profSwitchTab('activity')" aria-label="View ratings in Activity tab">
             <div class="prof-mini-stat-icon blue"><i class="bi bi-star-fill"></i></div>
             <div class="prof-mini-stat-info">
               <span class="prof-mini-stat-val"><%= typeof ratings !== 'undefined' ? ratings.length : 0 %></span>
               <span class="prof-mini-stat-label">Ratings</span>
             </div>
-          </div>
-          <div class="prof-mini-stat">
+          </button>
+          <button class="prof-mini-stat clickable" onclick="profSwitchTab('activity')" aria-label="View products in Activity tab">
             <div class="prof-mini-stat-icon emerald"><i class="bi bi-box-seam"></i></div>
             <div class="prof-mini-stat-info">
               <span class="prof-mini-stat-val"><%= typeof productItems !== 'undefined' ? productItems.length : 0 %></span>
               <span class="prof-mini-stat-label">Products</span>
             </div>
-          </div>
-          <div class="prof-mini-stat">
+          </button>
+          <button class="prof-mini-stat clickable" onclick="profSwitchTab('activity')" aria-label="View services in Activity tab">
             <div class="prof-mini-stat-icon amber"><i class="bi bi-wrench-adjustable"></i></div>
             <div class="prof-mini-stat-info">
               <span class="prof-mini-stat-val"><%= typeof bookings !== 'undefined' ? bookings.length : 0 %></span>
               <span class="prof-mini-stat-label">Services</span>
             </div>
-          </div>
+          </button>
         </div>
+        <p class="prof-sidebar-hint"><i class="bi bi-cursor-fill"></i> Tap a stat above to view details</p>
         <div class="prof-sidebar-meta">
           <div class="prof-meta-row">
             <i class="bi bi-calendar3"></i>
@@ -91,6 +92,10 @@
           <button id="editProfileBtn" class="prof-btn prof-btn-primary">
             <i class="bi bi-pencil-fill"></i> Edit Profile
           </button>
+          <a href="/book-history" class="prof-btn prof-btn-bookings">
+            <i class="bi bi-calendar2-check"></i> View My Bookings
+          </a>
+          <p class="prof-sidebar-hint">View your complete booking history and status</p>
         </div>
       </div>
 
@@ -521,7 +526,18 @@
     .prof-sidebar-meta { padding: 16px 20px; border-top: 1px solid var(--prof-border); }
     .prof-meta-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.8rem; color: var(--prof-text-secondary); }
     .prof-meta-row i { color: var(--prof-text-muted); width: 16px; text-align: center; }
-    .prof-sidebar-actions { padding: 16px 20px 20px; }
+    .prof-sidebar-actions { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 10px; }
+    .prof-sidebar-hint { font-size: 0.7rem; color: var(--prof-text-muted); text-align: center; margin: 0; padding: 0 4px; line-height: 1.4; }
+    .prof-sidebar-hint i { font-size: 0.6rem; }
+
+    /* ── Clickable Stats ─────────────────────────────────────────────────── */
+    .prof-mini-stat.clickable { cursor: pointer; border: none; background: var(--prof-surface); transition: all 0.2s ease; font-family: var(--prof-font); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; text-align: center; width: 100%; }
+    .prof-mini-stat.clickable:hover { background: var(--prof-primary-50); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(37,99,235,0.1); }
+    .prof-mini-stat.clickable:active { transform: translateY(0); }
+
+    /* ── Bookings Button ─────────────────────────────────────────────────── */
+    .prof-btn-bookings { background: var(--prof-surface-hover); border: 1.5px solid var(--prof-border); color: var(--prof-text); text-decoration: none; }
+    .prof-btn-bookings:hover { border-color: var(--prof-primary); color: var(--prof-primary); background: var(--prof-primary-50); transform: translateY(-2px); box-shadow: 0 4px 14px rgba(37,99,235,0.15); }
 
     /* ── Completion Card ─────────────────────────────────────────────────── */
     .prof-completion-header { padding: 16px 20px; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); }
@@ -535,7 +551,9 @@
     .prof-completion-hint { font-size: 0.78rem; color: var(--prof-text-muted); margin: 0; }
 
     /* ── Tabs ────────────────────────────────────────────────────────────── */
-    .prof-tabs-nav { display: flex; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); padding: 0 4px; overflow-x: auto; }
+    .prof-tabs-nav { display: flex; border-bottom: 1px solid var(--prof-border); background: rgba(248,250,252,0.5); padding: 0 4px; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+    .prof-tabs-nav::-webkit-scrollbar { display: none; }
+    .prof-tabs-nav { -ms-overflow-style: none; scrollbar-width: none; }
     .prof-tab { display: flex; align-items: center; gap: 7px; padding: 14px 20px; font-size: 0.82rem; font-weight: 600; color: var(--prof-text-muted); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s ease; white-space: nowrap; font-family: var(--prof-font); }
     .prof-tab:hover { color: var(--prof-text); }
     .prof-tab.active { color: var(--prof-primary); border-bottom-color: var(--prof-primary); font-weight: 700; }
@@ -634,14 +652,18 @@
       .prof-info-grid { grid-template-columns: 1fr; }
       .prof-info-item.full { grid-column: span 1; }
       .prof-activity-stats { grid-template-columns: repeat(3, 1fr); }
+      .prof-profile-sidebar { position: sticky; top: 70px; z-index: 10; }
     }
     @media (max-width: 767.98px) {
       .prof-hero { padding: 24px 20px; }
       .prof-hero-title { font-size: 1.35rem; }
       .prof-sidebar-stats { grid-template-columns: repeat(3, 1fr); }
+      .prof-sidebar-stats .prof-mini-stat { padding: 14px 6px; }
+      .prof-mini-stat-label { font-size: 0.6rem; }
       .prof-activity-stats { grid-template-columns: 1fr; }
       .prof-edit-actions { flex-direction: column; }
       .prof-tab { padding: 12px 14px; font-size: 0.78rem; }
+      .prof-btn-bookings { display: flex; }
     }
 
     /* ── Animations ──────────────────────────────────────────────────────── */
@@ -663,5 +685,12 @@
     document.querySelectorAll('.prof-tab-content').forEach(c => c.classList.remove('active'));
     document.querySelector('.prof-tab[data-tab="' + tab + '"]').classList.add('active');
     document.getElementById('profTab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    // Scroll to tabs on mobile
+    if (window.innerWidth <= 991.98) {
+      var tabsCard = document.querySelector('.prof-tabs-card');
+      if (tabsCard) {
+        tabsCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   };
 </script>

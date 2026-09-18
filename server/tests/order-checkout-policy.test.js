@@ -8,6 +8,12 @@ const {
   validateCheckoutItems,
   validateCheckoutSelection,
 } = require("../utils/orderCheckoutPolicy");
+const {
+  normalizePaymentChannel,
+  paymentRecordMethod,
+  normalizePaymentMethods,
+  methodHasRequiredDetails,
+} = require("../utils/paymentPolicy");
 
 const NOW = new Date("2026-08-29T10:00:00+08:00");
 const HOURS = [
@@ -34,6 +40,15 @@ test("pickup checkout requires a future open store day", () => {
     paymentMethod: "cash_onsite",
     pickupDate: "2026-08-30",
   }, { storeHours: HOURS, now: NOW }), /store is closed/i);
+});
+
+test("order dates follow the Manila calendar across the UTC midnight boundary", () => {
+  const afterManilaMidnight = new Date("2026-08-29T17:00:00.000Z"); // Aug 30, 1:00 AM PHT
+  assert.throws(() => validateCheckoutSelection({
+    fulfillmentType: "customer_pickup",
+    paymentMethod: "cash_onsite",
+    pickupDate: "2026-08-30",
+  }, { storeHours: HOURS, now: afterManilaMidnight }), /future pickup date/i);
 });
 
 test("delivery and installation checkout requires server-usable contact, location, date, and time", () => {
@@ -107,6 +122,40 @@ test("delivery quote ignores client claims and uses the routing result", async (
 test("cash-on-site pickup begins preparation without falsely recording payment", () => {
   assert.deepEqual(initialOrderLifecycle("customer_pickup", "cash_onsite"), { status: "preparing_unit", paymentStatus: "pending" });
   assert.deepEqual(initialOrderLifecycle("delivery_installation", "cod"), { status: "pending_payment", paymentStatus: "pending" });
+});
+
+test("checkout rejects card as a payment plan because it is a payment channel", () => {
+  assert.throws(() => validateCheckoutSelection({
+    fulfillmentType: "customer_pickup",
+    paymentMethod: "card",
+    pickupDate: "2026-08-31",
+  }, { storeHours: HOURS, now: NOW }), /payment option available/i);
+});
+
+test("manual payment channels normalize to auditable payment record methods", () => {
+  assert.equal(normalizePaymentChannel("card"), "card");
+  assert.equal(normalizePaymentChannel("gcash"), "gcash");
+  assert.equal(normalizePaymentChannel("MAYA"), "maya");
+  assert.equal(normalizePaymentChannel("bank_transfer"), "bank_transfer");
+  assert.equal(normalizePaymentChannel("unsupported"), "");
+  assert.equal(paymentRecordMethod("bank_transfer"), "bank");
+  assert.equal(paymentRecordMethod("maya"), "maya");
+  assert.equal(paymentRecordMethod("card"), "card");
+});
+
+test("admin payment method configuration is normalized and requires receiving details", () => {
+  const methods = normalizePaymentMethods({
+    card: { enabled: true },
+    gcash: { enabled: true, accountNumber: "09171234567" },
+    maya: { enabled: true },
+    bank_transfer: { enabled: true, bankName: "Sample Bank", accountName: "RACS", accountNumber: "1234" },
+    other: { enabled: true, label: "Counter Deposit", instructions: "Ask for the deposit slip." },
+  });
+  assert.equal(methodHasRequiredDetails("card", methods.card), true);
+  assert.equal(methodHasRequiredDetails("gcash", methods.gcash), true);
+  assert.equal(methodHasRequiredDetails("maya", methods.maya), false);
+  assert.equal(methodHasRequiredDetails("bank_transfer", methods.bank_transfer), true);
+  assert.equal(methodHasRequiredDetails("other", methods.other), true);
 });
 
 test("GCash sender numbers are normalized independently from delivery contact", () => {

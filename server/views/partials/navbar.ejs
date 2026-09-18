@@ -124,10 +124,17 @@
 
   /* ── Profile & Toggler ── */
   .premium-nav .btn-outline-primary { display: none; }
-  .premium-nav #profileToggle {
-    background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.12); transition: all 0.3s ease;
+  .premium-nav .nav-profile-btn {
+    background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.12);
+    transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px;
+    padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.8rem;
+    color: #1d4ed8; border-radius: 999px; letter-spacing: 0.03em;
   }
-  .premium-nav #profileToggle i { color: #1d4ed8 !important; }
+  .premium-nav .nav-profile-btn i { font-size: 1.15rem; color: #1d4ed8 !important; }
+  .premium-nav .nav-profile-btn:hover {
+    background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.25);
+    box-shadow: 0 2px 8px rgba(37,99,235,0.15);
+  }
   .premium-nav .navbar-toggler { border-color: rgba(0,0,0,0.15); }
   .nav-greeting { color: #475569; font-size: 0.85rem; }
 
@@ -225,6 +232,7 @@
       padding: 0.75rem 1.6rem;
     }
     #mainNav .d-flex.align-items-center { width: 100%; justify-content: space-between; }
+    .premium-nav .nav-profile-btn { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
     .premium-nav .nav-greeting { display: inline !important; }
   }
 </style>
@@ -290,8 +298,9 @@
 
       <% if (typeof user !== 'undefined' && user) { %>
         <div class="d-flex align-items-center">
-          <button id="profileToggle" class="btn btn-light border rounded-circle me-2" aria-label="Profile">
-            <i class="bi bi-person-circle fs-4"></i>
+          <button id="profileToggle" class="btn btn-light border rounded-pill me-2 nav-profile-btn" aria-label="Account">
+            <i class="bi bi-person-circle"></i>
+            <span class="nav-profile-text">Account</span>
           </button>
           <span class="d-none d-lg-inline me-3 nav-greeting">Hello, <%= user.email.split('@')[0] %></span>
         </div>

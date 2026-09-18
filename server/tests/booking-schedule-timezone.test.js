@@ -6,7 +6,7 @@ const path = require('node:path');
 const { parseBookingDateTime } = require('../utils/overdueBookingScheduler');
 const { computeBookingEndDateTime, isBookingPast } = require('../utils/bookingPolicy');
 const { bookingReviewState } = require('../utils/bookingReview');
-const { assignmentTimingState } = require('../utils/bookingDateTime');
+const { assignmentTimingState, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
 
 const assignmentView = fs.readFileSync(
   path.join(__dirname, '..', 'views', 'pages', 'admin', 'Appointments', 'AppointmentsUnified.ejs'),
@@ -44,6 +44,15 @@ test('assignment cutoff allows the scheduled start and applies one 30-minute gra
   assert.equal(beforeStart.isExpired, false);
   assert.equal(atCutoff.isExpired, false);
   assert.equal(afterCutoff.isExpired, true);
+});
+
+test('customer slots use the Philippine clock even when the server clock is UTC', () => {
+  const now = new Date('2026-09-17T02:00:00.000Z'); // 10:00 AM in Manila
+  assert.equal(manilaSlotTiming('2026-09-17', '08:00', { now, minAdvanceMinutes: 120, safetyBufferMinutes: 30 }).reason, 'past');
+  assert.equal(manilaSlotTiming('2026-09-17', '11:30', { now, minAdvanceMinutes: 120, safetyBufferMinutes: 30 }).reason, 'advance_notice');
+  assert.equal(manilaSlotTiming('2026-09-17', '12:00', { now, minAdvanceMinutes: 120, safetyBufferMinutes: 30 }).allowed, true);
+  assert.equal(manilaSlotTiming('2026-09-18', '08:00', { now, minAdvanceMinutes: 120, safetyBufferMinutes: 30 }).allowed, true);
+  assert.equal(strictManilaDateKey('2026-02-30'), '');
 });
 
 test('pending review does not mark a future Manila schedule overdue', () => {

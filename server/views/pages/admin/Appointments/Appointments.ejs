@@ -1722,10 +1722,11 @@
         const paymentStatusText = appt.paymentStatus
           ? String(appt.paymentStatus).toUpperCase()
           : "PENDING";
+        const paymentChannelText = ({ gcash: "GCash", maya: "Maya", bank_transfer: "Bank Transfer", other: "Other Transfer" })[appt.paymentChannel] || "selected method";
         const paymentMethodText = appt.paymentMethod === "gcash"
-          ? "Full GCash payment"
+          ? `Full payment via ${paymentChannelText}`
           : appt.paymentMethod === "cod"
-            ? "GCash downpayment + balance at completion"
+            ? `Downpayment via ${paymentChannelText} + balance at completion`
             : appt.paymentMethod || "—";
         const paymentReferenceText = appt.paymentReference || appt.bookingReference || appt.workOrderNumber || "—";
         const gcashNumberText = appt.gcashNumber || "—";

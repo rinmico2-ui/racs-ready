@@ -19,7 +19,14 @@ const {
   syncDailyKit,
 } = require("../utils/dailyKitService");
 const { orderDepartureReadiness } = require("../utils/orderPreparation");
-const { getDownpaymentPercentage, getGcashRecipientNumber, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
+const {
+  getDownpaymentPercentage,
+  getGcashRecipientNumber,
+  calculatePaymentBreakdown,
+  normalizePaymentChannel,
+  paymentRecordMethod,
+  getPaymentMethods,
+} = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
@@ -430,7 +437,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       try { body.delivery = JSON.parse(body.delivery); } catch (e) {}
     }
 
-    const { items, fulfillmentType, delivery, pickupDate, paymentMethod, timeSlot, gcashNumber } = body;
+    const { items, fulfillmentType, delivery, pickupDate, paymentMethod, timeSlot, gcashNumber, paymentChannel, paymentReference } = body;
     checkoutRequestId = String(body.checkoutRequestId || "").trim();
     if (!/^[A-Za-z0-9_-]{16,80}$/.test(checkoutRequestId)) {
       throw new OrderCheckoutError("This checkout session is invalid or expired. Reopen checkout and try again.", 400, "ORDER_CHECKOUT_REQUEST_ID_INVALID");
@@ -445,12 +452,26 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     if (req.file && !(await hasValidStoredImageSignature(req.file))) {
       throw new OrderCheckoutError("The uploaded receipt is not a valid JPG, PNG, or WEBP image.", 400, "ORDER_PAYMENT_PROOF_INVALID");
     }
-    if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && !req.file) {
-      throw new OrderCheckoutError("A GCash receipt screenshot is required for this payment option.", 400, "ORDER_PAYMENT_PROOF_REQUIRED");
+    if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && String(paymentChannel || "").toLowerCase() !== "card" && !req.file) {
+      throw new OrderCheckoutError("A payment receipt screenshot is required for this payment option.", 400, "ORDER_PAYMENT_PROOF_REQUIRED");
     }
-    const normalizedGcashNumber = ["cod", "gcash_full"].includes(paymentMethod)
+    const normalizedPaymentChannel = ["cod", "gcash_full"].includes(paymentMethod)
+      ? normalizePaymentChannel(paymentChannel)
+      : null;
+    if (["cod", "gcash_full"].includes(paymentMethod) && !normalizedPaymentChannel) {
+      throw new OrderCheckoutError("Choose a supported payment method.", 400, "ORDER_PAYMENT_CHANNEL_INVALID");
+    }
+    const normalizedGcashNumber = normalizedPaymentChannel === "gcash"
       ? normalizeGcashSenderNumber(gcashNumber)
       : null;
+    const normalizedPaymentReference = String(paymentReference || "").trim().slice(0, 120);
+    if (normalizedPaymentChannel && !["gcash", "card"].includes(normalizedPaymentChannel) && normalizedPaymentReference.length < 3) {
+      throw new OrderCheckoutError("Enter the transaction or payment reference for the selected payment method.", 400, "ORDER_PAYMENT_REFERENCE_REQUIRED");
+    }
+    const configuredPaymentMethods = await getPaymentMethods();
+    if (normalizedPaymentChannel && !configuredPaymentMethods[normalizedPaymentChannel]?.available) {
+      throw new OrderCheckoutError("That payment method is currently unavailable. Choose another method or contact the store.", 503, "ORDER_PAYMENT_CHANNEL_UNAVAILABLE");
+    }
     const requestedItems = validateCheckoutItems(items);
 
     const [settings, downpaymentPercentage, gcashRecipientNumber] = await Promise.all([
@@ -465,7 +486,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       pickupDate,
       timeSlot,
     }, { storeHours: settings.storeHours });
-    if (["cod", "gcash_full"].includes(selection.paymentMethod) && !gcashRecipientNumber) {
+    if (["cod", "gcash_full"].includes(selection.paymentMethod) && normalizedPaymentChannel === "gcash" && !gcashRecipientNumber) {
       throw new OrderCheckoutError(
         "GCash checkout is temporarily unavailable. Please choose another available payment option or contact the store.",
         503,
@@ -580,6 +601,10 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       items: enrichedItems,
       fulfillmentType: selection.fulfillmentType,
       paymentMethod: selection.paymentMethod,
+      ...(normalizedPaymentChannel ? {
+        paymentChannel: normalizedPaymentChannel,
+        paymentReference: normalizedPaymentReference || normalizedGcashNumber,
+      } : {}),
       paymentStatus: lifecycle.paymentStatus,
       status: lifecycle.status,
       timeSlot: selection.timeSlot,
@@ -655,26 +680,28 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
 
       order = new Order(orderData);
       await order.save({ session });
-      if (req.file && ["cod", "gcash_full"].includes(selection.paymentMethod)) {
+      if (["cod", "gcash_full"].includes(selection.paymentMethod) && (req.file || normalizedPaymentChannel === "card")) {
         const isDownpayment = selection.paymentMethod === "cod";
         const paymentRecord = new Payment({
           orderId: order._id,
           amount: isDownpayment ? order.downpaymentAmount : order.total,
-          method: "gcash",
+          method: paymentRecordMethod(normalizedPaymentChannel),
           type: isDownpayment ? "downpayment" : "final",
-          gateway: "gcash",
-          reference: orderData.gcashNumber || undefined,
-          proofUrl: orderData.gcashProofUrl,
+          gateway: normalizedPaymentChannel === "card" ? "other" : paymentRecordMethod(normalizedPaymentChannel),
+          reference: orderData.paymentReference || undefined,
+          proofUrl: orderData.gcashProofUrl || null,
           status: "pending",
           notes: isDownpayment
-            ? `${order.downpaymentPercentage}% order downpayment submitted for verification`
-            : "Full order payment submitted for verification",
+            ? `${order.downpaymentPercentage}% order downpayment via ${normalizedPaymentChannel} initiated`
+            : `Full order payment via ${normalizedPaymentChannel} initiated`,
           events: [{
             status: "pending",
             actor: req.user._id,
             actorName: req.user.name || req.user.email || "Customer",
             actorRole: "customer",
-            note: "Payment proof submitted with order",
+            note: normalizedPaymentChannel === "card"
+              ? "Card payment selected for in-person collection; no card credentials were collected"
+              : "Payment proof submitted with order",
             at: new Date(),
           }],
         });

@@ -9,7 +9,7 @@ const BookingService = require("../models/BookingService");
 const Order = require("../models/Order");
 const auth = require("../middleware/authenticate");
 const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/bookingPolicy");
-const { getDownpaymentPercentage, getGcashRecipientNumber } = require("../utils/paymentPolicy");
+const { getPaymentPolicy } = require("../utils/paymentPolicy");
 
 async function fetchJsonWithTimeout(url, timeoutMs = 7000) {
   const controller = new AbortController();
@@ -1261,22 +1261,16 @@ router.get("/fare-per-km", async (req, res) => {
 // Public read-only payment policy used by product checkout and service booking.
 router.get("/payment-policy", async (_req, res) => {
   try {
-    const [downpaymentPercentage, gcashNumber] = await Promise.all([
-      getDownpaymentPercentage(),
-      getGcashRecipientNumber(),
-    ]);
+    const policy = await getPaymentPolicy();
+    const gcashNumber = policy.methods.gcash.accountNumber || "";
     return res.json({
-      downpaymentPercentage,
+      ...policy,
       gcashNumber,
       gcashConfigured: Boolean(gcashNumber),
-      cardConfigured: Boolean(
-        String(process.env.PAYMONGO_SECRET_KEY || "").trim()
-        && String(process.env.PAYMONGO_WEBHOOK_SECRET || "").trim(),
-      ),
     });
   } catch (err) {
     logger.warn("Failed to load payment policy", { error: err && err.message });
-    return res.json({ downpaymentPercentage: 10, gcashNumber: "", gcashConfigured: false, cardConfigured: false });
+    return res.json({ downpaymentPercentage: 10, gcashNumber: "", gcashConfigured: false, methods: {} });
   }
 });
 

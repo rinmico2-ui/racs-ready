@@ -128,6 +128,86 @@ function serializeClaim(claim) {
   };
 }
 
+router.get("/overview", requireRole("customer"), async (req, res, next) => {
+  try {
+    const bookingStatuses = ["completed", "repair_completed", "under_warranty", "warranty_claim", "closed"];
+    const [bookings, orders, claims] = await Promise.all([
+      BookingService.find({
+        customerId: req.user._id,
+        status: { $in: bookingStatuses },
+        "warranty.status": { $exists: true, $ne: null },
+      })
+        .select("bookingReference status completedAt repairCompletion.completedAt statusHistory warranty services serviceId service serviceName unitInfo")
+        .sort({ completedAt: -1, updatedAt: -1 })
+        .limit(100)
+        .lean(),
+      Order.find({
+        userId: req.user._id,
+        status: "completed",
+        "warranty.status": { $exists: true, $ne: null },
+      })
+        .select("orderReference status completedAt statusHistory warranty items fulfillmentType")
+        .sort({ completedAt: -1, updatedAt: -1 })
+        .limit(100)
+        .lean(),
+      WarrantyClaim.find({ customerId: req.user._id })
+        .select("claimReference sourceType sourceId sourceReference coverageId affectedItem status active priority submittedAt decision remedy customerConfirmedAt closedAt")
+        .sort({ submittedAt: -1 })
+        .limit(200)
+        .lean(),
+    ]);
+
+    const claimsBySource = new Map();
+    claims.forEach((claim) => {
+      const key = `${claim.sourceType}:${claim.sourceId}`;
+      if (!claimsBySource.has(key)) claimsBySource.set(key, []);
+      claimsBySource.get(key).push(claim);
+    });
+    const records = [
+      ...bookings.map((source) => ({ sourceType: "booking", source })),
+      ...orders.map((source) => ({ sourceType: "order", source })),
+    ].map(({ sourceType, source }) => {
+      const completedAt = sourceCompletion(sourceType, source);
+      const coverages = resolveWarrantyCoverages(source.warranty, completedAt);
+      const sourceClaims = claimsBySource.get(`${sourceType}:${source._id}`) || [];
+      const activeCoverages = coverages.filter((coverage) => coverage.status === "active");
+      return {
+        sourceType,
+        sourceId: source._id,
+        reference: source.bookingReference || source.orderReference || String(source._id),
+        completedAt,
+        status: sourceClaims.some((claim) => claim.active) ? "claimed" : (activeCoverages.length ? "active" : "expired"),
+        coverages,
+        items: sourceItems(sourceType, source),
+        claims: sourceClaims,
+        detailsUrl: sourceType === "order"
+          ? `/my-orders/${source._id}`
+          : `/book-history?highlight=${source._id}`,
+      };
+    }).sort((left, right) => new Date(right.completedAt || 0) - new Date(left.completedAt || 0));
+
+    const now = Date.now();
+    const expiringCutoff = now + 30 * 24 * 60 * 60 * 1000;
+    const activeCoverageCount = records.reduce((total, record) => total + record.coverages.filter((coverage) => coverage.status === "active").length, 0);
+    const expiringSoon = records.reduce((total, record) => total + record.coverages.filter((coverage) => {
+      const end = new Date(coverage.endDate).getTime();
+      return coverage.status === "active" && Number.isFinite(end) && end <= expiringCutoff;
+    }).length, 0);
+    return res.json({
+      records,
+      claims,
+      summary: {
+        records: records.length,
+        activeCoverages: activeCoverageCount,
+        expiringSoon,
+        activeClaims: claims.filter((claim) => claim.active).length,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.get("/eligibility/:sourceType/:sourceId", requireRole("customer"), async (req, res, next) => {
   try {
     const source = await customerSource(req.params.sourceType, req.params.sourceId, req.user._id);

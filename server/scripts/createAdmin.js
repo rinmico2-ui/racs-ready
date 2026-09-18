@@ -12,7 +12,7 @@ const ActivityLog = require('../models/ActivityLog');
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Your MongoDB Atlas hosts.
-// These were obtained from the SRV lookup for your cluster.
+// These were obtained from the SRV lookup for your cluster.  
 const MONGODB_DIRECT_HOSTS = [
   'ac-8z2eogy-shard-00-00.zg3zjgk.mongodb.net:27017',
   'ac-8z2eogy-shard-00-01.zg3zjgk.mongodb.net:27017',

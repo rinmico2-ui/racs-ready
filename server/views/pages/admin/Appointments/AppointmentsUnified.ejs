@@ -2078,7 +2078,7 @@
 
     var paymentRows = '<div class="dv2-payment-row"><span class="dv2-payment-label">Total Amount</span><span class="dv2-payment-value">\u20B1'+total.toLocaleString()+'</span></div>'+
       (travelFee>0?'<div class="dv2-payment-row" style="padding-left:12px;"><span class="dv2-payment-label" style="font-size:0.72rem;"><i class="bi bi-arrow-return-right me-1"></i>Incl. Travel Fee</span><span class="dv2-payment-value" style="font-size:0.72rem;">\u20B1'+travelFee.toLocaleString()+'</span></div>':'')+
-      '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Option</span><span class="dv2-payment-value">'+(b.paymentMethod==='gcash'?'Full GCash payment':b.paymentMethod==='cod'?'GCash downpayment + balance at completion':'N/A')+'</span></div>';
+      '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Option</span><span class="dv2-payment-value">'+(b.paymentMethod==='gcash'?'Full payment via ':b.paymentMethod==='cod'?'Downpayment via ':'N/A')+(b.paymentMethod==='gcash'||b.paymentMethod==='cod'?(({gcash:'GCash',maya:'Maya',bank_transfer:'Bank Transfer',other:'Other Transfer'})[b.paymentChannel]||'selected method'):'')+(b.paymentMethod==='cod'?' + balance at completion':'')+'</span></div>';
     if (isCOD) {
       paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Downpayment '+(b.paymentStatus==='pending'?'Submitted':'Received')+'</span><span class="dv2-payment-value">\u20B1'+dp.toLocaleString()+'</span></div>'+
         '<div class="dv2-payment-row"><span class="dv2-payment-label">Balance '+(b.paymentStatus==='pending'?'after verification ':'')+'(on-site)</span><span class="dv2-payment-value">\u20B1'+bal.toLocaleString()+'</span></div>';

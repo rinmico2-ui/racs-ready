@@ -390,26 +390,27 @@
         const maintenanceAction = b.maintenanceSummary || b.maintenance?.isMaintenance
           ? `<a class="bh-action-btn" href="/maintenance" title="View maintenance" style="color:#0f766e;border-color:#99f6e4;"><i class="bi bi-calendar2-check"></i></a>`
           : '';
+        const cardPaymentAction = '';
 
         return `
         <tr data-id="${b._id}" class="bh-row ${rowType}">
-          <td>
+          <td data-label="Booking">
             <div class="bh-cell-title">#${shortId(b._id)}</div>
             <div class="bh-cell-meta">Created ${formatDateTime(b.createdAt)}</div>
           </td>
-          <td>
+          <td data-label="Service">
             <div class="bh-cell-service"><i class="bi ${svcIcon}"></i><span>${escapeHtml(serviceLabel)}</span></div>
             ${serviceMeta ? `<div class="bh-cell-meta">${escapeHtml(serviceMeta)}</div>` : ''}
           </td>
-          <td>
+          <td data-label="Date">
             <div class="bh-cell-title">${escapeHtml(dateText)}</div>
             <div class="bh-cell-meta">${escapeHtml(timeText)}</div>
             ${rescheduleIndicator}
           </td>
-          <td>${statusBadge(displayStatus)}${missedIndicator}</td>
-          <td class="bh-location" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
-          <td class="text-center">${ratingCell}</td>
-          <td>
+          <td data-label="Status">${statusBadge(displayStatus)}${missedIndicator}</td>
+          <td data-label="Location" class="bh-location" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
+          <td data-label="Rating" class="text-center">${ratingCell}</td>
+          <td data-label="Actions">
             <div class="bh-actions">
               ${reviewAction}
               <button class="bh-action-btn bh-download" data-id="${b._id}" title="Download JSON"><i class="bi bi-download"></i></button>
@@ -418,6 +419,7 @@
               ${approvalAction}
               ${editAction}
               ${maintenanceAction}
+              ${cardPaymentAction}
               <a class="bh-action-btn" href="/services" title="Rebook" style="color:#2563eb;border-color:#bfdbfe;"><i class="bi bi-arrow-repeat"></i></a>
             </div>
           </td>
@@ -669,7 +671,9 @@
       const dp = Number(b.downpaymentAmount || Math.round(total * (Number(b.downpaymentPercentage) || 10) / 100));
       const amountPaid = Number(b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
       const balance = Number(b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0));
-      const methodName = pm === 'cod' ? 'GCash downpayment + balance at completion' : pm === 'gcash' ? 'Full payment via GCash' : pm.toUpperCase();
+      const inPersonCard = b.paymentChannel === 'card';
+      const channelName = ({ card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[b.paymentChannel] || 'selected method';
+      const methodName = pm === 'cod' ? `${channelName} downpayment + balance at completion` : pm === 'gcash' ? (inPersonCard ? 'Full card payment at RACS store' : `Full payment via ${channelName}`) : pm.toUpperCase();
   
       let breakdown = '';
       if (pm === 'cod' && total > 0) {
@@ -680,8 +684,8 @@
               <span class="bh-payment-value">${fmtCurrency(total)}</span>
             </div>
             <div class="bh-payment-row">
-              <span class="bh-payment-label">Downpayment (paid now)</span>
-              <span class="bh-payment-value bh-payment-value--negative">-${fmtCurrency(dp)}</span>
+              <span class="bh-payment-label">${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? 'Downpayment due at RACS store' : 'Downpayment'}</span>
+              <span class="bh-payment-value ${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? 'bh-payment-value--warning' : 'bh-payment-value--negative'}">${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? '' : '-'}${fmtCurrency(dp)}</span>
             </div>
             <div class="bh-payment-row bh-payment-total">
               <span class="bh-payment-label">Balance on Completion</span>
