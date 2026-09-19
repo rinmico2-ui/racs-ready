@@ -657,7 +657,7 @@
 
             <!-- Total -->
             <div class="ord-total-row">
-              <span class="ord-total-label">Total Amount</span>
+              <span class="ord-total-label">Total payable</span>
               <span class="ord-total-value">&#8369;<%= (order.total || 0).toLocaleString() %></span>
             </div>
             <% if (Number(order.downpaymentAmount || 0) > 0) { %>
@@ -775,13 +775,14 @@
                   <div class="ord-detail-item wide">
                     <span class="ord-detail-label">Payment summary</span>
                     <div class="ord-cost-list">
-                      <div class="ord-cost-line"><span>Products subtotal</span><strong>&#8369;<%= Number(order.subtotal || 0).toLocaleString() %></strong></div>
+                      <div class="ord-cost-line"><span>Aircon product price</span><strong>&#8369;<%= Number(order.subtotal || 0).toLocaleString() %></strong></div>
                       <% if (Number(order.deliveryFee || 0) > 0) { %><div class="ord-cost-line"><span>Delivery fee</span><strong>&#8369;<%= Number(order.deliveryFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation fee</span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.transportationFee || 0) > 0) { %><div class="ord-cost-line"><span>Transportation fee</span><strong>&#8369;<%= Number(order.transportationFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation service</span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.transportationFee || 0) > 0) { %><div class="ord-cost-line"><span>Transportation service</span><strong>&#8369;<%= Number(order.transportationFee).toLocaleString() %></strong></div><% } %>
                       <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="ord-cost-line"><span>Downpayment</span><strong>&#8369;<%= Number(order.downpaymentAmount).toLocaleString() %></strong></div><% } %>
                       <% if (Number(order.balanceAmount || 0) > 0) { %><div class="ord-cost-line"><span>Remaining balance</span><strong>&#8369;<%= Number(order.balanceAmount).toLocaleString() %></strong></div><% } %>
-                      <div class="ord-cost-line total"><span>Order total</span><strong>&#8369;<%= Number(order.total || 0).toLocaleString() %></strong></div>
+                      <div class="ord-cost-line total"><span>Total payable</span><strong>&#8369;<%= Number(order.total || 0).toLocaleString() %></strong></div>
+                      <div class="small text-muted mt-2">The aircon product price excludes installation and transportation services.</div>
                     </div>
                   </div>
                 </div>

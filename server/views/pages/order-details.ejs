@@ -272,11 +272,12 @@
           <section class="od-card">
             <div class="od-card-head"><h2><i class="bi bi-receipt"></i> Payment summary</h2></div>
             <div class="od-card-body">
-              <div class="od-cost-line"><span>Products subtotal</span><strong>&#8369;<%= peso(order.subtotal) %></strong></div>
-              <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation fee</span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
+              <div class="od-cost-line"><span>Aircon product price</span><strong>&#8369;<%= peso(order.subtotal) %></strong></div>
+              <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation service</span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
               <% if (Number(order.deliveryFee || 0) > 0) { %><div class="od-cost-line"><span>Delivery fee</span><strong>&#8369;<%= peso(order.deliveryFee) %></strong></div><% } %>
-              <% if (Number(order.transportationFee || 0) > 0) { %><div class="od-cost-line"><span>Transportation</span><strong>&#8369;<%= peso(order.transportationFee) %></strong></div><% } %>
-              <div class="od-cost-line total"><span>Order total</span><strong>&#8369;<%= peso(order.total) %></strong></div>
+              <% if (Number(order.transportationFee || 0) > 0) { %><div class="od-cost-line"><span>Transportation service</span><strong>&#8369;<%= peso(order.transportationFee) %></strong></div><% } %>
+              <div class="od-cost-line total"><span>Total payable</span><strong>&#8369;<%= peso(order.total) %></strong></div>
+              <p class="small text-muted mt-2 mb-0">The aircon product price excludes installation and transportation services.</p>
               <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="od-cost-line"><span>Required downpayment</span><strong>&#8369;<%= peso(order.downpaymentAmount) %></strong></div><% } %>
               <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(order.balanceAmount) %></strong></div>
               <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= orderPaymentLabel(order) %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
