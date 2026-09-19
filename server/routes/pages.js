@@ -79,6 +79,10 @@ const {
   DEFAULT_REPAIR_INSPECTION_FEE,
   getDefaultRepairInspectionFee,
 } = require("../utils/repairInspectionPricing");
+const {
+  applyServiceBookingCounts,
+  getServiceBookingCounts,
+} = require("../utils/serviceBookingCounts");
 
 router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let initialServices = { coreServices: [], repairs: [] };
@@ -1728,19 +1732,9 @@ router.get(
   async (req, res) => {
     try {
       const coreServices = await CoreService.find({}).lean().limit(200);
-      // optionally count bookings per service for dashboard stats
       const BookingService = require("../models/BookingService");
-      const counts = await BookingService.aggregate([
-        { $match: { serviceId: { $in: coreServices.map((s) => s._id) } } },
-        { $group: { _id: "$serviceId", count: { $sum: 1 } } },
-      ]);
-      const countMap = counts.reduce((m, c) => {
-        m[c._id.toString()] = c.count;
-        return m;
-      }, {});
-      coreServices.forEach((s) => {
-        s.bookingCount = countMap[s._id.toString()] || 0;
-      });
+      const bookingCounts = await getServiceBookingCounts(BookingService, coreServices);
+      applyServiceBookingCounts(coreServices, bookingCounts);
 
       res.render("pages/admin/Services/CoreServices", {
         title: "Core Services",
@@ -1765,19 +1759,9 @@ router.get(
   async (req, res) => {
     try {
       const repairServices = await RepairService.find({}).lean().limit(200);
-      // count bookings for repair services as well
       const BookingService = require("../models/BookingService");
-      const counts = await BookingService.aggregate([
-        { $match: { serviceId: { $in: repairServices.map((s) => s._id) } } },
-        { $group: { _id: "$serviceId", count: { $sum: 1 } } },
-      ]);
-      const countMap = counts.reduce((m, c) => {
-        m[c._id.toString()] = c.count;
-        return m;
-      }, {});
-      repairServices.forEach((s) => {
-        s.bookingCount = countMap[s._id.toString()] || 0;
-      });
+      const bookingCounts = await getServiceBookingCounts(BookingService, repairServices);
+      applyServiceBookingCounts(repairServices, bookingCounts);
 
       res.render("pages/admin/Services/RepairServices", {
         title: "Repair Services",
@@ -3987,6 +3971,9 @@ router.get(
   async (req, res) => {
     try {
       const coreServices = await CoreService.find({}).lean().limit(200);
+      const BookingService = require("../models/BookingService");
+      const bookingCounts = await getServiceBookingCounts(BookingService, coreServices);
+      applyServiceBookingCounts(coreServices, bookingCounts);
       res.render("pages/admin/Services/CoreServices", {
         title: "Core Services",
         layout: "layouts/secretary",
