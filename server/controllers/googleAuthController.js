@@ -52,14 +52,41 @@ function base64Url(buffer) {
     .replace(/=+$/g, "");
 }
 
-function stateCookieOptions() {
+function isHttpsUrl(value) {
+  try {
+    return new URL(String(value || "")).protocol === "https:";
+  } catch (error) {
+    return false;
+  }
+}
+
+function stateCookieOptions(config = googleOAuthConfig()) {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // The OAuth state must survive the round trip through Google. Render can
+    // terminate TLS before forwarding the request, so use the public callback
+    // URL (not only NODE_ENV) to decide whether this is a secure cookie.
+    secure:
+      process.env.NODE_ENV === "production" || isHttpsUrl(config.redirectUri),
     sameSite: "lax",
     maxAge: OAUTH_STATE_TTL_SECONDS * 1000,
     path: OAUTH_COOKIE_PATH,
   };
+}
+
+function canonicalStartUrl(req, config) {
+  try {
+    const callbackOrigin = new URL(config.redirectUri).origin;
+    const requestOrigin = new URL(`${req.protocol}://${req.get("host")}`).origin;
+    if (callbackOrigin === requestOrigin) return "";
+
+    const startUrl = new URL("/api/auth/google", callbackOrigin);
+    const returnTo = safeReturnTo(req.query && req.query.returnTo);
+    if (returnTo) startUrl.searchParams.set("returnTo", returnTo);
+    return startUrl.toString();
+  } catch (error) {
+    return "";
+  }
 }
 
 function callbackError(res, code) {
@@ -96,6 +123,13 @@ exports.start = async (req, res, next) => {
   try {
     const config = googleOAuthConfig();
     if (!config.enabled) return callbackError(res, "not_configured");
+
+    // OAuth state cookies are scoped to a hostname. If somebody opens the
+    // Render subdomain while the callback is configured for a custom domain,
+    // start the flow on that custom domain so the callback receives the same
+    // state cookie instead of failing as an expired/invalid request.
+    const canonicalUrl = canonicalStartUrl(req, config);
+    if (canonicalUrl) return res.redirect(302, canonicalUrl);
 
     const state = base64Url(crypto.randomBytes(32));
     const nonce = base64Url(crypto.randomBytes(32));
@@ -235,4 +269,9 @@ exports.isConfigured = function isConfigured() {
   return googleOAuthConfig().enabled;
 };
 
-exports._test = { googleOAuthConfig, safeReturnTo };
+exports._test = {
+  googleOAuthConfig,
+  safeReturnTo,
+  canonicalStartUrl,
+  stateCookieOptions,
+};
