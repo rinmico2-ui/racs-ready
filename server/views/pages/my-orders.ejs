@@ -521,7 +521,7 @@
           pending: 'Pending', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance', remitted: 'Remitted', verified: 'Verified', rejected: 'Rejected', refunded: 'Refunded', paid: 'Paid', failed: 'Failed', partial: 'Partially paid'
         };
         const statusGuidance = {
-          pending_payment: order.paymentChannel === 'card' ? 'Pay by credit or debit card at the RACS store so we can begin preparing your order.' : 'Complete or wait for payment verification. We will prepare the unit once payment is confirmed.',
+          pending_payment: 'Complete or wait for payment verification. We will prepare the unit once payment is confirmed.',
           preparing_unit: 'Your unit is being checked and prepared. We will assign a technician or delivery schedule next.',
           ready_for_pickup: 'Your unit is ready for pickup! Please visit our store at your earliest convenience to collect it.',
           technician_assigned: 'A technician has been selected and is reviewing the assignment.',
@@ -574,7 +574,9 @@
           const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
           const orderGuidance = order.fulfillmentType === 'customer_pickup' && order.status === 'preparing_unit'
             ? 'Your unit is being prepared for store pickup. We will notify you when it is ready.'
-            : statusGuidance[order.status];
+            : order.status === 'pending_payment' && order.paymentChannel === 'card'
+              ? 'Pay by credit or debit card at the RACS store so we can begin preparing your order.'
+              : statusGuidance[order.status];
         %>
         <div class="ord-card" data-order-group="<%= orderGroup %>" data-order-search="<%= orderSearch %>">
           <!-- Header -->
