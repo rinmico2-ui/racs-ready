@@ -7,33 +7,56 @@ const {
   applyServiceBookingCounts,
   buildServiceBookingCountPipeline,
   getServiceBookingCounts,
+  normalizeServiceName,
 } = require("../utils/serviceBookingCounts");
 
-test("service booking counts prefer the authoritative services array and fall back to legacy serviceId", () => {
-  const serviceIds = ["core-a", "core-b"];
-  const pipeline = buildServiceBookingCountPipeline(serviceIds);
-  const projection = pipeline[0].$project.bookingServiceIds.$let;
-  const selectedIds = projection.in.$setUnion[0].$cond;
+test("service booking counts reconcile current IDs and historical service names", () => {
+  const services = [
+    { _id: "core-a", name: "Aircon Installation" },
+    { _id: "core-b", name: "Aircon Cleaning" },
+  ];
+  const pipeline = buildServiceBookingCountPipeline(services);
+  const projection = pipeline[0].$project.bookingServices.$let;
+  const selection = projection.in.$cond;
 
   assert.deepEqual(
-    projection.vars.embeddedServiceIds.$map.input.$filter.input,
+    projection.vars.embeddedServices.$filter.input,
     { $ifNull: ["$services", []] },
   );
   assert.deepEqual(projection.vars.legacyServiceId, {
     $ifNull: ["$serviceId", { $ifNull: ["$service._id", null] }],
   });
-  assert.deepEqual(selectedIds[0], {
-    $gt: [{ $size: "$$embeddedServiceIds" }, 0],
+  assert.deepEqual(selection[0], {
+    $gt: [{ $size: "$$embeddedServices" }, 0],
   });
-  assert.equal(selectedIds[1], "$$embeddedServiceIds");
-  assert.deepEqual(selectedIds[2].$cond[1], ["$$legacyServiceId"]);
-  assert.deepEqual(pipeline[2], {
-    $match: { bookingServiceIds: { $in: serviceIds } },
+  assert.equal(selection[1], "$$embeddedServices");
+  assert.equal(selection[2].$cond[1][0].serviceId, "$$legacyServiceId");
+  const branches = pipeline[3].$set.matchedServiceId.$switch.branches;
+  assert.deepEqual(branches[0], {
+    case: { $eq: ["$bookingService.serviceId", "core-a"] },
+    then: "core-a",
   });
-  assert.deepEqual(pipeline[3].$group._id, {
+  assert.deepEqual(branches[2], {
+    case: { $eq: ["$normalizedBookingServiceName", "aircon installation"] },
+    then: "core-a",
+  });
+  assert.deepEqual(pipeline[5].$group._id, {
     bookingId: "$_id",
-    serviceId: "$bookingServiceIds",
+    serviceId: "$matchedServiceId",
   });
+});
+
+test("service-name fallback is normalized and disabled for duplicate catalog names", () => {
+  assert.equal(normalizeServiceName("  AIRCON Installation  "), "aircon installation");
+
+  const pipeline = buildServiceBookingCountPipeline([
+    { _id: "core-a", name: "Aircon Installation" },
+    { _id: "core-b", name: " aircon installation " },
+  ]);
+  const branches = pipeline[3].$set.matchedServiceId.$switch.branches;
+
+  assert.equal(branches.length, 2);
+  assert.ok(branches.every((branch) => branch.case.$eq[0] === "$bookingService.serviceId"));
 });
 
 test("service booking counts map aggregate results onto catalog services", async () => {
