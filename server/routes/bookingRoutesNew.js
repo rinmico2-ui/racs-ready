@@ -18,6 +18,7 @@ const {
   normalizePaymentChannel,
   paymentRecordMethod,
   getPaymentMethods,
+  MANUAL_PAYMENT_CHANNELS,
 } = require('../utils/paymentPolicy');
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
@@ -126,7 +127,7 @@ router.post('/create-new', async (req, res) => {
       return res.status(400).json({ error: 'Choose a supported payment option.' });
     }
     const normalizedPaymentChannel = normalizePaymentChannel(paymentChannel);
-    if (!normalizedPaymentChannel) {
+    if (!MANUAL_PAYMENT_CHANNELS.includes(normalizedPaymentChannel)) {
       return res.status(400).json({ error: 'Choose a supported payment method.' });
     }
     const configuredPaymentMethods = await getPaymentMethods();
@@ -141,10 +142,10 @@ router.post('/create-new', async (req, res) => {
       ? (senderDigits.startsWith('63') ? `0${senderDigits.slice(2)}` : senderDigits)
       : null;
     const normalizedPaymentReference = String(paymentReference || '').trim().slice(0, 120);
-    if (!['gcash', 'card'].includes(normalizedPaymentChannel) && normalizedPaymentReference.length < 3) {
+    if (normalizedPaymentChannel !== 'gcash' && normalizedPaymentReference.length < 3) {
       return res.status(400).json({ error: 'Enter the transaction or payment reference for the selected payment method.' });
     }
-    if (normalizedPaymentChannel !== 'card' && !hasValidImageDataUrl(proofImageBase64)) {
+    if (!hasValidImageDataUrl(proofImageBase64)) {
       return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP payment receipt no larger than 5 MB.' });
     }
     
@@ -613,11 +614,9 @@ router.post('/create-new', async (req, res) => {
         amount: paymentAmount,
         method: paymentSchemaMethod,
         type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'final',
-        gateway: normalizedPaymentChannel === 'card' ? 'other' : paymentSchemaMethod,
+        gateway: paymentSchemaMethod,
         reference: normalizedPaymentReference || normalizedGcashNumber,
-        notes: paymentNotes || (normalizedPaymentChannel === 'card'
-          ? 'Card payment selected for in-person collection; no card credentials were collected'
-          : `${normalizedPaymentChannel} payment submitted by customer`),
+        notes: paymentNotes || `${normalizedPaymentChannel} payment submitted by customer`,
         status: 'pending',
         proofUrl: proofImageBase64 || null
       });

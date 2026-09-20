@@ -1063,7 +1063,6 @@
           <div id="orderPaymentChannelSection" class="payment-channel-section d-none mx-md-3">
             <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>Pay via</div>
             <div class="payment-channel-options" role="group" aria-label="Payment method">
-              <button type="button" class="payment-channel-card" data-channel="card" aria-pressed="false"><i class="bi bi-credit-card me-1"></i>Card</button>
               <button type="button" class="payment-channel-card" data-channel="gcash" aria-pressed="false">GCash</button>
               <button type="button" class="payment-channel-card" data-channel="maya" aria-pressed="false">Maya</button>
               <button type="button" class="payment-channel-card" data-channel="bank_transfer" aria-pressed="false">Bank Transfer</button>
@@ -1071,10 +1070,6 @@
             </div>
             <input type="hidden" id="wizardPaymentChannel" value="">
             <div id="wizardPaymentChannelHelp" class="form-text mt-2">Select how you will send the payment.</div>
-          </div>
-
-          <div id="orderCardCheckoutNotice" class="alert alert-primary d-none mx-md-3 mt-3 mb-0" role="status">
-            <div class="d-flex gap-2"><i class="bi bi-credit-card fs-5"></i><div><strong>Pay by card in person</strong><div class="small">Place the order now, then pay by credit or debit card at the RACS store. Do not enter or send card details through this website.</div></div></div>
           </div>
 
           <div id="orderDownpaymentReason" class="downpayment-reason mx-md-3" role="note">
@@ -1189,7 +1184,7 @@
                   <span class="review-value" id="reviewDeliveryFee"></span>
                 </div>
                 <div class="review-row py-1" id="reviewInstallRow" style="display: none;">
-                  <span class="review-label">Installation Fee</span>
+                  <span class="review-label">Installation Fee <small class="text-muted">(not included)</small></span>
                   <span class="review-value" id="reviewInstallFee"></span>
                 </div>
                 <div
@@ -1785,7 +1780,7 @@
         }
         if (paymentMethod === 'gcash_full' || paymentMethod === 'cod') {
           const paymentChannel = document.getElementById('wizardPaymentChannel').value;
-          if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
+          if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
             return {
               step: 3,
               title: 'Choose a Payment Method',
@@ -1803,7 +1798,6 @@
               focusSelector: '#orderPaymentChannelSection'
             };
           }
-          if (paymentChannel === 'card') return null;
           if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
             return {
               step: 3,
@@ -1981,17 +1975,16 @@
 
     function orderPaymentChannelLabel(channel) {
       const configured = window.paymentMethodsConfig?.[channel]?.label;
-      return configured || ({ card: 'Credit / Debit Card', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+      return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
     }
 
     window.selectOrderPaymentChannel = function(channel) {
-      if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(channel)) return;
+      if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(channel)) return;
       const configuredMethod = window.paymentMethodsConfig?.[channel];
       if (configuredMethod && configuredMethod.available !== true) return;
       if (!configuredMethod && channel === 'gcash' && !String(window.adminGcashNumber || '').trim()) return;
       const label = orderPaymentChannelLabel(channel);
       const isGcash = channel === 'gcash';
-      const isCard = channel === 'card';
       document.getElementById('wizardPaymentChannel').value = channel;
       document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
         const selected = button.dataset.channel === channel;
@@ -1999,14 +1992,11 @@
         button.setAttribute('aria-pressed', selected ? 'true' : 'false');
       });
       const help = document.getElementById('wizardPaymentChannelHelp');
-      if (help) help.textContent = isCard
-        ? 'Pay by credit or debit card at the RACS store. No card details are collected online.'
-        : isGcash
+      if (help) help.textContent = isGcash
         ? 'Send to the displayed GCash number, then upload your receipt.'
         : `${configuredMethod?.accountName ? `${configuredMethod.accountName} · ` : ''}${configuredMethod?.accountNumber || `Use the ${label} receiving details`}. Enter the transaction reference and upload your receipt.`;
       document.getElementById('wizardPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
-      document.getElementById('gcashFieldsWizard')?.classList.toggle('d-none', isCard);
-      document.getElementById('orderCardCheckoutNotice')?.classList.toggle('d-none', !isCard);
+      document.getElementById('gcashFieldsWizard')?.classList.remove('d-none');
       const referenceLabel = document.getElementById('wizardPaymentReferenceLabel');
       const referenceHelp = document.getElementById('wizardPaymentReferenceHelp');
       const referenceInput = document.getElementById('wizardGcashSenderNumber');
@@ -2055,7 +2045,7 @@
       if (showGcashPanel) {
         const currentChannel = document.getElementById('wizardPaymentChannel').value;
         if (!currentChannel) {
-          const preferred = ['card','gcash','maya','bank_transfer','other'].find(channel => window.paymentMethodsConfig?.[channel]?.available)
+          const preferred = ['gcash','maya','bank_transfer','other'].find(channel => window.paymentMethodsConfig?.[channel]?.available)
             || (String(window.adminGcashNumber || '').trim() ? 'gcash' : '');
           if (preferred) window.selectOrderPaymentChannel(preferred);
         }
@@ -2067,8 +2057,7 @@
         }
         document.getElementById('gcashNumberDisplayWizard').textContent = gcashNum || 'Contact the store';
         const itemTotal = SUB_TOTAL;
-        const installFee = (selectedFulfillment === 'delivery_installation') ? (window.airconInstallFee || 1500) : 0;
-        const grandTotal = itemTotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+        const grandTotal = itemTotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
         const percentage = window.downpaymentPercentage || 10;
         const payAmount = method === 'cod' ? Math.round(grandTotal * percentage / 100) : grandTotal;
         const balance = Math.max(0, grandTotal - payAmount);
@@ -2097,14 +2086,13 @@
         // Hide warning for non-GCash methods
         const warning = document.getElementById('gcashProofWarning');
         if (warning) warning.classList.add('d-none');
-        document.getElementById('orderCardCheckoutNotice')?.classList.add('d-none');
       }
       // Update Next button state
       updateNextButtonState();
       scheduleCartCheckoutDraftSave();
       if (method === 'cash_onsite') {
         scheduleCheckoutAdvance(3, 450);
-      } else if (showGcashPanel && document.getElementById('wizardPaymentChannel')?.value !== 'card') {
+      } else if (showGcashPanel) {
         focusCheckoutControl('#wizardGcashSenderNumber', 220);
       }
     };
@@ -2247,7 +2235,6 @@
       const gcashPanel = document.getElementById('gcashFieldsWizard');
       if (gcashPanel) gcashPanel.classList.add('d-none');
       document.getElementById('orderPaymentChannelSection')?.classList.add('d-none');
-      document.getElementById('orderCardCheckoutNotice')?.classList.add('d-none');
       const channelInput = document.getElementById('wizardPaymentChannel');
       if (channelInput) channelInput.value = '';
       document.querySelectorAll('#orderPaymentChannelSection .payment-channel-card').forEach(button => {
@@ -2428,7 +2415,7 @@
       } else {
         document.getElementById('reviewInstallRow').style.display = 'none';
       }
-      const total = effectiveTotal + installFee + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+      const total = effectiveTotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
       const percentage = window.downpaymentPercentage || 10;
       const dueNow = payMethod === 'cash_onsite' ? 0 : (payMethod === 'cod' ? Math.round(total * percentage / 100) : total);
       const dueLater = Math.max(0, total - dueNow);

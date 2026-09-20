@@ -15,6 +15,8 @@ const productWizard = read("views/partials/aircons.ejs");
 const customerPaymentCss = read("public/css/customer-payment.css");
 const bookingRoutes = read("routes/bookingRoutesNew.js");
 const orderRoutes = read("routes/orderRoutes.js");
+const orderModel = read("models/Order.js");
+const posRoutes = read("routes/posRoutes.js");
 const technicianOrders = read("views/pages/technician/technicianorders.ejs");
 const paymentController = read("controllers/paymentController.js");
 const paymentPolicySource = read("utils/paymentPolicy.js");
@@ -60,7 +62,7 @@ test("service and installation-order checkout separate payment plans from paymen
   for (const source of [servicesView, cartWizard, productWizard]) {
     assert.match(source, /<strong>Full Payment<\/strong>/);
     assert.match(source, /<strong>Downpayment<\/strong>/);
-    assert.match(source, /data-channel="card"/);
+    assert.doesNotMatch(source, /data-channel="card"/);
     assert.match(source, /data-channel="gcash"/);
     assert.match(source, /data-channel="maya"/);
     assert.match(source, /data-channel="bank_transfer"/);
@@ -68,7 +70,7 @@ test("service and installation-order checkout separate payment plans from paymen
     assert.match(source, /Why is a downpayment required\?/);
     assert.match(source, /not an additional (?:fee|charge)/);
     assert.doesNotMatch(source, /data-method="card"/);
-    assert.match(source, /Pay by card in person|Pay by credit or debit card at the RACS store/);
+    assert.doesNotMatch(source, /Pay by card in person|Pay by credit or debit card at the RACS store/);
   }
   assert.match(servicesScript, /paymentChannel: BookingState\.paymentChannel/);
   assert.match(bookingRoutes, /paymentChannel: normalizedPaymentChannel/);
@@ -128,19 +130,32 @@ test("GCash recipient configuration is admin-managed and shared with customer ch
 test("unconfigured GCash disables only that channel while other methods remain available", () => {
   assert.match(cartWizard, /method\.available !== true/);
   assert.match(cartWizard, /data-channel="maya"/);
-  assert.match(cartWizard, /data-channel="card"/);
+  assert.doesNotMatch(cartWizard, /data-channel="card"/);
   assert.match(cartWizard, /window\.refreshCheckoutPaymentOptions/);
   assert.match(orderRoutes, /ORDER_GCASH_NOT_CONFIGURED/);
   assert.match(bookingRoutes, /configuredPaymentMethods\[normalizedPaymentChannel\]\?\.available/);
 });
 
-test("in-person card payment never asks the RACS UI for card credentials or starts a gateway checkout", () => {
+test("customer full-payment and downpayment checkout do not offer card", () => {
   for (const source of [servicesView, cartWizard, productWizard]) {
     assert.doesNotMatch(source, /cardNumber|cvv|cvc|expiryMonth|expiryYear/i);
-    assert.match(source, /Do not enter or send card details through this website/);
+    assert.doesNotMatch(source, /data-channel="card"/);
   }
   assert.doesNotMatch(orderRoutes, /createCardCheckout|checkoutUrl/);
   assert.doesNotMatch(bookingRoutes, /createCardCheckout|checkoutUrl/);
-  assert.match(orderRoutes, /gateway: normalizedPaymentChannel === "card" \? "other"/);
-  assert.match(bookingRoutes, /gateway: normalizedPaymentChannel === 'card' \? 'other'/);
+  assert.match(orderRoutes, /MANUAL_PAYMENT_CHANNELS\.includes\(normalizedPaymentChannel\)/);
+  assert.match(bookingRoutes, /MANUAL_PAYMENT_CHANNELS\.includes\(normalizedPaymentChannel\)/);
+});
+
+test("aircon order totals include products and transportation but exclude installation", () => {
+  assert.match(orderModel, /this\.total = Math\.max\(0, this\.subtotal - \(this\.discount \|\| 0\)\)[\s\S]*?this\.transportationFee/);
+  assert.doesNotMatch(orderModel, /this\.total =[\s\S]{0,180}?this\.installationFee/);
+  assert.match(orderRoutes, /const calculatedOrderTotal = enrichedItems\.reduce\([\s\S]*?\+ orderData\.transportationFee/);
+  assert.doesNotMatch(orderRoutes, /const calculatedOrderTotal =[\s\S]{0,180}?orderData\.installationFee/);
+  assert.match(orderRoutes, /function withPayableOrderPricing\(order\)/);
+  assert.match(orderRoutes, /orders = result\[0\]\.map\(\(order\) => withOrderPresentation\(order\)\)/);
+  assert.match(orderRoutes, /res\.json\(\{ order: withOrderPresentation\(order\) \}\)/);
+  assert.match(posRoutes, /const total = subtotal - discount \+ transportationFee;/);
+  assert.match(cartWizard, /const grandTotal = itemTotal \+ \(selectedFulfillment !== 'customer_pickup' \? _transportFee : 0\)/);
+  assert.match(productWizard, /const total = subtotal \+ \(selectedFulfillment !== 'customer_pickup' \? _transportFee : 0\)/);
 });

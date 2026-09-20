@@ -95,7 +95,7 @@ function saveBookingProgress() {
       paymentMethod: ['gcash', 'cod'].includes(BookingState.paymentMethod)
         ? BookingState.paymentMethod
         : null,
-      paymentChannel: ['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)
+      paymentChannel: ['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)
         ? BookingState.paymentChannel
         : null,
       currentStep: normalizeBookingStep(BookingState.currentStep, 1),
@@ -160,7 +160,7 @@ function restoreBookingProgress() {
       BookingState.paymentMethod = ['gcash', 'cod'].includes(data.paymentMethod)
         ? data.paymentMethod
         : null;
-      BookingState.paymentChannel = ['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(data.paymentChannel)
+      BookingState.paymentChannel = ['gcash', 'maya', 'bank_transfer', 'other'].includes(data.paymentChannel)
         ? data.paymentChannel
         : null;
       BookingState.currentStep = normalizeBookingStep(data.currentStep || data.maxReachedStep, 1);
@@ -11013,11 +11013,11 @@ function isValidPhilippineMobile(value) {
 
 function paymentChannelLabel(channel) {
   const configured = window.paymentMethodsConfig?.[channel]?.label;
-  return configured || ({ card: 'Credit / Debit Card', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+  return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
 }
 
 function selectBookingPaymentChannel(channel) {
-  const allowed = ['card', 'gcash', 'maya', 'bank_transfer', 'other'];
+  const allowed = ['gcash', 'maya', 'bank_transfer', 'other'];
   if (!allowed.includes(channel)) return;
   const configuredMethod = window.paymentMethodsConfig?.[channel];
   if (configuredMethod && configuredMethod.available !== true) return;
@@ -11035,19 +11035,15 @@ function selectBookingPaymentChannel(channel) {
 
   const label = paymentChannelLabel(channel);
   const isGcash = channel === 'gcash';
-  const isCard = channel === 'card';
   const help = document.getElementById('bookingChannelHelp');
-  if (help) help.textContent = isCard
-    ? 'Pay by credit or debit card at the RACS store before service. No card details are collected online.'
-    : isGcash
+  if (help) help.textContent = isGcash
     ? 'Send to the displayed GCash number, then upload your receipt.'
     : `${configuredMethod?.accountName ? `${configuredMethod.accountName} · ` : ''}${configuredMethod?.accountNumber || `Use the ${label} receiving details`}. Enter the transaction reference and upload your receipt.`;
   document.getElementById('fullPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
   document.getElementById('depositPaymentQrBlock')?.classList.toggle('d-none', !isGcash);
   const plan = BookingState.paymentMethod;
-  document.getElementById('gcashFields')?.classList.toggle('d-none', isCard || plan !== 'gcash');
-  document.getElementById('cashFields')?.classList.toggle('d-none', isCard || plan !== 'cod');
-  document.getElementById('bookingCardCheckoutNotice')?.classList.toggle('d-none', !isCard);
+  document.getElementById('gcashFields')?.classList.toggle('d-none', plan !== 'gcash');
+  document.getElementById('cashFields')?.classList.toggle('d-none', plan !== 'cod');
 
   [
     { input: 'gcashNumber', label: 'fullPaymentReferenceLabel', help: 'fullPaymentReferenceHelp' },
@@ -11337,7 +11333,7 @@ function validateBookingData() {
     return { valid: false, error: 'Please select a payment option' };
   }
   const paymentChannel = BookingState.paymentChannel;
-  if (!['card', 'gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
+  if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
     return { valid: false, error: 'Please select how you will send the payment.' };
   }
   if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
@@ -11345,7 +11341,7 @@ function validateBookingData() {
   }
 
   // Validate payment fields
-  if (BookingState.paymentMethod === 'gcash' && paymentChannel !== 'card') {
+  if (BookingState.paymentMethod === 'gcash') {
     const gcashNumber = document.getElementById('gcashNumber')?.value?.trim();
     const gcashProof = document.getElementById('gcashProof')?.files[0];
 
@@ -11360,7 +11356,7 @@ function validateBookingData() {
     }
     const proofError = paymentProofValidationMessage(gcashProof);
     if (proofError) return { valid: false, error: proofError };
-  } else if (BookingState.paymentMethod === 'cod' && paymentChannel !== 'card') {
+  } else if (BookingState.paymentMethod === 'cod') {
     const cashNumber = document.getElementById('cashNumber')?.value?.trim();
     const cashProof = document.getElementById('cashProof')?.files[0];
 
@@ -11508,7 +11504,7 @@ async function prepareBookingData() {
   }
 
   // Add payment-specific fields
-  if (BookingState.paymentMethod === 'gcash' && BookingState.paymentChannel !== 'card') {
+  if (BookingState.paymentMethod === 'gcash') {
     const paymentReference = document.getElementById('gcashNumber')?.value;
     bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
     bookingData.paymentReference = paymentReference;
@@ -11522,7 +11518,7 @@ async function prepareBookingData() {
         console.error("Failed to parse proof image:", e);
       }
     }
-  } else if (BookingState.paymentMethod === 'cod' && BookingState.paymentChannel !== 'card') {
+  } else if (BookingState.paymentMethod === 'cod') {
     const paymentReference = document.getElementById('cashNumber')?.value;
     bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
     bookingData.paymentReference = paymentReference;

@@ -19,6 +19,15 @@
     paymongo: 'PayMongo', cash: 'Cash', downpayment: 'Downpayment', other: 'Other'
   };
   const paymentChannelLabels = { card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' };
+  const payableTotal = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0))
+    + Number(order.transportationFee || 0);
+  const isDownpaymentPlan = order.paymentMethod === 'cod';
+  const plannedPaymentAmount = isDownpaymentPlan
+    ? Math.round(payableTotal * Number(order.downpaymentPercentage || 10) / 100)
+    : (order.paymentMethod === 'gcash_full' ? payableTotal : Math.min(payableTotal, Number(order.downpaymentAmount || 0)));
+  const plannedBalanceAmount = isDownpaymentPlan
+    ? Math.max(0, payableTotal - plannedPaymentAmount)
+    : (order.paymentMethod === 'gcash_full' ? 0 : Math.min(payableTotal, Number(order.balanceAmount || 0)));
   const orderPaymentLabel = order => order.paymentMethod === 'cod'
     ? `Downpayment via ${paymentChannelLabels[order.paymentChannel] || 'selected method'}; balance at handover`
     : order.paymentMethod === 'gcash_full'
@@ -273,13 +282,13 @@
             <div class="od-card-head"><h2><i class="bi bi-receipt"></i> Payment summary</h2></div>
             <div class="od-card-body">
               <div class="od-cost-line"><span>Aircon product price</span><strong>&#8369;<%= peso(order.subtotal) %></strong></div>
-              <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation service</span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
+              <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation service <small class="text-muted">(not included)</small></span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
               <% if (Number(order.deliveryFee || 0) > 0) { %><div class="od-cost-line"><span>Delivery fee</span><strong>&#8369;<%= peso(order.deliveryFee) %></strong></div><% } %>
               <% if (Number(order.transportationFee || 0) > 0) { %><div class="od-cost-line"><span>Transportation service</span><strong>&#8369;<%= peso(order.transportationFee) %></strong></div><% } %>
-              <div class="od-cost-line total"><span>Total payable</span><strong>&#8369;<%= peso(order.total) %></strong></div>
-              <p class="small text-muted mt-2 mb-0">The aircon product price excludes installation and transportation services.</p>
-              <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="od-cost-line"><span>Required downpayment</span><strong>&#8369;<%= peso(order.downpaymentAmount) %></strong></div><% } %>
-              <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(order.balanceAmount) %></strong></div>
+              <div class="od-cost-line total"><span>Total payable</span><strong>&#8369;<%= peso(payableTotal) %></strong></div>
+              <p class="small text-muted mt-2 mb-0">The total payable includes only the aircon products and transportation. Installation is not included.</p>
+              <% if (plannedPaymentAmount > 0) { %><div class="od-cost-line"><span><%= isDownpaymentPlan ? 'Required downpayment' : 'Full payment' %></span><strong>&#8369;<%= peso(plannedPaymentAmount) %></strong></div><% } %>
+              <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(plannedBalanceAmount) %></strong></div>
               <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= orderPaymentLabel(order) %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
               <% if (order.refundStatus && order.refundStatus !== 'none') { %><div class="od-notice refund mt-3"><strong>Refund <%= order.refundStatus %></strong><br>&#8369;<%= peso(order.refundAmount) %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></div><% } %>
             </div>

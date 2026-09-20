@@ -26,6 +26,7 @@ const {
   normalizePaymentChannel,
   paymentRecordMethod,
   getPaymentMethods,
+  MANUAL_PAYMENT_CHANNELS,
 } = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
@@ -59,6 +60,31 @@ const TECHNICIAN_ACTIVE_ORDER_STATUSES = [
   "arrived",
   "installing",
 ];
+
+function withPayableOrderPricing(order) {
+  if (!order || typeof order !== "object") return order;
+  const subtotal = Array.isArray(order.items) && order.items.length
+    ? order.items.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0)
+    : Number(order.subtotal || 0);
+  const total = Math.max(0, subtotal - Number(order.discount || 0))
+    + Number(order.transportationFee || 0);
+  const priced = { ...order, subtotal, total };
+  if (order.paymentMethod === "cod") {
+    const breakdown = calculatePaymentBreakdown(total, order.downpaymentPercentage);
+    priced.downpaymentPercentage = breakdown.downpaymentPercentage;
+    priced.downpaymentAmount = breakdown.downpaymentAmount;
+    priced.balanceAmount = breakdown.balanceAmount;
+  } else if (order.paymentMethod === "gcash_full") {
+    priced.downpaymentPercentage = 100;
+    priced.downpaymentAmount = total;
+    priced.balanceAmount = 0;
+  }
+  return priced;
+}
+
+function withOrderPresentation(order) {
+  return withOrderAttentionState(withPayableOrderPricing(order));
+}
 
 // â”€â”€ Multer config for GCash receipt uploads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const gcashUploadDir = path.join(__dirname, "../public/uploads/gcash-receipts");
@@ -332,7 +358,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
         ...filter,
         status: { $in: [...REVIEWABLE_ORDER_STATUSES] },
       }).sort({ createdAt: -1 }).populate("technicianId", "name phone").lean();
-      const overdueRows = attentionRows.map((order) => withOrderAttentionState(order)).filter((order) => order.isPastDate);
+      const overdueRows = attentionRows.map((order) => withOrderPresentation(order)).filter((order) => order.isPastDate);
       total = overdueRows.length;
       orders = overdueRows.slice(skip, skip + pageLimit);
     } else {
@@ -345,7 +371,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
           .lean(),
         Order.countDocuments(filter),
       ]);
-      orders = result[0].map((order) => withOrderAttentionState(order));
+      orders = result[0].map((order) => withOrderPresentation(order));
       total = result[1];
     }
 
@@ -452,20 +478,20 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     if (req.file && !(await hasValidStoredImageSignature(req.file))) {
       throw new OrderCheckoutError("The uploaded receipt is not a valid JPG, PNG, or WEBP image.", 400, "ORDER_PAYMENT_PROOF_INVALID");
     }
-    if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && String(paymentChannel || "").toLowerCase() !== "card" && !req.file) {
+    if ((paymentMethod === "cod" || paymentMethod === "gcash_full") && !req.file) {
       throw new OrderCheckoutError("A payment receipt screenshot is required for this payment option.", 400, "ORDER_PAYMENT_PROOF_REQUIRED");
     }
     const normalizedPaymentChannel = ["cod", "gcash_full"].includes(paymentMethod)
       ? normalizePaymentChannel(paymentChannel)
       : null;
-    if (["cod", "gcash_full"].includes(paymentMethod) && !normalizedPaymentChannel) {
+    if (["cod", "gcash_full"].includes(paymentMethod) && !MANUAL_PAYMENT_CHANNELS.includes(normalizedPaymentChannel)) {
       throw new OrderCheckoutError("Choose a supported payment method.", 400, "ORDER_PAYMENT_CHANNEL_INVALID");
     }
     const normalizedGcashNumber = normalizedPaymentChannel === "gcash"
       ? normalizeGcashSenderNumber(gcashNumber)
       : null;
     const normalizedPaymentReference = String(paymentReference || "").trim().slice(0, 120);
-    if (normalizedPaymentChannel && !["gcash", "card"].includes(normalizedPaymentChannel) && normalizedPaymentReference.length < 3) {
+    if (normalizedPaymentChannel && normalizedPaymentChannel !== "gcash" && normalizedPaymentReference.length < 3) {
       throw new OrderCheckoutError("Enter the transaction or payment reference for the selected payment method.", 400, "ORDER_PAYMENT_REFERENCE_REQUIRED");
     }
     const configuredPaymentMethods = await getPaymentMethods();
@@ -634,7 +660,6 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     if (req.file) orderData.gcashProofUrl = `/uploads/gcash-receipts/${req.file.filename}`;
 
     const calculatedOrderTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0)
-      + orderData.installationFee
       + orderData.transportationFee;
     if (selection.paymentMethod === "cod") {
       const breakdown = calculatePaymentBreakdown(calculatedOrderTotal, downpaymentPercentage);
@@ -680,14 +705,14 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
 
       order = new Order(orderData);
       await order.save({ session });
-      if (["cod", "gcash_full"].includes(selection.paymentMethod) && (req.file || normalizedPaymentChannel === "card")) {
+      if (["cod", "gcash_full"].includes(selection.paymentMethod) && req.file) {
         const isDownpayment = selection.paymentMethod === "cod";
         const paymentRecord = new Payment({
           orderId: order._id,
           amount: isDownpayment ? order.downpaymentAmount : order.total,
           method: paymentRecordMethod(normalizedPaymentChannel),
           type: isDownpayment ? "downpayment" : "final",
-          gateway: normalizedPaymentChannel === "card" ? "other" : paymentRecordMethod(normalizedPaymentChannel),
+          gateway: paymentRecordMethod(normalizedPaymentChannel),
           reference: orderData.paymentReference || undefined,
           proofUrl: orderData.gcashProofUrl || null,
           status: "pending",
@@ -699,9 +724,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
             actor: req.user._id,
             actorName: req.user.name || req.user.email || "Customer",
             actorRole: "customer",
-            note: normalizedPaymentChannel === "card"
-              ? "Card payment selected for in-person collection; no card credentials were collected"
-              : "Payment proof submitted with order",
+            note: "Payment proof submitted with order",
             at: new Date(),
           }],
         });
@@ -745,7 +768,7 @@ router.get("/my", authenticate, async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("technicianId", "name phone")
       .lean();
-    res.json({ orders });
+    res.json({ orders: orders.map((order) => withPayableOrderPricing(order)) });
   } catch (err) {
     checkoutErrorResponse(res, err);
   }
@@ -769,7 +792,7 @@ router.get("/technician/tasks", authenticate, requireRole("technician"), async (
       .sort({ "delivery.preferredDate": 1, createdAt: 1 })
       .lean();
 
-    res.json({ tasks: orders });
+    res.json({ tasks: orders.map((order) => withPayableOrderPricing(order)) });
   } catch (err) {
     checkoutErrorResponse(res, err);
   }
@@ -875,7 +898,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     );
 
     res.json({
-      orders: orders.map((order) => withOrderAttentionState(order)),
+      orders: orders.map((order) => withOrderPresentation(order)),
       total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)),
@@ -1243,7 +1266,7 @@ router.get("/:id", authenticate, async (req, res) => {
       }
     }
 
-    res.json({ order: withOrderAttentionState(order) });
+    res.json({ order: withOrderPresentation(order) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

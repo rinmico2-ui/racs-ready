@@ -419,8 +419,6 @@ orderSchema.pre("save", async function () {
   // Recalculate total
   this.subtotal = this.items.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
   this.total = Math.max(0, this.subtotal - (this.discount || 0))
-    + (this.deliveryFee || 0)
-    + (this.installationFee || 0)
     + (this.transportationFee || 0);
 });
 

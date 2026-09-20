@@ -1118,7 +1118,7 @@ document.addEventListener("DOMContentLoaded", function () {
               <div class="pm-row"><span class="pm-lbl">Subtotal</span><span class="pm-val">${currency(o.subtotal)}</span></div>
               ${Number(o.discount)>0?`<div class="pm-row"><span class="pm-lbl">Discount</span><span class="pm-val text-danger">-${currency(o.discount)}</span></div>`:''}
               ${o.deliveryFee?`<div class="pm-row"><span class="pm-lbl">Delivery Fee</span><span class="pm-val">${currency(o.deliveryFee)}</span></div>`:''}
-              ${o.installationFee?`<div class="pm-row"><span class="pm-lbl">Installation Fee</span><span class="pm-val">${currency(o.installationFee)}</span></div>`:''}
+              ${o.installationFee?`<div class="pm-row"><span class="pm-lbl">Installation Fee <small class="text-muted">(not included)</small></span><span class="pm-val">${currency(o.installationFee)}</span></div>`:''}
               ${o.transportationFee?`<div class="pm-row"><span class="pm-lbl">Transportation</span><span class="pm-val">${currency(o.transportationFee)}</span></div>`:''}
               <div class="pm-row" style="border-top:2px solid #e2e8f0;padding-top:10px;margin-top:4px;"><span class="pm-lbl">Total</span><span class="pm-val" style="font-size:1.1rem;color:#16a34a;">${currency(o.total)}</span></div>
             </div>

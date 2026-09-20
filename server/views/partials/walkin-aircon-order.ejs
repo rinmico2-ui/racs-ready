@@ -140,7 +140,7 @@
         </section>
         <div class="wa-summary">
           <div class="wa-sum-row"><span>Products</span><strong id="waSubtotal">₱0.00</strong></div>
-          <div class="wa-sum-row"><span>Installation</span><strong id="waInstallFee">₱0.00</strong></div>
+          <div class="wa-sum-row"><span>Installation <small class="text-muted">(not included)</small></span><strong id="waInstallFee">₱0.00</strong></div>
           <div class="wa-sum-row"><span>Transportation</span><strong id="waTransportFee">₱0.00</strong></div>
           <div class="wa-sum-row"><span>Discount</span><strong id="waDiscountView">−₱0.00</strong></div>
           <div class="wa-sum-row wa-sum-total"><span>Total</span><strong id="waTotal">₱0.00</strong></div>
@@ -620,7 +620,7 @@
     const delivery = state.fulfillment === "delivery_installation";
     const installation = delivery ? Number(state.quote.installationFee || 0) : 0;
     const transport = delivery ? Number(state.quote.transportationFee || 0) : 0;
-    return { subtotal, discount, installation, transport, total: Math.max(0, subtotal - discount + installation + transport) };
+    return { subtotal, discount, installation, transport, total: Math.max(0, subtotal - discount + transport) };
   }
 
   function renderCart() {

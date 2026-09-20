@@ -641,7 +641,6 @@
                   <div id="bookingPaymentChannelSection" class="payment-channel-section d-none">
                     <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>Pay via</div>
                     <div class="payment-channel-options" role="group" aria-label="Payment method">
-                      <button type="button" class="payment-channel-card" data-channel="card" aria-pressed="false"><i class="bi bi-credit-card me-1"></i>Card</button>
                       <button type="button" class="payment-channel-card" data-channel="gcash" aria-pressed="false">GCash</button>
                       <button type="button" class="payment-channel-card" data-channel="maya" aria-pressed="false">Maya</button>
                       <button type="button" class="payment-channel-card" data-channel="bank_transfer" aria-pressed="false">Bank Transfer</button>
@@ -649,10 +648,6 @@
                     </div>
                     <input type="hidden" id="bookingPaymentChannel" value="">
                     <div id="bookingChannelHelp" class="form-text mt-2">Select how you will send the payment.</div>
-                  </div>
-
-                  <div id="bookingCardCheckoutNotice" class="alert alert-primary d-none mt-3 mb-0" role="status">
-                    <div class="d-flex gap-2"><i class="bi bi-credit-card fs-5"></i><div><strong>Pay by card in person</strong><div class="small">Confirm the booking now, then pay by credit or debit card at the RACS store before service. Do not enter or send card details through this website.</div></div></div>
                   </div>
 
                   <div class="downpayment-reason" role="note">
@@ -2382,7 +2377,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260917-manila-slots-v1';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260917-card-checkout-v1':'/js/services.js?v=20260917-card-checkout-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260920-payment-no-card-v1':'/js/services.js?v=20260920-payment-no-card-v1';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2759,7 +2754,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(window.selectBookingPaymentChannel){
       var preferredChannel=bs.paymentChannel||document.getElementById('bookingPaymentChannel')?.value;
       if(!preferredChannel){
-        preferredChannel=['card','gcash','maya','bank_transfer','other'].find(function(channel){return window.paymentMethodsConfig&&window.paymentMethodsConfig[channel]&&window.paymentMethodsConfig[channel].available})||(String(window.adminGcashNumber||'').trim()?'gcash':'');
+        preferredChannel=['gcash','maya','bank_transfer','other'].find(function(channel){return window.paymentMethodsConfig&&window.paymentMethodsConfig[channel]&&window.paymentMethodsConfig[channel].available})||(String(window.adminGcashNumber||'').trim()?'gcash':'');
       }
       if(preferredChannel) window.selectBookingPaymentChannel(preferredChannel);
     }

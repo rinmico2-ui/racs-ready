@@ -34,7 +34,7 @@ test("customer order history derives payment guidance inside each order scope", 
   assert.match(html, /Pay by credit or debit card at the RACS store/);
 });
 
-test("customer order detail separates the aircon price from service charges", async () => {
+test("customer order detail excludes installation from the payable total", async () => {
   const html = await ejs.renderFile(detailTemplate, {
     order: {
       _id: "order-1",
@@ -71,8 +71,10 @@ test("customer order detail separates the aircon price from service charges", as
   });
 
   assert.match(html, /Aircon product price[\s\S]*?25,500\.00/);
-  assert.match(html, /Installation service[\s\S]*?1,500\.00/);
+  assert.match(html, /Installation service[\s\S]*?not included[\s\S]*?1,500\.00/);
   assert.match(html, /Transportation service[\s\S]*?2,247\.00/);
-  assert.match(html, /Total payable[\s\S]*?29,247\.00/);
-  assert.match(html, /aircon product price excludes installation and transportation services/i);
+  assert.match(html, /Full payment[\s\S]*?27,747\.00/);
+  assert.match(html, /Total payable[\s\S]*?27,747\.00/);
+  assert.doesNotMatch(html, /29,247\.00/);
+  assert.match(html, /total payable includes only the aircon products and transportation/i);
 });

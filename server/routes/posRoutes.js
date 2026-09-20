@@ -359,7 +359,7 @@ async function quoteAirconOrder(req, res) {
     return res.json({
       ...quote,
       installationFee: settings.installationFee,
-      additionalTotal: quote.transportationFee + settings.installationFee,
+      additionalTotal: quote.transportationFee,
     });
   } catch (error) {
     return res.status(Number(error.status) || 400).json({ error: error.message, code: error.code });
@@ -551,7 +551,7 @@ async function checkoutAirconOrder(req, res) {
     const subtotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0);
     const discount = Math.max(0, Number(req.body?.discount) || 0);
     if (discount > subtotal) throw posOrderError("Discount cannot exceed the product subtotal.", 400, "POS_DISCOUNT_INVALID");
-    const total = subtotal - discount + transportationFee + installationFee;
+    const total = subtotal - discount + transportationFee;
     const amountPaid = Number(req.body?.amountPaid);
     if (!Number.isFinite(amountPaid) || amountPaid < total) {
       throw posOrderError(`Collect the full counter total of ₱${total.toLocaleString("en-PH", { minimumFractionDigits: 2 })}.`, 409, "POS_PAYMENT_INSUFFICIENT");

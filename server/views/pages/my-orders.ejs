@@ -572,6 +572,14 @@
           const canManage = ['pending_payment', 'preparing_unit', 'technician_assigned'].includes(order.status);
           const technicianRef = order.technicianId || (order.technician && order.technician._id) || '';
           const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
+          const payableTotal = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0)) + Number(order.transportationFee || 0);
+          const isDownpaymentPlan = order.paymentMethod === 'cod';
+          const plannedPaymentAmount = isDownpaymentPlan
+            ? Math.round(payableTotal * Number(order.downpaymentPercentage || 10) / 100)
+            : (order.paymentMethod === 'gcash_full' ? payableTotal : Math.min(payableTotal, Number(order.downpaymentAmount || 0)));
+          const plannedBalanceAmount = isDownpaymentPlan
+            ? Math.max(0, payableTotal - plannedPaymentAmount)
+            : (order.paymentMethod === 'gcash_full' ? 0 : Math.min(payableTotal, Number(order.balanceAmount || 0)));
           const orderGuidance = order.fulfillmentType === 'customer_pickup' && order.status === 'preparing_unit'
             ? 'Your unit is being prepared for store pickup. We will notify you when it is ready.'
             : order.status === 'pending_payment' && order.paymentChannel === 'card'
@@ -777,12 +785,12 @@
                     <div class="ord-cost-list">
                       <div class="ord-cost-line"><span>Aircon product price</span><strong>&#8369;<%= Number(order.subtotal || 0).toLocaleString() %></strong></div>
                       <% if (Number(order.deliveryFee || 0) > 0) { %><div class="ord-cost-line"><span>Delivery fee</span><strong>&#8369;<%= Number(order.deliveryFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation service</span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
+                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation service <small class="text-muted">(not included)</small></span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
                       <% if (Number(order.transportationFee || 0) > 0) { %><div class="ord-cost-line"><span>Transportation service</span><strong>&#8369;<%= Number(order.transportationFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="ord-cost-line"><span>Downpayment</span><strong>&#8369;<%= Number(order.downpaymentAmount).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.balanceAmount || 0) > 0) { %><div class="ord-cost-line"><span>Remaining balance</span><strong>&#8369;<%= Number(order.balanceAmount).toLocaleString() %></strong></div><% } %>
-                      <div class="ord-cost-line total"><span>Total payable</span><strong>&#8369;<%= Number(order.total || 0).toLocaleString() %></strong></div>
-                      <div class="small text-muted mt-2">The aircon product price excludes installation and transportation services.</div>
+                      <% if (plannedPaymentAmount > 0) { %><div class="ord-cost-line"><span><%= isDownpaymentPlan ? 'Downpayment' : 'Full payment' %></span><strong>&#8369;<%= plannedPaymentAmount.toLocaleString() %></strong></div><% } %>
+                      <% if (plannedBalanceAmount > 0) { %><div class="ord-cost-line"><span>Remaining balance</span><strong>&#8369;<%= plannedBalanceAmount.toLocaleString() %></strong></div><% } %>
+                      <div class="ord-cost-line total"><span>Total payable</span><strong>&#8369;<%= payableTotal.toLocaleString() %></strong></div>
+                      <div class="small text-muted mt-2">The total payable includes only the aircon products and transportation. Installation is not included.</div>
                     </div>
                   </div>
                 </div>
