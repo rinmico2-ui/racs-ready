@@ -2,10 +2,25 @@ const https = require("https");
 const nodemailer = require("nodemailer");
 const logger = require("./logger").create("mailer");
 
+// Cloud hosts (Render, Railway) block or should avoid raw SMTP egress, so they
+// always use the Brevo HTTP API. Explicit MAIL_PROVIDER=brevo|smtp wins over
+// every auto-detection so a deployment can be pinned without code changes.
 function resolveMailProvider(env = process.env) {
   const isRender = env.RENDER === "true" || Boolean(env.RENDER_SERVICE_ID || env.RENDER_EXTERNAL_HOSTNAME);
+  const isRailway = Boolean(
+    env.RAILWAY_PROJECT_ID ||
+    env.RAILWAY_ENVIRONMENT_ID ||
+    env.RAILWAY_SERVICE_ID ||
+    env.RAILWAY_PUBLIC_DOMAIN ||
+    env.RAILWAY_ENVIRONMENT ||
+    env.RAILWAY_ENVIRONMENT_NAME,
+  );
   const isProduction = env.NODE_ENV === "production";
-  return { provider: isRender || isProduction ? "brevo" : "smtp", isRender, isProduction };
+  const override = String(env.MAIL_PROVIDER || "").trim().toLowerCase();
+  const provider = override === "brevo" || override === "smtp"
+    ? override
+    : isRender || isRailway || isProduction ? "brevo" : "smtp";
+  return { provider, isRender, isRailway, isProduction, overridden: Boolean(override) };
 }
 
 function maskEmail(value) {
@@ -32,7 +47,7 @@ function buildMailerStatus(env = process.env) {
   return {
     provider: selection.provider,
     providerLabel: selection.provider === "brevo" ? "Brevo Transactional API" : "Nodemailer SMTP",
-    environment: selection.isRender ? "Render" : selection.isProduction ? "Production" : "Local development",
+    environment: selection.isRender ? "Render" : selection.isRailway ? "Railway" : selection.isProduction ? "Production" : "Local development",
     configured: issues.length === 0,
     issues,
     sender: { name: senderName, email: senderEmail },
@@ -47,9 +62,10 @@ function buildMailerStatus(env = process.env) {
   };
 }
 
-// Render/production always uses Brevo. Local development always uses SMTP.
-// Render sets RENDER="true" automatically, so a stale custom provider setting
-// cannot accidentally make the deployed service connect to Gmail SMTP.
+// Render/Railway/production always uses Brevo. Local development always uses
+// SMTP. Cloud platforms inject their own env vars (RENDER="true", RAILWAY_*),
+// so a stale provider setting cannot accidentally make the deployed service
+// connect to Gmail SMTP; MAIL_PROVIDER can still pin the choice explicitly.
 const MAILER_SELECTION = resolveMailProvider(process.env);
 const BREVO_API_KEY = process.env.BREVO_API_KEY || "";
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
@@ -59,8 +75,9 @@ const MAIL_PROVIDER = MAILER_SELECTION.provider;
 const FROM_EMAIL = process.env.FROM_EMAIL || "";
 const FROM_NAME = process.env.FROM_NAME || "CALIDRO RACS";
 
+const IS_RAILWAY = MAILER_SELECTION.isRailway;
 console.log(
-  `[MAILER] Provider selected: ${MAIL_PROVIDER} (${IS_RENDER ? "Render" : IS_PRODUCTION ? "production" : "local development"})`,
+  `[MAILER] Provider selected: ${MAIL_PROVIDER} (${IS_RENDER ? "Render" : IS_RAILWAY ? "Railway" : IS_PRODUCTION ? "production" : "local development"}${MAILER_SELECTION.overridden ? ", MAIL_PROVIDER override" : ""})`,
 );
 
 // Nodemailer SMTP transport (used for localhost/development by default).

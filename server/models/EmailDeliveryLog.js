@@ -10,7 +10,10 @@ const emailDeliveryLogSchema = new mongoose.Schema({
   messageId: { type: String, maxlength: 300, default: "" },
   error: { type: String, maxlength: 500, default: "" },
   source: { type: String, maxlength: 80, default: "application" },
-  createdAt: { type: Date, default: Date.now, index: true },
+  // No field-level index here: the schema-level TTL index below already
+  // indexes createdAt, and declaring both makes Mongoose warn about a
+  // duplicate {"createdAt":1} index.
+  createdAt: { type: Date, default: Date.now },
 }, { versionKey: false });
 
 emailDeliveryLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });

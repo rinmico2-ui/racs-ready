@@ -190,7 +190,7 @@
       checklist.push(checklistItem('SMTP_USER', Boolean(config.smtp.username), config.smtp.username || 'SMTP username is missing.'));
       checklist.push(checklistItem('SMTP_PASS', config.smtp.passwordConfigured, config.smtp.passwordConfigured ? 'Secret exists and remains hidden.' : 'Google App Password is missing.'));
     } else {
-      checklist.push(checklistItem('BREVO_API_KEY', config.brevo.apiKeyConfigured, config.brevo.apiKeyConfigured ? 'Secret exists and remains hidden.' : 'Set the API key in Render Environment.'));
+      checklist.push(checklistItem('BREVO_API_KEY', config.brevo.apiKeyConfigured, config.brevo.apiKeyConfigured ? 'Secret exists and remains hidden.' : 'Set the API key in the hosting environment (Render/Railway).'));
       checklist.push(checklistItem('Verified Brevo sender', Boolean(config.sender.email), 'The FROM_EMAIL domain/address must also be verified inside Brevo.'));
     }
     document.getElementById('configurationChecklist').innerHTML = checklist.join('');

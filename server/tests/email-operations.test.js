@@ -13,10 +13,22 @@ const {
 
 const emailPage = path.join(__dirname, "../views/pages/admin/Settings/Email.ejs");
 
-test("mailer selects SMTP locally and Brevo for Render or production", () => {
+test("mailer selects SMTP locally and Brevo for Render, Railway, or production", () => {
   assert.equal(resolveMailProvider({ NODE_ENV: "development" }).provider, "smtp");
   assert.equal(resolveMailProvider({ RENDER: "true" }).provider, "brevo");
+  assert.equal(resolveMailProvider({ RAILWAY_PROJECT_ID: "proj" }).provider, "brevo");
+  assert.equal(resolveMailProvider({ RAILWAY_PUBLIC_DOMAIN: "app.up.railway.app" }).provider, "brevo");
+  assert.equal(resolveMailProvider({ RAILWAY_ENVIRONMENT_NAME: "production" }).provider, "brevo");
   assert.equal(resolveMailProvider({ NODE_ENV: "production" }).provider, "brevo");
+});
+
+test("MAIL_PROVIDER override pins the provider on any host", () => {
+  assert.equal(resolveMailProvider({ MAIL_PROVIDER: "brevo" }).provider, "brevo");
+  assert.equal(resolveMailProvider({ MAIL_PROVIDER: "brevo", NODE_ENV: "development" }).provider, "brevo");
+  assert.equal(resolveMailProvider({ MAIL_PROVIDER: "SMTP" }).provider, "smtp");
+  assert.equal(resolveMailProvider({ MAIL_PROVIDER: "nonsense" }).provider, "smtp");
+  assert.equal(resolveMailProvider({ MAIL_PROVIDER: "brevo" }).overridden, true);
+  assert.equal(resolveMailProvider({}).overridden, false);
 });
 
 test("mailer status reports readiness without exposing credentials", () => {
