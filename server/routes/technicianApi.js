@@ -17,7 +17,13 @@ const Tool = require("../models/Tool");
 const EquipmentUsageLog = require("../models/EquipmentUsageLog");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const { buildServicePreparation } = require('../utils/servicePreparation');
-const { dayBounds: dailyKitDayBounds, syncDailyKit, confirmDailyKit } = require('../utils/dailyKitService');
+const {
+  dayBounds: dailyKitDayBounds,
+  syncDailyKit,
+  confirmDailyKit,
+  dailyKitDepartureReadiness,
+  recordBookingConsumableUsage,
+} = require('../utils/dailyKitService');
 const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
 const { getRepairLaborFees, normalizeRepairComplexity } = require('../utils/repairLaborPricing');
 const { isBookingPast } = require('../utils/bookingPolicy');
@@ -27,7 +33,7 @@ const { escapeRegex } = require('../utils/stringSecurity');
 const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
 const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remittancePolicy');
 const trustedDevices = require('../utils/trustedDevices');
-const { storeCompletionProof } = require('../utils/completionProofStorage');
+const { deleteCompletionProof, storeCompletionProof } = require('../utils/completionProofStorage');
 const {
   verifyAttendanceChallenge,
   verifyAttendanceLocation,
@@ -288,13 +294,19 @@ router.use("/appointments/:id", async (req, res, next) => {
     const itemAssignment = (booking.services || []).some((item) =>
       technicianIds.includes(String(item.technicianId || "")),
     );
-    const assignment = directAssignment || itemAssignment
-      ? true
-      : await Assignment.exists({
-          bookingId: booking._id,
-          technicianId: { $in: technicianIds },
-          status: { $nin: ["declined", "cancelled"] },
-        });
+    const activeAssignment = await Assignment.exists({
+      bookingId: booking._id,
+      technicianId: { $in: technicianIds },
+      status: { $nin: ["declined", "cancelled", "expired"] },
+    });
+    const staleAssignment = await Assignment.exists({
+      bookingId: booking._id,
+      technicianId: { $in: technicianIds },
+      status: { $in: ["declined", "cancelled", "expired"] },
+    });
+    // Keep legacy snapshot-only bookings accessible, but never let a stale
+    // assignment retain access merely because the old technician id remains.
+    const assignment = activeAssignment || ((directAssignment || itemAssignment) && !staleAssignment);
     if (!assignment) {
       return res.status(403).json({ error: "This booking is not assigned to you" });
     }
@@ -4711,26 +4723,10 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     if (newStatus === "on_site" && !String(arrivalProofUrl || "").startsWith("data:image/")) {
       return res.status(400).json({ error: "A proof-of-arrival photo is required." });
     }
-    if (newStatus === 'en_route' && assignment.serviceType !== 'repair' && assignment.serviceType !== 'project') {
-      const DailyKit = require('../models/DailyKit');
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const dailyKit = await DailyKit.findOne({ technicianId: tech._id, workDate: todayStart }).lean();
-      if (!dailyKit || !['confirmed', 'in_progress'].includes(dailyKit.status)) {
-        return res.status(409).json({ error: 'Complete your Daily Preparation before going En Route.', code: 'DAILY_KIT_REQUIRED' });
-      }
-      // Late-accepted booking gate: every new requirement introduced after the
-      // kit was prepared must have a field decision (add / not needed /
-      // alternative / reported) before the technician travels.
-      if (dailyKit.hasDelta && Array.isArray(dailyKit.deltaItems) && dailyKit.deltaItems.length) {
-        const undecided = dailyKit.deltaItems.filter(i => !i.resolution?.status);
-        if (undecided.length) {
-          return res.status(409).json({
-            error: `New items were added to your Daily Kit (${undecided.map(i => i.name).join(', ')}). Review them in Daily Preparation before going En Route.`,
-            code: 'DAILY_KIT_DELTA_REQUIRED',
-            items: undecided.map(i => ({ name: i.name, category: i.category, quantity: i.quantity })),
-          });
-        }
+    if (newStatus === 'en_route' && assignment.serviceType !== 'project') {
+      const readiness = await dailyKitDepartureReadiness({ technicianId: tech._id, assignment });
+      if (!readiness.ready) {
+        return res.status(409).json({ error: readiness.error, code: readiness.code, items: readiness.items || [] });
       }
     }
     if (newStatus === "in_progress" && !String(startProofUrl || "").startsWith("data:image/")) {
@@ -6314,6 +6310,16 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         return res.status(400).json({ error: "You must collect the remaining balance before completing this job." });
       }
 
+      let consumableUsage = [];
+      try {
+        consumableUsage = req.body.consumables ? JSON.parse(req.body.consumables) : [];
+      } catch (_) {
+        return res.status(400).json({ error: "Consumable usage is not valid JSON." });
+      }
+      if (!Array.isArray(consumableUsage)) {
+        return res.status(400).json({ error: "Consumable usage must be a list." });
+      }
+
       let storedProof;
       try {
         storedProof = await storeCompletionProof(req.file, {
@@ -6334,28 +6340,48 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
       const completedAt = new Date();
       const configuredWarranty = await configuredBookingWarranty(booking || { serviceType: assignment.serviceType }, completedAt);
       const warrantyCoverage = configuredWarranty.coverage;
+      const isRepair = booking.serviceType === "repair";
+      const completionSession = await mongoose.startSession();
 
-      // Update assignment
-      const updatedAssignment = await Assignment.findByIdAndUpdate(id, {
-        $set: {
-          status: "completed",
-          completedAt,
-          proofPhoto: proofUrl,
-          completionProofFileId: storedProof.fileId,
-        },
-        $push: {
-          notes: {
-            text: `Proof of completion uploaded. Service marked as completed.`,
-            by: req.user._id,
-            byName: tech.name || req.user.name || "Technician",
-            createdAt: new Date(),
+      let updatedAssignment;
+      try {
+        completionSession.startTransaction();
+        const currentAssignment = await Assignment.findOne({
+          _id: id,
+          technicianId: tech._id,
+          status: { $in: ["in_progress", "completed"] },
+        }).session(completionSession).lean();
+        if (!currentAssignment) {
+          throw Object.assign(new Error("Assignment changed before completion. Refresh and try again."), { status: 409 });
+        }
+        await recordBookingConsumableUsage({
+          technicianId: tech._id,
+          userId: req.user._id,
+          assignmentId: assignment._id,
+          bookingId: assignment.bookingId,
+          date: assignment.bookingDate || completedAt,
+          usages: consumableUsage,
+          session: completionSession,
+        });
+
+        updatedAssignment = await Assignment.findByIdAndUpdate(id, {
+          $set: {
+            status: "completed",
+            completedAt,
+            proofPhoto: proofUrl,
+            completionProofFileId: storedProof.fileId,
           },
-        },
-      }, { returnDocument: "after" }).lean();
+          $push: {
+            notes: {
+              text: `Proof of completion uploaded. Service marked as completed.`,
+              by: req.user._id,
+              byName: tech.name || req.user.name || "Technician",
+              createdAt: completedAt,
+            },
+          },
+        }, { returnDocument: "after", session: completionSession }).lean();
 
       // Update booking — only for non-repair services (repair status is managed by complete-repair)
-      const bookingForCheck = await BookingService.findById(assignment.bookingId);
-      const isRepair = bookingForCheck && bookingForCheck.serviceType === "repair";
       if (!isRepair) {
         const bookingCompletion = {
           status: "completed",
@@ -6366,7 +6392,7 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         if (warrantyCoverage) bookingCompletion.warranty = warrantyCoverage;
         await BookingService.findByIdAndUpdate(assignment.bookingId, {
           $set: bookingCompletion,
-        });
+        }, { session: completionSession });
       } else {
         // For repair services, just attach the proof photo without overwriting status
         await BookingService.findByIdAndUpdate(assignment.bookingId, {
@@ -6374,7 +6400,18 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
             proofPhoto: proofUrl,
             completionProofFileId: storedProof.fileId,
           },
+        }, { session: completionSession });
+      }
+        await completionSession.commitTransaction();
+      } catch (completionError) {
+        await completionSession.abortTransaction().catch(() => {});
+        await deleteCompletionProof(storedProof.fileId).catch(() => {});
+        return res.status(Number(completionError.status) || 500).json({
+          error: completionError.message || "Could not complete the job.",
+          code: "COMPLETION_COMMIT_FAILED",
         });
+      } finally {
+        await completionSession.endSession();
       }
 
       if (!isRepair) {
@@ -9721,7 +9758,7 @@ router.get("/daily-kit", async (req, res, next) => {
     // Enrich with job details
     const assignments = await Assignment.find({
       _id: { $in: kit.assignmentIds || [] },
-    }).populate("bookingId", "serviceName serviceType services technicianAssistant status").lean();
+    }).populate("bookingId", "serviceName serviceType services technicianAssistant servicePreparation status").lean();
 
     const jobDetails = assignments.map(a => ({
       assignmentId: a._id,
@@ -10907,34 +10944,26 @@ router.post("/repairs/:bookingId/en-route", async (req, res, next) => {
 
     const now = new Date();
 
-    // Find or create assignment
+    // Repair and Mixed visits use the same accepted assignment and Daily Kit
+    // contract as Core services. En Route must never create/bypass acceptance.
     const activeStatuses = ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'];
     let assignment = await Assignment.findOne({ bookingId: booking._id, technicianId: tech._id, status: { $in: activeStatuses } }).sort({ assignedAt: -1 });
-    if (!assignment) {
-      // Create a new assignment for this repair
-      assignment = await Assignment.create({
-        bookingId: booking._id,
-        technicianId: tech._id,
-        customerName: booking.customerId?.name || "Customer",
-        customerPhone: booking.customerId?.phone || "",
-        customerEmail: booking.customerId?.email || "",
-        serviceType: "repair",
-        serviceName: "Repair Service",
-        servicePrice: booking.quotation?.totalCost || 0,
-        bookingDate: booking.bookingDate || now,
-        startTime: booking.startTime || "",
-        endTime: booking.endTime || "",
-        address: booking.location?.address || "",
-        coordinates: booking.location?.coordinates,
-        status: "en_route",
-        enRouteAt: now,
-        notes: [{ text: "Technician en route for repair", by: req.user._id, byName: tech.name, createdAt: now }],
+    if (!assignment || assignment.status === 'pending_acceptance') {
+      return res.status(409).json({
+        error: "Accept this repair assignment before preparing the Daily Kit or going En Route.",
+        code: "ASSIGNMENT_ACCEPTANCE_REQUIRED",
       });
-    } else {
+    }
+
+    const readiness = await dailyKitDepartureReadiness({ technicianId: tech._id, assignment });
+    if (!readiness.ready) {
+      return res.status(409).json({ error: readiness.error, code: readiness.code, items: readiness.items || [] });
+    }
+
+    {
       // Update existing assignment
       const validTransitions = {
         accepted: ["en_route", "cancelled"],
-        pending_acceptance: ["en_route", "cancelled"],
         in_progress: ["en_route", "cancelled"], // Allow re-route for repair reschedule
         on_site: ["en_route"], // Allow if technician needs to restart
         en_route: ["en_route"], // Allow re-trigger (idempotent)
@@ -11765,6 +11794,19 @@ router.post("/bookings/:id/check-out-parts", async (req, res, next) => {
     if (!booking) return res.status(404).json({ error: "Booking not found" });
     if (String(booking.technicianId) !== String(tech._id)) {
       return res.status(403).json({ error: "You are not assigned to this booking" });
+    }
+
+    // Do not mutate part custody before the shared departure preparation is
+    // confirmed. The repair page calls this immediately before En Route.
+    const Assignment = require('../models/Assignment');
+    const assignment = await Assignment.findOne({
+      bookingId: id,
+      technicianId: tech._id,
+      status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress'] },
+    }).sort({ assignedAt: -1 }).lean();
+    const readiness = await dailyKitDepartureReadiness({ technicianId: tech._id, assignment });
+    if (!readiness.ready) {
+      return res.status(409).json({ error: readiness.error, code: readiness.code, items: readiness.items || [] });
     }
 
     const StockReservation = require("../models/StockReservation");

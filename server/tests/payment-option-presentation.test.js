@@ -107,7 +107,9 @@ test("final order collection is required before completion", () => {
   assert.ok(collectPosition > -1);
   assert.ok(statusUpdatePosition > collectPosition);
   assert.match(orderRoutes, /\["arrived", "installing", "completed"\]\.includes\(order\.status\)/);
-  assert.match(orderRoutes, /value > amountDue/);
+  assert.match(orderRoutes, /money\(value\) !== amountDue/);
+  assert.match(orderRoutes, /code: "ORDER_FINAL_AMOUNT_MISMATCH"/);
+  assert.match(orderRoutes, /code: "ORDER_BALANCE_REQUIRED"/);
 });
 
 test("payment detail export reads the booking payment option", () => {

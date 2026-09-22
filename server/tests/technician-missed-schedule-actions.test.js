@@ -22,7 +22,7 @@ test('details and cards lock En Route while a visit awaits rescheduling', () => 
 });
 
 test('technician order cards and details use the same schedule-recovery contract', () => {
-  assert.match(orderRoutes, /router\.get\("\/technician\/all"[\s\S]*?orders: orders\.map\(\(order\) => withOrderAttentionState\(order\)\)/);
+  assert.match(orderRoutes, /router\.get\("\/technician\/all"[\s\S]*?orders: orders\.map\(\(order\) => withOrderPresentation\(order\)\)/);
   assert.match(technicianOrdersView, /function orderNeedsScheduleRecovery\(order\)/);
   assert.match(technicianOrdersView, /Accept and En Route are locked until operations updates the customer schedule/);
   assert.match(technicianOrdersView, /status === 'out_for_delivery' && orderNeedsScheduleRecovery\(order\)/);

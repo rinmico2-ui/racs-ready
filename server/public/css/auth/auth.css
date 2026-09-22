@@ -668,7 +668,7 @@
 
 .auth-google-section { margin-bottom: 14px; }
 .auth-login-divider {
-  margin: 0 0 18px; gap: 12px;
+  margin: 18px 0 14px; gap: 12px;
   color: #64748b; font-size: 11px; font-weight: 600;
   letter-spacing: .025em; text-transform: uppercase;
 }
@@ -696,7 +696,7 @@
 }
 @media (max-width: 480px) {
   .auth-google-button { min-height: 46px; }
-  .auth-login-divider { margin-bottom: 16px; }
+  .auth-login-divider { margin: 16px 0 14px; }
 }
 @media (max-height: 700px) {
   .auth-form-card { padding: 28px 24px; }

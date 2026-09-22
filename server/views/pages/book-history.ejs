@@ -15,8 +15,8 @@
           <i class="bi bi-calendar-check-fill"></i>
         </div>
         <div>
-          <h1 class="bh-title">Booking History</h1>
-          <p class="bh-subtitle">Your past bookings — view details, filter and download receipts</p>
+          <h1 class="bh-title">My Bookings</h1>
+          <p class="bh-subtitle">Track active services, review history, and manage available next steps</p>
         </div>
       </div>
       <a href="/maintenance" class="btn btn-sm btn-light"><i class="bi bi-calendar2-check me-1"></i>My Maintenance</a>
@@ -47,18 +47,36 @@
               <option value="all">All statuses</option>
               <optgroup label="Core Services">
                 <option value="pending">Pending</option>
+                <option value="payment_verified">Payment Verified</option>
+                <option value="awaiting_assignment">Awaiting Assignment</option>
+                <option value="assigned">Assigned</option>
                 <option value="confirmed">Confirmed</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="on-the-way">On The Way</option>
+                <option value="arrived">Arrived</option>
+                <option value="in-progress">In Progress</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
                 <option value="re-scheduled">Re-scheduled</option>
               </optgroup>
               <optgroup label="Repair Services">
+                <option value="repair_requested">Repair Requested</option>
+                <option value="pending_inspection">Pending Inspection</option>
+                <option value="inspection_scheduled">Inspection Scheduled</option>
+                <option value="inspection_in_progress">Inspection In Progress</option>
+                <option value="inspection_completed">Inspection Completed</option>
                 <option value="awaiting_approval">Awaiting Approval</option>
                 <option value="repair_approved">Repair Approved</option>
+                <option value="waiting_parts">Waiting for Parts</option>
+                <option value="parts_reserved">Parts Reserved</option>
+                <option value="ready_for_repair">Ready for Repair</option>
                 <option value="repair_scheduled">Repair Scheduled</option>
                 <option value="repair_in_progress">Repair In Progress</option>
                 <option value="repair_completed">Repair Completed</option>
+                <option value="under_warranty">Under Warranty</option>
+                <option value="warranty_claim">Warranty Claim</option>
                 <option value="repair_declined">Repair Declined</option>
+                <option value="closed">Closed</option>
               </optgroup>
             </select>
             <i class="bi bi-chevron-down bh-select-icon-right"></i>
@@ -110,9 +128,9 @@
       </div>
       <h4 class="bh-empty-title">No bookings found</h4>
       <p class="bh-empty-text">You don't have any bookings yet.</p>
-      <button id="bh-show-sample" class="bh-btn-outline">
-        <i class="bi bi-eye"></i> Show example bookings
-      </button>
+      <a href="/services" class="bh-btn-outline">
+        <i class="bi bi-plus-circle"></i> Book a Service
+      </a>
     </div>
 
     <!-- Table -->
@@ -155,8 +173,8 @@
 
   <!-- Custom calendar modal removed in favor of Flatpickr -->
   <!-- Flatpickr for Premium Date Pickers -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 
   <!-- Premium Styles -->
   <style>
@@ -771,7 +789,7 @@
               document.getElementById('bhRatingBody').classList.add('d-none');
               document.getElementById('bhRatingSuccess').classList.remove('d-none');
               // Refresh bookings list
-              if (typeof fetchBookings === 'function') fetchBookings();
+              if (typeof window.refreshBookingHistory === 'function') window.refreshBookingHistory();
               else setTimeout(() => window.location.reload(), 1500);
             } else {
               const data = await res.json();
@@ -827,21 +845,29 @@
       // Premium Flatpickr Initialization
       const fpConfig = {
         dateFormat: "m/d/Y",
-        disableMobile: "true",
+        disableMobile: true,
         onChange: function(selectedDates, dateStr, instance) {
           instance.element.value = dateStr;
           instance.element.dispatchEvent(new Event('change', { bubbles: true }));
         }
       };
       
-      const fpFrom = flatpickr("#bh-from", fpConfig);
-      const fpTo = flatpickr("#bh-to", fpConfig);
-
       const fromBtn = document.getElementById('bh-from-btn');
-      if (fromBtn) fromBtn.addEventListener('click', () => fpFrom.open());
-
       const toBtn = document.getElementById('bh-to-btn');
-      if (toBtn) toBtn.addEventListener('click', () => fpTo.open());
+      if (typeof window.flatpickr === 'function') {
+        const fpFrom = window.flatpickr("#bh-from", fpConfig);
+        const fpTo = window.flatpickr("#bh-to", fpConfig);
+        if (fromBtn) fromBtn.addEventListener('click', () => fpFrom.open());
+        if (toBtn) toBtn.addEventListener('click', () => fpTo.open());
+      } else {
+        [document.getElementById('bh-from'), document.getElementById('bh-to')].forEach(input => {
+          if (!input) return;
+          input.readOnly = false;
+          input.type = 'date';
+        });
+        if (fromBtn) fromBtn.hidden = true;
+        if (toBtn) toBtn.hidden = true;
+      }
     });
   </script>
 </div>
@@ -2427,10 +2453,6 @@
       }
 
       /* ── Hide less-important columns on mobile ── */
-      .book-history-premium .bh-table tbody td[data-label="Booking"] {
-        display: none;
-      }
-
       /* ── Pagination ── */
       .book-history-premium .bh-pagination {
         flex-direction: column;

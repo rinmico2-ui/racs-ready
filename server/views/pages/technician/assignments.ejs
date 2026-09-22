@@ -9288,7 +9288,8 @@ ${isRepair ? `
       if (btn) { btn.classList.add('btn-loading'); btn.disabled = true; }
       try {
         // Check out any reserved repair parts first
-        await checkoutReservedParts(bookingId);
+        const checkoutResult = await checkoutReservedParts(bookingId);
+        if (!checkoutResult) return;
 
         const res = await fetch(`/api/technician/repairs/${bookingId}/en-route`, {
           method: 'POST',
@@ -9317,10 +9318,10 @@ ${isRepair ? `
           loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
           if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
             await showDetail(window._currentDetailId);
-            if (status === 'in_progress' && isMixedAssignment(window._detailAssignment)) {
-              switchDetailTab('core-service');
-            }
           }
+        } else if (['DAILY_KIT_REQUIRED', 'DAILY_KIT_DELTA_REQUIRED', 'DAILY_KIT_JOB_NOT_INCLUDED'].includes(data.code)) {
+          showNotification({ type: 'warning', title: 'Daily Preparation Needed', message: data.error || 'Complete your Daily Preparation before going En Route.', duration: 7000 });
+          openDailyKitModal();
         } else {
           showNotification({ type: 'error', title: 'Failed', message: data.error || 'Could not start en route', duration: 5000 });
         }
@@ -9557,6 +9558,10 @@ ${isRepair ? `
             showNotification({ type: 'success', title: 'Parts Checked Out', message: `${data.checkedOut.length} reserved part(s) checked out.`, duration: 4000 });
           }
           return data;
+        } else if (['DAILY_KIT_REQUIRED', 'DAILY_KIT_DELTA_REQUIRED', 'DAILY_KIT_JOB_NOT_INCLUDED'].includes(data.code)) {
+          showNotification({ type: 'warning', title: 'Daily Preparation Needed', message: data.error || 'Complete your Daily Preparation before checking out repair parts.', duration: 7000 });
+          openDailyKitModal();
+          return null;
         } else {
           showNotification({ type: 'error', title: 'Part Checkout Failed', message: data.error || 'Could not check out parts.', duration: 5000 });
           return null;
@@ -11185,31 +11190,17 @@ function preparationEscapeHtml(value) {
       proofSubmitting = true;
 
       try {
-        // Log consumables used (before uploading proof)
         const consumableInputs = document.querySelectorAll('.proof-consumable-input');
-        const assignment = allItems.find(i => String(i._id) === String(proofTargetId))
-          || (window._detailAssignment && String(window._detailAssignment._id) === String(proofTargetId) ? window._detailAssignment : null);
-        const bookingId = assignment?.bookingId;
-        if (bookingId && consumableInputs.length > 0) {
-          for (const input of consumableInputs) {
-            const qty = parseInt(input.value) || 0;
-            if (qty <= 0) continue;
-            await fetch('/api/technician/daily-kit/consume', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'same-origin',
-              body: JSON.stringify({
-                itemName: input.dataset.name,
-                quantityUsed: qty,
-                bookingId: bookingId,
-              }),
-            }).catch(() => {});
-          }
-        }
+        const consumables = [...consumableInputs].map(input => ({
+          itemName: input.dataset.name,
+          quantityUsed: parseInt(input.value) || 0,
+        })).filter(item => item.quantityUsed > 0);
 
-        // Upload proof photo
+        // Proof, completion, and Daily Kit usage are committed together by
+        // the server so a failed upload cannot consume inventory.
         const formData = new FormData();
         formData.append('proofPhoto', proofFile);
+        formData.append('consumables', JSON.stringify(consumables));
         formData.append('nextMaintenanceDays', document.getElementById('nextMaintenanceDays')?.value || '');
         formData.append('nextMaintenanceNotes', document.getElementById('nextMaintenanceNotes')?.value?.trim() || '');
 

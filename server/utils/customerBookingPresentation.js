@@ -89,4 +89,39 @@ function enrichCustomerBooking(booking = {}) {
   return presented;
 }
 
-module.exports = { customerRepairDetails, enrichCustomerBooking, isRepairBooking };
+// Fields used by operations, fraud review, or payment verification must never be
+// included in the customer history payload. Keeping this boundary here avoids
+// coupling the public page to the full BookingService persistence model.
+const CUSTOMER_HIDDEN_FIELDS = [
+  "paymentProof",
+  "paymentReference",
+  "gcashNumber",
+  "technicianAssistant",
+  "statusHistory",
+  "cancellationHistory",
+  "internalNotes",
+  "adminNotes",
+];
+
+function presentCustomerBooking(booking = {}) {
+  const presented = enrichCustomerBooking(booking);
+  CUSTOMER_HIDDEN_FIELDS.forEach((field) => delete presented[field]);
+
+  if (Array.isArray(presented.services)) {
+    presented.services = presented.services.map((service) => {
+      const safeService = { ...service };
+      delete safeService.statusHistory;
+      delete safeService.technicianNotes;
+      return safeService;
+    });
+  }
+
+  return presented;
+}
+
+module.exports = {
+  customerRepairDetails,
+  enrichCustomerBooking,
+  isRepairBooking,
+  presentCustomerBooking,
+};

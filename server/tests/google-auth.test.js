@@ -71,8 +71,8 @@ test("Google login stays out of the registration panel", () => {
   assert.match(loginPanel, /Sign in with Google/);
   assert.doesNotMatch(registrationPanel, /Sign in with Google/);
   assert.ok(
-    loginPanel.indexOf("Sign in with Google") < loginPanel.indexOf('id="auth-login-form"'),
-    "Google sign-in should appear before the email/password form",
+    loginPanel.indexOf("Sign in with Google") > loginPanel.indexOf('id="auth-login-form"'),
+    "Google sign-in should appear below the email/password form",
   );
 });
 

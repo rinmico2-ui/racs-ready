@@ -1482,6 +1482,9 @@
       if (res.ok) {
         showToast('En Route! Navigating to customer...', 'success');
         loadDashboard();
+      } else if (['DAILY_KIT_REQUIRED', 'DAILY_KIT_DELTA_REQUIRED', 'DAILY_KIT_JOB_NOT_INCLUDED'].includes(data.code)) {
+        showToast(data.error || 'Complete Daily Preparation before going En Route.', 'warning');
+        setTimeout(() => { window.location.href = '/technician/assignments'; }, 900);
       } else {
         showToast(data.error || 'Failed to start', 'danger');
       }

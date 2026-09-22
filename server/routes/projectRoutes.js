@@ -3434,6 +3434,7 @@ router.get("/technician/projects", auth.authenticate, auth.requireRole("technici
     const Assignment = require("../models/Assignment");
     const assignmentBookingIds = await Assignment.find({
       technicianId: technician._id,
+      status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "waiting_for_customer", "in_progress"] },
     }).distinct("bookingId");
     const assignmentProjects = assignmentBookingIds.length
       ? await Project.find({
@@ -4855,9 +4856,9 @@ function woTransition(allowedFrom, newStatus, tsField) {
   };
 }
 
-router.put("/work-orders/:id/en-route", auth.authenticate, auth.requireRole("technician"), woTransition(["accepted", "arrived"], "en_route", "enRouteAt"));
-router.put("/work-orders/:id/arrived", auth.authenticate, auth.requireRole("technician"), woTransition(["en_route", "accepted"], "arrived", "arrivedAt"));
-router.put("/work-orders/:id/start", auth.authenticate, auth.requireRole("technician"), woTransition(["arrived", "accepted"], "in_progress", "startedAt"));
+router.put("/work-orders/:id/en-route", auth.authenticate, auth.requireRole("technician"), woTransition(["accepted", "partially_completed"], "en_route", "enRouteAt"));
+router.put("/work-orders/:id/arrived", auth.authenticate, auth.requireRole("technician"), woTransition(["en_route"], "arrived", "arrivedAt"));
+router.put("/work-orders/:id/start", auth.authenticate, auth.requireRole("technician"), woTransition(["arrived"], "in_progress", "startedAt"));
 
 // ── Lead-driven project mobilization ────────────────────────────────────────
 // In large-scale projects the LEAD technician mobilizes the whole crew: one
@@ -5060,7 +5061,7 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     if (project.dailyAcceptance && project.dailyAcceptance.required) {
       return res.status(400).json({ error: "Waiting for daily team confirmation — ask members to confirm availability", dailyAcceptance: true });
     }
-    const wos = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "arrived", "partially_completed"]);
+    const wos = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "partially_completed"]);
     if (wos.length === 0) return res.status(400).json({ error: "No active work to mobilize today" });
     await assertProjectDailyKitsReady(project._id);
     for (const w of wos) { w.status = "en_route"; w.enRouteAt = new Date(); await w.save(); }
@@ -5088,7 +5089,7 @@ router.put("/projects/:id/mobilize/arrived", auth.authenticate, auth.requireRole
       emitProjectPhase(req, project, "assessment_arrived");
       return res.json({ phase: "assessment_arrived", message: "Lead technician arrived for site assessment" });
     }
-    const wos = await scheduledWorkOrdersForDay(project._id, ["en_route", "accepted"]);
+    const wos = await scheduledWorkOrdersForDay(project._id, ["en_route"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must be en route first" });
     for (const w of wos) { w.status = "arrived"; w.arrivedAt = new Date(); await w.save(); }
     emitProjectPhase(req, project, "arrived");
@@ -5104,7 +5105,7 @@ router.put("/projects/:id/mobilize/start", auth.authenticate, auth.requireRole("
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
-    const wos = await scheduledWorkOrdersForDay(project._id, ["arrived", "accepted"]);
+    const wos = await scheduledWorkOrdersForDay(project._id, ["arrived"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must arrive on site first" });
     for (const w of wos) { w.status = "in_progress"; w.startedAt = new Date(); if (!w.actualStartDate) w.actualStartDate = new Date(); await w.save(); }
     if (project.status !== "in_progress") { project.status = "in_progress"; if (!project.actualStartDate) project.actualStartDate = new Date(); await project.save(); }

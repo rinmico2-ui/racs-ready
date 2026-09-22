@@ -23,6 +23,43 @@ test("uses the last time in a selected time range as the cutoff", () => {
   assert.equal(cutoff.getMinutes(), 30);
 });
 
+test("interprets legacy numeric schedule values as minutes after midnight", () => {
+  const cutoff = requestedScheduleCutoff({
+    bookingDate: "2026-09-22",
+    startTime: "1200",
+    endTime: "1290",
+  });
+
+  assert.equal(cutoff.toISOString(), "2026-09-22T13:30:00.000Z");
+});
+
+test("does not flag an 8 PM numeric schedule as overdue at 7 PM Manila time", () => {
+  const booking = {
+    status: "pending",
+    bookingDate: "2026-09-22",
+    startTime: "1200",
+    endTime: "1290",
+  };
+
+  const beforeWindow = bookingReviewState(booking, new Date("2026-09-22T11:00:00.000Z"));
+  const afterWindow = bookingReviewState(booking, new Date("2026-09-22T13:31:00.000Z"));
+
+  assert.equal(beforeWindow.reviewStatus, "pending");
+  assert.equal(beforeWindow.isReviewOverdue, false);
+  assert.equal(afterWindow.reviewStatus, "overdue");
+  assert.equal(afterWindow.isReviewOverdue, true);
+});
+
+test("adds the service duration when a numeric schedule has no end time", () => {
+  const cutoff = requestedScheduleCutoff({
+    bookingDate: "2026-09-22",
+    startTime: "1200",
+    serviceDurationMinutes: 90,
+  });
+
+  assert.equal(cutoff.toISOString(), "2026-09-22T13:30:00.000Z");
+});
+
 test("never reports non-pending bookings as review overdue", () => {
   const state = bookingReviewState({ status: "confirmed", bookingDate: new Date(2020, 0, 1) }, new Date(2026, 7, 25));
   assert.equal(state.reviewStatus, null);

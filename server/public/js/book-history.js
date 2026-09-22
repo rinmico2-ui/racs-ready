@@ -34,10 +34,9 @@
 
   const perPage = 8;
   let bookings = [];
-  let originalBookings = [];
   let filtered = [];
   let page = 0;
-  let usingSample = false;
+  let totalBookings = 0;
 
   // UI elements
   const el = {
@@ -53,7 +52,6 @@
     from: document.getElementById("bh-from"),
     to: document.getElementById("bh-to"),
     clear: document.getElementById("bh-clear"),
-    showSample: document.getElementById("bh-show-sample"),
     modalElement: document.getElementById("bhDetailModal"),
     modal: null,
     modalBody: document.getElementById("bh-modal-body"),
@@ -87,6 +85,17 @@
       cancelled: "danger",
       "re-scheduled": "info",
       awaiting_confirmation: "warning",
+      payment_verified: "success",
+      awaiting_assignment: "warning",
+      assigned: "primary",
+      scheduled: "primary",
+      "on-the-way": "info",
+      arrived: "info",
+      "waiting-for-customer": "warning",
+      "no-show-reported": "warning",
+      "no-show": "danger",
+      "reschedule-required": "warning",
+      "in-progress": "primary",
       // Enterprise Repair statuses
       repair_requested: "warning",
       inspection_pending: "info",
@@ -109,7 +118,7 @@
     };
     const cls = map[String(status || "").toLowerCase()] || "secondary";
     const label = String(status || "unknown").replace(/_/g, " ");
-    return `<span class="badge bg-${cls} text-capitalize">${label}</span>`;
+    return `<span class="badge bg-${cls} text-capitalize">${escapeHtml(label)}</span>`;
   }
 
   function isRepairBooking(b) {
@@ -125,34 +134,9 @@
   }
 
   function repairDetailsForBooking(b) {
-    if (b?.customerRepairDetails?.items?.length) return b.customerRepairDetails;
-    if (!isRepairBooking(b)) return null;
-
-    const rawItems = (b.services || []).filter(item => String(item?.type || '').toLowerCase() === 'repair');
-    const sources = rawItems.length ? rawItems : [{}];
-    const items = sources.map((item, index) => {
-      const top = index === 0 ? (b.unitInfo || {}) : {};
-      const unitType = item.unitType || item.applianceTypeName || item.airconTypeName || item.unitCategory
-        || top.unitType || b.applianceTypeName || b.applianceType || 'Not recorded';
-      return {
-        ...item,
-        name: item.name || `${unitType} Repair`,
-        unitType,
-        brand: item.brand || top.brand || b.brand || 'Not recorded',
-        model: item.model || top.model || '',
-        problemDescription: item.problemDescription || item.repairIssue || top.problemDescription
-          || b.issueDescription || b.repairIssues || 'Not recorded',
-        quantity: Math.max(1, Number(item.quantity || b.quantity) || 1),
-        status: item.status || b.status || 'pending',
-        photos: [...new Set([...(item.photos || []), ...(index === 0 ? (top.photos || []) : [])].filter(Boolean))],
-      };
-    });
-    return {
-      items,
-      applianceCount: items.length,
-      unitCount: items.reduce((sum, item) => sum + item.quantity, 0),
-      primary: items[0],
-    };
+    return b?.customerRepairDetails?.items?.length
+      ? b.customerRepairDetails
+      : null;
   }
 
   // True when the scheduled service window has fully elapsed and the booking
@@ -319,7 +303,7 @@
 
   function renderTable() {
     const start = page * perPage;
-    const pageItems = filtered.slice(start, start + perPage);
+    const pageItems = filtered;
 
     el.tbody.innerHTML = pageItems
       .map((b) => {
@@ -360,16 +344,18 @@
           b.location && b.location.address ? b.location.address : "-";
         const rated = b.customerRating != null && b.customerRating !== "";
         const ratingCell = (() => {
-          if (b.status !== "completed") return "";
+          if (!["completed", "repair_completed", "closed"].includes(b.status)) return "";
           if (rated) {
             return `<div class="text-warning" style="white-space:nowrap">${ratingStars(b.customerRating)}</div>`;
           }
           return `<button class="bh-action-btn bh-action-btn--success bh-rate" data-id="${b._id}" title="Rate"><i class="bi bi-star"></i></button>`;
         })();
 
-        const reviewAction = ['re-scheduled', 'awaiting_assignment'].includes(b.status) && b.proposedReschedule && b.proposedReschedule.status === 'pending'
-          ? `<button class="bh-action-btn bh-action-btn--warning bh-view" data-id="${b._id}" title="Review Reschedule"><i class="bi bi-calendar-check"></i></button>`
-          : `<button class="bh-action-btn bh-action-btn--primary bh-view" data-id="${b._id}" title="View Details"><i class="bi bi-eye"></i></button>`;
+        const reviewAction = b.status === 'awaiting_approval'
+          ? `<button class="bh-action-btn bh-action-btn--success bh-view" data-id="${b._id}" title="Review Quotation"><i class="bi bi-receipt"></i></button>`
+          : ['re-scheduled', 'awaiting_assignment'].includes(b.status) && b.proposedReschedule && b.proposedReschedule.status === 'pending'
+            ? `<button class="bh-action-btn bh-action-btn--warning bh-view" data-id="${b._id}" title="Review Reschedule"><i class="bi bi-calendar-check"></i></button>`
+            : `<button class="bh-action-btn bh-action-btn--primary bh-view" data-id="${b._id}" title="View Details"><i class="bi bi-eye"></i></button>`;
 
         const pendingActions = b.status === 'pending'
           ? `<button class="bh-action-btn bh-action-btn--warning bh-reschedule" data-id="${b._id}" title="Re-schedule"><i class="bi bi-calendar-event"></i></button>
@@ -378,10 +364,6 @@
 
         const repairAction = b.status === 'repair_approved'
           ? `<button class="bh-action-btn bh-action-btn--primary bh-schedule-later" data-id="${b._id}" title="Schedule Repair"><i class="bi bi-calendar-plus"></i></button>`
-          : '';
-
-        const approvalAction = b.status === 'awaiting_approval'
-          ? `<button class="bh-action-btn bh-action-btn--success bh-view" data-id="${b._id}" title="Review Quotation"><i class="bi bi-receipt"></i></button>`
           : '';
 
         const editAction = ['pending','payment_verified','confirmed','awaiting_assignment'].includes(b.status)
@@ -416,7 +398,6 @@
               <button class="bh-action-btn bh-download" data-id="${b._id}" title="Download JSON"><i class="bi bi-download"></i></button>
               ${pendingActions}
               ${repairAction}
-              ${approvalAction}
               ${editAction}
               ${maintenanceAction}
               ${cardPaymentAction}
@@ -427,9 +408,11 @@
       })
       .join("");
 
-    el.count.textContent = `Showing ${Math.min(filtered.length, start + 1)}–${Math.min(filtered.length, start + perPage)} of ${filtered.length}`;
+    const firstShown = totalBookings ? start + 1 : 0;
+    const lastShown = Math.min(totalBookings, start + pageItems.length);
+    el.count.textContent = `Showing ${firstShown}–${lastShown} of ${totalBookings}`;
     el.prev.disabled = page <= 0;
-    el.next.disabled = start + perPage >= filtered.length;
+    el.next.disabled = start + pageItems.length >= totalBookings;
 
     // toggle visibility
     el.loading.classList.add("d-none");
@@ -608,26 +591,46 @@
     };
   
     // Status timeline
-    const timelineSteps = [
-      { key: 'pending', label: 'Booked', icon: 'bi-calendar-check' },
-      { key: 'confirmed', label: 'Confirmed', icon: 'bi-check-circle' },
-      { key: 'repair_requested', label: 'Repair Requested', icon: 'bi-tools' },
-      { key: 'inspection_completed', label: 'Inspected', icon: 'bi-clipboard-check' },
-      { key: 'awaiting_approval', label: 'Awaiting Approval', icon: 'bi-hourglass-split' },
-      { key: 'repair_completed', label: 'Repair Done', icon: 'bi-wrench-adjustable' },
-      { key: 'completed', label: 'Completed', icon: 'bi-trophy' },
-    ];
-    const currentStepIdx = (() => {
-      const s = String(b.status || '').toLowerCase();
-      if (s === 'completed') return 6;
-      if (s === 'repair_completed') return 5;
-      if (['awaiting_approval','repair_approved','repair_declined'].includes(s)) return 4;
-      if (['inspection_completed','inspection_scheduled','inspection_in_progress','pending_inspection'].includes(s)) return 3;
-      if (['repair_requested','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress'].includes(s)) return 2;
-      if (s === 'confirmed') return 1;
-      if (['pending','awaiting_confirmation','payment_verified','awaiting_assignment','re-scheduled'].includes(s)) return 0;
-      return -1;
-    })();
+    const status = String(b.status || '').toLowerCase();
+    const timelineSteps = isRepair
+      ? [
+          { label: 'Requested', icon: 'bi-tools' },
+          { label: 'Inspection', icon: 'bi-clipboard-check' },
+          { label: 'Approval', icon: 'bi-receipt' },
+          { label: 'Preparation', icon: 'bi-box-seam' },
+          { label: 'Repair', icon: 'bi-wrench-adjustable' },
+          { label: 'Completed', icon: 'bi-trophy' },
+        ]
+      : [
+          { label: 'Booked', icon: 'bi-calendar-check' },
+          { label: 'Verified', icon: 'bi-shield-check' },
+          { label: 'Assigned', icon: 'bi-person-check' },
+          { label: 'Confirmed', icon: 'bi-check-circle' },
+          { label: 'On the Way', icon: 'bi-truck' },
+          { label: 'In Progress', icon: 'bi-gear' },
+          { label: 'Completed', icon: 'bi-trophy' },
+        ];
+    const statusStepMap = isRepair
+      ? {
+          repair_requested: 0, pending_inspection: 0,
+          inspection_scheduled: 1, inspection_in_progress: 1, inspection_completed: 1,
+          awaiting_approval: 2, repair_approved: 2, repair_declined: 2,
+          waiting_parts: 3, parts_reserved: 3, ready_for_repair: 3, repair_scheduled: 3,
+          repair_in_progress: 4,
+          repair_completed: 5, under_warranty: 5, warranty_claim: 5, closed: 5,
+        }
+      : {
+          pending: 0,
+          payment_verified: 1,
+          awaiting_assignment: 2, assigned: 2, pending_reassignment: 2,
+          confirmed: 3, scheduled: 3, 're-scheduled': 3,
+          'on-the-way': 4, arrived: 4,
+          'waiting-for-customer': 5, 'no-show-reported': 5, 'in-progress': 5,
+          completed: 6,
+        };
+    const currentStepIdx = Number.isInteger(statusStepMap[status])
+      ? statusStepMap[status]
+      : -1;
     const timelineHtml = currentStepIdx >= 0 ? `
       <div class="bh-timeline">
         ${timelineSteps.map((step, i) => `
@@ -667,10 +670,11 @@
     const paymentHtml = (() => {
       const pm = b.paymentMethod || '';
       if (!pm) return '';
-      const total = Number(b.totalPrice || b.estimatedFee || 0);
-      const dp = Number(b.downpaymentAmount || Math.round(total * (Number(b.downpaymentPercentage) || 10) / 100));
-      const amountPaid = Number(b.amountPaid || (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
-      const balance = Number(b.balanceAmount || (pm === 'cod' ? Math.max(0, total - dp) : 0));
+      const total = Number(b.totalPrice ?? b.estimatedFee ?? 0);
+      const percentage = Number(b.downpaymentPercentage ?? 10);
+      const dp = Number(b.downpaymentAmount ?? Math.round(total * percentage / 100));
+      const amountPaid = Number(b.amountPaid ?? (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
+      const balance = Number(b.balanceAmount ?? (pm === 'cod' ? Math.max(0, total - dp) : 0));
       const inPersonCard = b.paymentChannel === 'card';
       const channelName = ({ card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[b.paymentChannel] || 'selected method';
       const methodName = pm === 'cod' ? `${channelName} downpayment + balance at completion` : pm === 'gcash' ? (inPersonCard ? 'Full card payment at RACS store' : `Full payment via ${channelName}`) : pm.toUpperCase();
@@ -862,7 +866,7 @@
   
     // Rating
     const ratingHtml = (() => {
-      if (b.status !== 'completed') return '';
+      if (!["completed", "repair_completed", "closed"].includes(b.status)) return '';
       if (b.customerRating != null && b.customerRating !== '') {
         return section('Your Rating', 'bi-star-fill', `
           ${kv('Score', `<span class="bh-stars">${ratingStars(b.customerRating)}</span>`)}
@@ -961,129 +965,23 @@
       const xBtn = el.modalElement.querySelector('.bh-modal-close');
       const closeBtn = el.modalElement.querySelector('.bh-modal-footer .bh-btn-primary');
       const doClose = () => { try { modalInstance.hide(); } catch (e) { /* ignore */ } };
-      if (xBtn) xBtn.addEventListener('click', doClose);
-      if (closeBtn) closeBtn.addEventListener('click', doClose);
+      if (xBtn) xBtn.onclick = doClose;
+      if (closeBtn) closeBtn.onclick = doClose;
     } else {
       console.warn('Bootstrap Modal unavailable.');
     }
   }
 
   function applyFilters() {
-    const q = (el.search.value || "").toLowerCase().trim();
-    const status = (el.status.value || "all").toLowerCase();
-    const from = el.from.value ? new Date(el.from.value) : null;
-    const to = el.to.value ? new Date(el.to.value) : null;
-    if (to) {
-      to.setHours(23, 59, 59, 999);
-    }
-
-    filtered = bookings.filter((b) => {
-      // client-side ownership filter
-      if (userId && !bookingBelongsToUser(b)) return false;
-
-      // status filter
-      if (status !== "all" && String(b.status || "").toLowerCase() !== status)
-        return false;
-
-      // date range
-      if (from || to) {
-        const dt = b.bookingDate
-          ? new Date(b.bookingDate)
-          : b.createdAt
-            ? new Date(b.createdAt)
-            : null;
-        if (!dt) return false;
-        if (from && dt < from) return false;
-        if (to && dt > to) return false;
-      }
-
-      // search
-      if (q) {
-        const repairSearch = repairDetailsForBooking(b);
-        const hay = [
-          String(b._id || ""),
-          String(b.bookingReference || b.workOrderNumber || ""),
-          String(b.serviceType || ""),
-          String((b.service && b.service.name) || ""),
-          String(b.status || ""),
-          String(b.notes || ""),
-          String(b.technicianId || ""),
-          String((b.location && b.location.address) || ""),
-          ...(repairSearch?.items || []).flatMap(item => [item.name, item.unitType, item.brand, item.model, item.problemDescription]),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (hay.indexOf(q) === -1) return false;
-      }
-
-      return true;
-    });
-
-    // most-recent-first
-    filtered.sort(
-      (a, b) =>
-        new Date(b.bookingDate || b.createdAt) -
-        new Date(a.bookingDate || a.createdAt),
-    );
-
     page = 0;
-    renderTable();
+    void fetchBookings();
   }
 
-  function createSampleBookings() {
-    const now = new Date();
-    const sampleOwnerId = userId || undefined;
-    const sampleOwner = userEmail || "guest@example.com";
-    return [
-      {
-        _id: "sample0000000000000001",
-        customerId: sampleOwnerId,
-        customer: sampleOwner,
-        serviceType: "core",
-        serviceId: "core-101",
-        bookingDate: new Date(
-          now.getTime() - 7 * 24 * 3600 * 1000,
-        ).toISOString(),
-        startTime: "09:00",
-        status: "completed",
-        location: { address: "Brgy. San Isidro, Sample City" },
-        technicianId: "Tech-001",
-        createdAt: new Date(now.getTime() - 8 * 24 * 3600 * 1000).toISOString(),
-        notes: "Sample completed booking — AC maintenance.",
-      },
-      {
-        _id: "sample0000000000000002",
-        customerId: sampleOwnerId,
-        customer: sampleOwner,
-        serviceType: "repair",
-        serviceId: "repair-201",
-        bookingDate: new Date(
-          now.getTime() + 2 * 24 * 3600 * 1000,
-        ).toISOString(),
-        startTime: "13:00",
-        status: "pending",
-        location: { address: "Brgy. Santa Maria, Example Town" },
-        technicianId: "Tech-007",
-        createdAt: new Date(now.getTime() - 1 * 24 * 3600 * 1000).toISOString(),
-        notes: "Sample pending booking — diagnostics.",
-      },
-      {
-        _id: "sample0000000000000003",
-        customerId: sampleOwnerId,
-        customer: sampleOwner,
-        serviceType: "core",
-        serviceId: "core-103",
-        bookingDate: new Date(
-          now.getTime() + 10 * 24 * 3600 * 1000,
-        ).toISOString(),
-        startTime: "15:30",
-        status: "confirmed",
-        location: { address: "Brgy. Poblacion, Demo City" },
-        technicianId: "Tech-003",
-        createdAt: new Date(now.getTime() - 2 * 24 * 3600 * 1000).toISOString(),
-        notes: "Sample confirmed booking — installation.",
-      },
-    ];
+  function dateFilterValue(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
 
   window.bhDecideItemQuotation = async function(bookingId, itemId, approved) {
@@ -1680,7 +1578,25 @@
       el.tableWrap.classList.add("d-none");
       el.empty.classList.add("d-none");
 
-      const res = await fetch("/api/appointments?limit=1000");
+      const params = new URLSearchParams({
+        limit: String(perPage),
+        page: String(page),
+      });
+      const q = (el.search.value || "").trim();
+      const status = (el.status.value || "all").trim();
+      const from = dateFilterValue(el.from.value);
+      const to = dateFilterValue(el.to.value);
+      const highlightedReference = new URLSearchParams(window.location.search).get("highlight");
+      if (highlightedReference) params.set("reference", highlightedReference);
+      else if (q) params.set("q", q);
+      if (status && status !== "all") params.set("status", status);
+      if (from) params.set("start", from);
+      if (to) params.set("end", to);
+
+      const res = await fetch(`/api/appointments?${params.toString()}`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
       if (!res.ok) throw new Error("Failed to load");
       const payload = await res.json();
       let items = [];
@@ -1688,20 +1604,22 @@
       else if (Array.isArray(payload)) items = payload;
 
       bookings = items || [];
-      originalBookings = bookings.slice();
-      applyFilters();
-
-      // show sample bookings button only when available
-      if (el.showSample) el.showSample.classList.remove("d-none");
+      filtered = bookings.filter((booking) => bookingBelongsToUser(booking));
+      totalBookings = Number(payload.pagination?.total ?? filtered.length);
+      const lastPage = Math.max(0, Math.ceil(totalBookings / perPage) - 1);
+      if (page > lastPage) {
+        page = lastPage;
+        return fetchBookings();
+      }
+      renderTable();
     } catch (e) {
       console.error("Failed to load bookings", e);
       el.loading.innerHTML =
         '<div class="text-danger">Failed to load bookings. Try reloading the page.</div>';
 
-      // still allow sample demonstration when network fails
-      if (el.showSample) el.showSample.classList.remove("d-none");
     }
   }
+  window.refreshBookingHistory = fetchBookings;
 
   // events
   el.search.addEventListener("input", debounce(applyFilters, 250));
@@ -1716,36 +1634,16 @@
     applyFilters();
   });
 
-  // sample bookings toggle (front-end only)
-  if (el.showSample) {
-    el.showSample.addEventListener("click", function () {
-      if (!usingSample) {
-        bookings = originalBookings.concat(createSampleBookings());
-        usingSample = true;
-        el.showSample.textContent = "Hide example bookings";
-        el.showSample.classList.remove("btn-outline-primary");
-        el.showSample.classList.add("btn-outline-secondary");
-      } else {
-        bookings = originalBookings.slice();
-        usingSample = false;
-        el.showSample.textContent = "Show example bookings";
-        el.showSample.classList.remove("btn-outline-secondary");
-        el.showSample.classList.add("btn-outline-primary");
-      }
-      applyFilters();
-    });
-  }
-
   el.prev.addEventListener("click", function () {
     if (page > 0) {
       page--;
-      renderTable();
+      void fetchBookings();
     }
   });
   el.next.addEventListener("click", function () {
-    if ((page + 1) * perPage < filtered.length) {
+    if ((page + 1) * perPage < totalBookings) {
       page++;
-      renderTable();
+      void fetchBookings();
     }
   });
 
@@ -1867,7 +1765,7 @@
       const toast = document.createElement('div');
       toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} position-fixed`;
       toast.style.cssText = 'top:20px;right:20px;z-index:9999;min-width:300px;box-shadow:0 8px 24px rgba(0,0,0,0.15);border-radius:10px;';
-      toast.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'error' ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i><span>${message}</span></div>`;
+      toast.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'error' ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i><span>${escapeHtml(message)}</span></div>`;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
     }
@@ -2270,8 +2168,12 @@
     const modal = new bootstrap.Modal(document.getElementById('bhRescheduleModal'));
     modal.show();
 
-    // If no technician assigned, show error
-    if (!currentRescheduleTechnicianId) {
+    const isProject = Boolean(booking.isProject || booking.projectScheduling);
+
+    // Ordinary appointments need technician-specific availability. Projects
+    // use company-level date capacity because Operations builds the detailed
+    // multi-day plan after the customer selects a preferred start date.
+    if (!currentRescheduleTechnicianId && !isProject) {
       document.getElementById('bhRescheduleLoading').classList.add('d-none');
       document.getElementById('bhRescheduleError').textContent = 'No technician assigned to this booking. Please contact customer support.';
       document.getElementById('bhRescheduleError').classList.remove('d-none');
@@ -2285,14 +2187,22 @@
   // Fetch available slots for the technician
   async function fetchAvailableSlots() {
     try {
-      const response = await fetch(`/api/schedule/technician/${encodeURIComponent(currentRescheduleTechnicianId)}/available-slots`);
+      const isProject = Boolean(currentRescheduleBooking?.isProject || currentRescheduleBooking?.projectScheduling);
+      const endpoint = isProject
+        ? '/api/schedule/available-dates?duration=60&mode=all'
+        : `/api/schedule/technician/${encodeURIComponent(currentRescheduleTechnicianId)}/available-slots?duration=${encodeURIComponent(Number(currentRescheduleBooking?.serviceDurationMinutes) || 60)}`;
+      const response = await fetch(endpoint, { credentials: 'same-origin' });
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch available slots');
       }
 
-      rescheduleCalendarState.availableDates = data.availableDates || [];
+      rescheduleCalendarState.availableDates = (data.availableDates || []).map(date => ({
+        ...date,
+        available: date.available !== undefined ? date.available : Number(date.availableSlots || 0) > 0,
+        timeSlots: date.timeSlots || [],
+      }));
 
       // Initialize calendar
       rescheduleCalendarState.currentMonth = new Date().getMonth();
@@ -2474,7 +2384,8 @@
   // Handle reason input change
   document.getElementById('bhRescheduleReason').addEventListener('input', function() {
     const reason = this.value.trim();
-    document.getElementById('bhSubmitReschedule').disabled = !reason || !selectedRescheduleDate || !selectedRescheduleTime;
+    const isProject = Boolean(currentRescheduleBooking?.isProject || currentRescheduleBooking?.projectScheduling);
+    document.getElementById('bhSubmitReschedule').disabled = !reason || !selectedRescheduleDate || (!isProject && !selectedRescheduleTime);
   });
 
   // Submit reschedule request
@@ -2530,25 +2441,31 @@
       const openSchedule = params.get('schedule') === 'true';
       if (highlightId) {
         setTimeout(() => {
-          const row = document.querySelector(`tr[data-id="${highlightId}"]`);
-          if (row) {
+          const b = bookings.find(item => [item._id, item.bookingReference, item.workOrderNumber]
+            .some(value => String(value || '') === String(highlightId)));
+          if (b) {
+            const filteredIndex = filtered.findIndex(item => String(item._id) === String(b._id));
+            if (filteredIndex >= 0) {
+              page = Math.floor(filteredIndex / perPage);
+              renderTable();
+            }
+            const row = Array.from(document.querySelectorAll('tr[data-id]'))
+              .find(item => item.getAttribute('data-id') === String(b._id));
+            if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
             row.style.transition = 'background 0.3s';
             row.style.background = '#fef3c7';
             setTimeout(() => { row.style.background = ''; }, 3000);
-            // Auto-open the detail modal
-            const b = bookings.find(x => String(x._id) === String(highlightId));
-            if (b) {
-              showDetailModal(b);
-              // If ?schedule=true, auto-open the Schedule Later form after detail modal loads
-              if (openSchedule && (b.status === 'repair_approved' || b.status === 'awaiting_approval')) {
-                setTimeout(() => {
-                  const detailModalEl = document.getElementById('detailModal');
-                  if (detailModalEl && (detailModalEl.classList.contains('show') || detailModalEl.style.display === 'block')) {
-                    bhScheduleLater(b._id, true);
-                  }
-                }, 800);
-              }
+            }
+            showDetailModal(b);
+            // If ?schedule=true, close the detail view and open scheduling.
+            if (openSchedule && (b.status === 'repair_approved' || b.status === 'awaiting_approval')) {
+              setTimeout(() => {
+                const detailModalEl = document.getElementById('bhDetailModal');
+                const detailInstance = detailModalEl && bootstrap.Modal.getInstance(detailModalEl);
+                if (detailInstance) detailInstance.hide();
+                window.bhScheduleLater(b._id, true);
+              }, 800);
             }
           }
           // Clean URL
@@ -2557,6 +2474,12 @@
             u.searchParams.delete('highlight');
             u.searchParams.delete('schedule');
             window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+          }
+          if (b) {
+            setTimeout(() => {
+              page = 0;
+              void fetchBookings();
+            }, openSchedule ? 1200 : 0);
           }
         }, 500);
       }

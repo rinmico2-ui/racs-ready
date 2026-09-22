@@ -30,3 +30,9 @@ test("shared Daily Preparation exposes compatible actions to both technician wor
   assert.match(dailyKitPartial, /window\.openDailyKitModal=window\.openTechnicianDailyKit/);
   assert.match(dailyKitPartial, /window\.refreshOrderDailyKit=window\.refreshTechnicianDailyKit/);
 });
+
+test("shared Daily Preparation shows reviewed AI repair-part suggestions without issuing them", () => {
+  assert.match(dailyKitPartial, /Reviewed AI contingency suggestions/);
+  assert.match(dailyKitPartial, /not issued or deducted until the technician confirms the actual repair scope/);
+  assert.match(dailyKitPartial, /payload\.aiContingencySuggestions/);
+});

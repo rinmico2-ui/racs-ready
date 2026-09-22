@@ -8,6 +8,7 @@ const {
   customerRepairDetails,
   enrichCustomerBooking,
   isRepairBooking,
+  presentCustomerBooking,
 } = require("../utils/customerBookingPresentation");
 
 test("normalizes legacy repair details stored outside unitInfo", () => {
@@ -63,6 +64,25 @@ test("does not add repair presentation data to a core-service booking", () => {
   const booking = { _id: "core", serviceType: "core", services: [{ type: "core", name: "Cleaning" }] };
   assert.equal(isRepairBooking(booking), false);
   assert.equal(enrichCustomerBooking(booking).customerRepairDetails, undefined);
+});
+
+test("customer booking payload removes payment proof and internal operational history", () => {
+  const presented = presentCustomerBooking({
+    _id: "booking",
+    serviceType: "core",
+    paymentProof: "data:image/png;base64,secret",
+    paymentReference: "private-reference",
+    technicianAssistant: { suggestedTools: ["meter"] },
+    statusHistory: [{ status: "pending", changedBy: "staff-id" }],
+    services: [{ type: "core", name: "Cleaning", statusHistory: [{ changedBy: "staff-id" }] }],
+  });
+
+  assert.equal(presented.paymentProof, undefined);
+  assert.equal(presented.paymentReference, undefined);
+  assert.equal(presented.technicianAssistant, undefined);
+  assert.equal(presented.statusHistory, undefined);
+  assert.equal(presented.services[0].statusHistory, undefined);
+  assert.equal(presented.services[0].name, "Cleaning");
 });
 
 test("customer My Schedule renders normalized repair fields and all appliances", () => {

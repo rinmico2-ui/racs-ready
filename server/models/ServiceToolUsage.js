@@ -17,6 +17,13 @@ const serviceToolUsageSchema = new mongoose.Schema(
       index: true,
       set: (v) => (v === "" || v === null ? undefined : v),
     },
+    assignmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Assignment",
+      required: false,
+      index: true,
+      set: (v) => (v === "" || v === null ? undefined : v),
+    },
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
@@ -138,5 +145,6 @@ serviceToolUsageSchema.index({ orderId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ projectId: 1, workOrderId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ bookingId: 1, serviceItemId: 1, usedAt: -1 });
 serviceToolUsageSchema.index({ technicianId: 1, usedAt: -1 });
+serviceToolUsageSchema.index({ assignmentId: 1, lifecycleStatus: 1, usedAt: -1 });
 
 module.exports = mongoose.model("ServiceToolUsage", serviceToolUsageSchema);

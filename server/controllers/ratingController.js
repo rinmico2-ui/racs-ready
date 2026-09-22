@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const audit = require("../utils/audit");
 
 // helper to update tech average from bookings
 async function recalcTechnicianRating(techId) {
@@ -98,6 +99,14 @@ exports.rateBooking = async (req, res, next) => {
       { $set: { score, comment: comment ? String(comment).slice(0, 1000) : null } },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
+    await audit.logEvent({
+      actor: req.user._id,
+      target: booking._id,
+      action: isUpdate ? "booking.rating_update" : "booking.rate",
+      module: "appointments",
+      req,
+      details: { bookingId: id, score },
+    });
     return res.json({ success: true, score, updated: isUpdate });
   } catch (err) {
     next(err);

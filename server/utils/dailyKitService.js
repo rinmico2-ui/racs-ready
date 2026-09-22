@@ -84,6 +84,18 @@ function mergeRequirement(map, rec, context = {}) {
 
 const REPAIR_PART_STATUSES = ["repair_scheduled", "repair_in_progress"];
 
+function hasScheduledRepairWork(booking) {
+  if (!booking) return false;
+  if (REPAIR_PART_STATUSES.includes(booking.status)) {
+    return booking.serviceType === "repair" || booking.serviceType === "mixed";
+  }
+  // Mixed bookings retain an aggregate booking status while their Core and
+  // Repair items advance independently.
+  return booking.serviceType === "mixed" && (booking.services || []).some(item =>
+    item?.type === "repair" && REPAIR_PART_STATUSES.includes(item.status)
+  );
+}
+
 /**
  * Resolve a quotation part to its inventory Tool, matching by toolId first,
  * then falling back to name-matching against active inventory.
@@ -111,7 +123,7 @@ async function partRequirementsFor(assignments, bookings, requirements) {
   for (const assignment of assignments) {
     const booking = bookingMap.get(String(assignment.bookingId));
     if (!booking) continue;
-    const isRepairVisit = booking.serviceType === "repair" && REPAIR_PART_STATUSES.includes(booking.status);
+    const isRepairVisit = hasScheduledRepairWork(booking);
     if (!isRepairVisit) continue;
     const parts = Array.isArray(booking.quotation?.parts) ? booking.quotation.parts : [];
     for (const part of parts) {
@@ -412,7 +424,11 @@ async function syncDailyKit(technicianId, date) {
   });
   const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
   let kit = await DailyKit.findOne({ technicianId, workDate: start });
+  const previouslyLinkedAssignmentIds = new Set((kit?.assignmentIds || []).map(String));
   const previouslyLinkedOrderIds = kit ? uniqueIds(kit.orderIds || []) : [];
+  const previouslyLinkedOrderIdSet = new Set(previouslyLinkedOrderIds.map(String));
+  const previouslyLinkedDailyAssignmentIds = new Set((kit?.dailyAssignmentIds || []).map(String));
+  const pendingCoverageReview = Boolean(kit?.hasDelta && !(kit.deltaItems || []).length);
   // Sticky resolution: prefer inventory items already in today's kit so
   // requirement → item mapping stays stable across re-syncs (availability
   // changes must not manufacture phantom new requirements).
@@ -548,6 +564,14 @@ async function syncDailyKit(technicianId, date) {
       old.conflict = requirement.conflict;
     }
   }
+  // A newly covered job requires an explicit Daily Preparation update even
+  // when all of its physical requirements are already present in the shared
+  // kit. Otherwise a late Repair/Mixed booking could silently inherit an old
+  // confirmed kit and depart without ever being reviewed.
+  const coverageChanged = assignments.some(row => !previouslyLinkedAssignmentIds.has(String(row._id)))
+    || orders.some(row => !previouslyLinkedOrderIdSet.has(String(row._id)))
+    || projectAssignments.some(row => !previouslyLinkedDailyAssignmentIds.has(String(row._id)));
+
   kit.assignmentIds = uniqueIds(assignments.map(a => a._id));
   kit.bookingIds = bookingIds;
   kit.orderIds = orderIds;
@@ -555,7 +579,7 @@ async function syncDailyKit(technicianId, date) {
   kit.workOrderIds = workOrderIds;
   kit.dailyAssignmentIds = dailyAssignmentIds;
   kit.deltaItems = additions;
-  kit.hasDelta = additions.length > 0;
+  kit.hasDelta = additions.length > 0 || coverageChanged || pendingCoverageReview;
   if (!["confirmed", "in_progress"].includes(kit.status)) kit.items = [...existing.values(), ...additions];
   await kit.save();
   await syncOrderPreparationSummaries(kit, uniqueIds([...previouslyLinkedOrderIds, ...orderIds]));
@@ -697,6 +721,73 @@ async function confirmDailyKit({ technicianId, userId, date }) {
   return kit;
 }
 
+/**
+ * Re-sync and verify the canonical technician/day preparation before travel.
+ * Core, Repair, and Mixed routes all use this contract so a specialized
+ * workflow cannot bypass Daily Kit readiness.
+ */
+async function dailyKitDepartureReadiness({ technicianId, assignment }) {
+  if (!assignment?._id) {
+    return {
+      ready: false,
+      code: "DAILY_KIT_JOB_NOT_INCLUDED",
+      error: "Accept the assignment before preparing the Daily Kit.",
+    };
+  }
+
+  const kit = await syncDailyKit(technicianId, assignment.bookingDate || new Date());
+  const assignmentCovered = (kit.assignmentIds || []).some(id => String(id) === String(assignment._id));
+  if (!assignmentCovered) {
+    return {
+      ready: false,
+      code: "DAILY_KIT_JOB_NOT_INCLUDED",
+      error: "This job is not included in the Daily Kit. Accept it and review Daily Preparation before going En Route.",
+      kit,
+    };
+  }
+
+  if (!["confirmed", "in_progress"].includes(kit.status)) {
+    return {
+      ready: false,
+      code: "DAILY_KIT_REQUIRED",
+      error: "Complete your Daily Preparation before going En Route.",
+      kit,
+    };
+  }
+
+  // A delta is not prepared merely because each row has a field decision.
+  // Prepare Additional Items completes checkout/issuance and custody logging.
+  if (kit.hasDelta && Array.isArray(kit.deltaItems) && kit.deltaItems.length) {
+    const itemNames = kit.deltaItems.map(item => item.name).filter(Boolean);
+    return {
+      ready: false,
+      code: "DAILY_KIT_DELTA_REQUIRED",
+      error: itemNames.length
+        ? `New items were added to your Daily Kit (${itemNames.join(", ")}). Prepare the additional items before going En Route.`
+        : "A new job was added after your Daily Kit was confirmed. Review and confirm the Daily Preparation update before going En Route.",
+      items: kit.deltaItems.map(item => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        resolution: item.resolution?.status || null,
+      })),
+      kit,
+    };
+  }
+
+  if (kit.hasDelta) {
+    return {
+      ready: false,
+      code: "DAILY_KIT_DELTA_REQUIRED",
+      error: "A new job was added after your Daily Kit was confirmed. Review and confirm the Daily Preparation update before going En Route.",
+      items: [],
+      kit,
+    };
+  }
+
+  return { ready: true, kit };
+}
+
 /** Attribute already-issued Daily Kit consumables to a specific installation. */
 async function recordOrderConsumableUsage({ technicianId, userId, orderId, date, usages = [] }) {
   if (!mongoose.isValidObjectId(orderId)) {
@@ -749,6 +840,90 @@ async function recordOrderConsumableUsage({ technicianId, userId, orderId, date,
     });
   }
   await kit.save();
+  return { kit, recorded: [...normalized.values()] };
+}
+
+/**
+ * Atomically attribute issued consumables to a booking completion. Passing the
+ * assignment id makes retries idempotent instead of decrementing the same kit
+ * twice after an interrupted response.
+ */
+async function recordBookingConsumableUsage({ technicianId, userId, assignmentId, bookingId, date, usages = [], session }) {
+  if (!mongoose.isValidObjectId(assignmentId) || !mongoose.isValidObjectId(bookingId)) {
+    throw Object.assign(new Error("Invalid assignment or booking id"), { status: 400 });
+  }
+
+  const normalized = new Map();
+  for (const row of usages || []) {
+    const name = String(row?.itemName || row?.name || "").trim();
+    const quantity = Number(row?.quantityUsed ?? row?.quantity ?? 0);
+    if (!name || !Number.isFinite(quantity) || quantity <= 0) {
+      throw Object.assign(new Error("Consumable usage must contain a valid item name and positive quantity."), { status: 400 });
+    }
+    const key = name.toLowerCase();
+    const existing = normalized.get(key);
+    normalized.set(key, { name, quantity: quantity + Number(existing?.quantity || 0) });
+  }
+  const existingQuery = ServiceToolUsage.find({ assignmentId, lifecycleStatus: { $ne: "voided" } }).lean();
+  if (session) existingQuery.session(session);
+  const existingRows = await existingQuery;
+  if (existingRows.length) {
+    const recorded = new Map(existingRows.map(row => [String(row.itemName).trim().toLowerCase(), Number(row.quantityUsed || 0)]));
+    const sameUsage = recorded.size === normalized.size
+      && [...normalized].every(([key, row]) => recorded.get(key) === row.quantity);
+    if (!sameUsage) {
+      throw Object.assign(new Error("Consumable usage was already recorded for this completion. Refresh the assignment before retrying."), { status: 409 });
+    }
+    return { recorded: [...normalized.values()], alreadyRecorded: true };
+  }
+
+  const { start } = dayBounds(date);
+  const kitQuery = DailyKit.findOne({ technicianId, workDate: start });
+  if (session) kitQuery.session(session);
+  const kit = await kitQuery;
+  if (!kit && !normalized.size) return { recorded: [] };
+  if (!kit) throw Object.assign(new Error("No Daily Kit was found for this service date."), { status: 409 });
+
+  const covered = (kit.items || []).filter(item =>
+    item.category === "consumable"
+    && (item.bookingIds || []).some(id => String(id) === String(bookingId))
+  );
+  const missing = covered.filter(item => !normalized.has(item.name.toLowerCase()));
+  if (missing.length) {
+    throw Object.assign(new Error(`Record consumable usage for: ${missing.map(item => item.name).join(", ")}.`), { status: 400 });
+  }
+  if (!normalized.size) return { kit, recorded: [] };
+  const usageRows = [];
+  for (const usage of normalized.values()) {
+    const item = covered.find(candidate => candidate.name.toLowerCase() === usage.name.toLowerCase());
+    if (!item) throw Object.assign(new Error(`${usage.name} is not assigned to this booking's Daily Kit.`), { status: 403 });
+    const remaining = Number(item.quantityIssued || 0) - Number(item.quantityUsed || 0) - Number(item.quantityReturned || 0);
+    if (usage.quantity > remaining) {
+      throw Object.assign(new Error(`${usage.name} usage exceeds the ${remaining} ${item.unit || "pcs"} still available.`), { status: 409 });
+    }
+    const toolQuery = item.toolId ? Tool.findById(item.toolId).select("costPrice").lean() : null;
+    if (session && toolQuery) toolQuery.session(session);
+    const tool = toolQuery ? await toolQuery : null;
+    item.quantityUsed = Number(item.quantityUsed || 0) + usage.quantity;
+    usageRows.push({
+      assignmentId,
+      bookingId,
+      technicianId,
+      toolItemId: item.toolId || undefined,
+      inventoryItemId: item.toolId || undefined,
+      itemName: item.name,
+      itemType: "consumable",
+      unit: item.unit || "pcs",
+      quantityUsed: usage.quantity,
+      unitPrice: Number(tool?.costPrice || 0),
+      deductedFromInventory: true,
+      notes: "Actual service usage committed with proof of completion",
+      recordedBy: userId,
+    });
+  }
+
+  await kit.save({ session });
+  await ServiceToolUsage.insertMany(usageRows, { session });
   return { kit, recorded: [...normalized.values()] };
 }
 
@@ -828,4 +1003,12 @@ async function addProjectItemsToDailyKit({ technicianId, projectId, date, items 
   return kit;
 }
 
-module.exports = { dayBounds, syncDailyKit, confirmDailyKit, recordOrderConsumableUsage, addProjectItemsToDailyKit };
+module.exports = {
+  dayBounds,
+  syncDailyKit,
+  confirmDailyKit,
+  dailyKitDepartureReadiness,
+  recordBookingConsumableUsage,
+  recordOrderConsumableUsage,
+  addProjectItemsToDailyKit,
+};

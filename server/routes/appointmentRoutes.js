@@ -33,7 +33,11 @@ const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity")
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
-const { enrichCustomerBooking } = require("../utils/customerBookingPresentation");
+const {
+  enrichCustomerBooking,
+  presentCustomerBooking,
+} = require("../utils/customerBookingPresentation");
+const ratingController = require("../controllers/ratingController");
 const {
   findCompletionProof,
   openCompletionProofDownload,
@@ -56,57 +60,14 @@ router.post("/walk-in/upload-repair-photos", auth.authenticate, auth.requireRole
   res.json({ urls: (req.files || []).map(file => `/uploads/repairs/${file.filename}`) });
 });
 
-// rating endpoint (customer feedback after completion)
-router.post("/:id/rate", auth.authenticate, auth.requireRole("customer"), async (req, res, next) => {
-  try {
-    const BookingService = require("../models/BookingService");
-    const techModel = require("../models/Technician");
-    const { score, comment } = req.body || {};
-    const id = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(id))
-      return res.status(400).json({ error: "invalid booking id" });
-    const booking = await BookingService.findById(id);
-    if (!booking) return res.status(404).json({ error: "not found" });
-    if (String(booking.customerId || "") !== String(req.user._id)) {
-      return res.status(403).json({ error: "You can only rate your own booking" });
-    }
-    if (!["completed", "repair_completed", "closed"].includes(booking.status)) {
-      return res.status(409).json({ error: "Only completed bookings can be rated" });
-    }
-    if (!Number.isFinite(Number(score)) || score < 1 || score > 5) {
-      return res.status(400).json({ error: "score must be 1-5" });
-    }
-    booking.customerRating = Number(score);
-    booking.customerRatingComment = comment || null;
-    await booking.save();
-
-    await audit.logEvent({
-      actor: req.user && req.user._id,
-      target: booking._id,
-      action: "booking.rate",
-      module: "appointments",
-      req,
-      details: { bookingId: id, score: Number(score), comment: comment || "" },
-    });
-
-    // recalc technician average rating
-    if (booking.technicianId) {
-      const stats = await BookingService.aggregate([
-        { $match: { technicianId: booking.technicianId, customerRating: { $exists: true, $ne: null } } },
-        { $group: { _id: "$technicianId", avg: { $avg: "$customerRating" }, count: { $sum: 1 } } },
-      ]);
-      if (stats && stats.length) {
-        await techModel.findByIdAndUpdate(booking.technicianId, {
-          rating: stats[0].avg,
-          ratingCount: stats[0].count,
-        });
-      }
-    }
-    res.json({ booking });
-  } catch (err) {
-    next(err);
-  }
-});
+// Backwards-compatible alias. The rating controller is the single source of
+// truth used by both /api/rating/booking/:id and this legacy endpoint.
+router.post(
+  "/:id/rate",
+  auth.authenticate,
+  auth.requireRole("customer"),
+  ratingController.rateBooking,
+);
 
 // ─── Helper ────────────────────────────────────────────────────────────────
 function generateBookingReference() {
@@ -578,6 +539,7 @@ async function resolveTechnicianRefId(candidateId) {
 router.get("/", auth.authenticate, async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 2000);
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
     const query = {};
 
     // customers see only their own bookings; admin/secretary see all
@@ -605,6 +567,37 @@ router.get("/", auth.authenticate, async (req, res) => {
       query["rescheduleRequest.status"] = req.query.rescheduleRequestStatus;
     }
 
+    const reference = String(req.query.reference || "").trim();
+    if (reference) {
+      if (mongoose.Types.ObjectId.isValid(reference)) {
+        query._id = reference;
+      } else {
+        query.$or = [
+          { bookingReference: reference },
+          { workOrderNumber: reference },
+        ];
+      }
+    } else if (req.query.q) {
+      const rawSearch = String(req.query.q).trim().slice(0, 100);
+      const escaped = rawSearch
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (escaped) {
+        const pattern = new RegExp(escaped, "i");
+        query.$or = [
+          ...(mongoose.Types.ObjectId.isValid(rawSearch) ? [{ _id: rawSearch }] : []),
+          { bookingReference: pattern },
+          { workOrderNumber: pattern },
+          { serviceType: pattern },
+          { "service.name": pattern },
+          { "services.name": pattern },
+          { "services.brand": pattern },
+          { "services.problemDescription": pattern },
+          { "technician.name": pattern },
+          { "location.address": pattern },
+        ];
+      }
+    }
+
     // Calendar consumers request only the visible range. Applying it in MongoDB
     // prevents older records from consuming the result limit and hiding current work.
     try {
@@ -617,10 +610,14 @@ router.get("/", auth.authenticate, async (req, res) => {
       return res.status(400).json({ error: rangeError.message });
     }
 
-    const bookingItems = await BookingService.find(query)
-      .sort({ bookingDate: -1, createdAt: -1 })
-      .limit(limit)
-      .lean();
+    const [bookingItems, total] = await Promise.all([
+      BookingService.find(query)
+        .sort({ bookingDate: -1, createdAt: -1 })
+        .skip(page * limit)
+        .limit(limit)
+        .lean(),
+      BookingService.countDocuments(query),
+    ]);
 
     // enrich each booking with a friendly serviceType string from the snapshot
     for (const b of bookingItems) {
@@ -633,8 +630,20 @@ router.get("/", auth.authenticate, async (req, res) => {
       }
     }
 
-    const items = bookingItems.map(enrichCustomerBooking);
-    return res.json({ items });
+    const presenter = req.user.role === "customer"
+      ? presentCustomerBooking
+      : enrichCustomerBooking;
+    const items = bookingItems.map(presenter);
+    return res.json({
+      items,
+      count: items.length,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
   } catch (err) {
     console.error("GET /api/appointments failed", err && err.message);
     return res.status(500).json({ error: "Failed to load bookings" });
@@ -1257,141 +1266,6 @@ router.post("/create", auth.authenticate, auth.requireRole("customer"), async (r
   } catch (err) {
     console.error("booking create error", err);
     return res.status(500).json({ error: err.message || "could not create" });
-  }
-});
-
-// GET / - list appointments with optional filters
-// ?upcoming=1  => bookings from today onward
-// ?requests=1  => booking requests (status=pending)
-// supports ?limit and ?page
-router.get("/", auth.authenticate, async (req, res) => {
-  try {
-    const q = req.query || {};
-    const limit = Math.min(Math.max(1, Number(q.limit) || 100), 1000);
-    const page = Math.max(0, Number(q.page) || 0);
-
-    const filter = {};
-    const toDayStart = (value) => {
-      const d = new Date(String(value) + "T00:00:00");
-      return Number.isNaN(d.getTime()) ? null : d;
-    };
-
-    const toDayEnd = (value) => {
-      const d = toDayStart(value);
-      if (!d) return null;
-      d.setHours(23, 59, 59, 999);
-      return d;
-    };
-
-    if (q.date) {
-      const ds = toDayStart(q.date);
-      const de = toDayEnd(q.date);
-      if (ds && de) filter.bookingDate = { $gte: ds, $lte: de };
-    }
-
-    if (q.start || q.end) {
-      const existing = filter.bookingDate || {};
-      const ds = q.start ? toDayStart(q.start) : null;
-      const de = q.end ? toDayEnd(q.end) : null;
-      if (ds) existing.$gte = ds;
-      if (de) existing.$lte = de;
-      if (existing.$gte || existing.$lte) filter.bookingDate = existing;
-    }
-
-    if (q.upcoming) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const existing = filter.bookingDate || {};
-      existing.$gte = existing.$gte
-        ? new Date(Math.max(existing.$gte.getTime(), today.getTime()))
-        : today;
-      filter.bookingDate = existing;
-    }
-    if (q.requests) {
-      filter.status = "pending";
-    } else if (q.status && q.status !== "all") {
-      // Support comma-separated status values (e.g. "repair_requested,inspection_scheduled")
-      const statuses = String(q.status).split(',').map(s => s.trim()).filter(Boolean);
-      filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
-    } else {
-      // default listing for main appointments view: exclude pending requests
-      filter.status = { $ne: "pending" };
-    }
-    if (q.technicianId && q.technicianId !== "all") {
-      const techIds = await getTechnicianIdsToMatch(q.technicianId);
-      filter.technicianId = techIds.length ? { $in: techIds } : q.technicianId;
-    }
-
-    // basic text search (customer name/service)
-    if (q.search) {
-      const re = new RegExp(
-        q.search.replace(/[.*+?^${}()|\\[\\]\\\\]/g, ""),
-        "i",
-      );
-      filter.$or = [
-        { bookingReference: re },
-        { serviceType: re },
-        // look in embedded customer snapshot fields – the older code
-        // also handled `customer` string for backwards compatibility
-        { "customer.name": re },
-        { "customer.email": re },
-        { "customer.phone": re },
-        { "service.name": re },
-        { customer: re },
-      ];
-    }
-
-    const sortNewest =
-      String(q.sort || "").toLowerCase() === "newest" ||
-      String(q.order || "").toLowerCase() === "desc" ||
-      String(q.newest || "").toLowerCase() === "1";
-    const sortOrder = sortNewest
-      ? { createdAt: -1, bookingDate: -1, startTime: -1 }
-      : { bookingDate: 1, startTime: 1 };
-
-    let items = [];
-    try {
-      items = await BookingService.find(filter)
-        .sort(sortOrder)
-        .skip(page * limit)
-        .limit(limit)
-        .populate("serviceId") // may fail for legacy docs missing refPath values
-        .populate("technicianId")
-        .lean();
-    } catch (populateErr) {
-      // Fallback for legacy/partial records: return raw docs instead of 500
-      console.warn(
-        "GET /appointments populate fallback:",
-        populateErr && populateErr.message,
-      );
-      items = await BookingService.find(filter)
-        .sort(sortOrder)
-        .skip(page * limit)
-        .limit(limit)
-        .lean();
-    }
-    // insert technicianName for each item so client code can rely on it
-    items = items.map((b) => {
-      if (!b.technicianName) {
-        if (b.technician && b.technician.name) {
-          b.technicianName = b.technician.name;
-        } else if (b.technicianId && typeof b.technicianId === "object") {
-          b.technicianName =
-            b.technicianId.name ||
-            b.technicianId.fullName ||
-            (
-              (b.technicianId.firstName || "") +
-              " " +
-              (b.technicianId.lastName || "")
-            ).trim();
-        }
-      }
-      return b;
-    });
-    return res.json({ items, count: items.length });
-  } catch (err) {
-    console.error("GET /appointments error", err);
-    return res.status(500).json({ error: "Failed to list appointments" });
   }
 });
 
@@ -2479,21 +2353,6 @@ router.get("/:id", auth.authenticate, async (req, res) => {
   }
 });
 
-// GET /:id - single appointment (basic)
-router.get("/:id", auth.authenticate, async (req, res) => {
-  try {
-    const id = req.params.id;
-    const appt = await BookingService.findById(id).populate("serviceId").lean();
-    if (!appt) return res.status(404).json({ error: "Appointment not found" });
-    if (!(await canAccessBooking(req.user, appt))) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-    return res.json({ appointment: appt });
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to load appointment" });
-  }
-});
-
 // Approve appointment (admin/secretary)
 router.post(
   "/:id/approve",
@@ -2831,6 +2690,10 @@ router.post(
         return res.status(403).json({ error: "You can only request reschedule for your own appointments" });
       }
 
+      const isProjectRequest = Boolean(
+        req.body.isProject || appt.isProject || appt.projectScheduling,
+      );
+
       // Only allow reschedule requests for confirmed/scheduled/pending/inspection appointments
       const eligibleStatuses = ["confirmed", "scheduled", "pending", "inspection_scheduled", "awaiting_approval"];
       if (!eligibleStatuses.includes(appt.status)) {
@@ -2838,32 +2701,40 @@ router.post(
       }
 
       // Validate required fields
-      if (!finalDate || !finalTime || !reason) {
-        return res.status(400).json({ error: "New date, time, and reason are required" });
+      if (!finalDate || (!isProjectRequest && !finalTime) || !String(reason || "").trim()) {
+        return res.status(400).json({
+          error: isProjectRequest
+            ? "New start date and reason are required"
+            : "New date, time, and reason are required",
+        });
       }
 
       // Check for scheduling conflicts
-      const requestedStart = finalTime;
-      const hasConflict = await BookingService.findOne({
-        _id: { $ne: appt._id },
-        bookingDate: finalDate,
-        startTime: requestedStart,
-        status: { $in: ["confirmed", "scheduled", "in-progress", "en-route", "on-the-way"] },
-      });
-      if (hasConflict) {
-        return res.status(409).json({ error: "The selected time slot is already booked. Please choose a different time." });
+      if (!isProjectRequest) {
+        const hasConflict = await BookingService.findOne({
+          _id: { $ne: appt._id },
+          bookingDate: finalDate,
+          startTime: finalTime,
+          status: { $in: ["confirmed", "scheduled", "in-progress", "en-route", "on-the-way"] },
+        });
+        if (hasConflict) {
+          return res.status(409).json({ error: "The selected time slot is already booked. Please choose a different time." });
+        }
       }
 
       // Store reschedule request
       appt.rescheduleRequest = {
         requested: true,
         requestedDate: finalDate,
-        requestedTime: finalTime,
+        requestedTime: isProjectRequest ? "" : finalTime,
         reason: reason,
         requestedBy: req.user._id,
         requestedAt: new Date(),
         status: "pending" // pending, approved, rejected
       };
+      const requestedTimeLabel = isProjectRequest
+        ? "Operations scheduling"
+        : finalTime;
 
       await appt.save();
 
@@ -2879,7 +2750,7 @@ router.post(
             currentDate: appt.bookingDate,
             currentTime: appt.startTime,
             requestedDate: finalDate,
-            requestedTime: finalTime,
+            requestedTime: requestedTimeLabel,
             reason,
             message: `Customer requested reschedule for ${appt.bookingReference || "booking"}`,
             timestamp: Date.now(),
@@ -2908,7 +2779,7 @@ router.post(
               currentDate: dateLabel,
               currentTime: appt.startTime || "TBD",
               requestedDate: finalDate,
-              requestedTime: finalTime,
+              requestedTime: requestedTimeLabel,
               reason,
             }).catch(err => console.error("[MAILER] Failed to send reschedule request email:", err.message));
           }
@@ -2927,7 +2798,8 @@ router.post(
         details: {
           appointmentId: id,
           requestedDate: finalDate,
-          requestedTime: finalTime,
+          requestedTime: isProjectRequest ? null : finalTime,
+          isProject: isProjectRequest,
           reason
         },
       });
@@ -2963,37 +2835,46 @@ router.post(
 
       const newDate = appt.rescheduleRequest.requestedDate;
       const newTime = appt.rescheduleRequest.requestedTime;
+      const isProjectReschedule = Boolean(appt.isProject || appt.projectScheduling);
+      const newTimeLabel = isProjectReschedule
+        ? "Operations scheduling"
+        : newTime;
 
       // Guard against double-booking before committing the requested slot.
-      const rwStartMin = parseTimeValue(newTime);
-      if (!Number.isFinite(rwStartMin)) {
-        return res.status(400).json({ error: 'Invalid requested time format' });
-      }
-      const rwEndMin = rwStartMin + (Number(appt.serviceDurationMinutes) || 90);
-      try {
-        await assertCompanyCapacity(new Date(newDate), rwStartMin, rwEndMin, appt._id);
-      } catch (capErr) {
-        return res.status(409).json({ error: capErr.message });
+      if (!isProjectReschedule) {
+        const rwStartMin = parseTimeValue(newTime);
+        if (!Number.isFinite(rwStartMin)) {
+          return res.status(400).json({ error: 'Invalid requested time format' });
+        }
+        const rwEndMin = rwStartMin + (Number(appt.serviceDurationMinutes) || 90);
+        try {
+          await assertCompanyCapacity(new Date(newDate), rwStartMin, rwEndMin, appt._id);
+        } catch (capErr) {
+          return res.status(409).json({ error: capErr.message });
+        }
       }
 
       // Update appointment with new date/time
       appt.bookingDate = new Date(newDate);
-      appt.startTime = newTime;
+      if (!isProjectReschedule) appt.startTime = newTime;
 
       // Update reschedule request status
       appt.rescheduleRequest.status = "approved";
       appt.rescheduleRequest.processedBy = req.user._id;
       appt.rescheduleRequest.processedAt = new Date();
 
-      // Move to assignment queue so admin can assign a technician
-      appt.status = "awaiting_assignment";
+      // Projects return to Operations planning; ordinary visits return to the
+      // assignment queue for technician selection.
+      appt.status = isProjectReschedule
+        ? BookingStatus.PENDING_PROJECT_SCHEDULING
+        : BookingStatus.AWAITING_ASSIGNMENT;
       appt.rescheduleReason = appt.rescheduleRequest.reason;
 
       // Push status history
       if (!appt.statusHistory) appt.statusHistory = [];
       appt.statusHistory.push({
-        status: "awaiting_assignment",
-        message: `Rescheduled to ${newDate} at ${newTime}`,
+        status: appt.status,
+        message: `Rescheduled to ${newDate}${isProjectReschedule ? " for Operations scheduling" : ` at ${newTime}`}`,
         date: new Date(),
         by: req.user.firstName || req.user.name || "Admin",
       });
@@ -3003,7 +2884,7 @@ router.post(
       // -- Update linked Assignment(s) -------------------------------------------
       const Assignment = require("../models/Assignment");
       try {
-        const activeAssignment = await Assignment.findOne({
+        const activeAssignment = !isProjectReschedule && await Assignment.findOne({
           bookingId: appt._id,
           status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site"] },
         });
@@ -3054,8 +2935,8 @@ router.post(
               bookingId: appt._id,
               bookingRef: appt.bookingReference,
               newDate: newDate,
-              newTime: newTime,
-              message: `Your reschedule request has been approved. New date: ${newDate} at ${newTime}`,
+              newTime: newTimeLabel,
+              message: `Your reschedule request has been approved. New date: ${newDate}${isProjectReschedule ? "; Operations will confirm the detailed plan" : ` at ${newTime}`}`,
               timestamp: Date.now(),
             });
           }
@@ -3064,7 +2945,7 @@ router.post(
             bookingId: appt._id,
             bookingRef: appt.bookingReference,
             newDate: newDate,
-            newTime: newTime,
+            newTime: newTimeLabel,
             timestamp: Date.now(),
           });
         }
@@ -3098,7 +2979,7 @@ router.post(
             bookingReference: appt.bookingReference || `#${String(appt._id).slice(-6).toUpperCase()}`,
             serviceName: appt.serviceName || appt.service?.name || "Service",
             newDate: dateLabel,
-            newTime: newTime,
+            newTime: newTimeLabel,
           }).catch(err => console.error("[MAILER] Failed to send reschedule approved email:", err.message));
         }
       } catch (mailErr) {
@@ -3115,7 +2996,8 @@ router.post(
         details: {
           appointmentId: id,
           newDate: newDate,
-          newTime: newTime,
+          newTime: isProjectReschedule ? null : newTime,
+          isProject: isProjectReschedule,
         },
       });
 

@@ -61,6 +61,32 @@ const TECHNICIAN_ACTIVE_ORDER_STATUSES = [
   "installing",
 ];
 
+const FINAL_COLLECTION_PAYMENT_METHODS = new Set(["cod", "cash", "cash_onsite", "gcash_downpayment"]);
+const COLLECTED_FINAL_PAYMENT_STATUSES = ["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid", "unaccounted"];
+
+function money(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+async function outstandingOrderBalance(order) {
+  const storedBalance = Number(order.balanceAmount ?? order.total ?? 0);
+  if (!Number.isFinite(storedBalance)) return 0;
+  const finalPayments = await Payment.find({
+    orderId: order._id,
+    type: "final",
+    status: { $in: COLLECTED_FINAL_PAYMENT_STATUSES },
+  }).select("amount").lean();
+  const alreadyCollected = finalPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  if (storedBalance <= 0) {
+    if (alreadyCollected > 0 || order.paymentStatus === "paid") return 0;
+    const total = Number(order.total || 0);
+    return order.paymentMethod === "cod"
+      ? calculatePaymentBreakdown(total, order.downpaymentPercentage).balanceAmount
+      : Math.max(0, money(total));
+  }
+  return Math.max(0, money(storedBalance - alreadyCollected));
+}
+
 function withPayableOrderPricing(order) {
   if (!order || typeof order !== "object") return order;
   const subtotal = Array.isArray(order.items) && order.items.length
@@ -73,7 +99,11 @@ function withPayableOrderPricing(order) {
     const breakdown = calculatePaymentBreakdown(total, order.downpaymentPercentage);
     priced.downpaymentPercentage = breakdown.downpaymentPercentage;
     priced.downpaymentAmount = breakdown.downpaymentAmount;
-    priced.balanceAmount = breakdown.balanceAmount;
+    const storedBalance = Number(order.balanceAmount);
+    priced.balanceAmount = ["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid"].includes(order.paymentStatus)
+      && Number.isFinite(storedBalance)
+      ? Math.max(0, storedBalance)
+      : breakdown.balanceAmount;
   } else if (order.paymentMethod === "gcash_full") {
     priced.downpaymentPercentage = 100;
     priced.downpaymentAmount = total;
@@ -1489,6 +1519,19 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     if (status === "completed" && !validFieldProof(completionProofUrl)) {
       return res.status(400).json({ error: "A valid proof-of-completion photo is required.", code: "COMPLETION_PROOF_REQUIRED" });
     }
+    if (status === "completed" && FINAL_COLLECTION_PAYMENT_METHODS.has(order.paymentMethod)) {
+      const balanceDue = await outstandingOrderBalance(order);
+      if (balanceDue > 0) {
+        return res.status(409).json({
+          error: `Collect the remaining PHP ${balanceDue.toFixed(2)} before completing this order.`,
+          code: "ORDER_BALANCE_REQUIRED",
+          balanceDue,
+        });
+      }
+      // Self-heal legacy orders whose final payment was recorded without
+      // reducing the denormalized balance field.
+      order.balanceAmount = 0;
+    }
 
     const wasCancelled = status === "cancelled" && order.status !== "cancelled";
     const wasCompleted = status === "completed" && order.status !== "completed";
@@ -1632,30 +1675,65 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
     if (!["arrived", "installing", "completed"].includes(order.status)) {
       return res.status(400).json({ error: "Payment can only be collected at customer handover." });
     }
-    if (["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid"].includes(order.paymentStatus)) {
-      return res.status(409).json({ error: "This order already has a completed or pending final collection." });
-    }
     const { amount, method = "cash", reference, proofUrl, customerSignature, notes, location } = req.body || {};
     const paymentMethod = String(method).toLowerCase();
     const value = Number(amount);
     if (!["cash", "gcash", "bank"].includes(paymentMethod)) return res.status(400).json({ error: "Invalid payment method." });
-    const amountDue = Number(order.balanceAmount || order.total || 0);
-    if (!Number.isFinite(value) || value <= 0 || value > amountDue) return res.status(400).json({ error: "Invalid amount collected." });
+    const amountDue = await outstandingOrderBalance(order);
+    if (amountDue <= 0) {
+      return res.status(409).json({ error: "This order has no outstanding final balance." });
+    }
+    if (!Number.isFinite(value) || money(value) !== amountDue) {
+      return res.status(400).json({
+        error: `The full outstanding balance of PHP ${amountDue.toFixed(2)} must be collected.`,
+        code: "ORDER_FINAL_AMOUNT_MISMATCH",
+        balanceDue: amountDue,
+      });
+    }
     if (!customerSignature) return res.status(400).json({ error: "Customer signature is required." });
     if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
     const now = new Date();
-    const payment = await Payment.create({
+    const payment = new Payment({
       orderId: order._id, amount: value, method: paymentMethod,
-      type: order.paymentStatus === "partial" ? "final" : (value < Number(order.total || 0) ? "downpayment" : "final"),
+      type: "final",
       gateway: paymentMethod === "cash" ? "cod" : paymentMethod, status: "waiting_for_remittance",
       reference: String(reference || "").trim() || undefined, proofUrl: proofUrl || undefined, customerSignature,
       collectedBy: tech._id, collectedByName: tech.name, collectedAt: now, collectionLocation: location || undefined, notes,
       events: [{ status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now, metadata: { method: paymentMethod } }, { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }]
     });
-    order.paymentStatus = "waiting_for_remittance";
-    order.paymentId = payment._id;
-    order.pushStatus(order.status, `Payment collected by ${tech.name}; waiting for remittance verification.`, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
-    await order.save();
+    // Claim the outstanding balance before recording the ledger row. The
+    // version predicate prevents two devices from collecting it concurrently.
+    const claimedOrder = await Order.findOneAndUpdate({
+      _id: order._id,
+      __v: order.__v,
+      balanceAmount: order.balanceAmount,
+    }, {
+      $set: {
+        paymentStatus: "waiting_for_remittance",
+        paymentId: payment._id,
+        balanceAmount: 0,
+      },
+      $inc: { __v: 1 },
+    }, { returnDocument: "after" });
+    if (!claimedOrder) {
+      return res.status(409).json({ error: "The order payment changed on another device. Refresh before collecting again." });
+    }
+    try {
+      await payment.save();
+    } catch (paymentError) {
+      await Order.updateOne({ _id: order._id, paymentId: payment._id }, {
+        $set: {
+          paymentStatus: order.paymentStatus,
+          paymentId: order.paymentId || null,
+          balanceAmount: order.balanceAmount,
+        },
+      }).catch(() => {});
+      throw paymentError;
+    }
+    claimedOrder.pushStatus(claimedOrder.status, `Payment collected by ${tech.name}; waiting for remittance verification.`, { actor: req.user && req.user._id, actorRole: req.user && req.user.role, actorName: (req.user && (req.user.name || req.user.email)) || 'System' });
+    await claimedOrder.save().catch((historyError) => {
+      console.warn("[orders] Payment was recorded but the status note could not be appended:", historyError.message);
+    });
     res.status(201).json({ message: "Payment recorded. Waiting for admin remittance verification.", paymentId: payment._id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
