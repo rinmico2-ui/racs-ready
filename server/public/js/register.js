@@ -14,6 +14,39 @@
   var pendingVerificationEmail = '';
   var resendTimer = null;
 
+  function removeFieldError(input) {
+    if (!input) return;
+    input.classList.remove('error', 'auth-input-error');
+    input.removeAttribute('aria-invalid');
+    var field = input.closest('.auth-field') || input.closest('.auth-security') || input.parentElement;
+    var existing = field && field.querySelector('.field-error');
+    if (existing) existing.remove();
+  }
+
+  function showFieldError(input, message) {
+    if (!input) return;
+    removeFieldError(input);
+    input.classList.add('error');
+    input.setAttribute('aria-invalid', 'true');
+    var field = input.closest('.auth-field') || input.closest('.auth-security') || input.parentElement;
+    var error = document.createElement('div');
+    error.className = 'field-error';
+    error.setAttribute('role', 'alert');
+    error.innerHTML = '<i class="bi bi-exclamation-circle" aria-hidden="true"></i> ';
+    error.appendChild(document.createTextNode(message));
+    if (field) field.appendChild(error);
+  }
+
+  function clearFieldErrors() {
+    form.querySelectorAll('.field-error').forEach(function (el) { el.remove(); });
+    form.querySelectorAll('.error, .auth-input-error').forEach(function (el) {
+      el.classList.remove('error', 'auth-input-error');
+      el.removeAttribute('aria-invalid');
+    });
+    var termsLabel = document.querySelector('.auth-terms');
+    if (termsLabel) termsLabel.classList.remove('auth-check-error');
+  }
+
   function startVerificationCooldown(seconds) {
     if (!resendOtpBtn) return;
     if (resendTimer) clearInterval(resendTimer);
@@ -230,13 +263,24 @@
       var met = false;
       if (rule === 'letter') met = /[A-Z]/.test(pwd);
       else if (rule === 'digitOrSpecial') met = /[0-9@!#$]/.test(pwd);
-      else if (rule === 'length') met = pwd.length >= 10;
+      else if (rule === 'length') met = pwd.length >= 8 && pwd.length <= 30;
       li.classList.toggle('met', met);
       var ico = li.querySelector('i');
       if (ico) {
         ico.className = met ? 'bi bi-check-circle-fill text-success' : 'bi bi-circle';
       }
     });
+
+    var strengthFill = document.getElementById('register-strength-fill');
+    if (strengthFill) {
+      var score = 0;
+      if (pwd.length >= 8) score += 1;
+      if (/[A-Z]/.test(pwd)) score += 1;
+      if (/[0-9]/.test(pwd)) score += 1;
+      if (/[@!#$]/.test(pwd)) score += 1;
+      strengthFill.style.width = pwd ? (score * 25) + '%' : '0';
+      strengthFill.style.background = score <= 1 ? '#d92d3f' : (score <= 2 ? '#d98a18' : '#168653');
+    }
   }
 
   function updateIndicators() {
@@ -255,6 +299,20 @@
       }
     }
 
+    var matchHint = document.getElementById('passwordMatchHint');
+    if (matchHint) {
+      if (!conf) {
+        matchHint.textContent = 'Both passwords must match.';
+        matchHint.style.color = '';
+      } else if (pwd === conf && ok) {
+        matchHint.textContent = 'Passwords match.';
+        matchHint.style.color = '#168653';
+      } else {
+        matchHint.textContent = 'Passwords do not match.';
+        matchHint.style.color = '#d92d3f';
+      }
+    }
+
     if (validityIndicator) {
       if (pwd.length > 0) {
         validityIndicator.classList.remove('d-none');
@@ -270,9 +328,31 @@
   // Initial state
   updateSuggestions();
 
+  form.querySelectorAll('input, select').forEach(function (input) {
+    input.addEventListener('input', function () { removeFieldError(input); });
+    input.addEventListener('change', function () { removeFieldError(input); });
+  });
+  var termsCheckbox = document.getElementById('register-terms');
+  if (termsCheckbox) {
+    termsCheckbox.addEventListener('change', function () {
+      var termsLabel = document.querySelector('.auth-terms');
+      if (termsLabel) termsLabel.classList.remove('auth-check-error');
+    });
+  }
+
+  var registerEmailField = document.getElementById('register-email');
+  if (registerEmailField) {
+    registerEmailField.addEventListener('blur', function () {
+      var value = this.value.trim();
+      if (value && !window.authUtils.validateEmail(value)) showFieldError(this, 'Enter a valid email address.');
+    });
+  }
+
   // --- Form Submit ---
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
+
+    clearFieldErrors();
 
     var formData = new FormData(form);
     var email = formData.get('email') || '';
@@ -288,51 +368,87 @@
     var mathCaptcha = formData.get('mathCaptcha') || '';
     var mathAnswer = formData.get('mathAnswer') || '';
     var csrfToken = formData.get('csrfToken') || '';
+    var termsAccepted = document.getElementById('register-terms');
 
     // Validation
-    if (!firstName || !lastName || !phone || !addressProvince || !addressCity || !addressPostal || !email || !password || !confirm || !mathCaptcha) {
-      return window.authUtils.swalError('Missing information', 'Please complete all required fields.');
-    }
+    var requiredFields = [
+      ['register-firstName', firstName, 'First name is required.'],
+      ['register-lastName', lastName, 'Last name is required.'],
+      ['register-email', email, 'Email address is required.'],
+      ['register-phone', phone, 'Phone number is required.'],
+      ['register-addressProvince', addressProvince, 'Province is required.'],
+      ['register-addressCity', addressCity, 'City or municipality is required.'],
+      ['register-addressPostal', addressPostal, 'Postal code is required.'],
+      ['register-password', password, 'Password is required.'],
+      ['register-confirm', confirm, 'Please confirm your password.'],
+      ['register-math', mathCaptcha, 'Complete the security check.']
+    ];
+    var firstInvalid = null;
+    requiredFields.forEach(function (item) {
+      if (!String(item[1] || '').trim()) {
+        var input = document.getElementById(item[0]);
+        showFieldError(input, item[2]);
+        if (!firstInvalid) firstInvalid = input;
+      }
+    });
+    if (firstInvalid) { firstInvalid.focus(); return; }
 
     if (!/^\d{1,3}$/.test(mathCaptcha)) {
-      return window.authUtils.swalError('Invalid captcha', 'Captcha must be a 1-3 digit number.');
+      showFieldError(document.getElementById('register-math'), 'Enter the answer as a number.');
+      return document.getElementById('register-math').focus();
     }
 
     if (!/^[A-Za-z\s]{1,20}$/.test(firstName)) {
-      return window.authUtils.swalError('Invalid first name', 'First name must be letters only and maximum 20 characters.');
+      showFieldError(document.getElementById('register-firstName'), 'Use letters only, up to 20 characters.');
+      return document.getElementById('register-firstName').focus();
     }
 
     if (!/^[A-Za-z\s]{1,20}$/.test(lastName)) {
-      return window.authUtils.swalError('Invalid last name', 'Last name must be letters only and maximum 20 characters.');
+      showFieldError(document.getElementById('register-lastName'), 'Use letters only, up to 20 characters.');
+      return document.getElementById('register-lastName').focus();
     }
 
     var phoneDigits = String(phone).replace(/\D+/g, '');
     if (!/^(?:0\d{10}|63\d{10}|9\d{9})$/.test(phoneDigits)) {
-      return window.authUtils.swalError('Invalid phone', 'Phone must be a Philippine mobile number (e.g. 09XXXXXXXXX).');
+      showFieldError(document.getElementById('register-phone'), 'Enter a valid Philippine mobile number.');
+      return document.getElementById('register-phone').focus();
     }
 
     if (email.length > 254) {
-      return window.authUtils.swalError('Invalid email', 'Email cannot exceed 254 characters.');
+      showFieldError(registerEmailField, 'Email cannot exceed 254 characters.');
+      return registerEmailField.focus();
     }
 
     if (!window.authUtils.validateEmail(email)) {
-      return window.authUtils.swalError('Invalid email', 'Please provide a valid email address.');
+      showFieldError(registerEmailField, 'Enter a valid email address.');
+      return registerEmailField.focus();
     }
 
     if (password.length < 8) {
-      return window.authUtils.swalError('Weak password', 'Password must be at least 8 characters long.');
+      showFieldError(passField, 'Use at least 8 characters.');
+      return passField.focus();
     }
 
     if (password.length > 30) {
-      return window.authUtils.swalError('Password too long', 'Password cannot exceed 30 characters.');
+      showFieldError(passField, 'Password cannot exceed 30 characters.');
+      return passField.focus();
     }
 
     if (!/^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,30}$/.test(password)) {
-      return window.authUtils.swalError('Invalid password', 'Password must be 8-30 characters with letters, numbers, and at least one uppercase letter.');
+      showFieldError(passField, 'Include one uppercase letter and a number or symbol.');
+      return passField.focus();
     }
 
     if (password !== confirm) {
-      return window.authUtils.swalError('Passwords do not match', 'Please ensure both password fields match.');
+      showFieldError(confirmField, 'Passwords do not match.');
+      return confirmField.focus();
+    }
+
+    if (!termsAccepted || !termsAccepted.checked) {
+      var termsLabel = document.querySelector('.auth-terms');
+      if (termsLabel) termsLabel.classList.add('auth-check-error');
+      if (termsAccepted) termsAccepted.focus();
+      return window.authUtils.swalError('Agreement required', 'Please agree to the Terms and Conditions to create your account.');
     }
 
     // Loading
@@ -378,6 +494,9 @@
           res.status === 429 ? 'Verification pending' : 'Email not sent',
           body.error || 'Use Resend code to try again.'
         );
+      } else if (res.status === 409) {
+        showFieldError(registerEmailField, body && body.error ? body.error : 'An account already uses this email.');
+        registerEmailField.focus();
       } else if (res.status === 429) {
         window.authUtils.swalError('Too many attempts', 'Please wait a short while and try again.', { reload: true });
       } else {

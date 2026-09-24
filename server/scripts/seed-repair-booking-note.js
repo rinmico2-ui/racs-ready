@@ -13,7 +13,7 @@ const BOOKING_DATE = new Date();
 BOOKING_DATE.setHours(0, 0, 0, 0);
 
 const BOOKING_NOTE =
-  "Booking note: Customer reports unit not cooling since yesterday. Please bring gauges, spare capacitor, and arrive at 8 AM — customer available in the morning only.";
+  "Booking note: Customer reports unit not cooling since yesterday. Please bring gauges, spare capacitor, and arrive at 10 AM — customer available in the morning only.";
 
 const REPAIR = {
   unitCategory: "aircon",
@@ -28,8 +28,8 @@ const REPAIR = {
   address: "123 Rizal Ave, Makati City",
   lat: 14.5547,
   lng: 121.05,
-  startTime: "08:00",
-  endTime: "09:00",
+  startTime: "10:00",
+  endTime: "11:00",
   servicePrice: 1500,
 };
 
@@ -87,6 +87,8 @@ async function run() {
   });
 
   if (existing) {
+    const newRef = genBookingRef();
+    existing.bookingReference = newRef;
     existing.bookingDate = BOOKING_DATE;
     existing.preferredDate = BOOKING_DATE;
     existing.preferredTime = REPAIR.startTime;

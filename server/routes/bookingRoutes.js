@@ -109,8 +109,6 @@ router.post('/create', async (req, res) => {
     // For testing: if no user session, log warning but allow booking
     if (!userId) {
       console.warn('⚠️ No user session found - this should not happen in production');
-      console.warn('User data:', req.user);
-      
       // Try to get from session in different ways
       userId = req.session?.user?._id || req.session?.passport?.user;
       

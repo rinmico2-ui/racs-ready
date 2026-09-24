@@ -35,6 +35,13 @@ const { assertTechnicianSubmission, normalizeLocation } = require('../utils/remi
 const trustedDevices = require('../utils/trustedDevices');
 const { deleteCompletionProof, storeCompletionProof } = require('../utils/completionProofStorage');
 const {
+  TECHNICIAN_BOOKING_EXCLUDE_SELECT,
+  presentTechnicianApiPayload,
+  presentTechnicianBooking,
+  presentTechnicianPayment,
+} = require('../utils/technicianDataPresentation');
+const { grantPrivateUploads } = require('../middleware/privateUploadAccess');
+const {
   verifyAttendanceChallenge,
   verifyAttendanceLocation,
   requestMetadata,
@@ -186,6 +193,11 @@ async function loadTechnicianContext(userId) {
 // ── Auth guards ───────────────────────────────────────────────────────────────
 router.use(auth.authenticate);
 router.use(auth.requireRole("technician"));
+router.use((req, res, next) => {
+  const sendJson = res.json.bind(res);
+  res.json = (payload) => sendJson(presentTechnicianApiPayload(payload));
+  next();
+});
 
 // Warranty inspections mirror the core-service field lifecycle.
 router.get("/warranty-claims", async (req, res, next) => {
@@ -197,7 +209,7 @@ router.get("/warranty-claims", async (req, res, next) => {
     const filter = { assignedTechnicianId: technician._id };
     if (String(req.query.active || "true") !== "false") filter.active = true;
     const claims = await WarrantyClaim.find(filter)
-      .populate("customerId", "name phone email address")
+      .populate("customerId", "name phone address")
       .sort({ "inspection.scheduledDate": 1, priority: 1, submittedAt: 1 })
       .lean();
     return res.json({ claims });
@@ -1124,14 +1136,14 @@ router.get("/appointments/:id", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const booking = await BookingService.findById(id)
-      .select("status quotation inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod repairPaymentProof customerRating customerRatingComment service serviceId address completedAt")
+      .select("status quotation inspection diagnosis serviceType services workOrderNumber bookingReference bookingDate startTime endTime customer.name customer.phone customer.address location technicianId unitInfo technicianAssistant partsRequest preventiveMaintenance previousRepairs warranty repairCompletion paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice totalInitialCost estimatedFee initialCost servicePrice travelFare inspectionFeeCollected inspectionFeeAmount inspectionFeeDistanceFare inspectionFeeTotalCollected downpaymentAppliedToInspection coreServicePaymentCollected coreServicePaymentAmount coreServicePaymentCashCollected coreServicePaymentMethod coreServicePaymentCollectedAt repairPaymentCollected repairPaymentAmount repairPaymentMethod customerRating customerRatingComment service serviceId address completedAt")
       .lean();
     if (!booking) return res.status(404).json({ error: "Appointment not found" });
     if (!technicianIds.includes(String(booking.technicianId || ""))) {
       return res.status(403).json({ error: "You are not assigned to this appointment" });
     }
 
-    return res.json({ booking });
+    return res.json({ booking: presentTechnicianBooking(booking) });
   } catch (err) {
     next(err);
   }
@@ -1158,10 +1170,11 @@ router.get("/bookings/:id/payments", async (req, res, next) => {
     }
 
     const payments = await Payment.find({ bookingId: id })
+      .select("_id amount method type status collectedByName collectedAt submittedAt verifiedAt completedAt refundAmount refundStatus")
       .sort({ collectedAt: 1, submittedAt: 1 })
       .lean();
 
-    return res.json({ payments });
+    return res.json({ payments: payments.map(presentTechnicianPayment) });
   } catch (err) {
     next(err);
   }
@@ -2457,7 +2470,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
       .sort({ updatedAt: -1 })
       .limit(20)
       .select("status serviceType unitInfo customerId technicianId quotation approval repairSchedule inspection preferredSchedule preferredTimeWindow createdAt updatedAt")
-      .populate("customerId", "name email phone")
+      .populate("customerId", "name phone")
       .lean();
 
     // Also get the inspection technician's bookings (if this tech was the original inspector)
@@ -2470,7 +2483,7 @@ router.get("/dashboard/overview", async (req, res, next) => {
       .sort({ updatedAt: -1 })
       .limit(10)
       .select("status serviceType unitInfo customerId technicianId quotation approval repairSchedule inspection preferredSchedule preferredTimeWindow createdAt updatedAt")
-      .populate("customerId", "name email phone")
+      .populate("customerId", "name phone")
       .lean();
 
     // Merge and deduplicate
@@ -2524,7 +2537,6 @@ router.get("/dashboard/overview", async (req, res, next) => {
           _id: b._id,
           bookingId: b._id,
           customerName: b.customerId?.name || "Customer",
-          customerEmail: b.customerId?.email || "",
           customerPhone: b.customerId?.phone || "",
           serviceName: "Repair Service",
           serviceType: "repair",
@@ -2930,7 +2942,7 @@ router.get("/assignments", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const bookingIds = items.map(a => a.bookingId).filter(Boolean);
     const bookings = await BookingService.find({ _id: { $in: bookingIds } })
-      .select("bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer unitInfo")
+      .select("bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo")
       .lean();
     const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
     for (const item of items) {
@@ -3009,7 +3021,6 @@ router.get("/assignments", async (req, res, next) => {
         };
         if (bk.customer && !item.customerPhone) {
           item.customerPhone = bk.customer.phone || item.customerPhone;
-          item.customerEmail = bk.customer.email || item.customerEmail;
         }
       }
     }
@@ -3018,6 +3029,7 @@ router.get("/assignments", async (req, res, next) => {
     // surface. Cards and detail actions must not independently disagree about
     // whether an unstarted visit can still begin.
     for (const item of items) {
+      delete item.customerEmail;
       item.scheduleMissed = assertNotMissedSchedule(item);
     }
 
@@ -3046,7 +3058,7 @@ router.get("/assignments/:id", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id })
-      .populate("bookingId")
+      .populate({ path: "bookingId", select: TECHNICIAN_BOOKING_EXCLUDE_SELECT })
       .lean();
 
     if (!assignment) return res.status(404).json({ error: "Assignment not found" });
@@ -3109,7 +3121,6 @@ router.get("/assignments/:id", async (req, res, next) => {
       };
       if (bk.customer && !assignment.customerPhone) {
         assignment.customerPhone = bk.customer.phone || assignment.customerPhone;
-        assignment.customerEmail = bk.customer.email || assignment.customerEmail;
       }
       // Quantity — resolve from booking, multi-service, repair unit, or default 1
       if (bk.quantity != null) assignment.quantity = bk.quantity;
@@ -3123,6 +3134,10 @@ router.get("/assignments/:id", async (req, res, next) => {
       }
     }
 
+    if (assignment.bookingId && typeof assignment.bookingId === "object") {
+      assignment.bookingId = presentTechnicianBooking(assignment.bookingId);
+    }
+    delete assignment.customerEmail;
     assignment.scheduleMissed = assertNotMissedSchedule(assignment);
     return res.json({ assignment, techLocation: tech.location });
   } catch (err) {
@@ -5486,6 +5501,7 @@ router.get("/available-jobs", async (req, res, next) => {
       status: "pending_reassignment",
       bookingDate: { $gte: today },
     })
+      .select("bookingReference isMultiService services.name service.name bookingDate startTime estimatedFee totalPrice travelFare priority")
       .sort({ bookingDate: 1 })
       .limit(50)
       .lean();
@@ -5505,11 +5521,11 @@ router.get("/available-jobs", async (req, res, next) => {
     const items = eligible.map(b => ({
       _id: b._id,
       bookingReference: b.bookingReference || `#${String(b._id).slice(-6).toUpperCase()}`,
-      customerName: b.customer?.name || b.customerName || "Customer",
+      customerName: "Customer",
       serviceName: b.isMultiService && Array.isArray(b.services) && b.services.length > 0 ? b.services.map(s => s.name).join(', ') : (b.service?.name || "Service"),
       bookingDate: b.bookingDate,
       startTime: b.startTime,
-      address: b.location?.address || "",
+      address: "Shared after acceptance",
       estimatedFee: b.estimatedFee || b.totalPrice || 0,
       travelFare: b.travelFare || 0,
       priority: b.priority || "normal",
@@ -6235,13 +6251,26 @@ router.post("/appointments/:id/update-cost", async (req, res, next) => {
 router.get("/tracking/customers", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
+    const Assignment = require("../models/Assignment");
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: "Technician record not found" });
+
+    const assignmentBookingIds = await Assignment.find({
+      technicianId: tech._id,
+      status: { $nin: ["declined", "cancelled", "expired"] },
+    }).distinct("bookingId");
 
     const bookings = await BookingService.find({
       status: { $in: ["confirmed", "on-the-way", "arrived", "in-progress", "scheduled"] },
       "location.lat": { $exists: true, $ne: null },
       "location.lng": { $exists: true, $ne: null },
+      $or: [
+        { technicianId: { $in: technicianIds } },
+        { "services.technicianId": { $in: technicianIds } },
+        { _id: { $in: assignmentBookingIds } },
+      ],
     })
-      .select("customerName customer serviceId service status bookingDate startTime location bookingReference")
+      .select("customerName customer.name serviceId service status bookingDate startTime location bookingReference")
       .populate("serviceId", "name title")
       .sort({ bookingDate: -1 })
       .lean();
@@ -6260,7 +6289,6 @@ router.get("/tracking/customers", async (req, res, next) => {
         bookingDate: b.bookingDate,
         startTime: b.startTime,
         bookingReference: b.bookingReference,
-        technicianId: b.technicianId ? String(b.technicianId) : null,
       };
     });
 
@@ -7160,6 +7188,7 @@ router.post("/appointments/upload-repair-photos", (req, res, next) => {
   repairPhotoUpload(req, res, (err) => {
     if (err) return res.status(400).json({ error: "Photo upload failed: " + err.message });
     const urls = req.files.map(f => "/uploads/repair-photos/" + f.filename);
+    grantPrivateUploads(req, urls);
     return res.json({ urls });
   });
 });
@@ -9221,7 +9250,9 @@ router.post("/appointments/:id/upload-proof", (req, res, next) => {
   repairProofUpload(req, res, (err) => {
     if (err) return res.status(400).json({ error: 'Upload failed: ' + err.message });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    res.json({ url: '/uploads/proofs/' + req.file.filename });
+    const url = '/uploads/proofs/' + req.file.filename;
+    grantPrivateUploads(req, url);
+    res.json({ url });
   });
 });
 

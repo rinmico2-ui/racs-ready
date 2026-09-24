@@ -16,8 +16,9 @@ const dns = require("dns");
 const rateLimit = require("express-rate-limit");
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
+const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
-const { buildMongoConnectionUri } = require("./utils/mongoConnection");
+const { buildMongoConnectionUri, isTlsProtectedMongoUri } = require("./utils/mongoConnection");
 
 // Apply address ordering before any outbound connection is created.
 dns.setDefaultResultOrder("ipv4first");
@@ -50,6 +51,9 @@ const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
   authSource: process.env.MONGODB_AUTH_SOURCE,
 });
 const MONGODB_URI = mongoConnection.uri;
+if (process.env.NODE_ENV === "production" && !isTlsProtectedMongoUri(MONGODB_URI)) {
+  throw new Error("Production MongoDB connections must enable TLS");
+}
 
 // Never write database credentials from the connection URI to application logs.
 logger.info("Connecting to MongoDB");
@@ -179,6 +183,24 @@ app.use((req, res, next) => {
 // Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
 app.set('trust proxy', 1);
 
+// Customer contact, location, and payment metadata must never cross the public
+// network over plaintext HTTP. The reverse proxy supplies req.secure through
+// X-Forwarded-Proto because trust proxy is enabled above.
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    if (req.secure) return next();
+    let origin = null;
+    try {
+      const configured = new URL(process.env.APP_URL || process.env.APP_BASE_URL || "");
+      if (configured.protocol === "https:") origin = configured.origin;
+    } catch (_error) {}
+    if (!origin) {
+      return res.status(400).json({ error: "HTTPS is required" });
+    }
+    return res.redirect(308, `${origin}${req.originalUrl}`);
+  });
+}
+
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -303,6 +325,12 @@ app.use(
     "/uploads/repair-photos",
     "/uploads/proofs",
     "/uploads/completion-proofs",
+  ],
+  apiAuth.authenticate,
+  requireBookingEvidenceAccess,
+);
+app.use(
+  [
     "/uploads/expense-receipts",
     "/uploads/project-work-submissions",
     "/uploads/project-completion-proofs",

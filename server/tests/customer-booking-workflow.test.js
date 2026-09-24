@@ -43,3 +43,33 @@ test("project rescheduling accepts a date-only customer preference", () => {
   assert.match(script, /!isProject && !selectedRescheduleTime/);
   assert.match(script, /!isProject && !selectedRescheduleTime\)/);
 });
+
+test("booking history exposes one schedule action across customer-editable states", () => {
+  const script = read("public/js/book-history.js");
+  for (const status of [
+    "pending",
+    "payment_verified",
+    "awaiting_assignment",
+    "confirmed",
+    "scheduled",
+    "inspection_scheduled",
+    "awaiting_approval",
+  ]) {
+    assert.match(script, new RegExp(`CUSTOMER_RESCHEDULE_STATUSES = new Set\\(\\[[^\\]]*['\"]${status}['\"]`));
+  }
+  assert.match(script, /title="\$\{hasPendingReschedule \? 'Schedule change awaiting review' : 'Change schedule'\}"/);
+  assert.match(script, /Company scheduling pool/);
+  assert.doesNotMatch(script, /schedule\/technician\/\$\{encodeURIComponent\(currentRescheduleTechnicianId\)\}/);
+  assert.match(script, /\/api\/schedule\/available-dates\?duration=/);
+  assert.match(script, /\/api\/schedule\/time-slots\?/);
+});
+
+test("customer rescheduling is ownership-scoped and revalidates capacity before request and approval", () => {
+  const routes = read("routes/appointmentRoutes.js");
+  assert.match(routes, /CUSTOMER_RESCHEDULE_STATUSES = new Set/);
+  assert.match(routes, /auth\.requireRole\("customer"\)/);
+  assert.match(routes, /mutationPolicy\(appt\)/);
+  assert.match(routes, /const applyDirectly = !isProjectRequest && policy\.direct/);
+  assert.ok((routes.match(/assertCustomerRescheduleAvailable\(/g) || []).length >= 3);
+  assert.match(routes, /appointment: presentCustomerBooking\(appt\)/);
+});

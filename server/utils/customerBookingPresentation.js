@@ -107,6 +107,19 @@ function presentCustomerBooking(booking = {}) {
   const presented = enrichCustomerBooking(booking);
   CUSTOMER_HIDDEN_FIELDS.forEach((field) => delete presented[field]);
 
+  if (Array.isArray(presented.payments)) {
+    const customerPaymentFields = [
+      "_id", "amount", "method", "type", "status", "reference",
+      "submittedAt", "verifiedAt", "completedAt", "refundedAt",
+      "refundAmount", "refundStatus",
+    ];
+    presented.payments = presented.payments.map((payment) => Object.fromEntries(
+      customerPaymentFields
+        .filter((field) => payment && payment[field] !== undefined)
+        .map((field) => [field, payment[field]]),
+    ));
+  }
+
   if (Array.isArray(presented.services)) {
     presented.services = presented.services.map((service) => {
       const safeService = { ...service };

@@ -1,450 +1,236 @@
-<div class="auth-wrapper" id="authWrapper">
-  <div class="auth-shapes">
-    <div class="auth-shape"></div>
-    <div class="auth-shape"></div>
-    <div class="auth-shape"></div>
-  </div>
-
-  <!-- Aircon ambience: cool air streams + frost flakes -->
-  <div class="auth-airflow" aria-hidden="true">
-    <span></span><span></span><span></span><span></span><span></span><span></span>
-  </div>
-  <div class="auth-flake-mark auth-flake-lg" aria-hidden="true"><i class="bi bi-snow2"></i></div>
-  <div class="auth-flake-mark auth-flake-sm" aria-hidden="true"><i class="bi bi-snow2"></i></div>
-
-  <!-- Brand Panel (desktop) -->
-  <div class="auth-brand">
-    <div class="auth-brand-inner">
-      <div class="auth-brand-logo">
-        <div class="auth-brand-logo-icon"><i class="bi bi-snow2"></i></div>
-        <span class="auth-brand-logo-text"><%= locals.companyName || 'CALIDRO RACS' %></span>
-      </div>
-      <p class="auth-brand-tagline">Your trusted partner for professional aircon repair, installation, and genuine product sales — delivering comfort and quality you can rely on.</p>
-      <div class="auth-brand-services">
-        <div class="auth-brand-service">
-          <div class="auth-brand-service-icon"><i class="bi bi-snow2"></i></div>
-          <div class="auth-brand-service-label">Aircon Repair</div>
-        </div>
-        <div class="auth-brand-service">
-          <div class="auth-brand-service-icon"><i class="bi bi-wrench"></i></div>
-          <div class="auth-brand-service-label">Installation</div>
-        </div>
-        <div class="auth-brand-service">
-          <div class="auth-brand-service-icon"><i class="bi bi-bag-check"></i></div>
-          <div class="auth-brand-service-label">Order Products</div>
-        </div>
-        <div class="auth-brand-service">
-          <div class="auth-brand-service-icon"><i class="bi bi-clipboard-check"></i></div>
-          <div class="auth-brand-service-label">Inspection</div>
-        </div>
-      </div>
-      <div class="auth-brand-testimonial">
-        <div class="auth-brand-testimonial-text">"<%= locals.testimonial ? testimonial.text : 'Fast and reliable service! Fixed my AC unit within hours. Highly recommended for all HVAC needs.' %>"</div>
-        <div class="auth-brand-testimonial-author">
-          <div class="auth-brand-testimonial-avatar"><%= locals.testimonial ? testimonial.initials : 'JM' %></div>
-          <div>
-            <div class="auth-brand-testimonial-name"><%= locals.testimonial ? testimonial.name : 'Juan M.' %></div>
-            <div class="auth-brand-testimonial-title">Verified Customer</div>
-          </div>
-        </div>
+<div class="auth-shell" id="authWrapper">
+  <aside class="auth-visual" aria-label="CALIDRO RACS introduction">
+    <a class="auth-brand-lockup" href="/" aria-label="CALIDRO RACS home">
+      <img src="/images/LOGO/RACS.png" alt="" class="auth-brand-mark" />
+      <span class="auth-brand-copy"><strong>CALIDRO RACS</strong><small>Service Booking Management</small></span>
+    </a>
+    <div class="auth-visual-content">
+      <span class="auth-eyebrow"><i class="bi bi-shield-check" aria-hidden="true"></i> Reliable care, made simple</span>
+      <h2>Comfort starts with service you can trust.</h2>
+      <p>Book and manage professional appliance repair services through one secure, dependable experience.</p>
+      <div class="auth-trust-row" aria-label="Service benefits">
+        <span><i class="bi bi-patch-check-fill" aria-hidden="true"></i> Verified service</span>
+        <span><i class="bi bi-clock-fill" aria-hidden="true"></i> Easy scheduling</span>
       </div>
     </div>
-  </div>
+    <p class="auth-visual-foot"><i class="bi bi-lock-fill" aria-hidden="true"></i> Your information is protected and handled securely.</p>
+    <div class="auth-orbit auth-orbit-one" aria-hidden="true"></div>
+    <div class="auth-orbit auth-orbit-two" aria-hidden="true"></div>
+    <div class="auth-air-symbol" aria-hidden="true"><i class="bi bi-snow2"></i></div>
+  </aside>
 
-  <!-- Form Panel -->
-  <div class="auth-form-panel">
+  <main class="auth-form-panel">
+    <div class="auth-mobile-brand">
+      <a class="auth-brand-lockup" href="/" aria-label="CALIDRO RACS home">
+        <img src="/images/LOGO/RACS.png" alt="" class="auth-brand-mark" />
+        <span class="auth-brand-copy"><strong>CALIDRO RACS</strong><small>Service Booking Management</small></span>
+      </a>
+    </div>
+
     <div class="auth-form-card" id="authFormCard">
-
-      <!-- ===== SIGN IN ===== -->
-      <div id="authSignIn">
-        <div class="auth-form-card-header">
-          <a href="/" class="auth-form-card-logo">
-            <div class="auth-form-card-logo-icon"><i class="bi bi-snow2"></i></div>
-            <span class="auth-form-card-logo-text">CALIDRO</span>
-          </a>
-          <h1 class="auth-form-card-title">Welcome Back</h1>
-          <p class="auth-form-card-subtitle">Sign in to manage your services and bookings.</p>
-        </div>
+      <section id="authSignIn" <%= active === 'sign-up' ? 'hidden' : '' %>>
+        <header class="auth-form-card-header">
+          <span class="auth-page-kicker">Welcome back</span>
+          <h1 class="auth-form-card-title">Log in to your account</h1>
+          <p class="auth-form-card-subtitle">Enter your details to continue to CALIDRO RACS.</p>
+        </header>
 
         <form id="auth-login-form" method="POST" novalidate>
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
-
           <div class="auth-field">
-            <label class="auth-field-label" for="email">Email Address</label>
+            <label class="auth-field-label" for="email">Email address</label>
             <div class="auth-field-input-wrap">
-              <input id="email" name="email" type="email" class="auth-field-input"
-                placeholder="you@example.com" required autocomplete="username" maxlength="254" />
-              <i class="bi bi-envelope auth-field-icon"></i>
+              <i class="bi bi-envelope auth-field-icon" aria-hidden="true"></i>
+              <input id="email" name="email" type="email" class="auth-field-input" placeholder="name@example.com" required autocomplete="username" maxlength="254" />
             </div>
           </div>
-
           <div class="auth-field">
-            <label class="auth-field-label" for="password">Password</label>
+            <div class="auth-label-row">
+              <label class="auth-field-label" for="password">Password</label>
+              <a href="/forgot-password" class="auth-forgot">Forgot password?</a>
+            </div>
             <div class="auth-field-input-wrap">
-              <input id="password" name="password" type="password" class="auth-field-input"
-                placeholder="Enter your password" required autocomplete="current-password" maxlength="128" />
-              <i class="bi bi-lock auth-field-icon"></i>
-              <button type="button" class="auth-field-toggle" id="togglePassword" aria-label="Toggle password visibility">
-                <i class="bi bi-eye"></i>
-              </button>
+              <i class="bi bi-lock auth-field-icon" aria-hidden="true"></i>
+              <input id="password" name="password" type="password" class="auth-field-input auth-field-input-password" placeholder="Enter your password" required autocomplete="current-password" maxlength="128" />
+              <button type="button" class="auth-field-toggle" id="togglePassword" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button>
             </div>
-            <div class="auth-caps-hint d-none" id="capsLockHint">
-              <i class="bi bi-arrow-up-square-fill"></i> Caps Lock is on
-            </div>
+            <div class="auth-caps-hint d-none" id="capsLockHint" role="status"><i class="bi bi-shift-fill" aria-hidden="true"></i> Caps Lock is on</div>
           </div>
-
           <div class="auth-options">
-            <label class="auth-remember">
+            <label class="auth-check">
               <input type="checkbox" id="rememberMe" name="rememberMe" />
-              <span class="auth-remember-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
-              Remember me
+              <span class="auth-check-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span><span>Remember me</span>
             </label>
-            <a href="/forgot-password" class="auth-forgot">Forgot password?</a>
           </div>
 
-          <div class="auth-captcha math-captcha" id="loginCaptcha">
-            <div class="auth-captcha-header">
-              <span class="auth-captcha-label"><i class="bi bi-shield-check"></i> Security check</span>
-              <button type="button" class="auth-captcha-refresh refresh-captcha" title="New captcha" aria-label="Get a new captcha">
-                <i class="bi bi-arrow-clockwise"></i>
-              </button>
-            </div>
-            <div class="auth-captcha-row">
-              <span class="captcha-equation" id="loginEquation"><%= num1 %> + <%= num2 %> =</span>
-              <input type="text" id="login-math" name="mathCaptcha" class="auth-captcha-input"
-                placeholder="?" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}"
-                aria-label="Answer to the security question"
-                oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
-              <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
-            </div>
+          <div class="auth-security math-captcha" id="loginCaptcha">
+            <div class="auth-security-copy"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Security check</span><strong class="captcha-equation" id="loginEquation"><%= num1 %> + <%= num2 %> =</strong></div>
+            <input type="text" id="login-math" name="mathCaptcha" class="auth-security-input" placeholder="Answer" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}" aria-label="Answer to the security question" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+            <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
+            <button type="button" class="auth-captcha-refresh refresh-captcha" title="New question" aria-label="Get a new security question"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
           </div>
 
-          <!-- OTP Block -->
           <div class="auth-otp d-none" id="otpBlock">
-            <label class="auth-field-label" for="login-otp">Verification Code</label>
-            <p class="auth-otp-hint">We sent a 6-digit code to your email. It expires shortly.</p>
-            <div class="auth-otp-row">
-              <input id="login-otp" name="otp" type="text" inputmode="numeric"
-                pattern="[0-9]{6}" maxlength="6" class="auth-otp-input"
-                placeholder="••••••" autocomplete="one-time-code" />
-              <button type="button" class="auth-otp-resend" id="resendOtpBtn" disabled>
-                Resend
-              </button>
-            </div>
-            <div class="form-check mt-3 d-none" id="trustTechnicianDeviceOption">
-              <input class="form-check-input" type="checkbox" id="trustTechnicianDevice">
-              <label class="form-check-label small" for="trustTechnicianDevice">
-                Trust this private device for 30 days
+            <div class="auth-notice auth-notice-info"><i class="bi bi-envelope-check" aria-hidden="true"></i><span>We sent a 6-digit verification code to your email.</span></div>
+            <div class="auth-field">
+              <label class="auth-field-label" for="login-otp">Verification code</label>
+              <div class="auth-otp-row">
+                <input id="login-otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" class="auth-field-input auth-otp-input" placeholder="000000" autocomplete="one-time-code" />
+                <button type="button" class="auth-secondary-button" id="resendOtpBtn" disabled>Resend</button>
+              </div>
+              <label class="auth-check d-none auth-trust-device" id="trustTechnicianDeviceOption">
+                <input type="checkbox" id="trustTechnicianDevice" /><span class="auth-check-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span><span>Trust this private device for 30 days</span>
               </label>
-              <div class="form-text">Do not enable this on a shared or public computer.</div>
             </div>
           </div>
 
-          <button type="submit" class="auth-submit" id="loginBtn">
-            <span class="btn-text">Sign In</span>
-          </button>
+          <button type="submit" class="auth-submit" id="loginBtn"><span class="btn-text">Log In</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
         </form>
 
+        <div class="auth-divider" aria-hidden="true"><span>or continue with</span></div>
+        <a class="auth-google-button" href="/api/auth/google<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(returnTo) : '' %>">
+          <svg class="auth-google-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.24a4.48 4.48 0 0 1-1.94 2.94v2.53h3.14c1.84-1.69 2.91-4.19 2.91-7.31Z"/>
+            <path fill="#34A853" d="M12 21.75c2.62 0 4.82-.87 6.43-2.36l-3.14-2.53c-.87.58-1.98.93-3.29.93-2.53 0-4.68-1.71-5.45-4.01H3.31v2.61A9.72 9.72 0 0 0 12 21.75Z"/>
+            <path fill="#FBBC05" d="M6.55 13.78A5.85 5.85 0 0 1 6.25 12c0-.62.11-1.22.3-1.78V7.61H3.31A9.72 9.72 0 0 0 2.25 12c0 1.57.38 3.06 1.06 4.39l3.24-2.61Z"/>
+            <path fill="#EA4335" d="M12 6.21c1.43 0 2.71.49 3.72 1.45l2.79-2.79A9.35 9.35 0 0 0 12 2.25a9.72 9.72 0 0 0-8.69 5.36l3.24 2.61C7.32 7.92 9.47 6.21 12 6.21Z"/>
+          </svg>
+          <span>Sign in with Google</span>
+        </a>
+
         <% if (locals.registrationAllowed !== false) { %>
-          <div class="auth-toggle-text">
-            Don't have an account? <a class="auth-toggle-link" id="switchToSignUp">Create one</a>
-          </div>
+          <p class="auth-toggle-text">Don’t have an account? <a href="/register" class="auth-toggle-link" id="switchToSignUp">Sign Up</a></p>
         <% } else { %>
-          <div class="alert alert-info py-2 small text-center mt-3 mb-0">New customer registration is temporarily unavailable. Existing users can still sign in.</div>
+          <div class="auth-notice auth-notice-info">New customer registration is temporarily unavailable.</div>
         <% } %>
-        <div style="text-align:center;">
-          <a href="/" class="auth-back-home"><i class="bi bi-arrow-left"></i> Back to home</a>
-        </div>
+      </section>
 
-        <div class="auth-divider auth-login-divider"><span>or continue with</span></div>
-
-        <div class="auth-google-section">
-          <a class="auth-google-button" href="/api/auth/google<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(returnTo) : '' %>">
-            <svg class="auth-google-icon" aria-hidden="true" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.24a4.48 4.48 0 0 1-1.94 2.94v2.53h3.14c1.84-1.69 2.91-4.19 2.91-7.31Z"/>
-              <path fill="#34A853" d="M12 21.75c2.62 0 4.82-.87 6.43-2.36l-3.14-2.53c-.87.58-1.98.93-3.29.93-2.53 0-4.68-1.71-5.45-4.01H3.31v2.61A9.72 9.72 0 0 0 12 21.75Z"/>
-              <path fill="#FBBC05" d="M6.55 13.78A5.85 5.85 0 0 1 6.25 12c0-.62.11-1.22.3-1.78V7.61H3.31A9.72 9.72 0 0 0 2.25 12c0 1.57.38 3.06 1.06 4.39l3.24-2.61Z"/>
-              <path fill="#EA4335" d="M12 6.21c1.43 0 2.71.49 3.72 1.45l2.79-2.79A9.35 9.35 0 0 0 12 2.25a9.72 9.72 0 0 0-8.69 5.36l3.24 2.61C7.32 7.92 9.47 6.21 12 6.21Z"/>
-            </svg>
-            <span>Sign in with Google</span>
-          </a>
-          <p class="auth-google-note">For existing CALIDRO accounts</p>
-        </div>
-      </div>
-
-      <!-- ===== SIGN UP ===== -->
-      <div id="authSignUp" style="display:none;">
-        <div class="auth-form-card-header">
-          <a href="/" class="auth-form-card-logo">
-            <div class="auth-form-card-logo-icon"><i class="bi bi-snow2"></i></div>
-            <span class="auth-form-card-logo-text">CALIDRO</span>
-          </a>
-          <h1 class="auth-form-card-title">Create Account</h1>
-          <p class="auth-form-card-subtitle">Join thousands of satisfied customers.</p>
-        </div>
+      <section id="authSignUp" <%= active === 'sign-up' ? '' : 'hidden' %>>
+        <header class="auth-form-card-header">
+          <span class="auth-page-kicker">Join CALIDRO RACS</span>
+          <h1 class="auth-form-card-title">Create your account</h1>
+          <p class="auth-form-card-subtitle">Set up your profile to book and manage services.</p>
+        </header>
 
         <form id="auth-register-form" method="POST" novalidate autocomplete="off">
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+          <div class="auth-field-row">
+            <div class="auth-field">
+              <label class="auth-field-label" for="register-firstName">First name</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-person auth-field-icon" aria-hidden="true"></i><input id="register-firstName" name="firstName" type="text" class="auth-field-input" placeholder="Juan" autocomplete="given-name" maxlength="20" pattern="[A-Za-z\s]{1,20}" required /></div>
+            </div>
+            <div class="auth-field">
+              <label class="auth-field-label" for="register-lastName">Last name</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-person auth-field-icon" aria-hidden="true"></i><input id="register-lastName" name="lastName" type="text" class="auth-field-input" placeholder="Dela Cruz" autocomplete="family-name" maxlength="20" pattern="[A-Za-z\s]{1,20}" required /></div>
+            </div>
+          </div>
+          <div class="auth-field-row">
+            <div class="auth-field">
+              <label class="auth-field-label" for="register-email">Email address</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-envelope auth-field-icon" aria-hidden="true"></i><input id="register-email" name="email" type="email" class="auth-field-input" placeholder="name@example.com" required autocomplete="email" maxlength="254" /></div>
+            </div>
+            <div class="auth-field">
+              <label class="auth-field-label" for="register-phone">Phone number</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-phone auth-field-icon" aria-hidden="true"></i><input id="register-phone" name="phone" type="tel" inputmode="numeric" class="auth-field-input" placeholder="09XX XXX XXXX" autocomplete="tel" maxlength="11" required /></div>
+            </div>
+          </div>
+
+          <fieldset class="auth-fieldset">
+            <legend>Service address</legend>
+            <div class="auth-field-row">
+              <div class="auth-field">
+                <label class="auth-field-label" for="register-addressProvince">Province</label>
+                <div class="auth-field-input-wrap auth-select-wrap"><i class="bi bi-geo-alt auth-field-icon" aria-hidden="true"></i><select id="register-addressProvince" name="addressProvince" class="auth-field-input" autocomplete="address-level1" required><option value="">Select province</option></select><i class="bi bi-chevron-down auth-select-chevron" aria-hidden="true"></i></div>
+              </div>
+              <div class="auth-field">
+                <label class="auth-field-label" for="register-addressCity">City / Municipality</label>
+                <div class="auth-field-input-wrap auth-select-wrap"><i class="bi bi-buildings auth-field-icon" aria-hidden="true"></i><select id="register-addressCity" name="addressCity" class="auth-field-input" autocomplete="address-level2" disabled required><option value="">Select city</option></select><i class="bi bi-chevron-down auth-select-chevron" aria-hidden="true"></i></div>
+              </div>
+            </div>
+            <div class="auth-field-row auth-field-row-address">
+              <div class="auth-field">
+                <label class="auth-field-label" for="register-addressBarangay">Barangay</label>
+                <div class="auth-field-input-wrap auth-select-wrap"><i class="bi bi-signpost-2 auth-field-icon" aria-hidden="true"></i><select id="register-addressBarangay" name="addressBarangay" class="auth-field-input" autocomplete="address-level3" disabled required><option value="">Select barangay</option></select><i class="bi bi-chevron-down auth-select-chevron" aria-hidden="true"></i></div>
+              </div>
+              <div class="auth-field auth-postal-field">
+                <label class="auth-field-label" for="register-addressPostal">Postal code</label>
+                <div class="auth-field-input-wrap"><i class="bi bi-mailbox auth-field-icon" aria-hidden="true"></i><input id="register-addressPostal" name="addressPostal" type="text" class="auth-field-input" placeholder="2009" autocomplete="postal-code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required /></div>
+              </div>
+            </div>
+          </fieldset>
 
           <div class="auth-field-row">
             <div class="auth-field">
-              <label class="auth-field-label" for="register-firstName">First Name</label>
-              <div class="auth-field-input-wrap">
-                <input id="register-firstName" name="firstName" type="text" class="auth-field-input"
-                  placeholder="Juan" autocomplete="given-name" maxlength="20"
-                  pattern="[A-Za-z\s]{1,20}" required />
-                <i class="bi bi-person auth-field-icon"></i>
-              </div>
+              <label class="auth-field-label" for="register-password">Password</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-lock auth-field-icon" aria-hidden="true"></i><input id="register-password" name="password" type="password" class="auth-field-input auth-field-input-password" placeholder="Create a password" required autocomplete="new-password" maxlength="30" aria-describedby="register-password-suggestions" /><button type="button" class="auth-field-toggle" id="togglePasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-password-check" class="auth-match-indicator d-none"></span></div>
+              <div class="auth-password-meter" aria-hidden="true"><span id="register-strength-fill"></span></div>
+              <ul class="auth-password-rules" id="register-password-suggestions"><li data-rule="length"><i class="bi bi-circle"></i> 8–30 characters</li><li data-rule="letter"><i class="bi bi-circle"></i> One uppercase</li><li data-rule="digitOrSpecial"><i class="bi bi-circle"></i> Number or symbol</li></ul>
             </div>
             <div class="auth-field">
-              <label class="auth-field-label" for="register-lastName">Last Name</label>
-              <div class="auth-field-input-wrap">
-                <input id="register-lastName" name="lastName" type="text" class="auth-field-input"
-                  placeholder="Dela Cruz" autocomplete="family-name" maxlength="20"
-                  pattern="[A-Za-z\s]{1,20}" required />
-                <i class="bi bi-person auth-field-icon"></i>
-              </div>
+              <label class="auth-field-label" for="register-confirm">Confirm password</label>
+              <div class="auth-field-input-wrap"><i class="bi bi-shield-lock auth-field-icon" aria-hidden="true"></i><input id="register-confirm" name="confirmPassword" type="password" class="auth-field-input auth-field-input-password" placeholder="Repeat your password" required autocomplete="new-password" maxlength="30" /><button type="button" class="auth-field-toggle" id="toggleConfirmPasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-confirm-check" class="auth-match-indicator d-none"></span></div>
+              <p class="auth-field-hint" id="passwordMatchHint">Both passwords must match.</p>
             </div>
           </div>
 
-          <div class="auth-field">
-            <label class="auth-field-label" for="register-phone">Phone Number</label>
-            <div class="auth-field-input-wrap">
-              <input id="register-phone" name="phone" type="tel" inputmode="numeric"
-                class="auth-field-input" placeholder="09XXXXXXXXX" autocomplete="tel" maxlength="11" required />
-              <i class="bi bi-telephone auth-field-icon"></i>
-            </div>
-          </div>
-
-          <div class="auth-field">
-            <label class="auth-field-label" for="register-email">Email Address</label>
-            <div class="auth-field-input-wrap">
-              <input id="register-email" name="email" type="email" class="auth-field-input"
-                placeholder="you@example.com" required autocomplete="email" maxlength="254" />
-              <i class="bi bi-envelope auth-field-icon"></i>
-            </div>
-          </div>
-
-          <div class="auth-section-label">Address</div>
-
-          <div class="auth-field-row">
-            <div class="auth-field">
-              <label class="auth-field-label" for="register-addressProvince">Province</label>
-              <div class="auth-field-input-wrap">
-                <select id="register-addressProvince" name="addressProvince" class="auth-field-input"
-                  autocomplete="address-level1" required>
-                  <option value="">Select Province</option>
-                </select>
-              </div>
-            </div>
-            <div class="auth-field">
-              <label class="auth-field-label" for="register-addressCity">City</label>
-              <div class="auth-field-input-wrap">
-                <select id="register-addressCity" name="addressCity" class="auth-field-input"
-                  autocomplete="address-level2" disabled required>
-                  <option value="">Select City</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="auth-field-row">
-            <div class="auth-field">
-              <label class="auth-field-label" for="register-addressBarangay">Barangay</label>
-              <div class="auth-field-input-wrap">
-                <select id="register-addressBarangay" name="addressBarangay" class="auth-field-input"
-                  autocomplete="address-level3" disabled required>
-                  <option value="">Select Barangay</option>
-                </select>
-              </div>
-            </div>
-            <div class="auth-field">
-              <label class="auth-field-label" for="register-addressPostal">Postal Code</label>
-              <div class="auth-field-input-wrap">
-                <input id="register-addressPostal" name="addressPostal" type="text"
-                  class="auth-field-input" placeholder="1000" autocomplete="postal-code"
-                  inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4" required />
-              </div>
-            </div>
-          </div>
-
-          <div class="auth-section-label">Account Security</div>
-
-          <div class="auth-field">
-            <label class="auth-field-label" for="register-password">Password</label>
-            <div class="auth-field-input-wrap">
-              <input id="register-password" name="password" type="password" class="auth-field-input"
-                placeholder="Create a strong password" required autocomplete="new-password" maxlength="30" />
-              <i class="bi bi-lock auth-field-icon"></i>
-              <button type="button" class="auth-field-toggle" id="togglePasswordReg" aria-label="Toggle password">
-                <i class="bi bi-eye"></i>
-              </button>
-              <span id="register-password-check" class="auth-match-indicator d-none"></span>
-            </div>
-            <ul class="auth-password-rules" id="register-password-suggestions">
-              <li data-rule="letter"><i class="bi bi-circle"></i> Uppercase letter</li>
-              <li data-rule="digitOrSpecial"><i class="bi bi-circle"></i> Number or special character</li>
-              <li data-rule="length"><i class="bi bi-circle"></i> At least 10 characters</li>
-            </ul>
-            <div class="auth-strength-meter"><div class="auth-strength-meter-fill" id="register-strength-fill"></div></div>
-          </div>
-
-          <div class="auth-field">
-            <label class="auth-field-label" for="register-confirm">Confirm Password</label>
-            <div class="auth-field-input-wrap">
-              <input id="register-confirm" name="confirmPassword" type="password" class="auth-field-input"
-                placeholder="Re-enter your password" required autocomplete="new-password" maxlength="30" />
-              <i class="bi bi-shield-lock auth-field-icon"></i>
-              <button type="button" class="auth-field-toggle" id="toggleConfirmPasswordReg" aria-label="Toggle confirm password">
-                <i class="bi bi-eye"></i>
-              </button>
-              <span id="register-confirm-check" class="auth-match-indicator d-none"></span>
-            </div>
-          </div>
-
-          <div class="auth-captcha math-captcha" id="registerCaptcha">
-            <div class="auth-captcha-header">
-              <span class="auth-captcha-label">Verify you're human</span>
-              <button type="button" class="auth-captcha-refresh refresh-captcha" title="New captcha">
-                <i class="bi bi-arrow-clockwise"></i>
-              </button>
-            </div>
-            <div class="auth-captcha-dice">
-              <span class="captcha-equation" id="registerEquation" style="font-size:20px;font-weight:700;color:var(--clr-text);"><%= num1 %> + <%= num2 %> =</span>
-            </div>
-            <input type="text" id="register-math" name="mathCaptcha" class="auth-captcha-input"
-              placeholder="Enter the sum" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}"
-              oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+          <div class="auth-security math-captcha" id="registerCaptcha">
+            <div class="auth-security-copy"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Security check</span><strong class="captcha-equation" id="registerEquation"><%= num1 %> + <%= num2 %> =</strong></div>
+            <input type="text" id="register-math" name="mathCaptcha" class="auth-security-input" placeholder="Answer" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}" aria-label="Answer to the security question" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
             <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
+            <button type="button" class="auth-captcha-refresh refresh-captcha" title="New question" aria-label="Get a new security question"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
           </div>
 
-          <button type="submit" class="auth-submit" id="registerBtn">
-            <span class="btn-text">Create Account</span>
-          </button>
+          <label class="auth-check auth-terms">
+            <input type="checkbox" id="register-terms" name="termsAccepted" required /><span class="auth-check-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span><span>I agree to the <button class="auth-text-button" type="button" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</button>.</span>
+          </label>
+          <button type="submit" class="auth-submit" id="registerBtn"><span class="btn-text">Create Account</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
         </form>
 
-        <section id="registerVerificationPanel" class="d-none" aria-live="polite">
-          <div class="auth-section-label">Verify your email</div>
-          <p class="auth-form-card-subtitle mb-3">
-            Enter the 6-digit code sent to
-            <strong id="registerVerificationEmail"></strong>. The code expires in 10 minutes.
-          </p>
-
-          <div class="auth-field">
-            <label class="auth-field-label" for="register-otp">Verification Code</label>
-            <div class="auth-field-input-wrap">
-              <input id="register-otp" type="text" class="auth-field-input"
-                placeholder="000000" inputmode="numeric" autocomplete="one-time-code"
-                maxlength="6" pattern="[0-9]{6}" aria-describedby="registerOtpHelp" />
-              <i class="bi bi-shield-check auth-field-icon"></i>
-            </div>
-            <small id="registerOtpHelp" class="text-muted">Do not share this code with anyone.</small>
-          </div>
-
-          <button type="button" class="auth-submit" id="verifyRegisterOtpBtn">
-            <span class="btn-text">Verify Email</span>
-          </button>
-
-          <div class="auth-toggle-text mt-3">
-            Didn't receive the code?
-            <button type="button" class="btn btn-link auth-toggle-link p-0" id="resendRegisterOtpBtn">Resend code</button>
-          </div>
-          <div class="auth-toggle-text mt-2">
-            <button type="button" class="btn btn-link auth-toggle-link p-0" id="changeRegistrationEmailBtn">Change registration details</button>
-          </div>
+        <section id="registerVerificationPanel" class="d-none auth-verification" aria-live="polite">
+          <div class="auth-verification-icon"><i class="bi bi-envelope-check" aria-hidden="true"></i></div>
+          <h2>Verify your email</h2><p>Enter the 6-digit code sent to <strong id="registerVerificationEmail"></strong>.</p>
+          <div class="auth-field"><label class="auth-field-label" for="register-otp">Verification code</label><input id="register-otp" type="text" class="auth-field-input auth-otp-input auth-otp-centered" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" /></div>
+          <button type="button" class="auth-submit" id="verifyRegisterOtpBtn"><span class="btn-text">Verify Email</span></button>
+          <p class="auth-toggle-text">Didn’t receive it? <button type="button" class="auth-text-button" id="resendRegisterOtpBtn">Resend code</button></p>
+          <button type="button" class="auth-back-button" id="changeRegistrationEmailBtn"><i class="bi bi-arrow-left"></i> Change registration details</button>
         </section>
-
-        <div class="auth-toggle-text">
-          Already have an account? <a class="auth-toggle-link" id="switchToSignIn">Sign In</a>
-        </div>
-      </div>
-
+        <p class="auth-toggle-text">Already have an account? <a href="/login" class="auth-toggle-link" id="switchToSignIn">Log In</a></p>
+      </section>
     </div>
-  </div>
+    <p class="auth-mobile-secure"><i class="bi bi-lock-fill" aria-hidden="true"></i> Secure access to CALIDRO RACS</p>
+  </main>
+</div>
+
+<div class="modal fade auth-terms-modal" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><div><span class="auth-page-kicker">CALIDRO RACS</span><h2 class="modal-title" id="termsModalLabel">Terms and Conditions</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><p>By creating an account, you agree to provide accurate contact and service-address information and to use the platform only for legitimate service requests.</p><p>Your account credentials are personal to you. Keep them secure and contact CALIDRO RACS if you believe your account has been compromised.</p><p class="mb-0">Service availability, estimates, and appointment times are confirmed through the booking process and may vary by location and technician availability.</p></div>
+    <div class="modal-footer"><button type="button" class="auth-secondary-button" data-bs-dismiss="modal">Close</button></div>
+  </div></div>
 </div>
 
 <script>
-(function() {
+(function () {
   'use strict';
-  const signInEl = document.getElementById('authSignIn');
-  const signUpEl = document.getElementById('authSignUp');
-
-  window.openSignUp = function() {
-    signInEl.style.display = 'none';
-    signUpEl.style.display = '';
-    signUpEl.classList.remove('auth-fade-in');
-    void signUpEl.offsetWidth;
-    signUpEl.classList.add('auth-fade-in');
-    const first = signUpEl.querySelector('input:not([type="hidden"])');
-    if (first) setTimeout(() => first.focus(), 300);
-  };
-
-  window.openSignIn = function() {
-    signUpEl.style.display = 'none';
-    signInEl.style.display = '';
-    signInEl.classList.remove('auth-fade-in');
-    void signInEl.offsetWidth;
-    signInEl.classList.add('auth-fade-in');
-    const first = signInEl.querySelector('input:not([type="hidden"])');
-    if (first) setTimeout(() => first.focus(), 300);
-  };
-
-  document.getElementById('switchToSignUp').addEventListener('click', function(e) {
-    e.preventDefault(); openSignUp();
-  });
-  document.getElementById('switchToSignIn').addEventListener('click', function(e) {
-    e.preventDefault(); openSignIn();
-  });
-
-  // Direct URL parameter support
-  const p = new URLSearchParams(window.location.search);
-  if (p.get('signup') === '1' || window.location.hash === '#signup') openSignUp();
-  else openSignIn();
-
-  // Clear sensitive fields
-  function clearSensitive() {
-    ['email','password','login-otp','login-math',
-     'register-firstName','register-lastName','register-phone','register-email',
-     'register-password','register-confirm','register-math','register-otp'
-    ].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
+  var signIn = document.getElementById('authSignIn');
+  var signUp = document.getElementById('authSignUp');
+  function show(panel, path) {
+    var registering = panel === 'signup';
+    signIn.hidden = registering;
+    signUp.hidden = !registering;
+    document.body.classList.toggle('auth-register-open', registering);
+    document.title = registering ? 'Sign Up | CALIDRO RACS' : 'Log In | CALIDRO RACS';
+    var target = registering ? signUp : signIn;
+    target.classList.remove('auth-panel-enter'); void target.offsetWidth; target.classList.add('auth-panel-enter');
+    if (window.history && window.history.replaceState && path) window.history.replaceState(null, '', path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  clearSensitive();
-  window.addEventListener('pageshow', clearSensitive);
+  window.openSignUp = function () { show('signup', '/register'); };
+  window.openSignIn = function () { show('login', '/login'); };
+  var toSignUp = document.getElementById('switchToSignUp');
+  var toSignIn = document.getElementById('switchToSignIn');
+  if (toSignUp) toSignUp.addEventListener('click', function (event) { event.preventDefault(); window.openSignUp(); });
+  if (toSignIn) toSignIn.addEventListener('click', function (event) { event.preventDefault(); window.openSignIn(); });
+  document.body.classList.toggle('auth-register-open', !signUp.hidden);
 })();
 </script>
-
-<script>
-(function(){
-  const w = document.querySelector('.auth-wrapper');
-  if(!w) return;
-  const snow = document.createElement('div');
-  snow.className = 'auth-snow';
-  snow.id = 'authSnow';
-  w.insertBefore(snow, w.firstChild);
-  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  const lowPower = document.documentElement.classList.contains('perf-lite') ||
-    (connection && connection.saveData) ||
-    window.matchMedia('(max-width: 767px)').matches;
-  if (!reduceMotion && !lowPower) {
-    const snowflakeCount = 28;
-    for(let i=0; i<snowflakeCount; i++){
-      const f = document.createElement('span');
-      f.className = 'auth-snowflake';
-      const size = Math.random() * 4 + 3;
-      f.style.width = size + 'px';
-      f.style.height = size + 'px';
-      f.style.left = Math.random() * 100 + 'vw';
-      f.style.opacity = (Math.random() * 0.35 + 0.3).toFixed(2);
-      f.style.animationDuration = (Math.random() * 10 + 9) + 's';
-      f.style.animationDelay = (Math.random() * 14) + 's';
-      f.style.setProperty('--snow-drift', (Math.random() * 140 - 70) + 'px');
-      snow.appendChild(f);
-    }
-  }
-})();
-</script>
-

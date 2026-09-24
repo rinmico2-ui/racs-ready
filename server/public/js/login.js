@@ -51,7 +51,7 @@
     if (loading) {
       btn.innerHTML = '<span class="spinner"></span> Signing in...';
     } else {
-      btn.innerHTML = 'Sign In';
+      btn.innerHTML = '<span class="btn-text">Log In</span><i class="bi bi-arrow-right" aria-hidden="true"></i>';
     }
   }
 
@@ -299,6 +299,9 @@
 
       if (res.status === 429) {
         handleRateLimit(body);
+      } else if (res.status === 401) {
+        showFieldError(passwordInput, 'Incorrect email or password. Please try again.');
+        passwordInput.focus();
       } else {
         window.authUtils.swalError(
           'Sign in failed',

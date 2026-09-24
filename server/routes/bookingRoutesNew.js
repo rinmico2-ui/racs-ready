@@ -37,18 +37,6 @@ router.post('/create-new', async (req, res) => {
   let savedBooking = null;
   try {
     console.log('📝 Creating new booking (simplified)...');
-    // Check authentication at the very beginning
-    console.log('🔐 Authentication Check:');
-    console.log('   req.user exists:', !!req.user);
-    console.log('   req.session exists:', !!req.session);
-    console.log('   req.session.userId:', req.session?.userId);
-    
-    if (req.user) {
-      console.log('   req.user._id:', req.user._id);
-      console.log('   req.user.email:', req.user.email);
-      console.log('   req.user.name:', req.user.name || req.user.fullName);
-    }
-    
     // Extract basic required fields
     const {
       services,
@@ -78,11 +66,6 @@ router.post('/create-new', async (req, res) => {
     // plan (GCash downpayment + balance at completion), not the transfer channel.
     const bookingPaymentMethod = paymentMethod === 'cash' ? 'cod' : paymentMethod;
 
-    console.log('Services type:', typeof services);
-    console.log('Services is array:', Array.isArray(services));
-    console.log('Services value:', services);
-    console.log('Payment method:', paymentMethod, '-> Booking payment method:', bookingPaymentMethod);
-    
     // Check if services is stringified and needs parsing
     let parsedServices = services;
     if (typeof services === 'string') {
@@ -156,11 +139,6 @@ router.post('/create-new', async (req, res) => {
     console.log('\n========================================');
     console.log('� AUTHENTICATION VALIDATION');
     console.log('========================================');
-    console.log('req.user exists:', !!req.user);
-    console.log('req.user._id:', req.user?._id);
-    console.log('req.user.email:', req.user?.email);
-    console.log('req.session.userId:', req.session?.userId);
-    console.log('Final userId:', userId);
     
     if (!userId) {
       console.error('❌ AUTHENTICATION FAILED: No user ID found');
@@ -178,7 +156,6 @@ router.post('/create-new', async (req, res) => {
     console.log('👤 CUSTOMER DATA VALIDATION');
     console.log('========================================');
     const User = require('../models/User');
-    console.log('Fetching user with ID:', userId);
     
     const user = await User.findById(userId);
     
@@ -192,19 +169,12 @@ router.post('/create-new', async (req, res) => {
     
     // Log complete user data for debugging
     console.log('✅ Customer found in database:');
-    console.log('   ID:', user._id);
-    console.log('   First Name:', user.firstName);
-    console.log('   Last Name:', user.lastName);
-    console.log('   Email:', user.email);
-    console.log('   Phone:', user.phone || user.mobile || 'N/A');
     
     // Construct full name (backend best practice: always build from parts)
     const customerFirstName = user.firstName || '';
     const customerLastName = user.lastName || '';
     const customerFullName = `${customerFirstName} ${customerLastName}`.trim() || 'Valued Customer';
     
-    console.log('   Constructed Full Name:', customerFullName);
-    console.log('   Email Validation:', user.email ? '✅ Valid' : '❌ Missing');
     
     if (!user.email) {
       console.error('❌ CUSTOMER EMAIL MISSING');
@@ -520,9 +490,6 @@ router.post('/create-new', async (req, res) => {
     };
     
     console.log('📦 Simplified booking data created');
-    console.log('  - Service:', parsedServices[0].name);
-    console.log('  - Total:', totalPrice);
-    console.log('  - Location:', location.address);
     
     // ========================================
     // BACKEND EXPERT: Create and save booking with validated data
@@ -532,12 +499,6 @@ router.post('/create-new', async (req, res) => {
     console.log('========================================');
     
     console.log('Booking data prepared:');
-    console.log('   Customer ID:', bookingData.customerId);
-    console.log('   Customer Name:', bookingData.customer.name);
-    console.log('   Customer Email:', bookingData.customer.email);
-    console.log('   Technician ID:', bookingData.technicianId);
-    console.log('   Technician Name:', bookingData.technician?.name || 'Pending Assignment');
-    console.log('   Technician Email:', bookingData.technician?.email || 'Pending Assignment');
     
     // Create booking instance
     console.log('\nCreating BookingService instance...');
@@ -633,11 +594,7 @@ router.post('/create-new', async (req, res) => {
     console.log('========================================');
     console.log('Booking Reference:', booking.bookingReference);
     console.log('Final Customer Data:');
-    console.log('   Name:', booking.customer.name);
-    console.log('   Email:', booking.customer.email);
     console.log('Final Technician Data:');
-    console.log('   Name:', booking.technician?.name || 'Pending Assignment');
-    console.log('   Email:', booking.technician?.email || 'Pending Assignment');
     console.log('========================================\n');
     
     // Backend validation: Verify no placeholder data
@@ -684,7 +641,7 @@ router.post('/create-new', async (req, res) => {
           isConfirmed: false // Pending confirmation
         });
         
-        console.log('📧 Booking confirmation email sent to:', customerEmail);
+        console.log('Booking confirmation email sent');
       } else {
         console.warn('⚠️ Customer email not available, skipping email notification');
       }
@@ -1562,7 +1519,7 @@ router.post('/create-repair', (req, res, next) => {
           estimatedFee: booking.estimatedFee,
           paymentMethod: booking.paymentMethod,
         });
-        console.log(`  📧 Confirmation email sent to ${req.user.email}`);
+        console.log('Repair confirmation email sent');
       }
     } catch (emailErr) {
       console.error('  ⚠️ Email failed:', emailErr.message);

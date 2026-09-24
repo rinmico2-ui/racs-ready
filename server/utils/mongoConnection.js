@@ -14,6 +14,15 @@ function parseDirectHosts(value) {
   return hosts;
 }
 
+function isTlsProtectedMongoUri(value) {
+  const uri = String(value || "");
+  if (uri.startsWith("mongodb+srv://")) return true;
+  if (!uri.startsWith("mongodb://")) return false;
+  const query = uri.includes("?") ? uri.slice(uri.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(query);
+  return params.get("tls") === "true" || params.get("ssl") === "true";
+}
+
 function buildMongoConnectionUri(srvUri, options = {}) {
   const directHosts = parseDirectHosts(options.directHosts);
   if (!directHosts.length || !String(srvUri || "").startsWith("mongodb+srv://")) {
@@ -40,4 +49,4 @@ function buildMongoConnectionUri(srvUri, options = {}) {
   };
 }
 
-module.exports = { buildMongoConnectionUri, parseDirectHosts };
+module.exports = { buildMongoConnectionUri, isTlsProtectedMongoUri, parseDirectHosts };

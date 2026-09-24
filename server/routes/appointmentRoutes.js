@@ -26,7 +26,7 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const { getMinAdvanceMinutes, getBufferMinutes, checkAdvanceNotice, assertCompanyCapacity, parseTimeValue, isBookingPast } = require("../utils/bookingPolicy");
 const { BookingStatus } = require("../models/BookingStatus");
-const { capacityMinutes, aggregateBookingType, summarizeChanges } = require("../utils/bookingServiceItems");
+const { capacityMinutes, aggregateBookingType, mutationPolicy, summarizeChanges } = require("../utils/bookingServiceItems");
 const { createNotification } = require("../utils/notify");
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
@@ -37,6 +37,7 @@ const {
   enrichCustomerBooking,
   presentCustomerBooking,
 } = require("../utils/customerBookingPresentation");
+const { presentTechnicianBooking } = require("../utils/technicianDataPresentation");
 const ratingController = require("../controllers/ratingController");
 const {
   findCompletionProof,
@@ -102,6 +103,62 @@ function parseMinuteValue(value) {
     return hh * 60 + Number(ampm[2]);
   }
   return NaN;
+}
+
+const CUSTOMER_RESCHEDULE_STATUSES = new Set([
+  "pending",
+  "payment_verified",
+  "awaiting_assignment",
+  "confirmed",
+  "scheduled",
+  "inspection_scheduled",
+  "awaiting_approval",
+]);
+
+function strictDateKey(value) {
+  const key = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return "";
+  const parsed = new Date(`${key}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === key ? key : "";
+}
+
+async function assertCustomerRescheduleAvailable(booking, dateValue, timeValue, { isProject = false } = {}) {
+  const date = strictDateKey(dateValue);
+  if (!date) {
+    throw Object.assign(new Error("Choose a valid reschedule date."), { status: 400 });
+  }
+
+  if (isProject) {
+    const requestedDay = new Date(`${date}T23:59:59+08:00`);
+    if (requestedDay <= new Date()) {
+      throw Object.assign(new Error("Choose a future project start date."), { status: 400 });
+    }
+    return { date, time: "" };
+  }
+
+  const requestedMinutes = parseMinuteValue(timeValue);
+  if (!Number.isFinite(requestedMinutes) || requestedMinutes < 0 || requestedMinutes >= 1440) {
+    throw Object.assign(new Error("Choose a valid reschedule time."), { status: 400 });
+  }
+
+  const scheduleRoutes = require("./scheduleRoutes");
+  const query = {
+    date,
+    duration: String(Math.max(1, Number(booking.serviceDurationMinutes) || 60)),
+    travelTime: String(Math.max(0, Number(booking.travelTime) || 30)),
+  };
+  const slotCheck = await scheduleRoutes.getTimeSlotsForQuery(query);
+  const available = slotCheck.statusCode < 400
+    && Array.isArray(slotCheck.payload?.timeSlots)
+    && slotCheck.payload.timeSlots.some((slot) => (
+      parseMinuteValue(slot.startTime || slot.time) === requestedMinutes
+    ));
+  if (!available) {
+    throw Object.assign(new Error(
+      slotCheck.payload?.message || "That schedule is no longer available. Choose another date or time.",
+    ), { status: 409 });
+  }
+  return { date, time: String(timeValue).trim(), requestedMinutes };
 }
 
 function calculateTechnicianAcceptanceDeadline(bookingDate, assignedAt = new Date()) {
@@ -632,7 +689,9 @@ router.get("/", auth.authenticate, async (req, res) => {
 
     const presenter = req.user.role === "customer"
       ? presentCustomerBooking
-      : enrichCustomerBooking;
+      : req.user.role === "technician"
+        ? presentTechnicianBooking
+        : enrichCustomerBooking;
     const items = bookingItems.map(presenter);
     return res.json({
       items,
@@ -2347,7 +2406,12 @@ router.get("/:id", auth.authenticate, async (req, res) => {
       }
     }
 
-    return res.json({ appointment: appt });
+    const appointment = req.user.role === "customer"
+      ? presentCustomerBooking(appt)
+      : req.user.role === "technician"
+        ? presentTechnicianBooking(appt)
+        : appt;
+    return res.json({ appointment });
   } catch (err) {
     return res.status(500).json({ error: "Failed to load appointment" });
   }
@@ -2670,6 +2734,7 @@ router.post(
 router.post(
   "/:id/reschedule-request",
   auth.authenticate,
+  auth.requireRole("customer"),
   async (req, res) => {
     try {
       const id = req.params.id;
@@ -2694,10 +2759,11 @@ router.post(
         req.body.isProject || appt.isProject || appt.projectScheduling,
       );
 
-      // Only allow reschedule requests for confirmed/scheduled/pending/inspection appointments
-      const eligibleStatuses = ["confirmed", "scheduled", "pending", "inspection_scheduled", "awaiting_approval"];
-      if (!eligibleStatuses.includes(appt.status)) {
-        return res.status(400).json({ error: "Only confirmed or scheduled appointments can be rescheduled" });
+      if (!CUSTOMER_RESCHEDULE_STATUSES.has(appt.status)) {
+        return res.status(400).json({ error: "This booking can no longer be rescheduled by the customer." });
+      }
+      if (appt.rescheduleRequest?.status === "pending") {
+        return res.status(409).json({ error: "A schedule change is already awaiting review." });
       }
 
       // Validate required fields
@@ -2709,32 +2775,62 @@ router.post(
         });
       }
 
-      // Check for scheduling conflicts
-      if (!isProjectRequest) {
-        const hasConflict = await BookingService.findOne({
-          _id: { $ne: appt._id },
-          bookingDate: finalDate,
-          startTime: finalTime,
-          status: { $in: ["confirmed", "scheduled", "in-progress", "en-route", "on-the-way"] },
-        });
-        if (hasConflict) {
-          return res.status(409).json({ error: "The selected time slot is already booked. Please choose a different time." });
-        }
-      }
+      // Revalidate against the same scheduling engine used by the customer
+      // calendar. A stale or forged slot cannot be submitted.
+      const requestedSchedule = await assertCustomerRescheduleAvailable(
+        appt,
+        finalDate,
+        finalTime,
+        { isProject: isProjectRequest },
+      );
+      const policy = mutationPolicy(appt);
+      const applyDirectly = !isProjectRequest && policy.direct;
+      const previousDate = appt.bookingDate;
+      const previousTime = appt.startTime;
 
-      // Store reschedule request
       appt.rescheduleRequest = {
         requested: true,
-        requestedDate: finalDate,
-        requestedTime: isProjectRequest ? "" : finalTime,
-        reason: reason,
+        requestedDate: requestedSchedule.date,
+        requestedTime: requestedSchedule.time,
+        reason: String(reason).trim(),
         requestedBy: req.user._id,
         requestedAt: new Date(),
-        status: "pending" // pending, approved, rejected
+        status: applyDirectly ? "approved" : "pending",
+        processedBy: applyDirectly ? req.user._id : undefined,
+        processedAt: applyDirectly ? new Date() : undefined,
       };
+      if (applyDirectly) {
+        appt.bookingDate = new Date(`${requestedSchedule.date}T00:00:00`);
+        appt.startTime = requestedSchedule.time;
+        appt.selectedTimeLabel = requestedSchedule.time;
+        const endMinutes = requestedSchedule.requestedMinutes
+          + Math.max(1, Number(appt.serviceDurationMinutes) || 60);
+        appt.endTime = minutesTo12h(endMinutes);
+        appt.rescheduleReason = String(reason).trim();
+        appt.rescheduleHistory.push({
+          previousDate,
+          previousTime,
+          newDate: appt.bookingDate,
+          newTime: appt.startTime,
+          reasonType: "customer_request",
+          source: "customer",
+          authorizedAt: new Date(),
+          authorizedBy: req.user._id,
+          selectedAt: new Date(),
+        });
+        for (const service of appt.services || []) {
+          service.schedule = {
+            ...(service.schedule?.toObject?.() || service.schedule || {}),
+            date: appt.bookingDate,
+            startTime: appt.startTime,
+            endTime: appt.endTime,
+            kind: service.type === "repair" ? "inspection" : "service",
+          };
+        }
+      }
       const requestedTimeLabel = isProjectRequest
         ? "Operations scheduling"
-        : finalTime;
+        : requestedSchedule.time;
 
       await appt.save();
 
@@ -2747,12 +2843,15 @@ router.post(
             bookingRef: appt.bookingReference,
             customerName: appt.customer?.name || "Customer",
             serviceName: appt.serviceName || appt.service?.name || "Service",
-            currentDate: appt.bookingDate,
-            currentTime: appt.startTime,
-            requestedDate: finalDate,
+            currentDate: previousDate,
+            currentTime: previousTime,
+            requestedDate: requestedSchedule.date,
             requestedTime: requestedTimeLabel,
             reason,
-            message: `Customer requested reschedule for ${appt.bookingReference || "booking"}`,
+            applied: applyDirectly,
+            message: applyDirectly
+              ? `Customer updated the schedule for ${appt.bookingReference || "booking"}`
+              : `Customer requested reschedule for ${appt.bookingReference || "booking"}`,
             timestamp: Date.now(),
           });
         }
@@ -2761,31 +2860,33 @@ router.post(
       }
 
       // -- Email admin: reschedule request received ------------------------------
-      try {
-        const { sendRescheduleRequestedEmail } = require("../utils/mailer");
-        const Admin = require("../models/User");
-        const adminUsers = await Admin.find({ role: "admin" }).lean();
-        const dateLabel = appt.bookingDate
-          ? new Date(appt.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
-          : "TBD";
-        for (const admin of adminUsers) {
-          if (admin.email) {
-            sendRescheduleRequestedEmail({
-              to: admin.email,
-              adminName: admin.firstName || admin.name || "Admin",
-              customerName: appt.customer?.name || "Customer",
-              bookingReference: appt.bookingReference || `#${String(appt._id).slice(-6).toUpperCase()}`,
-              serviceName: appt.serviceName || appt.service?.name || "Service",
-              currentDate: dateLabel,
-              currentTime: appt.startTime || "TBD",
-              requestedDate: finalDate,
-              requestedTime: requestedTimeLabel,
-              reason,
-            }).catch(err => console.error("[MAILER] Failed to send reschedule request email:", err.message));
+      if (!applyDirectly) {
+        try {
+          const { sendRescheduleRequestedEmail } = require("../utils/mailer");
+          const Admin = require("../models/User");
+          const adminUsers = await Admin.find({ role: "admin" }).lean();
+          const dateLabel = previousDate
+            ? new Date(previousDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+            : "TBD";
+          for (const admin of adminUsers) {
+            if (admin.email) {
+              sendRescheduleRequestedEmail({
+                to: admin.email,
+                adminName: admin.firstName || admin.name || "Admin",
+                customerName: appt.customer?.name || "Customer",
+                bookingReference: appt.bookingReference || `#${String(appt._id).slice(-6).toUpperCase()}`,
+                serviceName: appt.serviceName || appt.service?.name || "Service",
+                currentDate: dateLabel,
+                currentTime: previousTime || "TBD",
+                requestedDate: requestedSchedule.date,
+                requestedTime: requestedTimeLabel,
+                reason,
+              }).catch(err => console.error("[MAILER] Failed to send reschedule request email:", err.message));
+            }
           }
+        } catch (mailErr) {
+          console.error("[MAILER] Reschedule request email error:", mailErr.message);
         }
-      } catch (mailErr) {
-        console.error("[MAILER] Reschedule request email error:", mailErr.message);
       }
 
       // audit log
@@ -2797,21 +2898,27 @@ router.post(
         req,
         details: {
           appointmentId: id,
-          requestedDate: finalDate,
-          requestedTime: isProjectRequest ? null : finalTime,
+          requestedDate: requestedSchedule.date,
+          requestedTime: isProjectRequest ? null : requestedSchedule.time,
           isProject: isProjectRequest,
+          appliedDirectly: applyDirectly,
           reason
         },
       });
 
       return res.json({
         success: true,
-        message: "Reschedule request submitted successfully",
-        appointment: appt
+        applied: applyDirectly,
+        message: applyDirectly
+          ? "Schedule updated successfully."
+          : "Schedule change submitted for review.",
+        appointment: presentCustomerBooking(appt),
       });
     } catch (err) {
       console.error("reschedule request error", err);
-      return res.status(500).json({ error: "Failed to submit reschedule request" });
+      return res.status(Number(err.status) || 500).json({
+        error: err.status ? err.message : "Failed to submit reschedule request",
+      });
     }
   },
 );
@@ -2840,23 +2947,26 @@ router.post(
         ? "Operations scheduling"
         : newTime;
 
-      // Guard against double-booking before committing the requested slot.
-      if (!isProjectReschedule) {
-        const rwStartMin = parseTimeValue(newTime);
-        if (!Number.isFinite(rwStartMin)) {
-          return res.status(400).json({ error: 'Invalid requested time format' });
-        }
-        const rwEndMin = rwStartMin + (Number(appt.serviceDurationMinutes) || 90);
-        try {
-          await assertCompanyCapacity(new Date(newDate), rwStartMin, rwEndMin, appt._id);
-        } catch (capErr) {
-          return res.status(409).json({ error: capErr.message });
-        }
-      }
+      // Availability may change while a request is awaiting review. Re-run
+      // the authoritative slot check immediately before committing it.
+      const approvedSchedule = await assertCustomerRescheduleAvailable(
+        appt,
+        newDate,
+        newTime,
+        { isProject: isProjectReschedule },
+      );
 
       // Update appointment with new date/time
-      appt.bookingDate = new Date(newDate);
-      if (!isProjectReschedule) appt.startTime = newTime;
+      const previousDate = appt.bookingDate;
+      const previousTime = appt.startTime;
+      appt.bookingDate = new Date(`${approvedSchedule.date}T00:00:00`);
+      if (!isProjectReschedule) {
+        appt.startTime = approvedSchedule.time;
+        appt.selectedTimeLabel = approvedSchedule.time;
+        appt.endTime = minutesTo12h(
+          approvedSchedule.requestedMinutes + Math.max(1, Number(appt.serviceDurationMinutes) || 60),
+        );
+      }
 
       // Update reschedule request status
       appt.rescheduleRequest.status = "approved";
@@ -2869,6 +2979,25 @@ router.post(
         ? BookingStatus.PENDING_PROJECT_SCHEDULING
         : BookingStatus.AWAITING_ASSIGNMENT;
       appt.rescheduleReason = appt.rescheduleRequest.reason;
+      if (!isProjectReschedule) {
+        appt.technicianId = undefined;
+        appt.technician = undefined;
+        for (const service of appt.services || []) {
+          service.technicianId = undefined;
+          service.technicianName = undefined;
+        }
+      }
+      appt.rescheduleHistory.push({
+        previousDate,
+        previousTime,
+        newDate: appt.bookingDate,
+        newTime: isProjectReschedule ? "" : appt.startTime,
+        reasonType: "admin_approved",
+        source: "admin_on_behalf_of_customer",
+        authorizedAt: new Date(),
+        authorizedBy: req.user._id,
+        selectedAt: appt.rescheduleRequest.requestedAt || new Date(),
+      });
 
       // Push status history
       if (!appt.statusHistory) appt.statusHistory = [];
@@ -2901,25 +3030,10 @@ router.post(
           });
           await activeAssignment.save();
 
-          // Create new assignment in pending_acceptance for the new date
-          await Assignment.create({
-            bookingId: appt._id,
-            customerName: appt.customer?.name || "Customer",
-            customerPhone: appt.customer?.phone || "",
-            customerEmail: appt.customer?.email || "",
-            serviceType: appt.serviceType || "core",
-            serviceName: appt.serviceName || appt.service?.name || "Service",
-            servicePrice: appt.totalPrice || appt.estimatedFee || 0,
-            bookingDate: appt.bookingDate,
-            startTime: appt.startTime,
-            endTime: appt.endTime || "",
-            address: appt.location?.address || "",
-            coordinates: appt.location || {},
-            estimatedFee: appt.estimatedFee || 0,
-            travelTime: appt.travelDurationMinutes || 0,
-            status: "pending_acceptance",
-            priority: "normal",
-          });
+          // A replacement assignment is created only after Operations selects
+          // an available technician. Assignment.technicianId is required, so
+          // creating an unowned placeholder here would be invalid and could
+          // leave the booking in a misleading partially-assigned state.
         }
       } catch (assignErr) {
         console.error("[RESCHEDULE] Failed to update assignment:", assignErr.message);
@@ -3007,7 +3121,9 @@ router.post(
       });
     } catch (err) {
       console.error("reschedule approve error", err);
-      return res.status(500).json({ error: "Failed to approve reschedule request" });
+      return res.status(Number(err.status) || 500).json({
+        error: err.status ? err.message : "Failed to approve reschedule request",
+      });
     }
   },
 );

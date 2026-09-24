@@ -728,7 +728,7 @@ router.get("/login", async (req, res) => {
     path: "/",
   });
   res.render("pages/auth", {
-    title: "Authentication",
+    title: "Log In | CALIDRO RACS",
     csrfToken,
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "",
     error: null,
@@ -765,7 +765,7 @@ router.get("/register", async (req, res) => {
     path: "/",
   });
   res.render("pages/auth", {
-    title: "Create an Account",
+    title: "Sign Up | CALIDRO RACS",
     csrfToken,
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || "",
     layout: "layouts/auth",

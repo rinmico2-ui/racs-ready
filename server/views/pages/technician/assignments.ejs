@@ -7669,7 +7669,6 @@ if (a.status === 'accepted') {
       const dateTime = (date || 'TBD') + (a.startTime ? ' at ' + toPhTime(a.startTime) : '');
       const customer = a.customerName || 'Customer';
       const phone = a.customerPhone || 'N/A';
-      const email = a.customerEmail || 'N/A';
       const priority = (a.priority || 'normal').toUpperCase();
 
       const qTotal = b.quotation?.totalCost || a.quotation?.totalCost || 0;
@@ -7687,7 +7686,6 @@ if (a.status === 'accepted') {
       const payMethod = (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
 
       const phoneLink = phone !== 'N/A' ? String(phone).replace(/[^+\d]/g, '') : '';
-      const hasEmail = email !== 'N/A' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email));
       const destination = hasCoords ? `${Number(custLat)},${Number(custLng)}` : address;
       const mapsHref = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
       const settledPayment = ['paid', 'verified', 'remitted', 'payment_collected'].includes(String(financialStatus));
@@ -7711,7 +7709,6 @@ if (a.status === 'accepted') {
 
       h += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-geo-alt-fill"></i>Customer &amp; Service Location</h6></div><div class="booking-detail-card-body"><div class="booking-info-list">`;
       h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-person"></i></div><div><div class="booking-info-label">Customer</div><div class="booking-info-value">${_e(customer)}${phone !== 'N/A' ? ' &middot; ' + _e(phone) : ''}</div></div></div>`;
-      h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-envelope"></i></div><div><div class="booking-info-label">Email</div><div class="booking-info-value">${_e(email)}</div></div></div>`;
       h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-pin-map"></i></div><div><div class="booking-info-label">Service address</div><div class="booking-info-value">${_e(address)}</div></div></div>`;
       h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-calendar3"></i></div><div><div class="booking-info-label">Appointment schedule</div><div class="booking-info-value">${_e(dateTime)}</div></div></div>`;
       h += `<div class="booking-info-row"><div class="booking-info-icon"><i class="bi bi-award"></i></div><div><div class="booking-info-label">Priority</div><div class="booking-info-value">${_e(priority)}</div></div></div>`;
@@ -7720,7 +7717,6 @@ if (a.status === 'accepted') {
         h += `<a class="booking-contact-action" href="tel:${_e(phoneLink)}"><i class="bi bi-telephone"></i>Call</a>`;
         h += `<a class="booking-contact-action" href="sms:${_e(phoneLink)}"><i class="bi bi-chat-dots"></i>Text</a>`;
       }
-      if (hasEmail) h += `<a class="booking-contact-action" href="mailto:${_e(email)}"><i class="bi bi-envelope"></i>Email</a>`;
       h += `<a class="booking-contact-action" href="${_e(mapsHref)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>`;
       h += `</div></div></section>`;
 
@@ -7959,7 +7955,6 @@ if (a.status === 'accepted') {
         <div class="detail-section-body">
           <div class="detail-row"><label>Name</label><span>${a.customerName || 'N/A'}</span></div>
           <div class="detail-row"><label>Phone</label><span>${a.customerPhone || 'N/A'}</span></div>
-          <div class="detail-row"><label>Email</label><span style="font-size:0.75rem;">${a.customerEmail || 'N/A'}</span></div>
         </div>
       </div>
       <div class="detail-section detail-section-feature">

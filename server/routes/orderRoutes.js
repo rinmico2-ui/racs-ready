@@ -42,6 +42,10 @@ const {
   withOrderAttentionState,
 } = require("../utils/orderAttention");
 const {
+  TECHNICIAN_ORDER_EXCLUDE_SELECT,
+  presentTechnicianOrder,
+} = require("../utils/technicianDataPresentation");
+const {
   OrderCheckoutError,
   authoritativeDeliveryQuote,
   normalizeGcashSenderNumber,
@@ -114,6 +118,15 @@ function withPayableOrderPricing(order) {
 
 function withOrderPresentation(order) {
   return withOrderAttentionState(withPayableOrderPricing(order));
+}
+
+function presentOrderForRequest(req, order) {
+  const presented = withOrderPresentation(
+    order && typeof order.toObject === "function" ? order.toObject() : order,
+  );
+  return req.user?.role === "technician"
+    ? presentTechnicianOrder(presented)
+    : presented;
 }
 
 // â”€â”€ Multer config for GCash receipt uploads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -819,10 +832,11 @@ router.get("/technician/tasks", authenticate, requireRole("technician"), async (
       technicianId: tech._id,
       status: { $nin: ["cancelled", "completed"] },
     })
+      .select(TECHNICIAN_ORDER_EXCLUDE_SELECT)
       .sort({ "delivery.preferredDate": 1, createdAt: 1 })
       .lean();
 
-    res.json({ tasks: orders.map((order) => withPayableOrderPricing(order)) });
+    res.json({ tasks: orders.map((order) => presentTechnicianOrder(withPayableOrderPricing(order))) });
   } catch (err) {
     checkoutErrorResponse(res, err);
   }
@@ -863,7 +877,6 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
       filter.$or = [
         { orderReference: regex },
         { "customer.name": regex },
-        { "customer.email": regex },
         { "items.modelLine": regex },
       ];
     }
@@ -902,6 +915,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     const skip = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
     const [orders, total, statusCounts] = await Promise.all([
       Order.find(filter)
+        .select(TECHNICIAN_ORDER_EXCLUDE_SELECT)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
@@ -928,7 +942,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     );
 
     res.json({
-      orders: orders.map((order) => withOrderPresentation(order)),
+      orders: orders.map((order) => withOrderPresentation(order)).map(presentTechnicianOrder),
       total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)),
@@ -1296,6 +1310,9 @@ router.get("/:id", authenticate, async (req, res) => {
       }
     }
 
+    if (req.user.role === "technician") {
+      return res.json({ order: presentTechnicianOrder(withOrderPresentation(order)) });
+    }
     res.json({ order: withOrderPresentation(order) });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1326,7 +1343,7 @@ router.post("/:id/dispatch-ready", authenticate, requireRole(["admin", "secretar
       actorName: req.user.name || req.user.email || "Operations",
     });
     await order.save();
-    return res.json({ success: true, order: order.toObject() });
+    return res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Failed to confirm unit preparation" });
   }
@@ -1384,7 +1401,7 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
     }
     const refreshedOrder = await Order.findById(order._id).lean();
     emitOrderStatus(req, refreshedOrder || order);
-    res.json({ success: true, order: refreshedOrder, preparationReview });
+    res.json({ success: true, order: presentOrderForRequest(req, refreshedOrder), preparationReview });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1428,7 +1445,7 @@ router.post("/:id/decline", authenticate, requireRole("technician"), async (req,
     await syncLinkedInstallationBooking(order, null, req.app.get("io")).catch(() => {});
     await syncAffectedOrderKits(previousKitTarget);
     emitOrderStatus(req, order);
-    res.json({ success: true, order: order.toObject() });
+    res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1658,7 +1675,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
       });
     }
 
-    res.json({ success: true, order: order.toObject() });
+    res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1764,7 +1781,7 @@ router.post("/:id/mark-ready-for-pickup", authenticate, requireRole(["admin", "s
     });
     await order.save();
     emitOrderStatus(req, order);
-    res.json({ success: true, order: order.toObject() });
+    res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1858,7 +1875,7 @@ router.post("/:id/confirm-pickup", authenticate, requireRole(["admin", "secretar
       console.error("Failed to create pickup-order maintenance record:", maintenanceError.message);
     }
     emitOrderStatus(req, order, { paymentCollected });
-    res.json({ success: true, paymentCollected, order: order.toObject() });
+    res.json({ success: true, paymentCollected, order: presentOrderForRequest(req, order) });
   } catch (err) {
     await session.abortTransaction().catch(() => {});
     checkoutErrorResponse(res, err);
@@ -2017,7 +2034,7 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
     res.json({
       message: refundRequested ? "Order cancelled. The verified payment is queued for refund review." : "Order cancelled",
       refundRequested,
-      order: cancelledOrder.toObject(),
+      order: presentOrderForRequest(req, cancelledOrder),
     });
   } catch (err) {
     checkoutErrorResponse(res, err);
@@ -2088,7 +2105,7 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
 
     res.json({
       message: "Reschedule request submitted successfully",
-      order: order.toObject()
+      order: presentOrderForRequest(req, order)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2146,7 +2163,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
 
     res.json({
       message: "Reschedule request approved",
-      order: order.toObject()
+      order: presentOrderForRequest(req, order)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2179,7 +2196,7 @@ router.post("/:id/reschedule-reject", authenticate, requireRole(["admin", "secre
 
     res.json({
       message: "Reschedule request rejected",
-      order: order.toObject()
+      order: presentOrderForRequest(req, order)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2271,7 +2288,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     return res.json({
       success: true,
       message: "Order schedule updated. The order remains active in its current workflow stage.",
-      order: withOrderAttentionState(order.toObject()),
+      order: presentOrderForRequest(req, order),
     });
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to reschedule order" });
@@ -2346,7 +2363,7 @@ router.post("/:id/requeue-assignment", authenticate, requireRole(["admin", "secr
       } catch (_) {}
     }
 
-    return res.json({ success: true, message: "Order returned to the assignment queue.", order: withOrderAttentionState(order.toObject()) });
+    return res.json({ success: true, message: "Order returned to the assignment queue.", order: presentOrderForRequest(req, order) });
   } catch (err) {
     res.status(500).json({ error: err.message || "Failed to requeue assignment" });
   }
@@ -2561,7 +2578,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
     emitOrderStatus(req, order);
     res.json({
       message: "Technician assigned successfully",
-      order: order.toObject()
+      order: presentOrderForRequest(req, order)
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2650,7 +2667,7 @@ router.patch("/:id/payment", authenticate, requireRole(["admin", "secretary"]), 
     await session.commitTransaction();
 
     emitOrderStatus(req, order);
-    res.json({ success: true, order: order.toObject(), paymentStatus: effectivePaymentStatus });
+    res.json({ success: true, order: presentOrderForRequest(req, order), paymentStatus: effectivePaymentStatus });
   } catch (err) {
     await session.abortTransaction().catch(() => {});
     console.error("PATCH /api/orders/:id/payment error:", err);

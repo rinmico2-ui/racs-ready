@@ -33,6 +33,15 @@
   }
 
   const perPage = 8;
+  const CUSTOMER_RESCHEDULE_STATUSES = new Set([
+    'pending',
+    'payment_verified',
+    'awaiting_assignment',
+    'confirmed',
+    'scheduled',
+    'inspection_scheduled',
+    'awaiting_approval',
+  ]);
   let bookings = [];
   let filtered = [];
   let page = 0;
@@ -279,7 +288,9 @@
       const inst = bootstrap.Modal.getInstance(detailModal);
       if (inst) inst.hide();
     }
-    setTimeout(() => openBookingEditor(id, "schedule"), 400);
+    const booking = bookings.find(item => String(item._id) === String(id));
+    if (!booking) return alert('Booking could not be loaded. Please refresh and try again.');
+    setTimeout(() => openRescheduleModal(booking), 400);
   };
 
   async function submitRescheduleAction(id, action, extras = {}) {
@@ -357,9 +368,14 @@
             ? `<button class="bh-action-btn bh-action-btn--warning bh-view" data-id="${b._id}" title="Review Reschedule"><i class="bi bi-calendar-check"></i></button>`
             : `<button class="bh-action-btn bh-action-btn--primary bh-view" data-id="${b._id}" title="View Details"><i class="bi bi-eye"></i></button>`;
 
+        const hasPendingReschedule = b.rescheduleRequest?.status === 'pending';
+        const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(b.status) && !needsConfirmation;
+        const scheduleAction = canRequestReschedule
+          ? `<button class="bh-action-btn bh-action-btn--warning bh-reschedule" data-id="${b._id}" title="${hasPendingReschedule ? 'Schedule change awaiting review' : 'Change schedule'}" aria-label="${hasPendingReschedule ? 'Schedule change awaiting review' : 'Change schedule'}" ${hasPendingReschedule ? 'disabled aria-disabled="true"' : ''}><i class="bi bi-calendar-event"></i></button>`
+          : '';
+
         const pendingActions = b.status === 'pending'
-          ? `<button class="bh-action-btn bh-action-btn--warning bh-reschedule" data-id="${b._id}" title="Re-schedule"><i class="bi bi-calendar-event"></i></button>
-             <button class="bh-action-btn bh-action-btn--danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>`
+          ? `<button class="bh-action-btn bh-action-btn--danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>`
           : '';
 
         const repairAction = b.status === 'repair_approved'
@@ -367,7 +383,7 @@
           : '';
 
         const editAction = ['pending','payment_verified','confirmed','awaiting_assignment'].includes(b.status)
-          ? `<button class="bh-action-btn bh-edit-services" data-id="${b._id}" title="Edit services" style="color:#0ea5e9;border-color:#bae6fd;"><i class="bi bi-list-check"></i></button>`
+          ? `<button class="bh-action-btn bh-edit-services" data-id="${b._id}" title="Edit booking services" style="color:#0ea5e9;border-color:#bae6fd;"><i class="bi bi-list-check"></i></button>`
           : '';
         const maintenanceAction = b.maintenanceSummary || b.maintenance?.isMaintenance
           ? `<a class="bh-action-btn" href="/maintenance" title="View maintenance" style="color:#0f766e;border-color:#99f6e4;"><i class="bi bi-calendar2-check"></i></a>`
@@ -396,6 +412,7 @@
             <div class="bh-actions">
               ${reviewAction}
               <button class="bh-action-btn bh-download" data-id="${b._id}" title="Download JSON"><i class="bi bi-download"></i></button>
+              ${scheduleAction}
               ${pendingActions}
               ${repairAction}
               ${editAction}
@@ -2133,7 +2150,6 @@
 
   // Reschedule modal state
   let currentRescheduleBooking = null;
-  let currentRescheduleTechnicianId = null;
   let selectedRescheduleDate = null;
   let selectedRescheduleTime = null;
   let rescheduleCalendarState = {
@@ -2150,7 +2166,6 @@
   // Open reschedule modal
   function openRescheduleModal(booking) {
     currentRescheduleBooking = booking;
-    currentRescheduleTechnicianId = booking.technicianId || booking.technician?._id;
     selectedRescheduleDate = null;
     selectedRescheduleTime = null;
 
@@ -2159,38 +2174,28 @@
     document.getElementById('bhRescheduleError').classList.add('d-none');
     document.getElementById('bhRescheduleCalendarContent').classList.add('d-none');
     document.getElementById('bhSubmitReschedule').disabled = true;
+    document.getElementById('bhRescheduleReason').value = '';
+    const timeSlotContainer = document.getElementById('bhTimeSlotsContainer');
+    timeSlotContainer.classList.add('d-none');
+    timeSlotContainer.innerHTML = '<h6 class="mb-3 fw-semibold">Select Preferred Time</h6><div class="d-flex flex-wrap gap-2" id="bhTimeSlots"></div>';
 
     // Set technician name
-    const techName = booking.technicianName || booking.technician?.name || 'Not assigned';
-    document.getElementById('bhRescheduleTechName').textContent = techName;
+    document.getElementById('bhRescheduleTechName').textContent = 'Company scheduling pool';
 
     // Open modal
     const modal = new bootstrap.Modal(document.getElementById('bhRescheduleModal'));
     modal.show();
 
-    const isProject = Boolean(booking.isProject || booking.projectScheduling);
-
-    // Ordinary appointments need technician-specific availability. Projects
-    // use company-level date capacity because Operations builds the detailed
-    // multi-day plan after the customer selects a preferred start date.
-    if (!currentRescheduleTechnicianId && !isProject) {
-      document.getElementById('bhRescheduleLoading').classList.add('d-none');
-      document.getElementById('bhRescheduleError').textContent = 'No technician assigned to this booking. Please contact customer support.';
-      document.getElementById('bhRescheduleError').classList.remove('d-none');
-      return;
-    }
-
-    // Fetch available slots for this technician
+    // Schedule changes use company-wide capacity because an approved change
+    // can require reassignment to a different available technician.
     fetchAvailableSlots();
   }
 
   // Fetch available slots for the technician
   async function fetchAvailableSlots() {
     try {
-      const isProject = Boolean(currentRescheduleBooking?.isProject || currentRescheduleBooking?.projectScheduling);
-      const endpoint = isProject
-        ? '/api/schedule/available-dates?duration=60&mode=all'
-        : `/api/schedule/technician/${encodeURIComponent(currentRescheduleTechnicianId)}/available-slots?duration=${encodeURIComponent(Number(currentRescheduleBooking?.serviceDurationMinutes) || 60)}`;
+      const duration = Number(currentRescheduleBooking?.serviceDurationMinutes) || 60;
+      const endpoint = `/api/schedule/available-dates?duration=${encodeURIComponent(duration)}&mode=all`;
       const response = await fetch(endpoint, { credentials: 'same-origin' });
       const data = await response.json();
 
@@ -2284,7 +2289,7 @@
   }
 
   // Select reschedule date
-  function selectRescheduleDate(date, dateStr, cellElement) {
+  async function selectRescheduleDate(date, dateStr, cellElement) {
     selectedRescheduleDate = dateStr;
     selectedRescheduleTime = null;
 
@@ -2311,9 +2316,35 @@
       return;
     }
 
-    // Find available time slots for this date
+    // Load company-capacity slots for the selected date. Operationally
+    // committed bookings return to the assignment queue after approval.
     const availableDate = rescheduleCalendarState.availableDates.find(ad => ad.date === dateStr);
-    const timeSlots = availableDate ? availableDate.timeSlots : [];
+    let timeSlots = availableDate ? availableDate.timeSlots : [];
+    if (!isProject) {
+      const duration = Number(currentRescheduleBooking?.serviceDurationMinutes) || 60;
+      if (container) {
+        container.classList.remove('d-none');
+        container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><div class="small text-muted mt-2">Loading available times...</div></div>';
+      }
+      try {
+        const params = new URLSearchParams({ date: dateStr, duration: String(duration) });
+        const response = await fetch(`/api/schedule/time-slots?${params.toString()}`, { credentials: 'same-origin' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch available times');
+        timeSlots = (data.timeSlots || []).map(slot => ({
+          ...slot,
+          time: slot.time || slot.startTime,
+          duration: slot.duration || duration,
+        }));
+      } catch (error) {
+        if (container) {
+          container.classList.remove('d-none');
+          container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message || 'Failed to load available times.')}</div>`;
+        }
+        document.getElementById('bhSubmitReschedule').disabled = true;
+        return;
+      }
+    }
 
     // Render time slots
     renderTimeSlots(timeSlots);
@@ -2322,16 +2353,17 @@
   // Render time slots
   function renderTimeSlots(timeSlots) {
     const container = document.getElementById('bhTimeSlotsContainer');
-    const slotsContainer = document.getElementById('bhTimeSlots');
 
     if (timeSlots.length === 0) {
-      container.classList.add('d-none');
+      container.classList.remove('d-none');
+      container.innerHTML = '<div class="alert alert-warning mb-0"><i class="bi bi-clock-history me-2"></i>No times remain available on this date. Please choose another day.</div>';
       document.getElementById('bhSubmitReschedule').disabled = true;
       return;
     }
 
     container.classList.remove('d-none');
-    slotsContainer.innerHTML = '';
+    container.innerHTML = '<h6 class="mb-3 fw-semibold">Select Preferred Time</h6><div class="d-flex flex-wrap gap-2" id="bhTimeSlots"></div>';
+    const slotsContainer = document.getElementById('bhTimeSlots');
 
     timeSlots.forEach(slot => {
       const slotBtn = document.createElement('button');
@@ -2425,7 +2457,9 @@
       const modal = bootstrap.Modal.getInstance(document.getElementById('bhRescheduleModal'));
       modal.hide();
 
-      alert('Reschedule request submitted successfully! The secretary will review your request and you will be notified once it is approved.');
+      alert(data.message || (data.applied
+        ? 'Schedule updated successfully.'
+        : 'Schedule change submitted. You will be notified after it is reviewed.'));
       fetchBookings();
     } catch (error) {
       console.error('Error submitting reschedule request:', error);
