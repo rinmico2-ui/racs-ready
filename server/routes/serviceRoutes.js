@@ -10,6 +10,7 @@ const Order = require("../models/Order");
 const auth = require("../middleware/authenticate");
 const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/bookingPolicy");
 const { getPaymentPolicy } = require("../utils/paymentPolicy");
+const { overtimeMinutesForWindow } = require("../utils/technicianOvertimePolicy");
 
 async function fetchJsonWithTimeout(url, timeoutMs = 7000) {
   const controller = new AbortController();
@@ -1036,7 +1037,7 @@ async function computeCompanyWindows(dateStr, params) {
     // re-dispatched until the earlier job is done).
     let freeTechs = 0;
     for (const w of workable) {
-      if (winStart < w.blockStart) continue;
+      if (overtimeMinutesForWindow(winStart, winEnd, w.blockStart, w.blockEnd) === null) continue;
       const booked = bookedTechsByWindow.get(w.id);
       const blockedEarlier = booked && Array.from(booked).some((s) => s < winStart);
       if (!booked || (!booked.has(winStart) && !blockedEarlier)) freeTechs++;

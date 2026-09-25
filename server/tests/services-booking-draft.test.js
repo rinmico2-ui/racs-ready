@@ -19,7 +19,9 @@ const servicesView = fs.readFileSync(
 );
 
 test("unfinished bookings use a versioned, expiring local draft", () => {
-  assert.match(servicesScript, /const BOOKING_STORAGE_VERSION = 2/);
+  assert.match(servicesScript, /const BOOKING_STORAGE_VERSION = 3/);
+  assert.match(servicesScript, /calidro_booking_progress_v3_\$\{BOOKING_CUSTOMER_ID\}/);
+  assert.match(servicesView, /data-customer-id=/);
   assert.match(servicesScript, /const BOOKING_STORAGE_MAX_AGE_MS = 24 \* 60 \* 60 \* 1000/);
   assert.match(servicesScript, /version: BOOKING_STORAGE_VERSION/);
   assert.match(servicesScript, /Date\.now\(\) - data\.savedAt > BOOKING_STORAGE_MAX_AGE_MS/);
@@ -37,6 +39,8 @@ test("draft persistence uses the active booking fields and actual current step",
 });
 
 test("a draft can restore before a service is added and resumes only at a valid step", () => {
+  assert.match(servicesScript, /system explicitly so saved drafts are actually restored after a reload\.\s*initMultiServiceBooking\(\);/);
+  assert.match(servicesScript, /let isLoggedIn = document\.getElementById\('entStepper'\)\?\.dataset\.authenticated === 'true'/);
   assert.match(servicesScript, /normalizeBookingStep\(data\?\.currentStep, 1\) > 1/);
   assert.match(servicesScript, /if \(BookingState\.draftRestored\)/);
   assert.match(servicesScript, /const stepToRestore = getRestorableBookingStep\(\)/);
@@ -51,7 +55,7 @@ test("drafts save during mobile page lifecycle and critical booking mutations", 
   assert.match(servicesScript, /window\.addEventListener\('pagehide', saveBookingProgress\)/);
   assert.match(servicesScript, /document\.visibilityState === 'hidden'/);
   assert.match(servicesScript, /BookingState\.selectedServices\.push\(serviceItem\);[\s\S]*?saveBookingProgress\(\)/);
-  assert.match(servicesScript, /BookingState\.customerLocation = \{ address: coordinateLabel,[\s\S]*?scheduleBookingProgressSave\(\)/);
+  assert.match(servicesScript, /BookingState\.customerLocation = \{ address: manualAddress \|\| coordinateLabel,[\s\S]*?scheduleBookingProgressSave\(\)/);
   assert.match(servicesScript, /BookingState\.selectedDate = date;\s*saveBookingProgress\(\)/);
   assert.match(calendarScript, /BookingState\.selectedTimeSlot = _selectedSlot;[\s\S]*?window\.saveBookingProgress\(\)/);
   assert.match(calendarScript, /BookingState\.projectScheduling = selection;\s*if \(typeof window\.saveBookingProgress/);
@@ -73,9 +77,16 @@ test("large uploads and payment evidence are not written to localStorage", () =>
 });
 
 test("successful submission disables re-saving and refreshed assets bypass stale browser caches", () => {
-  assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled\) return false/);
+  assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled \|\| !BOOKING_CUSTOMER_ID\) return false/);
   assert.match(servicesScript, /BookingState\.draftPersistenceDisabled = true;\s*localStorage\.removeItem/);
-  assert.match(servicesView, /enterprise-calendar\.js\?v=20260917-manila-slots-v1/);
-  assert.match(servicesView, /services-multi\.js\?v=20260920-payment-no-card-v1/);
+  assert.match(servicesView, /enterprise-calendar\.js\?v=20260925-schedule-next-v6/);
+  assert.match(servicesView, /services-multi\.js\?v=20260925-gcash-real-qr-v42/);
   assert.match(servicesView, /if\(typeof window\.saveBookingProgress==='function'\) window\.saveBookingProgress\(\)/);
+  assert.doesNotMatch(servicesScript, /event\.returnValue\s*=\s*''/);
+});
+
+test("booking validation points to the exact missing field after the popup", () => {
+  assert.match(servicesScript, /focusTarget\.scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
+  assert.match(servicesScript, /focusTarget\.setAttribute\('aria-invalid', 'true'\)/);
+  assert.match(servicesScript, /\}\)\.then\(\(\) => focusBookingRequirement\(issue\)\)/);
 });

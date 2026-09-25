@@ -20,6 +20,7 @@ const {
 } = require('../utils/bookingPolicy');
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
 const { manilaDateKey, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
+const { latestAllowedFinish, overtimeMinutesForWindow } = require('../utils/technicianOvertimePolicy');
 
 // ── Company-wide working hours (internal constants) ───────────────────────────
 const COMPANY_START_MINUTES = 480; // 8:00 AM (fallback default)
@@ -101,7 +102,7 @@ router.get('/available-dates', async (req, res) => {
     const capacityPerSlot = totalServiceDuration + travelTime + bufferTime;
 
     // ── Block if booking exceeds working hours + overtime ──────────────────
-    const totalWorkingMinutes = COMPANY_END_MINUTES - COMPANY_START_MINUTES;
+    const totalWorkingMinutes = latestAllowedFinish(COMPANY_END_MINUTES) - COMPANY_START_MINUTES;
     if (capacityPerSlot > totalWorkingMinutes) {
       return res.json({
         availableDates: [],
@@ -357,7 +358,7 @@ router.get('/available-dates', async (req, res) => {
         // (only check start time — jobs may extend into overtime)
         let freeTechs = 0;
         for (const t of dayWorkingTechs) {
-          if (s < t.startMinutes) continue;
+          if (overtimeMinutesForWindow(s, slotEnd, t.startMinutes, t.endMinutes) === null) continue;
           const hasConflict = t.intervals.some(b => s < b.end && slotEnd > b.start);
           if (!hasConflict) freeTechs++;
         }
@@ -774,7 +775,7 @@ async function handleTimeSlots(req, res) {
     const capacityPerSlot = totalServiceDuration + travelTime + bufferTime;
 
     // ── Block if booking exceeds working hours + overtime ──────────────────
-    const totalWorkingMinutes = COMPANY_END_MINUTES - COMPANY_START_MINUTES;
+    const totalWorkingMinutes = latestAllowedFinish(COMPANY_END_MINUTES) - COMPANY_START_MINUTES;
     if (capacityPerSlot > totalWorkingMinutes) {
       return res.json({
         timeSlots: [],
@@ -922,6 +923,7 @@ async function handleTimeSlots(req, res) {
       const timeSlots = [];
       for (let slotStart = workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
         const slotEnd = slotStart + capacityPerSlot;
+        if (overtimeMinutesForWindow(slotStart, slotEnd, workStartMin, workEndMin) === null) continue;
 
         if (!manilaSlotTiming(requestedDateKey, slotStart, {
           now,
@@ -1093,7 +1095,9 @@ async function handleTimeSlots(req, res) {
       let free = 0;
       for (const tech of workableTechs) {
         // Must start within this technician's configured working hours
-        if (slotStart < tech.workingDay.startMinutes) continue;
+        if (overtimeMinutesForWindow(slotStart, slotEnd,
+          tech.workingDay.startMinutes ?? COMPANY_START_MINUTES,
+          tech.workingDay.endMinutes ?? COMPANY_END_MINUTES) === null) continue;
         // Check if any existing booking overlaps this slot
         const booked = techBookedIntervals.get(tech.id) || [];
         const hasOverlap = booked.some(b => slotStart < b.end && slotEnd > b.start);

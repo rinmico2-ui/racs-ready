@@ -7246,7 +7246,7 @@ if (a.status === 'accepted') {
           let btnAction = completeAction;
           let btnClass = isCompleteStep && needsPayment ? 'btn-warning' : isCompleteStep ? 'btn-success' : 'btn-primary';
           if (a.status === 'accepted') {
-            const kitReady = ['confirmed', 'in_progress'].includes(window._dailyKitStatus);
+            const kitReady = Boolean(a.equipmentCheckedOut);
             if (kitReady) {
               btnLabel = 'En Route';
               btnIcon = 'bi-sign-turn-right';
@@ -7255,7 +7255,7 @@ if (a.status === 'accepted') {
             } else {
               btnLabel = 'Open Daily Preparation';
               btnIcon = 'bi-briefcase';
-              btnAction = `openDailyKitModal();`;
+              btnAction = `openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}');`;
               btnClass = 'btn-primary';
             }
           }
@@ -8035,8 +8035,8 @@ ${isRepair ? `
         <div class="detail-section-body">
           <div class="detail-row"><label>Status</label><span><span class="badge ${a.equipmentCheckedOut ? 'bg-success' : 'bg-secondary'}" style="font-size:0.68rem;padding:4px 8px;">${a.equipmentCheckedOut ? 'EQUIPMENT CHECKED OUT' : 'AWAITING DAILY PREP'}</span></span></div>
           <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
-            <small style="font-size:0.75rem;color:#64748b;">Equipment and consumables are prepared once for all of today's jobs via the Daily Preparation Center.</small>
-            <button type="button" class="btn btn-sm btn-outline-success" onclick="openDailyKitModal()"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>
+            <small style="font-size:0.75rem;color:#64748b;">Review the kit for this job's scheduled date. You can preview future dates before preparing the kit.</small>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}')"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>
           </div>
         </div>
       </div>` : ''}
@@ -8634,11 +8634,11 @@ ${isRepair ? `
             if (missedSchedule) {
               btns += `<span class="badge bg-warning text-dark" style="font-size:0.72rem;padding:5px 10px;"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — awaiting reschedule</span>`;
             } else {
-              const kitReady = ['confirmed', 'in_progress'].includes(window._dailyKitStatus);
+              const kitReady = Boolean(a.equipmentCheckedOut);
               if (kitReady) {
                 btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();transitionStatus('${a._id}','en_route',this);"><i class="bi bi-sign-turn-right me-1"></i>En Route</button>`;
               } else {
-                btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDailyKitModal();" title="Complete Daily Preparation before going En Route"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
+                btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}');" title="Review the kit for this job's scheduled date"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
               }
             }
           } else if (a.status === 'on_site') {

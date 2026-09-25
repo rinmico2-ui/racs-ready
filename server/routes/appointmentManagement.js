@@ -619,7 +619,8 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
     const { buildAssignmentPlan } = require('../utils/assignmentPlanner');
     const eligibility = (await buildAssignmentPlan([booking], { reservePlan: false }))[0];
     if (!eligibility?.candidates?.some(c => c.technicianId === String(technicianId))) {
-      return res.status(409).json({ error: 'This technician is no longer eligible for the requested schedule. Refresh recommendations and choose again.' });
+      const reason = eligibility?.exclusionReasons?.[String(technicianId)] || 'Not Available for This Booking';
+      return res.status(409).json({ error: `Cannot assign this technician: ${reason}. Refresh the list and choose an available technician.` });
     }
 
     // â”€â”€ Safety: reject if technician already has a booking at this time â”€â”€
@@ -1093,53 +1094,21 @@ router.get('/tools/available', requireRole(["admin", "secretary"]), async (req, 
 router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const Technician = require('../models/Technician');
-    const TechnicianSchedule = require('../models/TechnicianSchedule');
-    const LeaveRequest = require('../models/LeaveRequest');
     const BookingService = require('../models/BookingService');
     const Assignment = require('../models/Assignment');
 
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid booking id' });
 
-    // â”€â”€ Helper: parse time string to minutes since midnight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    function parseMinuteVal(value) {
-      if (value === null || value === undefined) return NaN;
-      const raw = String(value).trim();
-      if (!raw) return NaN;
-      if (/^\d{1,4}$/.test(raw)) return Number(raw);
-      const hm = raw.match(/^(\d{1,2}):(\d{2})$/);
-      if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
-      const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (ampm) {
-        let hh = Number(ampm[1]) % 12;
-        if (ampm[3].toUpperCase() === 'PM') hh += 12;
-        return hh * 60 + Number(ampm[2]);
-      }
-      return NaN;
-    }
-
-    function deriveEndMinutes(b) {
-      const bStart = parseMinuteVal(b.startTime);
-      const explicitEnd = parseMinuteVal(b.endTime);
-      if (Number.isFinite(explicitEnd) && explicitEnd > bStart) return explicitEnd;
-      const serviceDuration = Number(b.serviceDurationMinutes) || 60;
-      const travelDuration = Math.max(0, Number(b.travelTime) || 0);
-      if (!Number.isFinite(bStart)) return NaN;
-      return bStart + serviceDuration + travelDuration + 30;
-    }
-
-    // â”€â”€ 1. Fetch the booking to get its date, time slot, and location â”€â”€â”€â”€â”€
-    const booking = await BookingService.findById(id)
-      .select('bookingDate startTime endTime serviceDurationMinutes travelTime location bookingLocation')
-      .lean();
+    // Load the booking before applying the assignment planner's rules.
+    const booking = await BookingService.findById(id).lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    const bookingDate = new Date(booking.bookingDate);
-    bookingDate.setHours(0, 0, 0, 0);
-    const dayOfWeek = bookingDate.getDay();
-
-    const targetStartMin = parseMinuteVal(booking.startTime);
-    const targetEndMin = deriveEndMinutes(booking);
+    // Show only technicians the assignment confirmation would actually accept.
+    // The picker previously used looser rules than the confirmation endpoint.
+    const { buildAssignmentPlan } = require('../utils/assignmentPlanner');
+    const assignmentPlan = (await buildAssignmentPlan([booking], { reservePlan: false }))[0];
+    const candidateById = new Map((assignmentPlan?.candidates || []).map(candidate => [candidate.technicianId, candidate]));
 
     // â”€â”€ 2. Fetch ALL active technicians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const allTechs = await Technician.find({ active: true })
@@ -1155,45 +1124,10 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
 
     // â”€â”€ 3. Batch-fetch schedules, leave records, active assignments, and
     //        existing bookings on the same date for overlap checking â”€â”€â”€â”€â”€â”€â”€â”€
-    const dayEnd = new Date(bookingDate);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const [schedules, leaveRecords, activeAssignments, existingBookings] = await Promise.all([
-      TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean(),
-      LeaveRequest.find({
-        technicianId: { $in: techIds },
-        status: 'approved',
-        startDate: { $lte: bookingDate },
-        endDate: { $gte: bookingDate },
-      }).select('technicianId').lean(),
-      Assignment.find({
-        technicianId: { $in: techIds },
-        status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] },
-      }).select('technicianId').lean(),
-      // Fetch all bookings on the same date (active statuses) to check time overlaps
-      Number.isFinite(targetStartMin) && Number.isFinite(targetEndMin)
-        ? BookingService.find({
-          _id: { $ne: id },
-          bookingDate: { $gte: bookingDate, $lte: dayEnd },
-          technicianId: { $in: techIds },
-          status: {
-            $in: [
-              'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
-              'pending_reassignment', 'confirmed', 'scheduled',
-              'on-the-way', 'arrived', 'in-progress', 'ongoing',
-              'repair_requested', 'inspection_scheduled', 'inspection_in_progress',
-              'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress',
-            ],
-          },
-        }).select('technicianId startTime endTime serviceDurationMinutes travelTime').lean()
-        : Promise.resolve([]),
-    ]);
-
-    // Build lookup maps
-    const scheduleMap = {};
-    schedules.forEach(s => { scheduleMap[s.technicianId.toString()] = s; });
-
-    const leaveTechIds = new Set(leaveRecords.map(lr => lr.technicianId.toString()));
+    const activeAssignments = await Assignment.find({
+      technicianId: { $in: techIds },
+      status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] },
+    }).select('technicianId').lean();
 
     const workloadMap = {};
     activeAssignments.forEach(a => {
@@ -1201,68 +1135,21 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
       workloadMap[tid] = (workloadMap[tid] || 0) + 1;
     });
 
-    // Build overlap map: technicianId -> Set of reasons (time conflict)
-    const overlapTechIds = new Set();
-    if (Number.isFinite(targetStartMin) && Number.isFinite(targetEndMin)) {
-      for (const eb of existingBookings) {
-        const tid = eb.technicianId.toString();
-        const ebStart = parseMinuteVal(eb.startTime);
-        const ebEnd = deriveEndMinutes(eb);
-        if (!Number.isFinite(ebStart) || !Number.isFinite(ebEnd) || ebEnd <= ebStart) continue;
-        if (targetStartMin < ebEnd && targetEndMin > ebStart) {
-          overlapTechIds.add(tid);
-        }
-      }
-    }
-
     // â”€â”€ 4. Filter technicians by eligibility criteria â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const MAX_ACTIVE_ASSIGNMENTS = 3;
-
     const eligible = [];
     const ineligible = [];
 
     for (const tech of allTechs) {
       const tid = tech._id.toString();
 
-      if (leaveTechIds.has(tid)) {
-        ineligible.push({ ...tech, reason: 'On Leave' });
-        continue;
-      }
-
-      const schedule = scheduleMap[tid];
-      if (!schedule) {
-        ineligible.push({ ...tech, reason: 'No Schedule' });
-        continue;
-      }
-
-      const workingDay = schedule.workingDays?.find(wd => wd.dayOfWeek === dayOfWeek);
-      const isNonWorkingWeekday = schedule.nonWorkingWeekdays?.some(nwd => nwd.dayOfWeek === dayOfWeek);
-      if (!workingDay || isNonWorkingWeekday) {
-        ineligible.push({ ...tech, reason: 'Not Working This Day' });
-        continue;
-      }
-
-      const isRestDate = schedule.restDates?.some(rd => {
-        const rdDate = new Date(rd.date);
-        return rdDate.getFullYear() === bookingDate.getFullYear() &&
-          rdDate.getMonth() === bookingDate.getMonth() &&
-          rdDate.getDate() === bookingDate.getDate();
-      });
-      if (isRestDate) {
-        ineligible.push({ ...tech, reason: 'Rest Day' });
+      if (!candidateById.has(tid)) {
+        ineligible.push({ ...tech, reason: assignmentPlan?.assignmentTiming?.isExpired
+          ? 'Requested Time Has Passed'
+          : assignmentPlan?.exclusionReasons?.[tid] || 'Not Available for This Booking' });
         continue;
       }
 
       const currentWorkload = workloadMap[tid] || 0;
-      if (currentWorkload >= MAX_ACTIVE_ASSIGNMENTS) {
-        ineligible.push({ ...tech, reason: 'At Capacity', workload: currentWorkload });
-        continue;
-      }
-
-      if (overlapTechIds.has(tid)) {
-        ineligible.push({ ...tech, reason: 'Already Booked at This Time' });
-        continue;
-      }
 
       // Compute distance from booking location
       const bookingLat = booking.location?.lat || booking.bookingLocation?.lat || null;
@@ -1286,6 +1173,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
         availabilityStatus: tech.availabilityStatus || 'Offline',
         distanceKm,
         etaMin,
+        overtimeMinutes: candidateById.get(tid)?.overtimeMinutes || 0,
         bookingLat,
         bookingLng,
       });

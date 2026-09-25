@@ -1,5 +1,7 @@
 "use strict";
 
+const { computeBookingEndDateTime } = require("./bookingPolicy");
+
 function text(value) {
   return value === null || value === undefined ? "" : String(value).trim();
 }
@@ -105,6 +107,10 @@ const CUSTOMER_HIDDEN_FIELDS = [
 
 function presentCustomerBooking(booking = {}) {
   const presented = enrichCustomerBooking(booking);
+  // Customer pages must compare against the same Manila service window used
+  // by the server's scheduling and lifecycle rules.
+  const scheduleWindowEnd = computeBookingEndDateTime(presented);
+  presented.scheduleWindowEndAt = scheduleWindowEnd ? scheduleWindowEnd.toISOString() : null;
   CUSTOMER_HIDDEN_FIELDS.forEach((field) => delete presented[field]);
 
   if (Array.isArray(presented.payments)) {

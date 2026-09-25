@@ -3625,6 +3625,7 @@
           var recommendedBadge=isRecommended?'<span class="badge" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;font-weight:600;font-size:0.65rem;padding:2px 6px;border-radius:6px;">AI Recommended</span>':'';
           var dist=t.distanceKm!=null?'<span class="aq-tech-badge"><i class="bi bi-geo me-1"></i>'+t.distanceKm+' km</span>':'';
           var eta=t.etaMin!=null?'<span class="aq-tech-badge"><i class="bi bi-clock me-1"></i>'+t.etaMin+' min</span>':'';
+          var overtime=t.overtimeMinutes>0?'<span class="aq-tech-badge" style="color:#9a3412;background:#fff7ed;"><i class="bi bi-clock-history me-1"></i>'+t.overtimeMinutes+' min overtime</span>':'';
           var rating=t.rating?'<div class="aq-tech-card-rating">\u2605 '+Number(t.rating).toFixed(1)+'</div>':'';
           var jobs='<span class="aq-tech-badge"><i class="bi bi-briefcase me-1"></i>'+(t.currentWorkload||0)+' jobs</span>';
           var radioChecked='';
@@ -3638,7 +3639,7 @@
               rating+
             '</div>'+
             '<div class="aq-tech-card-meta">'+
-              dist+eta+jobs+
+              dist+eta+overtime+jobs+
             '</div>'+
             '<div class="aq-tech-card-footer">'+
               '<input type="radio" name="qTechSelect" class="form-check-input" '+radioChecked+'>'+

@@ -1007,3 +1007,131 @@
 .ent-calendar-project .ent-cal-cell.in-range.non-working {
   opacity: 0.85;
 }
+
+/* Customer appointment picker: make the two choices clear and easy to tap. */
+.ent-calendar:not(.ent-calendar-project) {
+  border: 1px solid #dbe5f3;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-header { background: #17356b; }
+.ent-calendar:not(.ent-calendar-project) .ent-cal-nav-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-mode {
+  padding: 12px 18px;
+  color: #334155;
+  font-size: 0.82rem;
+  background: #f8fbff;
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-legend {
+  gap: 8px 16px;
+  padding: 11px 18px;
+  background: #fff;
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-cell[role="button"] {
+  border-width: 2px;
+  min-height: 62px;
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-cell[role="button"]:focus-visible,
+.ent-time-slot[role="button"]:focus-visible,
+.ent-time-retry:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+}
+.ent-calendar:not(.ent-calendar-project) .ent-cal-date {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.ent-cal-guidance-banner {
+  background: #eef6ff;
+  border-color: #bfdbfe;
+  color: #17356b;
+  animation: none;
+}
+.ent-cal-guidance-banner i { animation: none; }
+.ent-time-header { align-items: flex-start; background: #f8fbff; }
+.ent-time-header h6 { font-size: 1rem; }
+.ent-time-header p {
+  margin: 5px 0 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.ent-time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  gap: 10px;
+}
+.ent-time-count {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.ent-time-slot {
+  min-height: 82px;
+  padding: 13px 14px;
+  background: #fff;
+  border: 1.5px solid #dbe5f3;
+  box-shadow: none;
+}
+.ent-time-slot-label {
+  font-size: 1.08rem;
+  font-variant-numeric: tabular-nums;
+}
+.ent-time-slot-status {
+  font-size: 0.69rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 5px 8px;
+  white-space: normal;
+}
+.ent-no-slots {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.ent-no-slots strong { color: #1e293b; }
+.ent-time-retry {
+  margin-top: 8px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 9px;
+  background: #1d4ed8;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 575px) {
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-header { padding: 12px; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-nav-btn { width: 44px; height: 44px; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-mode { padding: 10px 12px; font-size: 0.76rem; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-legend { gap: 7px 11px; padding: 10px 12px; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-legend-item { font-size: 0.68rem; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-cell { aspect-ratio: auto; min-height: 55px; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-cell[role="button"] { min-height: 55px; }
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-date { font-size: 1rem; }
+  .ent-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+  .ent-time-slot { min-height: 76px; padding: 10px; }
+  .ent-time-slot-label { font-size: 1rem; }
+  .ent-time-slot-status { font-size: 0.65rem; }
+  .ent-time-header { padding: 13px; }
+  .ent-time-header .ent-time-date { white-space: normal; }
+}
+@media (max-width: 360px) {
+  .ent-calendar:not(.ent-calendar-project) .ent-cal-date { font-size: .92rem; }
+  .ent-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ent-time-section-pulse { animation: none; }
+}

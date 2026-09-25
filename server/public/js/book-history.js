@@ -148,31 +148,14 @@
       : null;
   }
 
-  // True when the scheduled service window has fully elapsed and the booking
-  // is still unresolved (mirrors server-side isBookingPast: endTime,
-  // else startTime + serviceDurationMinutes).
+  // The API supplies the Manila service-window end computed by bookingPolicy.
+  // Never reinterpret 24-hour times or the booking date in the browser.
   function isBookingPast(b) {
-    if (!b || !b.bookingDate) return false;
-    const TERMINAL = ['completed', 'cancelled', 'declined', 'rejected', 'closed', 'repair_completed', 'repair_declined'];
-    if (TERMINAL.includes(b.status)) return false;
-    const parseMin = (t) => {
-      if (!t) return NaN;
-      const m = String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
-      if (!m) return NaN;
-      let h = Number(m[1]) % 12;
-      if (m[3] && /pm/i.test(m[3])) h += 12;
-      return h * 60 + Number(m[2] || 0);
-    };
-    const vd = new Date(b.bookingDate);
-    if (isNaN(vd.getTime())) return false;
-    let endMin = parseMin(b.endTime);
-    if (!Number.isFinite(endMin)) {
-      const startMin = parseMin(b.startTime);
-      endMin = Number.isFinite(startMin) ? startMin + (Number(b.serviceDurationMinutes) || 60) : NaN;
-    }
-    if (Number.isFinite(endMin)) vd.setHours(Math.floor(endMin / 60), endMin % 60, 0, 0);
-    else vd.setHours(23, 59, 59, 999);
-    return vd.getTime() < Date.now();
+    if (!b?.scheduleWindowEndAt) return false;
+    const nonPending = ['completed', 'cancelled', 'declined', 'rejected', 'closed', 'repair_completed', 'repair_declined', 'on-the-way', 'arrived', 'in-progress', 'inspection_in_progress', 'repair_in_progress'];
+    if (nonPending.includes(String(b.status || '').toLowerCase())) return false;
+    const end = new Date(b.scheduleWindowEndAt);
+    return Number.isFinite(end.getTime()) && end.getTime() < Date.now();
   }
 
   function shortId(id) {
@@ -330,10 +313,10 @@
           ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Needs Confirmation</span></div>`
           : '';
 
-        // Past-schedule indicator: the visit time has passed while the booking
-        // is still unresolved — the company will reschedule it.
-        const missedIndicator = isBookingPast(b)
-          ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — being rescheduled</span></div>`
+        // Show only an elapsed request, not an unverified claim that
+        // rescheduling is already underway.
+        const missedIndicator = !needsConfirmation && isBookingPast(b)
+          ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-alarm-fill me-1"></i>Requested service time has passed</span></div>`
           : '';
 
         const svc = String(b.serviceType || "service").toLowerCase();

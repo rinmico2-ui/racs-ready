@@ -104,6 +104,7 @@ router.get('/search', async (req, res) => {
 
     const provinces = getCache('psgc:provinces') || [];
     const cities = getCache('psgc:cities') || [];
+
     const matches = [];
 
     provinces.forEach(p => {
@@ -175,8 +176,36 @@ router.get('/resolve', async (req, res) => {
     const codes = String(req.query.codes || '').split(',').map(s => s.trim()).filter(Boolean);
     if (!codes.length) return res.json({ resolved: {} });
 
-    const provinces = getCache('psgc:provinces') || [];
-    const cities = getCache('psgc:cities') || [];
+    let provinces = getCache('psgc:provinces');
+    if (!provinces) {
+      const response = await fetchWithRetry('https://psgc.cloud/api/v2/provinces', { timeout: 15000 }, 3);
+      provinces = unwrapPayload(response);
+      setCache('psgc:provinces', provinces, 1000 * 60 * 60);
+    }
+
+    let cities = getCache('psgc:cities');
+    if (!cities) {
+      const response = await fetchWithRetry('https://psgc.cloud/api/v2/cities-municipalities', { timeout: 15000 }, 3);
+      cities = unwrapPayload(response);
+      setCache('psgc:cities', cities, 1000 * 60 * 60);
+    }
+
+    // The account address includes its city code. Load only that city's
+    // barangays instead of scanning every city in the Philippines.
+    const addressCityCodes = codes.filter(code => cities.some(city => String(city.code) === code));
+    for (const cityCode of addressCityCodes) {
+      const cacheKey = `psgc:barangays:${cityCode}`;
+      if (getCache(cacheKey)) continue;
+      try {
+        const response = await fetchWithRetry(
+          `https://psgc.cloud/api/v2/cities-municipalities/${cityCode}/barangays`,
+          { timeout: 15000 }, 3
+        );
+        setCache(cacheKey, unwrapPayload(response), 1000 * 60 * 60);
+      } catch (error) {
+        console.warn('Unable to load barangays while resolving an address:', error.message);
+      }
+    }
 
     const resolved = {};
 
@@ -191,10 +220,10 @@ router.get('/resolve', async (req, res) => {
       const city = cities.find(c => String(c.code) === code);
       if (city) { resolved[code] = city.name; continue; }
 
-      // Check barangays (need to search cached barangay lists)
+      // Check the barangays belonging to the saved city.
       let found = false;
-      for (const cityObj of cities) {
-        const barangays = getCache(`psgc:barangays:${cityObj.code}`) || [];
+      for (const cityCode of addressCityCodes) {
+        const barangays = getCache(`psgc:barangays:${cityCode}`) || [];
         const bgy = barangays.find(b => String(b.code) === code);
         if (bgy) { resolved[code] = bgy.name; found = true; break; }
       }

@@ -10,6 +10,7 @@ const {
   isRepairBooking,
   presentCustomerBooking,
 } = require("../utils/customerBookingPresentation");
+const { isBookingPast } = require("../utils/bookingPolicy");
 
 test("normalizes legacy repair details stored outside unitInfo", () => {
   const booking = {
@@ -83,6 +84,26 @@ test("customer booking payload removes payment proof and internal operational hi
   assert.equal(presented.statusHistory, undefined);
   assert.equal(presented.services[0].statusHistory, undefined);
   assert.equal(presented.services[0].name, "Cleaning");
+});
+
+test("customer history receives the Manila service-window end for 24-hour afternoon slots", () => {
+  const bookingDate = new Date("2026-09-24T16:00:00.000Z"); // Sep 25 in Manila
+  const onePm = presentCustomerBooking({ bookingDate, startTime: "13:00", serviceDurationMinutes: 90, status: "pending" });
+  const twoThirtyPm = presentCustomerBooking({ bookingDate, startTime: "14:30", serviceDurationMinutes: 90, status: "pending" });
+  assert.equal(onePm.scheduleWindowEndAt, "2026-09-25T06:30:00.000Z"); // 2:30 PM Manila
+  assert.equal(twoThirtyPm.scheduleWindowEndAt, "2026-09-25T08:00:00.000Z"); // 4:00 PM Manila
+  const atOneTwentyTwoPm = new Date("2026-09-25T05:22:00.000Z");
+  assert.equal(isBookingPast(onePm, atOneTwentyTwoPm), false);
+  assert.equal(isBookingPast(twoThirtyPm, atOneTwentyTwoPm), false);
+  assert.equal(isBookingPast(twoThirtyPm, new Date("2026-09-25T08:01:00.000Z")), true);
+});
+
+test("history badge uses the server end time and does not claim rescheduling has started", () => {
+  const script = fs.readFileSync(path.join(__dirname, "../public/js/book-history.js"), "utf8");
+  assert.match(script, /new Date\(b\.scheduleWindowEndAt\)/);
+  assert.match(script, /!needsConfirmation && isBookingPast\(b\)/);
+  assert.match(script, /Requested service time has passed/);
+  assert.doesNotMatch(script, /Missed Schedule . being rescheduled/);
 });
 
 test("customer My Schedule renders normalized repair fields and all appliances", () => {

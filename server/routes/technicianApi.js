@@ -18,12 +18,15 @@ const EquipmentUsageLog = require("../models/EquipmentUsageLog");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const { buildServicePreparation } = require('../utils/servicePreparation');
 const {
+  ACTIVE_ASSIGNMENT_STATUSES,
   dayBounds: dailyKitDayBounds,
   syncDailyKit,
+  setDailyKitItemChecked,
   confirmDailyKit,
   dailyKitDepartureReadiness,
   recordBookingConsumableUsage,
 } = require('../utils/dailyKitService');
+const { ACTIVE_INSTALLATION_ORDER_STATUSES } = require('../utils/orderPreparation');
 const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
 const { getRepairLaborFees, normalizeRepairComplexity } = require('../utils/repairLaborPricing');
 const { isBookingPast } = require('../utils/bookingPolicy');
@@ -9771,8 +9774,42 @@ router.post("/appointments/:id/repair-today-choice", async (req, res, next) => {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Dates with accepted work that needs a Daily Kit. This is a read-only index;
+ * selecting a date loads the existing per-day kit endpoint below.
+ */
+router.get("/daily-kit/upcoming", async (req, res, next) => {
+  try {
+    const Assignment = require("../models/Assignment");
+    const DailyAssignment = require("../models/DailyAssignment");
+    const Order = require("../models/Order");
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+    if (!tech) return res.status(404).json({ error: "Technician record not found" });
+    const { start } = dailyKitDayBounds();
+    const end = new Date(start);
+    end.setDate(end.getDate() + 61);
+    const [assignments, orders, projects] = await Promise.all([
+      Assignment.find({ technicianId: tech._id, status: { $in: ACTIVE_ASSIGNMENT_STATUSES }, bookingDate: { $gte: start, $lt: end } }).select("bookingDate").lean(),
+      Order.find({ technicianId: tech._id, fulfillmentType: "delivery_installation", status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES }, "delivery.preferredDate": { $gte: start, $lt: end } }).select("delivery.preferredDate").lean(),
+      DailyAssignment.find({ technicianId: tech._id, planningOnly: { $ne: true }, status: { $in: ["pending", "in_progress"] }, date: { $gte: start, $lt: end } }).select("date").lean(),
+    ]);
+    const counts = new Map();
+    const addDate = value => {
+      if (!value) return;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    };
+    assignments.forEach(row => addDate(row.bookingDate));
+    orders.forEach(row => addDate(row.delivery?.preferredDate));
+    projects.forEach(row => addDate(row.date));
+    return res.json({ success: true, dates: [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([date, jobs]) => ({ date, jobs })) });
+  } catch (err) { next(err); }
+});
+
+/**
  * GET /api/technician/daily-kit
- * Get or generate today's daily kit. Returns existing kit or creates new one.
+ * Get or generate the kit for the selected work date. Returns an existing kit or creates a draft.
  * Query: ?date=YYYY-MM-DD (defaults to today)
  * Enhanced to include job details and AI contingency part suggestions.
  */
@@ -10154,6 +10191,28 @@ router.get("/daily-kit-legacy", async (req, res, next) => {
 });
 
 /**
+ * POST /api/technician/daily-kit/check-item
+ * Save the technician's physical check for one required kit item.
+ */
+router.post("/daily-kit/check-item", async (req, res, next) => {
+  try {
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+    if (!tech) return res.status(404).json({ error: "Technician record not found" });
+    const kit = await setDailyKitItemChecked({
+      technicianId: tech._id,
+      userId: req.user._id,
+      date: req.body?.date || new Date(),
+      itemId: req.body?.itemId,
+      checked: req.body?.checked,
+    });
+    return res.json({ success: true, kit: kit.toObject() });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+/**
  * POST /api/technician/daily-kit/confirm
  * Confirm the daily kit is prepared. Checks out equipment and issues consumables.
  */
@@ -10164,89 +10223,21 @@ router.post("/daily-kit/confirm", async (req, res, next) => {
     const kit = await confirmDailyKit({ technicianId: tech._id, userId: req.user._id, date: req.body?.date || new Date() });
     return res.json({ success: true, kit: kit.toObject() });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message, unavailable: err.unavailable });
+    if (err.status) return res.status(err.status).json({ error: err.message, unavailable: err.unavailable, unchecked: err.unchecked });
     next(err);
   }
 });
 
 router.post("/daily-kit-legacy/confirm", async (req, res, next) => {
   try {
-    const DailyKit = require("../models/DailyKit");
-    const Assignment = require("../models/Assignment");
-
-    const tech = await Technician.findOne({ user: req.user._id });
+    // Compatibility URL; all inventory issuance must use the same checklist gate.
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const kit = await DailyKit.findOne({
-      technicianId: tech._id,
-      workDate: { $gte: today, $lt: nextDay },
-    });
-
-    if (!kit) return res.status(404).json({ error: "No daily kit found for today" });
-    if (kit.status === "confirmed" || kit.status === "in_progress" || kit.status === "completed") {
-      return res.status(400).json({ error: "Kit is already confirmed" });
-    }
-
-    // Check for unavailable items
-    const unavailable = kit.items.filter(i => i.category === "equipment" && i.checkoutStatus === "unavailable");
-    if (unavailable.length > 0) {
-      return res.status(400).json({
-        error: "Some equipment is unavailable",
-        unavailable: unavailable.map(i => ({ name: i.name, message: i.conflict?.message })),
-      });
-    }
-
-    const now = new Date();
-
-    // Check out equipment and issue consumables
-    for (const item of kit.items) {
-      if (item.category === "equipment" && item.toolId) {
-        // Create EquipmentAssignment for each booking this item is used for
-        const bookingIds = item.bookingIds.length > 0 ? item.bookingIds : kit.bookingIds;
-        for (const bookingId of bookingIds) {
-          await EquipmentAssignment.create({
-            bookingId,
-            technicianId: tech._id,
-            workDate: today,
-            equipmentId: item.toolId,
-            equipmentName: item.name,
-            quantity: item.quantity,
-            consumable: false,
-            status: "checked_out",
-            checkedOutAt: now,
-            checkedOutBy: req.user._id,
-          });
-        }
-
-        // Update tool inventory
-const Tool = require("../models/Tool");
-const EquipmentUsageLog = require("../models/EquipmentUsageLog");
-        await Tool.findByIdAndUpdate(item.toolId, {
-          $inc: { quantity: -item.quantity, checkedOutQuantity: item.quantity },
-          assetStatus: "checked_out",
-        });
-
-        item.checkoutStatus = "checked_out";
-        item.checkedOutAt = now;
-      } else if (item.category === "consumable") {
-        item.quantityIssued = item.quantity;
-        item.checkoutStatus = "checked_out";
-      }
-    }
-
-    kit.status = "confirmed";
-    kit.confirmedAt = now;
-    await kit.save();
-
+    const kit = await confirmDailyKit({ technicianId: tech._id, userId: req.user._id, date: req.body?.date || new Date() });
     return res.json({ success: true, kit: kit.toObject() });
   } catch (err) {
-    console.error("Daily kit confirm error:", err);
-    return res.status(500).json({ error: "Server error" });
+    if (err.status) return res.status(err.status).json({ error: err.message, unavailable: err.unavailable, unchecked: err.unchecked });
+    next(err);
   }
 });
 
@@ -10534,7 +10525,13 @@ router.post("/daily-kit/add-item", async (req, res, next) => {
     }
     const existing = kit.items.find(i => String(i.toolId) === String(inventory._id));
     if (existing) {
-      existing.quantity = Math.max(existing.quantity, Number(quantity) || 1);
+      const nextQuantity = Math.max(existing.quantity, Number(quantity) || 1);
+      if (nextQuantity !== existing.quantity) {
+        existing.preparedChecked = false;
+        existing.preparedCheckedAt = null;
+        existing.preparedCheckedBy = null;
+      }
+      existing.quantity = nextQuantity;
     } else {
       kit.items.push({
         name: inventory.itemName,

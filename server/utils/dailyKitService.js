@@ -9,6 +9,7 @@ const ServiceToolUsage = require("../models/ServiceToolUsage");
 const StockReservation = require("../models/StockReservation");
 const Tool = require("../models/Tool");
 const WorkOrder = require("../models/WorkOrder");
+const { manilaDateKey, strictManilaDateKey } = require("./bookingDateTime");
 const { buildServicePreparation } = require("./servicePreparation");
 const { buildProjectKitRequirements } = require("./projectDailyKitPlanning");
 const {
@@ -31,6 +32,31 @@ function dayBounds(value = new Date()) {
 
 function uniqueIds(values) {
   return [...new Set(values.filter(Boolean).map(String))].map(id => new mongoose.Types.ObjectId(id));
+}
+
+function checklistItems(kit) {
+  if (kit.status === "draft") return kit.items || [];
+  if (["confirmed", "in_progress"].includes(kit.status) && kit.hasDelta) return kit.deltaItems || [];
+  return [];
+}
+
+function needsChecklistCheck(item) {
+  return !["not_required", "rescheduled"].includes(item.resolution?.status);
+}
+
+function retainChecklistState(previous, next) {
+  if (!previous) return;
+  // Keep a stable item ID across automatic kit refreshes so the checkbox
+  // endpoint still targets the same requirement.
+  next._id = previous._id;
+  const unchanged = Number(previous.quantity) === Number(next.quantity)
+    && previous.checkoutStatus !== "unavailable"
+    && next.checkoutStatus !== "unavailable"
+    && (previous.resolution?.status || null) === (next.resolution?.status || null)
+    && (previous.resolution?.source || null) === (next.resolution?.source || null);
+  next.preparedChecked = unchanged && Boolean(previous.preparedChecked);
+  next.preparedCheckedAt = next.preparedChecked ? previous.preparedCheckedAt : null;
+  next.preparedCheckedBy = next.preparedChecked ? previous.preparedCheckedBy : null;
 }
 
 function mergeRequirement(map, rec, context = {}) {
@@ -464,6 +490,7 @@ async function syncDailyKit(technicianId, date) {
   if (!["confirmed", "in_progress"].includes(kit.status)) {
     // Preserve technician resolutions from previous items before overwriting
     const resolutionMap = new Map();
+    const priorItems = new Map(kit.items.map(item => [itemKey(item), item]));
     for (const oldItem of kit.items) {
       if (oldItem.resolution && oldItem.resolution.status) {
         const key = itemKey(oldItem);
@@ -490,6 +517,7 @@ async function syncDailyKit(technicianId, date) {
       if (!existingRequired) required.push(oldItem.toObject ? oldItem.toObject() : oldItem);
       else existingRequired.quantity = Math.max(existingRequired.quantity, oldItem.quantity);
     }
+    for (const item of required) retainChecklistState(priorItems.get(itemKey(item)), item);
     kit.items = required;
     kit.assignmentIds = assignments.map(a => a._id);
     kit.bookingIds = bookingIds;
@@ -578,6 +606,8 @@ async function syncDailyKit(technicianId, date) {
   kit.projectIds = projectIds;
   kit.workOrderIds = workOrderIds;
   kit.dailyAssignmentIds = dailyAssignmentIds;
+  const priorDelta = new Map((kit.deltaItems || []).map(item => [itemKey(item), item]));
+  for (const item of additions) retainChecklistState(priorDelta.get(itemKey(item)), item);
   kit.deltaItems = additions;
   kit.hasDelta = additions.length > 0 || coverageChanged || pendingCoverageReview;
   if (!["confirmed", "in_progress"].includes(kit.status)) kit.items = [...existing.values(), ...additions];
@@ -586,19 +616,61 @@ async function syncDailyKit(technicianId, date) {
   return kit;
 }
 
+async function setDailyKitItemChecked({ technicianId, userId, date, itemId, checked }) {
+  const { start } = dayBounds(date);
+  if (strictManilaDateKey(date) !== manilaDateKey(new Date())) {
+    throw Object.assign(new Error("You can check kit items on the scheduled work date."), { status: 409 });
+  }
+  if (!mongoose.isValidObjectId(itemId) || typeof checked !== "boolean") {
+    throw Object.assign(new Error("Choose a valid kit item and check state."), { status: 400 });
+  }
+  const kit = await syncDailyKit(technicianId, start);
+  const item = checklistItems(kit).find(row => String(row._id) === String(itemId));
+  if (!item) throw Object.assign(new Error("This kit item changed. Refresh the kit and try again."), { status: 409 });
+  if (!needsChecklistCheck(item)) {
+    throw Object.assign(new Error("This item was marked not required and does not need a checkmark."), { status: 409 });
+  }
+  if (item.checkoutStatus === "unavailable" && !item.exception?.approved) {
+    throw Object.assign(new Error("Resolve this unavailable item before checking it off."), { status: 409 });
+  }
+  item.preparedChecked = checked;
+  item.preparedCheckedAt = checked ? new Date() : null;
+  item.preparedCheckedBy = checked ? userId : null;
+  await kit.save();
+  return kit;
+}
+
 async function confirmDailyKit({ technicianId, userId, date }) {
   const { start } = dayBounds(date);
+  if (strictManilaDateKey(date) !== manilaDateKey(new Date())) {
+    throw Object.assign(new Error("Daily Preparation can only be confirmed on the scheduled work date."), { status: 409 });
+  }
   const kit = await syncDailyKit(technicianId, start);
-  const items = kit.status === "confirmed" && kit.hasDelta ? kit.deltaItems : kit.items;
+  if (!["draft", "confirmed", "in_progress"].includes(kit.status) ||
+      (kit.status !== "draft" && !kit.hasDelta)) {
+    throw Object.assign(new Error("This Daily Kit is already confirmed."), { status: 409 });
+  }
+  if (!(kit.assignmentIds?.length || kit.orderIds?.length || kit.dailyAssignmentIds?.length)) {
+    throw Object.assign(new Error("There are no accepted jobs to prepare for this date."), { status: 409 });
+  }
+  const items = checklistItems(kit);
   // Block if there are truly unresolved unavailable items
   // admin_notified still blocks (admin hasn't resolved yet)
   // Only confirmed_available, not_required, assigned_from_stock, procured are truly resolved
   const unresolved = items.filter(item =>
     item.checkoutStatus === "unavailable" &&
     !item.exception?.approved &&
-    (!item.resolution?.status || item.resolution?.status === "admin_notified")
+    needsChecklistCheck(item)
   );
   if (unresolved.length) throw Object.assign(new Error("Resolve unavailable equipment before confirming the Daily Kit."), { status: 409, unavailable: unresolved });
+
+  const unchecked = items.filter(item => needsChecklistCheck(item) && !item.preparedChecked);
+  if (unchecked.length) {
+    throw Object.assign(new Error(`Check ${unchecked.length} required kit item(s) before confirming.`), {
+      status: 409,
+      unchecked: unchecked.map(item => ({ id: String(item._id), name: item.name, quantity: item.quantity })),
+    });
+  }
 
   for (const item of items) {
     // Skip items that are unavailable but truly resolved (not admin_notified)
@@ -985,11 +1057,23 @@ async function addProjectItemsToDailyKit({ technicianId, projectId, date, items 
       existing.dailyAssignmentIds = uniqueIds([...(existing.dailyAssignmentIds || []), ...row.dailyAssignmentIds]);
       existing.projectAllocations = mergeProjectAllocations(existing.projectAllocations, row.projectAllocations);
       if (existingDelta) {
-        existingDelta.quantity = Math.max(existingDelta.quantity, requestedQuantity - Number(existingMain?.quantity || 0));
+        const nextQuantity = Math.max(existingDelta.quantity, requestedQuantity - Number(existingMain?.quantity || 0));
+        if (nextQuantity !== existingDelta.quantity) {
+          existingDelta.preparedChecked = false;
+          existingDelta.preparedCheckedAt = null;
+          existingDelta.preparedCheckedBy = null;
+        }
+        existingDelta.quantity = nextQuantity;
       } else if (isConfirmedKit && requestedQuantity > existingMain.quantity) {
         target.push({ ...hydrated, quantity: requestedQuantity - existingMain.quantity });
       } else if (!isConfirmedKit) {
-        existing.quantity = Math.max(existing.quantity, requestedQuantity);
+        const nextQuantity = Math.max(existing.quantity, requestedQuantity);
+        if (nextQuantity !== existing.quantity) {
+          existing.preparedChecked = false;
+          existing.preparedCheckedAt = null;
+          existing.preparedCheckedBy = null;
+        }
+        existing.quantity = nextQuantity;
       }
       continue;
     }
@@ -1004,8 +1088,13 @@ async function addProjectItemsToDailyKit({ technicianId, projectId, date, items 
 }
 
 module.exports = {
+  ACTIVE_ASSIGNMENT_STATUSES,
   dayBounds,
   syncDailyKit,
+  checklistItems,
+  needsChecklistCheck,
+  retainChecklistState,
+  setDailyKitItemChecked,
   confirmDailyKit,
   dailyKitDepartureReadiness,
   recordBookingConsumableUsage,

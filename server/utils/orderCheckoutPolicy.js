@@ -49,11 +49,13 @@ function normalizeCoordinates(value) {
 }
 
 function normalizeGcashSenderNumber(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (/^09\d{9}$/.test(digits)) return digits;
-  if (/^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`;
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  const phoneCharactersOnly = !/[^\d\s()+-]/.test(raw) && (!raw.includes("+") || raw.startsWith("+63"));
+  if (phoneCharactersOnly && /^09\d{9}$/.test(digits)) return digits;
+  if (phoneCharactersOnly && /^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`;
   throw new OrderCheckoutError(
-    "Enter the Philippine mobile number used to send the GCash payment.",
+    "Check the Philippine mobile number used to send the GCash payment. Use 11 digits starting with 09 (09171234567), or 12 digits starting with 639.",
     400,
     "ORDER_GCASH_SENDER_INVALID",
   );

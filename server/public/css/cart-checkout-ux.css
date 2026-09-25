@@ -317,6 +317,7 @@
 
 #checkoutOrderModal .review-row { align-items: flex-start; gap: 1rem; }
 #checkoutOrderModal .review-value { max-width: 62%; overflow-wrap: anywhere; }
+#checkoutOrderModal .checkout-focus-cue { outline: 3px solid rgba(220, 38, 38, .55); outline-offset: 3px; border-radius: 8px; }
 
 #checkoutOrderModal .checkout-wizard-footer {
   flex-wrap: nowrap;

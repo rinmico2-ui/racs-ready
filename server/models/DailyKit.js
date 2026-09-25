@@ -60,6 +60,10 @@ const dailyKitItemSchema = new mongoose.Schema({
     enum: ["pending", "reserved", "checked_out", "issued", "standard_kit", "in_custody", "returned", "damaged", "unavailable", "exception"],
     default: "pending",
   },
+  // The technician physically verified the full required quantity before departure.
+  preparedChecked: { type: Boolean, default: false },
+  preparedCheckedAt: { type: Date, default: null },
+  preparedCheckedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   checkedOutAt: { type: Date },
   returnedAt: { type: Date },
   equipmentAssignmentId: { type: mongoose.Schema.Types.ObjectId, ref: "EquipmentAssignment", default: null },

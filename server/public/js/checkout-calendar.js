@@ -98,6 +98,7 @@ class CheckoutCalendar {
             }
             .co-cal-cell.empty { background: transparent; cursor: default; }
             .co-cal-cell.past { background: #f8fafc; color: #94a3b8; border-color: #f1f5f9; opacity: 0.5; }
+            .co-cal-cell.past .co-cal-reason { display: none; }
             .co-cal-cell.available { background: rgba(16,185,129,0.06); color: #065f46; border-color: rgba(16,185,129,0.15); cursor: pointer; }
             .co-cal-cell.available:hover { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); transform: translateY(-1px); }
             .co-cal-cell.limited { background: rgba(245,158,11,0.06); color: #92400e; border-color: rgba(245,158,11,0.15); cursor: pointer; }
@@ -110,7 +111,7 @@ class CheckoutCalendar {
             .co-cal-cell.today::after { content: ''; position: absolute; bottom: 4px; width: 5px; height: 5px; border-radius: 50%; background: #0f172a; }
             .co-cal-cell.selected.today::after { background: #fff; }
             .co-cal-date { font-size: 0.85rem; font-weight: 600; line-height: 1; }
-            .co-cal-slots { font-size: 0.55rem; font-weight: 600; margin-top: 2px; }
+            .co-cal-slots { font-size: 0.58rem; font-weight: 700; margin-top: 5px; line-height: 1.2; }
             .co-cal-cell.available .co-cal-slots { color: #059669; }
             .co-cal-cell.limited .co-cal-slots { color: #d97706; }
             .co-cal-cell.full .co-cal-slots { color: #dc2626; }
@@ -126,6 +127,7 @@ class CheckoutCalendar {
             .co-time-header h6 i { color: #0f172a; font-size: 0.85rem; }
             .co-time-header .co-time-date { font-size: 0.7rem; font-weight: 600; color: #0f172a; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; }
             .co-time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; padding: 12px 14px; }
+            .co-time-count { grid-column: 1/-1; margin: 0 0 6px; color: #475569; font-size: .76rem; font-weight: 600; }
             .co-time-slot {
                 position: relative; padding: 10px 12px; border-radius: 8px;
                 border: 1px solid #e2e8f0; background: #fafafa;
@@ -155,6 +157,13 @@ class CheckoutCalendar {
             .co-time-slot-status.booked::before { background: #ef4444; }
             .co-time-slot-status.past { background: rgba(100,116,139,0.06); color: #475569; border: 1px solid rgba(100,116,139,0.1); }
             .co-time-slot-status.past::before { background: #94a3b8; }
+            .co-schedule-next { margin: 0 14px 14px; padding: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; }
+            .co-schedule-next[hidden] { display: none !important; }
+            .co-schedule-next strong { display: block; color: #1e3a8a; font-size: .85rem; }
+            .co-schedule-next span { display: block; color: #475569; font-size: .72rem; }
+            .co-schedule-next button { border: 0; border-radius: 8px; background: #1d4ed8; color: #fff; padding: 10px 16px; font-size: .8rem; font-weight: 700; min-height: 42px; }
+            .co-schedule-next button:hover { background: #1e40af; }
+            .co-cal-cell:focus-visible, .co-time-slot:focus-visible, .co-schedule-next button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
             .co-cal-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; color: #64748b; gap: 8px; font-size: 0.8rem; font-weight: 500; }
             .co-cal-loading .spinner-border { width: 1.2rem; height: 1.2rem; color: #0f172a; }
             .co-no-slots { text-align: center; padding: 24px 16px; color: #64748b; font-size: 0.82rem; font-weight: 500; }
@@ -178,6 +187,7 @@ class CheckoutCalendar {
                 .co-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 8px; }
                 .co-time-slot { padding: 8px 10px; }
                 .co-time-header { padding: 8px 12px; align-items:flex-start; flex-direction:column; gap:5px; }
+                .co-schedule-next button { width: 100%; }
                 .co-cal-tooltip { display:none; }
             }
             @media (max-width: 380px) {
@@ -201,14 +211,11 @@ class CheckoutCalendar {
                     <h6 id="coCalLabel">Month Year</h6>
                     <button type="button" class="co-cal-nav-btn" id="coCalNext"><i class="bi bi-chevron-right"></i></button>
                 </div>
-                <div class="co-cal-mode">
-                    <span class="mode-dot"></span>
-                    <span>Capacity-based scheduling across all active technicians</span>
-                </div>
+                <p class="co-cal-mode"><span class="mode-dot"></span><span>Choose an open date, then pick a start time.</span></p>
                 <div class="co-cal-legend">
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot available"></span>Available</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot limited"></span>Limited Slots</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot full"></span>Fully Booked</div>
+                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot available"></span>Open</div>
+                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot limited"></span>Few left</div>
+                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot full"></span>Full</div>
                     <div class="co-cal-legend-item"><span class="co-cal-legend-dot holiday"></span>Holiday</div>
                     <div class="co-cal-legend-item"><span class="co-cal-legend-dot non-working"></span>Non-Working</div>
                 </div>
@@ -217,11 +224,15 @@ class CheckoutCalendar {
             </div>
             <div id="coTimeSection" class="co-time-section" style="display:none;">
                 <div class="co-time-header">
-                    <h6><i class="bi bi-clock"></i>Select Preferred Time</h6>
+                    <h6><i class="bi bi-clock"></i>Choose a start time</h6>
                     <span class="co-time-date" id="coTimeDateLabel"></span>
                 </div>
                 <div class="co-time-grid" id="coTimeGrid">
                     <div class="co-cal-loading"><div class="spinner-border" role="status"></div><span>Loading time slots...</span></div>
+                </div>
+                <div class="co-schedule-next" id="coScheduleNext" role="status" aria-live="polite" hidden>
+                    <div><strong id="coScheduleNextTitle">Time selected</strong><span>Your delivery time is a request until we confirm your order.</span></div>
+                    <button type="button" id="coScheduleNextButton">Continue to payment <i class="bi bi-arrow-right ms-1"></i></button>
                 </div>
             </div>
         `;
@@ -233,8 +244,12 @@ class CheckoutCalendar {
             nextBtn: document.getElementById('coCalNext'),
             timeSection: document.getElementById('coTimeSection'),
             timeGrid: document.getElementById('coTimeGrid'),
-            timeDateLabel: document.getElementById('coTimeDateLabel')
+            timeDateLabel: document.getElementById('coTimeDateLabel'),
+            nextAction: document.getElementById('coScheduleNext'),
+            nextTitle: document.getElementById('coScheduleNextTitle')
         };
+
+        document.getElementById('coScheduleNextButton').addEventListener('click', () => window.wizardNext?.());
 
         this.dom.prevBtn.addEventListener('click', () => {
             if (this.dom.prevBtn.disabled) return;
@@ -288,6 +303,7 @@ class CheckoutCalendar {
         this.state.selectedDate = null;
         this.state.selectedTimeSlot = null;
         if (this.dom.timeSection) this.dom.timeSection.style.display = 'none';
+        this.dom.nextAction.hidden = true;
         this.options.onDateSelect('');
         this.options.onTimeSelect('');
     }
@@ -306,7 +322,7 @@ class CheckoutCalendar {
                 fetch('/api/schedule/holidays-and-nonworking', { cache: 'no-store' }),
                 fetch('/api/schedule/booking-policy', { cache: 'no-store' })
             ]);
-            this.scheduleData = schRes.ok ? await schRes.json() : { availableDates: [] };
+            this.scheduleData = schRes.ok ? await schRes.json() : { availableDates: [], loadError: true };
             this.holidaysData = holRes.ok ? await holRes.json() : { holidays: [], nonWorkingDays: [] };
             if (policyRes.ok) window.__bookingPolicy = await policyRes.json();
             const projectThresholdHours = Number(window.__bookingPolicy?.largeProjectThresholdHours) || 8;
@@ -319,13 +335,14 @@ class CheckoutCalendar {
             }
         } catch (e) {
             console.error('CheckoutCalendar: load error', e);
-            this.scheduleData = { availableDates: [] };
+            this.scheduleData = { availableDates: [], loadError: true };
             this.holidaysData = { holidays: [], nonWorkingDays: [] };
         }
         this.dom.grid.style.opacity = '1';
         this.render();
-        if (this.state.selectedDate) {
-            this.selectDate(this.state.selectedDate, true);
+        if (this.state.selectedDate && !this.scheduleData?.loadError) {
+            const selectedTime = this.state.selectedTimeSlot?.startTime || '';
+            this.selectDate(this._formatKey(this.state.selectedDate), true, selectedTime);
         }
     }
 
@@ -343,6 +360,13 @@ class CheckoutCalendar {
         const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
         this.dom.label.textContent = `${MONTHS[month]} ${year}`;
+
+        if (this.scheduleData?.loadError) {
+            this.dom.grid.innerHTML = '<div class="co-no-slots" style="grid-column:1/-1"><i class="bi bi-wifi-off"></i>Could not check open dates. Please try again.<br><button type="button" class="btn btn-outline-primary btn-sm mt-2" id="coRetryDates">Try again</button></div>';
+            document.getElementById('coRetryDates')?.addEventListener('click', () => this.fetchData());
+            this.dom.timeSection.style.display = 'none';
+            return;
+        }
 
         if (this.scheduleData?.blocked) {
             this.dom.grid.innerHTML = '<div class="co-no-slots" style="grid-column:1/-1"><i class="bi bi-kanban"></i>This installation requires project scheduling because it exceeds one appointment window. Reduce the quantity or contact Operations.</div>';
@@ -377,6 +401,8 @@ class CheckoutCalendar {
         for (let day = 1; day <= daysInMonth; day++) {
             const dateObj = new Date(year, month, day);
             const key = this._formatKey(dateObj);
+            // Product checkout requires a future delivery date. Today is not
+            // selectable even if the shared availability API reports capacity.
             const isPast = key <= this._formatKey(today);
             const isToday = key === this._formatKey(today);
             const holInfo = holMap[key];
@@ -390,8 +416,7 @@ class CheckoutCalendar {
 
             if (isPast) {
                 cellClass += ' past';
-                reasonText = 'Past Date';
-                tooltipText = 'This date has already passed';
+                tooltipText = isToday ? 'Choose a future date' : 'Past date';
             } else if (isToday) {
                 // TODAY takes precedence over everything else.
                 // The server may still report today as having slots even though
@@ -418,8 +443,8 @@ class CheckoutCalendar {
                         cellClass += ' limited';
                         clickable = true;
                         const count = availInfo.availableSlots;
-                        slotsText = count === 1 ? '1 slot' : `${count} slots`;
-                        tooltipText = `${count} slot${count !== 1 ? 's' : ''} left for today`;
+                        slotsText = count <= 3 ? 'Few left' : 'Open';
+                        tooltipText = 'Open for booking today';
                     }
                 } else if (availInfo && availInfo.availableSlots === 0) {
                     cellClass += ' non-working';
@@ -443,13 +468,13 @@ class CheckoutCalendar {
                     cellClass += ' limited';
                     clickable = true;
                     const count = availInfo.availableSlots;
-                    slotsText = count === 1 ? '1 slot' : `${count} slots`;
-                    tooltipText = `Limited: only ${count} slot${count !== 1 ? 's' : ''} left`;
+                    slotsText = 'Few left';
+                    tooltipText = 'Few booking openings left';
                 } else {
                     cellClass += ' available';
                     clickable = true;
-                    slotsText = `${availInfo.availableSlots} slots`;
-                    tooltipText = `${availInfo.availableSlots} slots available`;
+                    slotsText = 'Open';
+                    tooltipText = 'Open for booking';
                 }
             } else if (holInfo) {
                 if (holInfo.type === 'holiday') {
@@ -472,7 +497,9 @@ class CheckoutCalendar {
             }
             if (isToday) cellClass += ' today';
 
-            html += `<div class="${cellClass}" data-date="${key}" ${clickable ? 'role="button" tabindex="0"' : ''}>`;
+            const dateLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const accessibleState = clickable ? (slotsText === 'Few left' ? 'few times left' : 'times available') : (reasonText || 'not available');
+            html += `<div class="${cellClass}" data-date="${key}" aria-label="${dateLabel}, ${accessibleState}" ${clickable ? 'role="button" tabindex="0"' : ''}>`;
             if (tooltipText) html += `<span class="co-cal-tooltip">${tooltipText}</span>`;
             html += `<span class="co-cal-date">${day}</span>`;
             if (slotsText) html += `<span class="co-cal-slots">${slotsText}</span>`;
@@ -490,13 +517,14 @@ class CheckoutCalendar {
         });
     }
 
-    selectDate(dateStr, silent = false) {
+    selectDate(dateStr, silent = false, restoredTime = '') {
         const today = new Date(); today.setHours(0,0,0,0);
         const parts = dateStr.split('-');
         const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
         if (dateObj <= today) return;
         this.state.selectedDate = dateObj;
-        this.state.selectedTimeSlot = null;
+        this.state.selectedTimeSlot = restoredTime ? { startTime: restoredTime, label: restoredTime, startMinutes: this._timeToMinutes(restoredTime) } : null;
+        this.dom.nextAction.hidden = true;
         this.render();
 
         if (!silent) {
@@ -507,10 +535,23 @@ class CheckoutCalendar {
         }
 
         this.dom.timeSection.style.display = 'block';
-        this.dom.timeDateLabel.textContent = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        this.dom.timeDateLabel.textContent = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
         this.dom.timeGrid.innerHTML = '<div class="co-cal-loading"><div class="spinner-border" role="status"></div><span>Loading time slots...</span></div>';
 
-        this.loadTimeSlots(dateObj);
+        return this.loadTimeSlots(dateObj);
+    }
+
+    restoreSelection(dateStr, timeStr) {
+        if (!dateStr) return;
+        this.state.activeMonth = new Date(`${dateStr}T00:00:00`);
+        this.state.activeMonth.setDate(1);
+        return this.selectDate(dateStr, true, timeStr);
+    }
+
+    _syncNextAction(date) {
+        const time = this.state.selectedTimeSlot?.startTime;
+        this.dom.nextAction.hidden = !time;
+        if (time) this.dom.nextTitle.textContent = `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${this._formatDisplayTime(time)}`;
     }
 
     async loadTimeSlots(date) {
@@ -519,6 +560,9 @@ class CheckoutCalendar {
             return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
         };
         const dateStr = formatDateKey(date);
+        const requestId = (this._timeRequestId || 0) + 1;
+        this._timeRequestId = requestId;
+        this.dom.nextAction.hidden = true;
 
         try {
             const params = new URLSearchParams({
@@ -530,9 +574,13 @@ class CheckoutCalendar {
             const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`, { cache: 'no-store' });
             if (!resp.ok) throw new Error('time-slots fetch failed');
             const data = await resp.json();
+            if (requestId !== this._timeRequestId) return;
 
             if (data.blocked) {
                 this.dom.timeGrid.innerHTML = '<div class="co-no-slots"><i class="bi bi-kanban"></i>This installation requires project scheduling. Reduce the quantity or contact Operations.</div>';
+                this.state.selectedTimeSlot = null;
+                this.dom.nextAction.hidden = true;
+                this.options.onTimeSelect('');
                 return;
             }
 
@@ -569,90 +617,56 @@ class CheckoutCalendar {
                     };
                 });
 
+                if (this.state.selectedTimeSlot) {
+                    const restoredSlot = slots.find(slot => slot.available && this._timeToMinutes(slot.startTime) === this.state.selectedTimeSlot.startMinutes);
+                    if (restoredSlot) {
+                        this.state.selectedTimeSlot = {
+                            startTime: restoredSlot.startTime,
+                            label: restoredSlot.label,
+                            startMinutes: this._timeToMinutes(restoredSlot.startTime)
+                        };
+                    } else {
+                        this.state.selectedTimeSlot = null;
+                        this.options.onTimeSelect('');
+                    }
+                }
+
                 this._renderTimeSlots(slots, date);
                 return;
             }
+            this.state.selectedTimeSlot = null;
+            this.options.onTimeSelect('');
+            this._renderTimeSlots([], date);
         } catch (e) {
-            console.warn('CheckoutCalendar: time-slots API failed, using fallback', e);
+            if (requestId !== this._timeRequestId) return;
+            console.warn('CheckoutCalendar: time-slots API failed', e);
+            this.state.selectedTimeSlot = null;
+            this.options.onTimeSelect('');
+            this.dom.timeGrid.innerHTML = '<div class="co-no-slots"><i class="bi bi-wifi-off"></i>Could not check available times. Please try again.<br><button type="button" class="btn btn-outline-primary btn-sm mt-2" id="coRetryTimes">Try again</button></div>';
+            document.getElementById('coRetryTimes')?.addEventListener('click', () => this.loadTimeSlots(date));
         }
-
-        const availInfo = (this.scheduleData?.availableDates || []).find(d => d.date === dateStr);
-        const startMin = 480;
-        const endMin = 1020;
-        const interval = 30;
-        const now = new Date();
-        const isToday = dateStr === formatDateKey(now);
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const cutoff = currentMinutes + 30;
-        const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
-        const earliestMs = now.getTime() + minAdvance * 60000;
-        const earliestDate = new Date(earliestMs);
-        let earliestMinutes = 0;
-        if (isToday) {
-            if (earliestDate.toDateString() === date.toDateString()) {
-                earliestMinutes = earliestDate.getHours() * 60 + earliestDate.getMinutes();
-            } else {
-                earliestMinutes = 24 * 60;
-            }
-        }
-        const totalSlotsCount = Math.floor((endMin - startMin) / interval);
-        const reservedCount = availInfo?.reservedSlots || 0;
-
-        const slots = [];
-        for (let s = startMin; s < endMin; s += interval) {
-            const isPastSlot = isToday && (s < cutoff || s < earliestMinutes);
-            const slotIdx = slots.length;
-            const isBooked = !isPastSlot && reservedCount > 0 && slotIdx >= (totalSlotsCount - reservedCount);
-            slots.push({
-                startTime: this._minutesToTime(s),
-                label: this._minutesToTime(s),
-                available: !isPastSlot && !isBooked,
-                availableCount: isBooked ? 0 : undefined,
-                isPast: isPastSlot,
-                booked: isBooked
-            });
-        }
-
-        this._renderTimeSlots(slots, date);
     }
 
     _renderTimeSlots(slots, date) {
         const grid = this.dom.timeGrid;
-        if (!slots.length) {
-            grid.innerHTML = '<div class="co-no-slots"><i class="bi bi-calendar-x"></i>No available times for this date. Please choose another day.</div>';
+        const availableSlots = slots.filter(slot => slot.available && !slot.isPast);
+        if (!availableSlots.length) {
+            grid.innerHTML = '<div class="co-no-slots"><i class="bi bi-calendar-x"></i>No start times left for this date. Choose another open date.</div>';
+            this.dom.nextAction.hidden = true;
             return;
         }
-        let html = '';
+        this._syncNextAction(date);
+        let html = `<p class="co-time-count">${availableSlots.length} start time${availableSlots.length === 1 ? '' : 's'} available · Choose one below</p>`;
 
-        slots.forEach(slot => {
-            const isUnavailable = !slot.available && !slot.isPast;
+        availableSlots.forEach(slot => {
             let cls = 'co-time-slot';
-            if (slot.isPast) cls += ' past';
-            else if (isUnavailable) cls += ' unavailable';
-            if (this.state.selectedTimeSlot && this.state.selectedTimeSlot.startTime === slot.startTime) cls += ' selected';
-
-            let statusCls = 'co-time-slot-status';
-            let statusLabel = '';
-
-            if (slot.isPast) {
-                statusCls += ' past';
-                statusLabel = 'Passed';
-            } else if (isUnavailable) {
-                statusCls += ' booked';
-                statusLabel = slot.availableCount !== undefined && slot.availableCount > 0
-                    ? `${slot.availableCount} tech${slot.availableCount !== 1 ? 's' : ''}`
-                    : 'Fully Booked';
-            } else if (slot.availableCount > 0) {
-                statusCls += ' available';
-                statusLabel = slot.availableCount === 1 ? 'Limited: 1 Team' : `${slot.availableCount} Teams Available`;
-            } else {
-                statusCls += ' available';
-                statusLabel = 'Open';
-            }
-
-            html += `<div class="${cls}" data-start="${slot.startTime}" data-label="${slot.label}" ${slot.available ? 'role="button" tabindex="0"' : ''}>
+            const selected = this.state.selectedTimeSlot?.startTime === slot.startTime;
+            if (selected) cls += ' selected';
+            const statusLabel = selected ? 'Selected' : 'Available';
+            const displayTime = this._formatDisplayTime(slot.label);
+            html += `<div class="${cls}" data-start="${slot.startTime}" data-label="${slot.label}" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${displayTime}, ${statusLabel}">
                 <div class="co-time-slot-label">${this._formatDisplayTime(slot.label)}</div>
-                <span class="${statusCls}">${statusLabel}</span>
+                <span class="co-time-slot-status available">${statusLabel}</span>
             </div>`;
         });
 
@@ -668,6 +682,8 @@ class CheckoutCalendar {
                 this.render();
                 this._renderTimeSlots(slots, date);
                 this.options.onTimeSelect(el.dataset.label);
+                this._syncNextAction(date);
+                setTimeout(() => this.dom.nextAction.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
             });
             el.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -757,6 +773,7 @@ class CheckoutCalendar {
         this.state.selectedDate = null;
         this.state.selectedTimeSlot = null;
         if (this.dom.timeSection) this.dom.timeSection.style.display = 'none';
+        this.dom.nextAction.hidden = true;
         this.render();
     }
 }

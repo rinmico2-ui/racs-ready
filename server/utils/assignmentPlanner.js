@@ -4,6 +4,7 @@ const TechnicianSchedule = require('../models/TechnicianSchedule');
 const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
 const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('./bookingDateTime');
+const { latestAllowedFinish, overtimeMinutesForWindow } = require('./technicianOvertimePolicy');
 
 const ACTIVE_BOOKING_STATUSES = [
   'assigned','confirmed','scheduled','on-the-way','arrived','in-progress','ongoing',
@@ -29,7 +30,7 @@ function bookingWindow(booking) {
   const explicitEnd = minuteValue(booking.endTime);
   const duration = Math.max(30, Number(booking.serviceDurationMinutes) || 60);
   const end = Number.isFinite(explicitEnd) && explicitEnd > start ? explicitEnd : start + duration;
-  return { start, end, duration: Math.max(duration, end - start) };
+  return { start, end, duration: end - start };
 }
 
 function dateKey(value) {
@@ -96,23 +97,32 @@ async function buildAssignmentPlan(bookings, options = {}) {
     }
     const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
     const candidates = [];
+    const exclusionReasons = {};
     for (const tech of techs) {
       const tid=String(tech._id); const schedule=scheduleMap.get(tid);
       const working=schedule?.workingDays?.find(w => w.dayOfWeek===day);
       const rest=schedule?.restDates?.some(r => dateKey(r?.date || r)===key);
       const nonWorking=schedule?.nonWorkingWeekdays?.some(w => Number(w?.dayOfWeek ?? w)===day);
       const onLeave=leaves.some(l => String(l.technicianId)===tid && key >= dateKey(l.startDate) && key <= dateKey(l.endDate));
-      if (!working || rest || nonWorking || onLeave || priorTechIds.has(tid) || !Number.isFinite(target.start)) continue;
-      if (target.start < Number(working.startMinutes||480) || target.end > Number(working.endMinutes||1020)) continue;
+      if (!working) { exclusionReasons[tid] = schedule ? 'Not Working This Day' : 'No Schedule'; continue; }
+      if (rest) { exclusionReasons[tid] = 'Rest Day'; continue; }
+      if (nonWorking) { exclusionReasons[tid] = 'Not Working This Day'; continue; }
+      if (onLeave) { exclusionReasons[tid] = 'On Leave'; continue; }
+      if (priorTechIds.has(tid)) { exclusionReasons[tid] = 'Previously Declined This Booking'; continue; }
+      if (!Number.isFinite(target.start)) { exclusionReasons[tid] = 'Booking Time Is Invalid'; continue; }
+      const shiftStart = Number(working.startMinutes ?? 480);
+      const shiftEnd = Number(working.endMinutes ?? 1140);
+      const overtimeMinutes = overtimeMinutesForWindow(target.start, target.end, shiftStart, shiftEnd);
+      if (overtimeMinutes === null) { exclusionReasons[tid] = 'Outside Working Hours and Overtime Limit'; continue; }
       const dayJobs=(allocations.get(tid)||[]).filter(a => a.date===key);
-      if (dayJobs.some(a => target.start < a.end && target.end > a.start)) continue;
-      const capacity=Math.max(1,Number(working.endMinutes||1020)-Number(working.startMinutes||480));
+      if (dayJobs.some(a => target.start < a.end && target.end > a.start)) { exclusionReasons[tid] = 'Already Booked at This Time'; continue; }
+      const capacity=Math.max(1,latestAllowedFinish(shiftEnd)-shiftStart);
       const used=dayJobs.reduce((s,a)=>s+(a.end-a.start),0);
-      if (used+target.duration>capacity) continue;
+      if (used+target.duration>capacity) { exclusionReasons[tid] = 'At Capacity'; continue; }
       const dist=distanceKm(bookingCoords,coordinates(tech));
       const utilization=used/capacity;
       const openJobs=activeLoad.get(tid)||0;
-      let score=100 - dayJobs.length*18 - openJobs*6 - utilization*35 + (Number(tech.rating)||0)*4;
+      let score=100 - dayJobs.length*18 - openJobs*6 - utilization*35 - Math.ceil(overtimeMinutes / 60)*8 + (Number(tech.rating)||0)*4;
       if(key===dateKey(new Date()) && String(tech.availabilityStatus||'').toLowerCase()==='available')score+=15;
       if (dist!=null) score+=Math.max(0,35-dist*1.5);
       const reasons=['Available during requested schedule','No schedule conflict'];
@@ -121,12 +131,13 @@ async function buildAssignmentPlan(bookings, options = {}) {
       reasons.push(`${openJobs} current open assignment${openJobs===1?'':'s'}`);
       if (dist!=null) reasons.push(`${dist} km from customer`);
       reasons.push(`${Math.round((used/capacity)*100)}% of daily capacity used`);
-      candidates.push({ technicianId:tid,name:tech.name||'Technician',score:Math.round(score),distanceKm:dist,currentWorkload:dayJobs.length,openAssignments:openJobs,usedMinutes:used,capacityMinutes:capacity,reasons });
+      if (overtimeMinutes) reasons.push(`${overtimeMinutes} minutes of overtime`);
+      candidates.push({ technicianId:tid,name:tech.name||'Technician',score:Math.round(score),distanceKm:dist,currentWorkload:dayJobs.length,openAssignments:openJobs,usedMinutes:used,capacityMinutes:capacity,overtimeMinutes,reasons });
     }
     candidates.sort((a,b)=>b.score-a.score || a.currentWorkload-b.currentWorkload || (a.distanceKm??9999)-(b.distanceKm??9999));
     const recommended=candidates[0]||null;
     if (recommended && options.reservePlan !== false) allocations.get(recommended.technicianId).push({ ...target,date:key,bookingId:String(booking._id),planned:true });
-    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,assignmentTiming:timing,recommended,candidates:candidates.slice(0,5) });
+    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,assignmentTiming:timing,recommended,candidates,exclusionReasons });
   }
   return result;
 }

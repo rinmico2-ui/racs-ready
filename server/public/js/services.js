@@ -8,6 +8,8 @@ fetch('/api/services/payment-policy')
     if (data && Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
       window.adminGcashNumber = String(data.gcashNumber || '');
     }
+    window.gcashQrImageUrl = data?.gcashQrImageUrl || '';
+    window.GcashQrActions?.apply(window.gcashQrImageUrl);
     if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) window.downpaymentPercentage = percentage;
   })
   .catch(() => {});

@@ -681,7 +681,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       routeDistanceKm: deliveryQuote.distanceKm,
       routeDurationMin: deliveryQuote.durationMin,
       deliveryFee: 0,
-      installationFee: selection.fulfillmentType === "delivery_installation" ? settings.installationFee : 0,
+      installationFee: 0, // Installation is included with delivered product orders; travel fare remains separate.
       preparation: {
         dispatch: { status: selection.fulfillmentType === "customer_pickup" ? "not_required" : "pending" },
         installation: { status: selection.fulfillmentType === "delivery_installation" ? "pending" : "not_required" },

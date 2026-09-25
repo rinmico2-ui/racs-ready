@@ -790,6 +790,7 @@
         const sel = selectedTechId === t._id ? ' selected' : '';
         const dist = t.distanceKm != null ? '<span class="aq-tech-badge"><i class="bi bi-geo me-1"></i>' + t.distanceKm + ' km</span>' : '';
         const eta = t.etaMin != null ? '<span class="aq-tech-badge"><i class="bi bi-clock me-1"></i>' + t.etaMin + ' min</span>' : '';
+        const overtime = t.overtimeMinutes > 0 ? '<span class="aq-tech-badge" style="color:#9a3412;background:#fff7ed;"><i class="bi bi-clock-history me-1"></i>' + t.overtimeMinutes + ' min overtime</span>' : '';
         const chk = selectedTechId === t._id ? 'checked' : '';
         return '<div class="aq-tech-card' + sel + '" onclick="selectTechUpgraded(\'' + t._id + '\', this)" data-tech-id="' + t._id + '">' +
           '<div class="aq-tech-card-top">' +
@@ -801,7 +802,7 @@
             '<div class="aq-tech-card-rating">' + (t.rating ? '★ ' + t.rating.toFixed(1) : '') + '</div>' +
           '</div>' +
           '<div class="aq-tech-card-meta">' +
-            dist + eta +
+            dist + eta + overtime +
             '<span class="aq-tech-badge"><i class="bi bi-briefcase me-1"></i>' + (t.currentWorkload || 0) + ' jobs</span>' +
             '<span class="aq-tech-badge"><i class="bi bi-envelope me-1"></i>' + (t.email || '—') + '</span>' +
           '</div>' +

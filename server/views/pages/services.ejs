@@ -1,5 +1,15 @@
-<link rel="stylesheet" href="/css/customer-payment.css?v=20260916-payment-channels-v2">
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
+<%
+  const accountAddressData = user && user.address ? user.address : null;
+  const accountAddressParts = accountAddressData
+    ? (typeof accountAddressData === 'string'
+      ? [accountAddressData]
+      : [accountAddressData.street, accountAddressData.line1, accountAddressData.address, accountAddressData.barangay, accountAddressData.city, accountAddressData.province, accountAddressData.postalCode].filter(Boolean))
+    : [];
+  const accountAddress = accountAddressParts.join(', ');
+  const accountAddressHasCodes = accountAddressParts.some(part => /^\d{9,10}$/.test(String(part).trim()));
+%>
 <section class="ent-hero">
   <div class="ent-hero-orb ent-hero-orb-1"></div>
   <div class="ent-hero-orb ent-hero-orb-2"></div>
@@ -8,35 +18,42 @@
     <div class="text-center mb-4" data-aos="fade-up" data-aos-duration="1000">
       <div class="ent-hero-badge">
         <i class="bi bi-calendar-check"></i>
-        Schedule Service
+        Easy service booking
         <span class="badge-dot"></span>
       </div>
       <h2 class="ent-hero-title">
         Book a <span class="ent-gradient-text">Service</span>
       </h2>
       <p class="ent-hero-subtitle">
-        Tell us what you need and we’ll guide you through each step. Review everything clearly before you confirm.
+        Tell us what you need. We will guide you one step at a time. You can check all details before you confirm.
       </p>
       <div class="ent-trust-badges">
-        <span class="ent-trust-item"><i class="bi bi-shield-check"></i> Licensed &amp; Insured</span>
+        <span class="ent-trust-item"><i class="bi bi-shield-check"></i> Licensed and insured</span>
         <span class="ent-trust-divider"></span>
-        <span class="ent-trust-item"><i class="bi bi-lightning-charge"></i> Same-Day Service</span>
+        <span class="ent-trust-item"><i class="bi bi-lightning-charge"></i> Same-day service available</span>
         <span class="ent-trust-divider"></span>
-        <span class="ent-trust-item"><i class="bi bi-star-fill"></i> <%= Number(serviceStats.averageRating || 0) > 0 ? Number(serviceStats.averageRating).toFixed(1) + ' Rating' : 'No ratings yet' %></span>
+        <span class="ent-trust-item"><i class="bi bi-star-fill"></i> <%= Number(serviceStats.averageRating || 0) > 0 ? Number(serviceStats.averageRating).toFixed(1) + ' rating' : 'No ratings yet' %></span>
       </div>
       <div class="ent-hero-stats">
         <div class="ent-hero-stat">
           <div class="ent-hero-stat-value"><%= Number(serviceStats.servicesCompleted || 0).toLocaleString('en-PH') %></div>
-          <div class="ent-hero-stat-label">Services Completed</div>
+          <div class="ent-hero-stat-label">Services completed</div>
         </div>
         <div class="ent-hero-stat">
           <div class="ent-hero-stat-value"><%= Number(serviceStats.activeTechnicians || 0).toLocaleString('en-PH') %></div>
-          <div class="ent-hero-stat-label">Technicians</div>
+          <div class="ent-hero-stat-label">Technician</div>
         </div>
         <div class="ent-hero-stat">
           <div class="ent-hero-stat-value"><%= Number(serviceStats.satisfactionPercentage || 0) %>%</div>
-          <div class="ent-hero-stat-label">Satisfaction</div>
+          <div class="ent-hero-stat-label">Customer satisfaction</div>
         </div>
+      </div>
+      <div class="ent-hero-action">
+        <a href="#bookingContainer" class="ent-hero-cta" aria-label="Go to the booking form">
+          <span>Start Booking</span>
+          <i class="bi bi-arrow-down" aria-hidden="true"></i>
+        </a>
+        <p>Choose a service, location, and schedule.</p>
       </div>
     </div>
   </div>
@@ -49,7 +66,7 @@
       <% if (!user) { %>
         <div class="ent-alert ent-alert-warning" role="alert">
           <i class="bi bi-exclamation-triangle-fill"></i>
-          Please <a href="/login" class="alert-link">log in</a> to book an appointment.
+          <strong>Please log in to book a service.</strong> <a href="/login" class="alert-link">Go to login</a> or create an account if you are new.
         </div>
       <% } %>
 
@@ -79,7 +96,8 @@
         function updateEntStepper(step){
           var n=document.querySelectorAll('.ent-n'),f=document.getElementById('stepperFill'),l=document.getElementById('stepperCurrentStep');
           if(!n.length)return;
-          var i=step-1,t=n.length;
+          var logicalStep=step<=2?((window.BookingState&&window.BookingState.selectedServices&&window.BookingState.selectedServices.length)?2:1):step;
+          var i=logicalStep-1,t=n.length;
           n.forEach(function(e,j){
             e.classList.remove('active','completed','inactive');
             e.removeAttribute('aria-current');
@@ -94,7 +112,7 @@
             else{e.classList.add('inactive');}
           });
           f.style.height=(i/(t-1)*100)+'%';
-          if(l)l.textContent=step;
+          if(l)l.textContent=logicalStep;
         }
         function navigateToStep(step){
           if(typeof window.requestBookingStepNavigation==='function'){
@@ -117,37 +135,37 @@
               <span class="sv-tr-p"></span>
             </div>
             <h5 id="trackerBookingRef">#RACS-XXXXXX</h5>
-            <p class="text-muted small text-truncate" id="trackerServiceName" style="max-width:250px;">Service Name</p>
+            <p class="text-muted small text-truncate" id="trackerServiceName" style="max-width:250px;">Service name</p>
           </div>
           <ul class="sv-tr-steps">
-            <li data-status-step="pending"><div class="sv-tr-i"><i class="bi bi-file-earmark-plus"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Request Submitted</span><span class="sv-tr-d">Awaiting verification</span></div></li>
-            <li data-status-step="confirmed"><div class="sv-tr-i"><i class="bi bi-shield-check"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Booking Confirmed</span><span class="sv-tr-d">Payment verified</span></div></li>
-            <li data-status-step="scheduled"><div class="sv-tr-i"><i class="bi bi-calendar-event"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Tech Scheduled</span><span class="sv-tr-d">Assigned</span></div></li>
-            <li data-status-step="on-the-way"><div class="sv-tr-i"><i class="bi bi-truck"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">On The Way</span><span class="sv-tr-d">En route</span></div></li>
-            <li data-status-step="arrived"><div class="sv-tr-i"><i class="bi bi-geo-alt-fill"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Arrived</span><span class="sv-tr-d">On site</span></div></li>
-            <li data-status-step="in-progress"><div class="sv-tr-i"><i class="bi bi-tools"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">In Progress</span><span class="sv-tr-d">Service ongoing</span></div></li>
-            <li data-status-step="completed"><div class="sv-tr-i"><i class="bi bi-check-circle-fill"></i></div><div><span class="sv-tr-t">Completed</span><span class="sv-tr-d">Done</span></div></li>
+            <li data-status-step="pending"><div class="sv-tr-i"><i class="bi bi-file-earmark-plus"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Request Received</span><span class="sv-tr-d">Waiting for review</span></div></li>
+            <li data-status-step="confirmed"><div class="sv-tr-i"><i class="bi bi-shield-check"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Booking Confirmed</span><span class="sv-tr-d">Payment checked</span></div></li>
+            <li data-status-step="scheduled"><div class="sv-tr-i"><i class="bi bi-calendar-event"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Technician Assigned</span><span class="sv-tr-d">A technician is ready</span></div></li>
+            <li data-status-step="on-the-way"><div class="sv-tr-i"><i class="bi bi-truck"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">On the Way</span><span class="sv-tr-d">The technician is traveling</span></div></li>
+            <li data-status-step="arrived"><div class="sv-tr-i"><i class="bi bi-geo-alt-fill"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Arrived</span><span class="sv-tr-d">At the service location</span></div></li>
+            <li data-status-step="in-progress"><div class="sv-tr-i"><i class="bi bi-tools"></i></div><div class="sv-tr-l"></div><div><span class="sv-tr-t">Service Started</span><span class="sv-tr-d">Work is in progress</span></div></li>
+            <li data-status-step="completed"><div class="sv-tr-i"><i class="bi bi-check-circle-fill"></i></div><div><span class="sv-tr-t">Completed</span><span class="sv-tr-d">Service is done</span></div></li>
           </ul>
-          <div class="sv-tr-f"><button type="button" class="sv-btn-b" onclick="window.location.href='/tracking'"><i class="bi bi-map me-1"></i>Open Live Map Tracker</button></div>
+          <div class="sv-tr-f"><button type="button" class="sv-btn-b" onclick="window.location.href='/tracking'"><i class="bi bi-map me-1"></i>Open Live Tracker</button></div>
         </div>
       </aside>
       <% } %>
 
-      <div class="ent-stepper" id="entStepper" data-authenticated="<%= user ? 'true' : 'false' %>">
+      <div class="ent-stepper" id="entStepper" data-authenticated="<%= user ? 'true' : 'false' %>" data-customer-id="<%= user ? String(user._id || user.id || '') : '' %>">
         <div class="ent-h">
-          <span>Booking Progress</span>
+          <span>Booking progress</span>
           <span>Step <span id="stepperCurrentStep">1</span> of 6</span>
         </div>
         <div class="ent-tr">
           <div class="ent-fill" id="stepperFill" style="height:0%;"></div>
-          <button type="button" class="ent-n active" data-step="1" aria-current="step" onclick="navigateToStep(1)"><span class="ent-ni"><i class="bi bi-person-check"></i></span><span>Login</span></button>
-          <button type="button" class="ent-n" data-step="2" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></span><span>Services</span></button>
-          <button type="button" class="ent-n" data-step="3" onclick="navigateToStep(3)"><span class="ent-ni"><i class="bi bi-geo-alt"></i></span><span>Location</span></button>
-          <button type="button" class="ent-n" data-step="4" onclick="navigateToStep(4)"><span class="ent-ni"><i class="bi bi-calendar3"></i></span><span>Schedule</span></button>
-          <button type="button" class="ent-n" data-step="5" onclick="navigateToStep(5)"><span class="ent-ni"><i class="bi bi-receipt"></i></span><span>Fee Review</span></button>
-          <button type="button" class="ent-n" data-step="6" onclick="navigateToStep(6)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
+          <button type="button" class="ent-n active" data-logical-step="1" data-step="2" aria-current="step" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></span><span>Service</span></button>
+          <button type="button" class="ent-n" data-logical-step="2" data-step="2" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-ui-checks-grid"></i></span><span>Details</span></button>
+          <button type="button" class="ent-n" data-logical-step="3" data-step="3" onclick="navigateToStep(3)"><span class="ent-ni"><i class="bi bi-geo-alt"></i></span><span>Location</span></button>
+          <button type="button" class="ent-n" data-logical-step="4" data-step="4" onclick="navigateToStep(4)"><span class="ent-ni"><i class="bi bi-calendar3"></i></span><span>Schedule</span></button>
+          <button type="button" class="ent-n" data-logical-step="5" data-step="5" onclick="navigateToStep(5)"><span class="ent-ni"><i class="bi bi-clipboard-check"></i></span><span>Review</span></button>
+          <button type="button" class="ent-n" data-logical-step="6" data-step="6" onclick="navigateToStep(6)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
         </div>
-        <p class="ent-stepper-help"><i class="bi bi-info-circle"></i>Complete each step in order. You can return to any completed step.</p>
+        <p class="ent-stepper-help"><i class="bi bi-info-circle"></i>Follow the steps below. You can return to a step you finished.</p>
       </div>
 
       <div class="booking-layout">
@@ -158,8 +176,8 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-login"><i class="bi bi-person-check"></i></div>
               <div class="ent-step-info">
-                <h5>Step 1</h5>
-                <p>Please log in to continue</p>
+                <h5>Before You Start</h5>
+                <p>Log in so your booking can be saved</p>
               </div>
             </div>
             <div class="ent-step-body">
@@ -167,19 +185,19 @@
                 <div class="ent-alert ent-alert-success">
                   <i class="bi bi-check-circle-fill"></i>
                   <div>
-                    <strong>Welcome back!</strong><br>
-                    You are logged in as <strong><%= user.name || user.email %></strong>. Click below to proceed.
+                    <strong>Your account is ready.</strong><br>
+                    You are logged in as <strong><%= user.name || user.email %></strong>. You can now choose a service.
                   </div>
                 </div>
                 <button type="button" class="ent-btn-primary mt-3" onclick="continueToServices()">
-                  <i class="bi bi-arrow-right"></i> Continue to Services
+                  <i class="bi bi-arrow-right"></i> Choose a Service
                 </button>
               <% } else { %>
                 <div class="ent-alert ent-alert-info">
                   <i class="bi bi-info-circle-fill"></i>
                   <div>
-                    <strong>Login Required</strong><br>
-                    Please log in to your account to book our services.
+                    <strong>Please log in first.</strong><br>
+                    Your account saves your booking and lets you track it.
                   </div>
                 </div>
                 <div class="mt-3 d-flex gap-2">
@@ -187,7 +205,7 @@
                     <i class="bi bi-box-arrow-in-right"></i> Log In
                   </a>
                   <a href="/register" class="ent-btn-outline">
-                    <i class="bi bi-person-plus"></i> Register
+                    <i class="bi bi-person-plus"></i> Create Account
                   </a>
                 </div>
               <% } %>
@@ -199,14 +217,32 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-services"><i class="bi bi-grid-3x3-gap"></i></div>
               <div class="ent-step-info">
-                <h5>Step 2</h5>
-                <p>Choose the services you need</p>
+                <h5>Service and Details</h5>
+                <p>What service do you need?</p>
               </div>
             </div>
             <div class="ent-step-body">
+              <p class="booking-step-lead">Choose what you need. You can add more than one service.</p>
+              <nav class="service-picker-guide" aria-label="Steps for choosing a service">
+                <button type="button" class="is-active service-guide-choose" id="serviceGuideChoose" onclick="navigateServiceGuide('choose')" aria-label="Choose a service from the list below">
+                  <span>1</span><strong>Choose a Service</strong><small>See the list below</small>
+                  <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                </button>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                <button type="button" id="serviceGuideConfigure" onclick="navigateServiceGuide('configure')">
+                  <span>2</span><strong>Add</strong><small>Details</small>
+                </button>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                <button type="button" class="service-guide-review" id="serviceGuideReview" onclick="navigateServiceGuide('review')" aria-label="Check your selected services" aria-controls="selectedServicesSummary" aria-expanded="false">
+                  <span>3</span><strong>Check Your Booking</strong><small id="serviceGuideReviewText">No service selected</small>
+                  <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </button>
+              </nav>
+              <div class="service-selection-layout">
+                <div class="service-catalog-panel" id="serviceCatalogPanel">
               <ul class="nav nav-tabs mb-3" id="serviceTabs" role="tablist">
-                <li class="nav-item"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><i class="bi bi-gear-fill me-2"></i>Core Services</button></li>
-                <li class="nav-item"><button class="nav-link" id="repair-tab" data-bs-toggle="tab" data-bs-target="#repair-services" type="button" role="tab" aria-controls="repair-services" aria-selected="false"><i class="bi bi-tools me-2"></i>Repair Services</button></li>
+                <li class="nav-item"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><i class="bi bi-gear-fill me-2"></i>Aircon Services</button></li>
+                <li class="nav-item"><button class="nav-link" id="repair-tab" data-bs-toggle="tab" data-bs-target="#repair-services" type="button" role="tab" aria-controls="repair-services" aria-selected="false"><i class="bi bi-tools me-2"></i>Repair Service</button></li>
               </ul>
               <div class="tab-content" id="serviceTabContent">
                 <!-- Core Services Tab -->
@@ -215,13 +251,38 @@
                     <div class="ent-svc-section-header">
                       <div class="ent-svc-section-icon"><i class="bi bi-gear-wide-connected"></i></div>
                       <div>
-                        <h6 class="ent-svc-section-title">Core Services</h6>
-                        <p class="ent-svc-section-sub">Professional maintenance, installation &amp; servicing</p>
+                        <h6 class="ent-svc-section-title">Aircon and Technical Services</h6>
+                        <p class="ent-svc-section-sub">Choose a service. You will see its details and price before adding it.</p>
                       </div>
                     </div>
+                    <div class="service-list-jump-wrap">
+                      <button type="button" class="service-list-jump" onclick="scrollToCoreServiceList()" aria-controls="coreServiceCards">
+                        View Service List <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                      </button>
+                    </div>
+                    <nav class="service-pagination" id="coreServicePagination" aria-label="Aircon service pages">
+                      <div class="service-pagination-status">
+                        <strong>Available services</strong>
+                        <span id="coreServiceShowingLabel">Showing available services</span>
+                      </div>
+                      <div class="service-pagination-actions">
+                        <button type="button" id="coreServicePrev" onclick="changeCoreServicePage(-1)" aria-label="Previous service list">
+                          <i class="bi bi-chevron-left" aria-hidden="true"></i><span>Previous</span>
+                        </button>
+                        <strong class="service-page-indicator" id="coreServicePageLabel" tabindex="-1">Page 1 of 1</strong>
+                        <button type="button" id="coreServiceNext" onclick="changeCoreServicePage(1)" aria-label="Next service list">
+                          <span>Next</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                      <div class="service-list-guide" id="serviceListGuide">
+                        <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                        <span id="serviceListGuideText">Use the arrows to see more services.</span>
+                      </div>
+                    </nav>
+                    <div class="service-list-target" id="coreServiceListTarget" aria-hidden="true"></div>
                     <div class="row g-3" id="coreServiceCards"></div>
                     <div class="ent-svc-section-footer d-none" id="coreServiceEmpty">
-                      <i class="bi bi-info-circle me-1"></i>No core services available at the moment.
+                      <i class="bi bi-info-circle me-1"></i>No services are available right now. Please try again later.
                     </div>
                   </div>
                 </div>
@@ -231,17 +292,26 @@
                     <div class="rp-intro">
                       <div class="rp-intro-icon"><i class="bi bi-wrench-adjustable-circle-fill"></i></div>
                       <div>
-                        <h6 class="rp-intro-title">Repair Service Configuration</h6>
-                        <p class="rp-intro-sub">Configure your repair request step by step. Our technician will be prepared with the right tools and parts.</p>
+                        <h6 class="rp-intro-title">Is your appliance not working?</h6>
+                        <p class="rp-intro-sub">Tell us what is wrong. You will pay the inspection fee first. The technician will give you the repair price after checking the appliance.</p>
                       </div>
                     </div>
 
-                    <section class="rp-section" data-rp-step="1">
+                    <nav class="repair-guide" id="repairGuide" aria-label="Repair request steps">
+                      <button type="button" class="is-active" data-repair-guide-step="1" onclick="goToRepairGuideStep(1)"><span>1</span><small>Appliance</small></button>
+                      <button type="button" data-repair-guide-step="2" onclick="goToRepairGuideStep(2)"><span>2</span><small>Type</small></button>
+                      <button type="button" data-repair-guide-step="3" onclick="goToRepairGuideStep(3)"><span>3</span><small>Details</small></button>
+                      <button type="button" data-repair-guide-step="4" onclick="goToRepairGuideStep(4)"><span>4</span><small>Problem</small></button>
+                      <button type="button" data-repair-guide-step="5" onclick="goToRepairGuideStep(5)"><span>5</span><small>Photo</small></button>
+                    </nav>
+                    <p class="repair-guide-hint" id="repairGuideHint" role="status" aria-live="polite">Step 1 of 5: Choose the appliance that needs repair.</p>
+
+                    <section class="rp-section" id="repairCategorySection" data-rp-step="1">
                       <div class="rp-section-header">
                         <div class="rp-step-badge">1</div>
                         <div class="rp-step-info">
-                          <h6><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Service Category</h6>
-                          <p>Select the type of equipment that needs repair.</p>
+                          <h6><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Which appliance needs repair?</h6>
+                          <p>Choose the appliance you want us to check.</p>
                         </div>
                         <span class="rp-step-status" id="rpCatStatus"><i class="bi bi-circle text-muted"></i></span>
                       </div>
@@ -250,36 +320,36 @@
                           <% if (typeof serviceCategories !== 'undefined' && serviceCategories.length) { %>
                             <% serviceCategories.forEach(function(cat) { %>
                             <div class="col-md-4">
-                              <div class="unit-category-card" data-category="<%= cat.slug %>" onclick="selectUnitCategory(this.dataset.category)">
+                              <div class="unit-category-card" data-category="<%= cat.slug %>" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
                                 <div class="unit-category-icon <%= cat.iconColor %>"><i class="bi <%= cat.icon %>"></i></div>
                                 <div class="unit-category-label"><%= cat.name %></div>
-                                <div class="unit-category-count"><%= cat.isCustom ? 'Custom description' : cat.unitTypes.length + ' unit types' %></div>
+                                <div class="unit-category-count"><%= cat.isCustom ? 'Enter the appliance' : cat.unitTypes.length + ' choices' %></div>
                                 <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
                               </div>
                             </div>
                             <% }); %>
                           <% } else { %>
                             <div class="col-md-4">
-                              <div class="unit-category-card" data-category="aircon" onclick="selectUnitCategory(this.dataset.category)">
+                              <div class="unit-category-card" data-category="aircon" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
                                 <div class="unit-category-icon blue"><i class="bi bi-snow"></i></div>
-                                <div class="unit-category-label">Air Conditioning</div>
-                                <div class="unit-category-count">5 unit types</div>
+                                <div class="unit-category-label">Aircon</div>
+                                <div class="unit-category-count">5 choices</div>
                                 <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
                               </div>
                             </div>
                             <div class="col-md-4">
-                              <div class="unit-category-card" data-category="appliance" onclick="selectUnitCategory(this.dataset.category)">
+                              <div class="unit-category-card" data-category="appliance" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
                                 <div class="unit-category-icon amber"><i class="bi bi-house-gear"></i></div>
-                                <div class="unit-category-label">Home Appliances</div>
-                                <div class="unit-category-count">9 unit types</div>
+                                <div class="unit-category-label">Home Appliance</div>
+                                <div class="unit-category-count">9 choices</div>
                                 <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
                               </div>
                             </div>
                             <div class="col-md-4">
-                              <div class="unit-category-card" data-category="other" onclick="selectUnitCategory(this.dataset.category)">
+                              <div class="unit-category-card" data-category="other" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
                                 <div class="unit-category-icon violet"><i class="bi bi-plus-circle"></i></div>
                                 <div class="unit-category-label">Other</div>
-                                <div class="unit-category-count">Custom description</div>
+                                <div class="unit-category-count">Enter the appliance</div>
                                 <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
                               </div>
                             </div>
@@ -289,26 +359,40 @@
                       </div>
                     </section>
 
-                    <section class="rp-section d-none" id="subUnitSection">
+                    <section class="rp-section d-none" id="subUnitSection" data-rp-step="2">
                       <div class="rp-section-header">
                         <div class="rp-step-badge">2</div>
                         <div class="rp-step-info">
-                          <h6><i class="bi bi-diagram-3-fill me-2 text-primary"></i>Specific Unit Type</h6>
-                          <p>Choose the exact model or configuration.</p>
+                          <h6><i class="bi bi-diagram-3-fill me-2 text-primary"></i>What type of appliance is it?</h6>
+                          <p>Choose the closest match. It does not need to be exact.</p>
                         </div>
                         <span class="rp-step-status" id="rpUnitStatus"><i class="bi bi-circle text-muted"></i></span>
                       </div>
                       <div class="rp-section-body">
                         <div class="sub-unit-chips" id="subUnitChips"></div>
+                        <nav class="service-pagination repair-unit-pagination d-none" id="repairUnitPagination" aria-label="Appliance type pages">
+                          <div class="service-pagination-status">
+                            <strong id="repairUnitPageLabel" tabindex="-1">Page 1 of 1</strong>
+                            <span id="repairUnitShowingLabel">Choose an appliance</span>
+                          </div>
+                          <div class="service-pagination-actions">
+                            <button type="button" id="repairUnitPrev" onclick="changeRepairUnitPage(-1)">
+                              <i class="bi bi-arrow-left" aria-hidden="true"></i> Previous
+                            </button>
+                            <button type="button" id="repairUnitNext" onclick="changeRepairUnitPage(1)">
+                              Next <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </button>
+                          </div>
+                        </nav>
                       </div>
                     </section>
 
-                    <section class="rp-section">
+                    <section class="rp-section" id="repairDetailsSection" data-rp-step="3">
                       <div class="rp-section-header">
                         <div class="rp-step-badge">3</div>
                         <div class="rp-step-info">
-                          <h6><i class="bi bi-upc-scan me-2 text-primary"></i>Unit Specifications</h6>
-                          <p>Basic identifiers to help the technician prepare.</p>
+                          <h6><i class="bi bi-upc-scan me-2 text-primary"></i>Add the appliance details</h6>
+                          <p>Choose the brand. If you are not sure, choose “I don't know.” The model number is optional.</p>
                         </div>
                       </div>
                       <div class="rp-section-body">
@@ -316,98 +400,157 @@
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="unitBrand"><i class="bi bi-award me-2 text-primary"></i>Brand <span class="text-danger">*</span></label>
                             <select class="form-select rp-input" id="unitBrand" required>
-                              <option value="">Select brand&hellip;</option>
+                              <option value="">Choose a brand&hellip;</option>
                             </select>
-                            <input type="text" class="form-control rp-input mt-2 d-none" id="unitBrandCustom" placeholder="Type the brand name" maxlength="80" aria-label="Other brand name" />
+                            <input type="text" class="form-control rp-input mt-2 d-none" id="unitBrandCustom" placeholder="Enter the brand" maxlength="80" aria-label="Other brand" />
                           </div>
                           <div class="col-md-6">
-                            <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model Number <span class="rp-optional">(optional)</span></label>
-                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="e.g. 42KDPV48" />
+                            <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model number <span class="rp-optional">(optional)</span></label>
+                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="Example: 42KDPV48" />
+                            <button type="button" class="repair-inline-action" id="repairSkipModel" onclick="focusRepairQuantity()">I don't know the model <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
                           </div>
                           <div class="col-md-6">
-                            <label class="form-label rp-field-label" for="repairUnitQuantity"><i class="bi bi-stack me-2 text-primary"></i>Number of Units</label>
+                            <label class="form-label rp-field-label" for="repairUnitQuantity"><i class="bi bi-stack me-2 text-primary"></i>How many units?</label>
                             <div class="input-group quantity-stepper">
                               <button class="btn btn-outline-secondary" type="button" id="repairQtyMinus">&minus;</button>
                               <input type="number" class="form-control text-center" id="repairUnitQuantity" value="1" min="1" max="40" />
                               <button class="btn btn-outline-secondary" type="button" id="repairQtyPlus">+</button>
                             </div>
-                            <div class="rp-hint"><i class="bi bi-info-circle me-1"></i>Multiple units may be scheduled as a multi-day project.</div>
+                            <div class="rp-hint"><i class="bi bi-info-circle me-1"></i>Several units may take more than one day.</div>
                           </div>
+                        </div>
+                        <div class="repair-step-action">
+                          <span id="repairDetailsHint">Choose a brand to continue.</span>
+                          <button type="button" id="repairDetailsNext" onclick="continueRepairDetails()" disabled>Next: Describe the Problem <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
                         </div>
                       </div>
                     </section>
 
-                    <section class="rp-section">
+                    <section class="rp-section" id="repairProblemSection" data-rp-step="4">
                       <div class="rp-section-header">
                         <div class="rp-step-badge">4</div>
                         <div class="rp-step-info">
-                          <h6><i class="bi bi-chat-square-text-fill me-2 text-primary"></i>Problem Description</h6>
-                          <p>Tap the symptoms, then add details.</p>
+                          <h6><i class="bi bi-chat-square-text-fill me-2 text-primary"></i>What is wrong?</h6>
+                          <p>Choose what you noticed, then add a short note. You can select several.</p>
                         </div>
                       </div>
                       <div class="rp-section-body">
                         <div class="symptom-chips mb-3" id="symptomChips">
-                          <button type="button" class="symptom-chip" data-symptom="Not Cooling" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-thermometer-half me-1"></i>Not Cooling</button>
-                          <button type="button" class="symptom-chip" data-symptom="Strange Noise" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-volume-up me-1"></i>Strange Noise</button>
-                          <button type="button" class="symptom-chip" data-symptom="Leaking Water" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-droplet me-1"></i>Leaking Water</button>
-                          <button type="button" class="symptom-chip" data-symptom="Not Turning On" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-power me-1"></i>Not Turning On</button>
-                          <button type="button" class="symptom-chip" data-symptom="Bad Smell" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-cloud me-1"></i>Bad Smell</button>
-                          <button type="button" class="symptom-chip" data-symptom="Error Code" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-bug me-1"></i>Error Code</button>
-                          <button type="button" class="symptom-chip" data-symptom="Overheating" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-fire me-1"></i>Overheating</button>
-                          <button type="button" class="symptom-chip" data-symptom="Electrical Issue" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-lightning me-1"></i>Electrical Issue</button>
+                          <button type="button" class="symptom-chip" data-symptom="Not cooling" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-thermometer-half me-1"></i>Not cooling</button>
+                          <button type="button" class="symptom-chip" data-symptom="Making noise" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-volume-up me-1"></i>Making noise</button>
+                          <button type="button" class="symptom-chip" data-symptom="Water is leaking" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-droplet me-1"></i>Water leak</button>
+                          <button type="button" class="symptom-chip" data-symptom="Will not turn on" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-power me-1"></i>Will not turn on</button>
+                          <button type="button" class="symptom-chip" data-symptom="Strange smell" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-cloud me-1"></i>Strange smell</button>
+                          <button type="button" class="symptom-chip" data-symptom="Shows an error code" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-bug me-1"></i>Error code</button>
+                          <button type="button" class="symptom-chip" data-symptom="Getting too hot" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-fire me-1"></i>Getting too hot</button>
+                          <button type="button" class="symptom-chip" data-symptom="Turns off by itself" aria-pressed="false" onclick="toggleSymptom(this, this.dataset.symptom)"><i class="bi bi-lightning me-1"></i>Turns off by itself</button>
                         </div>
-                        <label class="form-label rp-field-label" for="repairProblemDescription"><i class="bi bi-chat-square-text me-2 text-primary"></i>Detailed Issue <span class="text-danger">*</span></label>
-                        <textarea class="form-control rp-input" id="repairProblemDescription" rows="4" required placeholder="Describe the problem in detail. Example: Not cooling properly, making unusual noises, leaking water..."></textarea>
+                        <label class="form-label rp-field-label" for="repairProblemDescription"><i class="bi bi-chat-square-text me-2 text-primary"></i>Tell us more <span class="text-danger">*</span></label>
+                        <textarea class="form-control rp-input" id="repairProblemDescription" rows="4" required minlength="10" maxlength="500" placeholder="Example: It stopped cooling yesterday..."></textarea>
                         <div class="d-flex justify-content-between align-items-center mt-2">
-                          <div class="rp-hint"><i class="bi bi-info-circle me-1"></i>The more details you provide, the better our technician can prepare.</div>
+                          <div class="rp-hint"><i class="bi bi-info-circle me-1"></i>Add at least 10 characters so the technician knows what to check.</div>
                           <div class="rp-hint" id="repairCharCount">0 / 500</div>
+                        </div>
+                        <div class="repair-step-action">
+                          <span id="repairProblemHint">Tell us what happened to continue.</span>
+                          <button type="button" id="repairProblemNext" onclick="continueRepairProblem()" disabled>Next: Photo (Optional) <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
                         </div>
                       </div>
                     </section>
 
-                    <section class="rp-section">
+                    <section class="rp-section" id="repairPhotoSection" data-rp-step="5">
                       <div class="rp-section-header">
                         <div class="rp-step-badge">5</div>
                         <div class="rp-step-info">
-                          <h6><i class="bi bi-camera-fill me-2 text-primary"></i>Photo Evidence</h6>
-                          <p>Optional images help us assess the issue before arrival.</p>
+                          <h6><i class="bi bi-camera-fill me-2 text-primary"></i>Do you have a photo?</h6>
+                          <p>This is optional. A photo can help the technician prepare.</p>
                         </div>
                       </div>
                       <div class="rp-section-body">
-                        <div class="photo-upload-zone" id="repairPhotoUploadZone" onclick="document.getElementById('repairUnitPhotos').click()">
+                        <div class="photo-upload-zone" id="repairPhotoUploadZone" role="button" tabindex="0" aria-label="Upload up to five photos" onclick="document.getElementById('repairUnitPhotos').click()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('repairUnitPhotos').click()}">
                           <input type="file" class="d-none" id="repairUnitPhotos" multiple accept="image/*" />
                           <div class="photo-upload-icon"><i class="bi bi-cloud-arrow-up"></i></div>
-                          <div class="photo-upload-text">Drag photos here or <span>browse</span></div>
-                          <div class="photo-upload-hint">Max 5 images &middot; JPG, PNG &middot; 5MB each</div>
+                          <div class="photo-upload-text">Drag a photo here or <span>choose a file</span></div>
+                          <div class="photo-upload-hint">Up to 5 photos &middot; JPG or PNG &middot; 5MB each</div>
                         </div>
                         <div id="repairPhotoPreview" class="mt-3 d-flex flex-wrap gap-2"></div>
+                        <button type="button" class="repair-skip-photo" onclick="finishRepairGuide()">
+                          Review Repair Request <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </button>
                       </div>
                     </section>
 
-                    <div class="rp-add-bar">
-                      <button type="button" class="ent-btn-primary" onclick="addCurrentRepairItem()"><i class="bi bi-plus-circle me-2"></i>Add Repair Service</button>
-                      <div class="rp-add-hint">Add the configured appliance as a service before continuing.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="mt-4" id="selectedServicesSummary">
-                <div class="rv-card">
-                  <div class="rv-card-body">
-                    <div class="rv-section-title"><i class="bi bi-cart-check"></i>Selected Services <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span></div>
-                    <div id="selectedServicesList"><p class="text-muted mb-0">No services selected yet</p></div>
-                    <div class="mt-3 pt-3 border-top d-none" id="totalPricingSection">
-                      <div class="rv-row">
-                        <span class="rv-label">Total Estimated Price:</span>
-                        <span class="rv-value" style="font-size:1.3rem;font-weight:800;color:var(--brand-primary);" id="totalEstimatedPrice">₱0</span>
+                    <div class="rp-add-bar is-locked" id="repairAddAction">
+                      <div class="repair-review-summary" id="repairReviewSummary" aria-live="polite">
+                        <div><span>Ready to add</span><strong id="repairReviewTitle">Repair request</strong><small id="repairReviewMeta">1 unit</small></div>
+                        <div><span>Inspection fee</span><strong id="repairReviewPrice">₱0</strong><small>Repair price comes after inspection</small></div>
+                        <p id="repairReviewProblem"></p>
                       </div>
+                      <button type="button" class="ent-btn-primary" onclick="addCurrentRepairItem()"><i class="bi bi-plus-circle me-2"></i>Add Repair Request</button>
+                      <div class="rp-add-hint">Ready? Add this repair request to your booking.</div>
                     </div>
                   </div>
                 </div>
               </div>
-              <div class="mt-4 text-center" id="continueButtonSection">
-                <button type="button" class="ent-btn-primary px-5" id="continueToNextStep" aria-describedby="continueHint" onclick="advanceToNextStep();return false;"><i class="bi bi-arrow-right-circle"></i> Continue to Next Step</button>
-                <p class="text-muted small mt-2" id="continueHint">Please select at least one service to continue</p>
+                </div>
+
+                <aside class="booking-cart-panel" id="selectedServicesSummary" aria-labelledby="bookingCartTitle">
+                  <button type="button" class="booking-sheet-close" aria-label="Close booking summary" onclick="toggleBookingSummary(false)">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                  </button>
+                  <div class="booking-sheet-handle" aria-hidden="true"></div>
+                  <div class="booking-cart-header">
+                    <h6 id="bookingCartTitle"><i class="bi bi-bag-check" aria-hidden="true"></i> Your Booking</h6>
+                    <span class="booking-cart-count" id="selectedServiceCount">0</span>
+                  </div>
+                  <p class="booking-cart-count-copy" id="selectedServiceCountText">No service selected</p>
+
+                  <div class="booking-cart-items" id="selectedServicesList">
+                    <div class="booking-cart-empty">
+                      <i class="bi bi-tools" aria-hidden="true"></i>
+                      <strong>No service selected</strong>
+                      <span>Choose a service to get started.</span>
+                    </div>
+                  </div>
+
+                  <div class="booking-cart-footer">
+                    <div class="booking-cart-total d-none" id="totalPricingSection">
+                      <span>Estimated total</span>
+                      <strong id="totalEstimatedPrice">₱0</strong>
+                    </div>
+
+                    <div class="booking-next-action" id="bookingNextAction">
+                      <i class="bi bi-arrow-right-circle" aria-hidden="true"></i>
+                      <span>Next:</span>
+                      <strong id="bookingNextActionText">Choose a service</strong>
+                    </div>
+
+                    <div class="booking-primary-action" id="continueButtonSection">
+                      <button type="button" class="ent-btn-primary" id="continueToNextStep" aria-describedby="continueHint" onclick="toggleBookingSummary(false);advanceToNextStep();return false;">
+                        <span id="continueActionLabel">Continue</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                      </button>
+                      <p id="continueHint">Choose at least one service to continue.</p>
+                    </div>
+
+                    <button type="button" class="booking-add-another" onclick="focusServiceCatalog()">
+                      <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Another Service
+                    </button>
+                  </div>
+                </aside>
+              </div>
+
+              <button type="button" class="booking-sheet-backdrop" id="bookingSheetBackdrop" aria-label="Close booking summary" onclick="toggleBookingSummary(false)" tabindex="-1"></button>
+              <div class="mobile-booking-bar" id="mobileBookingBar" aria-label="Selected service and next step">
+                <span class="visually-hidden" id="bookingNextStepAnnouncement" aria-live="polite" aria-atomic="true"></span>
+                <button type="button" class="mobile-booking-overview" id="mobileBookingSummaryButton" aria-controls="selectedServicesSummary" aria-expanded="false" onclick="openSelectedServiceSummary(event)">
+                  <span><i class="bi bi-bag-check-fill" aria-hidden="true"></i> <strong id="mobileSelectedServiceCount">0 services selected</strong></span>
+                  <span class="mobile-booking-open-label">Check Booking <i class="bi bi-chevron-up" aria-hidden="true"></i></span>
+                  <strong id="mobileEstimatedPrice">₱0</strong>
+                </button>
+                <button type="button" class="mobile-booking-continue" aria-label="Next: add the service location" onclick="advanceToNextStep();return false;">
+                  <span class="booking-next-cta-copy"><small>Next</small><strong>Add Location</strong></span>
+                  <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -417,11 +560,30 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-location"><i class="bi bi-geo-alt"></i></div>
               <div class="ent-step-info">
-                <h5>Step 3</h5>
-                <p>Set your service location</p>
+                <h5>Service Location</h5>
+                <p>Where should the technician go?</p>
               </div>
             </div>
             <div class="ent-step-body">
+              <% if (accountAddress) { %>
+                <div class="saved-address-card mb-3">
+                  <div class="saved-address-copy">
+                    <span class="saved-address-icon"><i class="bi bi-house-check"></i></span>
+                    <div><small>Account address</small><strong id="accountAddressDisplay"><%= accountAddressHasCodes ? 'Loading your saved address...' : accountAddress %></strong></div>
+                  </div>
+                  <button type="button" class="ent-btn-outline saved-address-action" id="useAccountAddressBtn"
+                    data-address="<%= accountAddress %>"
+                    data-street="<%= typeof accountAddressData === 'object' && accountAddressData ? (accountAddressData.street || accountAddressData.line1 || accountAddressData.address || '') : '' %>"
+                    data-barangay="<%= typeof accountAddressData === 'object' && accountAddressData ? (accountAddressData.barangay || '') : '' %>"
+                    data-city="<%= typeof accountAddressData === 'object' && accountAddressData ? (accountAddressData.city || '') : '' %>"
+                    data-province="<%= typeof accountAddressData === 'object' && accountAddressData ? (accountAddressData.province || '') : '' %>"
+                    data-postal="<%= typeof accountAddressData === 'object' && accountAddressData ? (accountAddressData.postalCode || '') : '' %>"
+                    <% if (accountAddressHasCodes) { %>disabled aria-busy="true"<% } %>>
+                    <i class="bi <%= accountAddressHasCodes ? 'bi-hourglass-split' : 'bi-check2-circle' %>"></i>
+                    <span id="useAccountAddressLabel"><%= accountAddressHasCodes ? 'Loading Address' : 'Use This Address' %></span>
+                  </button>
+                </div>
+              <% } %>
               <script>
                 window._companyBaseLocation={configured:false,lat:14.676049,lng:121.043731,address:'Company location not set'};
                 window._companyBaseLocationPromise=fetch('/api/public/company/location',{credentials:'same-origin'}).then(r=>{if(!r.ok)throw Error();return r.json();}).then(d=>{window._companyBaseLocation=d||window._companyBaseLocation;return window._companyBaseLocation;}).catch(()=>window._companyBaseLocation);
@@ -432,34 +594,79 @@
                 });
               </script>
               <div class="service-map-search mb-3">
-                <label class="form-label fw-semibold" for="locationInput">Service Address or Landmark</label>
+                <label class="form-label fw-semibold" for="locationInput"><%= accountAddress ? 'Use a different address' : 'Service address or nearby landmark' %></label>
                 <div class="position-relative">
                   <div class="input-group input-group-lg service-map-input">
                     <span class="input-group-text bg-white border-0"><i class="bi bi-geo-alt-fill text-primary"></i></span>
-                    <input type="text" class="form-control border-0" placeholder="Search street, barangay, municipality, or landmark" id="locationInput" autocomplete="off" />
-                    <button type="button" class="btn btn-outline-primary border-0 px-3" id="serviceAddressSearchBtn" aria-label="Search address"><i class="bi bi-search"></i></button>
+                    <input type="text" class="form-control border-0" placeholder="House number, street, barangay, city, province" id="locationInput" autocomplete="street-address" maxlength="250" aria-controls="locationSuggest" aria-expanded="false" aria-autocomplete="list" />
+                    <button type="button" class="btn btn-outline-primary border-0 px-3" id="serviceAddressSearchBtn" aria-label="Search for the address"><i class="bi bi-search"></i></button>
                   </div>
-                  <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions"></div>
+                  <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions" role="listbox" aria-label="Philippine address suggestions"></div>
                 </div>
-                <p class="location-hint mb-0 mt-2" id="locationStatus"><i class="bi bi-search me-1"></i>Type an address and press Enter or tap Search. Your precise pin is used only for scheduling and routing.</p>
+                <p class="location-hint mb-0 mt-2" id="locationStatus" data-search-instruction="Search for an address or place a pin on the map"><i class="bi bi-search me-1"></i>Search or place a pin on the map.</p>
+                <button type="button" class="service-manual-pin-link" id="pinTypedAddressBtn" onclick="guideToManualAddressPin()">
+                  <i class="bi bi-pin-map-fill" aria-hidden="true"></i>Can't find your address? Place a pin on the map
+                </button>
+                <small class="text-muted d-block mt-1">Address search data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</small>
+                <small class="text-muted d-none mt-1" id="geoapifyAttribution">Live suggestions powered by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>.</small>
               </div>
+
+              <section class="service-location-overview" aria-labelledby="locationDetailsTitle">
+                <div class="service-location-overview-head">
+                  <div>
+                    <h6 id="locationDetailsTitle">Your service location</h6>
+                  </div>
+                </div>
+
+                <div class="service-map-selection" id="serviceMapSelection" aria-live="polite">
+                  <div class="service-map-selection-main">
+                    <span class="service-map-selection-icon"><i class="bi bi-geo-alt"></i></span>
+                    <div class="min-w-0">
+                      <div class="service-map-selection-status" id="serviceMapSelectionStatus">No location selected</div>
+                      <div class="service-map-address" id="serviceMapAddress">Search for an address or choose the exact place on the map.</div>
+                    </div>
+                  </div>
+                  <details class="service-map-coordinate">
+                    <summary>Pin details</summary>
+                    <span>Map coordinates</span>
+                    <strong id="serviceMapCoordinates">Not selected</strong>
+                    <small id="serviceMapSource">Waiting for location</small>
+                  </details>
+                </div>
+
+                <div class="service-route-panel" id="mapInfoPanel">
+                  <div class="service-route-head">
+                    <strong><i class="bi bi-signpost-2 me-2"></i>Route details</strong>
+                    <span id="serviceRouteMethod"><i class="bi bi-hourglass-split me-1"></i>Waiting for the service pin</span>
+                  </div>
+                  <div class="service-route-total">
+                    <div><span>Travel fee</span><strong id="mapInfoFare">&mdash;</strong></div>
+                  </div>
+                  <div class="service-route-stats">
+                    <div class="service-route-stat"><i class="bi bi-rulers text-primary"></i><span>Distance</span><strong id="mapInfoDistance">&mdash;</strong></div>
+                    <div class="service-route-stat"><i class="bi bi-clock text-warning"></i><span>Est. Travel</span><strong id="mapInfoDuration">&mdash;</strong></div>
+                    <div class="service-route-stat"><i class="bi bi-tag text-primary"></i><span>Rate</span><strong>&#8369;<span id="fareRateDisplay"><%= typeof farePerKm !=='undefined' ? farePerKm : 40 %></span>/km</strong></div>
+                  </div>
+                  <div class="service-route-formula" id="mapDistanceInfo">Choose a location to see the travel fee.</div>
+                </div>
+              </section>
 
               <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
                 <div class="service-map-toolbar">
                   <div>
-                    <h6><i class="bi bi-map me-2 text-primary"></i>Service Route Map</h6>
-                    <p>Choose the exact service point. You can drag the green pin after selecting a location.</p>
+                    <h6><i class="bi bi-map me-2 text-primary"></i>Check the pin</h6>
+                    <p>Drag the green pin if needed.</p>
                   </div>
                   <div class="service-map-actions" aria-label="Map controls">
                     <button type="button" class="service-map-action" id="locateCustomerBtn" title="Use my current location"><i class="bi bi-crosshair"></i><span>My Location</span></button>
-                    <button type="button" class="service-map-action" id="locateCompanyBtn" title="Show company location"><i class="bi bi-building"></i><span>Company</span></button>
-                    <button type="button" class="service-map-action" id="focusCustomerBtn" title="Show service location"><i class="bi bi-geo-alt"></i><span>Service Pin</span></button>
-                    <button type="button" class="service-map-action" id="fitServiceRouteBtn" title="Show the full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Fit Route</span></button>
-                    <button type="button" class="service-map-action" id="expandServiceMapBtn" title="Expand map"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
+                    <button type="button" class="service-map-action" id="locateCompanyBtn" title="Show CALIDRO RACS"><i class="bi bi-building"></i><span>RACS</span></button>
+                    <button type="button" class="service-map-action" id="focusCustomerBtn" title="Show the service location"><i class="bi bi-geo-alt"></i><span>Service Pin</span></button>
+                    <button type="button" class="service-map-action" id="fitServiceRouteBtn" title="Show the full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Full Route</span></button>
+                    <button type="button" class="service-map-action" id="expandServiceMapBtn" title="Make the map larger"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
                   </div>
                 </div>
                 <div class="service-map-stage">
-                  <div id="technicianMap" class="technician-map" role="application" aria-label="Interactive service route map"
+                  <div id="technicianMap" class="technician-map" role="application" tabindex="0" aria-label="Interactive service route map"
                     data-technician-lat="<%= (technicianLocation&&technicianLocation.lat)||14.676049 %>"
                     data-technician-lng="<%= (technicianLocation&&technicianLocation.lng)||121.043731 %>"></div>
                   <div class="service-map-legend" aria-label="Map legend">
@@ -467,51 +674,46 @@
                     <span><i class="service-map-dot customer"></i>Service location</span>
                   </div>
                 </div>
-                <div class="service-map-selection" id="serviceMapSelection" aria-live="polite">
-                  <div class="service-map-selection-main">
-                    <span class="service-map-selection-icon"><i class="bi bi-geo-alt"></i></span>
-                    <div class="min-w-0">
-                      <div class="service-map-selection-status" id="serviceMapSelectionStatus">Location not pinned</div>
-                      <div class="service-map-address" id="serviceMapAddress">Search for an address or select the exact point on the map.</div>
-                    </div>
-                  </div>
-                  <div class="service-map-coordinate">
-                    <span>Coordinates</span>
-                    <strong id="serviceMapCoordinates">Not selected</strong>
-                    <small id="serviceMapSource">Waiting for location</small>
-                  </div>
+                <div class="service-pin-confirm d-none" id="servicePinConfirm" role="status" aria-live="polite">
+                  <div><strong>Is the green pin at the service address?</strong><span>Move it to the exact spot if needed.</span></div>
+                  <button type="button" onclick="confirmServiceAddressPin()">Yes, this is the place</button>
                 </div>
               </div>
 
-              <div class="service-route-panel mt-3" id="mapInfoPanel">
-                <div class="service-route-head">
-                  <strong><i class="bi bi-signpost-2 me-2"></i>Route &amp; Travel Fare</strong>
-                  <span id="serviceRouteMethod"><i class="bi bi-hourglass-split me-1"></i>Waiting for service pin</span>
+              <div class="location-next-action" id="locationNextAction" aria-label="Location status and next step" aria-live="polite">
+                <div class="location-next-status">
+                  <span class="location-next-icon"><i class="bi bi-geo-alt-fill"></i></span>
+                  <span class="location-next-copy">
+                    <small id="locationNextEyebrow">Location needed</small>
+                    <strong id="locationNextMessage">Choose your service location to continue.</strong>
+                    <button type="button" class="location-fare-details" id="locationFareDetailsButton" onclick="showServiceTravelDetails()" hidden>See travel fee details <i class="bi bi-arrow-up-right" aria-hidden="true"></i></button>
+                  </span>
                 </div>
-                <div class="service-route-stats">
-                  <div class="service-route-stat"><i class="bi bi-rulers text-primary"></i><span>Distance</span><strong id="mapInfoDistance">&mdash;</strong></div>
-                  <div class="service-route-stat"><i class="bi bi-clock text-warning"></i><span>Est. Travel</span><strong id="mapInfoDuration">&mdash;</strong></div>
-                  <div class="service-route-stat"><i class="bi bi-tag text-primary"></i><span>Rate</span><strong>&#8369;<span id="fareRateDisplay"><%= typeof farePerKm !=='undefined' ? farePerKm : 40 %></span>/km</strong></div>
-                  <div class="service-route-stat fare"><i class="bi bi-cash-coin"></i><span>Travel Fare</span><strong id="mapInfoFare">&mdash;</strong></div>
-                </div>
-                <div class="service-route-formula" id="mapDistanceInfo">Select a precise service location to calculate the road route.</div>
+                <button type="button" class="location-next-button" id="locationContinueButton" onclick="continueServiceBookingFromMap()" disabled>
+                  <span id="locationContinueLabel">Choose a Location</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </button>
               </div>
-            <div class="mt-4 text-center">
-              <button type="button" class="ent-btn-primary px-5" onclick="continueServiceBookingFromMap()">
-                <i class="bi bi-arrow-right-circle"></i> Choose Schedule
-              </button>
-            </div>
             </div>
           </div>
           <div class="ent-step-card d-none booking-step" id="manualCalendar" data-step="4">
             <div class="ent-step-header">
               <div class="ent-step-icon step-calendar"><i class="bi bi-calendar3"></i></div>
               <div class="ent-step-info">
-                <h5>Step 4</h5>
-                <p>Pick a date and time</p>
+                <h5>Choose a Date and Time</h5>
+                <p>Tell us when you want the service.</p>
               </div>
             </div>
             <div class="ent-step-body">
+              <p class="booking-step-lead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
+              <div class="booking-confidence-note mb-3"><i class="bi bi-info-circle"></i><span>Your date and time are a request. We will let you know when your booking is confirmed.</span></div>
+              <div class="schedule-next-action" id="scheduleNextAction" aria-label="Selected schedule and next step">
+                <div class="schedule-next-copy" aria-live="polite">
+                  <span>Your schedule</span>
+                  <strong id="scheduleNextSummary">Choose a date and time</strong>
+                  <small id="scheduleNextHint">Select an available date, then a start time.</small>
+                </div>
+                <button type="button" id="scheduleNextButton" onclick="continueFromSchedule()" disabled>Review Booking <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+              </div>
               <div id="calendarGrid"></div>
               <div id="timeSelection" class="mt-3 d-none">
                 <div id="timeSlots"></div>
@@ -527,29 +729,30 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-review"><i class="bi bi-receipt"></i></div>
               <div class="ent-step-info">
-                <h5>Step 5</h5>
-                <p>Review your total fee</p>
+                <h5>Review Your Booking</h5>
+                <p>Check the details before payment</p>
               </div>
             </div>
             <div class="ent-step-body">
+              <p class="booking-step-lead">Check your services, address, time, and price. Use Change if something is wrong.</p>
               <div class="row g-3 align-items-start">
                 <div class="col-lg-8">
                   <div class="rv-card mb-3">
                     <div class="rv-card-body">
                       <div class="rv-section-title d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-tools"></i>Selected Services</span>
-                        <span class="booking-review-count" id="feeServiceCount">0 services</span>
+                        <span><i class="bi bi-tools"></i>Selected Services <span class="booking-review-count" id="feeServiceCount">0 services</span></span>
+                        <button type="button" class="booking-edit-link" onclick="requestBookingStepNavigation(2)"><i class="bi bi-pencil"></i> Change</button>
                       </div>
-                      <div id="feeServiceDetails" class="small text-muted"></div>
+                      <div id="feeServiceDetails"></div>
                     </div>
                   </div>
                   <div class="rv-card mb-3">
                     <div class="rv-card-body">
                       <div class="rv-section-title"><i class="bi bi-clipboard-check"></i>Booking Details</div>
                       <div class="booking-review-details">
-                        <div><i class="bi bi-geo-alt"></i><span>Service location</span><strong id="feeLocationDisplay">Not selected</strong></div>
-                        <div><i class="bi bi-calendar-event"></i><span>Schedule</span><strong id="feeScheduleDisplay">Not selected</strong></div>
-                        <div><i class="bi bi-signpost-2"></i><span>Travel route</span><strong id="feeDistanceContext">Calculating</strong></div>
+                        <div><i class="bi bi-geo-alt"></i><span>Location</span><strong id="feeLocationDisplay">Not selected</strong><button type="button" class="booking-edit-link" onclick="requestBookingStepNavigation(3)">Change</button></div>
+                        <div><i class="bi bi-calendar-event"></i><span>Schedule</span><strong id="feeScheduleDisplay">Not selected</strong><button type="button" class="booking-edit-link" onclick="requestBookingStepNavigation(4)">Change</button></div>
+                        <div><i class="bi bi-signpost-2"></i><span>Travel route</span><strong id="feeDistanceContext">Checking route</strong></div>
                       </div>
                     </div>
                   </div>
@@ -557,8 +760,8 @@
                     <div class="d-flex align-items-start gap-3">
                       <span class="d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width:34px;height:34px;border-radius:10px;background:#fef3c7;color:#b45309;"><i class="bi bi-exclamation-triangle-fill"></i></span>
                       <div>
-                        <strong class="d-block mb-1" style="color:#92400e;font-size:.82rem;">Repair amount shown is an inspection fee only</strong>
-                        <small style="display:block;color:#78350f;line-height:1.55;">This is not the final repair price. After the technician diagnoses the unit on site, you will receive a separate quotation for repair labor and replacement parts. Repair work proceeds only after your approval.</small>
+                        <strong class="d-block mb-1" style="color:#92400e;font-size:.82rem;">The repair price is not final yet</strong>
+                        <small style="display:block;color:#78350f;line-height:1.55;">The price shown includes the inspection fee, not the repair. After checking the appliance, the technician will tell you the cost of labor and parts. No repair work starts until you agree.</small>
                       </div>
                     </div>
                   </div>
@@ -566,15 +769,19 @@
                 <aside class="col-lg-4">
                   <div class="rv-card booking-review-summary">
                     <div class="rv-card-body">
-                      <div class="rv-section-title"><i class="bi bi-receipt"></i>Booking Summary</div>
-                      <div class="rv-row"><span class="rv-label" id="servicesSubtotalLabel">Services subtotal</span><span class="rv-value fw-bold" id="servicesTotalDisplay">₱0</span></div>
-                      <div class="rv-row"><span class="rv-label">Travel fare</span><span class="rv-value fw-bold" id="travelFareDisplay">₱0</span></div>
-                      <div class="booking-review-total"><span id="bookingTotalLabel">Current total</span><strong id="totalFeeDisplay">₱0</strong></div>
-                      <p class="booking-review-note" id="bookingReviewNote">Your configured downpayment and remaining balance are shown before booking confirmation.</p>
-                      <button type="button" id="feeStepNextBtn" class="ent-btn-primary w-100 justify-content-center" onclick="showStep(6);updateStepper(6);">Continue to Payment <i class="bi bi-arrow-right"></i></button>
+                      <div class="rv-section-title"><i class="bi bi-receipt"></i>Price Breakdown</div>
+                      <div class="rv-row" id="servicesSubtotalRow"><span class="rv-label" id="servicesSubtotalLabel">Service price</span><span class="rv-value fw-bold" id="servicesTotalDisplay">₱0</span></div>
+                      <div class="rv-row d-none" id="repairInspectionRow"><span class="rv-label">Repair inspection fee</span><span class="rv-value fw-bold" id="repairInspectionTotalDisplay">₱0</span></div>
+                      <div class="rv-row"><span class="rv-label">Travel Fee</span><span class="rv-value fw-bold" id="travelFareDisplay">₱0</span></div>
+                      <div class="booking-review-total"><span id="bookingTotalLabel">Estimated total</span><strong id="totalFeeDisplay">₱0</strong></div>
+                      <p class="booking-review-note" id="bookingReviewNote">The next step shows what to pay now and the balance left.</p>
                     </div>
                   </div>
                 </aside>
+              </div>
+              <div class="booking-review-mobile-action" id="reviewNextAction" aria-label="Booking total and next step" aria-hidden="true" hidden inert>
+                <div aria-live="polite"><span id="mobileReviewTotalLabel">Estimated total</span><strong id="mobileReviewTotalDisplay">₱0</strong></div>
+                <button type="button" class="ent-btn-primary" onclick="requestBookingStepNavigation(6)">Continue to Payment <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
               </div>
             </div>
           </div>
@@ -584,32 +791,45 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-review"><i class="bi bi-credit-card-2-front"></i></div>
               <div class="ent-step-info">
-                <h5>Step 6</h5>
-                <p>Choose when and how to pay the current booking amount</p>
+                <h5>Payment</h5>
+                <p>How would you like to pay?</p>
               </div>
             </div>
             <div class="ent-step-body">
               <div id="bookingPaymentRestoreNotice" class="alert alert-info d-none" role="status">
-                <i class="bi bi-arrow-clockwise me-2"></i><strong>Booking restored.</strong>
-                Your booking and payment choice were saved. For your security, please re-enter the payment reference and select the receipt image again.
+                <i class="bi bi-arrow-clockwise me-2"></i><strong>Your booking was restored.</strong>
+                Your details and payment choice were saved. For your safety, enter the payment reference again and upload the receipt again.
+              </div>
+              <div id="paymentError" class="booking-payment-error d-none" role="alert" tabindex="-1">
+                <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+                <div><strong id="paymentErrorTitle">Please fix this before booking</strong><span id="paymentErrorMessage"></span></div>
+                <button type="button" id="paymentErrorFixButton" onclick="focusBookingPaymentError()">Go to field <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+              </div>
+              <div class="payment-choice-guide" id="paymentChoiceGuide" aria-label="Next payment step">
+                <span class="payment-guide-number" id="paymentGuideNumber" aria-hidden="true">1</span>
+                <div class="payment-guide-copy" aria-live="polite">
+                  <strong id="paymentGuideTitle">First, choose how much to pay</strong>
+                  <span id="paymentGuideText">Choose Full Payment or Down Payment below.</span>
+                </div>
+                <button type="button" id="paymentGuideAction" onclick="guidePaymentNextAction()"><span id="paymentGuideActionLabel">Choose Payment</span><i class="bi bi-arrow-down" aria-hidden="true"></i></button>
               </div>
               <!-- Checkout context and total -->
               <div class="rv-card mb-3">
                 <div class="rv-card-body">
-                  <div class="rv-section-title"><i class="bi bi-clipboard-check"></i>Booking Checkout</div>
+                  <div class="rv-section-title"><i class="bi bi-clipboard-check"></i>Booking Summary</div>
                   <div class="booking-payment-context">
-                    <div><span>Services</span><strong id="paymentServiceCount">0 selected</strong></div>
+                    <div><span>Service</span><strong id="paymentServiceCount">Not selected</strong></div>
                     <div><span>Schedule</span><strong id="paymentScheduleSummary">Not selected</strong></div>
-                    <div class="wide"><span>Service location</span><strong id="paymentLocationSummary">Not selected</strong></div>
-                    <div><span>Travel fare</span><strong id="paymentTravelSummary">₱0</strong></div>
-                    <div><span>Total amount</span><strong id="paymentSummaryTotal">₱0</strong></div>
+                    <div class="wide"><span>Location</span><strong id="paymentLocationSummary">Not selected</strong></div>
+                    <div><span>Travel fee</span><strong id="paymentTravelSummary">₱0</strong></div>
+                    <div><span>Estimated total</span><strong id="paymentSummaryTotal">₱0</strong></div>
                   </div>
                   <div class="booking-payment-flow mt-3" aria-label="Payment process">
-                    <span class="active"><i class="bi bi-1-circle-fill"></i>Choose option</span>
+                    <span class="active"><i class="bi bi-1-circle-fill"></i>Choose payment</span>
                     <i class="bi bi-chevron-right"></i>
                     <span><i class="bi bi-2-circle"></i>Upload receipt</span>
                     <i class="bi bi-chevron-right"></i>
-                    <span><i class="bi bi-3-circle"></i>Manual verification</span>
+                    <span><i class="bi bi-3-circle"></i>We check payment</span>
                   </div>
                 </div>
               </div>
@@ -617,29 +837,34 @@
               <!-- Payment-option selector -->
               <div class="rv-card mb-3">
                 <div class="rv-card-body">
-                  <div class="rv-section-title"><i class="bi bi-credit-card"></i>Payment Option</div>
-                  <p class="small text-muted mb-3">Choose whether to pay in full or make a downpayment, then select your preferred payment method.</p>
+                  <div class="rv-section-title"><i class="bi bi-credit-card"></i>1. Choose how much to pay now</div>
+                  <p class="small text-muted mb-3">Pick one option. You will choose GCash, Maya, or bank transfer next.</p>
                   <div class="ent-payment-tabs customer-payment-options row mb-3" role="group" aria-label="Payment options">
                     <div class="col-12 col-md-6">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-blue" data-method="gcash" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
-                      <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete booking amount using your selected method.</span></span>
+                      <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the full estimated amount now.</span><span class="payment-choice-amount" id="fullPaymentChoiceAmount">Amount shown after loading</span></span>
                     </button>
                     </div>
                     <div class="col-12 col-md-6">
                     <button type="button" class="ent-payment-tab payment-method-card payment-card-amber" data-method="cod" aria-pressed="false">
                       <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                       <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
-                      <span class="payment-method-copy"><strong>Downpayment</strong><span>Reserve the schedule now and settle the remaining balance after service.</span></span>
+                      <span class="payment-method-copy"><strong>Down Payment</strong><span>Pay part now. Pay the rest after the service is done.</span><span class="payment-choice-amount" id="downPaymentChoiceAmount">Amount shown after loading</span></span>
                     </button>
                     </div>
                   </div>
                   <input class="d-none" type="radio" name="paymentMethod" id="payGcash" value="gcash">
                   <input class="d-none" type="radio" name="paymentMethod" id="payDeposit" value="cod">
 
+                  <div class="payment-due-callout" id="paymentDueCallout" role="status" aria-live="polite">
+                    <i class="bi bi-wallet2"></i>
+                    <div><span>Amount to pay now</span><strong id="paymentDueNow">Choose Full Payment or Down Payment</strong></div>
+                  </div>
+
                   <div id="bookingPaymentChannelSection" class="payment-channel-section d-none">
-                    <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>Pay via</div>
+                    <div class="payment-channel-title"><i class="bi bi-wallet2 me-1"></i>2. Where will you send the payment?</div>
                     <div class="payment-channel-options" role="group" aria-label="Payment method">
                       <button type="button" class="payment-channel-card" data-channel="gcash" aria-pressed="false">GCash</button>
                       <button type="button" class="payment-channel-card" data-channel="maya" aria-pressed="false">Maya</button>
@@ -647,12 +872,12 @@
                       <button type="button" class="payment-channel-card" data-channel="other" aria-pressed="false">Other Transfer</button>
                     </div>
                     <input type="hidden" id="bookingPaymentChannel" value="">
-                    <div id="bookingChannelHelp" class="form-text mt-2">Select how you will send the payment.</div>
+                    <div id="bookingChannelHelp" class="form-text mt-2">Choose where you will send the payment.</div>
                   </div>
 
-                  <div class="downpayment-reason" role="note">
+                  <div class="downpayment-reason d-none" id="downpaymentReason" role="note">
                     <i class="bi bi-info-circle-fill"></i>
-                    <div><strong>Why is a downpayment required?</strong><br>The downpayment reserves your chosen schedule, allows RACS to assign a technician and prepare materials, and is deducted from your total bill. It is not an additional charge.</div>
+                    <div><strong>Why do I need a down payment?</strong><br>It holds your schedule and helps the team prepare. It is part of your total bill, not an extra fee.</div>
                   </div>
 
                   <div id="gcashFields" class="payment-section customer-payment-panel d-none">
@@ -666,9 +891,9 @@
                         <div>
                           <h6 class="fw-bold mb-2" id="fullPaymentHeading" style="color:#166534;font-size:1rem;">Full Payment</h6>
                           <ol class="mb-0 ps-3 small text-muted" style="line-height:1.8;font-size:0.9rem;">
-                            <li>Scan the QR code and send the exact amount</li>
+                            <li>Use the QR, if shown, or send to the GCash number below</li>
                             <li>Take a screenshot of the confirmation receipt</li>
-                            <li>Upload the receipt for verification</li>
+                            <li>Upload the receipt so we can check it</li>
                           </ol>
                         </div>
                       </div>
@@ -677,11 +902,15 @@
                     <!-- QR Code and receiving account -->
                     <div id="fullPaymentQrBlock" class="rounded-3 p-4 mb-4 text-center customer-payment-qr" style="background:#f8fafc;border:2px dashed #cbd5e1;">
                       <div class="mb-3">
-                        <span class="d-inline-block px-3 py-1 rounded-full" style="background:#e0edff;color:#1d4ed8;font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Step 1: Scan & Send</span>
+                        <span class="d-inline-block px-3 py-1 rounded-full" style="background:#e0edff;color:#1d4ed8;font-size:0.75rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Step 1: Send with GCash</span>
                       </div>
-                      <label class="form-label text-muted d-block fw-semibold mb-3" style="font-size:0.9rem;">Scan this GCash QR Code</label>
-                      <img id="gcashQrImage" src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=RACSREADY-GCASH-PAYMENT" alt="GCash QR code for payment" style="max-width:240px;border-radius:16px;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.1);" />
+                      <label data-gcash-qr-label class="form-label text-muted d-block fw-semibold mb-3 d-none" style="font-size:0.9rem;">Scan this GCash QR Code</label>
+                      <img id="gcashQrImage" data-gcash-qr-image alt="CALIDRO GCash payment QR" class="d-none" style="max-width:240px;border-radius:16px;border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,0.1);" />
                       <div class="customer-payment-recipient">GCash number: <strong id="gcashAccountNumber">Not configured</strong><button type="button" class="customer-payment-copy" id="copyGcashNumber" title="Copy GCash number"><i class="bi bi-clipboard me-1"></i>Copy</button></div>
+                      <p data-gcash-qr-missing class="small text-muted mt-2 mb-0">Use the GCash number above to send your payment.</p>
+                      <div class="gcash-qr-actions"><a data-gcash-qr-download class="btn btn-outline-primary btn-sm d-none" href="#"><i class="bi bi-download me-1"></i>Download QR</a><a class="btn btn-outline-secondary btn-sm" href="https://gcash.com/getting-started" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right me-1"></i>GCash website</a></div>
+                      <p class="small text-muted mt-2 mb-0">On your phone, open GCash. If you saved the QR, tap QR and upload it. You can also send to the number above. Return here to upload your receipt.</p>
+                      <p class="small text-muted mt-1 mb-0">Check the recipient and any transfer fee in GCash before you send.</p>
                     </div>
 
                     <!-- Receipt Upload Section -->
@@ -691,8 +920,9 @@
                       </div>
                       <div class="mb-3">
                         <label id="fullPaymentReferenceLabel" class="form-label text-muted small fw-semibold">Payment reference <span class="text-danger">*</span></label>
-                        <input id="gcashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" style="border-radius:12px;border:1.5px solid #e2e8f0;padding:0.8rem 1rem;font-size:0.95rem;" />
+                        <input id="gcashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" aria-describedby="fullPaymentReferenceHelp" style="border-radius:12px;border:1.5px solid #e2e8f0;padding:0.8rem 1rem;font-size:0.95rem;" />
                         <small id="fullPaymentReferenceHelp" class="text-muted mt-1 d-block">Enter the reference shown on your payment receipt.</small>
+                        <div id="gcashNumberError" class="payment-inline-error d-none"></div>
                       </div>
                       <div class="mb-3">
                         <label class="form-label text-muted small fw-semibold">Payment Receipt Screenshot <span class="text-danger">*</span></label>
@@ -704,6 +934,7 @@
                           </div>
                         </div>
                         <small class="text-muted mt-2 d-block"><i class="bi bi-info-circle me-1"></i>Upload a clear screenshot showing the successful transaction</small>
+                        <div id="gcashProofError" class="payment-inline-error d-none"></div>
                       </div>
                       <img id="gcashProofPreview" alt="Preview" class="img-thumbnail mt-3 d-none customer-payment-proof-preview" style="max-height:160px;border-radius:12px;border:2px solid #16a34a;" />
                     </div>
@@ -719,47 +950,53 @@
                       <div class="d-flex align-items-start gap-2">
                         <i class="bi bi-shield-check mt-1" style="color:#d97706;"></i>
                         <div>
-                          <strong>Manual Verification Required</strong><br>
-                          <small>Your payment will be verified by our admin team within 1-2 hours. You'll receive a confirmation email once approved.</small>
+                          <strong>We need to check your payment</strong><br>
+                          <small>Our team will check the receipt within 1-2 hours. We will email you after it is approved.</small>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   <div id="cashFields" class="payment-section customer-payment-panel d-none">
-                    <h6 class="customer-payment-panel-title" id="depositPaymentPanelTitle"><i class="bi bi-wallet2 text-warning"></i>Reservation Downpayment</h6>
+                    <h6 class="customer-payment-panel-title" id="depositPaymentPanelTitle"><i class="bi bi-wallet2 text-warning"></i>Down Payment</h6>
                     <div class="rounded-3 p-3 mb-3 customer-payment-instructions" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fde68a;">
                       <div class="d-flex align-items-center gap-2 mb-1">
                         <div class="d-flex align-items-center justify-content-center rounded-2"
                           style="width:32px;height:32px;background:#d97706;flex-shrink:0;">
                           <i class="bi bi-cash-stack text-white" style="font-size:0.9rem;"></i>
                         </div>
-                        <span class="fw-bold" style="color:#92400e;">Reservation Downpayment</span>
+                        <span class="fw-bold" style="color:#92400e;">Down Payment</span>
                       </div>
-                      <p class="mb-0 small text-muted ps-4" id="cashPolicyText">Pay the required downpayment using your selected method to secure your schedule. Settle the remaining balance at service completion.</p>
+                      <p class="mb-0 small text-muted ps-4" id="cashPolicyText">Pay part of the total now to hold your schedule. Pay the rest after the service is done.</p>
                     </div>
                     <div id="depositPaymentQrBlock" class="customer-payment-qr mb-3">
-                      <label class="form-label text-muted d-block fw-semibold">Scan this GCash QR</label>
-                      <img id="cashQrImage" src="" alt="GCash QR code for downpayment" />
+                      <label data-gcash-qr-label class="form-label text-muted d-block fw-semibold d-none">Scan this GCash QR</label>
+                      <img id="cashQrImage" data-gcash-qr-image class="d-none" alt="CALIDRO GCash payment QR" />
                       <div class="customer-payment-recipient">GCash number: <strong id="cashAccountNumber">Not configured</strong><button type="button" class="customer-payment-copy" id="copyCashGcashNumber" title="Copy GCash number"><i class="bi bi-clipboard me-1"></i>Copy</button></div>
+                      <p data-gcash-qr-missing class="small text-muted mt-2 mb-0">Use the GCash number above to send your payment.</p>
+                      <div class="gcash-qr-actions"><a data-gcash-qr-download class="btn btn-outline-primary btn-sm d-none" href="#"><i class="bi bi-download me-1"></i>Download QR</a><a class="btn btn-outline-secondary btn-sm" href="https://gcash.com/getting-started" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right me-1"></i>GCash website</a></div>
+                      <p class="small text-muted mt-2 mb-0">On your phone, open GCash. If you saved the QR, tap QR and upload it. You can also send to the number above. Return here to upload your receipt.</p>
+                      <p class="small text-muted mt-1 mb-0">Check the recipient and any transfer fee in GCash before you send.</p>
                     </div>
                     <div class="customer-payment-fields mb-3">
                     <div>
                       <label id="depositPaymentReferenceLabel" class="form-label text-muted small fw-semibold">Payment reference <span class="text-danger">*</span></label>
-                      <input id="cashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off"
+                      <input id="cashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" aria-describedby="depositPaymentReferenceHelp"
                         style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
                       <small id="depositPaymentReferenceHelp" class="text-muted">Enter the reference shown on your payment receipt.</small>
+                      <div id="cashNumberError" class="payment-inline-error d-none"></div>
                     </div>
                     <div>
-                      <label class="form-label text-muted small fw-semibold">Downpayment Receipt <span class="text-danger">*</span></label>
+                      <label class="form-label text-muted small fw-semibold">Down Payment Receipt <span class="text-danger">*</span></label>
                       <input id="cashProof" type="file" class="form-control" accept="image/*" required
                         style="border-radius:12px;border:1.5px dashed rgba(217,119,6,0.3);background:rgba(217,119,6,0.02);padding:1rem;" />
-                      <div class="form-text" style="color:#d97706;font-size:0.82rem;font-weight:600;"><i class="bi bi-exclamation-circle me-1"></i>Upload the receipt for manual verification before your booking is confirmed.</div>
+                      <div class="form-text" style="color:#d97706;font-size:0.82rem;font-weight:600;"><i class="bi bi-exclamation-circle me-1"></i>Upload the receipt so we can check it before confirming your booking.</div>
+                      <div id="cashProofError" class="payment-inline-error d-none"></div>
                       <img id="cashProofPreview" alt="Preview" class="img-thumbnail mt-2 d-none customer-payment-proof-preview" style="max-height:120px;border-radius:10px;" />
                     </div>
                     </div>
                     <div class="mb-3">
-                      <label class="form-label text-muted small fw-semibold">Downpayment amount</label>
+                      <label class="form-label text-muted small fw-semibold">Down payment amount</label>
                       <div class="input-group" style="border-radius:12px;">
                         <span class="input-group-text fw-semibold bg-white">&#8369;</span>
                         <input id="downpaymentAmt" type="number" class="form-control bg-white" value="0" readonly />
@@ -767,27 +1004,26 @@
                     </div>
                     <div id="cashBreakdown" class="rounded-3 p-3 mb-3 customer-payment-summary" style="background:#f8fafc;border:1px solid #e2e8f0;display:none;">
                       <div class="d-flex justify-content-between small mb-1"><span class="text-muted">Estimated total</span><span class="fw-semibold" id="cashTotalDisplay">—</span></div>
-                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted" id="cashDownLabel">Downpayment now (10%)</span><span class="fw-bold text-warning" id="cashDownDisplay">—</span></div>
+                      <div class="d-flex justify-content-between small mb-1"><span class="text-muted" id="cashDownLabel">Down payment now (10%)</span><span class="fw-bold text-warning" id="cashDownDisplay">—</span></div>
                       <hr class="my-1">
                       <div class="d-flex justify-content-between small"><span class="text-muted">Balance due at service completion</span><span class="fw-bold text-success" id="cashBalanceDisplay">—</span></div>
                     </div>
                     <div class="alert alert-warning mb-3 customer-payment-verification" style="font-size:0.85rem;border-radius:12px;">
-                      <div class="d-flex align-items-start gap-2"><i class="bi bi-shield-check mt-1"></i><small><strong>Manual verification.</strong> Your payment stays pending until an admin verifies the uploaded receipt.</small></div>
+                      <div class="d-flex align-items-start gap-2"><i class="bi bi-shield-check mt-1"></i><small><strong>We need to check your payment.</strong> Your payment will stay pending until our team checks the receipt.</small></div>
                     </div>
                     <div class="mb-1"><textarea id="cashNotes" class="form-control" rows="2" placeholder="Special instructions (optional)" style="border-radius:12px;border:1.5px solid #e5e7eb;"></textarea></div>
                   </div>
 
-                  <div id="paymentError" class="text-danger small mt-2" style="display:none"></div>
                 </div>
               </div>
 
-              <div class="mt-4 text-center">
+              <div class="mt-4 text-center booking-primary-action">
                 <button type="button" class="ent-btn-primary" id="confirmBookingBtn" style="padding-left:2rem;padding-right:2rem;">
                   <i class="bi bi-check-circle me-2"></i>Confirm Booking
                 </button>
                 <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
                   <i class="bi bi-shield-check text-success" style="font-size:0.85rem;"></i>
-                  <p class="text-center text-muted small mb-0">Secured &amp; encrypted. By confirming, you agree to our terms.</p>
+                  <p class="text-center text-muted small mb-0">Your payment details are secure. We will send an update after we check your request.</p>
                 </div>
               </div>
             </div>
@@ -806,15 +1042,15 @@
                 <div class="ent-inv-brand">
                   <div class="ent-inv-logo"><i class="bi bi-tools"></i></div>
                   <div>
-                    <div class="ent-inv-company">RACS Services</div>
-                    <div class="ent-inv-tagline">Professional Home Services</div>
+                    <div class="ent-inv-company">CALIDRO RACS</div>
+                    <div class="ent-inv-tagline">Booking request submitted</div>
                   </div>
                 </div>
                 <button type="button" class="ent-inv-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
               </div>
               <div class="ent-inv-status-badge">
                 <span class="ent-inv-status-dot"></span>
-                PENDING CONFIRMATION
+                WAITING FOR REVIEW
               </div>
             </div>
 
@@ -822,22 +1058,22 @@
             <div class="ent-inv-body">
               <!-- Reference -->
               <div class="ent-inv-ref-section">
-                <div class="ent-inv-ref-label">Booking Reference</div>
+                <div class="ent-inv-ref-label">Booking ID</div>
                 <div class="ent-inv-ref-number" id="bookingResultReference">—</div>
               </div>
 
               <!-- Service Details -->
               <div class="ent-inv-section">
-                <div class="ent-inv-section-title"><i class="bi bi-receipt me-2"></i>Service Fee Breakdown</div>
+                <div class="ent-inv-section-title"><i class="bi bi-receipt me-2"></i>Estimated Price</div>
                 <div id="bookingResultServices" class="ent-inv-services-list">
                   <div class="ent-inv-service-row">
-                    <span class="ent-inv-svc-name">Loading...</span>
+                    <span class="ent-inv-svc-name">Loading details...</span>
                     <span class="ent-inv-svc-price">—</span>
                   </div>
                 </div>
                 <div class="ent-inv-divider"></div>
                 <div class="ent-inv-row">
-                  <span>Services Subtotal</span>
+                  <span>Service</span>
                   <span class="ent-inv-bold" id="bookingResultServicesTotal">₱0</span>
                 </div>
               </div>
@@ -846,7 +1082,7 @@
               <div class="ent-inv-section">
                 <div class="ent-inv-section-title"><i class="bi bi-signpost-split me-2"></i>Travel Fee</div>
                 <div class="ent-inv-row">
-                  <span>Distance-based fare</span>
+                  <span>Based on travel distance</span>
                   <span class="ent-inv-bold" id="bookingResultTravelFare">₱0</span>
                 </div>
                 <div class="ent-inv-row ent-inv-sub" id="bookingResultDistanceInfo" style="display:none;">
@@ -858,7 +1094,7 @@
               <!-- Total -->
               <div class="ent-inv-total-section">
                 <div class="ent-inv-total-row">
-                  <span class="ent-inv-total-label">Total Estimated Amount</span>
+                  <span class="ent-inv-total-label">Estimated Total</span>
                   <span class="ent-inv-total-amount" id="bookingResultTotalFee">₱0</span>
                 </div>
               </div>
@@ -867,11 +1103,11 @@
               <div class="ent-inv-section">
                 <div class="ent-inv-section-title"><i class="bi bi-wallet2 me-2"></i>Payment Summary</div>
                 <div class="ent-inv-row">
-                  <span id="bookingResultPaidNowLabel">Amount submitted now</span>
+                  <span id="bookingResultPaidNowLabel">Payment sent</span>
                   <span class="ent-inv-bold" id="bookingResultDownpayment">₱0</span>
                 </div>
                 <div class="ent-inv-row">
-                  <span id="bookingResultBalanceLabel">Balance due at completion</span>
+                  <span id="bookingResultBalanceLabel">Balance left</span>
                   <span class="ent-inv-bold" id="bookingResultBalance">₱0</span>
                 </div>
               </div>
@@ -894,13 +1130,21 @@
                 </div>
               </div>
 
-              <p class="ent-inv-note"><i class="bi bi-info-circle me-1"></i>A confirmation email will be sent once your booking is approved.</p>
+              <div class="booking-next-steps">
+                <strong>What happens next?</strong>
+                <ol>
+                  <li>We will check your request and payment receipt.</li>
+                  <li>We will assign an available technician.</li>
+                  <li>We will send an update when your schedule is confirmed.</li>
+                </ol>
+              </div>
+              <p class="ent-inv-note"><i class="bi bi-info-circle me-1"></i>We received your booking request. You do not need to send it again.</p>
             </div>
 
             <!-- Footer -->
             <div class="ent-inv-footer">
-              <a href="/book-history" class="ent-inv-btn ent-inv-btn-primary"><i class="bi bi-list-ul me-2"></i>View My Bookings</a>
-              <button type="button" class="ent-inv-btn ent-inv-btn-secondary" onclick="window.location.reload();"><i class="bi bi-x-circle me-2"></i>Close</button>
+              <a href="/book-history" class="ent-inv-btn ent-inv-btn-primary"><i class="bi bi-list-ul me-2"></i>View Booking</a>
+              <a href="/" class="ent-inv-btn ent-inv-btn-secondary"><i class="bi bi-house me-2"></i>Back to Home</a>
             </div>
           </div>
         </div>
@@ -913,8 +1157,8 @@
             <div class="modal-header border-0 text-white text-center" style="background:linear-gradient(135deg,#16a34a,#15803d);padding:32px 20px 26px;">
               <div class="w-100">
                 <div class="mb-2"><i class="bi bi-check-circle-fill fs-1"></i></div>
-                <h5 class="fw-bold mb-0">Booking Confirmed!</h5>
-                <p class="mb-0 mt-1 opacity-75" style="font-size:0.88rem;">Your service has been successfully booked</p>
+                <h5 class="fw-bold mb-0">Booking Request Submitted!</h5>
+                <p class="mb-0 mt-1 opacity-75" style="font-size:0.88rem;">We received your booking request.</p>
               </div>
               <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" onclick="window.location.reload();"></button>
             </div>
@@ -922,7 +1166,7 @@
               <div class="rv-card">
                 <div class="rv-card-body">
                   <div class="text-center mb-3">
-                    <span class="rv-section-title" style="justify-content:center;">BOOKING RECEIPT</span>
+                    <span class="rv-section-title" style="justify-content:center;">BOOKING DETAILS</span>
                   </div>
                   <div class="receipt-details">
                     <div class="d-flex align-items-start gap-2 mb-3"><i class="bi bi-hash text-primary mt-1 fs-5"></i><div><small class="text-muted d-block">Reference</small><div class="fw-bold text-primary fs-6" id="receiptBookingRef">#RACS-000000</div></div></div>
@@ -940,7 +1184,7 @@
                     <hr style="border-style:dashed;border-color:#ccc;">
                     <div id="receiptPaymentBreakdown" style="display:none;">
                       <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;"><span class="text-muted">Total Service Fee</span><span class="fw-semibold" id="receiptTotalFee">₱0</span></div>
-                      <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;"><span class="text-muted">Downpayment</span><span class="fw-bold text-primary" id="receiptDownpayment">-₱0</span></div>
+                      <div class="d-flex justify-content-between mb-2" style="font-size:0.9rem;"><span class="text-muted">Down Payment</span><span class="fw-bold text-primary" id="receiptDownpayment">-₱0</span></div>
                       <hr style="border-color:#c8e6c9;margin:8px 0;">
                       <div class="d-flex justify-content-between p-2 rounded" style="background:#e8f5e9;"><span class="fw-semibold">Balance on Completion</span><span class="fs-4 fw-bold text-success" id="receiptBalance">₱0</span></div>
                     </div>
@@ -950,10 +1194,10 @@
                   </div>
                 </div>
               </div>
-              <div class="alert alert-success text-center mb-0 py-2" style="border-radius:12px;font-size:0.85rem;"><i class="bi bi-check-circle-fill me-1"></i><strong>Thank you!</strong> We'll send confirmation shortly.</div>
+              <div class="alert alert-success text-center mb-0 py-2" style="border-radius:12px;font-size:0.85rem;"><i class="bi bi-check-circle-fill me-1"></i><strong>Thank you!</strong> We will send an update after we check your request.</div>
             </div>
             <div class="modal-footer border-0 p-3" style="background:#f8f9fa;">
-              <button type="button" class="ent-btn-outline" onclick="window.location.reload();"><i class="bi bi-x-circle me-2"></i>Close</button>
+              <button type="button" class="ent-btn-outline" onclick="window.location.href='/';"><i class="bi bi-house me-2"></i>Back to Home</button>
               <button type="button" class="ent-btn-primary" onclick="window.location.href='/book-history';"><i class="bi bi-list-ul me-2"></i>View Booking</button>
             </div>
           </div>
@@ -961,36 +1205,36 @@
       </div>
 
       <!-- Configure Service Modal (Enterprise Redesign) -->
-      <div class="modal fade" id="quantitySelectionModal" tabindex="-1" aria-hidden="true">
+      <div class="modal fade" id="quantitySelectionModal" tabindex="-1" aria-labelledby="cfgModalTitle" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" style="max-width:720px!important;">
           <div class="modal-content border-0" style="border-radius:22px;overflow:hidden;box-shadow:0 30px 90px rgba(15,23,42,0.22);background:#fff;border:1px solid #eef2f7;">
             <!-- Header -->
             <div class="cfg-header">
               <div class="d-flex align-items-center gap-3">
-                <div class="cfg-ico" id="cfgModalIcon"><i class="bi bi-box-seam-fill"></i></div>
+                <div class="cfg-ico" id="cfgModalIcon"><i class="bi bi-sliders2"></i></div>
                 <div>
-                  <h5 class="fw-bold mb-0" id="cfgModalTitle" style="color:#0f172a;font-size:1.15rem;letter-spacing:-0.01em;">Configure Service</h5>
-                  <p class="mb-0" id="cfgModalSubtitle" style="font-size:0.78rem;color:#475569;">Choose the details for this service</p>
+                  <h5 class="fw-bold mb-0" id="cfgModalTitle" style="color:#0f172a;font-size:1.15rem;letter-spacing:-0.01em;">Set Up Your Service</h5>
+                  <p class="mb-0" id="cfgModalSubtitle" style="font-size:0.78rem;color:#475569;">Choose the details needed to get the right price.</p>
                 </div>
               </div>
-              <button type="button" class="cfg-close" data-bs-dismiss="modal" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+              <button type="button" class="cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button>
             </div>
 
             <!-- Wizard Stepper -->
             <div class="cfg-wizard" id="cfgWizard">
               <div class="cfg-step is-active" id="cfgStep1">
                 <div class="cfg-dot"><i class="bi bi-1-circle-fill"></i></div>
-                <div class="cfg-step-tx"><div class="cfg-step-t">Step 1</div><div class="cfg-step-s">Brand</div></div>
+                <div class="cfg-step-tx"><div class="cfg-step-t">1 of 3</div><div class="cfg-step-s">Brand</div></div>
               </div>
               <div class="cfg-line"></div>
               <div class="cfg-step" id="cfgStep2">
                 <div class="cfg-dot"><i class="bi bi-2-circle"></i></div>
-                <div class="cfg-step-tx"><div class="cfg-step-t">Step 2</div><div class="cfg-step-s">Aircon Type</div></div>
+                <div class="cfg-step-tx"><div class="cfg-step-t">2 of 3</div><div class="cfg-step-s">Aircon Type</div></div>
               </div>
               <div class="cfg-line"></div>
               <div class="cfg-step" id="cfgStep3">
                 <div class="cfg-dot"><i class="bi bi-3-circle"></i></div>
-                <div class="cfg-step-tx"><div class="cfg-step-t">Step 3</div><div class="cfg-step-s">HP Rating</div></div>
+                <div class="cfg-step-tx"><div class="cfg-step-t">3 of 3</div><div class="cfg-step-s">HP</div></div>
               </div>
             </div>
 
@@ -1001,22 +1245,26 @@
               <div id="pricingNoteSection" class="cfg-note d-none mb-3"></div>
 
               <div class="cfg-service-context mb-3">
-                <span class="cfg-context-label">Selected service</span>
-                <span class="fw-bold d-block" id="quantityModalServiceName" style="color:#0f172a;font-size:1.05rem;"></span>
-                <div id="quantityModalDescription" class="text-muted small mt-1" style="line-height:1.5;display:none;"></div>
+                <span class="cfg-context-icon"><i class="bi bi-tools" aria-hidden="true"></i></span>
+                <div class="cfg-context-copy">
+                  <span class="cfg-context-label">Service being set up</span>
+                  <strong id="quantityModalServiceName"></strong>
+                  <div id="quantityModalDescription" class="text-muted small mt-1" style="line-height:1.5;display:none;"></div>
+                </div>
+                <span class="cfg-context-progress" id="cfgCurrentStepLabel" aria-live="polite">Step 1 of 3</span>
               </div>
 
               <div class="cfg-stage-panel mb-3" id="brandSection" style="display:none;">
                 <div class="cfg-stage-heading">
                   <span class="cfg-stage-icon"><i class="bi bi-upc-scan"></i></span>
-                  <div><span class="cfg-stage-kicker">Step 1</span><h6>Choose the aircon brand</h6><p>Select the brand printed on the unit.</p></div>
+                  <div><span class="cfg-stage-kicker">First</span><h6>What is the aircon brand?</h6><p>Choose the brand shown on the unit. Choose “I don't know” if you are not sure.</p></div>
                 </div>
-                <label class="cfg-fl" for="brandInput">Brand Name <span class="text-danger">*</span></label>
+                <label class="cfg-fl" for="brandInput">Brand <span class="text-danger">*</span></label>
                 <select class="cfg-f" id="brandInput" required>
-                  <option value="">Select brand…</option>
+                  <option value="">Choose a brand…</option>
                 </select>
-                <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Type the brand name" maxlength="80" required>
-                <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>Selecting a listed brand continues automatically.</div>
+                <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Enter the brand" maxlength="80" required>
+                <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
               </div>
 
               <div id="issueDescriptionSection" class="mb-3 d-none">
@@ -1043,14 +1291,13 @@
             </div>
 
             <div class="modal-footer border-0 gap-2 cfg-footer">
-              <button type="button" class="cfg-btn-ghost" data-bs-dismiss="modal">Cancel</button>
               <button type="button" class="cfg-btn-ghost d-none" id="cfgBackToType"><i class="bi bi-arrow-left me-1"></i><span>Back</span></button>
               <div class="cfg-price cfg-price-inline">
                 <div>
-                  <span class="cfg-price-l" id="priceLabel">Estimated Price</span>
-                  <span class="cfg-price-sub" id="cfgPriceSub">Updates with your selections</span>
+                  <span class="cfg-price-l" id="priceLabel">Estimated price</span>
+                  <span class="cfg-price-sub" id="cfgPriceSub">Updates as you choose</span>
                 </div>
-                <span class="cfg-price-v" id="quantityModalEstimatedPrice">₱0</span>
+                <span class="cfg-price-v" id="quantityModalEstimatedPrice" role="status" aria-live="polite">₱0</span>
               </div>
               <button type="button" class="cfg-btn-primary" id="confirmQuantitySelection"><i class="bi bi-check-lg me-2"></i>Add to Booking</button>
             </div>
@@ -1180,8 +1427,8 @@
                   <div class="racs-track"><div class="racs-track-dash"></div></div>
                 </div>
                 <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-                <span class="racs-title">Processing Your Booking...</span>
-                <span class="racs-desc">Please wait while we confirm your service request</span>
+                <span class="racs-title">Isinusumite ang booking...</span>
+                <span class="racs-desc">Please wait while we send your request</span>
                 <div class="racs-pulse"><span></span><span></span><span></span></div>
               </div>
             </div>
@@ -1511,17 +1758,32 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .ent-payment-tab.active{border-color:var(--sv-b);background:rgba(37,99,235,0.04);color:var(--sv-b);box-shadow:0 0 0 3px rgba(37,99,235,0.08)}
 .ent-payment-tab i{font-size:1.1rem}
 .payment-section{width:100%;padding:0}
-.booking-review-count{padding:3px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.65rem;font-weight:800}
+.booking-review-count{padding:4px 9px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.72rem;font-weight:800}
+.booking-review-services{display:grid;gap:.7rem}
+.booking-review-service{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1rem;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc}
+.booking-review-service-info{min-width:0;overflow-wrap:anywhere}
+.booking-review-service-heading{display:flex;align-items:center;flex-wrap:wrap;gap:.45rem;margin-bottom:.4rem}
+.booking-review-service-heading strong{color:#0f172a;font-size:.9rem;line-height:1.35}
+.booking-review-service-type{display:inline-flex;align-items:center;padding:.25rem .5rem;border-radius:999px;font-size:.68rem;font-weight:800;white-space:nowrap}
+.booking-review-service-type.core{background:#dbeafe;color:#1e40af}
+.booking-review-service-type.repair{background:#fef3c7;color:#92400e}
+.booking-review-service-meta{color:#475569;font-size:.78rem;line-height:1.55}
+.booking-review-service-price{display:grid;justify-items:end;gap:.15rem;flex:0 0 auto;text-align:right}
+.booking-review-service-price strong{color:#0f172a;font-size:1rem}
+.booking-review-service-price span{color:#64748b;font-size:.72rem;line-height:1.4}
 .booking-review-details{display:grid;gap:.55rem}
 .booking-review-details>div{display:grid;grid-template-columns:28px 110px minmax(0,1fr);align-items:start;gap:.55rem;padding:.7rem .75rem;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc}
 .booking-review-details i{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:#eff6ff;color:#2563eb}
-.booking-review-details span{padding-top:5px;color:#64748b;font-size:.7rem;font-weight:700}
-.booking-review-details strong{padding-top:4px;color:#1e293b;font-size:.73rem;line-height:1.45;text-align:right}
+.booking-review-details span{padding-top:5px;color:#64748b;font-size:.78rem;font-weight:700}
+.booking-review-details strong{padding-top:4px;color:#1e293b;font-size:.82rem;line-height:1.45;text-align:right;overflow-wrap:anywhere}
 .booking-review-summary{position:sticky;top:92px}
+.booking-review-summary .rv-row{gap:.8rem}
+.booking-review-summary .rv-value{white-space:nowrap}
+.booking-review-mobile-action{display:none}
 .booking-review-total{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding-top:1rem;margin-top:.55rem;border-top:1px solid #e2e8f0}
 .booking-review-total span{color:#0f172a;font-size:.85rem;font-weight:800}
 .booking-review-total strong{color:#1d4ed8;font-size:1.35rem;letter-spacing:-.03em}
-.booking-review-note{margin:.45rem 0 1rem;color:#64748b;font-size:.68rem;line-height:1.45}
+.booking-review-note{margin:.65rem 0 1rem;color:#475569;font-size:.76rem;line-height:1.5}
 .booking-payment-context{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}
 .booking-payment-context>div{display:flex;flex-direction:column;gap:3px;padding:.7rem .8rem;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;min-width:0}
 .booking-payment-context>div.wide{grid-column:1/-1}
@@ -1540,9 +1802,16 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 /* ── Responsive: Step 5 (Fee Review) & Step 6 (Payment) ── */
 @media(max-width:767.98px){
   /* Step 5: Fee Review */
+  #feeStep .ent-step-body{padding-bottom:9rem}
   .booking-review-summary{position:static !important;margin-top:1rem}
+  .booking-review-mobile-action>div{display:grid;gap:.1rem;min-width:0}
+  .booking-review-mobile-action span{color:#64748b;font-size:.68rem;font-weight:700}
+  .booking-review-mobile-action strong{color:#0f172a;font-size:1rem;white-space:nowrap}
+  .booking-review-mobile-action button{min-height:46px;padding:.6rem .8rem;font-size:.76rem;white-space:nowrap}
   .booking-review-total strong{font-size:1.15rem}
-  .booking-review-note{font-size:.66rem}
+  .booking-review-note{font-size:.76rem}
+  .booking-review-service{flex-direction:column;gap:.55rem}
+  .booking-review-service-price{justify-items:start;text-align:left}
   .rv-card{border-radius:14px}
   .rv-card-body{padding:1rem}
   .rv-section-title{font-size:.88rem;margin-bottom:.85rem}
@@ -2352,7 +2621,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 </style>
 
-<link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
+<link id="ent-calendar-styles" rel="stylesheet" href="/css/enterprise-calendar.css?v=20260925-date-only-v4">
 <script>
   // Leaflet is already loaded by the main layout (main.ejs).
   // Only mark it as ready if the L global exists; never reload from CDN to avoid conflicts.
@@ -2375,9 +2644,10 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <% if (googleMapsApiKey) { %><script src="https://maps.googleapis.com/maps/api/js?key=<%= googleMapsApiKey %>&libraries=places,geometry"></script><% } %>
 
+<script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260917-manila-slots-v1';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260920-payment-no-card-v1':'/js/services.js?v=20260920-payment-no-card-v1';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260925-schedule-next-v6';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260925-gcash-real-qr-v42-fare-fix-route-2':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2430,8 +2700,8 @@ function showBookingConfirmationModal(d){
         var price=svc.unitPrice||svc.price||0;
         var lineTotal=price*qty;
         servicesTotal+=lineTotal;
-        var isRepair=svc.type==='repair';
-        var badge=isRepair?'<span class="ent-inv-svc-badge" style="background:#fef3c7;color:#92400e;">REPAIR</span>':'<span class="ent-inv-svc-badge" style="background:#dbeafe;color:#1e40af;">CORE</span>';
+        var isRepair=typeof window.isRepairBookingService==='function'?window.isRepairBookingService(svc):(svc.type==='repair'||svc.type==='repairServices'||svc.initialCost!=null);
+        var badge=isRepair?'<span class="ent-inv-svc-badge" style="background:#fef3c7;color:#92400e;">REPAIR INSPECTION</span>':'<span class="ent-inv-svc-badge" style="background:#dbeafe;color:#1e40af;">SERVICE</span>';
         var details='';
         if(isRepair){
           var parts=[];
@@ -2694,13 +2964,15 @@ document.addEventListener("DOMContentLoaded",()=>{
     var totalEl=document.getElementById('paymentSummaryTotal');
     if(!totalEl) return;
     var svcs=getSelectedServices();
-    var total=0;
-    svcs.forEach(function(s){
-      var price=(s.price||s.unitPrice||s.totalPrice||0)*(s.quantity||1);
-      total+=price;
-    });
     var bs=getBookingState();
-    if(bs.travelFare) total+=Number(bs.travelFare)||0;
+    var servicesTotal=svcs.reduce(function(sum,s){
+      var qty=Math.max(1,Number(s.quantity)||1);
+      var price=Number(s.unitPrice??s.price??(Number(s.totalPrice||0)/qty))||0;
+      return sum+price*qty;
+    },0);
+    var travelFee=Number(bs.travelFare??bs.fare??0)||0;
+    var total=Number(bs.totalFee);
+    if(!Number.isFinite(total)||(total===0&&servicesTotal>0)) total=servicesTotal+travelFee;
     totalEl.textContent=fmt(total);
     var gcashAmount=document.getElementById('gcashAmountDisplay');
     var gcashTotal=document.getElementById('gcashBookingTotal');
@@ -2714,7 +2986,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     var unitCount=svcs.reduce(function(sum,s){return sum+(Number(s.quantity)||1);},0);
     if(serviceCount) serviceCount.textContent=svcs.length+' '+(svcs.length===1?'service':'services')+' · '+unitCount+' '+(unitCount===1?'unit':'units');
     if(location) location.textContent=(bs.customerLocation&&bs.customerLocation.address)||bs.location||'Not selected';
-    if(travel) travel.textContent=fmt(bs.travelFare||bs.fare||0);
+    if(travel) travel.textContent=fmt(travelFee);
     if(schedule){
       var scheduleText='Not selected';
       var ps=bs.projectScheduling;
@@ -2737,25 +3009,23 @@ document.addEventListener("DOMContentLoaded",()=>{
       schedule.textContent=scheduleText;
     }
   }
-  function selectPaymentMethod(method){
-    method=['gcash','cod'].includes(method)?method:'cod';
+  function selectPaymentMethod(method, guideNext){
+    if(!['gcash','cod'].includes(method)) return;
     var gcashFields=document.getElementById('gcashFields');
     var cashFields=document.getElementById('cashFields');
     var payGcash=document.getElementById('payGcash');
     var payDeposit=document.getElementById('payDeposit');
-    if(gcashFields) gcashFields.classList.toggle('d-none',method!=='gcash');
-    if(cashFields) cashFields.classList.toggle('d-none',method!=='cod');
+    if(gcashFields) gcashFields.classList.add('d-none');
+    if(cashFields) cashFields.classList.add('d-none');
     if(payGcash) payGcash.checked=method==='gcash';
     if(payDeposit) payDeposit.checked=method==='cod';
     var channelSection=document.getElementById('bookingPaymentChannelSection');
     if(channelSection) channelSection.classList.remove('d-none');
     var bs=getBookingState();
     bs.paymentMethod=method;
+    if(typeof window.clearBookingPaymentError==='function') window.clearBookingPaymentError();
     if(window.selectBookingPaymentChannel){
-      var preferredChannel=bs.paymentChannel||document.getElementById('bookingPaymentChannel')?.value;
-      if(!preferredChannel){
-        preferredChannel=['gcash','maya','bank_transfer','other'].find(function(channel){return window.paymentMethodsConfig&&window.paymentMethodsConfig[channel]&&window.paymentMethodsConfig[channel].available})||(String(window.adminGcashNumber||'').trim()?'gcash':'');
-      }
+      var preferredChannel=bs.paymentChannel;
       if(preferredChannel) window.selectBookingPaymentChannel(preferredChannel);
     }
     if(typeof window.saveBookingProgress==='function') window.saveBookingProgress();
@@ -2765,6 +3035,10 @@ document.addEventListener("DOMContentLoaded",()=>{
     });
     renderPaymentSummary();
     if(typeof window.updatePaymentAmounts==='function') window.updatePaymentAmounts();
+    if(typeof window.syncPaymentChoiceGuide==='function') window.syncPaymentChoiceGuide();
+    if(guideNext&&typeof window.guidePaymentNextAction==='function'){
+      setTimeout(window.guidePaymentNextAction,80);
+    }
   }
   window.selectPaymentMethod = selectPaymentMethod;
 
@@ -2774,16 +3048,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       var disp=document.getElementById(id);
       if(disp) disp.textContent=num?num:'Not configured';
     });
-    ['gcashQrImage','cashQrImage'].forEach(function(id){
-      var qr=document.getElementById(id);
-      if(qr&&num){
-        qr.src='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent('GCash|'+num);
-        qr.alt='GCash QR code for payment';
-      } else if(qr){
-        qr.removeAttribute('src');
-        qr.alt='GCash account is not configured';
-      }
-    });
+    if(window.GcashQrActions) window.GcashQrActions.apply(window.gcashQrImageUrl);
   }
 
   function bindCopy(){
@@ -2935,8 +3200,8 @@ document.addEventListener("DOMContentLoaded",()=>{
             <div class="racs-track"><div class="racs-track-dash"></div></div>
           </div>
           <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-          <span class="racs-title">Processing Request...</span>
-          <span class="racs-desc">Dispatching your RACS technician...</span>
+          <span class="racs-title">Isinusumite ang booking...</span>
+          <span class="racs-desc">Please wait while we send your request</span>
           <div class="racs-pulse"><span></span><span></span><span></span></div>
         </div>
       </div>
@@ -2983,5 +3248,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260911-service-added-check">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260925-review-visibility-v40">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

@@ -136,12 +136,10 @@
     box-shadow: 0 2px 8px rgba(37,99,235,0.15);
   }
   .premium-nav .navbar-toggler { border-color: rgba(0,0,0,0.15); }
-  .nav-greeting { color: #475569; font-size: 0.85rem; }
 
   @media (min-width: 992px) and (max-width: 1199.98px) {
     .premium-nav .navbar-nav .nav-item { margin-right: 0.35rem !important; }
     .premium-nav .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
-    .premium-nav .nav-greeting { display: none !important; }
   }
 
   /* ══ Mobile / responsive ══ */
@@ -233,7 +231,6 @@
     }
     #mainNav .d-flex.align-items-center { width: 100%; justify-content: space-between; }
     .premium-nav .nav-profile-btn { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
-    .premium-nav .nav-greeting { display: inline !important; }
   }
 </style>
 
@@ -302,7 +299,6 @@
             <i class="bi bi-person-circle"></i>
             <span class="nav-profile-text">Account</span>
           </button>
-          <span class="d-none d-lg-inline me-3 nav-greeting">Profile</span>
         </div>
         <%- include('../partials/sidebar') %>
       <% } else { %>

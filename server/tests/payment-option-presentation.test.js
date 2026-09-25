@@ -27,9 +27,9 @@ const serviceRoutes = read("routes/serviceRoutes.js");
 const appEntry = read("index.js");
 
 test("service checkout presents payment plans instead of a misleading cash method", () => {
-  assert.match(servicesView, /Payment Option/);
+  assert.match(servicesView, /1\. Choose how much to pay now/);
   assert.match(servicesView, /<strong>Full Payment<\/strong>/);
-  assert.match(servicesView, /<strong>Downpayment<\/strong>/);
+  assert.match(servicesView, /<strong>Down Payment<\/strong>/);
   assert.match(servicesView, /data-method="cod" aria-pressed="false"/);
   assert.doesNotMatch(servicesView, /ent-payment-tab active[^>]*data-method="gcash"/);
   assert.match(servicesScript, /paymentOptionBound/);
@@ -37,7 +37,7 @@ test("service checkout presents payment plans instead of a misleading cash metho
 
 test("service and product checkout use one consistent customer payment layout", () => {
   for (const source of [servicesView, cartWizard, productWizard]) {
-    assert.match(source, /customer-payment\.css\?v=20260916-payment-channels-v2/);
+    assert.match(source, /customer-payment\.css\?v=20260925-qr-actions-v4/);
     assert.match(source, /customer-payment-options/);
     assert.match(source, /payment-method-copy/);
     assert.match(source, /customer-payment-panel/);
@@ -60,15 +60,15 @@ test("service payment evidence is validated on both client and server", () => {
 
 test("service and installation-order checkout separate payment plans from payment channels", () => {
   for (const source of [servicesView, cartWizard, productWizard]) {
-    assert.match(source, /<strong>Full Payment<\/strong>/);
-    assert.match(source, /<strong>Downpayment<\/strong>/);
+    assert.match(source, source === servicesView ? /<strong>Full Payment<\/strong>/ : /<strong>Pay all now<\/strong>/);
+    assert.match(source, source === servicesView ? /<strong>Down Payment<\/strong>/ : /<strong>Pay part now<\/strong>/);
     assert.doesNotMatch(source, /data-channel="card"/);
     assert.match(source, /data-channel="gcash"/);
     assert.match(source, /data-channel="maya"/);
     assert.match(source, /data-channel="bank_transfer"/);
     assert.match(source, /data-channel="other"/);
-    assert.match(source, /Why is a downpayment required\?/);
-    assert.match(source, /not an additional (?:fee|charge)/);
+    assert.match(source, source === servicesView ? /Why do I need a down payment\?/ : /Why pay part now\?/);
+    assert.match(source, source === servicesView ? /not an extra fee/ : /not an extra fee/);
     assert.doesNotMatch(source, /data-method="card"/);
     assert.doesNotMatch(source, /Pay by card in person|Pay by credit or debit card at the RACS store/);
   }

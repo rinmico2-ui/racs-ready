@@ -1174,9 +1174,11 @@ const {
 } = require("../utils/aftercarePolicy");
 const {
   GCASH_RECIPIENT_SETTING_KEY,
+  GCASH_QR_SETTING_KEY,
   PAYMENT_METHODS_SETTING_KEY,
   getDownpaymentPercentage,
   getGcashRecipientNumber,
+  getGcashQrImageUrl,
   getPaymentMethods,
   normalizeGcashRecipientNumber,
   normalizeDownpaymentPercentage,
@@ -1533,15 +1535,50 @@ router.put("/settings/aftercare", async (req, res, next) => {
 /** GET /api/admin/settings/payment-policy */
 router.get("/settings/payment-policy", async (_req, res, next) => {
   try {
-    const [downpaymentPercentage, gcashNumber, methods] = await Promise.all([
+    const [downpaymentPercentage, gcashNumber, methods, gcashQrImageUrl] = await Promise.all([
       getDownpaymentPercentage(),
       getGcashRecipientNumber(),
       getPaymentMethods(),
+      getGcashQrImageUrl(),
     ]);
-    return res.json({ downpaymentPercentage, gcashNumber, gcashConfigured: Boolean(gcashNumber), methods, cardCollectionMode: "in_person" });
+    return res.json({ downpaymentPercentage, gcashNumber, gcashQrImageUrl, gcashConfigured: Boolean(gcashNumber), methods, cardCollectionMode: "in_person" });
   } catch (err) {
     next(err);
   }
+});
+
+const gcashQrUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } }).single("gcashQr");
+function gcashQrExtension(bytes) {
+  if (bytes?.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return ".png";
+  if (bytes?.subarray(0, 3).equals(Buffer.from([255, 216, 255]))) return ".jpg";
+  if (bytes?.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return ".webp";
+  return "";
+}
+
+/** Admin uploads the genuine GCash Personal/Merchant QR image. */
+router.post("/settings/payment-policy/gcash-qr", (req, res) => {
+  gcashQrUpload(req, res, async error => {
+    if (error) return res.status(400).json({ error: error.code === "LIMIT_FILE_SIZE" ? "The QR image must be under 2 MB." : "Could not upload the QR image." });
+    const ext = gcashQrExtension(req.file?.buffer);
+    if (!ext) return res.status(400).json({ error: "Upload a PNG, JPG, or WebP image of the real GCash QR code." });
+    try {
+      const recipientNumber = await getGcashRecipientNumber();
+      if (!recipientNumber) return res.status(400).json({ error: "Save the GCash receiving number before uploading its QR image." });
+      const qrDir = path.join(__dirname, "../public/uploads/payment-qr");
+      await fs.promises.mkdir(qrDir, { recursive: true });
+      const fileName = `gcash-${require("node:crypto").randomUUID()}${ext}`;
+      await fs.promises.writeFile(path.join(qrDir, fileName), req.file.buffer, { flag: "wx" });
+      const gcashQrImageUrl = `/uploads/payment-qr/${fileName}`;
+      await SiteSetting.findOneAndUpdate(
+        { key: GCASH_QR_SETTING_KEY },
+        { value: { url: gcashQrImageUrl, recipientNumber } },
+        { upsert: true, setDefaultsOnInsert: true },
+      );
+      return res.json({ gcashQrImageUrl });
+    } catch (uploadError) {
+      return res.status(500).json({ error: "Could not save the QR image. Please try again." });
+    }
+  });
 });
 
 /** PUT /api/admin/settings/payment-policy */
@@ -1619,11 +1656,13 @@ router.put("/settings/payment-policy", async (req, res, next) => {
       },
     }).catch(() => {});
     const effectiveMethods = await getPaymentMethods();
+    const gcashQrImageUrl = await getGcashQrImageUrl();
     return res.json({
       message: "Payment policy saved successfully",
       downpaymentPercentage,
       gcashNumber: effectiveGcashNumber,
       gcashConfigured: Boolean(effectiveGcashNumber),
+      gcashQrImageUrl,
       methods: effectiveMethods,
       cardCollectionMode: "in_person",
     });

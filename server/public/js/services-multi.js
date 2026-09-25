@@ -36,9 +36,18 @@ const BookingState = {
 };
 window.BookingState = BookingState;
 
+function isRepairBookingService(service) {
+  if (!service) return false;
+  const type = String(service.type || '').toLowerCase();
+  return type === 'repair' || type === 'repairservices' || type === 'repair_service' ||
+    service.isRepair === true || service.inspectionFee != null || service.initialCost != null;
+}
+window.isRepairBookingService = isRepairBookingService;
+
 // ── localStorage persistence for booking progress ──
-const BOOKING_STORAGE_KEY = 'calidro_booking_progress';
-const BOOKING_STORAGE_VERSION = 2;
+const BOOKING_CUSTOMER_ID = document.getElementById('entStepper')?.dataset.customerId || '';
+const BOOKING_STORAGE_KEY = `calidro_booking_progress_v3_${BOOKING_CUSTOMER_ID}`;
+const BOOKING_STORAGE_VERSION = 3;
 const BOOKING_STORAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 let bookingProgressSaveTimer = null;
 
@@ -69,7 +78,7 @@ function bookingDraftHasProgress(data) {
 
 function saveBookingProgress() {
   try {
-    if (BookingState.draftPersistenceDisabled) return false;
+    if (BookingState.draftPersistenceDisabled || !BOOKING_CUSTOMER_ID) return false;
     const selectedServices = (BookingState.selectedServices || [])
       .map(createPersistedServiceSnapshot)
       .filter(Boolean);
@@ -121,11 +130,12 @@ window.scheduleBookingProgressSave = scheduleBookingProgressSave;
 
 function restoreBookingProgress() {
   try {
+    if (!BOOKING_CUSTOMER_ID) return false;
     const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
     // Expire abandoned or malformed drafts after 24 hours.
-    if (!data || typeof data !== 'object' || !data.savedAt || (Date.now() - data.savedAt > BOOKING_STORAGE_MAX_AGE_MS)) {
+    if (!data || typeof data !== 'object' || data.version !== BOOKING_STORAGE_VERSION || !data.savedAt || (Date.now() - data.savedAt > BOOKING_STORAGE_MAX_AGE_MS)) {
       localStorage.removeItem(BOOKING_STORAGE_KEY);
       return false;
     }
@@ -147,8 +157,13 @@ function restoreBookingProgress() {
         lng: Number(data.customerLocation.lng)
       } : null);
       BookingState.distance = Number(data.distance) || null;
-      BookingState.fare = Number(data.fare) || null;
-      BookingState.travelFare = Number(data.travelFare || data.fare) || null;
+      // Reprice restored drafts using the displayed route distance and current
+      // per-kilometer rate. Older drafts included a traffic surcharge.
+      const restoredFare = Number.isFinite(BookingState.distance) && BookingState.distance > 0
+        ? calculateServiceTravelFare(BookingState.distance)
+        : null;
+      BookingState.fare = restoredFare;
+      BookingState.travelFare = restoredFare;
       BookingState.travelDuration = Number(data.travelDuration) || null;
       BookingState.selectedDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
       BookingState.selectedTimeSlot = data.selectedTimeSlot || null;
@@ -189,7 +204,7 @@ function getRestorableBookingStep() {
 
   const location = BookingState.customerLocation;
   const hasLocation = location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng));
-  if (step > 3 && !hasLocation) return 3;
+  if (step > 3 && (!hasLocation || location.pinConfirmed === false)) return 3;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -210,7 +225,7 @@ function restoreBookingProgressUI() {
   const locationInput = document.getElementById('locationInput');
   if (locationInput && BookingState.location) {
     locationInput.value = BookingState.location;
-    locationInput.classList.add('is-valid');
+    locationInput.classList.toggle('is-valid', BookingState.customerLocation?.pinConfirmed !== false);
   }
 
   const distance = Number(BookingState.distance);
@@ -229,6 +244,10 @@ function restoreBookingProgressUI() {
       : `${Math.round(duration)} min`;
   }
   if (fareElement && fare >= 0) fareElement.textContent = `₱${fare.toLocaleString()}`;
+  const formulaElement = document.getElementById('mapDistanceInfo');
+  if (formulaElement && distance > 0 && fare >= 0) {
+    formulaElement.textContent = `${distance.toFixed(1)} km × ₱${getServiceFarePerKm().toLocaleString()}/km = ₱${fare.toLocaleString()}`;
+  }
 
   if (BookingState.selectedDate) {
     const dateKey = typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.formatDateKey
@@ -244,6 +263,7 @@ function restoreBookingProgressUI() {
   if (typeof displayTotalFee === 'function') displayTotalFee();
   if (typeof updateReviewContent === 'function') updateReviewContent();
   if (typeof updatePaymentAmounts === 'function') updatePaymentAmounts();
+  syncLocationContinueAction();
 
   if (BookingState.currentStep >= 6 && BookingState.paymentMethod) {
     if (typeof window.selectPaymentMethod === 'function') {
@@ -268,6 +288,12 @@ function clearBookingProgress() {
 // pagehide works for refreshes and mobile tab eviction; visibilitychange
 // covers browsers that freeze a background tab before unloading it.
 window.addEventListener('pagehide', saveBookingProgress);
+window.addEventListener('beforeunload', () => {
+  const hasCustomerInput = (BookingState.selectedServices || []).length > 0 ||
+    Boolean(BookingState.customerLocation || BookingState.location || BookingState.selectedDate || BookingState.selectedTimeSlot);
+  if (!hasCustomerInput || BookingState.draftPersistenceDisabled) return;
+  saveBookingProgress();
+});
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveBookingProgress();
 });
@@ -290,6 +316,8 @@ fetch('/api/services/payment-policy')
   .then(data => {
     const percentage = Number(data.downpaymentPercentage);
     window.paymentMethodsConfig = data.methods || {};
+    window.gcashQrImageUrl = data.gcashQrImageUrl || '';
+    window.GcashQrActions?.apply(window.gcashQrImageUrl);
     document.querySelectorAll('#bookingPaymentChannelSection .payment-channel-card').forEach(button => {
       const method = window.paymentMethodsConfig[button.dataset.channel];
       if (!method) return;
@@ -309,6 +337,7 @@ fetch('/api/services/payment-policy')
       BookingState.downpaymentPercentage = percentage;
       updatePaymentAmounts();
     }
+    syncPaymentChoiceGuide();
   })
   .catch(() => console.warn('Using the default 10% downpayment policy.'));
 const LARGE_SCALE_MIN_UNITS = 8;
@@ -320,6 +349,9 @@ let reverseGeocodeDebounceTimer = null;
 let reverseGeocodeAbortController = null;
 let addressSuggestionRequestToken = 0;
 let addressSuggestionAbortController = null;
+let addressAutocompleteDebounceTimer = null;
+let addressAutocompleteEnabled = false;
+let addressAutocompleteStatusLoaded = false;
 const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
   return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
@@ -387,8 +419,8 @@ function initMultiServiceBooking() {
 
   // Add a small delay to ensure all user data is loaded
   setTimeout(() => {
-    // Check if user is logged in first - multiple methods
-    let isLoggedIn = false;
+    // The server-rendered stepper is the source of truth for customer access.
+    let isLoggedIn = document.getElementById('entStepper')?.dataset.authenticated === 'true';
 
     // Method 1: Check for user data in window object (most common)
     if (typeof window.user !== 'undefined' && window.user) {
@@ -487,8 +519,10 @@ function initMultiServiceBooking() {
         console.log('📂 Restored to step', stepToRestore);
       }, 600);
     } else {
-      // Initialize stepper (handled implicitly or uses updateStepperIndicators)
-      updateStepperIndicators(1);
+      // Login is a prerequisite, not a booking step. Signed-in customers land
+      // directly on service selection so the journey starts with a useful task.
+      showStep(2);
+      updateStepperIndicators(2);
     }
 
   }, 500); // 500ms delay to ensure everything is loaded
@@ -531,7 +565,7 @@ function injectTransitionStyles() {
     .booking-step.step-active {
       border-color: #0d6efd;
       box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-      transform: scale(1.02);
+      transform: none;
     }
     
     .booking-step.step-completed {
@@ -1251,6 +1285,7 @@ function resetStep4ForTechnicianChange() {
   if (selectionAddress) selectionAddress.textContent = 'Search for an address or select the exact point on the map.';
   if (selectionCoordinates) selectionCoordinates.textContent = 'Not selected';
   if (selectionSource) selectionSource.textContent = 'Waiting for location';
+  syncLocationContinueAction();
 
   // Clear and reinitialize map with proper timing
   if (typeof cleanupMap === 'function') {
@@ -1295,7 +1330,7 @@ function resetStep5ForTechnicianChange() {
   // Enforce manual-only: wipe AI container if it exists, and keep manual empty until reloaded
   if (aiDatesContainer) aiDatesContainer.innerHTML = '';
   if (manualDatesContainer) manualDatesContainer.innerHTML = '';
-  if (timeSlotsContainer) timeSlotsContainer.innerHTML = '<p class="text-muted">Select a date to view preferred start times.</p>';
+  if (timeSlotsContainer) timeSlotsContainer.innerHTML = '<p class="text-muted">Choose a date to see available start times.</p>';
 
   // Clear any success messages
   const successMessages = document.querySelectorAll('#timeSlots .alert-success');
@@ -1457,6 +1492,12 @@ function showStep(stepNumber) {
     }
   });
 
+  // The action bar is attached to <body> so it stays fixed to the viewport.
+  // Sync it explicitly whenever the customer moves between booking steps.
+  syncBookingActionBarLayer();
+  syncLocationContinueAction();
+  syncScheduleNextAction(stepNumber === 4);
+
   // Every path into Step 2 must prepare the catalog. Progress navigation,
   // restored drafts, and the normal Continue button all converge here.
   if (stepNumber === 2) {
@@ -1537,6 +1578,7 @@ function showStep(stepNumber) {
     displayTotalFee();
     updateReviewContent();
   }
+  syncReviewNextAction(stepNumber === 5);
 
   if (stepNumber === 6) {
     // Initialize payment step
@@ -1593,6 +1635,138 @@ function setupStepProgression(stepNumber) {
   }
 }
 
+const savedAccountAddressRequests = new WeakMap();
+
+function resolveSavedAccountAddress(button) {
+  if (!button) return Promise.resolve('');
+  if (button.dataset.addressResolved === 'true') {
+    return Promise.resolve(String(button.dataset.address || '').trim());
+  }
+  if (savedAccountAddressRequests.has(button)) return savedAccountAddressRequests.get(button);
+
+  const display = document.getElementById('accountAddressDisplay');
+  const label = document.getElementById('useAccountAddressLabel');
+  const icon = button.querySelector('i');
+  const parts = [
+    button.dataset.street,
+    button.dataset.barangay,
+    button.dataset.city,
+    button.dataset.province,
+    button.dataset.postal
+  ].map(value => String(value || '').trim()).filter(Boolean);
+  const isPsgcCode = value => /^\d{9,10}$/.test(value);
+  const codes = [...new Set(parts.filter(isPsgcCode))];
+
+  if (!codes.length) {
+    const address = String(button.dataset.address || parts.join(', ')).trim();
+    button.dataset.address = address;
+    button.dataset.addressResolved = 'true';
+    button.disabled = !address;
+    button.removeAttribute('aria-busy');
+    return Promise.resolve(address);
+  }
+
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  if (label) label.textContent = 'Loading Address';
+  if (icon) icon.className = 'bi bi-hourglass-split';
+
+  const request = fetch(`/api/psgc/resolve?codes=${encodeURIComponent(codes.join(','))}`, { credentials: 'same-origin' })
+    .then(response => {
+      if (!response.ok) throw new Error('Address lookup failed');
+      return response.json();
+    })
+    .then(data => {
+      const resolved = data?.resolved || {};
+      const readableParts = parts.map(part => isPsgcCode(part) ? String(resolved[part] || '').trim() : part);
+      if (readableParts.some((part, index) => !part && isPsgcCode(parts[index]))) {
+        throw new Error('Saved address code could not be resolved');
+      }
+
+      const displayAddress = readableParts.filter(Boolean).join(', ');
+      if (!displayAddress) throw new Error('Saved address is empty');
+      const mapAddress = /philippines/i.test(displayAddress) ? displayAddress : `${displayAddress}, Philippines`;
+      button.dataset.address = mapAddress;
+      button.dataset.addressResolved = 'true';
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (display) display.textContent = displayAddress;
+      if (label) label.textContent = 'Use This Address';
+      if (icon) icon.className = 'bi bi-check2-circle';
+      return mapAddress;
+    })
+    .catch(error => {
+      console.error('Unable to load the saved account address:', error);
+      button.dataset.address = '';
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      if (display) display.textContent = 'We could not load your saved address.';
+      if (label) label.textContent = 'Try Again';
+      if (icon) icon.className = 'bi bi-arrow-clockwise';
+      return '';
+    })
+    .finally(() => savedAccountAddressRequests.delete(button));
+
+  savedAccountAddressRequests.set(button, request);
+  return request;
+}
+
+function setSavedAddressActionState(state) {
+  const button = document.getElementById('useAccountAddressBtn');
+  if (!button) return;
+  const label = document.getElementById('useAccountAddressLabel');
+  const icon = button.querySelector('i');
+
+  button.classList.toggle('is-applying', state === 'loading');
+  button.classList.toggle('is-applied', state === 'success');
+  button.disabled = state === 'loading';
+  button.setAttribute('aria-busy', String(state === 'loading'));
+
+  if (state === 'loading') {
+    if (label) label.textContent = 'Calculating Route';
+    if (icon) icon.className = 'bi bi-arrow-clockwise spin';
+  } else if (state === 'success') {
+    if (label) label.textContent = 'Address Applied';
+    if (icon) icon.className = 'bi bi-check-circle-fill';
+  } else {
+    if (label) label.textContent = 'Use This Address';
+    if (icon) icon.className = 'bi bi-check2-circle';
+  }
+}
+
+function guideToSavedAddressRoute(attempt = 0) {
+  if (!BookingState?.guideToSavedAddressRoute) return;
+  if (!BookingState.routeLine && attempt < 16) {
+    window.setTimeout(() => guideToSavedAddressRoute(attempt + 1), 150);
+    return;
+  }
+
+  BookingState.guideToSavedAddressRoute = false;
+  window.clearTimeout(guideToSavedAddressRoute.timeout);
+  document.getElementById('fitServiceRouteBtn')?.click();
+  try { BookingState.map?.invalidateSize(); } catch (error) {}
+
+  const details = document.querySelector('.service-location-overview');
+  const mapCard = document.getElementById('serviceCheckoutMapCard');
+  details?.classList.add('route-result-ready');
+  mapCard?.classList.remove('route-result-arrival');
+  void mapCard?.offsetWidth;
+  mapCard?.classList.add('route-result-arrival');
+  mapCard?.setAttribute('tabindex', '-1');
+  mapCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => {
+    mapCard?.focus({ preventScroll: true });
+    mapCard?.classList.remove('route-result-arrival');
+  }, 650);
+
+  setSavedAddressActionState('success');
+  const distance = document.getElementById('mapInfoDistance')?.textContent?.trim();
+  const fare = document.getElementById('mapInfoFare')?.textContent?.trim();
+  showBookingToast(BookingState.customerLocation?.pinConfirmed === false
+    ? `Route ready${distance && fare ? `: ${distance} · ${fare} travel fee` : ''}. Check the green pin and confirm the place.`
+    : `Route ready${distance && fare ? `: ${distance} · ${fare} travel fee` : ''}. Check the map, then continue to Schedule.`);
+}
+
 /**
  * Setup location input with map display
  */
@@ -1617,7 +1791,7 @@ function setupLocationAutoProgress() {
   // steps never loses what the customer already typed.
   if (!newInput.value && typeof BookingState !== 'undefined' && BookingState.location) {
     newInput.value = BookingState.location;
-    newInput.classList.add('is-valid');
+    newInput.classList.toggle('is-valid', BookingState.customerLocation?.pinConfirmed !== false);
   }
 
   // Display selected technician details
@@ -1646,11 +1820,52 @@ function setupLocationAutoProgress() {
   // Setup locate buttons
   setupLocateButtons();
 
+  const accountAddressButton = document.getElementById('useAccountAddressBtn');
+  if (accountAddressButton && accountAddressButton.dataset.locationBound !== 'true') {
+    accountAddressButton.dataset.locationBound = 'true';
+    resolveSavedAccountAddress(accountAddressButton);
+    accountAddressButton.addEventListener('click', async () => {
+      const savedAddress = await resolveSavedAccountAddress(accountAddressButton);
+      if (!savedAddress) {
+        const activeLocationInput = document.getElementById('locationInput');
+        activeLocationInput?.focus();
+        const status = document.getElementById('locationStatus');
+        if (status) status.innerHTML = '<i class="bi bi-info-circle me-1"></i>Enter your service address below, then press Search.';
+        return;
+      }
+      const activeLocationInput = document.getElementById('locationInput');
+      if (activeLocationInput) {
+        activeLocationInput.value = savedAddress;
+        activeLocationInput.classList.remove('is-invalid');
+      }
+      BookingState.location = savedAddress;
+      BookingState.guideToSavedAddressRoute = true;
+      setSavedAddressActionState('loading');
+      window.clearTimeout(guideToSavedAddressRoute.timeout);
+      guideToSavedAddressRoute.timeout = window.setTimeout(() => {
+        if (!BookingState.guideToSavedAddressRoute) return;
+        BookingState.guideToSavedAddressRoute = false;
+        setSavedAddressActionState('idle');
+        showError('The route is taking longer than expected. Please press Use This Address to try again.');
+      }, 20000);
+      const status = document.getElementById('locationStatus');
+      if (status) {
+        status.hidden = false;
+        status.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Finding this address on the map...';
+      }
+      geocodeAddress(savedAddress, true);
+    });
+  }
+
   // Auto-populate user address if logged in, has a saved address, and the
   // customer hasn't already entered their own location.
-  if (window.currentUser && window.currentUser.address && !BookingState.location) {
+  if (!accountAddressButton && window.currentUser && window.currentUser.address && !BookingState.location) {
     const addr = window.currentUser.address;
-    const savedAddress = (typeof addr === 'string' ? addr : (addr.street || addr.line1 || addr.address || '')).toString().trim();
+    const savedAddress = (typeof addr === 'string'
+      ? addr
+      : [addr.street, addr.line1, addr.address, addr.barangay, addr.city, addr.province, addr.postalCode]
+          .filter(Boolean)
+          .join(', ')).toString().trim();
     if (savedAddress) {
       console.log('🏠 Auto-populating user saved address:', savedAddress);
       newInput.value = savedAddress;
@@ -1694,19 +1909,120 @@ function setupLocationAutoProgress() {
   console.log('✅ Location auto-progress setup complete');
 }
 
-/**
- * Setup address autocomplete using Nominatim
- */
+function closeAddressSuggestions() {
+  document.getElementById('locationSuggest')?.classList.add('d-none');
+  document.getElementById('locationInput')?.setAttribute('aria-expanded', 'false');
+}
+
+function getTypedServiceAddressForPin() {
+  const typed = document.getElementById('locationInput')?.value.trim() || '';
+  if (!typed) return '';
+  const current = BookingState.customerLocation;
+  if (BookingState.pendingManualAddress === typed || current?.manualAddress === typed || !current || typed !== current.address) return typed;
+  return '';
+}
+
+function guideToManualAddressPin() {
+  const address = document.getElementById('locationInput')?.value.trim() || '';
+  BookingState.pendingManualAddress = address || null;
+  if (address) BookingState.location = address;
+  const status = document.getElementById('locationStatus');
+  if (status) {
+    status.hidden = false;
+    status.textContent = address
+      ? 'Your typed address is kept. Place the pin, then confirm it.'
+      : 'Place the pin at the service address, then confirm it.';
+  }
+  const mapCard = document.getElementById('serviceCheckoutMapCard');
+  mapCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => {
+    BookingState.map?.invalidateSize();
+    document.getElementById('technicianMap')?.focus({ preventScroll: true });
+  }, 300);
+}
+window.guideToManualAddressPin = guideToManualAddressPin;
+
+function guideToSelectedAddressMap() {
+  const mapCard = document.getElementById('serviceCheckoutMapCard');
+  if (!mapCard) return;
+  document.getElementById('locationInput')?.blur();
+  mapCard.setAttribute('tabindex', '-1');
+  mapCard.setAttribute('aria-label', 'Check your selected service location on the map');
+  mapCard.scrollIntoView({
+    behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'center'
+  });
+  window.setTimeout(() => {
+    BookingState.map?.invalidateSize();
+    mapCard.focus({ preventScroll: true });
+  }, 450);
+}
+
+function scheduleLiveAddressSuggestions(query) {
+  clearTimeout(addressAutocompleteDebounceTimer);
+  if (!addressAutocompleteEnabled || query.length < 3) return;
+  addressAutocompleteDebounceTimer = setTimeout(() => fetchLiveAddressSuggestions(query), 400);
+}
+
+function fetchLiveAddressSuggestions(query) {
+  const input = document.getElementById('locationInput');
+  if (!addressAutocompleteEnabled || !input || input.value.trim() !== query) return;
+  const requestToken = ++addressSuggestionRequestToken;
+  if (addressSuggestionAbortController) addressSuggestionAbortController.abort();
+  addressSuggestionAbortController = new AbortController();
+
+  fetch(`/api/geocoding/autocomplete?q=${encodeURIComponent(query)}`, { signal: addressSuggestionAbortController.signal })
+    .then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(data.error || 'Live suggestions unavailable');
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    })
+    .then(data => {
+      if (requestToken !== addressSuggestionRequestToken || input.value.trim() !== query) return;
+      if (Array.isArray(data.suggestions) && data.suggestions.length) displaySuggestions(data.suggestions);
+      else closeAddressSuggestions();
+    })
+    .catch(error => {
+      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
+      closeAddressSuggestions();
+      if (error.status === 429 || error.status === 503) addressAutocompleteEnabled = false;
+      const status = document.getElementById('locationStatus');
+      if (status) status.textContent = 'Live suggestions are unavailable. Press Enter or Search to find the address.';
+    });
+}
+
+/** Live suggestions use Geoapify only when configured; manual Search uses Nominatim. */
 function setupAddressAutocomplete(input) {
   const suggestContainer = document.getElementById('locationSuggest');
   if (!suggestContainer) return;
 
+  if (!addressAutocompleteStatusLoaded) {
+    addressAutocompleteStatusLoaded = true;
+    fetch('/api/geocoding/autocomplete/status')
+      .then(response => response.ok ? response.json() : { enabled: false })
+      .then(data => {
+        addressAutocompleteEnabled = data.enabled === true;
+        document.getElementById('geoapifyAttribution')?.classList.toggle('d-none', !addressAutocompleteEnabled);
+        if (addressAutocompleteEnabled && !input.value.trim()) {
+          const status = document.getElementById('locationStatus');
+          if (status) status.textContent = 'Start typing to see Philippine address suggestions. You can also enter the full address and press Search.';
+        }
+        if (addressAutocompleteEnabled && document.activeElement === input) scheduleLiveAddressSuggestions(input.value.trim());
+      })
+      .catch(() => { addressAutocompleteEnabled = false; });
+  }
+
   input.addEventListener('input', function (e) {
     const query = e.target.value.trim();
+    BookingState.pendingManualAddress = null;
+    const locationStatus = document.getElementById('locationStatus');
+    if (locationStatus) locationStatus.hidden = false;
 
-    // Public Nominatim does not allow API-backed autocomplete. Invalidate any
-    // previous result while the address changes; the Search button performs
-    // the user-triggered lookup.
+    clearTimeout(addressAutocompleteDebounceTimer);
     ++addressSuggestionRequestToken;
     if (addressSuggestionAbortController) {
       addressSuggestionAbortController.abort();
@@ -1717,8 +2033,9 @@ function setupAddressAutocomplete(input) {
       searchButton.disabled = false;
       searchButton.innerHTML = '<i class="bi bi-search"></i>';
     }
-    suggestContainer.classList.add('d-none');
+    closeAddressSuggestions();
     if (query.length < 3) suggestContainer.innerHTML = '';
+    else scheduleLiveAddressSuggestions(query);
 
     // Typed text is not an authoritative service point. If the customer edits
     // a selected address, invalidate the old coordinates so checkout cannot
@@ -1732,8 +2049,15 @@ function setupAddressAutocomplete(input) {
   // Pressing Enter is an explicit lookup, just like tapping Search. This keeps
   // the field natural on desktop and mobile without API-backed autocomplete.
   input.addEventListener('keydown', function (event) {
+    if (event.key === 'ArrowDown' && !suggestContainer.classList.contains('d-none')) {
+      const first = suggestContainer.querySelector('button');
+      if (first) { event.preventDefault(); first.focus(); }
+      return;
+    }
+    if (event.key === 'Escape') { closeAddressSuggestions(); return; }
     if (event.key !== 'Enter') return;
     event.preventDefault();
+    clearTimeout(addressAutocompleteDebounceTimer);
     const query = input.value.trim();
     if (query.length < 3) {
       showError('Enter at least 3 characters to search for an address');
@@ -1745,7 +2069,7 @@ function setupAddressAutocomplete(input) {
   // Hide suggestions when clicking outside
   document.addEventListener('click', function (e) {
     if (!input.contains(e.target) && !suggestContainer.contains(e.target)) {
-      suggestContainer.classList.add('d-none');
+      closeAddressSuggestions();
     }
   });
 }
@@ -1757,6 +2081,7 @@ function fetchAddressSuggestions(query) {
   const suggestContainer = document.getElementById('locationSuggest');
   const searchButton = document.getElementById('serviceAddressSearchBtn');
   if (!suggestContainer) return;
+  clearTimeout(addressAutocompleteDebounceTimer);
   if (searchButton) {
     searchButton.disabled = true;
     searchButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
@@ -1776,14 +2101,19 @@ function fetchAddressSuggestions(query) {
       return data;
     })
     .then(data => {
-      if (requestToken !== addressSuggestionRequestToken) return;
-      if (data && data.length > 0) {
-        // Pin the best match immediately, while leaving alternatives visible
-        // so the customer can choose a more precise result.
-        displaySuggestions(data, true);
+      if (requestToken !== addressSuggestionRequestToken || document.getElementById('locationInput')?.value.trim() !== query) return;
+      if (Array.isArray(data) && data.length > 0) {
+        displaySuggestions(data);
+        const status = document.getElementById('locationStatus');
+        if (status) status.textContent = 'Choose an address below, then check the pin.';
       } else {
-        suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-secondary"><i class="bi bi-search me-2"></i>No matching address found. Add a municipality or province.</div>';
+        suggestContainer.innerHTML = '<button type="button" class="list-group-item list-group-item-action border-0 py-3 small text-primary fw-semibold"><i class="bi bi-pin-map-fill me-2"></i>No map match? Keep this full address and place the pin yourself.</button>';
+        suggestContainer.querySelector('button')?.addEventListener('click', () => {
+          closeAddressSuggestions();
+          guideToManualAddressPin();
+        });
         suggestContainer.classList.remove('d-none');
+        document.getElementById('locationInput')?.setAttribute('aria-expanded', 'true');
       }
     })
     .catch(error => {
@@ -1791,6 +2121,7 @@ function fetchAddressSuggestions(query) {
       console.error('Address suggestions error:', error);
       suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the point on the map.</div>';
       suggestContainer.classList.remove('d-none');
+      document.getElementById('locationInput')?.setAttribute('aria-expanded', 'true');
     })
     .finally(() => {
       if (requestToken !== addressSuggestionRequestToken) return;
@@ -1804,7 +2135,7 @@ function fetchAddressSuggestions(query) {
 /**
  * Display address suggestions
  */
-function displaySuggestions(suggestions, selectBestMatch = false) {
+function displaySuggestions(suggestions) {
   const suggestContainer = document.getElementById('locationSuggest');
   const locationInput = document.getElementById("locationInput");
 
@@ -1818,6 +2149,7 @@ function displaySuggestions(suggestions, selectBestMatch = false) {
     item.className = 'list-group-item list-group-item-action suggestion-item';
     item.style.cursor = 'pointer';
     item.dataset.suggestionIndex = String(index);
+    item.setAttribute('role', 'option');
 
     // Format the display name
     let displayName = suggestion.display_name;
@@ -1838,7 +2170,7 @@ function displaySuggestions(suggestions, selectBestMatch = false) {
     heading.textContent = parts[0] || 'Location';
     const detail = document.createElement('small');
     detail.className = 'text-muted';
-    detail.textContent = parts.slice(1).join(', ').trim();
+    detail.textContent = `${parts.slice(1).join(', ').trim()}${suggestion.match_level === 'area' ? ' · Nearby area; check the pin' : ' · Check the pin'}`;
     copy.appendChild(heading);
     copy.appendChild(detail);
     row.appendChild(icon);
@@ -1846,56 +2178,35 @@ function displaySuggestions(suggestions, selectBestMatch = false) {
     item.appendChild(row);
 
     item.addEventListener('click', () => {
-      const handled = applyAddressSearchResult(suggestion, suggestion.display_name, 'Selected address result');
-      suggestContainer.classList.add('d-none');
-
-      // Compatibility fallback for legacy provider rows.
-      if (!handled && suggestion.lat && suggestion.lon) {
-        const lat = parseFloat(suggestion.lat);
-        const lng = parseFloat(suggestion.lon);
-
-        // Store customer location for booking (CRITICAL for validation)
-        if (typeof BookingState !== 'undefined') {
-          BookingState.customerLocation = {
-            address: suggestion.display_name,
-            lat: lat,
-            lng: lng
-          };
-          BookingState.location = suggestion.display_name; // Legacy support
-          BookingState.userCoordinates = { lat, lng }; // Legacy support
-          scheduleBookingProgressSave();
-
-          console.log('📍 Customer location stored:', BookingState.customerLocation);
-        }
-
-        // Update map immediately
-        if (BookingState?.map) {
-          BookingState.map.setView([lat, lng], 16);
-          setCustomerLocationMarker(lat, lng, suggestion.display_name, 'Address search result');
-
-          // Draw route if company location exists
-          if (BookingState.companyBaseCoordinates) {
-            drawRoute();
-          }
-        }
+      clearTimeout(addressAutocompleteDebounceTimer);
+      ++addressSuggestionRequestToken;
+      addressSuggestionAbortController?.abort();
+      // The input is only the search query. The chosen result owns the map
+      // coordinates and address label; a short query (for example "3123")
+      // must not replace its full address in the booking.
+      const selected = applyAddressSearchResult(suggestion, locationInput.value, suggestion.match_level === 'area' ? 'Nearby Philippine address match' : 'Philippine address match');
+      closeAddressSuggestions();
+      if (selected) guideToSelectedAddressMap();
+    });
+    item.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAddressSuggestions();
+        locationInput.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const items = [...suggestContainer.querySelectorAll('button')];
+        const nextIndex = (items.indexOf(item) + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items[nextIndex]?.focus();
       }
-
-      // Next step is handled by the Next Step button
     });
 
     suggestContainer.appendChild(item);
   });
 
   suggestContainer.classList.remove('d-none');
+  locationInput.setAttribute('aria-expanded', 'true');
 
-  if (selectBestMatch && suggestions[0]) {
-    const applied = applyAddressSearchResult(suggestions[0], locationInput.value, 'Best address match');
-    const firstResult = suggestContainer.querySelector('[data-suggestion-index="0"]');
-    if (applied && firstResult) {
-      firstResult.classList.add('active');
-      firstResult.setAttribute('aria-current', 'true');
-    }
-  }
 }
 
 function resetServiceLocationForTypedAddress(query) {
@@ -1904,6 +2215,10 @@ function resetServiceLocationForTypedAddress(query) {
   BookingState.location = query;
   BookingState.customerLocation = null;
   BookingState.userCoordinates = null;
+  BookingState.distance = null;
+  BookingState.fare = null;
+  BookingState.travelFare = null;
+  BookingState.travelDuration = null;
 
   if (BookingState.map) {
     if (BookingState.userMarker && BookingState.map.hasLayer(BookingState.userMarker)) {
@@ -1934,11 +2249,15 @@ function resetServiceLocationForTypedAddress(query) {
   const routeMethod = document.getElementById('serviceRouteMethod');
   const fitButton = document.getElementById('fitServiceRouteBtn');
   if (panel) panel.classList.remove('has-location');
+  panel?.classList.remove('needs-confirmation');
   if (selectionStatus) selectionStatus.textContent = 'Search required';
   if (selectionAddress) selectionAddress.textContent = 'Press Enter or tap Search to pin this typed address.';
   if (coordinates) coordinates.textContent = 'Not selected';
   if (source) source.textContent = 'Typed address not yet pinned';
-  if (locationStatus) locationStatus.innerHTML = '<i class="bi bi-search me-1"></i>Press Enter or tap Search, then verify the map pin.';
+  if (locationStatus) {
+    locationStatus.hidden = false;
+    locationStatus.innerHTML = '<i class="bi bi-search me-1"></i>Press Enter or tap Search, then check the pin.';
+  }
   if (distance) {
     distance.textContent = '—';
     delete distance.dataset.ready;
@@ -1947,26 +2266,44 @@ function resetServiceLocationForTypedAddress(query) {
   if (fare) fare.textContent = '—';
   if (routeMethod) routeMethod.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Waiting for service pin';
   if (fitButton) fitButton.disabled = true;
+  document.getElementById('servicePinConfirm')?.classList.add('d-none');
+  syncLocationContinueAction();
   scheduleBookingProgressSave();
+}
+
+function isWithinPhilippinesMapBounds(lat, lng) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 4.5 && lat <= 21.5 && lng >= 116 && lng <= 127;
 }
 
 function applyAddressSearchResult(result, fallbackAddress, source) {
   const lat = Number.parseFloat(result?.lat);
   const lng = Number.parseFloat(result?.lon ?? result?.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    showError('The selected address did not provide valid map coordinates. Please choose another result.');
+  if (!isWithinPhilippinesMapBounds(lat, lng)) {
+    showError('Choose an address in the Philippines with a valid map location.');
     return false;
   }
 
-  const address = String(result?.display_name || fallbackAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`).trim();
+  if (result?.address?.country_code && String(result.address.country_code).toLowerCase() !== 'ph') {
+    showError('Choose an address in the Philippines.');
+    return false;
+  }
+  const matchedAddress = String(result?.display_name || '').trim();
+  const enteredAddress = String(fallbackAddress || '').trim();
+  // Keep a customer's detailed house address when Search found only a wider
+  // area. Otherwise show the actual suggestion they selected, not the query.
+  const manualAddress = result?.match_level === 'area' &&
+    /^(?:(?:house|unit|lot|block)\s*)?#?\s*\d+\s+[^,]+,/i.test(enteredAddress) &&
+    enteredAddress.length > matchedAddress.length ? enteredAddress : '';
+  const address = manualAddress || matchedAddress || enteredAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   const selectionToken = ++customerLocationRequestToken;
   ++routeRequestToken;
+  clearServiceRouteEstimate();
   const locationInput = document.getElementById('locationInput');
   if (locationInput) {
     locationInput.value = address;
-    locationInput.classList.add('is-valid');
+    locationInput.classList.remove('is-valid');
   }
-  BookingState.customerLocation = { address, lat, lng };
+  BookingState.customerLocation = { address, lat, lng, ...(manualAddress ? { manualAddress } : {}), matchedAddress, pinConfirmed: false };
   BookingState.location = address;
   BookingState.userCoordinates = { lat, lng };
   updateServiceMapSelectionUI(lat, lng, address, source || 'Address search result');
@@ -1980,7 +2317,7 @@ function applyAddressSearchResult(result, fallbackAddress, source) {
       else showError('Your address is saved, but the map is still loading. Please refresh if the pin does not appear.');
       return;
     }
-    BookingState.map.setView([lat, lng], 16);
+    BookingState.map.setView([lat, lng], result.match_level === 'area' ? 15 : 17);
     const marker = setCustomerLocationMarker(lat, lng, address, source || 'Address search result');
     if (marker) marker.openPopup();
     if (BookingState.companyBaseCoordinates) drawRoute();
@@ -2485,13 +2822,23 @@ function initializeMapInternal(mapContainer) {
   map.on('click', function (e) {
     const { lat, lng } = e.latlng;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (!isWithinPhilippinesMapBounds(lat, lng)) {
+      showError('Choose a service location in the Philippines.');
+      return;
+    }
     const requestToken = ++customerLocationRequestToken;
     ++routeRequestToken;
+    clearServiceRouteEstimate();
+    const manualAddress = getTypedServiceAddressForPin();
+    const coordinateLabel = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    BookingState.customerLocation = { address: manualAddress || coordinateLabel, lat, lng, pinConfirmed: false,
+      ...(manualAddress ? { manualAddress } : {}) };
+    BookingState.location = manualAddress || coordinateLabel;
     // Move the one authoritative customer marker immediately. Reverse
     // geocoding is asynchronous and must not create a second marker later.
-    setCustomerLocationMarker(lat, lng, '', 'Point selected on map');
+    setCustomerLocationMarker(lat, lng, manualAddress, 'Point selected on map');
     BookingState.userCoordinates = { lat, lng };
-    reverseGeocode(lat, lng, requestToken);
+    reverseGeocode(lat, lng, requestToken, { preserveManualAddress: Boolean(manualAddress), requirePinConfirmation: true });
   });
   technicianMarker.bindTooltip('CALIDRO RACS', { direction: 'top', offset: [0, -34] });
 
@@ -2551,9 +2898,20 @@ function createPulsingIcon(color) {
 /**
  * Geocode address using Nominatim (OpenStreetMap)
  */
-function geocodeAddress(address, finalize = false) {
+function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
   if (!BookingState?.map) {
+    if (mapReadyAttempt === 0 && typeof initializeMap === 'function') initializeMap();
+    if (mapReadyAttempt < 8) {
+      window.setTimeout(() => geocodeAddress(address, finalize, mapReadyAttempt + 1), 250);
+      return;
+    }
     console.warn('Map not initialized');
+    if (finalize) {
+      BookingState.guideToSavedAddressRoute = false;
+      window.clearTimeout(guideToSavedAddressRoute.timeout);
+      setSavedAddressActionState('idle');
+      showError('The map is still loading. Please wait a moment and try again.');
+    }
     return;
   }
 
@@ -2568,6 +2926,9 @@ function geocodeAddress(address, finalize = false) {
       if (data && data.error) {
         console.error('Geocoding API error:', data.error);
         if (finalize) {
+          BookingState.guideToSavedAddressRoute = false;
+          window.clearTimeout(guideToSavedAddressRoute.timeout);
+          setSavedAddressActionState('idle');
           showError(data.error);
         }
         return;
@@ -2576,16 +2937,19 @@ function geocodeAddress(address, finalize = false) {
         const result = data[0];
         const lat = parseFloat(result.lat);
         const lng = parseFloat(result.lon);
+        if (!isWithinPhilippinesMapBounds(lat, lng)) throw new Error('Address result is outside the Philippines');
 
         // Update map center
-        BookingState.map.setView([lat, lng], finalize ? 16 : 14);
-        const resolvedAddress = result.display_name || address;
-        setCustomerLocationMarker(lat, lng, resolvedAddress, finalize ? 'Confirmed address search' : 'Address preview');
+        BookingState.map.setView([lat, lng], result.match_level === 'area' ? 15 : (finalize ? 16 : 14));
+        const resolvedAddress = String(address || result.display_name).trim();
+        const needsPinConfirmation = Boolean(finalize) || result.match_level === 'area';
 
         // Store the same authoritative address and coordinates used by checkout.
         BookingState.userCoordinates = { lat, lng };
-        BookingState.customerLocation = { address: resolvedAddress, lat, lng };
+        BookingState.customerLocation = { address: resolvedAddress, lat, lng,
+          ...(needsPinConfirmation ? { manualAddress: resolvedAddress, matchedAddress: result.display_name, pinConfirmed: false } : {}) };
         BookingState.location = resolvedAddress;
+        setCustomerLocationMarker(lat, lng, resolvedAddress, needsPinConfirmation ? 'Nearby Philippine address match' : 'Address search');
         scheduleBookingProgressSave();
 
         // Draw route if both company baseline and user coordinates exist and finalizing
@@ -2598,6 +2962,9 @@ function geocodeAddress(address, finalize = false) {
       } else {
         console.warn('Geocoding failed: No results found');
         if (finalize) {
+          BookingState.guideToSavedAddressRoute = false;
+          window.clearTimeout(guideToSavedAddressRoute.timeout);
+          setSavedAddressActionState('idle');
           showError('Unable to find the address. Please check and try again.');
         }
       }
@@ -2605,7 +2972,10 @@ function geocodeAddress(address, finalize = false) {
     .catch(error => {
       console.error('Geocoding error:', error);
       if (finalize) {
-        showError('Unable to geocode address. Please try again.');
+        BookingState.guideToSavedAddressRoute = false;
+        window.clearTimeout(guideToSavedAddressRoute.timeout);
+        setSavedAddressActionState('idle');
+        showError('We could not find this address on the map. Please try again.');
       }
     });
 }
@@ -2637,6 +3007,8 @@ function drawRoute() {
     return;
   }
 
+  clearServiceRouteEstimate();
+
   const userPos = L.latLng(BookingState.userCoordinates.lat, BookingState.userCoordinates.lng);
 
   console.log('🛣️ Drawing route from company baseline to user');
@@ -2646,6 +3018,7 @@ function drawRoute() {
   // Remove existing route
   if (BookingState.routeLine) {
     BookingState.map.removeLayer(BookingState.routeLine);
+    BookingState.routeLine = null;
     console.log('🗑️ Removed existing route line');
   }
 
@@ -2725,11 +3098,6 @@ function drawRoute() {
           }
         }
 
-        // Update distance info with actual route data
-        if (routeData.distance && routeData.duration) {
-          updateDistanceInfo(routeData.distance, Math.round(routeData.distance * (Number(window._farePerKm) || 40)), Math.round(routeData.duration), true);
-        }
-
         console.log('✅ Actual route drawn successfully');
 
       } else {
@@ -2745,7 +3113,7 @@ function drawRoute() {
     });
 
   // Calculate distance and fare
-  calculateDistanceAndFare();
+  calculateDistanceAndFare(activeRouteRequest);
 }
 
 
@@ -2753,6 +3121,9 @@ function drawRoute() {
  * Show route loading indicator
  */
 function showRouteLoading() {
+  // A new pin can start another route request before the previous one ends.
+  // Keep only one indicator so the latest response can clear it completely.
+  hideRouteLoading();
   const loadingHtml = `
     <div id="routeLoading" style="
       position: absolute;
@@ -2783,10 +3154,7 @@ function showRouteLoading() {
  * Hide route loading indicator
  */
 function hideRouteLoading() {
-  const loadingElement = document.getElementById('routeLoading');
-  if (loadingElement) {
-    loadingElement.remove();
-  }
+  document.querySelectorAll('#routeLoading').forEach(element => element.remove());
 }
 
 /**
@@ -2934,26 +3302,75 @@ function updateServiceMapSelectionUI(lat, lng, address, source) {
   const locationStatus = document.getElementById('locationStatus');
   const fitButton = document.getElementById('fitServiceRouteBtn');
   const routeMethod = document.getElementById('serviceRouteMethod');
+  const distance = document.getElementById('mapInfoDistance');
+  const duration = document.getElementById('mapInfoDuration');
+  const fare = document.getElementById('mapInfoFare');
+  const pinConfirmation = document.getElementById('servicePinConfirm');
+  const pinNeedsConfirmation = BookingState.customerLocation?.pinConfirmed === false;
   if (panel) panel.classList.add('has-location');
-  if (status) status.textContent = 'Service pin confirmed';
+  panel?.classList.toggle('needs-confirmation', pinNeedsConfirmation);
+  if (status) status.textContent = pinNeedsConfirmation ? 'Check the map pin' : 'Service pin confirmed';
   if (addressEl) addressEl.textContent = address || 'Resolving the selected street address...';
   if (coordinatesEl) coordinatesEl.textContent = Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6);
   if (sourceEl) sourceEl.textContent = source || 'Map selection';
-  if (locationStatus) locationStatus.innerHTML = '<i class="bi bi-check-circle-fill me-1 text-success"></i>Exact service location confirmed for routing.';
+  if (locationStatus) {
+    // The address card and map already show this state; repeating it beside
+    // the search box makes the confirmed screen needlessly noisy.
+    locationStatus.hidden = !pinNeedsConfirmation;
+    if (pinNeedsConfirmation) locationStatus.textContent = 'Check the green pin, then confirm it.';
+  }
+  pinConfirmation?.classList.toggle('d-none', !pinNeedsConfirmation);
   if (fitButton) fitButton.disabled = false;
   if (routeMethod) routeMethod.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Calculating road route';
+  if (distance) {
+    distance.textContent = 'Checking...';
+    delete distance.dataset.ready;
+  }
+  if (duration) duration.textContent = 'Checking...';
+  if (fare) fare.textContent = 'Checking...';
+  syncLocationContinueAction();
 }
+
+function confirmServiceAddressPin() {
+  const location = BookingState.customerLocation;
+  if (!location || !Number.isFinite(Number(location.lat)) || !Number.isFinite(Number(location.lng))) return;
+  location.pinConfirmed = true;
+  const input = document.getElementById('locationInput');
+  input?.classList.add('is-valid');
+  const status = document.getElementById('serviceMapSelectionStatus');
+  const locationStatus = document.getElementById('locationStatus');
+  const source = document.getElementById('serviceMapSource');
+  if (status) status.textContent = 'Service pin confirmed';
+  if (locationStatus) locationStatus.hidden = true;
+  if (source) source.textContent = 'Confirmed by customer';
+  document.getElementById('serviceMapSelection')?.classList.remove('needs-confirmation');
+  document.getElementById('servicePinConfirm')?.classList.add('d-none');
+  syncLocationContinueAction();
+  scheduleBookingProgressSave();
+  showServiceTravelDetails();
+}
+window.confirmServiceAddressPin = confirmServiceAddressPin;
 
 function bindServiceCustomerMarkerDrag(marker) {
   if (!marker) return;
   marker.off('dragend');
   marker.on('dragend', function() {
     const point = marker.getLatLng();
+    if (!isWithinPhilippinesMapBounds(point.lat, point.lng)) {
+      const previous = BookingState.userCoordinates;
+      if (previous) marker.setLatLng([previous.lat, previous.lng]);
+      showError('Choose a service location in the Philippines.');
+      return;
+    }
     const requestToken = ++customerLocationRequestToken;
     ++routeRequestToken;
+    clearServiceRouteEstimate();
+    const previousAddress = BookingState.customerLocation?.manualAddress;
     BookingState.userCoordinates = { lat: point.lat, lng: point.lng };
-    updateServiceMapSelectionUI(point.lat, point.lng, '', 'Dragged service pin');
-    reverseGeocode(point.lat, point.lng, requestToken);
+    BookingState.customerLocation = { address: previousAddress || `${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`,
+      lat: point.lat, lng: point.lng, pinConfirmed: false, ...(previousAddress ? { manualAddress: previousAddress } : {}) };
+    updateServiceMapSelectionUI(point.lat, point.lng, previousAddress, 'Dragged service pin');
+    reverseGeocode(point.lat, point.lng, requestToken, { preserveManualAddress: Boolean(previousAddress), requirePinConfirmation: true });
   });
 }
 
@@ -2978,7 +3395,7 @@ function setCustomerLocationMarker(lat, lng, address, source) {
   return BookingState.userMarker;
 }
 
-function reverseGeocode(lat, lng, requestToken) {
+function reverseGeocode(lat, lng, requestToken, options = {}) {
   const activeRequestToken = requestToken ?? ++customerLocationRequestToken;
   const parsedLat = Number(lat);
   const parsedLng = Number(lng);
@@ -2990,24 +3407,28 @@ function reverseGeocode(lat, lng, requestToken) {
   const cacheKey = `${parsedLat.toFixed(4)},${parsedLng.toFixed(4)}`;
   const cached = reverseGeocodeCache.get(cacheKey);
   const coordinateLabel = `${parsedLat.toFixed(6)}, ${parsedLng.toFixed(6)}`;
+  const manualAddress = options.preserveManualAddress ? BookingState.customerLocation?.manualAddress : null;
+  const pinConfirmed = options.requirePinConfirmation !== true;
 
   // The selected coordinates remain usable when the optional address lookup
   // is temporarily unavailable.
   BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
-  BookingState.customerLocation = { address: coordinateLabel, lat: parsedLat, lng: parsedLng };
-  BookingState.location = coordinateLabel;
+  BookingState.customerLocation = { address: manualAddress || coordinateLabel, lat: parsedLat, lng: parsedLng, pinConfirmed,
+    ...(manualAddress ? { manualAddress } : {}) };
+  BookingState.location = manualAddress || coordinateLabel;
   scheduleBookingProgressSave();
 
   const applyResult = data => {
     if (activeRequestToken !== customerLocationRequestToken || !data?.display_name) return;
 
-    const address = data.display_name;
+    const address = manualAddress || data.display_name;
     const locationInput = document.getElementById('locationInput');
     if (!locationInput) return;
 
     locationInput.value = address;
     locationInput.classList.add('is-valid');
-    BookingState.customerLocation = { address, lat: parsedLat, lng: parsedLng };
+    BookingState.customerLocation = { address, lat: parsedLat, lng: parsedLng, pinConfirmed,
+      ...(manualAddress ? { manualAddress } : {}) };
     BookingState.location = address;
     BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
     scheduleBookingProgressSave();
@@ -3029,8 +3450,20 @@ function reverseGeocode(lat, lng, requestToken) {
     }
   };
 
+  const showPinWithoutStreetName = () => {
+    if (activeRequestToken !== customerLocationRequestToken) return;
+    const label = manualAddress || coordinateLabel;
+    if (BookingState.map) {
+      setCustomerLocationMarker(parsedLat, parsedLng, label, 'Check the pin; street name unavailable');
+      if (BookingState.companyBaseCoordinates) drawRoute();
+    } else {
+      updateServiceMapSelectionUI(parsedLat, parsedLng, label, 'Check the pin; street name unavailable');
+    }
+  };
+
   if (cached) {
-    applyResult(cached);
+    if (cached.display_name) applyResult(cached);
+    else showPinWithoutStreetName();
     return;
   }
 
@@ -3056,22 +3489,24 @@ function reverseGeocode(lat, lng, requestToken) {
         if (reverseGeocodeCache.size > 100) {
           reverseGeocodeCache.delete(reverseGeocodeCache.keys().next().value);
         }
-        applyResult(data);
+        if (data?.display_name) applyResult(data);
+        else showPinWithoutStreetName();
       })
       .catch(error => {
         if (error.name === 'AbortError' || activeRequestToken !== customerLocationRequestToken) return;
+
+        if (error.status === 422) {
+          resetServiceLocationForTypedAddress(document.getElementById('locationInput')?.value.trim() || '');
+          showError('Choose a service location in the Philippines.');
+          return;
+        }
 
         if (error.status === 429) {
           console.warn('Reverse geocoding is temporarily rate limited; keeping the selected coordinates.');
         } else {
           console.error('Reverse geocoding error:', error);
         }
-        updateServiceMapSelectionUI(
-          parsedLat,
-          parsedLng,
-          coordinateLabel,
-          'Coordinates confirmed; street name unavailable'
-        );
+        showPinWithoutStreetName();
       });
   }, 350);
 }
@@ -3079,6 +3514,85 @@ function reverseGeocode(lat, lng, requestToken) {
 /**
  * Add current location button
  */
+function focusManualServiceAddress() {
+  const input = document.getElementById('locationInput');
+  input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => input?.focus({ preventScroll: true }), 350);
+}
+
+function showLocationTurnOnPrompt(retryButton, reason = 'unavailable') {
+  const reasonCopy = reason === 'denied'
+    ? 'Location access is turned off or blocked for this site.'
+    : reason === 'timeout'
+      ? 'Your device did not share its location in time. Location or GPS may be turned off.'
+      : 'Your device location or GPS appears to be turned off.';
+
+  if (typeof Swal === 'undefined') {
+    window.alert(`${reasonCopy} Turn on Location or GPS, allow this site to use it, then try again.`);
+    focusManualServiceAddress();
+    return;
+  }
+
+  Swal.fire({
+    icon: 'warning',
+    title: 'Turn On Your Location',
+    html: `<div class="location-access-help">
+      <p>${reasonCopy}</p>
+      <ol>
+        <li>Turn on <strong>Location</strong> or <strong>GPS</strong> in your device settings.</li>
+        <li>Allow this browser to use your location.</li>
+        <li>Come back here and press <strong>Try Again</strong>.</li>
+      </ol>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: '<i class="bi bi-arrow-clockwise me-1"></i> Try Again',
+    cancelButtonText: 'Enter Address Instead',
+    focusConfirm: true,
+    reverseButtons: true,
+    customClass: { popup: 'service-booking-alert location-access-alert' }
+  }).then(result => {
+    if (result.isConfirmed) window.setTimeout(() => retryButton?.click(), 150);
+    else focusManualServiceAddress();
+  });
+}
+
+function requestCustomerGpsLocation(button) {
+  if (!button) return;
+  if (!navigator.geolocation) {
+    showError('This browser cannot use your device location. Please enter the service address instead.')
+      .then(focusManualServiceAddress);
+    return;
+  }
+
+  if (!button.dataset.idleHtml) button.dataset.idleHtml = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i> Getting location...';
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      if (!isWithinPhilippinesMapBounds(position.coords.latitude, position.coords.longitude)) {
+        button.disabled = false;
+        button.innerHTML = button.dataset.idleHtml;
+        showError('Your current location is outside the Philippines. Enter a Philippine service address instead.');
+        return;
+      }
+      reverseGeocode(position.coords.latitude, position.coords.longitude, undefined, { requirePinConfirmation: true });
+      button.disabled = false;
+      button.innerHTML = button.dataset.idleHtml;
+    },
+    error => {
+      console.error('Unable to get device location:', error);
+      button.disabled = false;
+      button.innerHTML = button.dataset.idleHtml;
+      if (error.code === 1) return showLocationTurnOnPrompt(button, 'denied');
+      if (error.code === 2) return showLocationTurnOnPrompt(button, 'unavailable');
+      if (error.code === 3) return showLocationTurnOnPrompt(button, 'timeout');
+      showLocationTurnOnPrompt(button, 'unavailable');
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+}
+
 function addCurrentLocationButton() {
   console.log('🔄 addCurrentLocationButton called');
 
@@ -3122,55 +3636,7 @@ function addCurrentLocationButton() {
 
   currentLocationBtn.addEventListener('click', function () {
     console.log('📍 Current location button clicked');
-
-    if (!navigator.geolocation) {
-      console.error('❌ Geolocation not supported');
-      showError('Geolocation is not supported by your browser');
-      return;
-    }
-
-    console.log('🔄 Getting current location...');
-    this.disabled = true;
-    this.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Getting location...';
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log('✅ Location received:', position.coords);
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-
-        // Reverse geocode to get address
-        reverseGeocode(lat, lng);
-
-        this.disabled = false;
-        this.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i> Use Current Location';
-      },
-      (error) => {
-        console.error('❌ Geolocation error:', error);
-        let errorMessage = 'Unable to get your location. Please enter address manually.';
-
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Location access denied. Please allow location access and try again.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information unavailable. Please enter address manually.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Location request timed out. Please try again.';
-            break;
-        }
-
-        showError(errorMessage);
-        this.disabled = false;
-        this.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i> Use Current Location';
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
+    requestCustomerGpsLocation(this);
   });
 
   buttonContainer.appendChild(currentLocationBtn);
@@ -3219,36 +3685,7 @@ function setupLocateButtons() {
     locateCustomerBtn.dataset.mapBound = 'true';
     locateCustomerBtn.addEventListener('click', () => {
       console.log('📍 Use My Location clicked');
-      if (!navigator.geolocation) {
-        showError('Geolocation is not supported by your browser');
-        return;
-      }
-
-      locateCustomerBtn.disabled = true;
-      const originalText = locateCustomerBtn.innerHTML;
-      locateCustomerBtn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i> Getting location...';
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          console.log('📍 Location detected:', lat, lng);
-          reverseGeocode(lat, lng);
-          locateCustomerBtn.disabled = false;
-          locateCustomerBtn.innerHTML = originalText;
-        },
-        (error) => {
-          console.error('❌ Geolocation error:', error);
-          showError('Unable to get your location. Please enter address manually.');
-          locateCustomerBtn.disabled = false;
-          locateCustomerBtn.innerHTML = originalText;
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
+      requestCustomerGpsLocation(locateCustomerBtn);
     });
   }
 
@@ -3314,12 +3751,116 @@ function setupLocateButtons() {
   console.log('✅ Locate buttons setup complete');
 }
 
+function syncLocationContinueAction() {
+  const action = document.getElementById('locationNextAction');
+  if (!action) return;
+
+  if (action.parentElement !== document.body) document.body.appendChild(action);
+
+  const locationStep = document.getElementById('locationStep');
+  const isLocationStepActive = BookingState.currentStep === 3 || locationStep?.classList.contains('step-active');
+  const location = BookingState?.customerLocation;
+  const hasLocation = Boolean(location && Number.isFinite(Number(location.lat)) && Number.isFinite(Number(location.lng)));
+  const distanceText = document.getElementById('mapInfoDistance')?.textContent?.trim() || '';
+  const fareText = document.getElementById('mapInfoFare')?.textContent?.trim() || '';
+  const routeReady = document.getElementById('mapInfoDistance')?.dataset.ready === 'true' && fareText.startsWith('₱');
+  const button = document.getElementById('locationContinueButton');
+  const fareDetailsButton = document.getElementById('locationFareDetailsButton');
+  const label = document.getElementById('locationContinueLabel');
+  const eyebrow = document.getElementById('locationNextEyebrow');
+  const message = document.getElementById('locationNextMessage');
+
+  action.classList.toggle('is-visible', isLocationStepActive);
+  action.setAttribute('aria-hidden', String(!isLocationStepActive));
+  action.toggleAttribute('inert', !isLocationStepActive);
+  if (fareDetailsButton) fareDetailsButton.hidden = true;
+
+  if (!hasLocation) {
+    action.classList.remove('is-checking', 'is-ready');
+    if (eyebrow) eyebrow.textContent = 'Location needed';
+    if (message) message.textContent = 'Choose your service location to continue.';
+    if (label) label.textContent = 'Choose a Location';
+    if (button) button.disabled = true;
+    return;
+  }
+
+  if (location.pinConfirmed === false) {
+    action.classList.remove('is-checking', 'is-ready');
+    if (eyebrow) eyebrow.textContent = 'Check the map pin';
+    if (message) message.textContent = 'Check or drag the green pin, then confirm the location.';
+    if (label) label.textContent = 'Check Map Pin';
+    if (button) button.disabled = false;
+    return;
+  }
+
+  if (!routeReady) {
+    action.classList.add('is-checking');
+    action.classList.remove('is-ready');
+    if (eyebrow) eyebrow.textContent = 'Location selected';
+    if (message) message.textContent = 'Checking the route and travel fee...';
+    if (label) label.textContent = 'Checking Route';
+    if (button) button.disabled = true;
+    return;
+  }
+
+  const becameReady = !action.classList.contains('is-ready');
+  action.classList.remove('is-checking');
+  action.classList.add('is-ready');
+  if (eyebrow) eyebrow.textContent = 'Location ready';
+  if (message) message.textContent = `Travel fee ${fareText} · ${distanceText}`;
+  if (fareDetailsButton) fareDetailsButton.hidden = false;
+  if (label) label.textContent = 'Continue to Schedule';
+  if (button) button.disabled = false;
+  if (becameReady) {
+    action.classList.remove('just-became-ready');
+    void action.offsetWidth;
+    action.classList.add('just-became-ready');
+    window.clearTimeout(syncLocationContinueAction.readyTimer);
+    syncLocationContinueAction.readyTimer = window.setTimeout(() => action.classList.remove('just-became-ready'), 1800);
+  }
+}
+
+function showServiceTravelDetails() {
+  const panel = document.getElementById('mapInfoPanel');
+  if (!panel) return;
+  panel.setAttribute('tabindex', '-1');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => panel.focus({ preventScroll: true }), 350);
+}
+window.showServiceTravelDetails = showServiceTravelDetails;
+
+function clearServiceRouteEstimate() {
+  const distance = document.getElementById('mapInfoDistance');
+  const duration = document.getElementById('mapInfoDuration');
+  const fare = document.getElementById('mapInfoFare');
+  const formula = document.getElementById('mapDistanceInfo');
+  const method = document.getElementById('serviceRouteMethod');
+  if (distance) { distance.textContent = '—'; delete distance.dataset.ready; }
+  if (duration) duration.textContent = '—';
+  if (fare) fare.textContent = '—';
+  if (formula) formula.textContent = 'Checking the route and travel fee for this pin...';
+  if (method) method.textContent = 'Checking route';
+  BookingState.distance = null;
+  BookingState.fare = null;
+  BookingState.travelFare = null;
+  BookingState.travelDuration = null;
+  BookingState.actualRouteDistance = null;
+  BookingState.actualRouteDuration = null;
+  document.querySelector('.service-location-overview')?.classList.remove('route-result-ready');
+  syncLocationContinueAction();
+}
+
 window.continueServiceBookingFromMap = function() {
   const location = BookingState && BookingState.customerLocation;
   const distanceElement = document.getElementById('mapInfoDistance');
   const routeReady = distanceElement && distanceElement.dataset.ready === 'true';
   if (!location || !Number.isFinite(Number(location.lat)) || !Number.isFinite(Number(location.lng))) {
     showError('Select an address result, use My Location, or pin the exact service point on the map.');
+    return;
+  }
+  if (location.pinConfirmed === false) {
+    document.getElementById('servicePinConfirm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.querySelector('#servicePinConfirm button')?.focus({ preventScroll: true });
     return;
   }
   if (!routeReady) {
@@ -3330,10 +3871,22 @@ window.continueServiceBookingFromMap = function() {
   updateStepper(4);
 };
 
+function getServiceFarePerKm() {
+  const configuredRate = Number(window._farePerKm);
+  return Number.isFinite(configuredRate) && configuredRate >= 0 ? configuredRate : 40;
+}
+
+function calculateServiceTravelFare(distanceKm) {
+  // Charge for the same one-decimal distance shown to the customer, as in
+  // product checkout. Traffic affects the ETA, not the per-kilometer fee.
+  const billableDistanceKm = Math.round(Math.max(0, Number(distanceKm) || 0) * 10) / 10;
+  return Math.round(billableDistanceKm * getServiceFarePerKm());
+}
+
 /**
- * Calculate distance and travel fare with realistic duration
+ * Calculate route distance, travel duration, and the per-kilometer fare.
  */
-function calculateDistanceAndFare() {
+function calculateDistanceAndFare(requestToken = routeRequestToken) {
   // Ensure company base coordinates are loaded
   if (!BookingState.companyBaseCoordinates && window._companyBaseLocation) {
     BookingState.companyBaseCoordinates = {
@@ -3355,6 +3908,7 @@ function calculateDistanceAndFare() {
   // Try to get actual route distance from OSRM
   getActualRoute(companyPos, userPos)
     .then(routeData => {
+      if (requestToken !== routeRequestToken) return;
       let distance;
       let travelDurationMinutes;
 
@@ -3382,16 +3936,11 @@ function calculateDistanceAndFare() {
         travelDurationMinutes = calculateRealisticDuration(fallbackRouteData, trafficFactor);
       }
 
-      // Apply traffic factor to fare calculation (but not to distance display)
       const trafficFactor = getTrafficFactor();
-      const adjustedDistance = distance * trafficFactor;
-
-      // Calculate fare based on traffic-adjusted distance
-      const farePerKm = window._farePerKm || 40; // Use admin-configured fare per km
-      const fare = Math.round(adjustedDistance * farePerKm);
+      const fare = calculateServiceTravelFare(distance);
 
       // Update UI with realistic data
-      updateDistanceInfo(distance, fare, travelDurationMinutes, true);
+      updateDistanceInfo(distance, fare, travelDurationMinutes, Boolean(routeData?.distance));
 
       // Store in booking state
       if (typeof BookingState !== 'undefined') {
@@ -3408,7 +3957,7 @@ function calculateDistanceAndFare() {
       console.log('📊 Realistic calculation complete:', {
         distance: distance.toFixed(2) + ' km',
         trafficFactor: trafficFactor,
-        adjustedDistance: adjustedDistance.toFixed(2) + ' km',
+        billableDistance: distance.toFixed(1) + ' km',
         fare: '₱' + fare.toLocaleString(),
         duration: travelDurationMinutes + ' min',
         dataSource: routeData ? 'OSRM route data' : 'Calculated fallback'
@@ -3420,6 +3969,7 @@ function calculateDistanceAndFare() {
       }
     })
     .catch(error => {
+      if (requestToken !== routeRequestToken) return;
       console.warn('Route calculation failed, using enhanced fallback:', error);
 
       // Enhanced fallback calculation
@@ -3430,8 +3980,7 @@ function calculateDistanceAndFare() {
       const distance = straightDistance * 1.4; // Apply road factor
 
       const trafficFactor = getTrafficFactor();
-      const adjustedDistance = distance * trafficFactor;
-      const fare = Math.round(adjustedDistance * (window._farePerKm || 40));
+      const fare = calculateServiceTravelFare(distance);
 
       // Use realistic duration calculation for fallback
       const fallbackRouteData = { distance: distance };
@@ -3726,7 +4275,7 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
   const durationText = duration > 60
     ? `${Math.floor(duration / 60)}h ${duration % 60}min`
     : `${duration} min`;
-  const rate = Number(window._farePerKm) || 40;
+  const rate = getServiceFarePerKm();
 
   if (distanceElement) {
     distanceElement.textContent = `${distance.toFixed(1)} km`;
@@ -3736,14 +4285,17 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
   if (fareElement) fareElement.textContent = `₱${fare.toLocaleString()}`;
   if (routeMethodElement) {
     routeMethodElement.innerHTML = isRoadRoute
-      ? '<i class="bi bi-diagram-3 me-1"></i>Road route calculated'
+      ? '<i class="bi bi-diagram-3 me-1"></i>Road route'
       : '<i class="bi bi-calculator me-1"></i>Estimated route';
   }
   if (fitRouteButton) fitRouteButton.disabled = false;
 
   if (distanceInfoElement) {
-    distanceInfoElement.textContent = `${distance.toFixed(1)} km × ₱${rate.toFixed(2)}/km = ₱${fare.toLocaleString()} ${isRoadRoute ? 'road-route' : 'estimated'} travel fare`;
+    distanceInfoElement.textContent = `${distance.toFixed(1)} km × ₱${rate.toLocaleString()}/km = ₱${fare.toLocaleString()}`;
   }
+
+  syncLocationContinueAction();
+  guideToSavedAddressRoute();
 
   // Enhanced auto-advance detection
   const hasValidDistance = distance && distance > 0;
@@ -4283,7 +4835,7 @@ function displayTimeSlots(timeSlots) {
   });
 
   if (availableSlots.length === 0) {
-    timeSlotsContainer.innerHTML = '<p class="text-muted">No preferred time available for this date.</p>';
+    timeSlotsContainer.innerHTML = '<p class="text-muted">No time is available on this date.</p>';
     return;
   }
 
@@ -4522,9 +5074,9 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
 
     if (timeNotice) {
       if (data.timeSlots && data.timeSlots.length > 0) {
-        timeNotice.textContent = `Select preferred start time (${data.timeSlots.length} options found)`;
+        timeNotice.textContent = `Choose a start time (${data.timeSlots.length} options)`;
       } else {
-        timeNotice.textContent = "No preferred time available for this date.";
+        timeNotice.textContent = "No time is available on this date.";
       }
     }
 
@@ -4539,11 +5091,11 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
     console.error('❌ Error fetching time slots:', error);
 
     if (timeNotice) {
-      timeNotice.textContent = "Failed to load preferred times. Please try again.";
+      timeNotice.textContent = "We could not load the available times. Please try again.";
     }
 
     if (timeSlots) {
-      timeSlots.innerHTML = '<p class="text-danger">Unable to load preferred times.</p>';
+      timeSlots.innerHTML = '<p class="text-danger">We could not load the available times.</p>';
     }
   }
 }
@@ -4643,12 +5195,8 @@ function selectTimeSlot(slot) {
   // Show success feedback
   showTimeSlotComplete();
 
-  // Auto-advance after time slot selection
-  setTimeout(() => {
-    console.log('⏭️ Auto-advancing to Step 6 after time slot selection');
-    showStep(5);
-    updateStepper(5);
-  }, 1500);
+  // Let the customer review the chosen time and use the visible next action.
+  syncScheduleNextAction();
 
   console.log('✅ Time slot selection complete');
 }
@@ -4981,6 +5529,38 @@ async function fetchServicesFromAPI() {
 /**
  * Render core services in the UI
  */
+const CORE_SERVICES_PER_PAGE = 4;
+
+function updateCoreServicePagination(totalServices) {
+  const pagination = document.getElementById('coreServicePagination');
+  const pageLabel = document.getElementById('coreServicePageLabel');
+  const showingLabel = document.getElementById('coreServiceShowingLabel');
+  const previousButton = document.getElementById('coreServicePrev');
+  const nextButton = document.getElementById('coreServiceNext');
+  const listGuide = document.getElementById('serviceListGuide');
+  const listGuideText = document.getElementById('serviceListGuideText');
+  const totalPages = Math.max(1, Math.ceil(totalServices / CORE_SERVICES_PER_PAGE));
+  const currentPage = Math.min(Math.max(1, Number(BookingState.ui.coreServicePage) || 1), totalPages);
+  BookingState.ui.coreServicePage = currentPage;
+  const firstItem = totalServices ? ((currentPage - 1) * CORE_SERVICES_PER_PAGE) + 1 : 0;
+  const lastItem = Math.min(currentPage * CORE_SERVICES_PER_PAGE, totalServices);
+
+  if (pagination) pagination.classList.toggle('d-none', totalServices === 0);
+  if (pageLabel) pageLabel.textContent = `Page ${currentPage} of ${totalPages}`;
+  if (showingLabel) showingLabel.textContent = totalServices
+    ? `Showing ${firstItem}–${lastItem} of ${totalServices} services`
+    : 'No services available';
+  if (previousButton) previousButton.disabled = currentPage <= 1;
+  if (nextButton) nextButton.disabled = currentPage >= totalPages;
+  if (listGuide) listGuide.classList.toggle('d-none', totalPages <= 1);
+  if (listGuideText && totalPages > 1) {
+    const remainingServices = Math.max(0, totalServices - lastItem);
+    listGuideText.textContent = remainingServices > 0
+      ? `${remainingServices} more services. Use the right arrow to see them.`
+      : 'This is the last page. Use the left arrow to go back.';
+  }
+}
+
 function renderCoreServices() {
 
   if (!DOM.coreServiceCards) {
@@ -4994,17 +5574,54 @@ function renderCoreServices() {
   if (BookingState.catalog.coreServices.length === 0) {
     DOM.coreServiceCards.innerHTML = '<div class="col-12"><div class="alert alert-info">No core services available at the moment.</div></div>';
     if (emptyState) emptyState.classList.remove('d-none');
+    updateCoreServicePagination(0);
     return;
   }
 
   if (emptyState) emptyState.classList.add('d-none');
 
-  BookingState.catalog.coreServices.forEach((service, index) => {
+  const totalServices = BookingState.catalog.coreServices.length;
+  const totalPages = Math.max(1, Math.ceil(totalServices / CORE_SERVICES_PER_PAGE));
+  BookingState.ui.coreServicePage = Math.min(Math.max(1, Number(BookingState.ui.coreServicePage) || 1), totalPages);
+  const pageStart = (BookingState.ui.coreServicePage - 1) * CORE_SERVICES_PER_PAGE;
+  const visibleServices = BookingState.catalog.coreServices.slice(pageStart, pageStart + CORE_SERVICES_PER_PAGE);
+
+  visibleServices.forEach(service => {
     const serviceCard = createServiceCard(service, 'core');
     DOM.coreServiceCards.appendChild(serviceCard);
   });
 
+  updateCoreServicePagination(totalServices);
+  syncServiceCardSelectionState();
+
 }
+
+function changeCoreServicePage(direction) {
+  const totalPages = Math.max(1, Math.ceil(BookingState.catalog.coreServices.length / CORE_SERVICES_PER_PAGE));
+  const currentPage = Number(BookingState.ui.coreServicePage) || 1;
+  const nextPage = Math.min(totalPages, Math.max(1, currentPage + Number(direction || 0)));
+  if (nextPage === currentPage) return;
+  BookingState.ui.coreServicePage = nextPage;
+  DOM.coreServiceCards?.classList.add('is-changing');
+  window.setTimeout(() => {
+    renderCoreServices();
+    DOM.coreServiceCards?.classList.remove('is-changing');
+    document.getElementById('coreServicePageLabel')?.focus({ preventScroll: true });
+  }, 120);
+}
+window.changeCoreServicePage = changeCoreServicePage;
+
+function scrollToCoreServiceList() {
+  const target = document.getElementById('coreServiceListTarget') || document.getElementById('coreServiceCards');
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('coreServiceCards')?.classList.remove('list-arrival');
+  window.requestAnimationFrame(() => document.getElementById('coreServiceCards')?.classList.add('list-arrival'));
+  window.setTimeout(() => {
+    document.querySelector('#coreServiceCards .add-service-btn')?.focus({ preventScroll: true });
+    document.getElementById('coreServiceCards')?.classList.remove('list-arrival');
+  }, 650);
+}
+window.scrollToCoreServiceList = scrollToCoreServiceList;
 
 /**
  * Render repair services in the UI
@@ -5035,15 +5652,20 @@ function renderRepairServices() {
  */
 function createServiceCard(service, type) {
 
+  const escapeCardText = value => String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+
   const col = document.createElement('div');
   col.className = type === 'core'
-    ? 'col-12 col-md-4 core-service-column'
+    ? 'col-6 core-service-column'
     : 'col-12 col-sm-6 col-lg-4';
 
   const card = document.createElement('div');
-  card.className = 'card service-card h-100 border-0 shadow-sm';
+  card.className = 'card service-card h-100';
   card.dataset.serviceId = service._id;
   card.dataset.serviceType = type;
+  card.setAttribute('role', 'group');
 
   // Determine if service supports HP-based pricing
   const isAirconService = service.isAirconService && service.hpPricing && service.hpPricing.length > 0;
@@ -5061,26 +5683,34 @@ function createServiceCard(service, type) {
   } else if (basePrice) {
     priceDisplay = `₱${basePrice.toLocaleString()}`;
   } else {
-    priceDisplay = 'Price on quote';
+    priceDisplay = type === 'repair' ? 'Price after inspection' : 'Ask for a price quote';
   }
 
   const durationLabel = service.duration
     ? `${service.duration} min`
     : service.estimatedDuration
       ? `${service.estimatedDuration} min`
-      : 'Duration TBD';
+      : '';
 
   const serviceTypeBadge = isAirconService
-    ? '<span class="badge bg-info text-dark service-card-chip">HP-based</span>'
+    ? '<span class="badge bg-info text-dark service-card-chip">Presyo depende sa HP at unit type</span>'
     : type === 'repair'
-      ? '<span class="badge bg-secondary text-white service-card-chip">Repair</span>'
+      ? '<span class="badge bg-secondary text-white service-card-chip">Inspection first</span>'
       : '<span class="badge bg-primary service-card-chip">Service</span>';
+
+  const serviceName = escapeCardText(service.name || 'Service');
+  const serviceDescription = escapeCardText(
+    service.description || service.summary ||
+    (type === 'repair'
+      ? 'Tell us what is wrong so the technician can prepare.'
+      : 'Choose this service to see the needed details and price.')
+  );
 
   // Use image if available, otherwise use icon
   const hasImage = service.images && service.images.length > 0;
   const mediaSection = hasImage
     ? `<div class="service-card-media">
-        <img src="${service.images[0]}" alt="${service.name}" class="service-card-img" loading="lazy" />
+        <img src="${escapeCardText(service.images[0])}" alt="${serviceName}" class="service-card-img" loading="lazy" />
        </div>`
     : `<div class="service-icon-wrap mb-2">
         <div class="service-icon">
@@ -5091,22 +5721,28 @@ function createServiceCard(service, type) {
   card.innerHTML = `
     <div class="card-body service-card-body d-flex flex-column">
       ${mediaSection}
-      <h6 class="card-title fw-semibold mb-1 text-dark">${service.name}</h6>
-      <div class="service-card-meta d-flex flex-wrap align-items-center gap-2 mb-2">
+      <div class="service-card-selected-mark" aria-hidden="true"><i class="bi bi-check-lg"></i> Selected</div>
+      <span class="service-card-kicker">${type === 'repair' ? 'Repair service' : 'Aircon service'}</span>
+      <h6 class="card-title">${serviceName}</h6>
+      <p class="service-card-description">${serviceDescription}</p>
+      <div class="service-card-meta d-flex flex-wrap align-items-center gap-2">
         ${serviceTypeBadge}
-        <span class="badge bg-light text-muted service-card-chip">${durationLabel}</span>
+        ${durationLabel ? `<span class="badge bg-light text-muted service-card-chip">About ${durationLabel}</span>` : ''}
       </div>
-      <div class="service-card-price text-center mt-auto mb-2">
-        <div class="price-box rounded-pill px-3 py-1 fw-bold text-primary d-inline-block">
-          ${priceDisplay}
-        </div>
+      <div class="service-card-price mt-auto">
+        <span>Estimated price</span>
+        <strong class="price-box">${priceDisplay}</strong>
       </div>
-      <button class="btn btn-primary btn-sm w-100 add-service-btn" 
+      <button type="button" class="add-service-btn"
               data-service-id="${service._id}" 
               data-service-type="${type}"
-              data-service-name="${service.name}"
-              data-is-aircon="${isAirconService}">
-        <i class="bi bi-plus-circle me-1"></i>Add to Booking
+              data-service-name="${serviceName}"
+              data-is-aircon="${isAirconService}"
+              aria-pressed="false">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add</span>
+      </button>
+      <button type="button" class="service-card-summary-link d-none" onclick="openSelectedServiceSummary(event)">
+        View selected service <i class="bi bi-arrow-right" aria-hidden="true"></i>
       </button>
     </div>
   `;
@@ -5323,6 +5959,7 @@ function addContinueButton() {
     e.preventDefault();
     e.stopPropagation();
 
+    toggleBookingSummary(false);
     advanceToNextStep();
     return false;
   };
@@ -5338,6 +5975,7 @@ function addContinueButton() {
 function updateContinueButtonState() {
   const continueBtn = document.getElementById('continueToNextStep');
   const continueHint = document.getElementById('continueHint');
+  const continueLabel = document.getElementById('continueActionLabel');
 
   if (!continueBtn) return;
 
@@ -5346,13 +5984,18 @@ function updateContinueButtonState() {
   // required instead of failing silently behind a disabled control.
   continueBtn.disabled = false;
   continueBtn.classList.toggle('is-ready', hasServices);
+  if (continueLabel) continueLabel.textContent = hasServices ? 'Add Service Location' : 'Continue';
 
   if (continueHint) {
     if (hasServices) {
-      continueHint.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${BookingState.selectedServices.length} service(s) selected - click to continue`;
+      continueHint.textContent = 'Next, enter the address where the service will be done.';
     } else {
-      continueHint.textContent = 'Please select at least one service to continue';
+      continueHint.textContent = 'Choose at least one service to continue.';
     }
+  }
+
+  if (typeof updateEntStepper === 'function' && Number(BookingState.currentStep) <= 2) {
+    updateEntStepper(2);
   }
 }
 
@@ -5755,6 +6398,7 @@ function handleServiceCardClick(event) {
  * Show combined quantity and HP selection modal - Enterprise Edition with Aircon Types
  */
 function showCombinedQuantityHpModal(service) {
+  setServicePickerGuide('configure');
   console.log('showCombinedQuantityHpModal called for:', service.name, {
     isAirconService: service.isAirconService,
     hasAirconTypes: !!(service.airconTypes && service.airconTypes.length > 0),
@@ -5888,9 +6532,9 @@ function showCombinedQuantityHpModal(service) {
   const priceLabel = document.getElementById('priceLabel');
   if (priceLabel) {
     if (service.type === 'repair' || service.type === 'repairServices') {
-      priceLabel.textContent = 'Initial Cost: ';
+      priceLabel.textContent = 'Initial service fee';
     } else {
-      priceLabel.textContent = 'Estimated Price: ';
+      priceLabel.textContent = 'Estimated price';
     }
   }
 
@@ -5908,10 +6552,10 @@ function showCombinedQuantityHpModal(service) {
   if (isAirconService) {
 
     // Update modal title
-    if (modalTitle) modalTitle.textContent = 'Configure Service';
+    if (modalTitle) modalTitle.textContent = 'Set Up Your Service';
     if (modalSubtitle) modalSubtitle.textContent = hasAirconTypes
-      ? 'Choose the brand, aircon type, and HP rating'
-      : 'Choose the brand and HP rating';
+      ? 'Choose the brand, aircon type, and HP to get the right price.'
+      : 'Choose the brand and HP to get the right price.';
     if (wizard) wizard.classList.toggle('d-none', !hasAirconTypes);
     if (backToTypeBtn) {
       backToTypeBtn.classList.add('d-none');
@@ -5957,8 +6601,8 @@ function showCombinedQuantityHpModal(service) {
   } else {
 
     // Update modal title
-    if (modalTitle) modalTitle.textContent = 'Configure Service';
-    if (modalSubtitle) modalSubtitle.textContent = 'Choose how many units need this service';
+    if (modalTitle) modalTitle.textContent = 'Set Up Your Service';
+    if (modalSubtitle) modalSubtitle.textContent = 'Enter how many units need service.';
     if (wizard) wizard.classList.add('d-none');
     if (backToTypeBtn) {
       backToTypeBtn.classList.add('d-none');
@@ -6020,7 +6664,7 @@ function renderAirconTypeSelection(airconTypes, container) {
   header.className = 'cfg-stage-heading mb-3';
   header.innerHTML = `
     <span class="cfg-stage-icon"><i class="bi bi-snow"></i></span>
-    <div><span class="cfg-stage-kicker">Step 2</span><h6 id="cfgTypeHeading" tabindex="-1">Choose the aircon type</h6><p>Select one option to see its available HP ratings.</p></div>
+    <div><span class="cfg-stage-kicker">Next</span><h6 id="cfgTypeHeading" tabindex="-1">What type of aircon is it?</h6><p>Choose the closest match. You will choose the HP next.</p></div>
   `;
   typeSection.appendChild(header);
 
@@ -6041,13 +6685,13 @@ function renderAirconTypeSelection(airconTypes, container) {
 
   // Type description mapping
   const typeDescriptions = {
-    split: 'Wall-mounted indoor + outdoor units',
-    window: 'Self-contained window units',
-    floor_mounted: 'Floor-standing units',
-    floor_standing: 'Freestanding floor-standing units',
-    split_suspended: 'Ceiling-suspended units',
-    cassette: 'Ceiling cassette for commercial',
-    central: 'Centralized ducted system'
+    split: 'Wall-mounted indoor and outdoor units',
+    window: 'One-piece unit fitted in a window or wall',
+    floor_mounted: 'Upright aircon placed on the floor',
+    floor_standing: 'Freestanding unit for a larger room',
+    split_suspended: 'Split-type unit mounted on the ceiling',
+    cassette: 'Ceiling unit for a business space',
+    central: 'Central aircon that uses air ducts'
   };
 
   airconTypes.forEach((type, index) => {
@@ -6055,22 +6699,13 @@ function renderAirconTypeSelection(airconTypes, container) {
     const typeCol = document.createElement('div');
     typeCol.className = 'col-6 cfg-type-option';
 
-    const typeCard = document.createElement('div');
+    const typeCard = document.createElement('button');
+    typeCard.type = 'button';
     typeCard.className = 'card aircon-type-card h-100 border-2 bg-white shadow-sm cursor-pointer';
     typeCard.dataset.type = type.type;
     typeCard.dataset.index = index;
-    typeCard.setAttribute('role', 'button');
-    typeCard.setAttribute('tabindex', '0');
     typeCard.setAttribute('aria-pressed', 'false');
-    typeCard.setAttribute('aria-label', `${type.name}, ${type.hpPricing.length} HP options`);
-    typeCard.style.cssText = `
-      border-radius: 12px !important;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-      border-color: #e5e7eb !important;
-      cursor: pointer !important;
-      position: relative !important;
-      overflow: hidden !important;
-    `;
+    typeCard.setAttribute('aria-label', `${type.name}, ${type.hpPricing.length} available na HP option`);
 
     // Get price range for this type
     const minPrice = Math.min(...type.hpPricing.map(hp => hp.price));
@@ -6078,19 +6713,17 @@ function renderAirconTypeSelection(airconTypes, container) {
     const hpCount = type.hpPricing.length;
 
     typeCard.innerHTML = `
-      <div class="card-body p-2 p-md-3 text-center cfg-type-card-body">
-        <div class="mb-2 cfg-type-icon-wrap">
-          <i class="bi ${typeIcons[type.type] || 'bi-fan'} fs-3 fs-md-2 text-primary cfg-type-icon"></i>
-        </div>
-        <h6 class="fw-bold mb-1" style="font-size:0.9rem">${type.name}</h6>
-        <p class="text-muted small mb-2 d-none d-md-block" style="font-size: 0.75rem; line-height:1.35">${typeDescriptions[type.type] || type.description}</p>
-        <div class="d-flex justify-content-center align-items-center gap-2">
-          <span class="badge bg-success bg-opacity-10 text-success cfg-type-price" style="font-size:0.65rem">
-            ₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}
+      <div class="card-body cfg-type-card-body">
+        <div class="cfg-type-card-top">
+          <span class="cfg-type-icon-wrap"><i class="bi ${typeIcons[type.type] || 'bi-fan'} cfg-type-icon"></i></span>
+          <span class="cfg-type-card-copy">
+            <strong>${type.name}</strong>
+            <small>${typeDescriptions[type.type] || type.description || 'Aircon unit type'}</small>
           </span>
         </div>
-        <div class="text-muted mt-1 cfg-type-count" style="font-size: 0.65rem;">
-          ${hpCount} HP options available
+        <div class="cfg-type-card-bottom">
+          <span class="cfg-type-price">₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}</span>
+          <span class="cfg-type-count">${hpCount} HP option <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
         </div>
       </div>
     `;
@@ -6102,26 +6735,11 @@ function renderAirconTypeSelection(airconTypes, container) {
       container.querySelectorAll('.aircon-type-card').forEach(card => {
         card.classList.remove('selected');
         card.setAttribute('aria-pressed', 'false');
-        card.style.cssText = `
-          border-radius: 12px !important;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          border-color: #e5e7eb !important;
-          cursor: pointer !important;
-          position: relative !important;
-          overflow: hidden !important;
-          transform: translateY(0) !important;
-        `;
       });
 
       // Add selection styling
       typeCard.classList.add('selected');
       typeCard.setAttribute('aria-pressed', 'true');
-      typeCard.style.cssText += `
-        border-color: #3b82f6 !important;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
-        box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15) !important;
-        transform: translateY(-2px) !important;
-      `;
 
       // Store selected type
       BookingState.selectedAirconType = type;
@@ -6134,12 +6752,6 @@ function renderAirconTypeSelection(airconTypes, container) {
       renderHpOptionsForType(type, container);
       updateCombinedPrice();
     });
-    typeCard.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      typeCard.click();
-    });
-
     typeCol.appendChild(typeCard);
     typesContainer.appendChild(typeCol);
   });
@@ -6154,11 +6766,11 @@ function renderAirconTypeSelection(airconTypes, container) {
   hpSectionDiv.innerHTML = `
     <div class="cfg-type-summary mb-3" aria-live="polite">
       <span><small>Selected aircon type</small><strong id="cfgSelectedTypeName">—</strong></span>
-      <button type="button" class="cfg-change-type" id="cfgChangeTypeBtn"><i class="bi bi-arrow-left me-1"></i>Change type</button>
+      <button type="button" class="cfg-change-type" id="cfgChangeTypeBtn"><i class="bi bi-arrow-left me-1"></i>Change</button>
     </div>
     <div class="cfg-stage-heading mb-3">
       <span class="cfg-stage-icon"><i class="bi bi-speedometer2"></i></span>
-      <div><span class="cfg-stage-kicker">Step 3</span><h6 id="cfgHpHeading" tabindex="-1">Choose the HP rating</h6><p>Select one or more ratings and set the quantity for each.</p></div>
+      <div><span class="cfg-stage-kicker">Last</span><h6 id="cfgHpHeading" tabindex="-1">What is the aircon HP?</h6><p>Choose the HP and enter the number of units.</p></div>
     </div>
     <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
   `;
@@ -6180,6 +6792,8 @@ function renderAirconTypeSelection(airconTypes, container) {
 
 function notifyServiceConfigurationStep(step, complete = false) {
   const modal = document.getElementById('quantitySelectionModal');
+  const currentStepLabel = document.getElementById('cfgCurrentStepLabel');
+  if (currentStepLabel) currentStepLabel.textContent = complete ? 'Ready to add' : `Step ${step} of 3`;
   if (modal) modal.dispatchEvent(new CustomEvent('service-config-step-change', {
     detail: { step, complete }
   }));
@@ -6263,10 +6877,10 @@ function syncConfigurationPrimaryAction() {
   button.innerHTML = ready
     ? '<i class="bi bi-check-lg me-2"></i>Add to Booking'
     : !hasBrand
-      ? '<i class="bi bi-upc-scan me-2"></i>Select a brand'
+      ? '<i class="bi bi-upc-scan me-2"></i>Choose a brand'
       : !hasType
-        ? '<i class="bi bi-arrow-right me-2"></i>Select an aircon type'
-        : '<i class="bi bi-speedometer2 me-2"></i>Select an HP rating';
+        ? '<i class="bi bi-arrow-right me-2"></i>Choose aircon type'
+        : '<i class="bi bi-speedometer2 me-2"></i>Choose HP';
   button.style.setProperty('opacity', ready ? '1' : '0.58', 'important');
   button.style.setProperty('cursor', ready ? 'pointer' : 'not-allowed', 'important');
 }
@@ -6283,7 +6897,7 @@ function showAirconTypeStep(container) {
     backButton.classList.remove('d-none');
     backButton.style.setProperty('display', 'inline-flex', 'important');
     const label = backButton.querySelector('span');
-    if (label) label.textContent = 'Back to brand';
+    if (label) label.textContent = 'Back to Brand';
   }
   container?.querySelectorAll('.aircon-type-card').forEach(card => {
     card.classList.remove('selected');
@@ -6321,9 +6935,10 @@ function showBrandSection(service) {
   if (custom) { custom.value = ''; custom.classList.add('d-none'); }
 
   const brands = (service && Array.isArray(service.brands)) ? service.brands : [];
-  select.innerHTML = '<option value="">Select brand…</option>' +
+  select.innerHTML = '<option value="">Choose a brand…</option>' +
     brands.map(b => `<option value="${String(b).replace(/"/g, '&quot;')}">${b}</option>`).join('') +
-    '<option value="__other__">Other (type your brand)</option>';
+    '<option value="I don\'t know">I don\'t know</option>' +
+    '<option value="__other__">Other brand</option>';
 
   // Restore previous selection if it is still valid
   if (prevBrand) {
@@ -6425,7 +7040,7 @@ function renderHpOptionsForType(airconType, container) {
     backButton.classList.remove('d-none');
     backButton.style.setProperty('display', 'inline-flex', 'important');
     const label = backButton.querySelector('span');
-    if (label) label.textContent = 'Back to aircon type';
+    if (label) label.textContent = 'Back to Aircon Type';
   }
   BookingState.configurationStep = 3;
 
@@ -6467,65 +7082,47 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
   card.dataset.description = hpOption.description;
   card.dataset.durationMinutes = hpOption.durationMinutes || 60;
   card.dataset.type = airconType.type;
+  card.dataset.typeName = airconType.name;
   card.dataset.selected = 'false';
-  card.style.cssText = `
-    border-radius: 12px !important;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    border-color: #e5e7eb !important;
-    cursor: pointer !important;
-    position: relative !important;
-    overflow: hidden !important;
-  `;
+  const durationMinutes = Number(hpOption.durationMinutes) || 60;
+  const durationHours = durationMinutes / 60;
+  const durationLabel = Number.isInteger(durationHours)
+    ? `About ${durationHours} hours`
+    : `About ${durationHours.toFixed(1)} hours`;
+  const description = String(hpOption.description || '')
+    .replace(/^\s*[0-9.]+\s*HP\s*[-–—:]?\s*/i, '')
+    .replace(/\s*\/\s*/g, ' o ')
+    .trim() || 'For an aircon with this HP rating';
 
   card.innerHTML = `
-    <div class="card-body p-3 p-md-4 cfg-hp-card-body">
-      <div class="row align-items-start align-items-md-center g-0 g-md-3 cfg-hp-card-layout">
-        <div class="col-12 col-md-6 mb-2 mb-md-0 cfg-hp-card-main">
-          <div class="d-flex align-items-start gap-2 gap-md-3">
-            <div class="form-check form-check-lg">
-              <input class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}"
-                     data-price="${hpOption.price}" data-type="${airconType.type}" style="width: 1.25rem; height: 1.25rem; margin-top: .2rem;">
-            </div>
-            <div class="flex-grow-1">
-              <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-                <span class="badge bg-primary bg-gradient rounded-pill px-3 py-2">
-                  ${hpOption.hp} HP
-                </span>
-                <div class="text-primary fw-bold fs-5">₱${hpOption.price.toLocaleString()}</div>
-              </div>
-              <div class="text-muted small">
-                <i class="bi bi-clock me-1"></i>
-                ${hpOption.durationMinutes || 60} minutes
-              </div>
-              ${hpOption.description ? `<div class="text-muted small mt-1">${hpOption.description}</div>` : ''}
-              <div class="mt-2">
-                <span class="badge bg-info bg-opacity-10 text-info">${airconType.name}</span>
-              </div>
-            </div>
-          </div>
+    <div class="card-body cfg-hp-card-body">
+      <div class="cfg-hp-choice-row">
+        <label class="cfg-hp-choice" for="hpChoice-${index}">
+          <input id="hpChoice-${index}" class="form-check-input hp-checkbox" type="checkbox" value="${hpOption.hp}"
+                 data-price="${hpOption.price}" data-type="${airconType.type}">
+          <span class="cfg-hp-title">
+            <strong>${hpOption.hp} HP</strong>
+            <small>${description}</small>
+          </span>
+        </label>
+        <strong class="cfg-hp-price">₱${hpOption.price.toLocaleString()}</strong>
+      </div>
+      <div class="cfg-hp-meta">
+        <span><i class="bi bi-clock" aria-hidden="true"></i>${durationLabel}</span>
+      </div>
+      <div class="hp-quantity-control" aria-label="Number of ${hpOption.hp} HP units" style="opacity:0.5;pointer-events:none;">
+        <div class="cfg-hp-quantity-copy">
+          <strong>Number of units</strong>
+          <span class="quantity-price">₱${hpOption.price.toLocaleString()} total</span>
         </div>
-        <div class="col-12 col-md-6 cfg-hp-card-controls">
-          <div class="hp-quantity-control w-100" style="opacity:0.5;pointer-events:none;">
-            <label class="form-label fw-semibold text-dark mb-2 d-none d-md-block">Quantity:</label>
-            <div class="quantity-selector w-100">
-              <div class="input-group input-group-lg shadow-sm w-100">
-                <button class="btn btn-outline-primary quantity-decrease" type="button" disabled
-                        style="border-radius: 8px 0 0 8px; min-width: 50px;">
-                  <i class="bi bi-dash-lg"></i>
-                </button>
-                <input type="number" class="form-control text-center hp-quantity-input fw-bold"
-                       value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled
-                       style="background: #f8f9fa; border: none; font-size: 1.1rem;">
-                <button class="btn btn-outline-primary quantity-increase" type="button" disabled
-                        style="border-radius: 0 8px 8px 0; min-width: 50px;">
-                  <i class="bi bi-plus-lg"></i>
-                </button>
-              </div>
-              <div class="text-muted small mt-2 text-center d-none d-md-block">
-                <span class="quantity-price">₱${hpOption.price.toLocaleString()}</span> per unit
-              </div>
-            </div>
-          </div>
+        <div class="cfg-hp-stepper">
+          <button class="quantity-decrease" type="button" disabled aria-label="Decrease quantity">
+            <i class="bi bi-dash-lg" aria-hidden="true"></i>
+          </button>
+          <input type="number" class="hp-quantity-input" value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled aria-label="Number of units">
+          <button class="quantity-increase" type="button" disabled aria-label="Increase quantity">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -6537,7 +7134,9 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
   // Also add click handler to the entire card to toggle checkbox
   card.addEventListener('click', (e) => {
     // Don't toggle if clicking on quantity controls
-    if (e.target.closest('.hp-quantity-control') ||
+    if (e.target.closest('.hp-choice-select') ||
+      e.target.closest('.cfg-hp-choice') ||
+      e.target.closest('.hp-quantity-control') ||
       e.target.closest('.quantity-decrease') ||
       e.target.closest('.quantity-increase')) {
       return;
@@ -6591,13 +7190,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
     card.dataset.selected = isChecked;
 
     if (isChecked) {
-      // Professional selection styling
-      card.style.cssText += `
-        border-color: #3b82f6 !important;
-        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
-        box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15) !important;
-        transform: translateY(-2px) !important;
-      `;
+      card.classList.add('selected');
       quantityControl.style.opacity = '1';
       quantityControl.style.pointerEvents = 'auto';
       quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = false);
@@ -6619,16 +7212,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
       if (!existing) BookingState.selectedHps.push(newHpSelection);
 
     } else {
-      // Reset styling
-      card.style.cssText = `
-        border-radius: 12px !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        border-color: #e5e7eb !important;
-        cursor: pointer !important;
-        position: relative !important;
-        overflow: hidden !important;
-        transform: translateY(0) !important;
-      `;
+      card.classList.remove('selected');
       quantityControl.style.opacity = '0.5';
       quantityControl.style.pointerEvents = 'none';
       quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = true);
@@ -6882,7 +7466,7 @@ function addHpCardEventListeners(card, hpOption) {
  */
 function updateQuantityPriceDisplay(element, basePrice, quantity) {
   const total = basePrice * quantity;
-  element.textContent = `₱${total.toLocaleString()} per unit`;
+  element.textContent = `₱${total.toLocaleString()} total`;
 }
 
 /**
@@ -6990,6 +7574,8 @@ function resetModalForNextUse() {
   BookingState.currentService = null;
   BookingState.selectedHps = [];
   BookingState.selectedAirconType = null;
+  BookingState.editingServiceId = null;
+  setServicePickerGuide(BookingState.selectedServices.length ? 'review' : 'choose');
 
   // Clear HP container
   const hpContainer = document.getElementById('hpOptionsContainer');
@@ -8492,7 +9078,7 @@ function confirmQuantitySelection() {
         brandLabel.classList.add('text-danger');
         setTimeout(() => brandLabel.classList.remove('text-danger'), 2500);
       }
-      showModalError('Please select or enter a brand name before adding to booking.');
+      showModalError('Choose or enter a brand before adding this service.');
       const banner = document.getElementById('modalErrorBanner');
       if (banner && banner.scrollIntoView) banner.scrollIntoView({ block: 'nearest' });
       resetProcessingFlag();
@@ -8500,7 +9086,7 @@ function confirmQuantitySelection() {
     }
 
     if (hasAirconTypes && !BookingState.selectedAirconType) {
-      showModalError('Select an aircon type before continuing to the HP rating.');
+      showModalError('Choose the aircon type before choosing the HP.');
       document.getElementById('cfgTypeHeading')?.focus({ preventScroll: true });
       resetProcessingFlag();
       return;
@@ -8519,7 +9105,7 @@ function confirmQuantitySelection() {
             const hp = parseFloat(checkbox.value);
             const price = parseInt(checkbox.dataset.price);
             const type = checkbox.dataset.type || 'split';
-            const typeName = card.querySelector('.badge.bg-info')?.textContent || 'Standard';
+            const typeName = card.dataset.typeName || 'Aircon';
             const quantityInput = card.querySelector('.hp-quantity-input');
             const quantity = quantityInput ? parseInt(quantityInput.value) : 1;
 
@@ -8546,7 +9132,7 @@ function confirmQuantitySelection() {
 
     // Validate HP selections
     if (!BookingState.selectedHps || BookingState.selectedHps.length === 0) {
-      showModalError('Select at least one HP rating before adding this service.');
+      showModalError('Choose at least one HP before adding this service.');
       document.getElementById('cfgHpHeading')?.focus({ preventScroll: true });
       resetProcessingFlag();
       return;
@@ -8556,14 +9142,14 @@ function confirmQuantitySelection() {
     const hasValidSelection = BookingState.selectedHps.some(hp => hp.quantity > 0);
 
     if (!hasValidSelection) {
-      showError('Please select at least one HP rating with quantity greater than 0');
+      showError('Choose an HP and enter at least 1 unit.');
       resetProcessingFlag();
       return;
     }
 
     const hpTotalUnits = BookingState.selectedHps.reduce((sum, hp) => sum + (Number(hp.quantity) || 0), 0);
     if (selectedUnitTotal() + hpTotalUnits > MAX_BOOKING_UNITS) {
-      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+      showError(`You can add up to ${MAX_BOOKING_UNITS} units.`);
       resetProcessingFlag();
       return;
     }
@@ -8603,13 +9189,13 @@ function confirmQuantitySelection() {
     const quantity = parseInt(DOM.quantityModalInput.value);
 
     if (isNaN(quantity) || quantity < 1) {
-      showError('Please enter a valid quantity');
+      showError('Enter a valid number of units.');
       resetProcessingFlag();
       return;
     }
 
     if (quantity > MAX_BOOKING_UNITS) {
-      showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+      showError(`You can add up to ${MAX_BOOKING_UNITS} units.`);
       resetProcessingFlag();
       return;
     }
@@ -8757,7 +9343,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     id: generateUniqueId(),
     serviceId: service._id,
     name: service.name,
-    type: service.type,
+    type: isRepairBookingService(service) ? 'repair' : 'core',
     quantity: quantity,
     unitPrice: hpData ? hpData.price : (service.initialPrice || service.basePrice || service.price || 0),
     totalPrice: (hpData ? hpData.price : (service.initialPrice || service.basePrice || service.price || 0)) * quantity,
@@ -8770,16 +9356,23 @@ function addServiceToBooking(service, quantity, hpData = null) {
     brand: BookingState.selectedBrand || null,
     repairIssue: hpData && hpData.repairIssue ? hpData.repairIssue : null, // Handle individual repair issues
     duration: Number(hpData?.durationMinutes) || service.durationMinutes || service.duration || 60,
-    icon: service.icon || (service.type === 'repair' ? 'bi-tools' : 'bi-gear-fill'),
+    icon: service.icon || (isRepairBookingService(service) ? 'bi-tools' : 'bi-gear-fill'),
     isAirconService: service.isAirconService || false,
     // Initial cost for repair services (technician will update to final cost after diagnosis)
-    initialCost: (service.type === 'repair' || service.type === 'repairServices') ?
+    initialCost: isRepairBookingService(service) ?
       (hpData ? hpData.price : (service.initialPrice || service.basePrice || 0)) : null,
     finalCost: null, // To be set by technician after diagnosis
     costUpdatedByTechnician: false,
     diagnosisNotes: null
   };
 
+
+  // Replace an edited item only after its new configuration is valid. Closing
+  // the configurator therefore keeps the customer's previous choice intact.
+  if (BookingState.editingServiceId) {
+    BookingState.selectedServices = BookingState.selectedServices.filter(item => item.id !== BookingState.editingServiceId);
+    BookingState.editingServiceId = null;
+  }
 
   // Add to selected services
   BookingState.selectedServices.push(serviceItem);
@@ -8792,9 +9385,6 @@ function addServiceToBooking(service, quantity, hpData = null) {
   updateContinueButtonState();
   saveBookingProgress();
 
-  // Show success feedback
-  showSuccess(`${service.name} added to booking`);
-
   // Note: Auto-advance removed - user must click continue button
 }
 
@@ -8803,6 +9393,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
  */
 function advanceToNextStep() {
   console.log('🔧 advanceToNextStep called');
+  toggleBookingSummary(false);
 
   // Get current active step
   const visibleStep = document.querySelector('.booking-step.step-active') || document.querySelector('.booking-step:not(.d-none)');
@@ -8881,6 +9472,16 @@ function getBookingStepIssue(stepNumber) {
       };
     }
 
+    if (location.pinConfirmed === false) {
+      return {
+        step: 3,
+        title: 'Check the Map Pin',
+        message: 'Your address has a nearby map match. Check the green pin, drag it if needed, then confirm the place.',
+        confirmButtonText: 'Check Map Pin',
+        focusSelector: '#servicePinConfirm button'
+      };
+    }
+
     if (!routeReady) {
       return {
         step: 3,
@@ -8943,12 +9544,27 @@ function focusBookingRequirement(issue) {
   const stepPanel = document.querySelector(`.booking-step[data-step="${issue.step}"]`);
   if (stepPanel) {
     stepPanel.classList.add('step-highlight');
-    stepPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => stepPanel.classList.remove('step-highlight'), 1800);
   }
 
   const focusTarget = document.querySelector(issue.focusSelector || '');
-  if (!focusTarget) return;
+  if (!focusTarget) {
+    stepPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (focusTarget.matches('input, select, textarea')) {
+    focusTarget.classList.add('is-invalid');
+    focusTarget.setAttribute('aria-invalid', 'true');
+    focusTarget.addEventListener('input', () => {
+      focusTarget.classList.remove('is-invalid');
+      focusTarget.removeAttribute('aria-invalid');
+    }, { once: true });
+    focusTarget.addEventListener('change', () => {
+      focusTarget.classList.remove('is-invalid');
+      focusTarget.removeAttribute('aria-invalid');
+    }, { once: true });
+  }
   if (!focusTarget.matches('button, a, input, select, textarea, [tabindex]')) {
     focusTarget.setAttribute('tabindex', '-1');
   }
@@ -8964,6 +9580,130 @@ function presentBookingStepIssue(issue) {
     confirmButtonText: issue.confirmButtonText
   }).then(() => focusBookingRequirement(issue));
 }
+
+function formatScheduleActionDate(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric'
+  });
+}
+
+function syncScheduleNextAction(highlight = false) {
+  const action = document.getElementById('scheduleNextAction');
+  const summary = document.getElementById('scheduleNextSummary');
+  const hint = document.getElementById('scheduleNextHint');
+  const button = document.getElementById('scheduleNextButton');
+  if (!action || !summary || !hint || !button) return;
+
+  // Step cards animate and clip their contents. Keep this fixed next-step
+  // action on <body> so it really appears in the viewport after choosing a
+  // time, including on mobile and when the calendar is scrolled far down.
+  if (action.parentElement !== document.body) document.body.appendChild(action);
+
+  const calendar = window.EnterpriseCalendar;
+  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
+    calendar?.isProjectMode?.() === true;
+  const start = formatScheduleActionDate(BookingState.selectedDate || BookingState.scheduleDate);
+  const end = isProject ? formatScheduleActionDate(
+    BookingState.projectScheduling?.endDate || calendar?.getSelectedEndDate?.()
+  ) : '';
+  const time = BookingState.selectedTimeSlot?.label || BookingState.selectedTime || BookingState.scheduleTime || '';
+  const verdict = isProject
+    ? (calendar?.getWindowVerdict?.() || BookingState.projectScheduling?.windowVerdict)
+    : null;
+  const ready = !getBookingStepIssue(4) && (!isProject || verdict?.sufficient === true);
+  const visible = ready && BookingState.currentStep === 4;
+
+  summary.textContent = isProject
+    ? (start ? `${start}${end ? ` – ${end}` : ' · choose an end date'}` : 'Choose your project dates')
+    : (start ? `${start}${time ? ` · ${time}` : ' · choose a start time'}` : 'Choose a date and time');
+  hint.textContent = ready
+    ? 'Ready to check your booking details.'
+    : (isProject
+      ? (start && end ? 'Wait for the date check, or choose a different date range.' : 'Choose a start and end date to continue.')
+      : 'Select an available date, then a start time.');
+  const wasVisible = action.classList.contains('is-visible');
+  action.classList.toggle('is-ready', ready);
+  action.classList.toggle('is-visible', visible);
+  action.setAttribute('aria-hidden', String(!visible));
+  action.toggleAttribute('inert', !visible);
+  if (visible && (!wasVisible || highlight)) {
+    action.classList.remove('just-became-ready');
+    void action.offsetWidth;
+    action.classList.add('just-became-ready');
+  } else if (!visible) {
+    action.classList.remove('just-became-ready');
+  }
+  button.disabled = !visible;
+}
+window.syncScheduleNextAction = syncScheduleNextAction;
+
+function syncReviewNextAction(highlight = false) {
+  const action = document.getElementById('reviewNextAction');
+  if (!action) return;
+
+  // The Review card clips fixed children. Attach the next-step action to the
+  // viewport, just like the service and schedule actions.
+  if (action.parentElement !== document.body) document.body.appendChild(action);
+
+  const visible = BookingState.currentStep === 5;
+  const wasVisible = action.classList.contains('is-visible');
+  action.hidden = !visible;
+  action.classList.toggle('is-visible', visible);
+  action.setAttribute('aria-hidden', String(!visible));
+  action.toggleAttribute('inert', !visible);
+  if (visible && (!wasVisible || highlight)) {
+    action.classList.remove('just-became-ready');
+    void action.offsetWidth;
+    action.classList.add('just-became-ready');
+  } else if (!visible) {
+    action.classList.remove('just-became-ready');
+  }
+}
+
+async function continueFromSchedule() {
+  const issue = getBookingStepIssue(4);
+  if (issue) {
+    syncScheduleNextAction();
+    presentBookingStepIssue(issue);
+    return false;
+  }
+
+  const calendar = window.EnterpriseCalendar;
+  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
+    calendar?.isProjectMode?.() === true;
+  if (isProject) {
+    const verdict = calendar?.getWindowVerdict?.() || BookingState.projectScheduling?.windowVerdict;
+    if (verdict?.sufficient !== true) {
+      syncScheduleNextAction();
+      return false;
+    }
+  }
+  const button = document.getElementById('scheduleNextButton');
+  if (button) button.disabled = true;
+  try {
+    // A saved time may have been taken while the customer was on Review.
+    if (!isProject && calendar?.getSelectedSlot?.() && typeof calendar.validateSelectedSlot === 'function') {
+      const available = await calendar.validateSelectedSlot();
+      if (!available) {
+        await showServiceDialog({
+          icon: 'warning',
+          title: 'Choose Another Time',
+          message: 'That start time is no longer available. Please choose another time.',
+          confirmButtonText: 'Choose Time'
+        });
+        return false;
+      }
+    }
+    return requestBookingStepNavigation(5);
+  } finally {
+    syncScheduleNextAction();
+  }
+}
+window.continueFromSchedule = continueFromSchedule;
 
 function requestBookingStepNavigation(targetStep) {
   const step = Number(targetStep);
@@ -9057,67 +9797,302 @@ function updateProgressBar(activeStep) {
 /**
  * Update selected services display
  */
+function formatBookingPrice(value) {
+  return `₱${Math.max(0, Number(value) || 0).toLocaleString()}`;
+}
+
+function syncServiceCardSelectionState() {
+  const selectedCounts = (BookingState.selectedServices || []).reduce((counts, item) => {
+    if (item.serviceId) counts[item.serviceId] = (counts[item.serviceId] || 0) + 1;
+    return counts;
+  }, {});
+
+  document.querySelectorAll('.service-card[data-service-id]').forEach(card => {
+    const count = selectedCounts[card.dataset.serviceId] || 0;
+    const isSelected = count > 0;
+    const addButton = card.querySelector('.add-service-btn');
+    const summaryLink = card.querySelector('.service-card-summary-link');
+    card.classList.toggle('is-selected', isSelected);
+    card.setAttribute('aria-label', isSelected ? `Selected${count > 1 ? `, ${count} setups` : ''}` : 'Available service');
+    if (addButton) {
+      addButton.disabled = isSelected;
+      addButton.setAttribute('aria-pressed', String(isSelected));
+      addButton.innerHTML = isSelected
+        ? '<i class="bi bi-check-lg" aria-hidden="true"></i><span>Selected</span>'
+        : '<i class="bi bi-plus-lg" aria-hidden="true"></i><span>Add</span>';
+    }
+    if (summaryLink) summaryLink.classList.toggle('d-none', !isSelected);
+  });
+}
+
+function setServicePickerGuide(stage) {
+  const order = ['choose', 'configure', 'review'];
+  const activeIndex = Math.max(0, order.indexOf(stage));
+  const controls = {
+    choose: document.getElementById('serviceGuideChoose'),
+    configure: document.getElementById('serviceGuideConfigure'),
+    review: document.getElementById('serviceGuideReview')
+  };
+  order.forEach((name, index) => {
+    const control = controls[name];
+    if (!control) return;
+    control.classList.toggle('is-active', index === activeIndex);
+    control.classList.toggle('is-complete', index < activeIndex);
+    if (index === activeIndex) control.setAttribute('aria-current', 'step');
+    else control.removeAttribute('aria-current');
+  });
+}
+
+function navigateServiceGuide(destination) {
+  if (destination === 'choose') return focusServiceCatalog();
+  if (destination === 'configure') {
+    if (document.getElementById('repair-tab')?.classList.contains('active')) {
+      return goToRepairGuideStep(typeof getRepairGuideStep === 'function' ? getRepairGuideStep() : 1);
+    }
+    if (!BookingState.selectedServices.length) {
+      showBookingToast('Choose a service first, then add its details.', 'remove');
+      return focusServiceCatalog();
+    }
+  }
+  if (!BookingState.selectedServices.length) {
+    showBookingToast('No service selected yet.', 'remove');
+    return focusServiceCatalog();
+  }
+  openSelectedServiceSummary();
+}
+window.navigateServiceGuide = navigateServiceGuide;
+
+function updateBookingCartChrome() {
+  const count = BookingState.selectedServices.length;
+  const total = BookingState.selectedServices.reduce((sum, service) => sum + (Number(service.totalPrice) || 0), 0);
+  const countCopy = document.getElementById('selectedServiceCountText');
+  const mobileCount = document.getElementById('mobileSelectedServiceCount');
+  const mobileTotal = document.getElementById('mobileEstimatedPrice');
+  const reviewButton = document.getElementById('serviceGuideReview');
+  const reviewText = document.getElementById('serviceGuideReviewText');
+  const nextAction = document.getElementById('bookingNextActionText');
+
+  if (countCopy) countCopy.textContent = count === 0
+    ? 'No service selected'
+    : 'Check the details and estimated price before you continue.';
+  if (mobileCount) mobileCount.textContent = `${count} ${count === 1 ? 'service' : 'services'} selected`;
+  if (mobileTotal) mobileTotal.textContent = formatBookingPrice(total);
+  syncBookingActionBarLayer();
+  if (reviewButton) {
+    reviewButton.classList.toggle('has-selection', count > 0);
+    reviewButton.setAttribute('aria-label', count > 0
+      ? `Check ${count} selected ${count === 1 ? 'service' : 'services'} and continue`
+      : 'Check selected services');
+  }
+  if (reviewText) reviewText.textContent = count > 0
+    ? `${count} ${count === 1 ? 'service' : 'services'} selected`
+    : 'No service selected';
+  if (count === 0 && document.getElementById('selectedServicesSummary')?.classList.contains('is-open')) {
+    toggleBookingSummary(false);
+  }
+  if (nextAction) nextAction.textContent = count > 0
+    ? 'Add the service address'
+    : 'Choose a service';
+
+  setServicePickerGuide(count > 0 ? 'review' : 'choose');
+  syncServiceCardSelectionState();
+}
+
+/**
+ * Keep the selected-service action bar attached to the browser viewport.
+ * Animated booking-step containers can otherwise make a fixed element scroll
+ * with the section on desktop instead of staying visible to the customer.
+ */
+function syncBookingActionBarLayer() {
+  const actionBar = document.getElementById('mobileBookingBar');
+  if (!actionBar) return;
+
+  if (actionBar.parentElement !== document.body) document.body.appendChild(actionBar);
+
+  const serviceStep = document.getElementById('serviceSelection');
+  const isServiceStepActive = BookingState.currentStep === 2 || serviceStep?.classList.contains('step-active');
+  const shouldShow = BookingState.selectedServices.length > 0 && isServiceStepActive;
+  actionBar.classList.toggle('has-services', shouldShow);
+  actionBar.setAttribute('aria-hidden', String(!shouldShow));
+  actionBar.toggleAttribute('inert', !shouldShow);
+}
+
+let bookingSummaryReturnFocus = null;
+
+function toggleBookingSummary(forceOpen) {
+  syncBookingSummaryMode();
+  const summary = document.getElementById('selectedServicesSummary');
+  const backdrop = document.getElementById('bookingSheetBackdrop');
+  const triggers = [
+    document.getElementById('mobileBookingSummaryButton'),
+    document.getElementById('serviceGuideReview')
+  ].filter(Boolean);
+  if (!summary) return;
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !summary.classList.contains('is-open');
+  summary.classList.toggle('is-open', shouldOpen);
+  if (backdrop) backdrop.classList.toggle('is-open', shouldOpen);
+  triggers.forEach(trigger => trigger.setAttribute('aria-expanded', String(shouldOpen)));
+  summary.toggleAttribute('inert', !shouldOpen);
+  summary.setAttribute('aria-hidden', String(!shouldOpen));
+  if (shouldOpen) {
+    summary.setAttribute('role', 'dialog');
+    summary.setAttribute('aria-modal', 'true');
+  } else {
+    summary.removeAttribute('role');
+    summary.removeAttribute('aria-modal');
+  }
+  document.body.classList.toggle('booking-sheet-open', shouldOpen);
+  if (shouldOpen) window.requestAnimationFrame(() => summary.querySelector('.booking-sheet-close')?.focus({ preventScroll: true }));
+  else {
+    bookingSummaryReturnFocus?.focus({ preventScroll: true });
+    bookingSummaryReturnFocus = null;
+  }
+}
+window.toggleBookingSummary = toggleBookingSummary;
+
+function syncBookingSummaryMode() {
+  const summary = document.getElementById('selectedServicesSummary');
+  const backdrop = document.getElementById('bookingSheetBackdrop');
+  if (!summary) return;
+  if (backdrop && backdrop.parentElement !== document.body) document.body.appendChild(backdrop);
+  if (summary.parentElement !== document.body) document.body.appendChild(summary);
+  syncBookingActionBarLayer();
+  summary.classList.add('is-portaled');
+  const isOpen = summary.classList.contains('is-open');
+  summary.toggleAttribute('inert', !isOpen);
+  summary.setAttribute('aria-hidden', String(!isOpen));
+  if (!isOpen) {
+    summary.removeAttribute('role');
+    summary.removeAttribute('aria-modal');
+    backdrop?.classList.remove('is-open');
+    document.body.classList.remove('booking-sheet-open');
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  syncBookingSummaryMode();
+  syncBookingActionBarLayer();
+  syncLocationContinueAction();
+});
+window.addEventListener('resize', () => {
+  syncBookingSummaryMode();
+  syncBookingActionBarLayer();
+  syncLocationContinueAction();
+}, { passive: true });
+syncBookingSummaryMode();
+document.addEventListener('keydown', event => {
+  const summary = document.getElementById('selectedServicesSummary');
+  if (!summary?.classList.contains('is-open')) return;
+  if (event.key === 'Escape') {
+    toggleBookingSummary(false);
+    return;
+  }
+  if (event.key === 'Tab') {
+    const focusable = Array.from(summary.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter(element => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+function focusServiceCatalog() {
+  toggleBookingSummary(false);
+  const tabs = document.getElementById('serviceTabs');
+  const catalog = document.getElementById('serviceCatalogPanel');
+  const activeTab = tabs?.querySelector('.nav-link.active') || document.getElementById('core-tab');
+  tabs?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  catalog?.classList.remove('scroll-arrival');
+  window.requestAnimationFrame(() => catalog?.classList.add('scroll-arrival'));
+  window.setTimeout(() => {
+    activeTab?.focus({ preventScroll: true });
+    catalog?.classList.remove('scroll-arrival');
+  }, 650);
+}
+window.focusServiceCatalog = focusServiceCatalog;
+
+function openSelectedServiceSummary(event) {
+  event?.preventDefault();
+  bookingSummaryReturnFocus = event?.currentTarget || (
+    window.matchMedia('(max-width: 991.98px)').matches
+      ? document.getElementById('mobileBookingSummaryButton')
+      : document.getElementById('serviceGuideReview')
+  );
+  toggleBookingSummary(true);
+}
+window.openSelectedServiceSummary = openSelectedServiceSummary;
+
+function editSelectedService(index) {
+  const item = BookingState.selectedServices[index];
+  if (!item) return;
+  toggleBookingSummary(false);
+  if (isRepairBookingService(item)) {
+    editRepairItem(index);
+    document.getElementById('repair-tab')?.click();
+    return;
+  }
+
+  const source = BookingState.catalog.coreServices.find(service => service._id === item.serviceId);
+  if (!source) return showError('We could not find this service. Please try again.');
+  BookingState.editingServiceId = item.id;
+  BookingState.currentService = { ...source, type: item.type || 'core' };
+  showCombinedQuantityHpModal(BookingState.currentService);
+}
+window.editSelectedService = editSelectedService;
+
 function updateSelectedServicesDisplay() {
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
 
   DOM.selectedServiceCount.textContent = BookingState.selectedServices.length;
 
   if (BookingState.selectedServices.length === 0) {
-    DOM.selectedServicesList.innerHTML = '<p class="text-muted mb-0">No services selected yet</p>';
+    DOM.selectedServicesList.innerHTML = `
+      <div class="booking-cart-empty">
+        <i class="bi bi-tools" aria-hidden="true"></i>
+        <strong>No service selected</strong>
+        <span>Choose a service to get started.</span>
+      </div>`;
   } else {
     const esc = v => String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const servicesHtml = BookingState.selectedServices.map((service, idx) => {
-      const isRepair = service.type === 'repair';
-      const iconClass = isRepair ? 'bi-tools text-warning' : (service.icon || 'bi-gear-wide-connected text-primary');
-      const badge = isRepair
-        ? '<span class="badge bg-warning bg-opacity-10 text-warning ms-2" style="font-size:0.65rem;">REPAIR</span>'
-        : '<span class="badge bg-primary bg-opacity-10 text-primary ms-2" style="font-size:0.65rem;">CORE</span>';
-
-      let detailsHtml = '';
+      const isRepair = isRepairBookingService(service);
+      const iconClass = isRepair ? 'bi-tools' : (service.icon || 'bi-gear-wide-connected');
+      const details = [];
       if (isRepair) {
-        const parts = [];
-        parts.push(`Qty: ${service.quantity}`);
-        if (service.model) parts.push(`Model: ${esc(service.model)}`);
-        detailsHtml = `<div class="text-muted small">${parts.join(' · ')}</div>`;
-        if (service.problemDescription || service.repairIssue) {
-          const issue = service.problemDescription || service.repairIssue;
-          detailsHtml += `<div class="text-warning small mt-1" style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(issue)}</div>`;
-        }
+        if (service.brand) details.push(esc(service.brand));
+        if (service.problemDescription || service.repairIssue) details.push(esc(service.problemDescription || service.repairIssue));
+        if (service.photos?.length) details.push(`${service.photos.length} ${service.photos.length === 1 ? 'photo' : 'photos'}`);
       } else {
-        detailsHtml = `<div class="text-muted small">
-          Qty: ${service.quantity} ${getServiceUnitText(service)}
-          ${service.airconTypeName ? `| <span class="badge bg-info bg-opacity-10 text-info">${esc(service.airconTypeName)}</span>` : ''}
-          ${service.hp ? `| ${service.hp} HP` : ''}
-          ${service.hpDescription ? `(${esc(service.hpDescription)})` : ''}
-        </div>`;
+        if (service.airconTypeName) details.push(esc(service.airconTypeName));
+        if (service.hp) details.push(`${service.hp} HP`);
       }
-
-      const editBtn = isRepair
-        ? `<button class="btn btn-sm btn-outline-secondary me-1" onclick="editRepairItem(${idx})" title="Edit"><i class="bi bi-pencil"></i></button>`
-        : '';
+      details.push(`${service.quantity} ${getServiceUnitText(service)}`);
 
       return `
-      <div class="selected-service-item d-flex justify-content-between align-items-center mb-2 p-2 bg-white rounded border">
-        <div class="d-flex align-items-center">
-          <div class="service-icon me-2">
-            <i class="${iconClass} fs-5"></i>
+      <article class="selected-service-item" aria-label="${esc(service.name)}">
+        <div class="selected-service-main">
+          <div class="selected-service-icon"><i class="${iconClass}" aria-hidden="true"></i></div>
+          <div class="selected-service-copy">
+            <div class="selected-service-name">${esc(service.name)}</div>
+            <div class="selected-service-details">${details.join(' <span aria-hidden="true">•</span> ')}</div>
           </div>
-          <div>
-            <div class="fw-semibold">${esc(service.name)}${badge}</div>
-            ${detailsHtml}
-          </div>
+          <div class="selected-service-price"><span>Estimate</span><strong>${formatBookingPrice(service.totalPrice)}</strong></div>
         </div>
-        <div class="d-flex align-items-center">
-          <div class="text-end me-3">
-            <div class="fw-bold text-primary">₱${service.totalPrice.toLocaleString()}</div>
-            <div class="text-muted small">₱${service.unitPrice.toLocaleString()} each</div>
-          </div>
-          ${editBtn}
-          <button class="btn btn-sm btn-outline-danger remove-service-btn" data-service-id="${service.id}">
-            <i class="bi bi-trash"></i>
+        <div class="selected-service-actions">
+          <button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}">
+            <i class="bi bi-pencil" aria-hidden="true"></i> Change
+          </button>
+          <button type="button" class="remove-service-btn" data-service-id="${service.id}" aria-label="Remove ${esc(service.name)}">
+            <i class="bi bi-trash3" aria-hidden="true"></i> Remove
           </button>
         </div>
-      </div>`;
+      </article>`;
     }).join('');
 
     DOM.selectedServicesList.innerHTML = servicesHtml;
@@ -9138,7 +10113,7 @@ function updateSelectedServicesDisplay() {
           updateContinueButtonState();
           saveBookingProgress();
 
-          showSuccess(`${removedService.name} removed from booking`);
+          showBookingToast(`${removedService.name} was removed from your booking.`, 'remove');
         }
       });
     });
@@ -9152,6 +10127,8 @@ function updateSelectedServicesDisplay() {
       totalPricingSection.classList.add('d-none');
     }
   }
+
+  updateBookingCartChrome();
 }
 
 /**
@@ -9166,7 +10143,7 @@ function removeService(serviceId) {
   if (typeof displayTotalFee === 'function') displayTotalFee();
   if (typeof updateReviewContent === 'function') updateReviewContent();
 
-  showSuccess('Service removed from booking');
+  showBookingToast('Service removed from your booking.', 'remove');
 
   // If no services remain, go back to step 2
   if (BookingState.selectedServices.length === 0) {
@@ -9196,6 +10173,8 @@ function updatePricingDisplay() {
   } else {
     DOM.totalPricingSection.classList.add('d-none');
   }
+
+  updateBookingCartChrome();
 }
 
 /**
@@ -9204,7 +10183,7 @@ function updatePricingDisplay() {
 function updateRepairIssueDisplay() {
   if (!DOM.repairIssueContainer) return;
 
-  const hasRepairServices = BookingState.selectedServices.some(s => s.type === 'repair');
+  const hasRepairServices = BookingState.selectedServices.some(isRepairBookingService);
   BookingState.hasRepairServices = hasRepairServices;
 
   if (hasRepairServices) {
@@ -9285,16 +10264,49 @@ function getServiceUnitText(service) {
   return unit === 'aircon' ? 'aircon' : unit;
 }
 
+function localizeBookingCopy(value) {
+  const copy = {
+    'Unable to Continue': 'Please Check Your Booking',
+    'Review Details': 'Check Details',
+    'Continue': 'Continue',
+    'Got It': 'OK',
+    'Service Booking': 'Service Booking',
+    'Check Service Details': 'Check Service Details',
+    'Added to Your Booking': 'Added to Your Booking',
+    'Continue booking': 'Continue Booking',
+    'Booking Updated': 'Booking Updated',
+    'Log In to Continue': 'Log In to Continue',
+    'Please log in or create a customer account before selecting services.': 'Log in or create an account before choosing a service.',
+    'Return to Login': 'Go to Login',
+    'Select a Service First': 'Choose a Service First',
+    'Add at least one Core or Repair service before continuing to the location step.': 'Add at least one Aircon or Repair service before going to Location.',
+    'Choose a Service': 'Choose a Service',
+    'Confirm Your Service Location': 'Confirm Service Location',
+    'Search for an address, choose a suggestion, use My Location, or pin the exact service point on the map.': 'Search for an address, use My Location, or place the pin on the map.',
+    'Set Location': 'Add Location',
+    'Location Confirmation in Progress': 'Checking Location',
+    'Please wait for the route and travel fee to finish calculating before continuing.': 'Please wait while we check the route and travel fee.',
+    'Review Location': 'Check Location',
+    'Choose a Date and Time': 'Choose a Date and Time',
+    'Select an available appointment date and time before reviewing the booking fee.': 'Choose an available date and time before checking the price.',
+    'Choose Schedule': 'Choose Schedule'
+  };
+  return copy[value] || value;
+}
+
 function showServiceDialog({ icon, iconHtml = '', title, message, confirmButtonText = 'Continue', popupClass = '', returnFocus = true }) {
+  const localizedTitle = localizeBookingCopy(title);
+  const localizedMessage = localizeBookingCopy(message);
+  const localizedConfirm = localizeBookingCopy(confirmButtonText);
   if (typeof Swal !== 'undefined') {
     const dialogOptions = {
       icon,
-      title,
-      text: message,
+      title: localizedTitle,
+      text: localizedMessage,
       toast: false,
       position: 'center',
       showConfirmButton: true,
-      confirmButtonText,
+      confirmButtonText: localizedConfirm,
       focusConfirm: true,
       allowOutsideClick: false,
       allowEscapeKey: true,
@@ -9307,7 +10319,7 @@ function showServiceDialog({ icon, iconHtml = '', title, message, confirmButtonT
     return Swal.fire(dialogOptions);
   }
 
-  window.alert(message);
+  window.alert(localizedMessage);
   return Promise.resolve();
 }
 
@@ -9369,16 +10381,50 @@ function showSuccess(message, title = 'Booking Updated') {
   });
 }
 
+function showBookingToast(message, tone = 'success') {
+  let toast = document.getElementById('serviceBookingToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'serviceBookingToast';
+    toast.className = 'service-booking-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(toast);
+  }
+
+  window.clearTimeout(showBookingToast.hideTimer);
+  toast.classList.remove('is-visible', 'is-remove');
+  if (tone === 'remove') toast.classList.add('is-remove');
+  toast.innerHTML = `<i class="bi ${tone === 'remove' ? 'bi-trash3' : 'bi-check-circle-fill'}" aria-hidden="true"></i><span>${String(message).replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]))}</span>`;
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  showBookingToast.hideTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 2600);
+  return Promise.resolve();
+}
+window.showBookingToast = showBookingToast;
+
 function showServiceAddedConfirmation(serviceName) {
-  return showServiceDialog({
-    icon: 'success',
-    iconHtml: '<span class="service-added-check" aria-hidden="true">&#10003;</span>',
-    title: 'Added to Your Booking',
-    message: `${serviceName} is now in your booking. You can review it before continuing.`,
-    confirmButtonText: 'Continue booking',
-    popupClass: 'service-added-alert',
-    returnFocus: false
+  revealNextBookingAction();
+  return showBookingToast(`${serviceName} was added. Next: add the service location.`);
+}
+
+function revealNextBookingAction() {
+  const actionBar = document.getElementById('mobileBookingBar');
+  if (!actionBar || !BookingState.selectedServices.length) return;
+  syncBookingActionBarLayer();
+  const announcement = document.getElementById('bookingNextStepAnnouncement');
+  const serviceCount = BookingState.selectedServices.length;
+  if (announcement) {
+    announcement.textContent = `${serviceCount} ${serviceCount === 1 ? 'service' : 'services'} selected. Next, add the service location.`;
+  }
+  actionBar.classList.remove('is-guiding');
+  void actionBar.offsetWidth;
+  window.requestAnimationFrame(() => {
+    actionBar.classList.add('is-guiding');
+    actionBar.querySelector('.mobile-booking-continue')?.focus({ preventScroll: true });
   });
+  window.clearTimeout(revealNextBookingAction.timer);
+  revealNextBookingAction.timer = window.setTimeout(() => actionBar.classList.remove('is-guiding'), 2200);
 }
 
 /**
@@ -9730,8 +10776,12 @@ async function renderManualCalendar() {
         quantity: totalQuantity,
         totalEstimatedMinutes: totalEstimatedMinutes,
         travelTime: travelDuration,
-        showCommercialProjects: false
+        showCommercialProjects: false,
+        // Keep the chosen date/time in view and reveal the Review Booking
+        // action instead of moving the customer forward without a click.
+        onSelect: () => syncScheduleNextAction()
       });
+      syncScheduleNextAction();
 
     setTimeout(() => {
       manualContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -10225,7 +11275,7 @@ async function renderTimeSlotsProfessional(date) {
       <div class="spinner-border text-primary mb-2" role="status">
         <span class="visually-hidden">Loading...</span>
       </div>
-      <p class="text-muted small">Calculating preferred time options...</p>
+      <p class="text-muted small">Checking available times...</p>
     </div>
   `;
 
@@ -10333,7 +11383,7 @@ async function renderTimeSlotsProfessional(date) {
       timeSlots.innerHTML = `
         <div class="alert alert-warning">
           <i class="bi bi-exclamation-triangle me-2"></i>
-        No preferred time available for this date. Please select a different date.
+        No time is available on this date. Please choose a different date.
         </div>
       `;
       return;
@@ -10654,12 +11704,8 @@ function selectTimeSlot(slot, buttonElement) {
     time: slot.label,
   });
 
-  // Auto-advance to next step
-  setTimeout(() => {
-    console.log('⏭️ Auto-advancing to Step 6');
-    showStep(5);
-    updateStepper(5);
-  }, 500);
+  // Keep the selected time in view and reveal the Review Booking action.
+  syncScheduleNextAction();
 }
 
 /**
@@ -10722,6 +11768,7 @@ function displayTotalFee() {
 
   // Get DOM elements
   const servicesTotalDisplay = document.getElementById('servicesTotalDisplay');
+  const repairInspectionTotalDisplay = document.getElementById('repairInspectionTotalDisplay');
   const travelFareDisplay = document.getElementById('travelFareDisplay');
   const totalFeeDisplay = document.getElementById('totalFeeDisplay');
   const feeServiceDetails = document.getElementById('feeServiceDetails');
@@ -10734,80 +11781,88 @@ function displayTotalFee() {
 
   // Calculate services total
   let servicesTotal = 0;
+  let coreTotal = 0;
+  let repairTotal = 0;
   let hasRepairServices = false;
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let serviceDetailsHTML = '';
 
   if (BookingState.selectedServices && BookingState.selectedServices.length > 0) {
-    serviceDetailsHTML += '<div class="d-flex flex-column gap-2">';
+    serviceDetailsHTML += '<div class="booking-review-services">';
     BookingState.selectedServices.forEach(service => {
-      const quantity = service.quantity || 1;
-      const unitPrice = service.unitPrice || service.price || 0;
+      const quantity = Math.max(1, Number(service.quantity) || 1);
+      const unitPrice = Number(service.unitPrice ?? service.price ?? 0) || 0;
       const serviceTotal = unitPrice * quantity;
       servicesTotal += serviceTotal;
-      const isRepair = service.type === 'repair';
+      const isRepair = isRepairBookingService(service);
 
-      if (isRepair) hasRepairServices = true;
+      if (isRepair) {
+        hasRepairServices = true;
+        repairTotal += serviceTotal;
+      } else {
+        coreTotal += serviceTotal;
+      }
 
       const badge = isRepair
-        ? '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.6rem;font-weight:700;">REPAIR</span>'
-        : '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.6rem;font-weight:700;">CORE</span>';
+        ? '<span class="booking-review-service-type repair">Repair inspection</span>'
+        : '<span class="booking-review-service-type core">Service</span>';
 
-      let details = '';
+      const details = [];
       if (isRepair) {
-        const parts = [];
-        if (service.brand) parts.push(esc(service.brand));
-        if (service.unitType) parts.push(esc(service.unitType));
-        if (service.model) parts.push('Model: ' + esc(service.model));
-        details = `<div class="text-muted" style="font-size:0.78rem;">${parts.join(' · ')}</div>`;
+        if (service.brand) details.push(`Brand: ${esc(service.brand)}`);
+        if (service.unitType || service.applianceTypeName) details.push(`Type: ${esc(service.unitType || service.applianceTypeName)}`);
+        if (service.model) details.push(`Model: ${esc(service.model)}`);
+        details.push(`Qty: ${quantity}`);
         if (service.problemDescription || service.repairIssue) {
-          details += `<div class="mt-1" style="font-size:0.75rem;color:#d97706;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(service.problemDescription || service.repairIssue)}</div>`;
+          details.push(`Problem: ${esc(service.problemDescription || service.repairIssue)}`);
         }
       } else {
-        const parts = [];
-        if (service.hp) parts.push(service.hp + ' HP');
-        if (service.airconTypeName) parts.push(esc(service.airconTypeName));
-        parts.push('Qty: ' + quantity);
-        details = `<div class="text-muted" style="font-size:0.78rem;">${parts.join(' · ')}</div>`;
+        if (service.hp != null && service.hp !== '') details.push(`${esc(service.hp)} HP`);
+        if (service.airconTypeName) details.push(esc(service.airconTypeName));
+        details.push(`Qty: ${quantity}`);
       }
 
       serviceDetailsHTML += `
-        <div class="d-flex justify-content-between align-items-start p-2 rounded" style="background:#f8fafc;border:1px solid #e2e8f0;">
-          <div>
-            <div class="d-flex align-items-center gap-1 mb-1">
+        <article class="booking-review-service">
+          <div class="booking-review-service-info">
+            <div class="booking-review-service-heading">
               ${badge}
-              <span class="fw-semibold" style="font-size:0.82rem;color:#0f172a;">${esc(service.name)}</span>
+              <strong>${esc(service.name)}</strong>
             </div>
-            ${details}
+            <div class="booking-review-service-meta">${details.join(' <span aria-hidden="true">·</span> ')}</div>
           </div>
-          <div class="text-end">
-            <div class="fw-bold" style="color:${isRepair ? '#b45309' : '#059669'};font-size:0.85rem;">₱${serviceTotal.toLocaleString()}</div>
-            ${isRepair ? '<div style="margin-top:2px;color:#b45309;font-size:0.65rem;font-weight:800;white-space:nowrap;">INSPECTION FEE ONLY</div>' : ''}
-            ${quantity > 1 ? `<div class="text-muted" style="font-size:0.7rem;">${quantity}x ₱${unitPrice.toLocaleString()}${isRepair ? ' inspection fee' : ''}</div>` : ''}
+          <div class="booking-review-service-price">
+            <strong>₱${serviceTotal.toLocaleString()}</strong>
+            <span>${isRepair ? 'Inspection fee' : 'Service price'}${quantity > 1 ? ` · ${quantity} × ₱${unitPrice.toLocaleString()}` : ''}</span>
           </div>
-        </div>`;
+        </article>`;
     });
     serviceDetailsHTML += '</div>';
   } else {
-    serviceDetailsHTML += '<div class="text-muted" style="font-size:0.82rem;">No services selected</div>';
+    serviceDetailsHTML += '<div class="text-muted" style="font-size:0.82rem;">No service selected.</div>';
   }
 
   // Get travel fare
-  const travelFare = BookingState.travelFare || BookingState.fare || 0;
+  const travelFare = Number(BookingState.travelFare ?? BookingState.fare ?? 0) || 0;
 
   // Calculate total (labor fee removed — included in service price for core, quoted on-site for repair)
   const totalFee = servicesTotal + travelFare;
 
   // Update displays
-  servicesTotalDisplay.textContent = `₱${servicesTotal.toLocaleString()}`;
+  servicesTotalDisplay.textContent = `₱${coreTotal.toLocaleString()}`;
+  if (repairInspectionTotalDisplay) repairInspectionTotalDisplay.textContent = `₱${repairTotal.toLocaleString()}`;
+  document.getElementById('servicesSubtotalRow')?.classList.toggle('d-none', coreTotal === 0 && hasRepairServices);
+  document.getElementById('repairInspectionRow')?.classList.toggle('d-none', !hasRepairServices);
   travelFareDisplay.textContent = `₱${travelFare.toLocaleString()}`;
   totalFeeDisplay.textContent = `₱${totalFee.toLocaleString()}`;
+  const mobileReviewTotalDisplay = document.getElementById('mobileReviewTotalDisplay');
+  if (mobileReviewTotalDisplay) mobileReviewTotalDisplay.textContent = `₱${totalFee.toLocaleString()}`;
   feeServiceDetails.innerHTML = serviceDetailsHTML;
 
   const serviceCount = (BookingState.selectedServices || []).length;
   const unitCount = (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
   const countEl = document.getElementById('feeServiceCount');
-  if (countEl) countEl.textContent = `${serviceCount} ${serviceCount === 1 ? 'service' : 'services'} · ${unitCount} ${unitCount === 1 ? 'unit' : 'units'}`;
+  if (countEl) countEl.textContent = `${serviceCount} service${serviceCount === 1 ? '' : 's'} · ${unitCount} unit${unitCount === 1 ? '' : 's'}`;
 
   const locationEl = document.getElementById('feeLocationDisplay');
   const scheduleEl = document.getElementById('feeScheduleDisplay');
@@ -10857,12 +11912,11 @@ function displayTotalFee() {
   if (distanceEl) {
     const distance = Number(BookingState.distance) || 0;
     const duration = Number(BookingState.travelDuration) || 0;
-    distanceEl.textContent = distance > 0 ? `${distance.toFixed(1)} km${duration ? ` · ${duration} min` : ''}` : 'Route unavailable';
+    distanceEl.textContent = distance > 0 ? `${distance.toFixed(1)} km${duration ? ` · ${duration} min` : ''}` : 'Route not ready';
   }
 
   // Show repair quotation note for repair services
   const repairQuotationNote = document.getElementById('repairQuotationNote');
-  const servicesSubtotalLabel = document.getElementById('servicesSubtotalLabel');
   const bookingTotalLabel = document.getElementById('bookingTotalLabel');
   const bookingReviewNote = document.getElementById('bookingReviewNote');
   if (repairQuotationNote) {
@@ -10872,16 +11926,15 @@ function displayTotalFee() {
       repairQuotationNote.classList.add('d-none');
     }
   }
-  if (servicesSubtotalLabel) {
-    servicesSubtotalLabel.textContent = hasRepairServices ? 'Core services + inspection fees' : 'Services subtotal';
-  }
   if (bookingTotalLabel) {
-    bookingTotalLabel.textContent = hasRepairServices ? 'Initial booking total' : 'Current total';
+    bookingTotalLabel.textContent = hasRepairServices ? 'Total before repair quote' : 'Estimated total';
   }
+  const mobileReviewTotalLabel = document.getElementById('mobileReviewTotalLabel');
+  if (mobileReviewTotalLabel) mobileReviewTotalLabel.textContent = hasRepairServices ? 'Before repair quote' : 'Estimated total';
   if (bookingReviewNote) {
     bookingReviewNote.textContent = hasRepairServices
-      ? 'This initial total includes Core service charges, Repair inspection fees, and travel fare. Final Repair labor and parts are quoted separately after diagnosis.'
-      : 'Your configured downpayment and remaining balance are shown before booking confirmation.';
+      ? 'Includes the selected service price (if any), repair inspection fee, and travel fee. Repair labor and parts are not included. The next step shows what to pay now.'
+      : 'The next step shows what to pay now and the balance left. The price may change if you add work later.';
   }
 
   // Update GCash amount display
@@ -10929,7 +11982,7 @@ function initializePaymentStep() {
       const method = this.dataset.method;
       console.log(`💳 Payment option selected: ${method}`);
       if (typeof window.selectPaymentMethod === 'function') {
-        window.selectPaymentMethod(method);
+        window.selectPaymentMethod(method, true);
       }
     });
   });
@@ -10942,7 +11995,7 @@ function initializePaymentStep() {
     }
     if (button.dataset.paymentChannelBound === 'true') return;
     button.dataset.paymentChannelBound = 'true';
-    button.addEventListener('click', () => selectBookingPaymentChannel(button.dataset.channel));
+    button.addEventListener('click', () => selectBookingPaymentChannel(button.dataset.channel, true));
   });
 
   // Confirm booking button
@@ -10950,6 +12003,12 @@ function initializePaymentStep() {
     confirmBookingBtn.dataset.paymentSubmitBound = 'true';
     confirmBookingBtn.addEventListener('click', handleBookingSubmission);
   }
+  ['gcashNumber', 'cashNumber', 'gcashProof', 'cashProof'].forEach(id => {
+    const field = document.getElementById(id);
+    if (!field || field.dataset.paymentValidationBound === 'true') return;
+    field.dataset.paymentValidationBound = 'true';
+    field.addEventListener(field.type === 'file' ? 'change' : 'input', () => refreshBookingPaymentFieldError(id));
+  });
 
   if (BookingState.paymentMethod && typeof window.selectPaymentMethod === 'function') {
     window.selectPaymentMethod(BookingState.paymentMethod);
@@ -10966,6 +12025,7 @@ function initializePaymentStep() {
   // Populate every payment amount as soon as the step is opened, including
   // fields inside the payment method that is currently hidden.
   updatePaymentAmounts();
+  syncPaymentChoiceGuide();
 
   console.log('✅ Payment step initialized');
 }
@@ -10985,6 +12045,9 @@ function updatePaymentAmounts() {
   const amountInput = document.getElementById('downpaymentAmt');
   const cashPolicyText = document.getElementById('cashPolicyText');
   const cashDownLabel = document.getElementById('cashDownLabel');
+  const paymentDueNow = document.getElementById('paymentDueNow');
+  const fullChoiceAmount = document.getElementById('fullPaymentChoiceAmount');
+  const downChoiceAmount = document.getElementById('downPaymentChoiceAmount');
 
   // Keep the readonly amount field and breakdown sourced from the same value.
   if (amountInput) amountInput.value = String(downpayment);
@@ -10992,6 +12055,8 @@ function updatePaymentAmounts() {
   if (gcashAmountDisplay) {
     gcashAmountDisplay.textContent = `₱${totalFee.toLocaleString()}`;
   }
+  if (fullChoiceAmount) fullChoiceAmount.textContent = `₱${totalFee.toLocaleString()} to pay now`;
+  if (downChoiceAmount) downChoiceAmount.textContent = `₱${downpayment.toLocaleString()} now · ₱${balance.toLocaleString()} later`;
 
   if (cashTotalDisplay && cashDownDisplay && cashBalanceDisplay) {
     cashTotalDisplay.textContent = `₱${totalFee.toLocaleString()}`;
@@ -11002,8 +12067,17 @@ function updatePaymentAmounts() {
       cashBreakdown.style.display = 'block';
     }
   }
-  if (cashPolicyText) cashPolicyText.textContent = `Pay ${BookingState.downpaymentPercentage || 10}% via ${paymentChannelLabel(BookingState.paymentChannel)} now to reserve your schedule. This amount is deducted from the total; settle the remaining balance at service completion.`;
-  if (cashDownLabel) cashDownLabel.textContent = `Downpayment now (${BookingState.downpaymentPercentage || 10}%)`;
+  if (cashPolicyText) cashPolicyText.textContent = `Pay the ${BookingState.downpaymentPercentage || 10}% down payment now using ${paymentChannelLabel(BookingState.paymentChannel)}. It is part of the total. Pay the rest after the service is done.`;
+  if (cashDownLabel) cashDownLabel.textContent = `Down payment now (${BookingState.downpaymentPercentage || 10}%)`;
+  if (paymentDueNow) {
+    if (BookingState.paymentMethod === 'gcash') {
+      paymentDueNow.textContent = `₱${totalFee.toLocaleString()} — full payment`;
+    } else if (BookingState.paymentMethod === 'cod') {
+      paymentDueNow.textContent = `₱${downpayment.toLocaleString()} — down payment`;
+    } else {
+      paymentDueNow.textContent = 'Choose Full Payment or Down Payment';
+    }
+  }
 }
 
 function isValidPhilippineMobile(value) {
@@ -11016,7 +12090,62 @@ function paymentChannelLabel(channel) {
   return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
 }
 
-function selectBookingPaymentChannel(channel) {
+function syncPaymentChoiceGuide() {
+  const method = ['gcash', 'cod'].includes(BookingState.paymentMethod) ? BookingState.paymentMethod : null;
+  const channel = BookingState.paymentChannel;
+  const channelButton = channel
+    ? document.querySelector(`#bookingPaymentChannelSection .payment-channel-card[data-channel="${channel}"]`)
+    : null;
+  const channelReady = Boolean(method && channelButton && !channelButton.disabled &&
+    window.paymentMethodsConfig?.[channel]?.available !== false);
+  const stage = !method ? 1 : channelReady ? 3 : 2;
+  const guide = document.getElementById('paymentChoiceGuide');
+  const number = document.getElementById('paymentGuideNumber');
+  const title = document.getElementById('paymentGuideTitle');
+  const detail = document.getElementById('paymentGuideText');
+  const actionLabel = document.getElementById('paymentGuideActionLabel');
+  const guideAction = document.getElementById('paymentGuideAction');
+  const button = document.getElementById('confirmBookingBtn');
+  const availableChannel = document.querySelector('#bookingPaymentChannelSection .payment-channel-card:not(:disabled)');
+  const copy = {
+    1: ['First, choose how much to pay', 'Choose Full Payment or Down Payment below.', 'Choose Payment'],
+    2: ['Next, choose where to send payment', 'Pick GCash, Maya, or an available bank or transfer option.', 'Choose Payment Method'],
+    3: ['Next, send payment and upload the receipt', 'Follow the instructions below, then enter the reference and upload your receipt.', 'View Payment Steps']
+  }[stage];
+  if (guide) guide.dataset.stage = String(stage);
+  if (number) number.textContent = String(stage);
+  if (title) title.textContent = copy[0];
+  if (detail) detail.textContent = stage === 2 && !availableChannel
+    ? 'No payment method is available right now. Please contact us before sending money.'
+    : copy[1];
+  if (actionLabel) actionLabel.textContent = copy[2];
+  if (guideAction) guideAction.disabled = stage === 2 && !availableChannel;
+  document.getElementById('paymentDueCallout')?.classList.toggle('is-pending', !method);
+  document.getElementById('downpaymentReason')?.classList.toggle('d-none', method !== 'cod');
+  document.querySelector('.customer-payment-options')?.classList.toggle('is-needed', stage === 1);
+  document.getElementById('bookingPaymentChannelSection')?.classList.toggle('is-needed', stage === 2);
+  if (button && !button.dataset.submitting) button.disabled = stage !== 3;
+  if (!channelReady) {
+    document.getElementById('gcashFields')?.classList.add('d-none');
+    document.getElementById('cashFields')?.classList.add('d-none');
+  }
+}
+window.syncPaymentChoiceGuide = syncPaymentChoiceGuide;
+
+function guidePaymentNextAction() {
+  const stage = Number(document.getElementById('paymentChoiceGuide')?.dataset.stage) || 1;
+  const target = stage === 1
+    ? document.querySelector('.customer-payment-options .payment-method-card')
+    : stage === 2
+      ? document.querySelector('#bookingPaymentChannelSection .payment-channel-card:not(:disabled)')
+      : document.getElementById(BookingState.paymentMethod === 'cod' ? 'cashFields' : 'gcashFields');
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (stage !== 3) target.focus({ preventScroll: true });
+}
+window.guidePaymentNextAction = guidePaymentNextAction;
+
+function selectBookingPaymentChannel(channel, guideNext = false) {
   const allowed = ['gcash', 'maya', 'bank_transfer', 'other'];
   if (!allowed.includes(channel)) return;
   const configuredMethod = window.paymentMethodsConfig?.[channel];
@@ -11068,20 +12197,133 @@ function selectBookingPaymentChannel(channel) {
   const depositTitle = document.getElementById('depositPaymentPanelTitle');
   if (fullTitle) fullTitle.innerHTML = `<i class="bi bi-credit-card text-success"></i>Full Payment via ${label}`;
   if (fullHeading) fullHeading.textContent = `Full Payment via ${label}`;
-  if (depositTitle) depositTitle.innerHTML = `<i class="bi bi-wallet2 text-warning"></i>Downpayment via ${label}`;
+  if (depositTitle) depositTitle.innerHTML = `<i class="bi bi-wallet2 text-warning"></i>Down payment via ${label}`;
   updatePaymentAmounts();
+  syncPaymentChoiceGuide();
+  clearBookingPaymentError();
   saveBookingProgress();
+  if (guideNext && BookingState.currentStep === 6) {
+    window.setTimeout(guidePaymentNextAction, 80);
+  }
 }
 window.selectBookingPaymentChannel = selectBookingPaymentChannel;
 window.paymentChannelLabel = paymentChannelLabel;
 
 function paymentProofValidationMessage(file) {
-  if (!file) return 'Upload the payment receipt before continuing.';
+  if (!file) return 'Upload the payment receipt to continue.';
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(String(file.type || '').toLowerCase())) {
-    return 'The payment receipt must be a JPG, PNG, or WEBP image.';
+    return 'The receipt must be a JPG, PNG, or WEBP image.';
   }
-  if (file.size > 5 * 1024 * 1024) return 'The payment receipt must be 5 MB or smaller.';
+  if (file.size > 5 * 1024 * 1024) return 'The receipt must be 5 MB or smaller.';
   return '';
+}
+
+let currentBookingPaymentIssue = null;
+
+function clearBookingPaymentError(fieldId = null) {
+  const fieldIds = fieldId ? [fieldId] : ['gcashNumber', 'gcashProof', 'cashNumber', 'cashProof'];
+  fieldIds.forEach(id => {
+    const field = document.getElementById(id);
+    const inline = document.getElementById(`${id}Error`);
+    field?.classList.remove('payment-field-invalid');
+    field?.removeAttribute('aria-invalid');
+    if (inline) {
+      inline.textContent = '';
+      inline.classList.add('d-none');
+    }
+    if (field) {
+      const describedBy = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(part => part && part !== `${id}Error`);
+      if (describedBy.length) field.setAttribute('aria-describedby', describedBy.join(' '));
+      else field.removeAttribute('aria-describedby');
+    }
+  });
+
+  if (!fieldId || currentBookingPaymentIssue?.fieldId === fieldId) {
+    currentBookingPaymentIssue = null;
+    document.getElementById('paymentError')?.classList.add('d-none');
+  }
+}
+window.clearBookingPaymentError = clearBookingPaymentError;
+
+function refreshBookingPaymentFieldError(fieldId) {
+  if (currentBookingPaymentIssue?.fieldId !== fieldId) return;
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  const error = field.type === 'file'
+    ? paymentProofValidationMessage(field.files?.[0])
+    : BookingState.paymentChannel === 'gcash'
+      ? (isValidPhilippineMobile(field.value) ? '' : currentBookingPaymentIssue.error)
+      : (String(field.value || '').trim().length >= 3 ? '' : currentBookingPaymentIssue.error);
+  if (!error) {
+    clearBookingPaymentError(fieldId);
+    return;
+  }
+  currentBookingPaymentIssue.error = error;
+  const message = document.getElementById('paymentErrorMessage');
+  const inline = document.getElementById(`${fieldId}Error`);
+  if (message) message.textContent = error;
+  if (inline) inline.textContent = error;
+}
+
+function focusBookingPaymentError() {
+  const issue = currentBookingPaymentIssue;
+  if (!issue) return;
+  if (issue.step && issue.step !== 6) {
+    requestBookingStepNavigation(issue.step);
+    return;
+  }
+  const target = issue.fieldId
+    ? document.getElementById(issue.fieldId)
+    : issue.focusSelector ? document.querySelector(issue.focusSelector) : null;
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => target.focus({ preventScroll: true }), 250);
+}
+window.focusBookingPaymentError = focusBookingPaymentError;
+
+function showBookingPaymentError(issue) {
+  const error = typeof issue === 'string' ? { error: issue } : issue || {};
+  clearBookingPaymentError();
+  currentBookingPaymentIssue = error;
+  const banner = document.getElementById('paymentError');
+  const message = document.getElementById('paymentErrorMessage');
+  const title = document.getElementById('paymentErrorTitle');
+  const fixButton = document.getElementById('paymentErrorFixButton');
+  if (message) message.textContent = error.error || 'We could not send your booking. Please try again.';
+  if (title) title.textContent = error.fieldId || error.focusSelector || error.step
+    ? 'Please fix this before booking'
+    : 'We could not send your booking';
+  if (fixButton) {
+    const hasTarget = Boolean(error.fieldId || error.focusSelector || error.step);
+    fixButton.classList.toggle('d-none', !hasTarget);
+    fixButton.firstChild.textContent = error.step && error.step !== 6
+      ? `Go to ${({ 2: 'Services', 3: 'Location', 4: 'Schedule' })[error.step] || 'the step'} `
+      : 'Go to field ';
+  }
+  if (banner) banner.classList.remove('d-none');
+
+  if (error.fieldId) {
+    const field = document.getElementById(error.fieldId);
+    const inline = document.getElementById(`${error.fieldId}Error`);
+    if (field) {
+      field.classList.add('payment-field-invalid');
+      field.setAttribute('aria-invalid', 'true');
+      const describedBy = (field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+      if (!describedBy.includes(`${error.fieldId}Error`)) describedBy.push(`${error.fieldId}Error`);
+      field.setAttribute('aria-describedby', describedBy.join(' '));
+    }
+    if (inline) {
+      inline.textContent = error.error || '';
+      inline.classList.remove('d-none');
+    }
+  }
+
+  if (error.fieldId || error.focusSelector) {
+    window.setTimeout(focusBookingPaymentError, 80);
+  } else if (banner) {
+    banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    banner.focus({ preventScroll: true });
+  }
 }
 
 /**
@@ -11092,23 +12334,21 @@ async function handleBookingSubmission() {
   console.log('📤 Submitting booking...');
 
   const confirmBtn = document.getElementById('confirmBookingBtn');
-  const paymentError = document.getElementById('paymentError');
-
-  // Hide any previous errors
-  if (paymentError) {
-    paymentError.style.display = 'none';
-  }
+  let submissionIssue = null;
+  clearBookingPaymentError();
 
   // Disable button to prevent double submission
   if (confirmBtn) {
+    confirmBtn.dataset.submitting = 'true';
     confirmBtn.disabled = true;
-    confirmBtn.innerHTML = 'Confirming booking...';
+    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Sending booking...';
   }
 
   try {
     // Validate booking data
     const validationResult = validateBookingData();
     if (!validationResult.valid) {
+      submissionIssue = validationResult;
       throw new Error(validationResult.error);
     }
 
@@ -11119,7 +12359,11 @@ async function handleBookingSubmission() {
     if (!projectSchedule && typeof EnterpriseCalendar.validateSelectedSlot === 'function') {
       const stillAvailable = await EnterpriseCalendar.validateSelectedSlot();
       if (!stillAvailable) {
-        throw new Error('That Philippine time slot has passed or was just reserved. Please return to Schedule and choose another available time.');
+        submissionIssue = {
+          error: 'That start time is no longer available. Return to Schedule and choose another time.',
+          step: 4
+        };
+        throw new Error(submissionIssue.error);
       }
     }
 
@@ -11218,21 +12462,17 @@ async function handleBookingSubmission() {
     // Always hide car loading modal on error
     hideCarLoadingModal();
 
-    // Show error message
-    if (paymentError) {
-      paymentError.textContent = error.message || 'Failed to create booking';
-      paymentError.style.display = 'block';
-      paymentError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      alert('Booking failed: ' + (error.message || 'Unknown error'));
-    }
+    showBookingPaymentError(submissionIssue || {
+      error: error.message || 'We could not send your booking. Please try again.'
+    });
 
   } finally {
     // Re-enable button
     if (confirmBtn) {
-      confirmBtn.disabled = false;
+      delete confirmBtn.dataset.submitting;
       confirmBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Confirm Booking';
     }
+    syncPaymentChoiceGuide();
   }
 }
 
@@ -11296,10 +12536,10 @@ function hideCarLoadingModal() {
 function validateBookingData() {
   // Check services
   if (!BookingState.selectedServices || BookingState.selectedServices.length === 0) {
-    return { valid: false, error: 'Please select at least one service' };
+    return { valid: false, error: 'Choose at least one service.', step: 2 };
   }
   if (selectedUnitTotal() > MAX_BOOKING_UNITS) {
-    return { valid: false, error: `A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.` };
+    return { valid: false, error: `A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.`, step: 2 };
   }
 
   // Check technician
@@ -11309,12 +12549,12 @@ function validateBookingData() {
 
   // Check location
   if (!BookingState.customerLocation || !BookingState.customerLocation.lat) {
-    return { valid: false, error: 'Please set your location' };
+    return { valid: false, error: 'Add and confirm the service location.', step: 3 };
   }
 
   // Check date and time
   if (!BookingState.selectedDate) {
-    return { valid: false, error: 'Please select a date' };
+    return { valid: false, error: 'Choose your preferred date.', step: 4 };
   }
 
   // In large-scale / project mode only a start date is chosen (no fixed time
@@ -11325,19 +12565,19 @@ function validateBookingData() {
     BookingState.isProject === true ||
     !!BookingState.projectScheduling;
   if (!isProjectMode && !BookingState.selectedTimeSlot) {
-    return { valid: false, error: 'Please select a time slot' };
+    return { valid: false, error: 'Choose your preferred time.', step: 4 };
   }
 
   // Check the payment plan stored in the existing legacy-safe field.
   if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
-    return { valid: false, error: 'Please select a payment option' };
+    return { valid: false, error: 'Choose Full Payment or Down Payment.', focusSelector: '.customer-payment-options .payment-method-card' };
   }
   const paymentChannel = BookingState.paymentChannel;
   if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
-    return { valid: false, error: 'Please select how you will send the payment.' };
+    return { valid: false, error: 'Choose where you will send the payment.', focusSelector: '#bookingPaymentChannelSection .payment-channel-card:not(:disabled)' };
   }
   if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
-    return { valid: false, error: 'That payment method is currently unavailable. Please choose another method.' };
+    return { valid: false, error: 'This payment method is not available. Choose another one.', focusSelector: '#bookingPaymentChannelSection .payment-channel-card:not(:disabled)' };
   }
 
   // Validate payment fields
@@ -11346,28 +12586,28 @@ function validateBookingData() {
     const gcashProof = document.getElementById('gcashProof')?.files[0];
 
     if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
-      return { valid: false, error: 'Online payment is not configured. Please contact the store before continuing.' };
+      return { valid: false, error: 'GCash payment is not available right now. Choose another payment method or contact us.', focusSelector: '#bookingPaymentChannelSection .payment-channel-card:not(:disabled)' };
     }
     if (paymentChannel === 'gcash' && !isValidPhilippineMobile(gcashNumber)) {
-      return { valid: false, error: 'Enter the Philippine mobile number used to send the GCash payment.' };
+      return { valid: false, error: 'Enter the GCash mobile number used to send payment. Use 11 digits starting with 09 (example: 09171234567).', fieldId: 'gcashNumber' };
     }
     if (paymentChannel !== 'gcash' && String(gcashNumber || '').length < 3) {
-      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.' };
+      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.', fieldId: 'gcashNumber' };
     }
     const proofError = paymentProofValidationMessage(gcashProof);
-    if (proofError) return { valid: false, error: proofError };
+    if (proofError) return { valid: false, error: proofError, fieldId: 'gcashProof' };
   } else if (BookingState.paymentMethod === 'cod') {
     const cashNumber = document.getElementById('cashNumber')?.value?.trim();
     const cashProof = document.getElementById('cashProof')?.files[0];
 
     if (paymentChannel === 'gcash' && !isValidPhilippineMobile(cashNumber)) {
-      return { valid: false, error: 'Enter the Philippine mobile number used for the GCash downpayment.' };
+      return { valid: false, error: 'Enter the GCash mobile number used for the down payment. Use 11 digits starting with 09 (example: 09171234567).', fieldId: 'cashNumber' };
     }
     if (paymentChannel !== 'gcash' && String(cashNumber || '').length < 3) {
-      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.' };
+      return { valid: false, error: 'Enter the transaction or payment reference shown on your receipt.', fieldId: 'cashNumber' };
     }
     const proofError = paymentProofValidationMessage(cashProof);
-    if (proofError) return { valid: false, error: proofError };
+    if (proofError) return { valid: false, error: proofError, fieldId: 'cashProof' };
   }
 
   return { valid: true };
@@ -11393,7 +12633,7 @@ async function prepareBookingData() {
       const svc = {
         serviceId: service.serviceId || service._id || null,
         name: service.name,
-        type: service.type || (service.isRepair ? 'repair' : 'core'),
+        type: isRepairBookingService(service) ? 'repair' : 'core',
         quantity: service.quantity || 1,
         unitPrice: service.unitPrice || service.price || 0,
         totalPrice: (service.unitPrice || service.price || 0) * (service.quantity || 1),
@@ -11411,10 +12651,10 @@ async function prepareBookingData() {
         problemDescription: service.problemDescription || service.repairIssue || null,
         unitType: service.unitType || null,
         unitCategory: service.unitCategory || null,
-        initialCost: service.type === 'repair' ? (service.unitPrice || service.price || 0) : undefined
+        initialCost: isRepairBookingService(service) ? (service.unitPrice ?? service.price ?? 0) : undefined
       };
       // Convert repair photos to base64 if present
-      if (service.type === 'repair' && service.photos && service.photos.length > 0) {
+      if (isRepairBookingService(service) && service.photos && service.photos.length > 0) {
         try {
           svc.photos = await Promise.all(service.photos.map(async (file) => {
             if (typeof file === 'string') return file;
@@ -11575,10 +12815,10 @@ function showBookingSuccessModal(result) {
       const brand = s.brand ? s.brand : '—';
       const type = s.applianceTypeName || s.unitType || (s.applianceType ? s.applianceType : '—');
       const qty = s.quantity || 1;
-      const isRepair = s.type === 'repair';
+      const isRepair = isRepairBookingService(s);
       const badge = isRepair
-        ? '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.6rem;font-weight:700;">REPAIR</span>'
-        : '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.6rem;font-weight:700;">CORE</span>';
+        ? '<span class="badge" style="background:#fef3c7;color:#92400e;font-size:0.6rem;font-weight:700;">REPAIR INSPECTION</span>'
+        : '<span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.6rem;font-weight:700;">SERVICE</span>';
       const unit = s.totalPrice ? fmt(s.totalPrice / qty) : fmt(s.totalPrice || 0);
       const durMin = (s.duration || 60) * qty;
       const durH = durMin >= 60 ? `${(durMin / 60).toFixed(1)} hr` : `${durMin} min`;
@@ -11628,7 +12868,7 @@ function showBookingSuccessModal(result) {
     const channelLabel = paymentChannelLabel(BookingState.paymentChannel);
     paymentMethod.textContent = BookingState.paymentMethod === 'gcash'
       ? `Full payment via ${channelLabel}`
-      : `${BookingState.downpaymentPercentage || 10}% downpayment via ${channelLabel}; balance due at completion`;
+      : `${BookingState.downpaymentPercentage || 10}% down payment via ${channelLabel}; pay the rest after service`;
   }
 
   // Show payment breakdown
@@ -11744,8 +12984,9 @@ function timeToMinutes(timeStr) {
 /**
  * Initialize when DOM is ready
  */
-// DOMContentLoaded is already handled inside initMultiServiceBooking (line 80-82)
-// No duplicate registration needed here.
+// This file is loaded dynamically after the page markup. Start the booking
+// system explicitly so saved drafts are actually restored after a reload.
+initMultiServiceBooking();
 
 // Export for use in other scripts
 window.BookingSystem = {
@@ -11864,15 +13105,19 @@ function repairUnitPricing(unitType, categoryHint = selectedRepairUnitCategory()
   return { unitCategory: '', inspectionFee: repairDefaultInspectionFee() };
 }
 
-function selectUnitCategory(category) {
-  document.querySelectorAll('.unit-category-card').forEach(card => {
-    card.classList.toggle('active', card.dataset.category === category);
-  });
-  const unitTypeInput = document.getElementById('unitType');
-  if (unitTypeInput) { unitTypeInput.value = ''; }
-  const subSection = document.getElementById('subUnitSection');
+const REPAIR_UNITS_PER_PAGE = 4;
+const repairUnitPaginationState = { category: '', page: 1 };
+
+function renderRepairUnitPage(category) {
   const chipsContainer = document.getElementById('subUnitChips');
-  if (!chipsContainer || !subSection) return;
+  const pagination = document.getElementById('repairUnitPagination');
+  const pageLabel = document.getElementById('repairUnitPageLabel');
+  const showingLabel = document.getElementById('repairUnitShowingLabel');
+  const previousButton = document.getElementById('repairUnitPrev');
+  const nextButton = document.getElementById('repairUnitNext');
+  const unitTypeInput = document.getElementById('unitType');
+  if (!chipsContainer) return;
+
   chipsContainer.innerHTML = '';
   const types = unitTypesByCategory[category] || [];
   if (!types.length && customRepairCategories.has(category)) {
@@ -11881,36 +13126,278 @@ function selectUnitCategory(category) {
     input.id = 'customRepairUnitType';
     input.className = 'form-control';
     input.maxLength = 100;
-    input.placeholder = 'Enter the appliance or equipment type';
-    input.setAttribute('aria-label', 'Custom appliance or equipment type');
-    input.addEventListener('input', () => { unitTypeInput.value = input.value.trim(); });
+    input.placeholder = 'Enter the appliance type';
+    input.setAttribute('aria-label', 'Other appliance type');
+    input.addEventListener('input', () => {
+      unitTypeInput.value = input.value.trim();
+      refreshRepairGuide(2);
+    });
+    input.addEventListener('blur', () => {
+      if (input.value.trim()) goToRepairGuideStep(3, { quiet: true });
+    });
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || !input.value.trim()) return;
+      event.preventDefault();
+      goToRepairGuideStep(3, { quiet: true });
+    });
     chipsContainer.appendChild(input);
+    pagination?.classList.add('d-none');
+    return;
   }
-  types.forEach(type => {
+
+  const totalPages = Math.max(1, Math.ceil(types.length / REPAIR_UNITS_PER_PAGE));
+  repairUnitPaginationState.page = Math.min(Math.max(1, repairUnitPaginationState.page), totalPages);
+  const start = (repairUnitPaginationState.page - 1) * REPAIR_UNITS_PER_PAGE;
+  const visibleTypes = types.slice(start, start + REPAIR_UNITS_PER_PAGE);
+  visibleTypes.forEach(type => {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'sub-unit-chip';
-    chip.innerHTML = `<i class="bi ${type.icon}"></i>${type.label}`;
-    chip.dataset.value = type.value;
+    const icon = document.createElement('i');
+    icon.className = `bi ${String(type.icon || 'bi-circle').replace(/[^a-zA-Z0-9 _-]/g, '')}`;
+    const label = document.createElement('span');
+    label.textContent = type.label;
+    const action = document.createElement('small');
     const displayFee = type.inspectionFee == null ? repairDefaultInspectionFee() : Number(type.inspectionFee);
-    chip.title = `Inspection fee: ₱${displayFee.toLocaleString('en-PH')}`;
+    action.textContent = `Inspection: ₱${displayFee.toLocaleString('en-PH')}`;
+    chip.append(icon, label, action);
+    chip.dataset.value = type.value;
+    chip.setAttribute('aria-label', `${type.label}, inspection fee ₱${displayFee.toLocaleString('en-PH')}`);
+    chip.setAttribute('aria-pressed', String(unitTypeInput?.value === type.value));
+    chip.classList.toggle('active', unitTypeInput?.value === type.value);
     chip.onclick = function () { selectSubUnit(type.value, this); };
     chipsContainer.appendChild(chip);
   });
+
+  const firstItem = types.length ? start + 1 : 0;
+  const lastItem = Math.min(start + REPAIR_UNITS_PER_PAGE, types.length);
+  pagination?.classList.toggle('d-none', types.length === 0);
+  if (pageLabel) pageLabel.textContent = `Page ${repairUnitPaginationState.page} of ${totalPages}`;
+  if (showingLabel) showingLabel.textContent = `Showing ${firstItem}–${lastItem} of ${types.length} types`;
+  if (previousButton) previousButton.disabled = repairUnitPaginationState.page <= 1;
+  if (nextButton) nextButton.disabled = repairUnitPaginationState.page >= totalPages;
+}
+
+function changeRepairUnitPage(direction) {
+  const types = unitTypesByCategory[repairUnitPaginationState.category] || [];
+  const totalPages = Math.max(1, Math.ceil(types.length / REPAIR_UNITS_PER_PAGE));
+  const nextPage = Math.min(totalPages, Math.max(1, repairUnitPaginationState.page + Number(direction || 0)));
+  if (nextPage === repairUnitPaginationState.page) return;
+  repairUnitPaginationState.page = nextPage;
+  renderRepairUnitPage(repairUnitPaginationState.category);
+  document.getElementById('repairUnitPageLabel')?.focus({ preventScroll: true });
+}
+window.changeRepairUnitPage = changeRepairUnitPage;
+
+let repairGuidanceSuspended = false;
+
+function getRepairGuideStep() {
+  const hasCategory = Boolean(selectedRepairUnitCategory());
+  const hasUnitType = Boolean(document.getElementById('unitType')?.value.trim());
+  const hasBrand = Boolean(getSelectedRepairBrand());
+  const quantity = Number(document.getElementById('repairUnitQuantity')?.value);
+  const hasQuantity = Number.isInteger(quantity) && quantity >= 1 && quantity <= remainingBookingUnits();
+  const hasProblem = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
+  if (!hasCategory) return 1;
+  if (!hasUnitType) return 2;
+  if (!hasBrand || !hasQuantity) return 3;
+  if (!hasProblem) return 4;
+  return 5;
+}
+
+function refreshRepairGuide(activeStep = getRepairGuideStep()) {
+  const availableStep = getRepairGuideStep();
+  activeStep = Math.min(availableStep, Math.max(1, Number(activeStep) || 1));
+  const sections = {
+    1: document.getElementById('repairCategorySection'),
+    2: document.getElementById('subUnitSection'),
+    3: document.getElementById('repairDetailsSection'),
+    4: document.getElementById('repairProblemSection'),
+    5: document.getElementById('repairPhotoSection')
+  };
+  document.querySelectorAll('[data-repair-guide-step]').forEach(control => {
+    const step = Number(control.dataset.repairGuideStep);
+    control.classList.toggle('is-active', step === activeStep);
+    control.classList.toggle('is-complete', step < availableStep);
+    control.disabled = step > availableStep;
+    if (step === activeStep) control.setAttribute('aria-current', 'step');
+    else control.removeAttribute('aria-current');
+  });
+  Object.entries(sections).forEach(([step, section]) => {
+    if (!section) return;
+    const number = Number(step);
+    section.classList.toggle('is-current', number === activeStep);
+    section.classList.toggle('is-complete', number < availableStep);
+    section.classList.toggle('is-locked', number > activeStep);
+  });
+
+  const categoryStatus = document.getElementById('rpCatStatus');
+  const unitStatus = document.getElementById('rpUnitStatus');
+  if (categoryStatus) categoryStatus.innerHTML = availableStep > 1
+    ? '<i class="bi bi-check-circle-fill text-success" aria-label="Completed"></i>'
+    : '<i class="bi bi-arrow-down-circle-fill text-primary" aria-label="Current step"></i>';
+  if (unitStatus) unitStatus.innerHTML = availableStep > 2
+    ? '<i class="bi bi-check-circle-fill text-success" aria-label="Completed"></i>'
+    : availableStep === 2
+      ? '<i class="bi bi-arrow-down-circle-fill text-primary" aria-label="Current step"></i>'
+      : '<i class="bi bi-circle text-muted" aria-label="Not started"></i>';
+
+  const guideHint = document.getElementById('repairGuideHint');
+  const guideMessages = {
+    1: 'Step 1 of 5: Choose the appliance that needs repair.',
+    2: 'Step 2 of 5: Choose the appliance type.',
+    3: getSelectedRepairBrand()
+      ? 'Step 3 of 5: Model number is optional. Check the number of units, then continue.'
+      : 'Step 3 of 5: Choose a brand, or choose “I don’t know.”',
+    4: 'Step 4 of 5: Describe the problem. Choose any signs you noticed.',
+    5: 'Step 5 of 5: Add a photo if you have one, or skip to review.'
+  };
+  if (guideHint && guideHint.textContent !== guideMessages[activeStep]) guideHint.textContent = guideMessages[activeStep];
+
+  const brandReady = Boolean(getSelectedRepairBrand());
+  const quantity = Number(document.getElementById('repairUnitQuantity')?.value);
+  const quantityReady = Number.isInteger(quantity) && quantity >= 1 && quantity <= remainingBookingUnits();
+  const detailsButton = document.getElementById('repairDetailsNext');
+  const detailsHint = document.getElementById('repairDetailsHint');
+  const skipModel = document.getElementById('repairSkipModel');
+  if (detailsButton) detailsButton.disabled = !brandReady || !quantityReady;
+  if (skipModel) skipModel.disabled = !brandReady;
+  if (detailsHint) detailsHint.textContent = !brandReady
+    ? 'Choose a brand to continue.'
+    : !quantityReady ? 'Enter a valid number of units.' : 'Model number is optional. You can continue now.';
+
+  const problemReady = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
+  const problemButton = document.getElementById('repairProblemNext');
+  const problemHint = document.getElementById('repairProblemHint');
+  if (problemButton) problemButton.disabled = !problemReady;
+  if (problemHint) problemHint.textContent = problemReady
+    ? 'That is enough detail. You can continue.'
+    : 'Add at least 10 characters about the problem.';
+
+  const addAction = document.getElementById('repairAddAction');
+  addAction?.classList.toggle('is-locked', activeStep !== 5 || availableStep < 5);
+  if (availableStep === 5) {
+    const item = getCurrentRepairItem();
+    const unitName = (unitTypesByCategory[item.unitCategory] || []).find(type => type.value === item.unitType)?.label || item.unitType;
+    const title = document.getElementById('repairReviewTitle');
+    const meta = document.getElementById('repairReviewMeta');
+    const price = document.getElementById('repairReviewPrice');
+    const problem = document.getElementById('repairReviewProblem');
+    if (title) title.textContent = `${item.brand} ${unitName}`;
+    if (meta) meta.textContent = `${item.quantity} ${item.quantity === 1 ? 'unit' : 'units'} · ${repairPhotos.length} ${repairPhotos.length === 1 ? 'photo' : 'photos'}`;
+    if (price) price.textContent = `₱${(item.inspectionFee * item.quantity).toLocaleString('en-PH')}`;
+    if (problem) problem.textContent = `Problem: ${item.problemDescription}`;
+  }
+}
+
+function focusRepairQuantity() {
+  const quantity = document.getElementById('repairUnitQuantity');
+  if (!quantity || !getSelectedRepairBrand()) return;
+  quantity.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => quantity.focus({ preventScroll: true }), 180);
+}
+window.focusRepairQuantity = focusRepairQuantity;
+
+function continueRepairDetails() {
+  if (!getSelectedRepairBrand()) return goToRepairGuideStep(3);
+  const quantity = document.getElementById('repairUnitQuantity');
+  const count = Number(quantity?.value);
+  if (!Number.isInteger(count) || count < 1 || count > remainingBookingUnits()) {
+    quantity?.focus();
+    return;
+  }
+  goToRepairGuideStep(4, { quiet: true });
+}
+window.continueRepairDetails = continueRepairDetails;
+
+function continueRepairProblem() {
+  const note = document.getElementById('repairProblemDescription');
+  if ((note?.value.trim().length || 0) < 10) {
+    note?.focus();
+    return;
+  }
+  goToRepairGuideStep(5, { quiet: true });
+}
+window.continueRepairProblem = continueRepairProblem;
+
+function repairGuideTarget(step) {
+  return {
+    1: ['repairCategorySection', '.unit-category-card'],
+    2: ['subUnitSection', '#subUnitChips button, #customRepairUnitType'],
+    3: ['repairDetailsSection', '#unitBrand'],
+    4: ['repairProblemSection', '.symptom-chip, #repairProblemDescription'],
+    5: ['repairPhotoSection', '#repairPhotoUploadZone']
+  }[step];
+}
+
+function goToRepairGuideStep(requestedStep, options = {}) {
+  const availableStep = getRepairGuideStep();
+  const requested = Math.min(5, Math.max(1, Number(requestedStep) || 1));
+  const targetStep = requested > availableStep ? availableStep : requested;
+  if (requested > availableStep && options.quiet !== true) {
+    showBookingToast('Finish the current step first.', 'remove');
+  }
+  refreshRepairGuide(targetStep);
+  if (repairGuidanceSuspended) return;
+  const target = repairGuideTarget(targetStep);
+  const section = target && document.getElementById(target[0]);
+  if (!section) return;
+  window.setTimeout(() => {
+    section.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    section.classList.add('guide-arrival');
+    window.setTimeout(() => section.classList.remove('guide-arrival'), 900);
+    const focusTarget = section.querySelector(target[1]);
+    focusTarget?.focus({ preventScroll: true });
+  }, Number(options.delay) || 140);
+}
+window.goToRepairGuideStep = goToRepairGuideStep;
+
+function finishRepairGuide() {
+  if (getRepairGuideStep() < 5) return goToRepairGuideStep(getRepairGuideStep());
+  refreshRepairGuide(5);
+  const action = document.getElementById('repairAddAction');
+  action?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+  window.setTimeout(() => action?.querySelector('button')?.focus({ preventScroll: true }), 180);
+}
+window.finishRepairGuide = finishRepairGuide;
+
+function selectUnitCategory(category) {
+  document.querySelectorAll('.unit-category-card').forEach(card => {
+    const selected = card.dataset.category === category;
+    card.classList.toggle('active', selected);
+    card.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  const unitTypeInput = document.getElementById('unitType');
+  if (unitTypeInput) { unitTypeInput.value = ''; }
+  const subSection = document.getElementById('subUnitSection');
+  const chipsContainer = document.getElementById('subUnitChips');
+  if (!chipsContainer || !subSection) return;
+  repairUnitPaginationState.category = category;
+  repairUnitPaginationState.page = 1;
+  renderRepairUnitPage(category);
   subSection.classList.remove('d-none');
+  refreshRepairGuide(2);
+  goToRepairGuideStep(2, { quiet: true, delay: 180 });
 }
 window.selectUnitCategory = selectUnitCategory;
 
 function selectSubUnit(value, element) {
-  document.querySelectorAll('.sub-unit-chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.sub-unit-chip').forEach(c => {
+    c.classList.remove('active');
+    c.setAttribute('aria-pressed', 'false');
+  });
   element.classList.add('active');
+  element.setAttribute('aria-pressed', 'true');
   const unitTypeInput = document.getElementById('unitType');
   if (unitTypeInput) unitTypeInput.value = value;
+  refreshRepairGuide(3);
+  goToRepairGuideStep(3, { quiet: true, delay: 180 });
 }
 window.selectSubUnit = selectSubUnit;
 
 function toggleSymptom(element, symptom) {
   element.classList.toggle('active');
+  element.setAttribute('aria-pressed', element.classList.contains('active') ? 'true' : 'false');
   const textarea = document.getElementById('repairProblemDescription');
   if (!textarea) return;
   const current = textarea.value.trim();
@@ -11925,6 +13412,7 @@ function toggleSymptom(element, symptom) {
     textarea.value = updated;
   }
   updateRepairCharCount();
+  refreshRepairGuide(4);
 }
 window.toggleSymptom = toggleSymptom;
 
@@ -11972,6 +13460,7 @@ function setupRepairBrandSelector() {
   const currentValue = select.value;
   select.replaceChildren(new Option('Select brand\u2026', ''));
   getRepairBrandCatalog().forEach(brand => select.add(new Option(brand, brand)));
+  select.add(new Option("I don't know", "I don't know"));
   select.add(new Option('Other (type your brand)', '__other__'));
   select.value = Array.from(select.options).some(option => option.value === currentValue) ? currentValue : '';
 
@@ -11979,7 +13468,25 @@ function setupRepairBrandSelector() {
     select.dataset.repairBrandWired = '1';
     select.addEventListener('change', () => {
       toggleRepairCustomBrand();
-      if (select.value === '__other__') document.getElementById('unitBrandCustom')?.focus();
+      refreshRepairGuide(3);
+      if (select.value === '__other__') {
+        document.getElementById('unitBrandCustom')?.focus();
+      } else if (select.value) {
+        document.getElementById('unitModel')?.focus();
+      }
+    });
+  }
+  const custom = document.getElementById('unitBrandCustom');
+  if (custom && !custom.dataset.repairGuideWired) {
+    custom.dataset.repairGuideWired = '1';
+    custom.addEventListener('input', () => refreshRepairGuide(3));
+    custom.addEventListener('blur', event => {
+      if (custom.value.trim() && !event.relatedTarget?.closest('button, a, select, [role="button"]')) document.getElementById('unitModel')?.focus();
+    });
+    custom.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || !custom.value.trim()) return;
+      event.preventDefault();
+      document.getElementById('unitModel')?.focus();
     });
   }
   toggleRepairCustomBrand();
@@ -12008,7 +13515,7 @@ function setSelectedRepairBrand(brand) {
 }
 
 function getCurrentRepairItem() {
-  const unitType = (document.getElementById('unitType') || {}).value || '';
+  const unitType = (document.getElementById('unitType')?.value || '').trim();
   const pricing = repairUnitPricing(unitType);
   return {
     type: 'repair',
@@ -12016,21 +13523,34 @@ function getCurrentRepairItem() {
     unitCategory: pricing.unitCategory,
     inspectionFee: pricing.inspectionFee,
     brand: getSelectedRepairBrand(),
-    model: (document.getElementById('unitModel') || {}).value || '',
-    problemDescription: (document.getElementById('repairProblemDescription') || {}).value || '',
-    quantity: Number((document.getElementById('repairUnitQuantity') || {}).value || 1),
+    model: (document.getElementById('unitModel')?.value || '').trim(),
+    problemDescription: (document.getElementById('repairProblemDescription')?.value || '').trim(),
+    quantity: Number(document.getElementById('repairUnitQuantity')?.value),
   };
 }
 
 function repairItemIsComplete(item) {
-  return Boolean(item.unitType && item.brand && item.problemDescription.length >= 10);
+  return Boolean(item.unitType && item.brand && Number.isInteger(item.quantity) && item.quantity >= 1 && item.problemDescription.trim().length >= 10);
 }
 
 function addCurrentRepairItem() {
   const item = getCurrentRepairItem();
-  if (!item.unitType) return showAlert('Please select a service category and unit type.', 'warning');
-  if (!item.brand) return showAlert('Please select a brand or enter a brand name under Other.', 'warning');
-  if (item.problemDescription.length < 10) return showAlert('Please describe the problem in at least 10 characters.', 'warning');
+  if (!item.unitType) {
+    goToRepairGuideStep(selectedRepairUnitCategory() ? 2 : 1);
+    return showAlert('Choose the appliance and its type.', 'warning');
+  }
+  if (!item.brand) {
+    goToRepairGuideStep(3);
+    return showAlert('Choose the brand or choose “I don\'t know.”', 'warning');
+  }
+  if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+    goToRepairGuideStep(3);
+    return showAlert('Enter how many units need repair.', 'warning');
+  }
+  if (item.problemDescription.length < 10) {
+    goToRepairGuideStep(4);
+    return showAlert('Add a short note about the problem.', 'warning');
+  }
   if (selectedUnitTotal() + Number(item.quantity || 1) > MAX_BOOKING_UNITS) return showAlert(`Cannot add more than ${MAX_BOOKING_UNITS} units`, 'warning');
 
   const diagnosticFee = item.inspectionFee;
@@ -12070,18 +13590,24 @@ function addCurrentRepairItem() {
   updateContinueButtonState();
   saveBookingProgress();
   resetRepairForm();
-  showAlert('Repair service added to cart!', 'success');
+  showServiceAddedConfirmation('Repair Request');
 }
 window.addCurrentRepairItem = addCurrentRepairItem;
 
 function editRepairItem(index) {
   const item = BookingState.selectedServices[index];
   if (!item || item.type !== 'repair') return;
+  repairGuidanceSuspended = true;
   const category = item.unitCategory || Object.keys(unitTypesByCategory).find(key =>
     unitTypesByCategory[key].some(type => type.value === item.unitType)
   );
   if (category) {
     selectUnitCategory(category);
+    const repairTypeIndex = (unitTypesByCategory[category] || []).findIndex(type => type.value === item.unitType);
+    if (repairTypeIndex >= 0) {
+      repairUnitPaginationState.page = Math.floor(repairTypeIndex / REPAIR_UNITS_PER_PAGE) + 1;
+      renderRepairUnitPage(category);
+    }
     setTimeout(() => {
       const chip = [...document.querySelectorAll('.sub-unit-chip')].find(c => c.dataset.value === item.unitType);
       if (chip) selectSubUnit(item.unitType, chip);
@@ -12111,6 +13637,12 @@ function editRepairItem(index) {
   updatePricingDisplay();
   updateContinueButtonState();
   updateRepairCharCount();
+  window.setTimeout(() => {
+    repairGuidanceSuspended = false;
+    refreshRepairGuide(3);
+    document.getElementById('repairDetailsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('unitBrand')?.focus({ preventScroll: true });
+  }, 120);
 }
 window.editRepairItem = editRepairItem;
 
@@ -12133,17 +13665,24 @@ function resetRepairForm() {
   toggleRepairCustomBrand();
   const qty = document.getElementById('repairUnitQuantity');
   if (qty) qty.value = 1;
-  document.querySelectorAll('.unit-category-card,.sub-unit-chip,.symptom-chip').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.unit-category-card,.sub-unit-chip,.symptom-chip').forEach(el => {
+    el.classList.remove('active');
+    el.setAttribute('aria-pressed', 'false');
+  });
   const subSection = document.getElementById('subUnitSection');
   if (subSection) subSection.classList.add('d-none');
   const chips = document.getElementById('subUnitChips');
   if (chips) chips.innerHTML = '';
+  document.getElementById('repairUnitPagination')?.classList.add('d-none');
+  repairUnitPaginationState.category = '';
+  repairUnitPaginationState.page = 1;
   repairPhotos = [];
   const preview = document.getElementById('repairPhotoPreview');
   if (preview) preview.innerHTML = '';
   const photoInput = document.getElementById('repairUnitPhotos');
   if (photoInput) photoInput.value = '';
   updateRepairCharCount();
+  refreshRepairGuide(1);
 }
 
 function renderRepairServiceItems() {
@@ -12153,7 +13692,7 @@ function renderRepairServiceItems() {
   const esc = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   if (repairItems.length === 0) {
-    host.innerHTML = '<div class="text-center border border-2 rounded-3 p-4 bg-white"><i class="bi bi-plus-square fs-3 text-muted"></div><div class="fw-semibold mt-2">No repair service added</div><div class="small text-muted">Configure the appliance above, then click Add Repair Service.</div></div>';
+    host.innerHTML = '<div class="text-center border border-2 rounded-3 p-4 bg-white"><i class="bi bi-plus-square fs-3 text-muted" aria-hidden="true"></i><div class="fw-semibold mt-2">No repair request added</div><div class="small text-muted">Complete the steps above, then select Add Repair Request.</div></div>';
   } else {
     host.innerHTML = repairItems.map((item, idx) => {
       const globalIdx = BookingState.selectedServices.indexOf(item);
@@ -12194,17 +13733,28 @@ function setupRepairQuantityControls() {
     }
     return n;
   };
-  const applyClamp = () => { qtyInput.value = clampValue(qtyInput.value); };
+  const applyClamp = () => { qtyInput.value = clampValue(qtyInput.value); refreshRepairGuide(3); };
   if (minus) minus.addEventListener('click', () => {
     qtyInput.value = Math.max(1, (parseInt(qtyInput.value, 10) || 1) - 1);
+    refreshRepairGuide(3);
   });
   if (plus) plus.addEventListener('click', () => {
     qtyInput.value = clampValue((parseInt(qtyInput.value, 10) || 1) + 1);
+    refreshRepairGuide(3);
   });
   qtyInput.addEventListener('input', () => {
     if ((parseInt(qtyInput.value, 10) || 0) > remainingBookingUnits()) applyClamp();
+    refreshRepairGuide(3);
   });
   qtyInput.addEventListener('change', applyClamp);
+  qtyInput.addEventListener('blur', event => {
+    if (!event.relatedTarget?.closest('button, a, select, [role="button"]')) continueRepairDetails();
+  });
+  qtyInput.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    continueRepairDetails();
+  });
 }
 
 function setupRepairPhotoUpload() {
@@ -12212,7 +13762,9 @@ function setupRepairPhotoUpload() {
   const preview = document.getElementById('repairPhotoPreview');
   if (!input || !preview) return;
   input.addEventListener('change', function () {
-    handleRepairPhotoFiles(Array.from(this.files));
+    const added = handleRepairPhotoFiles(Array.from(this.files));
+    this.value = '';
+    if (added) window.setTimeout(finishRepairGuide, 180);
   });
   const zone = document.getElementById('repairPhotoUploadZone');
   if (zone) {
@@ -12224,7 +13776,10 @@ function setupRepairPhotoUpload() {
     });
     zone.addEventListener('drop', (e) => {
       const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-      if (files.length > 0) handleRepairPhotoFiles(files);
+      if (files.length > 0) {
+        const added = handleRepairPhotoFiles(files);
+        if (added) window.setTimeout(finishRepairGuide, 180);
+      }
     });
   }
 }
@@ -12232,11 +13787,17 @@ function setupRepairPhotoUpload() {
 let repairPhotos = [];
 function handleRepairPhotoFiles(files) {
   const preview = document.getElementById('repairPhotoPreview');
-  if (!preview) return;
+  if (!preview) return 0;
+  const allowedTypes = new Set(['image/jpeg', 'image/png']);
+  const valid = files.filter(file => allowedTypes.has(file.type) && file.size <= 5 * 1024 * 1024);
   const allowed = 5 - repairPhotos.length;
-  const toAdd = files.slice(0, allowed);
+  const toAdd = valid.slice(0, allowed);
+  if (valid.length !== files.length) showBookingToast('Use JPG or PNG photos under 5 MB.', 'remove');
+  else if (valid.length > allowed) showBookingToast('You can add up to 5 photos.', 'remove');
+  if (!toAdd.length) return 0;
   repairPhotos = [...repairPhotos, ...toAdd];
   renderRepairPhotoPreview();
+  return toAdd.length;
 }
 
 function renderRepairPhotoPreview() {
@@ -12266,6 +13827,7 @@ function renderRepairPhotoPreview() {
     item.appendChild(removeBtn);
     preview.appendChild(item);
   });
+  refreshRepairGuide(5);
 }
 
 function showRepairLoadingModal() {
@@ -12308,8 +13870,43 @@ function initRepairFormControls() {
   setupRepairBrandSelector();
   setupRepairQuantityControls();
   setupRepairPhotoUpload();
+  const modelEl = document.getElementById('unitModel');
+  if (modelEl) {
+    modelEl.addEventListener('blur', event => {
+      if (modelEl.value.trim() && !event.relatedTarget?.closest('button, a, select, [role="button"]')) focusRepairQuantity();
+    });
+    modelEl.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      focusRepairQuantity();
+    });
+  }
   const problemEl = document.getElementById('repairProblemDescription');
-  if (problemEl) problemEl.addEventListener('input', updateRepairCharCount);
+  if (problemEl) {
+    problemEl.addEventListener('input', () => {
+      updateRepairCharCount();
+      refreshRepairGuide(4);
+    });
+    problemEl.addEventListener('blur', event => {
+      if (problemEl.value.trim().length >= 10 && !event.relatedTarget?.closest('button, a, select, [role="button"]')) continueRepairProblem();
+    });
+  }
+  const repairTab = document.getElementById('repair-tab');
+  const coreTab = document.getElementById('core-tab');
+  if (repairTab && !repairTab.dataset.guideWired) {
+    repairTab.dataset.guideWired = '1';
+    repairTab.addEventListener('shown.bs.tab', () => {
+      setServicePickerGuide('configure');
+      refreshRepairGuide();
+    });
+  }
+  if (coreTab && !coreTab.dataset.guideWired) {
+    coreTab.dataset.guideWired = '1';
+    coreTab.addEventListener('shown.bs.tab', () => {
+      setServicePickerGuide(BookingState.selectedServices.length ? 'review' : 'choose');
+    });
+  }
+  refreshRepairGuide();
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initRepairFormControls);

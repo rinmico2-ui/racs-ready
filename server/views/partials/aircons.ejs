@@ -1,5 +1,5 @@
 <!-- Aircon Product Page — Premium E-Commerce Design -->
-<link rel="stylesheet" href="/css/customer-payment.css?v=20260916-payment-channels-v2">
+<link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <%
   var airconGroups = (locals.grouped && Array.isArray(grouped)) ? grouped : [];
 %>
@@ -358,6 +358,7 @@
           padding: 1.25rem 1.75rem;
           background: #fff;
         }
+        #productOrderModal .checkout-focus-cue { outline: 3px solid rgba(220, 38, 38, .55); outline-offset: 3px; border-radius: 8px; }
 
         /* Progress indicator */
         .wizard-progress {
@@ -1170,6 +1171,13 @@
           }
         }
 
+        @media (max-width: 575.98px) {
+          #productOrderModal .modal-footer { flex-wrap: wrap; gap: .5rem; padding: .75rem; }
+          #productOrderModal .modal-footer .ms-auto { width: 100%; margin-left: 0 !important; }
+          #productOrderModal #wizardNextBtn { flex: 1; min-height: 44px; white-space: normal; }
+          #productOrderModal #wizardBackBtn { min-height: 44px; }
+        }
+
         /* ── Map Legend Control ── */
         .map-legend-control {
           background: #fff;
@@ -1382,21 +1390,21 @@
           <div class="wizard-step-indicator">
             <div class="text-center">
               <div class="wizard-step-dot active" data-step="1">1</div>
-              <div class="wizard-step-label active">Select HP</div>
+              <div class="wizard-step-label active">Aircon size</div>
             </div>
           </div>
           <div class="wizard-step-line" id="line1"></div>
           <div class="wizard-step-indicator">
             <div class="text-center">
               <div class="wizard-step-dot" data-step="2">2</div>
-              <div class="wizard-step-label">Fulfillment</div>
+              <div class="wizard-step-label">Get order</div>
             </div>
           </div>
           <div class="wizard-step-line" id="line2"></div>
           <div class="wizard-step-indicator">
             <div class="text-center">
               <div class="wizard-step-dot" data-step="3">3</div>
-              <div class="wizard-step-label">Details</div>
+              <div class="wizard-step-label">Address &amp; date</div>
             </div>
           </div>
           <div class="wizard-step-line" id="line3"></div>
@@ -1418,13 +1426,13 @@
         <div class="modal-header">
           <div>
             <div class="d-flex align-items-center gap-2 mb-1">
-              <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1.5px;">HVAC Solutions</span>
+              <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1.5px;">Your order</span>
               <span style="width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.3); display:inline-block;"></span>
               <span style="font-size:0.55rem; font-weight:700; color:rgba(255,255,255,0.4); text-transform:uppercase; letter-spacing:1.5px;">Purchase</span>
             </div>
-            <h5 class="modal-title" id="wizardModalTitle">Product Details</h5>
+            <h5 class="modal-title" id="wizardModalTitle">Choose your aircon size</h5>
           </div>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close checkout"></button>
         </div>
 
         <div class="modal-body position-relative">
@@ -1463,7 +1471,7 @@
                 <div class="mb-3" id="wizardProductMeta" style="color: #64748b; font-weight: 500; font-size: 0.82rem;">
                 </div>
                 <div class="mb-3">
-                  <div style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Select Horsepower</div>
+                  <div style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Choose HP (aircon size)</div>
                   <div id="wizardHpOptions"></div>
                 </div>
 
@@ -1476,7 +1484,7 @@
                         <i class="bi bi-check-lg"></i>
                       </div>
                       <div>
-                        <div style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px;">Selected Configuration</div>
+                        <div style="font-size: 0.6rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px;">Your choice</div>
                         <div class="fw-bold" style="color: #0f172a; font-size: 0.95rem;" id="wizardSelectedHpLabel"></div>
                         <div style="color: #64748b; font-size: 0.78rem;" id="wizardSelectedBtu"></div>
                       </div>
@@ -1508,8 +1516,8 @@
           <!-- STEP 2 — Fulfillment Option -->
           <div class="wizard-panel" id="wizardStep2">
             <div class="step-header">
-              <h4>Fulfillment Method</h4>
-              <p>How would you like to receive your order?</p>
+              <h4>How will you get your order?</h4>
+              <p>Choose delivery with free installation, or pick up the aircon at our store.</p>
             </div>
             <div class="row g-3 px-md-3 justify-content-center">
               <div class="col-md-5">
@@ -1520,7 +1528,7 @@
                     <i class="bi bi-tools" style="font-size: 1.3rem;"></i>
                   </div>
                   <div class="fulfill-title">Delivery + Installation</div>
-                  <div class="fulfill-desc">Delivered and installed by our technicians.</div>
+                  <div class="fulfill-desc">Free installation. Delivery fee is based on your location.</div>
                 </div>
               </div>
               <div class="col-md-5">
@@ -1530,8 +1538,8 @@
                     style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; color: #16a34a; box-shadow: 0 2px 8px rgba(22,163,74,0.08);">
                     <i class="bi bi-shop" style="font-size: 1.3rem;"></i>
                   </div>
-                  <div class="fulfill-title">Customer Pickup</div>
-                  <div class="fulfill-desc">Pick up at our main branch.</div>
+                  <div class="fulfill-title">Pick Up at Store</div>
+                  <div class="fulfill-desc">Get your aircon from our store. Installation is not included.</div>
                 </div>
               </div>
             </div>
@@ -1543,7 +1551,7 @@
               <!-- Delivery fields -->
               <div id="deliveryFields" class="p-4 bg-white mb-3" style="display:none;border:1px solid #e2e8f0;border-radius:10px;">
                 <h5 class="fw-bold mb-3 pb-2 border-bottom" style="color: #0f172a; border-color: #f1f5f9; font-size: 0.92rem;"><i
-                    class="bi bi-geo-alt-fill me-2" style="color: #3b82f6;"></i> Delivery Details</h5>
+                    class="bi bi-geo-alt-fill me-2" style="color: #3b82f6;"></i> Where should we deliver?</h5>
 
                 <!-- Contact Number -->
                 <div class="col-md-6 mb-3">
@@ -1572,12 +1580,12 @@
                 <!-- Map -->
                 <div class="mb-3">
                   <label class="form-label d-flex justify-content-between" style="font-weight:700; font-size:0.82rem;">
-                    <span><i class="bi bi-map me-1" style="color:#6366f1;"></i> Delivery Route Map</span>
+                    <span><i class="bi bi-map me-1" style="color:#6366f1;"></i> Check your location on the map</span>
                     <span>
                       <button type="button" class="btn btn-sm btn-outline-primary border-0 me-2" onclick="locateMe()" style="font-size:0.75rem;padding:2px 8px;" title="Detect my location">
-                        <i class="bi bi-crosshair me-1"></i>Fetch Location
+                        <i class="bi bi-crosshair me-1"></i>My Location
                       </button>
-                      <span style="color: #94a3b8; font-size: 0.72rem; font-weight: 400;">Drag pin for exact spot</span>
+                      <span style="color: #94a3b8; font-size: 0.72rem; font-weight: 400;">Move the pin to your house</span>
                     </span>
                   </label>
 
@@ -1585,15 +1593,15 @@
                   <div class="position-relative">
                     <div id="wizardMap"></div>
                     <div class="map-locating-spinner" id="mapLocatingSpinner">
-                      <span class="spinner-border spinner-border-sm" role="status"></span> Calculating route...
+                      <span class="spinner-border spinner-border-sm" role="status"></span> Checking delivery fee...
                     </div>
                   </div>
 
                   <!-- Route Details Panel -->
                   <div class="route-info-panel" id="routeInfoPanel">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                      <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Route Details</span>
-                      <span class="route-method-badge" id="routeMethodBadge"><i class="bi bi-diagram-3 me-1"></i>Road Route</span>
+                      <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Delivery fee details</span>
+                      <span class="route-method-badge" id="routeMethodBadge"><i class="bi bi-diagram-3 me-1"></i>By road</span>
                     </div>
                     <div class="d-flex gap-2 mb-1">
                       <div class="route-stat-card">
@@ -1603,12 +1611,12 @@
                       </div>
                       <div class="route-stat-card">
                         <span class="route-stat-icon text-warning"><i class="bi bi-clock"></i></span>
-                        <span class="route-stat-label">Est. Travel</span>
+                        <span class="route-stat-label">Travel time</span>
                         <span class="route-stat-value" id="routeDurDisplay">— min</span>
                       </div>
                       <div class="route-stat-card">
                         <span class="route-stat-icon" style="color:#4f46e5;"><i class="bi bi-tag"></i></span>
-                        <span class="route-stat-label">Rate</span>
+                        <span class="route-stat-label">Fee per km</span>
                         <span class="route-stat-value" id="routeRateDisplay" style="color:#4f46e5;">₱—/km</span>
                       </div>
                       <div class="route-stat-card" style="border-color:#a5b4fc;background:linear-gradient(135deg,#eef2ff,#f0f4ff);">
@@ -1624,6 +1632,10 @@
                   <input type="hidden" id="wizardLng">
                 </div>
 
+                <div class="mb-2">
+                  <h6 class="fw-bold mb-1">Choose a date and time</h6>
+                  <p class="small text-muted mb-2">Pick an open date, then choose when we should start the delivery and installation. We will confirm your requested time.</p>
+                </div>
                 <!-- Calendar Container -->
                 <div id="checkoutCalendarContainer"></div>
 
@@ -1648,7 +1660,7 @@
                 <div class="p-3 mb-3" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
                   <div class="fw-bold" style="color: #0f172a; font-size: 0.88rem;"><i
                       class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
-                  <p class="mt-1 mb-0" style="color: #64748b; font-size: 0.78rem;">Pickup instructions will be provided upon order confirmation.</p>
+                  <p class="mt-1 mb-0" style="color: #64748b; font-size: 0.78rem;">We will send pickup details after your order is confirmed.</p>
                 </div>
 
                 <div class="mb-2">
@@ -1662,12 +1674,12 @@
           <!-- STEP 4 — Payment Option -->
           <div class="wizard-panel" id="wizardStep4">
             <div class="step-header">
-              <h4>Payment Option</h4>
-              <p>Choose when to pay and which amount is due now.</p>
+              <h4>How will you pay?</h4>
+              <p>Choose how much to pay now. We will show the amount before you send it.</p>
             </div>
             <div id="directCheckoutRestoreNotice" class="alert alert-info d-none mx-md-3" role="status">
-              <i class="bi bi-arrow-clockwise me-2"></i><strong>Checkout restored.</strong>
-              Your order details and payment choice were saved. For your security, please re-enter the payment reference and select the receipt image again.
+              <i class="bi bi-arrow-clockwise me-2"></i><strong>Your details were saved.</strong>
+              Enter your payment number again and upload your receipt photo to continue.
             </div>
             <div class="row g-3 px-md-3 customer-payment-options" id="paymentOptionsContainer">
               <!-- Options rendered by JS based on fulfillment type -->
@@ -1687,7 +1699,7 @@
 
             <div id="directDownpaymentReason" class="downpayment-reason" role="note">
               <i class="bi bi-info-circle-fill"></i>
-              <div><strong>Why is a downpayment required?</strong><br>It reserves the selected aircon unit and installation schedule, and lets RACS prepare the unit, materials, technician, and delivery. It is deducted from the order total and is not an additional fee.</div>
+              <div><strong>Why pay part now?</strong><br>This holds your aircon and chosen date. This payment is part of your total, not an extra fee.</div>
             </div>
 
             <!-- Payment evidence panel -->
@@ -1695,22 +1707,27 @@
               <h6 class="customer-payment-panel-title"><i class="bi bi-credit-card text-success"></i><span id="wizardGcashHeading">Payment</span></h6>
               <div class="customer-payment-instructions mb-3">
                 <strong id="directPaymentInstructionTitle">Send your payment</strong>
-                <ol><li id="directPaymentInstructionFirst">Use the payment details provided by RACS.</li><li>Send the exact amount due now.</li><li>Upload the successful transaction receipt.</li></ol>
+                <ol><li id="directPaymentInstructionFirst">Use the payment details shown here.</li><li>Send the amount shown below.</li><li>Upload a photo or screenshot of your payment receipt.</li></ol>
               </div>
               <div class="row g-3">
                 <div id="directPaymentQrBlock" class="col-md-5 border-md-end mb-3 mb-md-0 customer-payment-qr" style="border-color: #e2e8f0 !important;">
-                  <div style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Scan to Pay</div>
-                  <img id="wizardGcashQr" src="" alt="GCash QR" class="img-fluid" style="max-width: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
+                  <div data-gcash-qr-label class="d-none" style="font-size: 0.72rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">Scan to Pay</div>
+                  <img id="wizardGcashQr" data-gcash-qr-image alt="CALIDRO GCash payment QR" class="img-fluid d-none" style="max-width: 140px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px;">
                   <div class="customer-payment-recipient">GCash number: <strong id="wizardGcashNumber">Not configured</strong></div>
+                  <p data-gcash-qr-missing class="small text-muted mt-2 mb-0">Use the GCash number above to send your payment.</p>
+                  <div class="gcash-qr-actions"><a data-gcash-qr-download class="btn btn-outline-primary btn-sm d-none" href="#"><i class="bi bi-download me-1"></i>Download QR</a><a class="btn btn-outline-secondary btn-sm" href="https://gcash.com/getting-started" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right me-1"></i>GCash website</a></div>
+                  <p class="small text-muted mt-2 mb-0">On your phone, open GCash. If you saved the QR, tap QR and upload it. You can also send to the number above. Come back to upload your receipt.</p>
+                  <p class="small text-muted mt-1 mb-0">Check the recipient and any transfer fee in GCash before you send.</p>
                 </div>
                 <div class="col-md-7 ps-md-4 customer-payment-fields">
                   <div class="mb-3">
-                    <label id="directPaymentReferenceLabel" class="form-label">Payment Reference <span class="text-danger">*</span></label>
-                    <input class="form-control" id="wizardGcashSenderNumber" placeholder="Transaction or reference number" autocomplete="off">
+                    <label id="directPaymentReferenceLabel" for="wizardGcashSenderNumber" class="form-label">Payment Reference <span class="text-danger">*</span></label>
+                    <input class="form-control" id="wizardGcashSenderNumber" type="tel" inputmode="numeric" placeholder="Transaction or reference number" autocomplete="off" aria-describedby="directPaymentReferenceHelp directGcashSenderFeedback">
                     <div id="directPaymentReferenceHelp" class="form-text">Enter the reference shown on your payment receipt.</div>
+                    <div id="directGcashSenderFeedback" class="gcash-sender-feedback" role="status" aria-live="polite" hidden></div>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Upload Receipt Screenshot <span class="text-danger">*</span></label>
+                    <label class="form-label">Payment receipt photo <span class="text-danger">*</span></label>
                     <input class="form-control" type="file" id="wizardGcashProof" accept="image/jpeg,image/png,image/webp">
                   </div>
                   <!-- Image Preview -->
@@ -1723,9 +1740,9 @@
               <div class="customer-payment-summary">
                 <div class="customer-payment-summary-row"><span>Order total</span><strong id="wizardGcashTotal">--</strong></div>
                 <div class="customer-payment-summary-row due"><span id="wizardGcashLabel">Amount due now</span><strong id="wizardGcashAmount">--</strong></div>
-                <div class="customer-payment-summary-row" id="wizardGcashBalanceRow"><span id="wizardGcashBalanceLabel">Balance due at handover</span><strong id="wizardGcashBalance">--</strong></div>
+                <div class="customer-payment-summary-row" id="wizardGcashBalanceRow"><span id="wizardGcashBalanceLabel">Amount to pay later</span><strong id="wizardGcashBalance">--</strong></div>
               </div>
-              <div class="customer-payment-verification"><i class="bi bi-shield-check"></i><span><strong>Receipt verification.</strong> Your payment remains pending until an admin verifies the uploaded receipt.</span></div>
+              <div class="customer-payment-verification"><i class="bi bi-shield-check"></i><span><strong>We will check your receipt.</strong> Your order is not confirmed until our team checks your payment.</span></div>
             </div>
 
             <input type="hidden" id="wizardPaymentMethod" value="">
@@ -1734,8 +1751,8 @@
           <!-- STEP 5 — Review & Confirm -->
           <div class="wizard-panel" id="wizardStep5">
             <div class="step-header">
-              <h4>Review Order</h4>
-              <p>Please review your order details before confirming.</p>
+              <h4>Check your order</h4>
+              <p>Check the aircon, address or pickup date, and total. Use Back if you need to change something.</p>
             </div>
 
             <div class="px-md-2">
@@ -1758,20 +1775,16 @@
                   <span class="review-label">Product Subtotal</span>
                   <span class="review-value" id="reviewSubtotal"></span>
                 </div>
-                <div class="review-row" id="reviewDeliveryRow">
-                  <span class="review-label">Delivery Fee</span>
-                  <span class="review-value" id="reviewDeliveryFee"></span>
-                </div>
                 <div class="review-row" id="reviewInstallRow" style="display: none;">
-                  <span class="review-label">Installation Fee <small style="color:#94a3b8;">(not included)</small></span>
+                  <span class="review-label">Installation</span>
                   <span class="review-value" id="reviewInstallFee"></span>
                 </div>
                 <div class="review-row" id="reviewTransportRow" style="display: none;">
-                  <span class="review-label">Transport Fee <small style="color: #94a3b8;" id="reviewTransportMeta"></small></span>
+                  <span class="review-label">Delivery fee <small style="color: #94a3b8;" id="reviewTransportMeta"></small></span>
                   <span class="review-value" id="reviewTransportFee"></span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-2 pt-3 border-top" style="border-color: #e2e8f0 !important;">
-                  <span style="color: #64748b; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Grand Total</span>
+                      <span style="color: #64748b; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;">Total to pay</span>
                   <span class="fw-bold" style="color: #0f172a; font-size: 1.4rem; letter-spacing: -0.8px;"
                     id="reviewTotal"></span>
                 </div>
@@ -1793,7 +1806,7 @@
             <button class="btn btn-sm px-4" id="wizardNextBtn"
               onclick="wizardNext()" style="border-radius: 8px; padding: 0.55rem 1.75rem; font-weight: 600; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 0.85rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(37,99,235,0.25);"
               onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(37,99,235,0.35)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(37,99,235,0.25)'">
-              Next <i class="bi bi-arrow-right ms-1" style="font-size: 0.75rem;"></i>
+              Choose delivery or pickup <i class="bi bi-arrow-right ms-1" style="font-size: 0.75rem;"></i>
             </button>
           </div>
         </div>
@@ -1812,13 +1825,16 @@
 
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="/js/checkout-calendar.js?v=20260917-manila-slots-v1"></script>
+  <script src="/js/checkout-calendar.js?v=20260925-future-date-v3"></script>
+  <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
+  <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
+  <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
 
   <script>
     (function () {
       // ── Premium Alert Helper ────────────────────────────────────────────
       function showPremiumAlert(message, title = 'Attention', icon = 'warning') {
-        Swal.fire({
+        return Swal.fire({
           title: title,
           text: message,
           icon: icon,
@@ -1832,19 +1848,41 @@
         });
       }
 
+      async function guideDirectCheckoutIssue(message, title, selector) {
+        await showPremiumAlert(message, title, 'warning');
+        const target = document.querySelector(selector);
+        if (!target) return;
+        if (!target.matches('button, a, input, select, textarea, [tabindex]')) target.setAttribute('tabindex', '-1');
+        target.classList.add('checkout-focus-cue');
+        if (target.matches('input, select, textarea')) {
+          target.classList.add('is-invalid');
+          target.setAttribute('aria-invalid', 'true');
+        }
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => target.focus({ preventScroll: true }), 300);
+        setTimeout(() => target.classList.remove('checkout-focus-cue'), 2200);
+      }
+
+      ['input', 'change'].forEach(eventName => {
+        document.getElementById('productOrderModal')?.addEventListener(eventName, event => {
+          const field = event.target;
+          if (!field?.classList?.contains('is-invalid')) return;
+          field.classList.remove('is-invalid');
+          field.removeAttribute('aria-invalid');
+        });
+      });
+
       // ── Data from server ────────────────────────────────────────────────
       const GROUPS = <%- JSON.stringify(airconGroups) %>;
       const IS_LOGGED_IN = <%= !!locals.user %>;
       const USER_PHONE = '<%= (locals.user && locals.user.phone) ? locals.user.phone : "" %>';
 
-      // Fetch dynamic installation fee & fare per km
-      window.airconInstallFee = 1500;
+      // Fetch the delivery fare rate; installation is free with product delivery.
       window._farePerKm = 40;
       window.downpaymentPercentage = 10;
       fetch('/api/services/fare-per-km')
         .then(r => r.json())
         .then(data => {
-          if (data.airconInstallFee !== undefined) window.airconInstallFee = data.airconInstallFee;
           if (data.farePerKm !== undefined) window._farePerKm = data.farePerKm;
         })
         .catch(() => console.warn('Failed to fetch pricing config'));
@@ -1856,6 +1894,8 @@
           if (Object.prototype.hasOwnProperty.call(data, 'gcashNumber')) {
             window.adminGcashNumber = String(data.gcashNumber || '');
           }
+          window.gcashQrImageUrl = data.gcashQrImageUrl || '';
+          window.GcashQrActions?.apply(window.gcashQrImageUrl);
           if (Number.isFinite(percentage) && percentage >= 1 && percentage <= 100) {
             window.downpaymentPercentage = percentage;
             const selectedMethod = document.getElementById('wizardPaymentMethod')?.value;
@@ -1983,11 +2023,11 @@
       }
 
       const stepTitles = {
-        1: 'Select Horsepower',
-        2: 'Fulfillment Method',
-        3: 'Delivery Details',
-        4: 'Payment Option',
-        5: 'Review Order'
+        1: 'Choose your aircon size',
+        2: 'How will you get your order?',
+        3: 'Where and when?',
+        4: 'How will you pay?',
+        5: 'Check your order'
       };
       const TOTAL_STEPS = 5;
 
@@ -2061,6 +2101,7 @@
           setDirectCheckoutFieldValue('wizardLng', draft.longitude);
           setDirectCheckoutFieldValue('wizardDate', draft.preferredDate);
           setDirectCheckoutFieldValue('wizardTimeSlot', draft.timeSlot);
+          if (draft.selectedFulfillment !== 'customer_pickup') checkoutCalendar?.restoreSelection(draft.preferredDate, draft.timeSlot);
           setDirectCheckoutFieldValue('wizardPickupDate', draft.pickupDate);
           if (fpDatePickup && draft.pickupDate) fpDatePickup.setDate(draft.pickupDate, false);
 
@@ -2228,6 +2269,7 @@
             },
             onTimeSelect: (timeStr) => {
               document.getElementById('wizardTimeSlot').value = timeStr;
+              scheduleDirectCheckoutDraftSave();
             }
           });
         } else {
@@ -2332,11 +2374,11 @@
 
         // Validate current step
         if (currentStep === 1 && selectedVariantIdx === null) {
-          showPremiumAlert('Please select a horsepower option.');
+          await guideDirectCheckoutIssue('Choose the HP (aircon size) you want.', 'Choose an aircon size', '#wizardHpOptions');
           return;
         }
         if (currentStep === 2 && !selectedFulfillment) {
-          showPremiumAlert('Please choose a fulfillment option.');
+          await guideDirectCheckoutIssue('Choose delivery with installation or store pickup.', 'How will you get your order?', '#productOrderModal .fulfill-card');
           return;
         }
         if (currentStep === 3) {
@@ -2346,49 +2388,56 @@
             const date = document.getElementById('wizardDate').value;
             const timeSlot = document.getElementById('wizardTimeSlot').value;
 
-            if (!addr) { showPremiumAlert('Please enter your delivery address.'); return; }
-            if (!contact) { showPremiumAlert('Please enter your contact number.'); return; }
-            if (!date || !timeSlot) { showPremiumAlert('Please select a preferred date and time slot.', 'Schedule Required', 'warning'); return; }
+            if (addr.length < 8) { await guideDirectCheckoutIssue('Enter a complete address with at least 8 characters.', 'Check your address', '#wizardAddress'); return; }
+            const contactDigits = contact.replace(/\D/g, '');
+            if (!/^[+\d().\-\s]+$/.test(contact) || contactDigits.length < 7 || contactDigits.length > 15) {
+              await guideDirectCheckoutIssue('Enter a phone number with 7 to 15 digits so we can call you.', 'Check your phone number', '#wizardContact');
+              return;
+            }
+            if (!document.getElementById('wizardLat').value || !document.getElementById('wizardLng').value) {
+              await guideDirectCheckoutIssue('Search for your address or put the pin on your house.', 'Check the map pin', '#wizardMap');
+              return;
+            }
+            if (!window.OrderCheckoutErrors.isFutureDate(date) || !timeSlot) { await guideDirectCheckoutIssue('Choose an open date after today, then a start time.', 'Choose a date and time', '#checkoutCalendarContainer'); return; }
             if (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, timeSlot))) {
-              showPremiumAlert(
-                'That Philippine time slot has passed or was just reserved. Please choose a new available time.',
-                'Time Slot No Longer Available',
-                'warning'
-              );
+              await guideDirectCheckoutIssue('That time is no longer available. Please choose another one.', 'Choose another time', '#checkoutCalendarContainer');
               return;
             }
           } else {
             const pickupDate = document.getElementById('wizardPickupDate').value;
-            if (!pickupDate) { showPremiumAlert('Please select a pickup date.'); return; }
+            if (!window.OrderCheckoutErrors.isFutureDate(pickupDate)) { await guideDirectCheckoutIssue('Choose an available pickup date after today.', 'Choose a pickup date', '#wizardPickupDate'); return; }
           }
         }
         if (currentStep === 4) {
           const payMethod = document.getElementById('wizardPaymentMethod').value;
-          if (!payMethod) { showPremiumAlert('Please choose a payment option.'); return; }
+          if (!payMethod) { await guideDirectCheckoutIssue('Choose to pay all now or pay part now.', 'Choose how much to pay', '#paymentOptionsContainer .payment-method-card'); return; }
 
           if (payMethod === 'gcash_full' || payMethod === 'cod') {
             const paymentChannel = document.getElementById('directWizardPaymentChannel')?.value || '';
             if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(paymentChannel)) {
-              showPremiumAlert('Select GCash, Maya, bank transfer, or another payment method.', 'Payment Method Required', 'warning');
+              await guideDirectCheckoutIssue('Choose GCash, Maya, bank transfer, or another payment method.', 'Choose how to pay', '#directPaymentChannelSection .payment-channel-card:not(:disabled)');
               return;
             }
             if (window.paymentMethodsConfig?.[paymentChannel]?.available === false) {
-              showPremiumAlert('Choose another payment method or contact the store.', 'Payment Method Unavailable', 'warning');
+              await guideDirectCheckoutIssue('This payment method is not available. Choose another one.', 'Choose another method', '#directPaymentChannelSection .payment-channel-card:not(:disabled)');
               return;
             }
             if (paymentChannel === 'gcash' && !String(window.adminGcashNumber || '').trim()) {
-              showPremiumAlert('Choose another payment method or contact the store.', 'GCash Not Configured', 'warning');
+              await guideDirectCheckoutIssue('GCash is not available right now. Choose another way to pay.', 'Choose another method', '#directPaymentChannelSection .payment-channel-card:not(:disabled)');
               return;
             }
             const reference = String(document.getElementById('wizardGcashSenderNumber')?.value || '').trim();
-            const senderDigits = reference.replace(/\D/g, '');
-            if ((paymentChannel === 'gcash' && !/^(?:09\d{9}|639\d{9})$/.test(senderDigits)) || (paymentChannel !== 'gcash' && reference.length < 3)) {
-              showPremiumAlert(paymentChannel === 'gcash' ? 'Enter the Philippine mobile number used to send this payment.' : 'Enter the transaction or reference number shown on your receipt.', 'Payment Reference Required', 'warning');
+            const senderFeedback = paymentChannel === 'gcash' ? updateDirectGcashSenderFeedback(true) : null;
+            if ((paymentChannel === 'gcash' && !senderFeedback.valid) || (paymentChannel !== 'gcash' && reference.length < 3)) {
+              await guideDirectCheckoutIssue(paymentChannel === 'gcash'
+                ? senderFeedback.message
+                : 'Enter the payment number shown on your receipt.',
+              'Check the payment number', '#wizardGcashSenderNumber');
               return;
             }
             const gcashProof = document.getElementById('wizardGcashProof').files[0];
             if (!gcashProof) {
-              showPremiumAlert('Please upload a screenshot of your payment receipt.', 'Missing Receipt', 'warning');
+              await guideDirectCheckoutIssue('Upload a photo or screenshot of your payment receipt.', 'Add your receipt', '#wizardGcashProof');
               return;
             }
           }
@@ -2480,15 +2529,17 @@
         }
 
         if (currentStep === TOTAL_STEPS) {
-          nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';
+          nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place my order';
           nextBtn.classList.add('btn-success');
           nextBtn.style.background = 'linear-gradient(135deg, #059669, #10b981)';
-        } else if (currentStep === 1) {
-          nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
-          nextBtn.classList.remove('btn-success');
-          nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
         } else {
-          nextBtn.innerHTML = 'Next <i class="bi bi-arrow-right ms-1"></i>';
+          const nextLabels = {
+            1: 'Choose delivery or pickup',
+            2: 'Add address or pickup date',
+            3: 'Choose payment',
+            4: 'Check my order'
+          };
+          nextBtn.innerHTML = `${nextLabels[currentStep]} <i class="bi bi-arrow-right ms-1"></i>`;
           nextBtn.classList.remove('btn-success');
           nextBtn.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
         }
@@ -2498,6 +2549,14 @@
       function directPaymentChannelLabel(channel) {
         const configured = window.paymentMethodsConfig?.[channel]?.label;
         return configured || ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[channel] || 'Payment';
+      }
+
+      function updateDirectGcashSenderFeedback(required = false) {
+        return window.GcashSenderInput.update(
+          document.getElementById('wizardGcashSenderNumber'),
+          document.getElementById('directGcashSenderFeedback'),
+          { enabled: document.getElementById('directWizardPaymentChannel')?.value === 'gcash', required }
+        );
       }
 
       window.selectDirectPaymentChannel = function(channel) {
@@ -2524,22 +2583,31 @@
         const referenceHelp = document.getElementById('directPaymentReferenceHelp');
         const referenceInput = document.getElementById('wizardGcashSenderNumber');
         if (referenceLabel) referenceLabel.innerHTML = `${isGcash ? 'GCash Sender Number' : `${label} Transaction Reference`} <span class="text-danger">*</span>`;
-        if (referenceHelp) referenceHelp.textContent = isGcash ? 'Enter the mobile number used to send this payment.' : 'Enter the transaction or reference number shown on your receipt.';
+        if (referenceHelp) referenceHelp.textContent = isGcash ? 'Use the number on the GCash account that sent the payment, not the number shown above.' : 'Enter the transaction or reference number shown on your receipt.';
         if (referenceInput) {
           referenceInput.value = '';
+          referenceInput.type = isGcash ? 'tel' : 'text';
           referenceInput.placeholder = isGcash ? '09XXXXXXXXX' : 'Transaction or reference number';
-          referenceInput.inputMode = isGcash ? 'tel' : 'text';
+          referenceInput.inputMode = isGcash ? 'numeric' : 'text';
           referenceInput.autocomplete = isGcash ? 'tel' : 'off';
         }
+        updateDirectGcashSenderFeedback();
         const method = document.getElementById('wizardPaymentMethod').value;
-        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? `Downpayment via ${label}` : `Full Payment via ${label}`;
+        document.getElementById('wizardGcashHeading').textContent = method === 'cod' ? `Pay part now with ${label}` : `Pay all now with ${label}`;
         document.getElementById('directPaymentInstructionTitle').textContent = `Send your payment via ${label}`;
-        document.getElementById('directPaymentInstructionFirst').textContent = isGcash ? 'Scan the QR code or use the displayed number.' : `Use the ${label} payment details confirmed by RACS.`;
+        document.getElementById('directPaymentInstructionFirst').textContent = isGcash ? 'Use the QR, if shown, or send to the GCash number below.' : `Use the ${label} payment details confirmed by RACS.`;
         scheduleDirectCheckoutDraftSave();
       };
 
       document.querySelectorAll('#directPaymentChannelSection .payment-channel-card').forEach(button => {
         button.addEventListener('click', () => window.selectDirectPaymentChannel(button.dataset.channel));
+      });
+
+      document.getElementById('wizardGcashSenderNumber')?.addEventListener('input', function () {
+        updateDirectGcashSenderFeedback();
+      });
+      document.getElementById('wizardGcashSenderNumber')?.addEventListener('blur', function () {
+        if (document.getElementById('directWizardPaymentChannel')?.value === 'gcash') updateDirectGcashSenderFeedback(true);
       });
 
       window.selectPaymentMethods = function(method) {
@@ -2565,10 +2633,6 @@
           const v = g.variants[selectedVariantIdx];
           
           let subtotal = v.sellingPrice * selectedQuantity;
-          let installFee = 0;
-          if (selectedFulfillment === 'delivery_installation') {
-            installFee = window.airconInstallFee || 1500;
-          }
           let total = subtotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
           
           const isDownpayment = method === 'cod';
@@ -2577,24 +2641,20 @@
           const balance = Math.max(0, total - amountToPay);
           
           document.getElementById('wizardGcashAmount').textContent = `₱${amountToPay.toLocaleString()}`;
-          document.getElementById('wizardGcashLabel').textContent = isDownpayment ? `Downpayment due now (${percentage}%)` : 'Full payment due now';
+          document.getElementById('wizardGcashLabel').textContent = isDownpayment ? `Pay now (${percentage}%)` : 'Pay now';
           const channelLabel = directPaymentChannelLabel(document.getElementById('directWizardPaymentChannel').value);
-          document.getElementById('wizardGcashHeading').textContent = isDownpayment ? `Downpayment via ${channelLabel}` : `Full Payment via ${channelLabel}`;
+          document.getElementById('wizardGcashHeading').textContent = isDownpayment ? `Pay part now with ${channelLabel}` : `Pay all now with ${channelLabel}`;
           document.getElementById('wizardGcashTotal').textContent = `₱${total.toLocaleString()}`;
           document.getElementById('wizardGcashBalance').textContent = `₱${balance.toLocaleString()}`;
           document.getElementById('wizardGcashBalanceRow').style.display = isDownpayment ? 'flex' : 'none';
           const balanceLabel = document.getElementById('wizardGcashBalanceLabel');
           if (balanceLabel) balanceLabel.textContent = selectedFulfillment === 'customer_pickup'
-            ? 'Balance due at store pickup'
-            : 'Balance due at installation handover';
+            ? 'Amount to pay at store pickup'
+            : 'Amount to pay after installation';
           
           const gcashNum = window.adminGcashNumber || '';
           document.getElementById('wizardGcashNumber').textContent = gcashNum || 'Contact the store';
-          if (gcashNum) {
-            document.getElementById('wizardGcashQr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=' + encodeURIComponent('GCash|' + gcashNum);
-          } else {
-            document.getElementById('wizardGcashQr').removeAttribute('src');
-          }
+          window.GcashQrActions?.apply(window.gcashQrImageUrl);
         } else {
           gcashPanel.style.display = 'none';
         }
@@ -2643,14 +2703,14 @@
               <button type="button" class="payment-method-card payment-card-green" data-method="cash_onsite" aria-pressed="false" onclick="selectPaymentMethods('cash_onsite')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-cash-stack fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Pay at Store Pickup</strong><span>Pay the complete amount in cash when collecting the order.</span></span>
+                <span class="payment-method-copy"><strong>Pay at Store Pickup</strong><span>Pay in cash when you pick up your aircon.</span></span>
               </button>
             </div>
             <div class="col-12 col-md-6">
               <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method before pickup.</span></span>
+                <span class="payment-method-copy"><strong>Pay all now</strong><span>Send the full amount before pickup.</span></span>
               </button>
             </div>
           `;
@@ -2662,14 +2722,14 @@
               <button type="button" class="payment-method-card payment-card-blue" data-method="gcash_full" aria-pressed="false" onclick="selectPaymentMethods('gcash_full')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-phone fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Full Payment</strong><span>Pay the complete order amount using your selected method.</span></span>
+                <span class="payment-method-copy"><strong>Pay all now</strong><span>Send the full amount now.</span></span>
               </button>
             </div>
             <div class="col-12 col-md-6">
               <button type="button" class="payment-method-card payment-card-amber" data-method="cod" aria-pressed="false" onclick="selectPaymentMethods('cod')">
                 <span class="checkout-choice-check" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
                 <span class="payment-method-icon"><i class="bi bi-wallet2 fs-3"></i></span>
-                <span class="payment-method-copy"><strong>Downpayment</strong><span>Pay ${window.downpaymentPercentage || 10}% now to reserve the unit and schedule; settle the balance at handover.</span></span>
+                <span class="payment-method-copy"><strong>Pay part now</strong><span>Pay ${window.downpaymentPercentage || 10}% now. Pay the rest after installation.</span></span>
               </button>
             </div>
           `;
@@ -2693,14 +2753,12 @@
         if (reviewQtyElement) reviewQtyElement.textContent = selectedQuantity;
 
         const subtotal = v.sellingPrice * selectedQuantity;
-        let installFee = 0;
-
         const details = [];
         const fulfillLabels = {
           delivery_installation: '🔧 Delivery + Installation',
           customer_pickup: '🏪 Customer Pickup'
         };
-        details.push({ label: 'Fulfillment', value: fulfillLabels[selectedFulfillment] || '' });
+        details.push({ label: 'Get order', value: fulfillLabels[selectedFulfillment] || '' });
 
         if (selectedFulfillment !== 'customer_pickup') {
           const addr = document.getElementById('wizardAddress').value.trim();
@@ -2710,10 +2768,6 @@
           details.push({ label: 'Address', value: addr });
           details.push({ label: 'Contact', value: contact });
           details.push({ label: selectedFulfillment === 'delivery_installation' ? 'Installation' : 'Delivery', value: `${date} ${timeSlot ? 'at ' + timeSlot : ''}` });
-
-          if (selectedFulfillment === 'delivery_installation') {
-            installFee = window.airconInstallFee !== undefined ? window.airconInstallFee : 1500;
-          }
         } else {
           const pickupDate = document.getElementById('wizardPickupDate');
           details.push({ label: 'Pickup Date', value: pickupDate ? pickupDate.value : '' });
@@ -2725,27 +2779,24 @@
         const selectedPaymentChannel = directPaymentChannelLabel(document.getElementById('directWizardPaymentChannel')?.value);
         const payLabels = {
           cash_onsite: 'Cash at store pickup',
-          gcash_full: `Full Payment via ${selectedPaymentChannel}`,
-          cod: `${window.downpaymentPercentage || 10}% Downpayment via ${selectedPaymentChannel}; balance at installation handover`
+          gcash_full: `Pay all now with ${selectedPaymentChannel}`,
+          cod: `Pay ${window.downpaymentPercentage || 10}% now with ${selectedPaymentChannel}; pay the rest after installation`
         };
         details.push({ label: 'Payment', value: payLabels[payMethod] || payMethod.toUpperCase() });
 
         document.getElementById('reviewSubtotal').textContent = `₱${subtotal.toLocaleString()}`;
         
         const transportRow = document.getElementById('reviewTransportRow');
-        const deliveryRow = document.getElementById('reviewDeliveryRow');
-        if (deliveryRow) deliveryRow.style.display = 'none';
-
-        if (selectedFulfillment !== 'customer_pickup' && _transportFee > 0) {
+        if (selectedFulfillment !== 'customer_pickup') {
           document.getElementById('reviewTransportFee').textContent = '₱' + _transportFee.toLocaleString();
           if (transportRow) transportRow.style.display = 'flex';
         } else {
           if (transportRow) transportRow.style.display = 'none';
         }
 
-        if (installFee > 0) {
+        if (selectedFulfillment === 'delivery_installation') {
           document.getElementById('reviewInstallRow').style.display = 'flex';
-          document.getElementById('reviewInstallFee').textContent = `₱${installFee.toLocaleString()}`;
+          document.getElementById('reviewInstallFee').textContent = 'Free';
         } else {
           document.getElementById('reviewInstallRow').style.display = 'none';
         }
@@ -2754,10 +2805,10 @@
         const percentage = window.downpaymentPercentage || 10;
         const dueNow = payMethod === 'cash_onsite' ? 0 : (payMethod === 'cod' ? Math.round(total * percentage / 100) : total);
         const dueLater = Math.max(0, total - dueNow);
-        details.push({ label: 'Due now', value: `₱${dueNow.toLocaleString()}` });
+        details.push({ label: 'Pay now', value: `₱${dueNow.toLocaleString()}` });
         if (dueLater > 0) {
           details.push({
-            label: payMethod === 'cash_onsite' ? 'Due at store pickup' : 'Due at installation handover',
+            label: payMethod === 'cash_onsite' ? 'Pay at store pickup' : 'Pay after installation',
             value: `₱${dueLater.toLocaleString()}`
           });
         }
@@ -2943,10 +2994,10 @@
         if (formulaEl) formulaEl.textContent = distKm.toFixed(1) + ' km \u00d7 \u20b1' + Number(farePerKm).toFixed(2) + '/km = \u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' delivery fee';
         if (badgeEl) {
           if (isRoad) {
-            badgeEl.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>Road Route';
+            badgeEl.innerHTML = '<i class="bi bi-diagram-3 me-1"></i>By road';
             badgeEl.className = 'route-method-badge';
           } else {
-            badgeEl.innerHTML = '<i class="bi bi-calculator me-1"></i>Estimated (straight-line)';
+            badgeEl.innerHTML = '<i class="bi bi-calculator me-1"></i>Estimated fee';
             badgeEl.className = 'route-method-badge haversine';
           }
         }
@@ -3016,6 +3067,22 @@
       // ── Submit order ────────────────────────────────────────────────────
       async function submitOrder() {
         if (_directCheckoutSubmitting) return;
+        if (selectedFulfillment === 'customer_pickup' && !window.OrderCheckoutErrors.isFutureDate(document.getElementById('wizardPickupDate')?.value)) {
+          currentStep = 3;
+          updateWizardUI();
+          await guideDirectCheckoutIssue('Choose an available pickup date after today.', 'Check the pickup date', '#wizardPickupDate');
+          return;
+        }
+        if (selectedFulfillment !== 'customer_pickup') {
+          const date = document.getElementById('wizardDate')?.value;
+          const time = document.getElementById('wizardTimeSlot')?.value;
+          if (!window.OrderCheckoutErrors.isFutureDate(date) || !time || (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, time)))) {
+            currentStep = 3;
+            updateWizardUI();
+            await guideDirectCheckoutIssue('Choose an available date after today and a start time before placing your order.', 'Check the delivery schedule', '#checkoutCalendarContainer');
+            return;
+          }
+        }
         _directCheckoutSubmitting = true;
         const g = GROUPS[selectedGroupIdx];
         const v = g.variants[selectedVariantIdx];
@@ -3071,10 +3138,15 @@
           const data = await res.json();
 
           if (!res.ok) {
-            if (data.nextAvailableDate) {
-              showPremiumAlert(`${data.error}\n\nNext available date: ${data.nextAvailableDate}`, 'Schedule Conflict', 'error');
+            console.warn('Order checkout rejected', { status: res.status, code: data?.code || 'UNKNOWN' });
+            if (data?.code === 'ORDER_CHECKOUT_REQUEST_ID_INVALID') _checkoutRequestId = createCheckoutRequestId();
+            const issue = window.OrderCheckoutErrors?.issueFor(data, 'direct');
+            if (issue) {
+              currentStep = issue.step;
+              updateWizardUI();
+              await guideDirectCheckoutIssue(issue.message, issue.title, issue.focusSelector);
             } else {
-              showPremiumAlert(data.error || 'Failed to place order.', 'Order Error', 'error');
+              await showPremiumAlert(data.error || 'Please check your details and try again.', 'Could not place your order', 'error');
             }
             nextBtn.disabled = false;
             nextBtn.innerHTML = '<i class="bi bi-bag-check me-1"></i>Place Order';

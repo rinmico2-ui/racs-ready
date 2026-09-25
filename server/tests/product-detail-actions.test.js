@@ -22,3 +22,11 @@ test("desktop and mobile purchase buttons share the guarded action state", () =>
   assert.match(productDetail, /querySelectorAll\('\[data-pd-purchase\]'\)/);
   assert.match(productDetail, /pd-action-locked:disabled[\s\S]*?opacity: 1/);
 });
+
+test("product page shows only supported purchase promises", () => {
+  assert.match(productDetail, /Free installation with delivery/);
+  assert.match(productDetail, /Delivery fee shown at checkout/);
+  assert.match(productDetail, /<span class="pd-spec-label">Warranty<\/span>/);
+  assert.doesNotMatch(productDetail, /Free Delivery|24\/7 Support|GCredit \/ Card Installment/);
+  assert.doesNotMatch(productDetail, /Full GCash|GCash Downpayment|Cash at Store Pickup/);
+});

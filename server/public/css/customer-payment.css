@@ -54,6 +54,11 @@
 .customer-payment-fields .form-label { margin-bottom: .35rem; color: #475569; font-size: .78rem; font-weight: 700; }
 .customer-payment-fields .form-control { min-height: 44px; border: 1.5px solid #dbe3ee; border-radius: 11px; font-size: .86rem; }
 .customer-payment-fields .form-text { font-size: .72rem; }
+.customer-payment-fields .gcash-sender-feedback { margin-top: .35rem; color: #64748b; font-size: .75rem; line-height: 1.4; }
+.customer-payment-fields .gcash-sender-feedback.is-invalid { color: #b91c1c; font-weight: 650; }
+.customer-payment-fields .gcash-sender-feedback.is-valid { color: #15803d; font-weight: 650; }
+.customer-payment-fields .form-control.is-invalid { border-color: #dc2626; box-shadow: 0 0 0 2px rgba(220,38,38,.1); }
+.customer-payment-fields .form-control.is-valid { border-color: #16a34a; }
 .customer-payment-proof-preview { display: block; max-width: 100%; max-height: 150px; margin: .55rem auto 0; border: 1px solid #bbf7d0; border-radius: 10px; object-fit: contain; }
 .customer-payment-summary { margin-top: .85rem; border-color: #bfdbfe; background: #f8fbff; }
 .customer-payment-summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .18rem 0; color: #64748b; font-size: .78rem; }
@@ -84,3 +89,11 @@
   .payment-channel-card { min-height: 42px; font-size: .7rem; }
 }
 @media (prefers-reduced-motion: reduce) { .customer-payment-options .payment-method-card { transition: none; } }
+.gcash-qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+.gcash-qr-actions .btn { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; }

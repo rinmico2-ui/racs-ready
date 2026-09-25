@@ -74,7 +74,7 @@
         <section class="wa-section">
           <h4 class="wa-section-title"><i class="bi bi-box-seam"></i>Fulfillment</h4>
           <div class="wa-choice" id="waFulfillmentChoices">
-            <button type="button" data-value="delivery_installation" class="active" aria-pressed="true"><i class="bi bi-truck d-block"></i>Deliver + install<small>Assign technician</small></button>
+            <button type="button" data-value="delivery_installation" class="active" aria-pressed="true"><i class="bi bi-truck d-block"></i>Deliver + install<small>Free installation; delivery fee applies</small></button>
             <button type="button" data-value="customer_pickup" aria-pressed="false"><i class="bi bi-calendar2-check d-block"></i>Pickup later<small>Choose pickup date</small></button>
             <button type="button" data-value="carry_out" aria-pressed="false"><i class="bi bi-bag-check d-block"></i>Carry out<small>Release today</small></button>
           </div>
@@ -140,8 +140,8 @@
         </section>
         <div class="wa-summary">
           <div class="wa-sum-row"><span>Products</span><strong id="waSubtotal">₱0.00</strong></div>
-          <div class="wa-sum-row"><span>Installation <small class="text-muted">(not included)</small></span><strong id="waInstallFee">₱0.00</strong></div>
-          <div class="wa-sum-row"><span>Transportation</span><strong id="waTransportFee">₱0.00</strong></div>
+          <div class="wa-sum-row" id="waInstallRow"><span>Installation</span><strong id="waInstallFee">Free</strong></div>
+          <div class="wa-sum-row"><span>Delivery fee</span><strong id="waTransportFee">₱0.00</strong></div>
           <div class="wa-sum-row"><span>Discount</span><strong id="waDiscountView">−₱0.00</strong></div>
           <div class="wa-sum-row wa-sum-total"><span>Total</span><strong id="waTotal">₱0.00</strong></div>
         </div>
@@ -618,9 +618,8 @@
     const subtotal = state.cart.reduce((sum, item) => sum + item.sellingPrice * item.quantity, 0);
     const discount = Math.max(0, Number($("waDiscount").value) || 0);
     const delivery = state.fulfillment === "delivery_installation";
-    const installation = delivery ? Number(state.quote.installationFee || 0) : 0;
     const transport = delivery ? Number(state.quote.transportationFee || 0) : 0;
-    return { subtotal, discount, installation, transport, total: Math.max(0, subtotal - discount + transport) };
+    return { subtotal, discount, transport, total: Math.max(0, subtotal - discount + transport) };
   }
 
   function renderCart() {
@@ -631,7 +630,7 @@
   }
 
   function renderTotals() {
-    const t = totals(); $("waSubtotal").textContent = money(t.subtotal); $("waInstallFee").textContent = money(t.installation); $("waTransportFee").textContent = money(t.transport); $("waDiscountView").textContent = `−${money(t.discount)}`; $("waTotal").textContent = money(t.total); $("waSubmit").disabled = !state.cart.length;
+    const t = totals(); $("waSubtotal").textContent = money(t.subtotal); $("waInstallRow").classList.toggle("wa-hidden", state.fulfillment !== "delivery_installation"); $("waInstallFee").textContent = "Free"; $("waTransportFee").textContent = money(t.transport); $("waDiscountView").textContent = `−${money(t.discount)}`; $("waTotal").textContent = money(t.total); $("waSubmit").disabled = !state.cart.length;
     if ($("waPayment").value !== "cash") $("waAmountPaid").value = t.total.toFixed(2);
   }
 

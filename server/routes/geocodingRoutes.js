@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 
 /**
@@ -20,6 +21,55 @@ const NOMINATIM_BASE_URL = String(
 let nextProviderRequestAt = 0;
 let providerBlockedUntil = 0;
 let providerQueue = Promise.resolve();
+const autocompleteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many address suggestions. Wait a minute or use Search.' }
+});
+
+router.get('/autocomplete/status', (_req, res) => {
+  res.json({ enabled: Boolean(String(process.env.GEOAPIFY_API_KEY || '').trim()) });
+});
+
+router.get('/autocomplete', autocompleteLimiter, async (req, res) => {
+  const apiKey = String(process.env.GEOAPIFY_API_KEY || '').trim();
+  if (!apiKey) return res.status(503).json({ error: 'Live suggestions are not configured. Press Search instead.' });
+
+  const query = typeof req.query.q === 'string' ? req.query.q.trim().replace(/\s+/g, ' ') : '';
+  if (query.length < 3 || query.length > 250) {
+    return res.status(400).json({ error: 'Enter 3 to 250 characters for suggestions.' });
+  }
+
+  try {
+    const response = await axios.get('https://api.geoapify.com/v1/geocode/autocomplete', {
+      params: { text: query, format: 'json', filter: 'countrycode:ph', limit: 5, lang: 'en', apiKey },
+      timeout: 7000
+    });
+    const suggestions = (Array.isArray(response.data?.results) ? response.data.results : [])
+      .filter(place => String(place.country_code || '').toLowerCase() === 'ph')
+      .filter(place => Number(place.lat) >= 4.5 && Number(place.lat) <= 21.5 &&
+        Number(place.lon) >= 116 && Number(place.lon) <= 127)
+      .slice(0, 5)
+      .map(place => ({
+        display_name: String(place.formatted || place.address_line1 || place.name || '').trim(),
+        lat: Number(place.lat),
+        lon: Number(place.lon),
+        address: { country_code: 'ph' },
+        match_level: 'suggestion',
+        source: 'geoapify'
+      }))
+      .filter(place => place.display_name);
+    return res.json({ suggestions });
+  } catch (error) {
+    const status = error.response?.status === 429 ? 429 : 502;
+    console.error('Address autocomplete provider unavailable:', status);
+    return res.status(status).json({ error: status === 429
+      ? 'Live suggestions are busy. Wait a moment or use Search.'
+      : 'Live suggestions are unavailable. Press Search instead.' });
+  }
+});
 
 function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -145,11 +195,36 @@ function sendGeocodingError(res, error, action) {
   });
 }
 
+function buildPhilippineAddressQueries(address) {
+  const normalized = address.trim().replace(/\s+/g, ' ')
+    .replace(/\bbrgy\.?(?=\s|,|$)/gi, 'Barangay')
+    .replace(/\bblk\.?(?=\s|,|$)/gi, 'Block');
+  const parts = normalized.split(',').map(part => part.trim()).filter(Boolean);
+  const candidates = [normalized];
+  const add = value => {
+    const query = String(value || '').replace(/\s+,/g, ',').replace(/,\s*,/g, ',').trim();
+    if (query.length >= 5 && !candidates.some(item => item.toLowerCase() === query.toLowerCase())) candidates.push(query);
+  };
+
+  // Local house, unit, zone and purok numbers are often not mapped. Try the
+  // street/barangay first, then the wider locality without claiming an exact pin.
+  const withoutHouse = normalized.replace(/^(?:(?:house|unit|lot|block|#)\s*)?[\d]+[\w/-]*\s+/i, '');
+  add(withoutHouse);
+  const withoutMicroArea = withoutHouse.replace(/\b(?:zone|purok|phase)\s*[\w-]+\b,?\s*/gi, '');
+  add(withoutMicroArea);
+  if (parts.length >= 3) add(parts.slice(1).join(', '));
+  if (parts.length >= 3) add(parts.slice(-3).join(', '));
+  return candidates.slice(0, 5);
+}
+
 router.get('/search', async (req, res) => {
   try {
     const { q, limit = 5 } = req.query;
     if (typeof q !== 'string' || !q.trim()) {
       return res.status(400).json({ error: 'Search query is required' });
+    }
+    if (q.trim().length > 250) {
+      return res.status(400).json({ error: 'Address is too long. Use 250 characters or fewer.' });
     }
 
     const safeLimit = Math.min(10, Math.max(1, Number.parseInt(limit, 10) || 5));
@@ -158,15 +233,32 @@ router.get('/search', async (req, res) => {
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    const data = await cachedProviderRequest(cacheKey, 'search', {
-      format: 'json',
-      q: normalizedQuery,
-      limit: safeLimit,
-      addressdetails: '1',
-      countrycodes: 'ph'
-    });
+    const queries = buildPhilippineAddressQueries(normalizedQuery);
+    for (let index = 0; index < queries.length; index += 1) {
+      const candidate = queries[index];
+      const providerKey = `provider-search:${candidate.toLowerCase()}:${safeLimit}`;
+      const data = await cachedProviderRequest(providerKey, 'search', {
+        format: 'json',
+        q: candidate,
+        limit: safeLimit,
+        addressdetails: '1',
+        countrycodes: 'ph'
+      });
+      const philippinesOnly = (Array.isArray(data) ? data : []).filter(place =>
+        !place.address?.country_code || String(place.address.country_code).toLowerCase() === 'ph'
+      );
+      if (!philippinesOnly.length) continue;
+      const matches = philippinesOnly.map(place => ({
+        ...place,
+        match_level: index === 0 ? 'search' : 'area',
+        matched_query: candidate
+      }));
+      setCached(cacheKey, matches);
+      return res.json(matches);
+    }
 
-    return res.json(data);
+    setCached(cacheKey, []);
+    return res.json([]);
   } catch (error) {
     return sendGeocodingError(res, error, 'Search addresses');
   }
@@ -200,6 +292,10 @@ router.get('/reverse', async (req, res) => {
       lon: roundedLon,
       addressdetails: '1'
     });
+
+    if (data?.address?.country_code && String(data.address.country_code).toLowerCase() !== 'ph') {
+      return res.status(422).json({ error: 'Choose a service location in the Philippines.' });
+    }
 
     return res.json(data);
   } catch (error) {

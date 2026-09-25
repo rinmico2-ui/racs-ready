@@ -162,4 +162,6 @@ test("GCash sender numbers are normalized independently from delivery contact", 
   assert.equal(normalizeGcashSenderNumber("0917 123 4567"), "09171234567");
   assert.equal(normalizeGcashSenderNumber("+63 917 123 4567"), "09171234567");
   assert.throws(() => normalizeGcashSenderNumber("02 8123 4567"), /Philippine mobile number/i);
+  assert.throws(() => normalizeGcashSenderNumber("0917abc1234567"), /Philippine mobile number/i);
+  assert.throws(() => normalizeGcashSenderNumber("+09171234567"), /Philippine mobile number/i);
 });

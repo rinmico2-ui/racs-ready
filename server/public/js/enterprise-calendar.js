@@ -27,6 +27,7 @@ const EnterpriseCalendar = (() => {
   let _onSelectCb = null;
   let _nextStep = 5;
   let _showCommercialProjects = true;
+  let _timeSlotRequestId = 0;
 
   // Large-scale / project mode
   let _mode = "appointment"; // "appointment" | "project"
@@ -272,8 +273,8 @@ const EnterpriseCalendar = (() => {
         <div class="ent-calendar">
           <div class="ent-cal-blocked" style="text-align:center;padding:2rem;color:#dc2626;">
             <i class="bi bi-exclamation-triangle-fill" style="font-size:2rem;"></i>
-            <h5 style="margin-top:1rem;">Booking Not Available</h5>
-            <p style="color:#64748b;margin-top:0.5rem;">${escapeHtml(_scheduleData.message || 'This booking exceeds available working hours. Please reduce the quantity or contact us for project scheduling.')}</p>
+            <h5 style="margin-top:1rem;">Schedule not available</h5>
+            <p style="color:#64748b;margin-top:0.5rem;">${escapeHtml(_scheduleData.message || 'This booking does not fit the available work hours. Reduce the number of units or contact us for a project schedule.')}</p>
           </div>
         </div>`;
       return;
@@ -325,14 +326,14 @@ const EnterpriseCalendar = (() => {
       </div>
       <div class="ent-cal-mode">
         <span class="mode-dot capacity"></span>
-        <span>Capacity-based scheduling across all active technicians</span>
+        <span>Tap a green or orange date to see its available times.</span>
       </div>
       <div class="ent-cal-legend">
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Limited Slots</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>Fully Booked</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Few times left</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>Fully booked</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>Non-Working Day</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>No service</div>
       </div>
       <div class="ent-cal-days">
         ${DAYS_SHORT.map(d => `<div class="ent-cal-day-name">${d}</div>`).join('')}
@@ -357,7 +358,6 @@ const EnterpriseCalendar = (() => {
       let cellClass = 'ent-cal-cell';
       let tooltipText = '';
       let reasonText = '';
-      let slotsText = '';
       let clickable = false;
 
       if (isPast) {
@@ -384,13 +384,12 @@ const EnterpriseCalendar = (() => {
             cellClass += ' limited';
             clickable = true;
             const count = availInfo.availableSlots;
-            slotsText = count === 1 ? '1 slot' : `${count} slots`;
-            tooltipText = `${count} slot${count !== 1 ? 's' : ''} left for today`;
+            tooltipText = `${count} start time${count !== 1 ? 's' : ''} available today`;
           }
         } else if (availInfo && availInfo.availableSlots === 0) {
           cellClass += ' non-working';
-          reasonText = 'No Slots Today';
-          tooltipText = 'All slots for today are booked';
+          reasonText = 'Fully booked';
+          tooltipText = 'No start times available today';
         } else if (holInfo) {
           cellClass += ' non-working';
           reasonText = 'Closed Today';
@@ -405,19 +404,17 @@ const EnterpriseCalendar = (() => {
         if (availInfo.availableSlots === 0) {
           cellClass += ' full';
           reasonText = 'Fully Booked';
-          tooltipText = 'All slots booked for this date';
+          tooltipText = 'No start times available on this date';
         } else if (availInfo.availableSlots <= 3) {
           cellClass += ' limited';
           clickable = true;
           const count = availInfo.availableSlots;
-          slotsText = count === 1 ? '1 slot' : `${count} slots`;
-          tooltipText = `Limited: only ${count} slot${count !== 1 ? 's' : ''} left`;
+          tooltipText = `${count} start time${count !== 1 ? 's' : ''} available`;
         } else {
           cellClass += ' available';
           clickable = true;
           const count = availInfo.availableSlots;
-          slotsText = `${count} slots`;
-          tooltipText = `${count} slots available`;
+          tooltipText = `${count} start times available`;
         }
       } else if (holInfo) {
         if (holInfo.type === 'holiday') {
@@ -453,16 +450,15 @@ const EnterpriseCalendar = (() => {
         cellClass += ' today';
       }
 
-      html += `<div class="${cellClass}" data-date="${key}" ${clickable ? 'role="button" tabindex="0"' : ''}>`;
+      const spokenDate = dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const spokenStatus = clickable ? tooltipText : (reasonText || (isPast ? 'Past date' : 'Unavailable'));
+      html += `<div class="${cellClass}" data-date="${key}" aria-label="${escapeHtml(`${spokenDate}, ${spokenStatus}`)}" ${clickable ? `role="button" tabindex="0" aria-pressed="${Boolean(_selectedDate && key === formatDateKey(_selectedDate))}"` : ''}>`;
       if (tooltipText) {
-        html += `<span class="ent-cal-tooltip">${tooltipText}</span>`;
+        html += `<span class="ent-cal-tooltip">${escapeHtml(tooltipText)}</span>`;
       }
       html += `<span class="ent-cal-date">${day}</span>`;
-      if (slotsText) {
-        html += `<span class="ent-cal-slots">${slotsText}</span>`;
-      }
       if (reasonText) {
-        html += `<span class="ent-cal-reason">${reasonText}</span>`;
+        html += `<span class="ent-cal-reason">${escapeHtml(reasonText)}</span>`;
       }
       html += `</div>`;
     }
@@ -538,7 +534,16 @@ const EnterpriseCalendar = (() => {
     const parts = dateStr.split('-');
     _selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     _selectedSlot = null;
+    if (window.BookingState) {
+      window.BookingState.selectedDate = _selectedDate;
+      window.BookingState.scheduleDate = _selectedDate;
+      window.BookingState.selectedTimeSlot = null;
+      window.BookingState.selectedTime = null;
+      window.BookingState.scheduleTime = null;
+      if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
+    }
     render();
+    window.syncScheduleNextAction?.();
     await loadTimeSlots(_selectedDate);
   }
 
@@ -546,6 +551,7 @@ const EnterpriseCalendar = (() => {
     const section = document.getElementById('timeSelection');
     const container = document.getElementById('timeSlots');
     if (!section || !container) return;
+    const requestId = ++_timeSlotRequestId;
 
     section.classList.remove('d-none');
 
@@ -555,19 +561,19 @@ const EnterpriseCalendar = (() => {
     }, 100);
 
     // Build the enterprise time-slot section shell
-    const dateLabel = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const dateLabel = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     container.innerHTML = `
       <div class="ent-cal-guidance-banner">
-        <i class="bi bi-arrow-down-circle"></i>
-        <span>Date selected! Now choose your preferred time slot below</span>
+        <i class="bi bi-calendar-check" aria-hidden="true"></i>
+        <span><strong>${dateLabel}</strong> selected. Now pick a start time.</span>
       </div>
       <div class="ent-time-section ent-time-section-pulse">
         <div class="ent-time-header">
-          <h6><i class="bi bi-clock"></i>Select Preferred Time</h6>
+          <div><h6><i class="bi bi-clock" aria-hidden="true"></i>Choose a start time</h6><p>These are the times you can request for your service.</p></div>
           <span class="ent-time-date">${dateLabel}</span>
         </div>
-        <div class="ent-time-grid" id="entTimeGrid">
-          <div class="ent-cal-loading"><div class="spinner-border" role="status"></div><span>Loading time slots...</span></div>
+        <div class="ent-time-grid" id="entTimeGrid" aria-live="polite">
+          <div class="ent-cal-loading"><div class="spinner-border" role="status"></div><span>Checking available times...</span></div>
         </div>
       </div>`;
 
@@ -576,6 +582,7 @@ const EnterpriseCalendar = (() => {
     try {
       // Try API-based time slots first
       const apiResult = await fetchTimeSlotsFromAPI(date);
+      if (requestId !== _timeSlotRequestId) return;
       if (apiResult && apiResult.blocked) {
         grid.innerHTML = `
           <div class="ent-no-slots" style="text-align:center;padding:1.5rem;color:#dc2626;">
@@ -584,71 +591,17 @@ const EnterpriseCalendar = (() => {
           </div>`;
         return;
       }
-      if (apiResult && apiResult.slots && apiResult.slots.length > 0) {
+      if (apiResult && Array.isArray(apiResult.slots)) {
         renderTimeSlotsUI(grid, apiResult.slots);
         return;
       }
-
-      // Fallback: generate client-side dynamic slots when API is unavailable
-
-      // Block past dates entirely
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const selectedStart = new Date(date);
-      selectedStart.setHours(0, 0, 0, 0);
-      if (selectedStart < todayStart) {
-        renderTimeSlotsUI(grid, []);
-        return;
-      }
-
-      // Fetch working hours from admin-configured schedules
-      let WORK_START = 8 * 60;
-      let WORK_END = 19 * 60;
-      try {
-        const whResp = await fetch('/api/schedule/working-hours', { cache: 'no-store' });
-        if (whResp.ok) {
-          const wh = await whResp.json();
-          WORK_START = wh.startMinutes || WORK_START;
-          WORK_END = wh.endMinutes || WORK_END;
-        }
-      } catch (_) { /* keep defaults */ }
-      const SLOT_INTERVAL = 30;   // 30-minute intervals
-
-      const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
-
-      const now = new Date();
-      const isToday = formatDateKey(date) === formatDateKey(now);
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const earliestAllowedDate = new Date(now.getTime() + minAdvance * 60000);
-      const isSameDayAsEarliest = earliestAllowedDate.toDateString() === date.toDateString();
-      const advanceCutoff = isSameDayAsEarliest
-        ? earliestAllowedDate.getHours() * 60 + earliestAllowedDate.getMinutes()
-        : 0;
-
-      // Use total capacity per slot (service + travel + buffer) for fit check
-      const capacityPerSlot = _duration || 90;
-
-      const slots = [];
-      for (let slotStart = WORK_START; slotStart < WORK_END; slotStart += SLOT_INTERVAL) {
-        // Block past time on the current day (respecting advance-notice)
-        if (isToday) {
-          const cutoff = Math.max(currentMinutes + 30, advanceCutoff);
-          if (slotStart < cutoff) continue;
-        }
-
-        slots.push({
-          startTime: minutesToTime(slotStart),
-          label: minutesToTime(slotStart),
-          available: true,
-          availableCount: 0, // unknown in fallback mode
-          isPast: false,
-        });
-      }
-
-      renderTimeSlotsUI(grid, slots);
+      grid.innerHTML = '<div class="ent-no-slots"><i class="bi bi-wifi-off" aria-hidden="true"></i><strong>We could not check available times.</strong><span>Please check your connection and try again.</span><button type="button" class="ent-time-retry">Try again</button></div>';
+      grid.querySelector('.ent-time-retry')?.addEventListener('click', () => loadTimeSlots(date));
     } catch (e) {
+      if (requestId !== _timeSlotRequestId) return;
       console.error('EnterpriseCalendar: time slot error', e);
-      grid.innerHTML = `<div class="ent-no-slots"><i class="bi bi-exclamation-triangle"></i>Failed to load time slots. Please try again.</div>`;
+      grid.innerHTML = '<div class="ent-no-slots"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><strong>We could not check available times.</strong><button type="button" class="ent-time-retry">Try again</button></div>';
+      grid.querySelector('.ent-time-retry')?.addEventListener('click', () => loadTimeSlots(date));
     }
   }
 
@@ -706,9 +659,11 @@ const EnterpriseCalendar = (() => {
     if (window.BookingState) {
       window.BookingState.selectedTimeSlot = null;
       window.BookingState.selectedTime = null;
+      window.BookingState.scheduleTime = null;
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
     if (window.RepairState) window.RepairState.preferredTime = '';
+    window.syncScheduleNextAction?.();
     await loadTimeSlots(_selectedDate);
     return false;
   }
@@ -727,36 +682,37 @@ const EnterpriseCalendar = (() => {
   }
 
   function renderTimeSlotsUI(container, slots) {
-    let html = '';
+    if (!Array.isArray(slots) || slots.length === 0) {
+      container.innerHTML = '<div class="ent-no-slots"><i class="bi bi-calendar-x" aria-hidden="true"></i><strong>No times are available on this date.</strong><span>Choose another highlighted date on the calendar.</span></div>';
+      return;
+    }
+    const availableTimes = slots.filter(slot => slot.available && !slot.isPast).length;
+    let html = `<p class="ent-time-count">${availableTimes} start time${availableTimes === 1 ? '' : 's'} available · ${availableTimes ? 'Tap a time to continue' : 'Choose another date'}</p>`;
     slots.forEach((slot, idx) => {
       const isUnavailable = !slot.available && !slot.isPast;
+      const isSelected = Boolean(slot.available && !slot.isPast && _selectedSlot?.startTime === slot.startTime);
       let cls = 'ent-time-slot';
       if (slot.isPast) cls += ' past';
       else if (isUnavailable) cls += ' unavailable';
-      if (_selectedSlot && _selectedSlot.startTime === slot.startTime) cls += ' selected';
+      if (isSelected) cls += ' selected';
 
       let statusCls = 'ent-time-slot-status';
       let statusLabel = '';
 
       if (slot.isPast) {
         statusCls += ' past';
-        statusLabel = 'Passed';
+        statusLabel = 'Time passed';
       } else if (isUnavailable) {
         statusCls += ' booked';
-        statusLabel = 'Fully Booked';
-      } else if (slot.availableCount > 1) {
-        statusCls += ' available';
-        statusLabel = `${slot.availableCount} Teams Available`;
-      } else if (slot.availableCount === 1) {
-        statusCls += ' limited';
-        statusLabel = 'Limited: 1 Team';
+        statusLabel = 'Fully booked';
       } else {
         statusCls += ' available';
-        statusLabel = 'Available';
+        statusLabel = isSelected ? 'Selected' : 'Available';
       }
 
-      html += `<div class="${cls}" data-idx="${idx}" data-start="${slot.startTime}" data-label="${slot.label}" ${slot.available ? 'role="button" tabindex="0"' : ''}>
-        <div class="ent-time-slot-label">${slot.label}</div>
+      const slotLabel = escapeHtml(slot.label);
+      html += `<div class="${cls}" data-idx="${idx}" data-start="${escapeHtml(slot.startTime)}" data-label="${slotLabel}" ${slot.available ? `role="button" tabindex="0" aria-pressed="${isSelected}" aria-label="${slotLabel}, ${statusLabel}"` : ''}>
+        <div class="ent-time-slot-label">${slotLabel}</div>
         <span class="${statusCls}">${statusLabel}</span>
       </div>`;
     });
@@ -765,7 +721,7 @@ const EnterpriseCalendar = (() => {
 
     // Bind clicks
     container.querySelectorAll('.ent-time-slot[role="button"]').forEach(el => {
-      el.addEventListener('click', () => {
+      const chooseSlot = () => {
         _selectedSlot = {
           startTime: el.dataset.start,
           label: el.dataset.label,
@@ -775,7 +731,9 @@ const EnterpriseCalendar = (() => {
         if (window.BookingState) {
           window.BookingState.selectedTimeSlot = _selectedSlot;
           window.BookingState.selectedTime = _selectedSlot.label;
+          window.BookingState.scheduleTime = _selectedSlot.label;
           window.BookingState.selectedDate = _selectedDate;
+          window.BookingState.scheduleDate = _selectedDate;
           if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
         }
         // Sync with RepairState (if present)
@@ -783,6 +741,7 @@ const EnterpriseCalendar = (() => {
           window.RepairState.preferredDate = _selectedDate;
           window.RepairState.preferredTime = _selectedSlot.label;
         }
+        window.syncScheduleNextAction?.();
         render();
         renderTimeSlotsUI(container, slots);
         // Fire onSelect callback if registered, otherwise auto-advance
@@ -794,6 +753,10 @@ const EnterpriseCalendar = (() => {
             if (typeof updateStepper === 'function') updateStepper(_nextStep);
           }
         }, 400);
+      };
+      el.addEventListener('click', chooseSlot);
+      el.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); chooseSlot(); }
       });
     });
   }
@@ -1188,6 +1151,7 @@ const EnterpriseCalendar = (() => {
 
     if (_selectedDate && _selectedEndDate && !_selectingEndDate) {
       const isValid = await validateProjectRange();
+      window.syncScheduleNextAction?.();
 
       if (isValid) {
         if (_onSelectCb) {
@@ -1482,6 +1446,7 @@ const EnterpriseCalendar = (() => {
       window.BookingState.projectScheduling = selection;
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
+    window.syncScheduleNextAction?.();
     if (window.RepairState) {
       window.RepairState.preferredDate = _selectedDate;
       window.RepairState.preferredTime = '';
@@ -1541,6 +1506,7 @@ const EnterpriseCalendar = (() => {
 
     // Auto-validate the suggested range
     const isValid = await validateProjectRange();
+    window.syncScheduleNextAction?.();
     if (isValid) {
       if (_onSelectCb) {
         _onSelectCb(getProjectSelection());

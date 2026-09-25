@@ -358,7 +358,7 @@ async function quoteAirconOrder(req, res) {
     });
     return res.json({
       ...quote,
-      installationFee: settings.installationFee,
+      installationFee: 0,
       additionalTotal: quote.transportationFee,
     });
   } catch (error) {
@@ -521,7 +521,7 @@ async function checkoutAirconOrder(req, res) {
       transportationFee = quote.transportationFee;
       routeDistanceKm = quote.distanceKm;
       routeDurationMin = quote.durationMin;
-      installationFee = settings.installationFee;
+      installationFee = 0;
 
       const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
       if (await schedulingEngine.isLargeProject({ totalUnits, totalEstimatedMinutes: totalUnits * 60 })) {

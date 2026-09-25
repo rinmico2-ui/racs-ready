@@ -18,12 +18,13 @@ const mobileStyles = fs.readFileSync(
   "utf8",
 );
 
-test("core services use a calm single-column phone grid", () => {
+test("core services use a compact two-by-two chooser", () => {
   assert.match(
     servicesScript,
-    /type === 'core'[\s\S]*?'col-12 col-md-4 core-service-column'/,
+    /type === 'core'[\s\S]*?'col-6 core-service-column'/,
   );
-  assert.match(mobileStyles, /#coreServiceCards > \.core-service-column[\s\S]*?flex:\s*0 0 100%/);
+  assert.match(mobileStyles, /#coreServiceCards > \.core-service-column\s*\{[\s\S]*?flex:\s*0 0 50% !important/);
+  assert.match(mobileStyles, /@media \(max-width: 767\.98px\)[\s\S]*?#coreServiceCards > \.core-service-column[\s\S]*?width:\s*50% !important/);
 });
 
 test("mobile core-service cards remain readable and touch friendly", () => {
@@ -39,16 +40,16 @@ test("mobile booking progress fits without a horizontal scroller", () => {
   assert.match(mobileStyles, /\.ent-tr\s*\{[^}]*grid-template-columns:\s*repeat\(6/);
   assert.match(mobileStyles, /\.ent-n\s*\{[^}]*min-height:\s*44px/);
   assert.match(mobileStyles, /\.ent-step-body \.form-control[\s\S]*?min-height:\s*48px/);
-  assert.match(servicesView, /services-mobile-ux\.css\?v=20260911-service-added-check/);
+  assert.match(servicesView, /services-mobile-ux\.css\?v=20260925-review-visibility-v40/);
 });
 
 test("mobile service configuration keeps type and HP choices compact", () => {
   assert.match(servicesScript, /typesContainer\.className = 'row g-2 g-md-3 mb-4 cfg-type-grid'/);
-  assert.match(servicesScript, /g-0 g-md-3 cfg-hp-card-layout/);
-  assert.match(mobileStyles, /\.cfg-type-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
-  assert.match(mobileStyles, /\.aircon-type-card\s*\{[^}]*min-height:\s*88px/);
-  assert.match(mobileStyles, /\.cfg-hp-card-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 124px/);
-  assert.match(mobileStyles, /\.cfg-hp-card-controls \.quantity-increase\s*\{[^}]*min-width:\s*44px/);
+  assert.match(servicesScript, /class="cfg-hp-choice-row"/);
+  assert.match(mobileStyles, /\.cfg-type-grid\s*\{[^}]*grid-template-columns:\s*1fr/);
+  assert.match(mobileStyles, /\.aircon-type-card\s*\{[^}]*min-height:\s*102px/);
+  assert.match(mobileStyles, /\.cfg-hp-grid\s*\{[^}]*grid-template-columns:\s*1fr/);
+  assert.match(mobileStyles, /\.cfg-hp-stepper button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/);
   assert.match(mobileStyles, /\.cfg-footer\s*\{[^}]*display:\s*grid !important/);
 });
 
@@ -69,9 +70,8 @@ test("configuration modal keeps one shell size across all three steps", () => {
   assert.match(servicesScript, /function showEnterpriseModal\(modalElement\)[\s\S]*?width: min\(700px, calc\(100vw - 1rem\)\) !important;[\s\S]*?height: min\(680px, calc\(100dvh - 1rem\)\) !important;/);
 });
 
-test("service-added confirmation stays compact and touch friendly", () => {
-  assert.match(mobileStyles, /\.swal2-popup\.service-booking-alert\.service-added-alert[^}]*\{[^}]*width:\s*min\(25rem, calc\(100vw - 1\.25rem\)\) !important/);
-  assert.match(mobileStyles, /\.swal2-popup\.service-added-alert[^}]*\.swal2-icon\s*\{[^}]*width:\s*3rem !important/);
-  assert.match(mobileStyles, /\.swal2-popup\.service-added-alert \.service-added-check\s*\{[^}]*font-weight:\s*800/);
-  assert.match(mobileStyles, /\.swal2-popup\.service-added-alert[^}]*\.swal2-confirm\s*\{[^}]*min-height:\s*44px !important/);
+test("service-added feedback stays compact and non-blocking", () => {
+  assert.match(mobileStyles, /\.service-booking-toast\s*\{[\s\S]*?position:\s*fixed/);
+  assert.match(mobileStyles, /\.service-booking-toast\.is-visible\s*\{[^}]*opacity:\s*1/);
+  assert.match(mobileStyles, /\.service-booking-toast[\s\S]*?pointer-events:\s*none/);
 });

@@ -19,8 +19,8 @@ const calendarScript = fs.readFileSync(
 );
 
 test("cart checkout has one clear hierarchy and accessible choices", () => {
-  assert.match(wizard, /cart-checkout-ux\.css\?v=20260912-checkout-flow-v3/);
-  assert.match(wizard, /checkout-calendar\.js\?v=20260917-card-checkout-v1/);
+  assert.match(wizard, /cart-checkout-ux\.css\?v=20260925-field-focus-v4/);
+  assert.match(wizard, /checkout-calendar\.js\?v=20260925-future-date-v3/);
   assert.match(wizard, /aria-labelledby="wizardModalTitle"/);
   assert.match(wizard, /modal-fullscreen-sm-down/);
   assert.match(wizard, /role="navigation" aria-label="Checkout steps"/);
@@ -34,10 +34,10 @@ test("cart checkout has one clear hierarchy and accessible choices", () => {
 });
 
 test("checkout actions explain the next outcome instead of saying generic next", () => {
-  assert.match(wizard, /Continue to details/);
-  assert.match(wizard, /Continue to payment/);
-  assert.match(wizard, /Review order/);
-  assert.match(wizard, /Place order/);
+  assert.match(wizard, /Add address or pickup date/);
+  assert.match(wizard, /Choose payment/);
+  assert.match(wizard, /Check my order/);
+  assert.match(wizard, /Place my order/);
   assert.match(wizard, /modalBody\.scrollTo\(\{ top: 0, behavior:/);
   assert.match(wizard, /setAttribute\('aria-pressed', c\.dataset\.method === method/);
 });
@@ -91,8 +91,8 @@ test("completed checkout fields guide customers to the next required action", ()
   assert.match(wizard, /function isCompletePhilippinePhone/);
   assert.match(wizard, /focusCheckoutControl\('#wizardAddress', 420\)/);
   assert.match(wizard, /if \(dateStr\) focusCheckoutControl\('#coTimeSection', 240\)/);
-  assert.match(wizard, /if \(timeStr\) scheduleCheckoutAdvance\(2, 550\)/);
+  assert.match(wizard, /onTimeSelect: \(timeStr\) => \{[\s\S]*?scheduleCartCheckoutDraftSave\(\)/);
   assert.match(wizard, /scheduleCheckoutAdvance\(1, 420\)/);
   assert.match(wizard, /scheduleCheckoutAdvance\(3, 450\)/);
-  assert.match(wizard, /if \(file && isCompletePhilippinePhone\(senderNumber\)\) scheduleCheckoutAdvance\(3, 650\)/);
+  assert.match(wizard, /if \(file && document\.getElementById\('wizardPaymentChannel'\)\?\.value === 'gcash' && window\.GcashSenderInput\.check\(senderNumber, false\)\.valid\) scheduleCheckoutAdvance\(3, 650\)/);
 });

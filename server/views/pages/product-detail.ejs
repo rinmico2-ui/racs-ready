@@ -440,20 +440,6 @@
     color: var(--pd-text);
   }
 
-  .pd-installment {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.85rem;
-    background: rgba(3,105,161,0.18);
-    border: 1px solid rgba(56,189,248,0.3);
-    border-radius: var(--pd-radius-sm);
-    font-size: 0.76rem;
-    color: #1d4ed8;
-    margin-bottom: 1rem;
-  }
-  .pd-installment i { color: #38bdf8; }
-
   .pd-btn {
     display: inline-flex;
     align-items: center;
@@ -514,30 +500,10 @@
     font-size: 1rem;
   }
   .pd-trust-label {
-    font-size: 0.62rem;
-    color: var(--pd-text-muted);
+    font-size: 0.72rem;
+    color: var(--pd-text-secondary);
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
   }
-  .pd-payment-icons {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    padding-top: 1rem;
-  }
-  .pd-payment-icons .pay-icon {
-    padding: 0.25rem 0.6rem;
-    border-radius: 6px;
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    border: 1px solid var(--pd-border);
-  }
-  .pay-gcash { background: #0057e0; color: #ffffff; border-color: #0057e0 !important; }
-  .pay-cod { background: rgba(34,197,94,0.18); color: #86efac; border-color: rgba(34,197,94,0.4) !important; }
-  .pay-card { background: rgba(109,40,217,0.2); color: #c4b5fd; border-color: rgba(109,40,217,0.4) !important; }
 
   /* ── Related products ── */
   .pd-related { margin-top: 3.5rem; }
@@ -811,11 +777,6 @@
                 </div>
               </div>
 
-              <div class="pd-installment">
-                <i class="bi bi-credit-card"></i>
-                <span>Or <strong>3 payments of ₱<span id="pdInstallmentAmt">0</span></strong> with GCredit / Card Installment</span>
-              </div>
-
               <div class="pd-actions">
                 <button type="button" class="pd-btn pd-btn-primary pd-purchase-action" id="pdAddToCartBtn" data-pd-purchase data-pd-action="cart" onclick="pdAddToCart()" <%= !p.inStock ? 'disabled' : '' %>>
                   <i class="bi bi-cart-plus"></i>
@@ -829,23 +790,13 @@
 
               <div class="pd-trust-row">
                 <div class="pd-trust-item">
+                  <div class="pd-trust-icon"><i class="bi bi-tools"></i></div>
+                  <div class="pd-trust-label">Free installation with delivery</div>
+                </div>
+                <div class="pd-trust-item">
                   <div class="pd-trust-icon"><i class="bi bi-truck"></i></div>
-                  <div class="pd-trust-label">Free Delivery</div>
+                  <div class="pd-trust-label">Delivery fee shown at checkout</div>
                 </div>
-                <div class="pd-trust-item">
-                  <div class="pd-trust-icon"><i class="bi bi-shield-check"></i></div>
-                  <div class="pd-trust-label">Warranty</div>
-                </div>
-                <div class="pd-trust-item">
-                  <div class="pd-trust-icon"><i class="bi bi-headset"></i></div>
-                  <div class="pd-trust-label">24/7 Support</div>
-                </div>
-              </div>
-
-              <div class="pd-payment-icons">
-                <span class="pay-icon pay-gcash">Full GCash</span>
-                <span class="pay-icon pay-cod">GCash Downpayment</span>
-                <span class="pay-icon pay-card">Cash at Store Pickup</span>
               </div>
             </div>
           </div>
@@ -973,8 +924,6 @@
       var mobEl = document.getElementById('pdMobilePrice');
       el.textContent = formatted;
       if (mobEl) mobEl.textContent = formatted;
-      var installmentEl = document.getElementById('pdInstallmentAmt');
-      if (installmentEl) installmentEl.textContent = Math.round(total / 3).toLocaleString();
       el.style.color = '#93c5fd';
       el.style.transform = 'scale(1.05)';
       setTimeout(function() { el.style.color = ''; el.style.transform = 'scale(1)'; }, 200);
@@ -1051,8 +1000,6 @@
     // ── Init ──
     if (selectedVariant) {
       var total = selectedVariant.sellingPrice * selectedQty;
-      var instEl = document.getElementById('pdInstallmentAmt');
-      if (instEl) instEl.textContent = Math.round(total / 3).toLocaleString();
       updateQtyButtons();
       setPdPurchaseBusy(false);
     }

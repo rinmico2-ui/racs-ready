@@ -36,8 +36,8 @@ test("checkout drafts cover mobile payment-app lifecycle and reopen on return", 
     assert.match(source, /addEventListener\('pagehide'/);
     assert.match(source, /document\.visibilityState === 'hidden'/);
     assert.match(source, /addEventListener\('pageshow'/);
-    assert.match(source, /Checkout restored\./);
-    assert.match(source, /select the receipt image again/);
+    assert.match(source, /Your details were saved\./);
+    assert.match(source, /upload your receipt photo to continue/);
   }
   assert.match(cartWizard, /window\.openCheckoutWizard\(\)/);
   assert.match(directWizard, /window\.openProductWizard\(Number\(draft\.groupIdx\)\)/);
@@ -53,10 +53,20 @@ test("restored manual payments return to the receipt step without persisting evi
 });
 
 test("service booking restores its payment choice after returning from a payment app", () => {
-  assert.match(servicesScript, /paymentChannel: \['card', 'gcash', 'maya', 'bank_transfer', 'other'\]/);
+  assert.match(servicesScript, /paymentChannel: \['gcash', 'maya', 'bank_transfer', 'other'\]/);
   assert.match(servicesScript, /window\.addEventListener\('pageshow', event =>/);
   assert.match(servicesScript, /bookingPaymentRestoreNotice/);
-  assert.match(servicesView, /Your booking and payment choice were saved/);
+  assert.match(servicesView, /Your booking was restored\./);
+});
+
+test("checkout errors identify and focus the missing field", () => {
+  assert.match(cartWizard, /async function presentCheckoutStepIssue\(issue\)/);
+  assert.match(cartWizard, /focusTarget\.scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
+  assert.match(cartWizard, /focusTarget\.setAttribute\('aria-invalid', 'true'\)/);
+  assert.match(directWizard, /async function guideDirectCheckoutIssue\(message, title, selector\)/);
+  assert.match(directWizard, /await showPremiumAlert\(message, title, 'warning'\)/);
+  assert.match(directWizard, /target\.scrollIntoView\(\{ behavior: 'smooth', block: 'center' \}\)/);
+  assert.match(directWizard, /guideDirectCheckoutIssue\('Upload a photo or screenshot of your payment receipt\.'/);
 });
 
 test("checkout templates still render valid inline JavaScript", async () => {

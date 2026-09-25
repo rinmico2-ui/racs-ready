@@ -291,6 +291,16 @@
                 <div class="col-md-4"><label class="form-label" for="gcashAccountName">Account Name</label><input class="form-control" id="gcashAccountName" maxlength="120"></div>
                 <div class="col-md-4"><label class="form-label" for="gcashRecipientNumber">Receiving Number</label><input type="tel" class="form-control" id="gcashRecipientNumber" inputmode="numeric" autocomplete="tel" placeholder="09XXXXXXXXX" maxlength="13"></div>
                 <div class="col-md-4"><label class="form-label" for="gcashInstructions">Customer Instructions</label><input class="form-control" id="gcashInstructions" maxlength="500" placeholder="Optional transfer note"></div>
+                <div class="col-12">
+                  <label class="form-label" for="gcashQrUpload">Real GCash QR image (optional)</label>
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <input class="form-control" type="file" id="gcashQrUpload" accept="image/png,image/jpeg,image/webp" style="max-width:360px">
+                    <button type="button" class="btn btn-outline-primary" id="gcashQrUploadBtn">Upload QR</button>
+                    <a id="gcashQrCurrentLink" class="small d-none" href="#" target="_blank" rel="noopener">View current QR</a>
+                  </div>
+                  <img id="gcashQrPreview" class="d-none mt-2 rounded border" alt="Current GCash receiving QR" style="width:100px;height:100px;object-fit:contain;background:#fff">
+                  <div id="gcashQrStatus" class="form-text" role="status" aria-live="polite">Save the receiving number first, then upload its real GCash QR. If you change the number, upload the new account's QR too.</div>
+                </div>
               </div>
             </div>
 
@@ -705,6 +715,11 @@
   var form = document.getElementById('paymentPolicyForm');
   var input = document.getElementById('downpaymentPercentage');
   var gcashInput = document.getElementById('gcashRecipientNumber');
+  var gcashQrInput = document.getElementById('gcashQrUpload');
+  var gcashQrButton = document.getElementById('gcashQrUploadBtn');
+  var gcashQrLink = document.getElementById('gcashQrCurrentLink');
+  var gcashQrPreview = document.getElementById('gcashQrPreview');
+  var gcashQrStatus = document.getElementById('gcashQrStatus');
   var btn = document.getElementById('paymentPolicySaveBtn');
   var alertBox = document.getElementById('paymentPolicyAlert');
   var fieldIds = {
@@ -720,6 +735,22 @@
     alertBox.className = 'alert alert-' + (type || 'info') + ' py-2 small';
     alertBox.textContent = message;
     alertBox.classList.remove('d-none');
+  }
+
+  function showCurrentQr(url) {
+    if (gcashQrLink) {
+      gcashQrLink.classList.toggle('d-none', !url);
+      if (url) gcashQrLink.href = url;
+      else gcashQrLink.removeAttribute('href');
+    }
+    if (gcashQrPreview) {
+      gcashQrPreview.classList.toggle('d-none', !url);
+      if (url) gcashQrPreview.src = url;
+      else gcashQrPreview.removeAttribute('src');
+    }
+    if (gcashQrStatus) gcashQrStatus.textContent = url
+      ? 'Customers can view and download this QR. If you change the receiving number, upload its new QR too.'
+      : 'No QR is shown to customers. Save the receiving number, then upload the matching GCash QR.';
   }
 
   function applyMethods(methods) {
@@ -756,9 +787,28 @@
     .then(function(data) {
       if (data && data.downpaymentPercentage != null) input.value = data.downpaymentPercentage;
       if (data && gcashInput) gcashInput.value = data.gcashNumber || '';
+      if (data) showCurrentQr(data.gcashQrImageUrl);
       if (data) applyMethods(data.methods);
     })
     .catch(function() { showPaymentAlert('Unable to load the payment policy.', 'warning'); });
+
+  if (gcashQrButton) gcashQrButton.addEventListener('click', function() {
+    var image = gcashQrInput && gcashQrInput.files[0];
+    if (!image) { showPaymentAlert('Choose the real GCash QR image first.', 'warning'); gcashQrInput.focus(); return; }
+    if (image.size > 2 * 1024 * 1024) { showPaymentAlert('The QR image must be under 2 MB.', 'warning'); return; }
+    var data = new FormData();
+    data.append('gcashQr', image);
+    gcashQrButton.disabled = true;
+    fetch('/api/admin/settings/payment-policy/gcash-qr', { method: 'POST', credentials: 'same-origin', body: data })
+      .then(function(response) { return response.json().then(function(body) { if (!response.ok) throw new Error(body.error || 'Upload failed.'); return body; }); })
+      .then(function(body) {
+        showCurrentQr(body.gcashQrImageUrl);
+        gcashQrInput.value = '';
+        showPaymentAlert('GCash QR saved. Customers can now view and download it.', 'success');
+      })
+      .catch(function(error) { showPaymentAlert(error.message || 'Could not upload the QR image.', 'danger'); })
+      .finally(function() { gcashQrButton.disabled = false; });
+  });
 
   if (form) form.addEventListener('submit', function(event) {
     event.preventDefault();
@@ -789,6 +839,7 @@
         if (!result.ok) throw new Error(result.data.error || 'Failed to save payment policy.');
         input.value = result.data.downpaymentPercentage;
         if (gcashInput) gcashInput.value = result.data.gcashNumber || '';
+        showCurrentQr(result.data.gcashQrImageUrl);
         applyMethods(result.data.methods);
         showPaymentAlert('Payment methods saved. Customer checkout now uses this configuration.', 'success');
       })
