@@ -176,6 +176,40 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  .order-success-panel {
+    margin: 1rem;
+    padding: 3rem 1.5rem;
+    border: 1px solid #86efac;
+    border-radius: 20px;
+    background: linear-gradient(145deg, #f0fdf4, #dcfce7);
+    color: #14532d;
+  }
+  .order-success-icon {
+    display: grid;
+    width: 76px;
+    height: 76px;
+    place-items: center;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    background: #16a34a;
+    color: #fff;
+    font-size: 2.6rem;
+    box-shadow: 0 12px 28px rgba(22, 163, 74, .28);
+  }
+  .order-success-panel h4 { color: #166534; }
+  .order-success-reference {
+    display: inline-block;
+    padding: .65rem 1.25rem;
+    border: 1px solid #86efac;
+    border-radius: 999px;
+    background: #fff;
+    color: #15803d;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+  .order-success-panel a { color: #15803d; }
+
   /* ── RACS Van Loading Animation ── */
   .racs-loader{background:linear-gradient(160deg,#1e3a8a 0%,#1e40af 50%,#312e81 100%);border-radius:24px;padding:40px 32px;max-width:520px;margin:0 auto;box-shadow:0 25px 60px -15px rgba(30,58,138,0.5);position:relative;overflow:hidden}
   .racs-scene{position:relative;height:220px;margin-bottom:28px;overflow:hidden;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)}
@@ -1005,6 +1039,11 @@
                 <span class="checkout-section-number">2</span>
               <div><h6>Choose a date and time</h6><p>Pick an open date, then choose when we should start. We will confirm your requested time.</p></div>
               </div>
+              <%- include('customer-hours-note', {
+                hoursLabel: 'Delivery and installation hours',
+                hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
+                hoursNote: 'Choose an available start time below. The team will confirm your request.'
+              }) %>
               <div id="checkoutCalendarContainer" class="checkout-calendar-wrap"></div>
 
               <!-- Hidden inputs to store selection -->
@@ -1017,7 +1056,9 @@
                 <label class="form-label small fw-bold"><i class="bi bi-chat-left-text me-1 text-primary"></i> Notes
                   (optional)</label>
                 <textarea class="form-control form-control-sm rounded-3" id="wizardNotes" rows="2"
-                  placeholder="Specific gate codes or delivery instructions..." maxlength="1000"></textarea>
+                  placeholder="Specific gate codes or delivery instructions..." maxlength="500"
+                  aria-describedby="wizardNotesHelp"></textarea>
+                <div class="form-text" id="wizardNotesHelp"><span id="wizardNotesCount">0</span>/500 characters</div>
               </div>
             </div>
 
@@ -1032,7 +1073,7 @@
                 <i class="bi bi-shop pickup-store-bg-icon"></i>
                 <div class="pickup-store-name"><i class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
                 <p class="pickup-store-note">We will send the store address after your order is confirmed.</p>
-                <div id="storeHoursInfo" class="mt-2" style="font-size:0.78rem; color:#0369a1; font-weight:600;"></div>
+                <div id="storeHoursInfo" class="mt-2" role="status" style="font-size:0.78rem; color:#0369a1; font-weight:600;">Loading store pickup hours...</div>
               </div>
 
               <div class="pickup-date-wrap">
@@ -1227,6 +1268,7 @@
 </div>
 
 <script src="/js/checkout-calendar.js?v=20260925-future-date-v3"></script>
+<script src="/js/customer-store-hours.js?v=20260925-v1"></script>
 <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
@@ -1234,6 +1276,7 @@
 <script>
   let cartObj = <%- JSON.stringify(typeof cart !== 'undefined' ? cart : {}).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
   const USER_PHONE = <%- JSON.stringify((user && user.phone) ? user.phone : '').replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
+  const CART_CHECKOUT_CUSTOMER_ID = <%- JSON.stringify((user && (user._id || user.id)) ? String(user._id || user.id) : '').replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
 
   // Fetch the delivery fare rate; installation is free with product delivery.
   window._farePerKm = 40;
@@ -1320,9 +1363,35 @@
     let _autoAdvanceTimer = null;
     let _cartDraftSaveTimer = null;
     let _restoringCartDraft = false;
+    let _cartCheckoutSessionActive = Boolean(CART_CHECKOUT_CUSTOMER_ID);
 
-    const CART_CHECKOUT_DRAFT_KEY = 'racs_cart_checkout_draft_v1';
+    const CART_CHECKOUT_DRAFT_KEY = `racs_cart_checkout_draft_v2_${CART_CHECKOUT_CUSTOMER_ID}`;
     const CART_CHECKOUT_DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+    async function hasActiveCartCheckoutSession() {
+      if (!CART_CHECKOUT_CUSTOMER_ID) return false;
+      try {
+        const response = await fetch('/api/auth/verify', {
+          credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) return false;
+        const result = await response.json();
+        const activeUserId = String(result?.user?._id || result?.user?.id || '');
+        return result?.user?.role === 'customer' && activeUserId === String(CART_CHECKOUT_CUSTOMER_ID);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function closeCartCheckoutAfterLogout() {
+      _cartCheckoutSessionActive = false;
+      clearCartCheckoutDraft();
+      try { localStorage.removeItem('racs_cart_checkout_draft_v1'); } catch (_) {}
+      const modalElement = document.getElementById('checkoutOrderModal');
+      if (modalElement && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(modalElement)?.hide();
+      }
+    }
 
     function cartCheckoutSignature() {
       return CART_ITEMS.map(item => {
@@ -1337,6 +1406,8 @@
 
     function readCartCheckoutDraft() {
       try {
+        if (!_cartCheckoutSessionActive || !CART_CHECKOUT_CUSTOMER_ID) return null;
+        localStorage.removeItem('racs_cart_checkout_draft_v1');
         const raw = localStorage.getItem(CART_CHECKOUT_DRAFT_KEY);
         if (!raw) return null;
         const draft = JSON.parse(raw);
@@ -1353,7 +1424,7 @@
     }
 
     function saveCartCheckoutDraft() {
-      if (_checkoutSubmitting || _restoringCartDraft || !selectedFulfillment) return false;
+      if (!_cartCheckoutSessionActive || _checkoutSubmitting || _restoringCartDraft || !selectedFulfillment) return false;
       try {
         const draft = {
           savedAt: Date.now(),
@@ -1489,25 +1560,19 @@
     // Fetch store open hours for pickup scheduling
     async function fetchStoreHours() {
       try {
-        const r = await fetch('/api/public/company/store-open-hours');
-        if (r.ok) {
-          const data = await r.json();
-          _storeHoursData = data.hours || null;
-          renderStoreHoursInfo();
-          applyPickupCalendarHours();
-        }
-      } catch(e) { console.warn('Failed to fetch store hours'); }
+        _storeHoursData = await window.CustomerStoreHours.load();
+        renderStoreHoursInfo();
+        applyPickupCalendarHours();
+      } catch(e) {
+        const el = document.getElementById('storeHoursInfo');
+        if (el) el.textContent = 'Choose an open pickup date below. Store hours could not be loaded.';
+      }
     }
 
     function renderStoreHoursInfo() {
       const el = document.getElementById('storeHoursInfo');
       if (!el || !_storeHoursData) return;
-      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      const openDays = _storeHoursData.filter(h => h.open);
-      if (openDays.length === 0) { el.textContent = 'Store is currently closed for pickup.'; return; }
-      const fmtTime = (m) => { const h = Math.floor(m/60); const min = m%60; const p = h >= 12 ? 'PM' : 'AM'; return (h%12||12) + ':' + String(min).padStart(2,'0') + ' ' + p; };
-      const summary = openDays.map(d => dayNames[d.dayOfWeek] + ' ' + fmtTime(d.startMinutes) + '–' + fmtTime(d.endMinutes)).join(', ');
-      el.innerHTML = '<i class="bi bi-clock me-1"></i>Store Hours: ' + summary;
+      el.textContent = 'Store pickup hours: ' + window.CustomerStoreHours.format(_storeHoursData);
     }
 
     function applyPickupCalendarHours() {
@@ -1533,6 +1598,7 @@
         setCheckoutFieldValue('wizardContact', draft.contactNumber);
         setCheckoutFieldValue('wizardAddress', draft.address);
         setCheckoutFieldValue('wizardNotes', draft.notes);
+        document.getElementById('wizardNotes')?.dispatchEvent(new Event('input', { bubbles:true }));
         setCheckoutFieldValue('wizardLat', draft.latitude);
         setCheckoutFieldValue('wizardLng', draft.longitude);
         setCheckoutFieldValue('wizardDate', draft.preferredDate);
@@ -1566,7 +1632,13 @@
       }
     }
 
-    window.openCheckoutWizard = function (dynamicCart) {
+    window.openCheckoutWizard = async function (dynamicCart) {
+      _cartCheckoutSessionActive = await hasActiveCartCheckoutSession();
+      if (!_cartCheckoutSessionActive) {
+        closeCartCheckoutAfterLogout();
+        window.location.replace('/login?returnTo=' + encodeURIComponent('/aircon-cart'));
+        return;
+      }
       if (dynamicCart) {
         CART_ITEMS = dynamicCart.items || [];
         SUB_TOTAL = dynamicCart.totalAmount || 0;
@@ -2877,18 +2949,18 @@
 
         const modalBody = document.querySelector('#checkoutOrderModal .modal-body');
         modalBody.innerHTML = `
-        <div class="text-center py-5" style="animation: fadeSlideUp 0.4s ease;">
-          <div style="font-size: 4rem; color: #10b981; margin-bottom: 1rem;"><i class="bi bi-check-circle-fill"></i></div>
-          <h4 class="fw-bold" style="color: #0a1628;">Order Placed!</h4>
-          <p style="color: #64748b;">Your order reference is:</p>
-          <div class="d-inline-block px-4 py-2 rounded-pill fw-bold mb-4" style="background: #f0fdf4; color: #059669; font-size: 1.25rem; letter-spacing: 1px;">
+        <div class="order-success-panel text-center" role="status" aria-live="polite" style="animation: fadeSlideUp 0.4s ease;">
+          <div class="order-success-icon"><i class="bi bi-check-lg"></i></div>
+          <h4 class="fw-bold">Order Placed Successfully!</h4>
+          <p class="mb-3">We received your order. Your reference is:</p>
+          <div class="order-success-reference mb-4">
             ${escapeCheckoutHtml(data.order.orderReference)}
           </div>
-          <p class="small text-muted mb-0">Check <a href="/my-orders" class="text-primary fw-bold text-decoration-none">My Orders</a> to track status.</p>
+          <p class="small mb-0">You can safely track its progress in <a href="/my-orders" class="fw-bold text-decoration-none">My Orders</a>.</p>
         </div>
       `;
         document.querySelector('#checkoutOrderModal .modal-footer').innerHTML = `
-        <a href="/my-orders" class="btn btn-primary px-4 shadow-sm mx-auto" style="border-radius: 50px;">View My Orders</a>
+        <a href="/my-orders" class="btn btn-success px-4 shadow-sm mx-auto" style="border-radius: 50px;"><i class="bi bi-check-circle me-2"></i>View My Orders</a>
       `;
         // Hide wizard progress on success
         const wizardProgress = document.getElementById('wizardProgress');
@@ -2906,6 +2978,13 @@
 
     const cartCheckoutModalElement = document.getElementById('checkoutOrderModal');
     if (cartCheckoutModalElement) {
+      const notesInput = document.getElementById('wizardNotes');
+      const notesCount = document.getElementById('wizardNotesCount');
+      const updateNotesCount = () => {
+        if (notesCount) notesCount.textContent = String(notesInput?.value.length || 0);
+      };
+      notesInput?.addEventListener('input', updateNotesCount);
+      updateNotesCount();
       const persistChangedCheckoutField = event => {
         if (event.target?.closest('#checkoutOrderModal')) scheduleCartCheckoutDraftSave();
       };
@@ -2913,7 +2992,13 @@
       cartCheckoutModalElement.addEventListener('change', persistChangedCheckoutField);
     }
 
-    function reopenSavedCartCheckout() {
+    async function reopenSavedCartCheckout() {
+      _cartCheckoutSessionActive = await hasActiveCartCheckoutSession();
+      if (!_cartCheckoutSessionActive) {
+        closeCartCheckoutAfterLogout();
+        window.location.replace('/login?returnTo=' + encodeURIComponent('/aircon-cart'));
+        return;
+      }
       const draft = readCartCheckoutDraft();
       const modal = document.getElementById('checkoutOrderModal');
       if (!draft || !modal || modal.classList.contains('show') || _checkoutSubmitting) return;
@@ -2922,9 +3007,17 @@
 
     window.addEventListener('pagehide', saveCartCheckoutDraft);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') saveCartCheckoutDraft();
+      if (document.visibilityState === 'hidden') {
+        saveCartCheckoutDraft();
+        return;
+      }
+      hasActiveCartCheckoutSession().then(active => {
+        _cartCheckoutSessionActive = active;
+        if (!active) closeCartCheckoutAfterLogout();
+      });
     });
     window.addEventListener('pageshow', () => setTimeout(reopenSavedCartCheckout, 80));
+    window.addEventListener('racs:logout', closeCartCheckoutAfterLogout);
   })();
 </script>
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

@@ -592,12 +592,34 @@ async function resolveTechnicianRefId(candidateId) {
   return candidateId;
 }
 
+// Keep the customer-history list query lean. These fields can contain large
+// base64 evidence or internal audit payloads and are never exposed by
+// presentCustomerBooking, so MongoDB should not read/materialize them first.
+const CUSTOMER_HISTORY_EXCLUDED_FIELDS = [
+  "-paymentProof",
+  "-proofPhoto",
+  "-technicianAssistant",
+  "-statusHistory",
+  "-cancellationHistory",
+  "-internalNotes",
+  "-adminNotes",
+  "-services.statusHistory",
+  "-services.technicianNotes",
+].join(" ");
+
 // ─── List bookings for the logged-in user (used by book-history.js) ─────────
 router.get("/", auth.authenticate, async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 2000);
     const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
     const query = {};
+    const bookingSorts = {
+      created_desc: { createdAt: -1, _id: -1 },
+      created_asc: { createdAt: 1, _id: 1 },
+      date_asc: { bookingDate: 1, startTime: 1, _id: 1 },
+      date_desc: { bookingDate: -1, startTime: -1, _id: -1 },
+    };
+    const selectedSort = bookingSorts[String(req.query.sort || "created_desc")] || bookingSorts.created_desc;
 
     // customers see only their own bookings; admin/secretary see all
     if (req.user.role === "customer") {
@@ -667,12 +689,16 @@ router.get("/", auth.authenticate, async (req, res) => {
       return res.status(400).json({ error: rangeError.message });
     }
 
+    const bookingListQuery = BookingService.find(query)
+      .sort(selectedSort)
+      .skip(page * limit)
+      .limit(limit);
+    if (req.user.role === "customer") {
+      bookingListQuery.select(CUSTOMER_HISTORY_EXCLUDED_FIELDS);
+    }
+
     const [bookingItems, total] = await Promise.all([
-      BookingService.find(query)
-        .sort({ bookingDate: -1, createdAt: -1 })
-        .skip(page * limit)
-        .limit(limit)
-        .lean(),
+      bookingListQuery.lean(),
       BookingService.countDocuments(query),
     ]);
 
@@ -2738,7 +2764,7 @@ router.post(
   async (req, res) => {
     try {
       const id = req.params.id;
-      const { requestedDate, requestedTime, newDate, newTime, reason } = req.body;
+      const { requestedDate, requestedEndDate, requestedTime, newDate, newTime, reason } = req.body;
       const finalDate = newDate || requestedDate;
       const finalTime = newTime || requestedTime;
       const appt = await BookingService.findById(id);
@@ -2774,6 +2800,10 @@ router.post(
             : "New date, time, and reason are required",
         });
       }
+      const normalizedReason = String(reason).trim();
+      if (normalizedReason.length > 500) {
+        return res.status(400).json({ error: "Reschedule reason must be 500 characters or fewer." });
+      }
 
       // Revalidate against the same scheduling engine used by the customer
       // calendar. A stale or forged slot cannot be submitted.
@@ -2783,6 +2813,17 @@ router.post(
         finalTime,
         { isProject: isProjectRequest },
       );
+      let normalizedEndDate;
+      if (isProjectRequest && requestedEndDate) {
+        normalizedEndDate = String(requestedEndDate).slice(0, 10);
+        const endDateValue = new Date(`${normalizedEndDate}T00:00:00`);
+        const startDateValue = new Date(`${requestedSchedule.date}T00:00:00`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedEndDate)
+          || Number.isNaN(endDateValue.getTime())
+          || endDateValue < startDateValue) {
+          return res.status(400).json({ error: "Project end date must be on or after the requested start date." });
+        }
+      }
       const policy = mutationPolicy(appt);
       const applyDirectly = !isProjectRequest && policy.direct;
       const previousDate = appt.bookingDate;
@@ -2791,8 +2832,9 @@ router.post(
       appt.rescheduleRequest = {
         requested: true,
         requestedDate: requestedSchedule.date,
+        requestedEndDate: normalizedEndDate,
         requestedTime: requestedSchedule.time,
-        reason: String(reason).trim(),
+        reason: normalizedReason,
         requestedBy: req.user._id,
         requestedAt: new Date(),
         status: applyDirectly ? "approved" : "pending",
@@ -2806,7 +2848,7 @@ router.post(
         const endMinutes = requestedSchedule.requestedMinutes
           + Math.max(1, Number(appt.serviceDurationMinutes) || 60);
         appt.endTime = minutesTo12h(endMinutes);
-        appt.rescheduleReason = String(reason).trim();
+        appt.rescheduleReason = normalizedReason;
         appt.rescheduleHistory.push({
           previousDate,
           previousTime,
@@ -2847,7 +2889,7 @@ router.post(
             currentTime: previousTime,
             requestedDate: requestedSchedule.date,
             requestedTime: requestedTimeLabel,
-            reason,
+            reason: normalizedReason,
             applied: applyDirectly,
             message: applyDirectly
               ? `Customer updated the schedule for ${appt.bookingReference || "booking"}`
@@ -2880,7 +2922,7 @@ router.post(
                 currentTime: previousTime || "TBD",
                 requestedDate: requestedSchedule.date,
                 requestedTime: requestedTimeLabel,
-                reason,
+                reason: normalizedReason,
               }).catch(err => console.error("[MAILER] Failed to send reschedule request email:", err.message));
             }
           }
@@ -5326,6 +5368,13 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
     if (!['accept', 'request_new', 'cancel'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action. Must be accept, request_new, or cancel.' });
     }
+    const normalizedReason = String(reason || '').trim();
+    if (normalizedReason.length > 500) {
+      return res.status(400).json({ error: 'Reason must be 500 characters or fewer.' });
+    }
+    if (action === 'cancel' && !normalizedReason) {
+      return res.status(400).json({ error: 'A cancellation reason is required.' });
+    }
 
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
@@ -5341,6 +5390,13 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       if (!proposal || proposal.status !== 'pending') {
         return res.status(400).json({ error: 'No pending reschedule proposal to accept' });
       }
+      const proposalDate = new Date(proposal.date);
+      const proposalStart = parseTimeValue(proposal.time || proposal.timeLabel);
+      if (Number.isNaN(proposalDate.getTime()) || !Number.isFinite(proposalStart)) {
+        return res.status(400).json({ error: 'The proposed schedule is invalid. Please request another schedule.' });
+      }
+      const proposalEnd = proposalStart + Math.max(1, Number(booking.serviceDurationMinutes) || 60);
+      await assertCompanyCapacity(proposalDate, proposalStart, proposalEnd, booking._id);
       proposal.status = 'accepted';
       booking.proposedReschedule = proposal;
 
@@ -5478,7 +5534,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
         requested: true,
         requestedDate,
         requestedTime,
-        reason: reason || '',
+        reason: normalizedReason,
         requestedBy: req.user._id,
         requestedAt: new Date(),
         status: 'pending',
@@ -5516,7 +5572,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
         action: 'booking.reschedule_request_new',
         module: 'appointments',
         req,
-        details: { bookingId: booking._id, requestedDate, requestedTime, reason: reason || '' },
+        details: { bookingId: booking._id, requestedDate, requestedTime, reason: normalizedReason },
       });
 
       return res.json({ success: true, message: 'New schedule request submitted.', booking });
@@ -5525,7 +5581,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
     if (action === 'cancel') {
       const previousStatus = booking.status;
       booking.status = BookingStatus.CANCELLED;
-      booking.cancellationReason = reason || 'Customer cancelled after reschedule proposal';
+      booking.cancellationReason = normalizedReason;
       if (proposal) {
         proposal.status = 'rejected';
         booking.proposedReschedule = proposal;
@@ -5584,7 +5640,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
         action: 'booking.reschedule_cancel',
         module: 'appointments',
         req,
-        details: { bookingId: booking._id, reason: reason || 'Customer cancelled after reschedule proposal', downpaymentRefunded: !!downpayment },
+        details: { bookingId: booking._id, reason: normalizedReason, downpaymentRefunded: !!downpayment },
       });
 
       return res.json({ success: true, message: 'Booking cancelled and downpayment refunded if applicable.', booking });

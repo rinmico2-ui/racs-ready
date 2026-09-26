@@ -327,6 +327,7 @@
     function roleSafeNotificationLink(link) {
       if (!link || window.USER_ROLE !== 'secretary') return link || '';
       const value = String(link);
+      if (/^\/secretary(?:\/|[?#]|$)/.test(value)) return value;
       const queryIndex = value.search(/[?#]/);
       const path = queryIndex >= 0 ? value.slice(0, queryIndex) : value;
       const suffix = queryIndex >= 0 ? value.slice(queryIndex) : '';
@@ -364,6 +365,7 @@
       const match = mappings.find(([adminPath]) => path === adminPath || path.startsWith(adminPath + '/'));
       return match ? match[1] + path.slice(match[0].length) + suffix : '';
     }
+    window._notifRoleSafeLink = roleSafeNotificationLink;
 
     // Toggle panel
     btn.addEventListener('click', (e) => {
@@ -410,7 +412,9 @@
     async function loadNotifications() {
       try {
         const res = await fetch('/api/notifications?limit=15', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Could not load notifications');
         const data = await res.json();
+        window.dispatchEvent(new CustomEvent('notifications:loaded', { detail: data }));
         if (!data.notifications || !data.notifications.length) {
           list.innerHTML = `<div class="text-center py-4 text-muted" style="font-size:0.85rem;"><i class="bi bi-bell-slash" style="font-size:1.5rem;"></i><div class="mt-1">No notifications</div></div>`;
           return;
@@ -475,8 +479,10 @@
     async function loadUnreadCount() {
       try {
         const res = await fetch('/api/notifications/unread-count', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Could not load notification count');
         const data = await res.json();
         const count = data.unreadCount || 0;
+        window.dispatchEvent(new CustomEvent('notifications:count', { detail: { unreadCount: count } }));
         if (count > 0) {
           badge.textContent = count > 999 ? '999+' : String(count);
           badge.classList.remove('d-none');

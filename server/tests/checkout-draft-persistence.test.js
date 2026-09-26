@@ -14,6 +14,7 @@ const cartWizard = read("views/partials/cart-wizard.ejs");
 const directWizard = read("views/partials/aircons.ejs");
 const servicesScript = read("public/js/services-multi.js");
 const servicesView = read("views/pages/services.ejs");
+const authController = read("controllers/authController.js");
 
 function assertInlineScriptsCompile(html) {
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
@@ -23,12 +24,30 @@ function assertInlineScriptsCompile(html) {
 }
 
 test("cart and direct-product checkout save short-lived drafts", () => {
-  assert.match(cartWizard, /racs_cart_checkout_draft_v1/);
+  assert.match(cartWizard, /racs_cart_checkout_draft_v2_\$\{CART_CHECKOUT_CUSTOMER_ID\}/);
   assert.match(cartWizard, /30 \* 60 \* 1000/);
   assert.match(cartWizard, /cartSignature: cartCheckoutSignature\(\)/);
-  assert.match(directWizard, /racs_direct_order_draft_v1/);
+  assert.match(directWizard, /racs_direct_order_draft_v2_\$\{DIRECT_CHECKOUT_CUSTOMER_ID\}/);
   assert.match(directWizard, /30 \* 60 \* 1000/);
   assert.match(directWizard, /variantId: directCheckoutVariantId/);
+});
+
+test("checkout drafts are customer-scoped and require a live customer session", () => {
+  assert.match(cartWizard, /const CART_CHECKOUT_CUSTOMER_ID/);
+  assert.match(cartWizard, /hasActiveCartCheckoutSession/);
+  assert.match(cartWizard, /result\?\.user\?\.role === 'customer'/);
+  assert.match(directWizard, /const DIRECT_CHECKOUT_CUSTOMER_ID/);
+  assert.match(directWizard, /hasActiveDirectCheckoutSession/);
+  assert.match(directWizard, /closeDirectCheckoutAfterLogout/);
+  assert.match(authController, /const sessionMismatch = payload\.sessionId/);
+  assert.match(authController, /payload\.sessionId !== String\(user\?\.currentSessionId \|\| ""\)/);
+});
+
+test("product delivery notes expose a 500-character browser limit", () => {
+  for (const source of [cartWizard, directWizard]) {
+    assert.match(source, /id="wizardNotes"[\s\S]*?maxlength="500"/);
+    assert.match(source, /id="wizardNotesCount"/);
+  }
 });
 
 test("checkout drafts cover mobile payment-app lifecycle and reopen on return", () => {
@@ -72,11 +91,11 @@ test("checkout errors identify and focus the missing field", () => {
 test("checkout templates still render valid inline JavaScript", async () => {
   const cartHtml = await ejs.renderFile(cartWizardPath, {
     cart: { items: [], totalAmount: 0 },
-    user: { phone: "09171234567" },
+    user: { _id: "64b000000000000000000001", phone: "09171234567" },
   });
   const directHtml = await ejs.renderFile(directWizardPath, {
     grouped: [],
-    user: { phone: "09171234567" },
+    user: { _id: "64b000000000000000000001", phone: "09171234567" },
   });
   assertInlineScriptsCompile(cartHtml);
   assertInlineScriptsCompile(directHtml);

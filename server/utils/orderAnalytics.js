@@ -90,7 +90,11 @@ function buildBuckets(startDate, endDate) {
   return rows;
 }
 
-function buildTrend(cohortOrders, completionOrders, payments, startDate, endDate) {
+function completedItemRefunds(refunds, startDate, endDate) {
+  return (refunds || []).filter(refund => refund.status === "completed" && inRange(refund.processedAt, startDate, endDate));
+}
+
+function buildTrend(cohortOrders, completionOrders, payments, productRefunds, startDate, endDate) {
   const buckets = buildBuckets(startDate, endDate);
   buckets.forEach(bucket => {
     const placed = cohortOrders.filter(order => inRange(order.createdAt, bucket.start, bucket.end));
@@ -100,11 +104,13 @@ function buildTrend(cohortOrders, completionOrders, payments, startDate, endDate
       endDate: bucket.end,
       normalizeMethod: normalizePaymentMethod,
     });
+    const itemRefundTotal = completedItemRefunds(productRefunds, bucket.start, bucket.end)
+      .reduce((sum, refund) => sum + money(refund.amount), 0);
     bucket.orders = placed.length;
     bucket.bookedValue = validOrders(placed).reduce((sum, order) => sum + money(order.total), 0);
     bucket.recognizedRevenue = completed.reduce((sum, order) => sum + money(order.total), 0);
-    bucket.netCollections = ledger.netCollections;
-    bucket.refunds = ledger.refunds;
+    bucket.netCollections = ledger.netCollections - itemRefundTotal;
+    bucket.refunds = ledger.refunds + itemRefundTotal;
   });
   return buckets.map(bucket => ({ ...bucket, start: bucket.start.toISOString(), end: bucket.end.toISOString() }));
 }
@@ -142,6 +148,7 @@ function buildOrderAnalytics({
   previousCohortOrders = [],
   completionCandidates = [],
   payments = [],
+  productRefunds = [],
   inventoryItems = [],
   startDate,
   endDate,
@@ -158,6 +165,15 @@ function buildOrderAnalytics({
   const previousRecognizedRevenue = previousRecognized.reduce((sum, order) => sum + money(order.total), 0);
   const currentLedger = summarizePaymentLedger(payments, { startDate, endDate, normalizeMethod: normalizePaymentMethod });
   const previousLedger = summarizePaymentLedger(payments, { startDate: previousStart, endDate: previousEnd, normalizeMethod: normalizePaymentMethod });
+  const currentItemRefunds = completedItemRefunds(productRefunds, startDate, endDate);
+  const previousItemRefunds = completedItemRefunds(productRefunds, previousStart, previousEnd);
+  const currentItemRefundTotal = currentItemRefunds.reduce((sum, refund) => sum + money(refund.amount), 0);
+  const previousItemRefundTotal = previousItemRefunds.reduce((sum, refund) => sum + money(refund.amount), 0);
+  const collectionsByMethod = { ...currentLedger.byMethod };
+  currentItemRefunds.forEach(refund => {
+    const method = normalizePaymentMethod(refund.method);
+    collectionsByMethod[method] = money((collectionsByMethod[method] || 0) - money(refund.amount));
+  });
   const paymentByOrder = new Map();
   payments.forEach(payment => {
     if (!payment.orderId) return;
@@ -258,8 +274,8 @@ function buildOrderAnalytics({
     grossOrderValue,
     recognizedRevenue,
     grossCollections: currentLedger.grossCollections,
-    refunds: currentLedger.refunds,
-    netCollections: currentLedger.netCollections,
+    refunds: currentLedger.refunds + currentItemRefundTotal,
+    netCollections: currentLedger.netCollections - currentItemRefundTotal,
     outstandingBalance,
     pendingPaymentValue: outstandingBalance,
     ledgerMismatchCount,
@@ -291,12 +307,12 @@ function buildOrderAnalytics({
     orderGrowth: growth(cohortValid.length, previousValid.length),
     revenueGrowth: growth(grossOrderValue, previousGrossOrderValue),
     recognizedRevenueGrowth: recognizedGrowth,
-    collectionGrowth: growth(currentLedger.netCollections, previousLedger.netCollections),
+    collectionGrowth: growth(currentLedger.netCollections - currentItemRefundTotal, previousLedger.netCollections - previousItemRefundTotal),
     statusBreakdown,
     fulfillmentBreakdown,
     paymentBreakdown,
-    collectionsByMethod: currentLedger.byMethod,
-    dailyTrend: buildTrend(cohortOrders, recognized, payments, startDate, endDate),
+    collectionsByMethod,
+    dailyTrend: buildTrend(cohortOrders, recognized, payments, productRefunds, startDate, endDate),
     ...rankings,
     technicians: [...technicianMap.values()].map(row => ({ ...row, completionRate: row.orders ? (row.completed / row.orders) * 100 : 0 })).sort((a, b) => b.value - a.value).slice(0, 8),
     recentOrders: [...cohortOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 12).map(order => ({

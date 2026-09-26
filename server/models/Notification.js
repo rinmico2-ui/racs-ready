@@ -70,6 +70,7 @@ const notificationSchema = new mongoose.Schema(
         "maintenance_overdue",
         "maintenance_scheduled",
         "order_rescheduled",
+        "product_return_update",
         "parts_request",
         "parts_reserved",
         "payment_collected",
@@ -139,6 +140,7 @@ const notificationSchema = new mongoose.Schema(
         "MaintenanceSchedule",
         "Payroll",
         "EquipmentAssignment",
+        "ProductReturn",
       ],
     },
 

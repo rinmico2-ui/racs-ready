@@ -107,6 +107,33 @@ test("delivery checkout rejects contact values that are not phone numbers", () =
   }, { now:NOW }), /valid delivery contact/i);
 });
 
+test("delivery notes are plain text and limited to 500 characters", () => {
+  const base = {
+    fulfillmentType:"delivery_installation",
+    paymentMethod:"cod",
+    timeSlot:"09:00",
+    delivery:{
+      address:"123 Enterprise Street, Nueva Ecija",
+      contactNumber:"09171234567",
+      preferredDate:"2026-08-31",
+      coordinates:{ lat:15.2, lng:120.9 },
+    },
+  };
+  const valid = validateCheckoutSelection({
+    ...base,
+    delivery:{ ...base.delivery, notes:"Leave the unit with the front desk." },
+  }, { now:NOW });
+  assert.equal(valid.delivery.notes, "Leave the unit with the front desk.");
+  assert.throws(() => validateCheckoutSelection({
+    ...base,
+    delivery:{ ...base.delivery, notes:"x".repeat(501) },
+  }, { now:NOW }), /cannot exceed 500 characters/i);
+  assert.throws(() => validateCheckoutSelection({
+    ...base,
+    delivery:{ ...base.delivery, notes:{ $ne:"" } },
+  }, { now:NOW }), /plain text/i);
+});
+
 test("delivery quote ignores client claims and uses the routing result", async () => {
   const quote = await authoritativeDeliveryQuote({
     origin: { lat: 15, lng: 121 },

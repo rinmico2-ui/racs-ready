@@ -210,7 +210,10 @@
   })();
 
   // Refresh badges every 30s
+  let technicianBadgeRefreshRunning=false;
   setInterval(async function () {
+    if(document.hidden||technicianBadgeRefreshRunning)return;
+    technicianBadgeRefreshRunning=true;
     try {
       const res = await fetch('/api/technician/badge-counts', { credentials: 'same-origin' });
       if (res.ok) {
@@ -237,5 +240,6 @@
         }
       }
     } catch (e) { }
+    finally { technicianBadgeRefreshRunning=false; }
   }, 30000);
 </script>

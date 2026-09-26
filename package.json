@@ -24,6 +24,7 @@
     "migrate:service-warranties": "node server/scripts/backfill-service-warranties.js",
     "migrate:warranty-coverages": "node server/scripts/backfill-warranty-coverages.js",
     "migrate:customer-maintenance": "node server/scripts/backfill-customer-maintenance.js --apply",
+    "migrate:aftercare-onsite": "node server/scripts/migrateAftercareOnSite.js",
     "test:security": "node --test server/tests/apiSecurity.test.js",
     "test:maintenance": "node --test server/tests/maintenance.test.js",
     "test:ai-technician": "node --test server/tests/ai-technician-assistant.test.js",

@@ -9,12 +9,14 @@
     : "Not recorded";
   const label = (value) => String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
   let installationAssetId = null;
+  let alertTimer = null;
 
-  function showAlert(message, kind) {
+  function showAlert(message, kind, timeoutMs = 10000) {
     const box = $("aftercareAlert");
+    if (alertTimer) window.clearTimeout(alertTimer);
     box.className = `aftercare-alert ${kind || "success"}`;
     box.textContent = message;
-    window.setTimeout(() => box.classList.add("d-none"), 6000);
+    if (timeoutMs > 0) alertTimer = window.setTimeout(() => box.classList.add("d-none"), timeoutMs);
   }
 
   function activateTab(tab) {
@@ -51,6 +53,21 @@
     const booking = cycle?.bookingId;
     const name = equipmentName(asset);
     const open = cycle && ["upcoming", "due", "overdue"].includes(cycle.status) && !booking;
+    const cycleLabel = booking?.status === "pending" ? "Booking requested"
+      : booking?.status === "awaiting_assignment" ? "Awaiting technician" : label(cycle?.status);
+    const bookingActions = booking
+      ? `<a class="btn btn-sm btn-outline-primary" href="/book-history?highlight=${encodeURIComponent(booking._id)}"><i class="bi bi-eye me-1"></i>View booking</a>`
+      : open
+        ? `<button class="btn btn-sm btn-primary js-aftercare-book" data-schedule-id="${cycle._id}" title="Request the first available maintenance time on or after the due date"><i class="bi bi-calendar-check me-1"></i>Book next available</button>
+          <button class="btn btn-sm btn-outline-primary js-aftercare-response" data-response="callback_requested" data-schedule-id="${cycle._id}" data-equipment="${escapeHtml(name)}"><i class="bi bi-telephone me-1"></i>Request callback</button>
+          <button class="btn btn-sm btn-outline-secondary js-aftercare-response" data-response="remind_later" data-schedule-id="${cycle._id}" data-equipment="${escapeHtml(name)}" title="Choose another reminder date"><i class="bi bi-bell"></i></button>
+          <button class="btn btn-sm btn-outline-secondary js-aftercare-decline" data-schedule-id="${cycle._id}" title="Not interested right now"><i class="bi bi-x-lg"></i></button>`
+        : '<span class="text-muted small">No action available</span>';
+    const cycleHtml = installationRequired
+      ? `<div class="maintenance-cycle"><div><div class="maintenance-primary">Installation date required</div><div class="maintenance-secondary">Record the actual date before reminders begin.</div></div><button class="btn btn-sm btn-primary js-install-date" data-asset-id="${asset._id}"><i class="bi bi-calendar-plus me-1"></i>Record date</button></div>`
+      : cycle
+        ? `<div class="maintenance-cycle aftercare-cycle"><div><div class="maintenance-secondary">Next maintenance</div><div class="maintenance-primary">${formatDate(booking?.bookingDate || cycle.dueDate)}${booking?.startTime ? ` · ${escapeHtml(booking.startTime)}` : ""} <span class="maintenance-status ${escapeHtml(cycle.status)} ms-1">${escapeHtml(cycleLabel)}</span></div><div class="maintenance-secondary">${booking?.maintenance?.paymentOnSite ? "Pay on site after service. We will assign a technician." : booking?.status === "pending" ? "Visit confirmation is pending." : open ? "We'll use your saved address and choose the first open time. No payment is taken now." : `Every ${Number(cycle.intervalDays || 90)} days`}</div>${responseSummary(cycle)}</div><div class="maintenance-cycle-actions">${bookingActions}</div></div>`
+        : '<div class="maintenance-cycle"><div><div class="maintenance-primary">No active maintenance cycle</div><div class="maintenance-secondary">Completed maintenance history remains attached to this equipment.</div></div></div>';
     return `<article class="asset-card">
       <div class="asset-card-head"><div class="asset-icon"><i class="bi bi-snow2"></i></div><div class="flex-grow-1 min-width-0"><div class="maintenance-primary">${escapeHtml(name)}</div><div class="maintenance-secondary">${escapeHtml(equipment.unitLabel || "Unit")} | ${escapeHtml(asset.originReference || "Customer equipment")}</div></div><span class="maintenance-status ${escapeHtml(asset.status)}">${escapeHtml(label(asset.status))}</span></div>
       <div class="asset-card-body">
@@ -59,7 +76,7 @@
           <div><div class="asset-meta-label">Last service</div><div class="asset-meta-value">${formatDate(asset.lastServiceDate)}</div></div>
           <div><div class="asset-meta-label">Service address</div><div class="asset-meta-value">${escapeHtml(asset.serviceAddress || "Not recorded")}</div></div>
         </div>
-        ${installationRequired ? `<div class="maintenance-cycle"><div><div class="maintenance-primary">Installation date required</div><div class="maintenance-secondary">Record the actual date before reminders begin.</div></div><button class="btn btn-sm btn-primary js-install-date" data-asset-id="${asset._id}"><i class="bi bi-calendar-plus me-1"></i>Record date</button></div>` : cycle ? `<div class="maintenance-cycle aftercare-cycle"><div><div class="maintenance-secondary">Next maintenance</div><div class="maintenance-primary">${formatDate(cycle.dueDate)} <span class="maintenance-status ${escapeHtml(cycle.status)} ms-1">${escapeHtml(label(cycle.status))}</span></div><div class="maintenance-secondary">Every ${Number(cycle.intervalDays || 90)} days</div>${responseSummary(cycle)}</div><div class="maintenance-cycle-actions">${booking ? `<a class="btn btn-sm btn-outline-primary" href="/book-history?highlight=${encodeURIComponent(booking._id)}"><i class="bi bi-eye me-1"></i>View booking</a>` : open ? `<button class="btn btn-sm btn-primary js-aftercare-book" data-schedule-id="${cycle._id}"><i class="bi bi-calendar-check me-1"></i>Book service</button><button class="btn btn-sm btn-outline-primary js-aftercare-response" data-response="callback_requested" data-schedule-id="${cycle._id}" data-equipment="${escapeHtml(name)}"><i class="bi bi-telephone me-1"></i>Request callback</button><button class="btn btn-sm btn-outline-secondary js-aftercare-response" data-response="remind_later" data-schedule-id="${cycle._id}" data-equipment="${escapeHtml(name)}" title="Choose another reminder date"><i class="bi bi-bell"></i></button><button class="btn btn-sm btn-outline-secondary js-aftercare-decline" data-schedule-id="${cycle._id}" title="Not interested right now"><i class="bi bi-x-lg"></i></button>` : '<span class="text-muted small">No action available</span>'}</div></div>` : '<div class="maintenance-cycle"><div><div class="maintenance-primary">No active maintenance cycle</div><div class="maintenance-secondary">Completed maintenance history remains attached to this equipment.</div></div></div>'}
+        ${cycleHtml}
       </div>
     </article>`;
   }
@@ -111,10 +128,6 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, ...values }),
       });
-      if (status === "booking_started" && data.bookingUrl) {
-        window.location.assign(data.bookingUrl);
-        return;
-      }
       bootstrap.Modal.getInstance($("aftercareResponseModal"))?.hide();
       const messages = {
         callback_requested: "Your callback request was sent to the aftercare team.",
@@ -127,6 +140,29 @@
       showAlert(error.message, "error");
     } finally {
       if (button) button.disabled = false;
+    }
+  }
+
+  async function bookMaintenance(button) {
+    button.disabled = true;
+    const original = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Finding a time…';
+    try {
+      const data = await requestJson(`/api/maintenance/schedules/${encodeURIComponent(button.dataset.scheduleId)}/book`, { method: "POST" });
+      await load();
+      const booking = data.booking || {};
+      showAlert(`${data.alreadyBooked ? "Booking already exists" : "Booking requested"} for ${formatDate(booking.bookingDate)} at ${booking.startTime || "the next available time"}. No payment is needed now; pay on site after service. We will assign a technician.`, "success", 0);
+      const details = document.createElement("a");
+      details.className = "btn btn-sm btn-outline-primary ms-2";
+      details.href = `/book-history?highlight=${encodeURIComponent(booking._id)}`;
+      details.textContent = "View booking";
+      $("aftercareAlert").appendChild(details);
+      $("aftercareAlert").scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (error) {
+      showAlert(error.message || "We could not book maintenance. Please try again.", "error");
+      $("aftercareAlert").scrollIntoView({ behavior: "smooth", block: "center" });
+      button.disabled = false;
+      button.innerHTML = original;
     }
   }
 
@@ -149,7 +185,7 @@
 
   $("customerAssetGrid").addEventListener("click", async (event) => {
     const bookButton = event.target.closest(".js-aftercare-book");
-    if (bookButton) return submitResponse(bookButton.dataset.scheduleId, "booking_started", {}, bookButton);
+    if (bookButton) return bookMaintenance(bookButton);
     const responseButton = event.target.closest(".js-aftercare-response");
     if (responseButton) return openResponseModal(responseButton);
     const declineButton = event.target.closest(".js-aftercare-decline");

@@ -5,6 +5,7 @@ const {
   summarizeAttendance,
   summarizeCollections,
   summarizeEquipment,
+  localBounds,
 } = require("../utils/adminOperationsDashboard");
 
 const NOW = new Date("2026-08-29T10:00:00+08:00");
@@ -20,12 +21,35 @@ test("collections use ledger event dates and report gross, refunds, and net sepa
   const summary = summarizeCollections([
     { status: "waiting_for_remittance", amount: 1000, collectedAt: new Date("2026-08-29T09:00:00+08:00") },
     { status: "unaccounted", amount: 250, collectedAt: new Date("2026-08-29T09:10:00+08:00") },
-    { status: "verified", amount: 500, verifiedAt: new Date("2026-08-20T09:00:00+08:00"), refundedAt: new Date("2026-08-29T09:30:00+08:00"), refundAmount: 200 },
+    { status: "verified", amount: 500, verifiedAt: new Date("2026-08-20T09:00:00+08:00"), refundedAt: new Date("2026-08-29T09:30:00+08:00"), refundAmount: 200, refundStatus: 'completed' },
     { status: "pending", amount: 9999, submittedAt: new Date("2026-08-29T08:00:00+08:00") },
   ], bounds);
 
   assert.deepEqual(summary.today, { gross: 1250, refunds: 200, net: 1050, transactions: 2 });
   assert.deepEqual(summary.month, { gross: 1750, refunds: 200, net: 1550, transactions: 3 });
+});
+
+test('submitted receipts and payment snapshots without receipt confirmation are not collections', () => {
+  const bounds = localBounds(NOW);
+  const summary = summarizeCollections([
+    { status: 'pending', amount: 9000, collectedAt: NOW },
+    { status: 'partial', amount: 1000, submittedAt: NOW },
+    { status: 'paid', amount: 2000, submittedAt: NOW },
+    { status: 'verified', amount: 500, verifiedAt: NOW, submittedAt: new Date('2026-08-28T01:00:00Z') },
+    { status: 'verified', amount: 0, verifiedAt: NOW, refundedAt: NOW, refundAmount: 300, refundStatus: 'pending' },
+  ], bounds);
+  assert.equal(summary.today.gross, 500);
+  assert.equal(summary.today.refunds, 0);
+  assert.equal(summary.today.net, 500);
+  const unverified = summarizeCollections([{ status: 'partial', amount: 3000, submittedAt: NOW }], bounds);
+  assert.deepEqual(unverified.today, { gross: 0, refunds: 0, net: 0, transactions: 0 });
+});
+
+test('collection day and month boundaries always use Philippine time', () => {
+  const bounds = localBounds(new Date('2026-08-31T17:00:00Z'));
+  assert.equal(bounds.startOfDay.toISOString(), '2026-08-31T16:00:00.000Z');
+  assert.equal(bounds.endOfDay.toISOString(), '2026-09-01T15:59:59.999Z');
+  assert.equal(bounds.startOfMonth.toISOString(), '2026-08-31T16:00:00.000Z');
 });
 
 test("attendance distinguishes presence, leave, absence, and verification exceptions", () => {

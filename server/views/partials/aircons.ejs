@@ -296,6 +296,50 @@
         }
         .btn-add-cart:hover { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: #fff; transform: translateY(-2px); }
 
+        .product-order-success-panel {
+          margin: 1rem;
+          padding: 3rem 1.5rem;
+          border: 1px solid #86efac;
+          border-radius: 20px;
+          background: linear-gradient(145deg, #f0fdf4, #dcfce7);
+          color: #14532d;
+        }
+        .product-order-success-icon {
+          display: grid;
+          width: 76px;
+          height: 76px;
+          place-items: center;
+          margin: 0 auto 1rem;
+          border-radius: 50%;
+          background: #16a34a;
+          color: #fff;
+          font-size: 2.6rem;
+          box-shadow: 0 12px 28px rgba(22,163,74,.28);
+        }
+        .product-order-success-panel h4 { color: #166534; }
+        .product-order-success-reference {
+          display: inline-block;
+          padding: .65rem 1.25rem;
+          border: 1px solid #86efac;
+          border-radius: 999px;
+          background: #fff;
+          color: #15803d;
+          font-size: 1.2rem;
+          font-weight: 800;
+          letter-spacing: 1px;
+        }
+        .product-order-success-panel a { color: #15803d; }
+        .btn-order-success {
+          border: 0;
+          border-radius: 50px;
+          background: linear-gradient(135deg,#16a34a,#15803d);
+          color: #fff;
+          font-weight: 700;
+          text-decoration: none;
+          box-shadow: 0 7px 18px rgba(22,163,74,.24);
+        }
+        .btn-order-success:hover { background: linear-gradient(135deg,#22c55e,#16a34a); color: #fff; transform: translateY(-1px); }
+
         /* ── Modal Wizard Styles ── */
         .wizard-modal>.modal-dialog {
           max-width: 960px;
@@ -1636,6 +1680,11 @@
                   <h6 class="fw-bold mb-1">Choose a date and time</h6>
                   <p class="small text-muted mb-2">Pick an open date, then choose when we should start the delivery and installation. We will confirm your requested time.</p>
                 </div>
+                <%- include('customer-hours-note', {
+                  hoursLabel: 'Delivery and installation hours',
+                  hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
+                  hoursNote: 'Choose an available start time below. The team will confirm your request.'
+                }) %>
                 <!-- Calendar Container -->
                 <div id="checkoutCalendarContainer"></div>
 
@@ -1648,7 +1697,9 @@
                 <div class="mb-2">
                   <label class="form-label">Notes (optional)</label>
                   <textarea class="form-control" id="wizardNotes" rows="2"
-                    placeholder="Landmarks, gate codes, delivery times..."></textarea>
+                    placeholder="Landmarks, gate codes, delivery times..." maxlength="500"
+                    aria-describedby="wizardNotesHelp"></textarea>
+                  <div class="form-text" id="wizardNotesHelp"><span id="wizardNotesCount">0</span>/500 characters</div>
                 </div>
               </div>
 
@@ -1662,6 +1713,7 @@
                       class="bi bi-geo-alt-fill me-2"></i>CALIDRO RACS Main Store</div>
                   <p class="mt-1 mb-0" style="color: #64748b; font-size: 0.78rem;">We will send pickup details after your order is confirmed.</p>
                 </div>
+                <div id="directStoreHoursInfo" class="small fw-semibold text-primary mb-3" role="status">Loading store pickup hours...</div>
 
                 <div class="mb-2">
                   <label class="form-label">Preferred Pickup Date</label>
@@ -1826,9 +1878,22 @@
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="/js/checkout-calendar.js?v=20260925-future-date-v3"></script>
+  <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
   <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
   <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
   <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
+
+  <script>
+    window.CustomerStoreHours.load()
+      .then(function (hours) {
+        var label = document.getElementById('directStoreHoursInfo');
+        if (label) label.textContent = 'Store pickup hours: ' + window.CustomerStoreHours.format(hours);
+      })
+      .catch(function () {
+        var label = document.getElementById('directStoreHoursInfo');
+        if (label) label.textContent = 'Choose an open pickup date. Store hours could not be loaded.';
+      });
+  </script>
 
   <script>
     (function () {
@@ -1875,7 +1940,14 @@
       // ── Data from server ────────────────────────────────────────────────
       const GROUPS = <%- JSON.stringify(airconGroups) %>;
       const IS_LOGGED_IN = <%= !!locals.user %>;
+      const DIRECT_CHECKOUT_CUSTOMER_ID = <%- JSON.stringify((locals.user && (user._id || user.id)) ? String(user._id || user.id) : '').replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
       const USER_PHONE = '<%= (locals.user && locals.user.phone) ? locals.user.phone : "" %>';
+
+      function escapeDirectCheckoutHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
+          '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+        })[character]);
+      }
 
       // Fetch the delivery fare rate; installation is free with product delivery.
       window._farePerKm = 40;
@@ -1937,9 +2009,35 @@
       let _directCheckoutSubmitting = false;
       let _directDraftSaveTimer = null;
       let _restoringDirectDraft = false;
+      let _directCheckoutSessionActive = Boolean(IS_LOGGED_IN && DIRECT_CHECKOUT_CUSTOMER_ID);
 
-      const DIRECT_CHECKOUT_DRAFT_KEY = 'racs_direct_order_draft_v1';
+      const DIRECT_CHECKOUT_DRAFT_KEY = `racs_direct_order_draft_v2_${DIRECT_CHECKOUT_CUSTOMER_ID}`;
       const DIRECT_CHECKOUT_DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+      async function hasActiveDirectCheckoutSession() {
+        if (!IS_LOGGED_IN || !DIRECT_CHECKOUT_CUSTOMER_ID) return false;
+        try {
+          const response = await fetch('/api/auth/verify', {
+            credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }
+          });
+          if (!response.ok) return false;
+          const result = await response.json();
+          const activeUserId = String(result?.user?._id || result?.user?.id || '');
+          return result?.user?.role === 'customer' && activeUserId === String(DIRECT_CHECKOUT_CUSTOMER_ID);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function closeDirectCheckoutAfterLogout() {
+        _directCheckoutSessionActive = false;
+        clearDirectCheckoutDraft();
+        try { localStorage.removeItem('racs_direct_order_draft_v1'); } catch (_) {}
+        const modalElement = document.getElementById('productOrderModal');
+        if (modalElement && typeof bootstrap !== 'undefined') {
+          bootstrap.Modal.getInstance(modalElement)?.hide();
+        }
+      }
 
       function directCheckoutFieldValue(id) {
         return document.getElementById(id)?.value || '';
@@ -1951,6 +2049,8 @@
 
       function readDirectCheckoutDraft() {
         try {
+          if (!_directCheckoutSessionActive || !DIRECT_CHECKOUT_CUSTOMER_ID) return null;
+          localStorage.removeItem('racs_direct_order_draft_v1');
           const raw = localStorage.getItem(DIRECT_CHECKOUT_DRAFT_KEY);
           if (!raw) return null;
           const draft = JSON.parse(raw);
@@ -1969,7 +2069,7 @@
       }
 
       function saveDirectCheckoutDraft() {
-        if (_directCheckoutSubmitting || _restoringDirectDraft || selectedGroupIdx === null || selectedVariantIdx === null) return false;
+        if (!_directCheckoutSessionActive || _directCheckoutSubmitting || _restoringDirectDraft || selectedGroupIdx === null || selectedVariantIdx === null) return false;
         try {
           const draft = {
             savedAt: Date.now(),
@@ -2097,6 +2197,7 @@
           setDirectCheckoutFieldValue('wizardContact', draft.contactNumber);
           setDirectCheckoutFieldValue('wizardAddress', draft.address);
           setDirectCheckoutFieldValue('wizardNotes', draft.notes);
+          document.getElementById('wizardNotes')?.dispatchEvent(new Event('input', { bubbles:true }));
           setDirectCheckoutFieldValue('wizardLat', draft.latitude);
           setDirectCheckoutFieldValue('wizardLng', draft.longitude);
           setDirectCheckoutFieldValue('wizardDate', draft.preferredDate);
@@ -2137,7 +2238,13 @@
         }
       }
 
-      window.openProductWizard = function (gIdx) {
+      window.openProductWizard = async function (gIdx) {
+        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        if (!_directCheckoutSessionActive) {
+          closeDirectCheckoutAfterLogout();
+          window.location.href = '/login?returnTo=' + encodeURIComponent('/products');
+          return;
+        }
         let savedDraft = readDirectCheckoutDraft();
         if (savedDraft && Number(savedDraft.groupIdx) !== Number(gIdx)) {
           clearDirectCheckoutDraft();
@@ -2367,8 +2474,10 @@
 
       // ── Wizard navigation ───────────────────────────────────────────────
       window.wizardNext = async function () {
-        if (!IS_LOGGED_IN) {
-          window.location.href = '/login';
+        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        if (!_directCheckoutSessionActive) {
+          closeDirectCheckoutAfterLogout();
+          window.location.href = '/login?returnTo=' + encodeURIComponent('/products');
           return;
         }
 
@@ -2814,8 +2923,8 @@
         }
         const detailsHtml = details.map(d => `
         <div class="review-row">
-          <span class="review-label">${d.label}</span>
-          <span class="review-value">${d.value}</span>
+          <span class="review-label">${escapeDirectCheckoutHtml(d.label)}</span>
+          <span class="review-value">${escapeDirectCheckoutHtml(d.value)}</span>
         </div>
       `).join('');
         document.getElementById('reviewDetails').innerHTML = detailsHtml;
@@ -3159,20 +3268,18 @@
           _checkoutRequestId = '';
           const modalBody = document.querySelector('#productOrderModal .modal-body');
           modalBody.innerHTML = `
-          <div class="text-center p-5" style="animation: fadeSlideUp 0.4s ease;">
-            <div style="font-size: 4rem; color: #22c55e; margin-bottom: 1rem;">
-              <i class="bi bi-check-circle-fill"></i>
-            </div>
-            <h4 class="fw-bold" style="color: #0a1628;">Order Placed!</h4>
-            <p style="color: #64748b;">Your order reference is:</p>
-            <div class="d-inline-block px-4 py-2 rounded-pill fw-bold" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #1d4ed8; font-size: 1.2rem; letter-spacing: 1px;">
+          <div class="product-order-success-panel text-center" role="status" aria-live="polite" style="animation: fadeSlideUp 0.4s ease;">
+            <div class="product-order-success-icon"><i class="bi bi-check-lg"></i></div>
+            <h4 class="fw-bold">Order Placed Successfully!</h4>
+            <p class="mb-3">We received your order. Your reference is:</p>
+            <div class="product-order-success-reference">
               ${data.order.orderReference || 'Processing...'}
             </div>
-            <p class="mt-3 small" style="color: #94a3b8;">You can track your order in <a href="/my-orders" style="color: #2563eb; font-weight: 600;">My Orders</a>.</p>
+            <p class="mt-3 small mb-0">You can safely track its progress in <a href="/my-orders" class="fw-bold">My Orders</a>.</p>
           </div>
         `;
           document.querySelector('#productOrderModal .modal-footer').innerHTML = `
-          <a href="/my-orders" class="btn btn-add-cart px-4 py-2">View My Orders</a>
+          <a href="/my-orders" class="btn btn-order-success px-4 py-2"><i class="bi bi-check-circle me-2"></i>View My Orders</a>
           <button class="btn btn-sm" data-bs-dismiss="modal" style="border-radius: 50px; padding: 0.5rem 1.5rem; color: #64748b; background: rgba(100,116,139,0.08); border: 1px solid rgba(100,116,139,0.15); font-weight: 600;">Close</button>
         `;
         } catch (err) {
@@ -3189,8 +3296,10 @@
         const v = g.variants[selectedVariantIdx];
         if (!v) return;
 
-        if (!IS_LOGGED_IN) {
-          showPremiumAlert('Please log in to add items to your cart.', 'Login Required', 'info');
+        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        if (!_directCheckoutSessionActive) {
+          closeDirectCheckoutAfterLogout();
+          window.location.href = '/login?returnTo=' + encodeURIComponent('/products');
           return;
         }
 
@@ -3317,9 +3426,21 @@
         const persistDirectCheckoutField = () => scheduleDirectCheckoutDraftSave();
         wizardModal.addEventListener('input', persistDirectCheckoutField);
         wizardModal.addEventListener('change', persistDirectCheckoutField);
+        const notesInput = document.getElementById('wizardNotes');
+        const notesCount = document.getElementById('wizardNotesCount');
+        const updateNotesCount = () => {
+          if (notesCount) notesCount.textContent = String(notesInput?.value.length || 0);
+        };
+        notesInput?.addEventListener('input', updateNotesCount);
+        updateNotesCount();
       }
 
-      function reopenSavedDirectCheckout() {
+      async function reopenSavedDirectCheckout() {
+        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        if (!_directCheckoutSessionActive) {
+          closeDirectCheckoutAfterLogout();
+          return;
+        }
         const draft = readDirectCheckoutDraft();
         if (!IS_LOGGED_IN || !draft || !wizardModal || wizardModal.classList.contains('show') || _directCheckoutSubmitting) return;
         window.openProductWizard(Number(draft.groupIdx));
@@ -3327,9 +3448,17 @@
 
       window.addEventListener('pagehide', saveDirectCheckoutDraft);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') saveDirectCheckoutDraft();
+        if (document.visibilityState === 'hidden') {
+          saveDirectCheckoutDraft();
+          return;
+        }
+        hasActiveDirectCheckoutSession().then(active => {
+          _directCheckoutSessionActive = active;
+          if (!active) closeDirectCheckoutAfterLogout();
+        });
       });
       window.addEventListener('pageshow', () => setTimeout(reopenSavedDirectCheckout, 80));
+      window.addEventListener('racs:logout', closeDirectCheckoutAfterLogout);
 
       // Call badge update on load
       updateCartBadge();

@@ -800,6 +800,12 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     if (!payment) return res.status(404).json({ error: "Payment not found" });
     const transition = assertAdminTransition(payment, req.body.action, req.body);
     const action = transition.action;
+    if (action === "refund" && payment.orderId) {
+      const ProductRefund = require("../models/ProductRefund");
+      if (await ProductRefund.exists({ originalPaymentId: payment._id, status: { $in: ["approved", "processing", "completed"] } })) {
+        return res.status(409).json({ error: "This payment is linked to an item-level product return. Review Product Returns before refunding the whole payment." });
+      }
+    }
     const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted", reopen: "waiting_for_remittance" };
     const nextStatus = allowed[action];
     const now = new Date();
@@ -996,6 +1002,12 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
     if (!payment) return res.status(404).json({ error: "Payment not found" });
     if (!["pending", "processing"].includes(payment.refundStatus)) {
       return res.status(409).json({ error: `Refund is not pending (current: ${payment.refundStatus}).` });
+    }
+    if (payment.orderId) {
+      const ProductRefund = require("../models/ProductRefund");
+      if (await ProductRefund.exists({ originalPaymentId: payment._id, status: { $in: ["approved", "processing", "completed"] } })) {
+        return res.status(409).json({ error: "This payment is linked to an item-level return. Check Product Returns before completing a whole-payment refund." });
+      }
     }
 
     const now = new Date();

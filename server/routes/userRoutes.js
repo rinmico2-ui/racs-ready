@@ -53,6 +53,25 @@ router.patch("/me/profile", async (req, res, next) => {
       return res.status(400).json({ error: "Phone number must contain 7-15 digits." });
     }
 
+    let address;
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, "address")) {
+      const input = req.body.address;
+      if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return res.status(400).json({ error: "Enter a valid address." });
+      }
+      const keys = ["province", "city", "barangay", "postalCode"];
+      if (keys.some((key) => input[key] !== undefined && typeof input[key] !== "string")) {
+        return res.status(400).json({ error: "Enter a valid address." });
+      }
+      address = Object.fromEntries(keys.map((key) => [key, cleanText(input[key])]));
+      if (["province", "city", "barangay"].some((key) => address[key].length > 100) ||
+          (address.postalCode && !/^\d{4}$/.test(address.postalCode)) ||
+          (address.city && !address.province) ||
+          (address.barangay && !address.city)) {
+        return res.status(400).json({ error: "Check the province, city, barangay, and 4-digit ZIP code." });
+      }
+    }
+
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -60,10 +79,12 @@ router.patch("/me/profile", async (req, res, next) => {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
+      address: user.address && user.address.toObject ? user.address.toObject() : user.address,
     };
     user.firstName = firstName;
     user.lastName = lastName;
     user.phone = phone;
+    if (address) user.address = address;
     await user.save();
 
     await audit.logEvent({
@@ -76,7 +97,7 @@ router.patch("/me/profile", async (req, res, next) => {
       entityId: user._id,
       details: {
         before,
-        after: { firstName: user.firstName, lastName: user.lastName, phone: user.phone },
+        after: { firstName: user.firstName, lastName: user.lastName, phone: user.phone, address: user.address },
       },
     });
 
@@ -87,6 +108,7 @@ router.patch("/me/profile", async (req, res, next) => {
         lastName: user.lastName,
         phone: user.phone,
         email: user.email,
+        address: user.address,
       },
     });
   } catch (err) {

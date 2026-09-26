@@ -20,6 +20,9 @@ const { bookingReviewState, withBookingReviewState } = require('../utils/booking
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
 const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('../utils/bookingDateTime');
+const { listSortStages, bookingPendingFilters } = require('../utils/operationsListPolicy');
+const { BOOKING_PHOTO_FIELDS, ASSIGNMENT_PHOTO_FIELDS, PAYMENT_PHOTO_FIELDS,
+  exclude, currentAssignment, bookingPhotos } = require('../utils/operationsDetail');
 
 const { authenticate, requireRole } = require('../middleware/authenticate');
 const { requirePermission } = require('../middleware/requirePermission');
@@ -171,6 +174,10 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
           { $match: { status: { $in: allCompletedStatuses }, customerRating: { $gt: 0 } } },
           { $group: { _id: null, avg: { $avg: '$customerRating' }, count: { $sum: 1 } } },
         ],
+        pendingReviews: [
+          { $match: { status: 'pending' } },
+          { $project: { status: 1, bookingDate: 1, preferredDate: 1, preferredTime: 1, selectedTimeLabel: 1, startTime: 1, endTime: 1, serviceDurationMinutes: 1 } },
+        ],
       },
     }]);
 
@@ -202,6 +209,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
         todayRevenue: todayRevenueAmount,
         avgRating,
         totalRatings,
+        reviewOverdue: (dashboard.pendingReviews || []).filter(booking => bookingReviewState(booking).isReviewOverdue).length,
       }
     });
   } catch (error) {
@@ -218,9 +226,9 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
  */
 router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    let { stage, status, search = '', page = 1, limit = 20, date, sort = '-createdAt' } = req.query;
-    page = parseInt(page);
-    limit = Math.min(parseInt(limit) || 20, 100);
+    let { stage, status, search = '', page = 1, limit = 20, date } = req.query;
+    page = Math.max(1, parseInt(page, 10) || 1);
+    limit = Math.max(1, Math.min(parseInt(limit, 10) || 20, 100));
 
     let query = {};
 
@@ -278,13 +286,16 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       ];
     }
 
-    const total = await BookingService.countDocuments(query);
-    let bookingQuery = BookingService.find(query)
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(limit);
+    if (stage === 'pending_review') {
+      const conditions = bookingPendingFilters(req.query);
+      if (conditions.length) query.$and = conditions;
+    }
+    const sortKeys = { '-createdAt': 'newest', createdAt: 'oldest', '-bookingDate': 'date_desc', bookingDate: 'date_asc' };
+    const sortKey = req.query.sort || (stage === 'pending_review' ? 'date_desc' : 'newest');
+    const pipeline = [{ $match: query }, ...listSortStages('booking', sortKeys[sortKey] || sortKey),
+      { $skip: (page - 1) * limit }, { $limit: limit }];
     if (req.query.compact === 'true') {
-      bookingQuery = bookingQuery.select([
+      const fields = [
         'bookingReference', 'workOrderNumber', 'status', 'preferredDate', 'bookingDate',
         'preferredTime', 'selectedTimeLabel', 'startTime', 'endTime', 'serviceDurationMinutes',
         'customer.name', 'customer.email', 'service.name',
@@ -294,9 +305,15 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'serviceType', 'serviceModel',
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
         'createdAt', 'updatedAt',
-      ].join(' '));
+      ];
+      pipeline.push({ $project: Object.fromEntries(fields.map(field => [field, 1])) });
+    } else {
+      pipeline.push({ $project: { _listDate: 0, _listUndated: 0, _listAmount: 0, completionProofFileId: 0 } });
     }
-    const bookings = await bookingQuery.lean();
+    const [total, bookings] = await Promise.all([
+      BookingService.countDocuments(query),
+      BookingService.aggregate(pipeline),
+    ]);
 
     res.json({
       bookings: bookings.map(booking => ({
@@ -1637,13 +1654,34 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
  */
 router.get('/daily-kits', requireRole(['admin', 'secretary']), listDailyKits);
 
+router.get('/:id/photos', requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid booking reference.' });
+    const booking = await BookingService.findById(req.params.id)
+      .select(['assignmentId', ...BOOKING_PHOTO_FIELDS].join(' ')).maxTimeMS(8000).lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    const [assignment, payments] = await Promise.all([
+      currentAssignment(Assignment, booking, ASSIGNMENT_PHOTO_FIELDS.join(' '), false),
+      Payment.find({ bookingId: booking._id }).select(PAYMENT_PHOTO_FIELDS.join(' ')).maxTimeMS(8000).lean(),
+    ]);
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ photos: bookingPhotos(booking, assignment, payments) });
+  } catch (error) {
+    console.error('Error fetching booking photos:', error);
+    res.status(500).json({ error: 'Could not load photos. Please try again.' });
+  }
+});
+
 router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid booking reference.' });
+    const modalView = req.query?.view === 'modal';
     const booking = await BookingService.findById(req.params.id)
+      .select(modalView ? exclude(BOOKING_PHOTO_FIELDS) : '')
       .populate('technicianId', 'name userEmail phone location user')
       .populate('customerId', 'firstName lastName email phone address')
       .populate('serviceId', 'name description basePrice durationMinutes estimatedDurationMinutes')
-      .lean();
+      .maxTimeMS(8000).lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
     if ((!booking.service || !booking.service.name) && booking.serviceId && typeof booking.serviceId === 'object') {
@@ -1655,25 +1693,20 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
       };
     }
 
-    let assignment = null;
-    if (booking.assignmentId) {
-      assignment = await Assignment.findById(booking.assignmentId)
-        .populate('technicianId', 'name userEmail phone user')
-        .lean();
-    }
-    // Older records and interrupted saves may have a valid Assignment without
-    // the denormalized booking.assignmentId pointer. Use the newest assignment
-    // so the detail modal still reports the real technician state.
-    if (!assignment) {
-      assignment = await Assignment.findOne({ bookingId: booking._id })
-        .sort({ createdAt: -1 })
-        .populate('technicianId', 'name userEmail phone user')
-        .lean();
-    }
-
-    const payments = await Payment.find({ bookingId: booking._id })
-      .sort({ submittedAt: 1, collectedAt: 1 })
-      .lean();
+    // These independent reads must not hold up one another. Prefer the stored
+    // assignment pointer, with a single-query fallback for legacy records.
+    const [assignments, payments, reservedParts] = await Promise.all([
+      modalView ? currentAssignment(Assignment, booking, exclude(ASSIGNMENT_PHOTO_FIELDS)) : Assignment.find(booking.assignmentId
+        ? { $or: [{ _id: booking.assignmentId }, { bookingId: booking._id }] }
+        : { bookingId: booking._id })
+        .sort({ createdAt: -1 }).populate('technicianId', 'name userEmail phone user').maxTimeMS(8000).lean(),
+      Payment.find({ bookingId: booking._id })
+        .select(modalView ? exclude([...PAYMENT_PHOTO_FIELDS, 'webhookEvents']) : '')
+        .sort({ submittedAt: 1, collectedAt: 1 }).maxTimeMS(8000).lean(),
+      require('../models/StockReservation').find({ bookingId: booking._id })
+        .populate('toolId', 'itemName quantity costPrice barcode').sort({ reservedAt: -1 }).maxTimeMS(8000).lean(),
+    ]);
+    const assignment = modalView ? assignments : assignments.find(row => String(row._id) === String(booking.assignmentId)) || assignments[0] || null;
     const payment = payments.length ? payments[0] : null;
 
     // Use the payment ledger as the read-time source of truth. Booking
@@ -1698,14 +1731,9 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
       };
     }
 
-    const reservedParts = await (require("../models/StockReservation")).find({ bookingId: booking._id })
-      .populate("toolId", "itemName quantity costPrice barcode")
-      .sort({ reservedAt: -1 })
-      .lean();
-
     let financialSummary = null;
     let operationalSummary = null;
-    if (booking.status === "completed") {
+    if (booking.status === "completed" && !modalView) {
       const costAnalytics = await require("../utils/serviceCostAnalytics").buildServiceCostAnalytics([booking]);
       const serviceCost = costAnalytics.services[0];
       if (serviceCost) {
@@ -1729,7 +1757,9 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
 
     Object.assign(booking, bookingReviewState(booking));
     booking.assignmentTiming = assignmentTimingState(booking);
-    res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary });
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary,
+      ...(modalView ? { photosDeferred: true } : {}) });
   } catch (error) {
     console.error('âŒ Error fetching booking detail:', error);
     res.status(500).json({ error: 'Failed to fetch booking detail' });

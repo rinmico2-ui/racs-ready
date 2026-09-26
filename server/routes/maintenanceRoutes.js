@@ -14,6 +14,10 @@ const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../util
 const { createNotification } = require("../utils/notify");
 const audit = require("../utils/audit");
 const { escapeRegex } = require("../utils/stringSecurity");
+const SiteSetting = require("../models/SiteSetting");
+const { authoritativeDeliveryQuote } = require("../utils/orderCheckoutPolicy");
+const { linkScheduleToBooking } = require("../utils/maintenanceLifecycle");
+const { manilaDateKey, firstMaintenanceSlot } = require("../utils/maintenanceBooking");
 
 router.use(auth.authenticate);
 
@@ -47,17 +51,21 @@ function minutesLabel(minutes) {
 
 function maintenanceServiceQuote(service, asset) {
   const capacity = Number(asset?.equipment?.capacity);
-  const applianceType = String(asset?.equipment?.applianceType || "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const applianceType = String(asset?.equipment?.applianceType || "").toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    .replace("floor_mounted", "floor_standing");
   const typeDefinition = (service?.airconTypes || []).find((row) => {
     const type = String(row?.type || row?.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
     return type && applianceType && (type === applianceType || type.includes(applianceType) || applianceType.includes(type));
   });
   const typeTier = (typeDefinition?.hpPricing || []).find((row) => Number(row.hp) === capacity);
   const directTier = (service?.hpPricing || []).find((row) => Number(row.hp) === capacity);
-  const fallbackTier = typeDefinition?.hpPricing?.[0] || service?.hpPricing?.[0] || null;
-  const tier = typeTier || directTier || fallbackTier;
+  const hasTieredPrices = (service?.airconTypes || []).some((row) => row?.hpPricing?.length)
+    || Boolean(service?.hpPricing?.length);
+  // An arbitrary first HP tier can undercharge or misstate the visit length.
+  // Unknown equipment sizes need staff help instead of a guessed quote.
+  const tier = typeDefinition ? typeTier : directTier;
   return {
-    price: Math.max(0, Number(tier?.price ?? service?.basePrice) || 0),
+    price: Math.max(0, Number(tier?.price ?? (hasTieredPrices ? 0 : service?.basePrice)) || 0),
     durationMinutes: Math.min(480, Math.max(30, Number(tier?.durationMinutes ?? typeDefinition?.durationMinutes ?? service?.durationMinutes) || 90)),
   };
 }
@@ -170,7 +178,7 @@ router.get("/customer", auth.requireRole("customer"), async (req, res, next) => 
       .lean();
     const schedules = await MaintenanceSchedule.find({ customerId: customerId(req) })
       .sort({ dueDate: 1, createdAt: -1 })
-      .populate("bookingId", "bookingReference status bookingDate startTime")
+      .populate("bookingId", "bookingReference status bookingDate startTime maintenance.paymentOnSite")
       .lean();
     const schedulesByAsset = new Map();
     schedules.forEach((schedule) => {
@@ -442,6 +450,12 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
     session = await mongoose.startSession();
     session.startTransaction();
     await booking.save({ session });
+    await BookingService.updateOne({ _id: booking._id }, { $set: {
+      servicePrice,
+      serviceDurationMinutes: durationMinutes,
+      "service.basePrice": servicePrice,
+      estimatedFee: servicePrice,
+    } }, { session });
     const linked = await require("../utils/maintenanceLifecycle").linkScheduleToBooking({
       scheduleId: schedule._id,
       bookingId: booking._id,
@@ -496,6 +510,159 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
     return res.status(201).json({ booking, schedule: linked });
   } catch (error) {
     if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
+    return next(error);
+  } finally {
+    if (session) await session.endSession();
+  }
+});
+
+router.post("/schedules/:id/book", auth.requireRole("customer"), async (req, res, next) => {
+  let session = null;
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid maintenance schedule." });
+    const schedule = await MaintenanceSchedule.findOne({ _id: req.params.id, customerId: customerId(req) })
+      .populate("assetId").populate("customerId", "firstName lastName name email phone address").lean();
+    if (!schedule) return res.status(404).json({ error: "Maintenance reminder not found." });
+    if (schedule.bookingId) {
+      const existing = await BookingService.findOne({ _id: schedule.bookingId, customerId: customerId(req) })
+        .select("_id bookingReference bookingDate startTime status").lean();
+      if (existing) return res.json({ booking: existing, alreadyBooked: true });
+    }
+    if (!ACTIVE_DUE_STATUSES.includes(schedule.status) || !schedule.assetId) {
+      return res.status(409).json({ error: "This maintenance reminder can no longer be booked." });
+    }
+
+    const asset = schedule.assetId;
+    const customer = schedule.customerId;
+    if (!customer?._id || !customer.email) return res.status(409).json({ error: "Your account needs an email address before we can book maintenance." });
+    const location = await maintenanceLocation(asset);
+    const lat = Number(location?.lat ?? location?.coordinates?.coordinates?.[1]);
+    const lng = Number(location?.lng ?? location?.coordinates?.coordinates?.[0]);
+    if (!String(location?.address || "").trim() || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(409).json({ error: "Your saved service address has no map pin. Please contact us to update it before booking again." });
+    }
+    const settings = await SiteSetting.find({ key: { $in: ["companyLocationLat", "companyLocationLng", "farePerKm"] } }).lean();
+    const setting = Object.fromEntries(settings.map((row) => [row.key, row.value]));
+    if (setting.companyLocationLat == null || setting.companyLocationLng == null) {
+      return res.status(503).json({ error: "Our service location is not set up yet. Please contact us for help booking maintenance." });
+    }
+    const origin = { lat: Number(setting.companyLocationLat), lng: Number(setting.companyLocationLng) };
+    const farePerKm = setting.farePerKm == null ? 40 : Number(setting.farePerKm);
+    const travel = await authoritativeDeliveryQuote({ origin, destination: { lat, lng }, farePerKm });
+    location.lat = lat;
+    location.lng = lng;
+    location.coordinates = { type: "Point", coordinates: [lng, lat] };
+
+    const services = (await CoreService.find({ active: { $ne: false } }).lean()).filter(isMaintenanceService);
+    const service = services.find((item) => /clean/i.test(String(item.name || item.title || item.slug || "")) && maintenanceServiceQuote(item, asset).price > 0)
+      || services.find((item) => maintenanceServiceQuote(item, asset).price > 0);
+    if (!service) return res.status(409).json({ error: services.length
+      ? "We could not price the saved aircon type or HP. Please contact us to book maintenance for this unit."
+      : "No maintenance service is available to book right now. Please contact us." });
+    const quote = maintenanceServiceQuote(service, asset);
+    const today = manilaDateKey(new Date());
+    const due = schedule.dueDate ? manilaDateKey(new Date(schedule.dueDate)) : today;
+    const chosen = await firstMaintenanceSlot(due > today ? due : today, quote.durationMinutes, travel.durationMin,
+      require("./scheduleRoutes").getTimeSlotsForQuery);
+    if (!chosen) return res.status(409).json({ error: "No open maintenance time was found in the next 30 days. Please contact us to arrange a visit." });
+
+    // Match the date-only UTC convention used by the shared scheduling engine.
+    const bookingDate = new Date(`${chosen.date}T00:00:00.000Z`);
+    const startMinutes = parseTimeMinutes(chosen.startTime);
+    if (!Number.isFinite(startMinutes)) return res.status(503).json({ error: "The available time could not be read. Please try again." });
+    const endTime = minutesLabel(startMinutes + quote.durationMinutes);
+    const servicePrice = quote.price;
+    const total = servicePrice + travel.transportationFee;
+    const bookingReference = await uniqueMaintenanceReference();
+    const customerName = customer.name || [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email;
+    const serviceName = service.name || service.title;
+    const booking = new BookingService({
+      bookingReference,
+      customerId: customer._id,
+      customer: { _id: customer._id, name: customerName, email: customer.email, phone: customer.phone || "", address: location.address },
+      serviceId: service._id,
+      serviceModel: "CoreService",
+      serviceType: "core",
+      service: { _id: service._id, name: serviceName, description: service.description || "", basePrice: servicePrice },
+      servicePrice,
+      serviceDurationMinutes: quote.durationMinutes,
+      brand: asset.equipment?.brand || "",
+      applianceType: asset.equipment?.applianceType || "",
+      applianceTypeName: asset.equipment?.applianceTypeName || "",
+      hp: Number(asset.equipment?.capacity) || undefined,
+      services: [{
+        serviceId: service._id, name: serviceName, type: "core", quantity: 1,
+        unitPrice: servicePrice, totalPrice: servicePrice, duration: quote.durationMinutes,
+        isAirconService: service.isAirconService !== false, brand: asset.equipment?.brand || "",
+        model: asset.equipment?.model || "", hp: Number(asset.equipment?.capacity) || undefined,
+        hpDescription: asset.equipment?.capacity ? `${asset.equipment.capacity} ${asset.equipment.capacityUnit || "HP"}` : "",
+        status: "awaiting_assignment", phase: "core",
+        schedule: { date: bookingDate, startTime: minutesLabel(startMinutes), endTime, durationMinutes: quote.durationMinutes, kind: "service" },
+      }],
+      quantity: 1,
+      totalPrice: total,
+      estimatedFee: total,
+      travelFare: travel.transportationFee,
+      travelTime: travel.durationMin,
+      travelDurationMinutes: travel.durationMin,
+      distanceKm: travel.distanceKm,
+      bookingDate,
+      startTime: minutesLabel(startMinutes),
+      endTime,
+      selectedTimeLabel: chosen.startTime,
+      location,
+      status: "awaiting_assignment",
+      paymentMethod: "cod",
+      paymentChannel: "other",
+      paymentStatus: "pending",
+      downpaymentAmount: 0,
+      amountPaid: 0,
+      balanceAmount: total,
+      paymentNotes: "Maintenance requested from Aftercare. Full payment will be collected on site after service.",
+      maintenance: { isMaintenance: true, paymentOnSite: true, assetId: asset._id, scheduleId: schedule._id, nextRecommendedDays: schedule.intervalDays },
+      statusHistory: [{ toStatus: "awaiting_assignment", changedBy: customer._id, changedByModel: "User", changedByName: customerName, reason: "Customer requested repeat maintenance with payment on site" }],
+    });
+
+    session = await mongoose.startSession();
+    session.startTransaction();
+    await booking.save({ session });
+    // The model's catalogue snapshot uses basePrice on save. Store the exact
+    // server-calculated HP quote only for this verified maintenance booking.
+    await BookingService.updateOne({ _id: booking._id }, { $set: {
+      servicePrice,
+      serviceDurationMinutes: quote.durationMinutes,
+      "service.basePrice": servicePrice,
+      estimatedFee: total,
+    } }, { session });
+    await linkScheduleToBooking({ scheduleId: schedule._id, bookingId: booking._id, customerId: customer._id, session });
+    await session.commitTransaction();
+    await Promise.allSettled([
+      createNotification({
+        type: "maintenance_scheduled", title: "Maintenance Booking Requested",
+        message: `${serviceName} was requested for ${chosen.date} at ${chosen.startTime}. Payment is due on site after service; technician assignment is pending.`,
+        userId: customer._id, referenceId: schedule._id, referenceModel: "MaintenanceSchedule",
+        link: `/book-history?highlight=${booking._id}`, priority: "normal", io: req.app.get("io") || global.io,
+      }),
+      createNotification({
+        type: "maintenance_customer_response", title: "New Maintenance Booking Needs Follow-up",
+        message: `${customerName} requested ${serviceName} for ${chosen.date} at ${chosen.startTime}. Assign a technician; full payment will be collected on site.`,
+        role: "admin", referenceId: schedule._id, referenceModel: "MaintenanceSchedule",
+        link: "/admin/maintenance", priority: "high", io: req.app.get("io") || global.io,
+      }),
+      audit.logEvent({ actor: customer._id, target: schedule._id, action: "maintenance.customer_booking.create", module: "maintenance", req,
+        details: { bookingId: booking._id, bookingReference, serviceId: service._id, date: chosen.date, startTime: chosen.startTime, total } }).catch(() => {}),
+    ]);
+    return res.status(201).json({ booking: { _id: booking._id, bookingReference, bookingDate, startTime: booking.startTime, status: booking.status }, alreadyBooked: false });
+  } catch (error) {
+    if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
+    const existing = mongoose.isValidObjectId(req.params.id)
+      ? await MaintenanceSchedule.findOne({ _id: req.params.id, customerId: customerId(req), bookingId: { $ne: null } }).select("bookingId").lean().catch(() => null)
+      : null;
+    if (existing?.bookingId) {
+      const booking = await BookingService.findOne({ _id: existing.bookingId, customerId: customerId(req) })
+        .select("_id bookingReference bookingDate startTime status").lean().catch(() => null);
+      if (booking) return res.json({ booking, alreadyBooked: true });
+    }
     return next(error);
   } finally {
     if (session) await session.endSession();
@@ -590,12 +757,21 @@ router.get("/schedules/:id/booking-intent", auth.requireRole("customer"), async 
       bookingId: null,
     }).populate("assetId").lean();
     if (!schedule) return res.status(409).json({ error: "This maintenance cycle is already booked or unavailable." });
+    if (!schedule.assetId) return res.status(404).json({ error: "We could not find the equipment for this maintenance cycle." });
+    const services = (await CoreService.find({ active: { $ne: false } })
+      .select("_id name title slug isAirconService airconTypes hpPricing")
+      .lean()).filter(isMaintenanceService);
+    const preferred = services.find((service) => /clean/i.test(String(service.name || service.title || service.slug || "")))
+      || services[0] || null;
     const query = new URLSearchParams({
       maintenanceScheduleId: String(schedule._id),
       assetId: String(schedule.assetId._id),
     });
     res.json({
-      schedule,
+      schedule: { _id: schedule._id, dueDate: schedule.dueDate, assetId: schedule.assetId._id },
+      equipment: schedule.assetId.equipment || {},
+      serviceId: preferred?._id || null,
+      serviceName: preferred?.name || preferred?.title || null,
       bookingUrl: `/services?${query.toString()}`,
     });
   } catch (error) { next(error); }

@@ -7,6 +7,7 @@
     || sidebarPathMatches('/admin/projects')
     || sidebarPathMatches('/admin/operations/resolution-center')
     || sidebarPathMatches('/admin/warranty')
+    || sidebarPathMatches('/admin/product-returns')
     || sidebarPathMatches('/admin/maintenance');
   const servicesGroupOpen = sidebarPathMatches('/admin/services');
   const inventoryGroupOpen = sidebarPathMatches('/admin/inventory');
@@ -205,6 +206,12 @@
             </a>
           </li>
           <li>
+            <a href="/admin/product-returns" class="nav-link">
+              <i class="bi bi-arrow-return-left nav-icon"></i>
+              <span class="nav-label">Product Returns</span>
+            </a>
+          </li>
+          <li>
             <a href="/admin/maintenance" class="nav-link">
               <i class="bi bi-calendar2-check nav-icon"></i>
               <span class="nav-label">Maintenance</span>
@@ -377,7 +384,22 @@
 
   <!-- JavaScript for Badge Polling -->
   <script>
+    function setResolutionSidebarCount(summary) {
+      const badge = document.getElementById('attentionBadge');
+      if (!badge || !summary) return;
+      const bookingCases = Math.max(0, Number(summary.bySource?.booking) || 0);
+      const orderCases = Math.max(0, Number(summary.bySource?.order) || 0);
+      const total = bookingCases + orderCases;
+      badge.textContent = total > 0 ? String(total) : '';
+      badge.style.display = total > 0 ? 'inline-block' : 'none';
+      badge.title = `${bookingCases} booking case${bookingCases === 1 ? '' : 's'} + ${orderCases} order case${orderCases === 1 ? '' : 's'}`;
+    }
+
+    let sidebarBadgeRefreshRunning=false;
     async function updateSidebarBadges() {
+      if(document.hidden||sidebarBadgeRefreshRunning)return;
+      sidebarBadgeRefreshRunning=true;
+      try {
       try {
         const response = await fetch('/api/notifications/counts', { credentials: 'same-origin' });
         if (response.ok) {
@@ -398,15 +420,6 @@
               const total = (data.pendingBookings || 0) + (data.assignmentQueue || 0) + (data.activeJobs || 0);
               apptEl.textContent = total > 0 ? total : '';
               apptEl.style.display = total > 0 ? 'inline-block' : 'none';
-            }
-          } catch(e) {}
-          // No-show decisions belong to the Booking Resolution Center.
-          try {
-            const nsrEl = document.getElementById('attentionBadge');
-            const nsr = data.attentionRequired || data.noShowReviewBookings || 0;
-            if (nsrEl) {
-              nsrEl.textContent = nsr > 0 ? nsr : '';
-              nsrEl.style.display = nsr > 0 ? 'inline-block' : 'none';
             }
           } catch(e) {}
           badges.forEach(({ id, key }) => {
@@ -502,6 +515,10 @@
         }
       } catch (e) { /* general badges not available */ }
       try {
+        const response = await fetch('/api/admin/resolution-center?page=1&perPage=1', { credentials: 'same-origin', cache: 'no-store' });
+        if (response.ok) setResolutionSidebarCount((await response.json()).summary);
+      } catch (e) { /* keep the last known count if the queue is unavailable */ }
+      try {
         const erRes = await fetch('/api/admin/appointments/equipment-returns/summary');
         if (erRes.ok) {
           const erData = await erRes.json();
@@ -515,9 +532,13 @@
           });
         }
       } catch(e) { /* return badge not available */ }
+      } finally { sidebarBadgeRefreshRunning=false; }
     }
 
+    let ratingCountRefreshRunning=false;
     async function updateRatingCounts() {
+      if(document.hidden||ratingCountRefreshRunning)return;
+      ratingCountRefreshRunning=true;
       try {
         const response = await fetch('/api/admin/ratings/stats');
         if (response.ok) {
@@ -530,13 +551,18 @@
           }
         }
       } catch (e) { /* ratings not available */ }
+      finally { ratingCountRefreshRunning=false; }
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+      window.addEventListener('resolution:counts', event => setResolutionSidebarCount(event.detail));
       updateSidebarBadges();
       updateRatingCounts();
       setInterval(updateSidebarBadges, 30000);
       setInterval(updateRatingCounts, 30000);
+      document.addEventListener('visibilitychange',function(){
+        if(!document.hidden){updateSidebarBadges();updateRatingCounts();}
+      });
     });
   </script>
 </div>

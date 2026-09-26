@@ -83,6 +83,20 @@ test("separates booked value, recognized sales, collections, refunds, and outsta
   assert.equal(result.marginReliable, true);
 });
 
+test("item-level RMA refunds reduce net collections without erasing the original payment", () => {
+  const result = buildOrderAnalytics({
+    cohortOrders: [{ _id: "order-rma", status: "completed", paymentStatus: "paid", createdAt: startDate, completedAt: startDate, total: 27045, items: [{ inventoryId: "aircon", quantity: 1, totalPrice: 25500 }] }],
+    completionCandidates: [{ _id: "order-rma", status: "completed", createdAt: startDate, completedAt: startDate, total: 27045, items: [{ inventoryId: "aircon", quantity: 1, totalPrice: 25500 }] }],
+    payments: [{ orderId: "order-rma", amount: 27045, status: "verified", method: "gcash", verifiedAt: new Date(2026, 0, 2) }],
+    productRefunds: [{ sourceId: "order-rma", amount: 25500, status: "completed", method: "gcash", processedAt: new Date(2026, 0, 20) }],
+    inventoryItems: [], startDate, endDate, previousStart, previousEnd,
+  });
+  assert.equal(result.grossCollections, 27045);
+  assert.equal(result.refunds, 25500);
+  assert.equal(result.netCollections, 1545);
+  assert.equal(result.collectionsByMethod.gcash, 1545);
+});
+
 test("does not present gross margin as reliable with incomplete inventory cost coverage", () => {
   const result = buildOrderAnalytics({
     cohortOrders: [],

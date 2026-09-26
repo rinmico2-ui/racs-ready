@@ -279,13 +279,14 @@
   /* Six stable touch targets communicate progress without horizontal scrolling. */
   .ent-stepper { top: 68px !important; margin: 0 -.25rem 1.25rem !important; padding: .8rem !important; border-color: #dbe3ee; border-radius: 16px !important; box-shadow: 0 8px 24px rgba(15,23,42,.08); }
   .ent-h { margin-bottom: .65rem; padding-inline: .15rem; }
-  .ent-h span:first-child { display: inline !important; font-size: .72rem; }
-  .ent-h span:last-child { font-size: .72rem; }
+  .ent-h > span:first-child { display: inline !important; font-size: .72rem; }
+  .ent-h-step { font-size: .68rem; }
   .ent-tr { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .28rem; overflow: visible; padding: .28rem; border-radius: 13px; scroll-snap-type: none; }
   .ent-n { display: grid; place-items: center; width: 100%; min-width: 0; min-height: 44px; padding: 0 !important; border-radius: 10px; font-size: .75rem; }
   .ent-n > span + span { display: none; }
   .ent-ni { display: inline-flex !important; font-size: .95rem; }
-  .ent-stepper-help { display: none; }
+  .ent-stepper-help { display: flex; margin-top: .5rem; padding: .4rem .5rem; font-size: .61rem; line-height: 1.35; }
+  .booking-stepper-back { min-height: 32px; padding: .24rem .45rem; }
 
   .ent-step-card { margin-bottom: 1.25rem !important; padding: 1.15rem !important; border-color: #dfe7f1; border-radius: 18px !important; box-shadow: 0 5px 20px rgba(15,23,42,.055); }
   .ent-step-header { gap: .85rem !important; margin-bottom: 1.15rem !important; padding-bottom: 1rem !important; }
@@ -1512,6 +1513,57 @@ body.booking-sheet-open { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
   .booking-review-mobile-action.just-became-ready { animation: none; }
+}
+
+/* Reveal the final submit action only after the required payment fields pass. */
+.payment-confirm-action[hidden] { display: none !important; }
+.payment-confirm-action.is-visible {
+  position: fixed;
+  right: auto;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: 50%;
+  z-index: 1040;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(760px, calc(100% - 2rem));
+  margin: 0;
+  padding: .75rem 1rem;
+  border: 1px solid #86efac;
+  border-radius: 16px;
+  background: #f0fdf4;
+  box-shadow: 0 14px 40px rgba(15,23,42,.18);
+  transform: translateX(-50%);
+}
+.payment-confirm-action.just-became-ready { animation: scheduleActionPop 1.8s cubic-bezier(.2,.8,.2,1); }
+.payment-confirm-copy { display: grid; gap: .08rem; min-width: 0; text-align: left; }
+.payment-confirm-copy span { color: #166534; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.payment-confirm-copy strong { color: #0f172a; font-size: .9rem; line-height: 1.3; }
+.payment-confirm-copy small { color: #475569; font-size: .72rem; line-height: 1.35; }
+.payment-confirm-action #confirmBookingBtn { flex: 0 0 auto; min-height: 48px; border: 0; background: #16a34a; color: #fff; white-space: nowrap; box-shadow: 0 8px 18px rgba(22,163,74,.22); }
+.payment-confirm-action #confirmBookingBtn:hover:not(:disabled) { background: #15803d; }
+.payment-confirm-action #confirmBookingBtn:focus-visible { outline: 3px solid #86efac; outline-offset: 3px; }
+#paymentStep.step-active .ent-step-body { padding-bottom: 112px !important; }
+@media (max-width: 767.98px) {
+  .payment-confirm-action.is-visible {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: .7rem max(.9rem, env(safe-area-inset-right)) max(.7rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
+    border-width: 1px 0 0;
+    border-radius: 0;
+    box-shadow: 0 -10px 28px rgba(15,23,42,.12);
+    transform: none;
+  }
+  .payment-confirm-copy small { display: none; }
+  .payment-confirm-copy strong { font-size: .78rem; }
+  .payment-confirm-action #confirmBookingBtn { min-height: 48px; padding-inline: .8rem !important; }
+  #paymentStep.step-active .ent-step-body { padding-bottom: 128px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .payment-confirm-action.just-became-ready { animation: none; }
 }
 
 /* Point out the newly available next action once; never pulse continuously. */

@@ -72,7 +72,7 @@ const deliverySchema = new mongoose.Schema(
     },
     contactNumber: { type: String, trim: true },
     preferredDate: { type: Date },
-    notes: { type: String, trim: true },
+    notes: { type: String, trim: true, maxlength: 500 },
   },
   { _id: false }
 );
@@ -140,6 +140,9 @@ const orderSchema = new mongoose.Schema(
     },
 
     items: { type: [orderItemSchema], default: [], validate: v => v.length > 0 },
+    // Written during RMA creation so simultaneous requests for the same sale
+    // cannot both reserve its remaining returnable quantity.
+    returnVersion: { type: Number, default: 0 },
 
     fulfillmentType: {
       type: String,
@@ -309,6 +312,8 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
     refundAmount: { type: Number, min: 0, default: 0 },
+    // Item-level RMA refunds are independent of whole-order cancellation refunds.
+    productRefundAmount: { type: Number, min: 0, default: 0 },
     refundReason: { type: String, trim: true, maxlength: 1000, default: "" },
     refundRequestedAt: { type: Date, default: null },
     // Snapshot the policy used when the order was placed. This must not

@@ -557,6 +557,12 @@
 (function () {
   "use strict";
 
+  function escapeDetailText(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (character) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character];
+    });
+  }
+
   var h = window.techHelpers;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1108,7 +1114,7 @@
             )}
 
             ${order.delivery && order.delivery.notes ? section('Notes', 'chat-text', '#8b5cf6,#a855f7',
-              '<p style="margin:0;font-size:0.82rem;color:#475569;line-height:1.5;">' + order.delivery.notes + '</p>'
+              '<p style="margin:0;font-size:0.82rem;color:#475569;line-height:1.5;">' + escapeDetailText(order.delivery.notes) + '</p>'
             ) : ''}
           </div>`;
       } else {

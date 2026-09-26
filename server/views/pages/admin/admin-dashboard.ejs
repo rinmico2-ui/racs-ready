@@ -805,7 +805,7 @@
         <a class="ops-kpi" href="<%= dashboardLinks.orders %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today</span><span class="ops-kpi-icon"><i class="bi bi-box-seam"></i></span></div><div class="ops-kpi-value" id="opsOrders">—</div><div class="ops-kpi-sub" id="opsOrdersSub">Loading deliveries and pickups…</div><div class="ops-kpi-foot"><span id="opsOrdersActive">— active</span><span id="opsOrdersDone">— completed</span></div></a>
         <a class="ops-kpi warn" href="<%= dashboardLinks.review %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Needs Review</span><span class="ops-kpi-icon"><i class="bi bi-exclamation-diamond"></i></span></div><div class="ops-kpi-value" id="opsReview">—</div><div class="ops-kpi-sub" id="opsReviewBreakdown">Bookings, orders, and no-shows</div><div class="ops-kpi-foot"><span>Unified resolution queue</span><span id="opsReviewOverdue">— overdue</span></div></a>
         <a class="ops-kpi danger" href="<%= dashboardLinks.cancellations %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Cancellation Log</span><span class="ops-kpi-icon"><i class="bi bi-journal-x"></i></span></div><div class="ops-kpi-value" id="opsCancellations">—</div><div class="ops-kpi-sub">Jobs with cancellation or reassignment history</div><div class="ops-kpi-foot"><span id="opsCancellationEvents">— events</span><span id="opsCancellationEscalated">— escalated</span></div></a>
-        <a class="ops-kpi success" href="<%= dashboardLinks.payments %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Collected Today</span><span class="ops-kpi-icon"><i class="bi bi-cash-coin"></i></span></div><div class="ops-kpi-value" id="opsCollected">—</div><div class="ops-kpi-sub" id="opsCollectedSub">Net cash collected from the payment ledger</div><div class="ops-kpi-foot"><span id="opsCollectedTx">— transactions</span><span id="opsRefunds">— refunds</span></div></a>
+        <a class="ops-kpi success" href="<%= dashboardLinks.payments %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Collected Today</span><span class="ops-kpi-icon"><i class="bi bi-cash-coin"></i></span></div><div class="ops-kpi-value" id="opsCollected">—</div><div class="ops-kpi-sub" id="opsCollectedSub">Verified or collected payments only</div><div class="ops-kpi-foot"><span id="opsCollectedTx">— transactions</span><span id="opsRefunds">— refunds</span></div></a>
         <a class="ops-kpi danger" href="<%= dashboardLinks.equipment %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue</span><span class="ops-kpi-icon"><i class="bi bi-tools"></i></span></div><div class="ops-kpi-value" id="opsEquipment">—</div><div class="ops-kpi-sub" id="opsEquipmentSub">Checked-out assets past return deadline</div><div class="ops-kpi-foot"><span id="opsEquipmentUnits">— units</span><span id="opsEquipmentTechs">— technicians</span></div></a>
         <a class="ops-kpi warn" href="<%= dashboardLinks.remittance %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action</span><span class="ops-kpi-icon"><i class="bi bi-bank"></i></span></div><div class="ops-kpi-value" id="opsRemittance">—</div><div class="ops-kpi-sub" id="opsRemittanceSub">Collections requiring technician or admin action</div><div class="ops-kpi-foot"><span id="opsRemitTech">— with tech</span><span id="opsRemitAdmin">— to verify</span></div></a>
         <a class="ops-kpi" href="<%= dashboardLinks.attendance %>"><div class="ops-kpi-top"><span class="ops-kpi-label">Attendance Today</span><span class="ops-kpi-icon"><i class="bi bi-person-check"></i></span></div><div class="ops-kpi-value" id="opsAttendance">—</div><div class="ops-kpi-sub" id="opsAttendanceSub">Present and late technicians vs active headcount</div><div class="ops-kpi-foot"><span id="opsAttendanceLate">— late</span><span id="opsAttendanceAbsent">— absent</span></div></a>
@@ -1298,13 +1298,17 @@
       </div>
 
       <!-- Notifications -->
-      <div class="dash-card" data-card-type="notifications" style="cursor:pointer;">
+      <div class="dash-card" id="dashboardNotifications">
         <div class="dash-card-header">
           <h6><i class="bi bi-bell-fill me-1" style="color:#f59e0b;"></i>Notifications</h6>
-          <span class="meta" id="notifCount">Loading...</span>
+          <span class="meta" id="dashboardNotificationCount">Loading...</span>
         </div>
-        <div class="dash-card-body" id="notificationsBody">
+        <div class="dash-card-body" id="notificationsBody" aria-busy="true">
           <div class="dash-empty">Loading notifications...</div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center gap-2 px-3 pb-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="dashboardNotificationRefresh"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Refresh</button>
+          <button type="button" class="btn btn-sm btn-outline-primary" id="dashboardNotificationViewAll">View all notifications</button>
         </div>
       </div>
 
@@ -1472,7 +1476,8 @@
 <script>window.RACSDashboardConfig = <%- JSON.stringify(dashboardClientConfig).replace(/</g, "\\u003c") %>;</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/admin-operations-dashboard.js"></script>
-<script src="/js/admin-dashboard.js"></script>
+<script src="/js/dashboard-notifications.js?v=20260926"></script>
+<script src="/js/admin-dashboard.js?v=20260926-notification-inbox"></script>
 
 <% if (dashboardIsAdmin) { %>
 <!-- Resolve Prep Issue Modal -->

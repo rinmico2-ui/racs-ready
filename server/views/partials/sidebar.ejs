@@ -1,81 +1,147 @@
-<div id="authSidebar" class="auth-sidebar d-none" aria-hidden="true">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="d-flex align-items-center gap-2">
-      <div
-        class="sidebar-avatar bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center overflow-hidden"
-        role="img"
-        aria-label="User avatar"
-        title="<%= user && user.email ? user.email : 'Account' %>"
-      >
-        <% if (user && user.profileImage) { %>
-          <img src="<%= user.profileImage %>" alt="Profile" class="w-100 h-100 object-fit-cover">
-        <% } else { %>
-          <i class="bi bi-person-circle"></i>
-        <% } %>
-      </div>
-      <h5 class="m-0">Account</h5>
-    </div>
-    <button
-      id="closeSidebar"
-      class="btn btn-sm btn-light"
-      aria-label="Close sidebar"
-    >
-      <i class="bi bi-x-lg"></i>
-    </button>
-  </div>
-  <div class="sidebar-head-divider mb-3" aria-hidden="true"></div>
+<%
+  const csUser = (typeof user !== 'undefined' && user) ? user : null;
+  const csDisplayName = csUser
+    ? ([csUser.firstName, csUser.lastName].filter(Boolean).join(' ').trim() || csUser.name || (csUser.email || '').split('@')[0] || 'Customer')
+    : 'Customer';
+  const csInitials = csUser
+    ? ([csUser.firstName, csUser.lastName]
+        .filter(Boolean)
+        .map(function (part) { return String(part).trim().charAt(0).toUpperCase(); })
+        .join('') || String(csDisplayName).trim().charAt(0).toUpperCase() || 'C')
+    : 'C';
+%>
 
-  <nav class="nav flex-column mb-3">
-    <div
-      class="sidebar-heading text-uppercase text-secondary small fw-bold mb-2 px-3 mt-2"
-      style="font-size: 0.75rem; letter-spacing: 0.5px"
-    >
-      Account
-    </div>
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/profile"
-      ><i class="bi bi-person-badge me-3 text-primary"></i> My Profile</a
-    >
+<div class="racs-sidebar-backdrop" id="authSidebarBackdrop" hidden></div>
 
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/book-history"
-      ><i class="bi bi-calendar2-check me-3 text-primary"></i> Book History</a
-    >
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/tracking"
-      ><i class="bi bi-geo-alt me-3 text-primary"></i> My Schedule</a
-    >
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/aircon-cart"
-      ><i class="bi bi-cart3 me-3 text-primary"></i> My Cart</a
-    >
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/my-orders"
-      ><i class="bi bi-receipt me-3 text-primary"></i> My Orders</a
-    >
-    <a
-      class="nav-link sidebar-link d-flex align-items-center px-3 py-2 rounded mb-1 text-dark text-decoration-none"
-      href="/aftercare"
-      ><i class="bi bi-shield-check me-3 text-primary"></i> Aftercare Center</a
-    >
-  </nav>
-
-  <hr class="sidebar-divider my-3" />
-
-  <div class="mt-auto px-2">
-    <form id="logoutForm" action="/api/auth/logout" method="post">
+<%# This is an on-demand account drawer on desktop and mobile. It begins inert
+    so its controls cannot receive focus while it is off screen. %>
+<div id="authSidebar" class="auth-sidebar" role="dialog" aria-modal="true" aria-label="Customer account menu" aria-hidden="true" inert>
+  <div class="racs-sidebar" id="racsSidebarPanel">
+    <!-- ── Brand ─────────────────────────────────────────────────────── -->
+    <div class="racs-sidebar-brand">
+      <span class="racs-sidebar-brand-mark" aria-hidden="true"><i class="bi bi-snow"></i></span>
+      <span class="racs-sidebar-brand-text">
+        <span class="racs-sidebar-brand-name">CALIDRO RACS</span>
+        <span class="racs-sidebar-brand-sub">Customer Portal</span>
+      </span>
       <button
         type="button"
-        id="logoutBtn"
-        class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2"
+        id="closeSidebar"
+        class="racs-sidebar-icon-btn racs-sidebar-close"
+        aria-label="Close menu"
       >
-        <i class="bi bi-box-arrow-right"></i> Sign Out
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
-    </form>
+    </div>
+
+    <!-- ── Navigation ────────────────────────────────────────────────── -->
+    <nav class="racs-sidebar-nav" aria-label="Customer navigation">
+      <div class="racs-sidebar-group">
+        <p class="racs-sidebar-group-label" id="racsGroupAccount">Account</p>
+        <ul class="racs-sidebar-list" aria-labelledby="racsGroupAccount">
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/profile" data-tip="My Profile">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-person"></i></span>
+              <span class="racs-sidebar-link-text">My Profile</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="racs-sidebar-group">
+        <p class="racs-sidebar-group-label" id="racsGroupServices">My Services</p>
+        <ul class="racs-sidebar-list" aria-labelledby="racsGroupServices">
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/book-history" data-tip="My Bookings">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-calendar2-check"></i></span>
+              <span class="racs-sidebar-link-text">My Bookings</span>
+              <span class="racs-sidebar-badge" data-badge="bookings" hidden></span>
+            </a>
+          </li>
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/tracking" data-tip="My Schedule">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-calendar2-week"></i></span>
+              <span class="racs-sidebar-link-text">My Schedule</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="racs-sidebar-group">
+        <p class="racs-sidebar-group-label" id="racsGroupShopping">Shopping</p>
+        <ul class="racs-sidebar-list" aria-labelledby="racsGroupShopping">
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/aircon-cart" data-tip="My Cart">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-cart3"></i></span>
+              <span class="racs-sidebar-link-text">My Cart</span>
+              <span class="racs-sidebar-badge" data-badge="cart" hidden></span>
+            </a>
+          </li>
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/my-orders" data-tip="My Orders">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span>
+              <span class="racs-sidebar-link-text">My Orders</span>
+              <span class="racs-sidebar-badge" data-badge="orders" hidden></span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="racs-sidebar-group">
+        <p class="racs-sidebar-group-label" id="racsGroupSupport">Support</p>
+        <ul class="racs-sidebar-list" aria-labelledby="racsGroupSupport">
+          <li>
+            <a class="racs-sidebar-link sidebar-link" href="/aftercare" data-tip="Aftercare Center">
+              <span class="racs-sidebar-link-icon" aria-hidden="true"><i class="bi bi-life-preserver"></i></span>
+              <span class="racs-sidebar-link-text">Aftercare Center</span>
+              <span class="racs-sidebar-badge" data-badge="aftercare" hidden></span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- ── Account footer ─────────────────────────────────────────────── -->
+    <div class="racs-sidebar-footer">
+      <div class="racs-sidebar-user" id="racsSidebarUser">
+        <button
+          type="button"
+          id="racsSidebarUserBtn"
+          class="racs-sidebar-user-btn"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          data-tip="<%= csDisplayName %>"
+        >
+          <span class="racs-sidebar-avatar" aria-hidden="true">
+            <% if (csUser && csUser.profileImage) { %>
+              <img src="<%= csUser.profileImage %>" alt="" />
+            <% } else { %>
+              <%= csInitials %>
+            <% } %>
+          </span>
+          <span class="racs-sidebar-user-meta">
+            <span class="racs-sidebar-user-name"><%= csDisplayName %></span>
+            <span class="racs-sidebar-user-role">Customer</span>
+          </span>
+          <i class="bi bi-chevron-expand racs-sidebar-user-caret" aria-hidden="true"></i>
+        </button>
+
+        <div class="racs-sidebar-menu" id="racsSidebarUserMenu" role="menu" hidden>
+          <a class="racs-sidebar-menu-item" role="menuitem" href="/profile">
+            <i class="bi bi-person" aria-hidden="true"></i><span>My Profile</span>
+          </a>
+          <a class="racs-sidebar-menu-item" role="menuitem" href="/profile?edit=1">
+            <i class="bi bi-sliders" aria-hidden="true"></i><span>Account Settings</span>
+          </a>
+          <span class="racs-sidebar-menu-sep" role="separator"></span>
+          <button type="button" class="racs-sidebar-menu-item racs-sidebar-menu-item-danger" role="menuitem" id="logoutBtn">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i><span>Log Out</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
   </div>
 </div>
+
+<form id="logoutForm" action="/api/auth/logout" method="post" hidden></form>

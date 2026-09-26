@@ -802,7 +802,7 @@
             <select class="form-select form-select-sm" id="filterPaymentStatus" style="width:auto;min-width:140px;"><option value="">All Payment Status</option><option value="pending">Pending</option><option value="partial">Partial (Downpayment)</option><option value="paid">Paid in Full</option></select>
             <select class="form-select form-select-sm" id="filterPaymentMethod" style="width:auto;min-width:180px;"><option value="">All Payment Options</option><option value="cod">GCash Downpayment + Balance</option><option value="gcash">Full GCash Payment</option><option value="maya">Maya</option></select>
             <select class="form-select form-select-sm" id="filterDateRange" style="width:auto;min-width:140px;"><option value="">All Dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This Week</option><option value="this_month">This Month</option><option value="last_month">Last Month</option></select>
-            <select class="form-select form-select-sm" id="filterSort" style="width:auto;min-width:150px;"><option value="newest">Newest First</option><option value="oldest">Oldest First</option><option value="amount_high">Amount: High to Low</option><option value="amount_low">Amount: Low to High</option></select>
+            <select class="form-select form-select-sm" id="filterSort" aria-label="Sort pending bookings" style="width:auto;min-width:190px;"><option value="date_desc">Service Date: Latest First</option><option value="date_asc">Service Date: Earliest First</option><option value="newest">Request: Newest First</option><option value="oldest">Request: Oldest First</option><option value="amount_high">Amount: High to Low</option><option value="amount_low">Amount: Low to High</option></select>
             <button class="au-btn au-btn-danger d-none" id="clearFiltersBtn" onclick="AU.Pending.clearFilters()" style="padding:5px 12px;font-size:0.75rem;"><i class="bi bi-x-circle me-1"></i>Clear</button>
             <span class="ms-auto text-muted small fw-semibold" id="filterResultCount"></span>
           </div></div>
@@ -886,7 +886,7 @@
           </div>
           <div class="au-table-card">
             <div class="au-table-header"><h6>All Pending Bookings</h6><span class="badge bg-warning text-dark" id="resultCount">0</span></div>
-            <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Customer</th><th>Type</th><th>Service Details</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
+            <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Service Date</th><th>Customer</th><th>Type</th><th>Service Details</th><th>Amount</th><th>Payment</th><th class="text-center">Actions</th></tr></thead><tbody id="bookingsTableBody"><tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading bookings...</div></td></tr></tbody></table></div>
             <div class="workflow-overview-table-footer"><small class="text-muted" id="pendingPagInfo">Showing 0 of 0</small><nav><ul class="pagination pagination-sm mb-0" id="pendingPag"></ul></nav></div>
           </div>
         </div>
@@ -1805,6 +1805,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/operations-request.js?v=20260926"></script>
 <script>
 (function() {
   'use strict';
@@ -2002,6 +2003,30 @@
   }
   window.showNotification=showNotification;
 
+  function detailPhotosHTML(photos) {
+    window._modalPhotos=photos;
+    if(!photos.length)return '<p class="text-muted small mb-0">No photos have been uploaded.</p>';
+    return '<div class="dv2-photo-strip">'+photos.map(function(item,i){
+      return '<div class="dv2-photo-item" style="width:160px;"><img src="'+qEsc(item.src)+'" loading="lazy" decoding="async" alt="'+qEsc(item.label||'Photo')+'" class="dv2-photo-thumb" onclick="showImgLightboxIndex('+i+')"><div class="dv2-photo-caption">'+qEsc(item.label||'Photo')+' · Click to enlarge</div></div>';
+    }).join('')+'</div>';
+  }
+  window.loadBookingDetailPhotos=function(id,button){
+    var container=button.parentElement;
+    button.disabled=true;button.textContent='Loading photos...';
+    return operationsFetchJson(APPOINTMENTS_API+'/'+encodeURIComponent(id)+'/photos',{
+      signal:_bookingDetailController&&_bookingDetailController.signal
+    }).then(function(data){
+      if(!container.isConnected)return;
+      container.innerHTML=detailPhotosHTML(data.photos||[]);
+    }).catch(function(error){
+      if(!container.isConnected||error.name==='AbortError')return;
+      button.disabled=false;button.textContent='Try loading photos again';
+      var message=container.querySelector('[role="alert"]');
+      if(!message){message=document.createElement('p');message.className='text-danger small mt-2';message.setAttribute('role','alert');container.appendChild(message);}
+      message.textContent=error.message||'Could not load photos.';
+    });
+  };
+
   function buildDetailHTML(b,data) {
     var date=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
     var time=(b.startTime&&b.endTime?formatTime(b.startTime)+' \u2013 '+formatTime(b.endTime):(b.selectedTimeLabel||formatTime(b.preferredTime||b.startTime||'')));
@@ -2087,6 +2112,9 @@
     paymentRows += '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Status</span><span class="dv2-payment-value" style="color:'+(b.paymentStatus==='paid'?'#16a34a':(b.paymentStatus==='partial'?'#d97706':'#64748b'))+';">'+(b.paymentStatus==='paid'?'Paid in full':(b.paymentStatus==='partial'?'Partial payment received':'Payment pending'))+'</span></div>';
 
     var photosHtml = '';
+    if(data.photosDeferred){
+      photosHtml='<div class="dv2-card dv2-card-wide"><div class="dv2-card-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div><div class="dv2-card-content" style="width:100%;"><span class="dv2-label">Photos &amp; Payment Proofs</span><div><button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="loadBookingDetailPhotos(\''+qEsc(b._id)+'\',this)"><i class="bi bi-images me-1"></i>View photos and receipts</button></div></div></div>';
+    }
     if (photos.length>0) {
       window._modalPhotos=photos;
       photosHtml = '<div class="dv2-card dv2-card-wide">'+
@@ -2515,6 +2543,7 @@
         var count=Number(data&&data.summary&&data.summary.bySource&&data.summary.bySource.booking)||0;
         badge.textContent=count;
         badge.setAttribute('aria-label',count+' booking cases need resolution');
+        window.dispatchEvent(new CustomEvent('resolution:counts',{detail:data.summary}));
       })
       .catch(function(){badge.textContent='0';});
   }
@@ -2757,13 +2786,7 @@
   };
 
   AU.Overview.viewDetail=function(id){
-    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
-      var b=data.booking;
-      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
-      document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
-      document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
-    }).catch(function(e){console.error(e);showNotification({type:'error',title:'Error',message:'Failed to load booking details.',duration:4000});});
+    return AU.Pending.viewDetail(id);
   };
 
   // â•â•â• PENDING â•â•â•
@@ -2771,62 +2794,44 @@
   var _pdPage=1,_pdLimit=10,_pdAll=[],_rqAll=[];
 
   AU.Pending.load=function(){
-    Promise.all([
-      fetch(APPOINTMENTS_API+'/list?stage=pending_review&page=1&limit=100&compact=true').then(appointmentResponseJson),
-      fetch(APPOINTMENTS_API+'/flow-stats').then(appointmentResponseJson)
-    ]).then(function(res){
-      _pdAll=res[0].bookings||[];
-      AU.Pending.renderStats(res[1].stages||{});
-      AU.Pending.applyFilters(1);
-    }).catch(function(e){
-      console.error('Failed to load pending bookings:',e);
-      _pdAll=[];
-      AU.Pending.renderStats({});
-      AU.Pending.applyFilters(1);
-    });
+    AU.Pending.applyFilters(1);
+    fetch(APPOINTMENTS_API+'/flow-stats').then(appointmentResponseJson).then(function(data){
+      AU.Pending.renderStats(data.stages||{});
+      document.getElementById('queueCount').textContent=(data.summary||{}).reviewOverdue||0;
+    }).catch(function(e){console.error('Failed to load pending statistics:',e);});
   };
 
+  var _pdRequest=0;
   AU.Pending.applyFilters=function(page){
-    page=page||1;
+    page=Math.max(1,Number(page)||1);
+    var request=++_pdRequest;
     var serviceType=(document.getElementById('filterServiceType')||{}).value||'';
     var ps=(document.getElementById('filterPaymentStatus')||{}).value||'';
     var pm=(document.getElementById('filterPaymentMethod')||{}).value||'';
     var dr=(document.getElementById('filterDateRange')||{}).value||'';
-    var sort=(document.getElementById('filterSort')||{}).value||'newest';
+    var sort=(document.getElementById('filterSort')||{}).value||'date_desc';
     var hasF=serviceType||ps||pm||dr;
     var cb=document.getElementById('clearFiltersBtn');if(cb)cb.classList.toggle('d-none',!hasF);
-    var f=_pdAll.slice();
-    if(serviceType) f=f.filter(function(b){return AU.Pending.getServiceType(b)===serviceType;});
-    if(ps) f=f.filter(function(b){return b.paymentStatus===ps;});
-    if(pm) f=f.filter(function(b){return(b.paymentMethod||'').toLowerCase()===pm;});
-    if(dr){
-      var now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-      f=f.filter(function(b){
-        var bd=new Date(b.preferredDate||b.bookingDate);
-        var bd2=new Date(bd.getFullYear(),bd.getMonth(),bd.getDate());
-        switch(dr){
-          case'today':return bd2.getTime()===today.getTime();
-          case'yesterday':var y=new Date(today);y.setDate(y.getDate()-1);return bd2.getTime()===y.getTime();
-          case'this_week':var ws=new Date(today);ws.setDate(ws.getDate()-ws.getDay());return bd2>=ws;
-          case'this_month':return bd.getMonth()===now.getMonth()&&bd.getFullYear()===now.getFullYear();
-          case'last_month':var lm=new Date(now.getFullYear(),now.getMonth()-1,1);return bd.getMonth()===lm.getMonth()&&bd.getFullYear()===lm.getFullYear();
-          default:return true;
-        }
-      });
-    }
-    switch(sort){
-      case'oldest':f.sort(function(a,b){return new Date(a.preferredDate||a.bookingDate)-new Date(b.preferredDate||b.bookingDate);});break;
-      case'amount_high':f.sort(function(a,b){return(b.totalPrice||b.estimatedFee||0)-(a.totalPrice||a.estimatedFee||0);});break;
-      case'amount_low':f.sort(function(a,b){return(a.totalPrice||a.estimatedFee||0)-(b.totalPrice||b.estimatedFee||0);});break;
-      default:f.sort(function(a,b){return new Date(b.preferredDate||b.bookingDate)-new Date(a.preferredDate||a.bookingDate);});break;
-    }
-    var fc=document.getElementById('filterResultCount');if(fc)fc.textContent=hasF?'Showing '+f.length+' of '+_pdAll.length:'';
-    var ti=f.length,tp=Math.max(1,Math.ceil(ti/_pdLimit));
-    _pdPage=Math.min(page,tp);
-    var s=(_pdPage-1)*_pdLimit;
-    AU.Pending.renderTable(f.slice(s,s+_pdLimit));
-    var resultCount=document.getElementById('resultCount');if(resultCount)resultCount.textContent=ti;
-    AU.Pending.renderPagination({page:_pdPage,limit:_pdLimit,total:ti,pages:tp});
+    var params=new URLSearchParams({stage:'pending_review',page:page,limit:_pdLimit,compact:'true',sort:sort});
+    if(serviceType)params.set('serviceType',serviceType);
+    if(ps)params.set('paymentStatus',ps);
+    if(pm)params.set('paymentMethod',pm);
+    if(dr)params.set('dateRange',dr);
+    document.getElementById('bookingsTableBody').innerHTML='<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="small text-muted mt-2">Loading bookings...</p></td></tr>';
+    return operationsFetchJson(APPOINTMENTS_API+'/list?'+params.toString()).then(function(data){
+      if(request!==_pdRequest)return;
+      _pdAll=data.bookings||[];
+      _pdPage=data.pagination.page;
+      AU.Pending.renderTable(_pdAll);
+      document.getElementById('resultCount').textContent=data.pagination.total;
+      var fc=document.getElementById('filterResultCount');if(fc)fc.textContent=hasF?data.pagination.total+' matching bookings':'';
+      AU.Pending.renderPagination(data.pagination);
+    }).catch(function(e){
+      if(request!==_pdRequest)return;
+      document.getElementById('bookingsTableBody').innerHTML='<tr><td colspan="8" class="text-center py-4 text-danger">Could not load bookings. <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="AU.Pending.applyFilters('+page+')">Try again</button></td></tr>';
+      document.getElementById('pendingPagInfo').textContent='Unable to load bookings';
+      console.error(e);
+    });
   };
 
   AU.Pending.renderStats=function(stages){
@@ -2834,16 +2839,16 @@
     document.getElementById('pendingCount').textContent=stages.PENDING_REVIEW?stages.PENDING_REVIEW.count||0:0;
     document.getElementById('awaitingCount').textContent=stages.ASSIGNMENT_QUEUE?stages.ASSIGNMENT_QUEUE.count||0:0;
     document.getElementById('rejectedCount').textContent=stages.REJECTED?stages.REJECTED.count||0:0;
-    document.getElementById('queueCount').textContent=_pdAll.filter(function(b){return b.isReviewOverdue;}).length;
   };
 
   AU.Pending.renderTable=function(bookings){
     var tbody=document.getElementById('bookingsTableBody');
     var rc=document.getElementById('resultCount');if(rc)rc.textContent=bookings.length;
     if(!tbody)return;
-    if(!bookings.length){tbody.innerHTML='<tr><td colspan="7" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
+    if(!bookings.length){tbody.innerHTML='<tr><td colspan="8" class="text-center py-5"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Pending Bookings</h6><p>All caught up or no bookings match your filters</p></div></td></tr>';return;}
     tbody.innerHTML=bookings.map(function(b){
-      var dt=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      var dt=new Date(b.preferredDate||b.bookingDate).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'});
+      var requested=b.createdAt?new Date(b.createdAt).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}):'';
       var isCOD=b.paymentMethod==='cod';
       var tot=b.totalPrice||b.estimatedFee||0;
       var dp=b.downpaymentAmount||(isCOD?400:0);
@@ -2855,7 +2860,8 @@
       var serviceDetails=AU.Pending.getServiceDetails(b);
       var overdue=b.isReviewOverdue===true;
       var ref=b.bookingReference||b.workOrderNumber||'N/A';
-      return '<tr'+(overdue?' style="background:#fff7ed;"':'')+'><td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div>'+(overdue?'<div class="mt-1"><span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span></div>':'')+'</td>'+
+      return '<tr'+(overdue?' style="background:#fff7ed;"':'')+'><td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)">'+qEsc(ref)+'</button><div class="small text-muted mt-1">Requested '+requested+'</div>'+(overdue?'<div class="mt-1"><span class="badge bg-danger"><i class="bi bi-exclamation-diamond me-1"></i>Needs Resolution</span></div>':'')+'</td>'+
+        '<td class="text-nowrap"><strong>'+dt+'</strong><div class="small text-muted">'+qEsc(b.selectedTimeLabel||formatTime(b.startTime||b.preferredTime||''))+'</div></td>'+
         '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.email:'')+'</div></td>'+
         '<td><span class="badge" style="'+typeMeta.style+'"><i class="bi '+typeMeta.icon+' me-1"></i>'+typeMeta.label+'</span></td>'+
         '<td class="small">'+serviceDetails+'</td>'+
@@ -2901,7 +2907,8 @@
     if(!pag)return;var h='';
     if(p.pages>1){
       h+='<li class="page-item '+(p.page===1?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Pending.loadPage('+(p.page-1)+');return false;">&laquo;</a></li>';
-      for(var i=1;i<=p.pages;i++)h+='<li class="page-item '+(i===p.page?'active':'')+'"><a class="page-link" href="#" onclick="AU.Pending.loadPage('+i+');return false;">'+i+'</a></li>';
+      var start=Math.max(1,Math.min(p.page-2,p.pages-4)),end=Math.min(p.pages,start+4);
+      for(var i=start;i<=end;i++)h+='<li class="page-item '+(i===p.page?'active':'')+'"><a class="page-link" href="#" onclick="AU.Pending.loadPage('+i+');return false;">'+i+'</a></li>';
       h+='<li class="page-item '+(p.page===p.pages?'disabled':'')+'"><a class="page-link" href="#" onclick="AU.Pending.loadPage('+(p.page+1)+');return false;">&raquo;</a></li>';
     }
     pag.innerHTML=h;
@@ -2983,27 +2990,41 @@
     document.getElementById('filterPaymentStatus').value='';
     document.getElementById('filterPaymentMethod').value='';
     document.getElementById('filterDateRange').value='';
-    document.getElementById('filterSort').value='newest';
+    document.getElementById('filterSort').value='date_desc';
     AU.Pending.applyFilters(1);
   };
 
-  AU.Pending.viewDetail=function(id, btn){
+  var _bookingDetailController=null,_bookingDetailRequest=0;
+  document.getElementById('detailModal').addEventListener('hidden.bs.modal',function(){
+    if(_bookingDetailController)_bookingDetailController.abort();
+    _bookingDetailRequest++;
+  });
+  AU.Pending.viewDetail=function(id, btn, onLoaded){
     if (btn) { if (btn.disabled) return; btn.disabled = true; }
+    if(_bookingDetailController)_bookingDetailController.abort();
+    _bookingDetailController=new AbortController();
+    var request=++_bookingDetailRequest;
     document.getElementById('detailTitle').textContent='Booking Details';
     document.getElementById('detailModalSubtitle').textContent='Loading...';
     document.getElementById('detailBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary mb-2" role="status"></div><p class="text-muted small mb-0">Loading booking details...</p></div>';
     var modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
     modal.show();
-    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
+    return operationsFetchJson(APPOINTMENTS_API+'/'+encodeURIComponent(id)+'?view=modal',{signal:_bookingDetailController.signal}).then(function(data){
+      if(request!==_bookingDetailRequest)return;
       var b=data.booking;
-      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Booking not found</div>';return;}
+      if(!b)throw new Error('Booking not found. Refresh the list and try again.');
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
       document.getElementById('detailModalSubtitle').textContent=bookingNeedsResolution(b)?'Past schedule \u00b7 Needs resolution':'Complete booking information';
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
+      if(onLoaded)onLoaded(b,data,document.getElementById('detailBody'),document.getElementById('detailModalSubtitle'));
     }).catch(function(e){
+      if(request!==_bookingDetailRequest||e.name==='AbortError')return;
       console.error(e);
-      document.getElementById('detailBody').innerHTML='<div class="alert alert-danger small m-3">Failed to load booking details. Please try again.</div>';
-      showNotification({type:'error',title:'Error',message:'Failed to load booking details.',duration:4000});
+      document.getElementById('detailModalSubtitle').textContent='Unable to load booking';
+      var body=document.getElementById('detailBody');body.replaceChildren();
+      var message=document.createElement('p');message.className='text-danger text-center mt-4';message.textContent=e.message||'Could not load booking details.';
+      var retry=document.createElement('button');retry.type='button';retry.className='btn btn-primary d-block mx-auto mb-4';retry.textContent='Try again';retry.onclick=function(){AU.Pending.viewDetail(id,null,onLoaded);};
+      body.append(message,retry);
     }).finally(function(){
       if (btn) btn.disabled = false;
     });
@@ -3934,20 +3955,11 @@
   };
 
   AU.Queue.viewBooking=function(id){
-    var body=document.getElementById('detailBody');
-    var subtitle=document.getElementById('detailModalSubtitle');
-    body.innerHTML='<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading booking details...</p></div>';
-    subtitle.textContent='Loading...';
-    document.getElementById('detailTitle').textContent='Booking Details';
-    new bootstrap.Modal(document.getElementById('detailModal')).show();
-    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
-      var b=data.booking;
-      if(!b){body.innerHTML='<div class="alert alert-danger">Booking not found</div>';return;}
+    return AU.Pending.viewDetail(id,null,function(b,data,body,subtitle){
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Booking '+refText;
       var needsResolution=bookingNeedsResolution(b);
       subtitle.textContent=needsResolution?'Past schedule \u00b7 Needs resolution':refText;
-      body.innerHTML=buildDetailHTML(b,data);
       if(needsResolution && APPOINTMENTS_CAN_RESOLVE){
         var resolutionFooter=document.createElement('div');resolutionFooter.className='pm-footer';
         resolutionFooter.innerHTML='<a class="btn btn-warning btn-sm fw-semibold" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
@@ -3960,7 +3972,7 @@
         footer.innerHTML='<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Queue.openAssignModal(\''+b._id+'\',\''+(b.customer?b.customer.name:'').replace(/'/g,"\\'")+'\',\''+((b.service?b.service.name:'')||(isRepair?'Repair Service':'')).replace(/'/g,"\\'")+'\',\''+detailScheduleDate+'\',\''+detailScheduleTime+'\');},300);"><i class="bi bi-person-plus me-1"></i>Assign Technician</button><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
         body.appendChild(footer);
       }
-    }).catch(function(e){body.innerHTML='<div class="alert alert-danger">Failed to load booking details: '+e.message+'</div>';});
+    });
   };
 
   // â•â•â• ACTIVE â•â•â•
@@ -4027,18 +4039,10 @@
   };
 
   AU.Active.viewDetail=function(id){
-    var body=document.getElementById('detailBody');
-    var subtitle=document.getElementById('detailModalSubtitle');
-    body.innerHTML='<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading job details...</p></div>';
-    subtitle.textContent='Loading...';
-    new bootstrap.Modal(document.getElementById('detailModal')).show();
-    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
-      var b=data.booking;
-      if(!b){body.innerHTML='<div class="alert alert-danger">Job not found</div>';return;}
+    return AU.Pending.viewDetail(id,null,function(b,data,body,subtitle){
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Job '+refText;
       subtitle.textContent=refText;
-      body.innerHTML=buildDetailHTML(b,data);
       var trackerSteps=[
         {key:'assigned',label:'Awaiting Acceptance',icon:'bi-hourglass-split'},
         {key:'confirmed',label:'Confirmed',icon:'bi-check-circle'},
@@ -4061,7 +4065,7 @@
       var trackHTML=(['in-progress','on-the-way','arrived','confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="au-btn au-btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);},300);"><i class="bi bi-geo-alt-fill me-1"></i>Track on Map</button>':'');
       footer.innerHTML=enrouteHTML+trackHTML+'<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
       body.appendChild(footer);
-    }).catch(function(e){body.innerHTML='<div class="alert alert-danger">Failed to load job details: '+e.message+'</div>';});
+    });
   };
 
   // ═══ Tracking Drawer helpers ═══
@@ -4293,18 +4297,15 @@
   AU.Completed.goPage=function(p){_cjPage=p;AU.Completed.load();};
 
   AU.Completed.viewDetail=function(id){
-    fetch(APPOINTMENTS_API+'/'+id).then(function(r){return r.json();}).then(function(data){
-      var b=data.booking;
-      if(!b){document.getElementById('detailBody').innerHTML='<div class="alert alert-danger m-3">Booking not found</div>';return;}
+    return AU.Pending.viewDetail(id,null,function(b,data,body,subtitle){
       var ref=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Job '+ref;
-      document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data)+
+      body.insertAdjacentHTML('beforeend',
         '<div style="margin-top:16px;padding:14px 16px;background:#f0fdf4;border-radius:12px;border:1px solid #bbf7d0;display:flex;align-items:center;gap:12px;">'+
         '<i class="bi bi-check-circle-fill text-success" style="font-size:1.5rem;"></i>'+
         '<div><div style="font-weight:700;font-size:0.9rem;color:#065f46;">Completed</div>'+
-        '<div style="font-size:0.8rem;color:#166534;">'+(b.updatedAt?new Date(b.updatedAt).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'')+'</div></div></div>';
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
-    }).catch(function(){showNotification({type:'error',title:'Error',message:'Failed to load job details.',duration:4000});});
+        '<div style="font-size:0.8rem;color:#166534;">'+(b.updatedAt?new Date(b.updatedAt).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):'')+'</div></div></div>');
+    });
   };
 
   // ═══ EVENT LISTENERS & INIT ═══

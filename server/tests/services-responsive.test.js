@@ -40,7 +40,7 @@ test("mobile booking progress fits without a horizontal scroller", () => {
   assert.match(mobileStyles, /\.ent-tr\s*\{[^}]*grid-template-columns:\s*repeat\(6/);
   assert.match(mobileStyles, /\.ent-n\s*\{[^}]*min-height:\s*44px/);
   assert.match(mobileStyles, /\.ent-step-body \.form-control[\s\S]*?min-height:\s*48px/);
-  assert.match(servicesView, /services-mobile-ux\.css\?v=20260925-review-visibility-v40/);
+  assert.match(servicesView, /services-mobile-ux\.css\?v=20260926-payment-confirm-v46/);
 });
 
 test("mobile service configuration keeps type and HP choices compact", () => {

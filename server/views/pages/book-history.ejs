@@ -27,7 +27,7 @@
   <div class="bh-filter-card mb-4" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
     <div class="bh-filter-body">
       <div class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-lg-3 col-md-6">
           <label class="bh-filter-label"><i class="bi bi-search"></i> Search</label>
           <div class="bh-input-wrapper">
             <i class="bi bi-search bh-input-icon"></i>
@@ -39,51 +39,38 @@
           </div>
         </div>
 
-        <div class="col-md-2">
-          <label class="bh-filter-label"><i class="bi bi-funnel"></i> Status</label>
+        <div class="col-lg-2 col-md-6">
+          <label class="bh-filter-label"><i class="bi bi-funnel"></i> Booking stage</label>
           <div class="bh-select-wrapper">
              <i class="bi bi-funnel bh-select-icon-left"></i>
             <select id="bh-status" class="bh-select">
-              <option value="all">All statuses</option>
-              <optgroup label="Core Services">
-                <option value="pending">Pending</option>
-                <option value="payment_verified">Payment Verified</option>
-                <option value="awaiting_assignment">Awaiting Assignment</option>
-                <option value="assigned">Assigned</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="on-the-way">On The Way</option>
-                <option value="arrived">Arrived</option>
-                <option value="in-progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="re-scheduled">Re-scheduled</option>
-              </optgroup>
-              <optgroup label="Repair Services">
-                <option value="repair_requested">Repair Requested</option>
-                <option value="pending_inspection">Pending Inspection</option>
-                <option value="inspection_scheduled">Inspection Scheduled</option>
-                <option value="inspection_in_progress">Inspection In Progress</option>
-                <option value="inspection_completed">Inspection Completed</option>
-                <option value="awaiting_approval">Awaiting Approval</option>
-                <option value="repair_approved">Repair Approved</option>
-                <option value="waiting_parts">Waiting for Parts</option>
-                <option value="parts_reserved">Parts Reserved</option>
-                <option value="ready_for_repair">Ready for Repair</option>
-                <option value="repair_scheduled">Repair Scheduled</option>
-                <option value="repair_in_progress">Repair In Progress</option>
-                <option value="repair_completed">Repair Completed</option>
-                <option value="under_warranty">Under Warranty</option>
-                <option value="warranty_claim">Warranty Claim</option>
-                <option value="repair_declined">Repair Declined</option>
-                <option value="closed">Closed</option>
-              </optgroup>
+              <option value="all">All bookings</option>
+              <option value="pending,payment_verified,awaiting_assignment,assigned,confirmed,repair_requested,pending_inspection">Pending confirmation</option>
+              <option value="scheduled,re-scheduled,inspection_scheduled,repair_scheduled">Scheduled</option>
+              <option value="on-the-way,arrived,in-progress,inspection_in_progress,repair_in_progress">In progress</option>
+              <option value="awaiting_approval,repair_approved,waiting_parts,parts_reserved,ready_for_repair,warranty_claim">Needs attention</option>
+              <option value="completed,inspection_completed,repair_completed,under_warranty,closed">Completed</option>
+              <option value="cancelled,repair_declined">Cancelled</option>
             </select>
             <i class="bi bi-chevron-down bh-select-icon-right"></i>
           </div>
         </div>
 
-        <div class="col-md-2">
+        <div class="col-lg-2 col-md-6">
+          <label class="bh-filter-label"><i class="bi bi-arrow-down-up"></i> Sort by</label>
+          <div class="bh-select-wrapper">
+            <i class="bi bi-arrow-down-up bh-select-icon-left"></i>
+            <select id="bh-sort" class="bh-select">
+              <option value="created_desc">Recently booked</option>
+              <option value="created_asc">Oldest booking</option>
+              <option value="date_asc">Earliest appointment</option>
+              <option value="date_desc">Latest appointment</option>
+            </select>
+            <i class="bi bi-chevron-down bh-select-icon-right"></i>
+          </div>
+        </div>
+
+        <div class="col-lg-2 col-md-6">
           <label class="bh-filter-label"><i class="bi bi-calendar3"></i> From</label>
           <div class="bh-date-wrapper">
             <i class="bi bi-calendar bh-date-icon"></i>
@@ -91,7 +78,7 @@
             <button type="button" class="bh-date-btn" id="bh-from-btn"><i class="bi bi-calendar-event"></i></button>
           </div>
         </div>
-        <div class="col-md-2">
+        <div class="col-lg-2 col-md-6">
           <label class="bh-filter-label"><i class="bi bi-calendar3"></i> To</label>
           <div class="bh-date-wrapper">
             <i class="bi bi-calendar bh-date-icon"></i>
@@ -100,9 +87,9 @@
           </div>
         </div>
 
-        <div class="col-md-2">
-          <button id="bh-clear" class="bh-btn-clear">
-            <i class="bi bi-x-lg me-2"></i> Clear Filters
+        <div class="col-lg-1 col-md-6">
+          <button id="bh-clear" class="bh-btn-clear" title="Clear all filters">
+            <i class="bi bi-x-lg"></i><span>Clear</span>
           </button>
         </div>
       </div>
@@ -138,6 +125,15 @@
       <div class="bh-table-card">
         <div class="table-responsive">
           <table class="table bh-table">
+            <colgroup>
+              <col class="bh-col-booking">
+              <col class="bh-col-service">
+              <col class="bh-col-schedule">
+              <col class="bh-col-status">
+              <col class="bh-col-location">
+              <col class="bh-col-rating">
+              <col class="bh-col-actions">
+            </colgroup>
             <thead>
               <tr>
                 <th><i class="bi bi-hash"></i> Booking</th>
@@ -173,8 +169,9 @@
 
   <!-- Custom calendar modal removed in favor of Flatpickr -->
   <!-- Flatpickr for Premium Date Pickers -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+  <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css"></noscript>
+  <script id="bh-flatpickr-script" async src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 
   <!-- Premium Styles -->
   <style>
@@ -854,19 +851,40 @@
       
       const fromBtn = document.getElementById('bh-from-btn');
       const toBtn = document.getElementById('bh-to-btn');
-      if (typeof window.flatpickr === 'function') {
+      let bookingHistoryPickersReady = false;
+      const initializeBookingHistoryPickers = () => {
+        if (bookingHistoryPickersReady || typeof window.flatpickr !== 'function') return false;
+        bookingHistoryPickersReady = true;
+        const fromInput = document.getElementById('bh-from');
+        const toInput = document.getElementById('bh-to');
+        [fromInput, toInput].forEach(input => {
+          if (!input) return;
+          input.type = 'text';
+          input.readOnly = true;
+        });
         const fpFrom = window.flatpickr("#bh-from", fpConfig);
         const fpTo = window.flatpickr("#bh-to", fpConfig);
         if (fromBtn) fromBtn.addEventListener('click', () => fpFrom.open());
         if (toBtn) toBtn.addEventListener('click', () => fpTo.open());
-      } else {
-        [document.getElementById('bh-from'), document.getElementById('bh-to')].forEach(input => {
+        return true;
+      };
+      if (!initializeBookingHistoryPickers()) {
+        // Native date inputs are immediately usable while the optional CDN
+        // enhancement loads. The CDN must never delay the bookings request.
+        const fromInput = document.getElementById('bh-from');
+        const toInput = document.getElementById('bh-to');
+        [fromInput, toInput].forEach(input => {
           if (!input) return;
           input.readOnly = false;
           input.type = 'date';
         });
-        if (fromBtn) fromBtn.hidden = true;
-        if (toBtn) toBtn.hidden = true;
+        const openNativePicker = input => {
+          if (input?.type === 'date' && typeof input.showPicker === 'function') input.showPicker();
+        };
+        if (fromBtn) fromBtn.addEventListener('click', () => openNativePicker(fromInput));
+        if (toBtn) toBtn.addEventListener('click', () => openNativePicker(toInput));
+        const flatpickrScript = document.getElementById('bh-flatpickr-script');
+        if (flatpickrScript) flatpickrScript.addEventListener('load', initializeBookingHistoryPickers, { once: true });
       }
     });
   </script>
@@ -971,12 +989,18 @@
   </div>
 
   <!-- Reschedule Modal -->
-  <div class="modal fade" id="bhRescheduleModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen-lg-down modal-dialog-centered">
-      <div class="bh-modal-content">
+  <div class="modal fade" id="bhRescheduleModal" tabindex="-1" aria-labelledby="bhRescheduleTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content bh-modal-content">
         <div class="bh-modal-header">
-          <h5 class="bh-modal-title"><i class="bi bi-calendar-event"></i> Reschedule Booking</h5>
-          <button type="button" class="bh-modal-close" data-bs-dismiss="modal">
+          <div class="d-flex align-items-center gap-3">
+            <span class="bh-reschedule-header-icon"><i class="bi bi-calendar-event"></i></span>
+            <div>
+              <h5 class="bh-modal-title mb-1" id="bhRescheduleTitle">Request a New Schedule</h5>
+              <p class="bh-modal-subtitle mb-0">Choose an available date and time, then tell us why you need the change.</p>
+            </div>
+          </div>
+          <button type="button" class="bh-modal-close" data-bs-dismiss="modal" aria-label="Close reschedule dialog">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>
@@ -995,56 +1019,45 @@
 
             <!-- Calendar content -->
             <div id="bhRescheduleCalendarContent" class="d-none">
-              <!-- Scheduling source -->
-              <div class="alert alert-info d-flex align-items-center gap-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
-                  <i class="bi bi-calendar-check fs-5"></i>
-                </div>
-                <div>
-                  <div class="fw-bold">Scheduling availability</div>
-                  <div id="bhRescheduleTechName" class="mb-0">Loading...</div>
-                </div>
+              <p class="booking-step-lead">Pick a date, then choose a start time. We will confirm the change after checking availability.</p>
+              <div class="booking-confidence-note mb-3">
+                <i class="bi bi-info-circle"></i>
+                <span>Your selected date and time are a request. Your current schedule stays active until the change is approved.</span>
               </div>
 
-              <!-- Calendar -->
-              <div class="calendar-widget mb-4">
-                <div class="calendar-header d-flex justify-content-between align-items-center mb-3">
-                  <button type="button" class="btn-icon" id="bhPrevMonth">
-                    <i class="bi bi-chevron-left"></i>
-                  </button>
-                  <h5 class="mb-0" id="bhCalendarTitle"></h5>
-                  <button type="button" class="btn-icon" id="bhNextMonth">
-                    <i class="bi bi-chevron-right"></i>
-                  </button>
+              <div class="schedule-next-action" id="bhRescheduleNextAction" aria-label="Selected reschedule date and time">
+                <div class="schedule-next-copy" aria-live="polite">
+                  <span>Your new schedule</span>
+                  <strong id="bhRescheduleNextSummary">Choose a date and time</strong>
+                  <small id="bhRescheduleNextHint">Select an available date, then a start time.</small>
                 </div>
-                <div class="calendar-weekdays">
-                  <div>Sun</div>
-                  <div>Mon</div>
-                  <div>Tue</div>
-                  <div>Wed</div>
-                  <div>Thu</div>
-                  <div>Fri</div>
-                  <div>Sat</div>
-                </div>
-                <div class="calendar-grid" id="bhCalendarGrid"></div>
+                <button type="button" id="bhRescheduleContinue" disabled>Add Reason <i class="bi bi-arrow-down" aria-hidden="true"></i></button>
               </div>
 
-              <!-- Time slots -->
-              <div id="bhTimeSlotsContainer" class="d-none">
-                <h6 class="mb-3 fw-semibold">Select Preferred Time</h6>
-                <div class="d-flex flex-wrap gap-2" id="bhTimeSlots"></div>
+              <div id="bhReschedulePickerRoot" class="bh-service-schedule-picker">
+                <div id="calendarGrid"></div>
+                <div id="timeSelection" class="mt-3 d-none">
+                  <div id="timeSlots"></div>
+                  <div id="timeSelectionDate" class="d-none"></div>
+                  <div id="timeNotice" class="small text-muted mt-2"></div>
+                </div>
+                <div id="projectPrefs" class="mt-3 d-none"></div>
               </div>
 
               <!-- Reschedule reason -->
-              <div class="mt-4">
-                <label class="form-label fw-semibold">Reason for Rescheduling</label>
-                <textarea class="form-control" id="bhRescheduleReason" rows="3" placeholder="Please provide a reason for rescheduling..."></textarea>
+              <div class="mt-4 bh-reschedule-reason" id="bhRescheduleReasonSection">
+                <div class="d-flex align-items-center justify-content-between gap-3">
+                  <label class="form-label fw-semibold" for="bhRescheduleReason">Reason for Rescheduling</label>
+                  <span class="bh-character-count" id="bhRescheduleReasonCount">0 / 500</span>
+                </div>
+                <textarea class="form-control" id="bhRescheduleReason" rows="3" maxlength="500" placeholder="Briefly explain why you need to change the schedule."></textarea>
+                <div class="form-text">A reason is required before the request can be submitted.</div>
               </div>
             </div>
           </div>
         </div>
         <div class="bh-modal-footer">
-          <button type="button" class="bh-btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="bh-btn-secondary" data-bs-dismiss="modal">Keep Current Schedule</button>
           <button type="button" class="bh-btn-primary" id="bhSubmitReschedule" disabled>
             <i class="bi bi-check-lg"></i> Submit Reschedule Request
           </button>
@@ -1542,6 +1555,7 @@
     }
     .book-history-premium .bh-btn-clear {
       height: 48px;
+      gap: .35rem;
       background: #fff;
       border: 1.5px solid #fecaca;
       border-radius: 12px;
@@ -1698,6 +1712,8 @@
     .book-history-premium .bh-action-btn.bh-action-btn--warning:hover { background: #fffbeb; }
     .book-history-premium .bh-action-btn.bh-action-btn--success { color: #15803d; border-color: #bbf7d0; }
     .book-history-premium .bh-action-btn.bh-action-btn--success:hover { background: #f0fdf4; }
+    .book-history-premium .bh-view-details-btn { width: auto; min-width: 112px; padding: 0 .75rem; gap: .4rem; font-size: .72rem; font-weight: 800; white-space: nowrap; }
+    .book-history-premium .bh-rating-pending { color: #94a3b8; font-size: .7rem; font-weight: 700; white-space: nowrap; }
 
     /* Pagination */
     .book-history-premium .bh-pagination {
@@ -2205,6 +2221,35 @@
     }
     #bhDetailModal .bh-rate:hover { transform: translateY(-1px); filter: brightness(1.05); }
 
+    #bhDetailModal .bh-modal-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+    #bhDetailModal .bh-modal-action {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: .7rem;
+      min-height: 68px;
+      padding: .75rem .85rem;
+      border: 1px solid #dbe3ee;
+      border-radius: 13px;
+      background: #fff;
+      color: #0f172a;
+      text-align: left;
+      text-decoration: none;
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+    #bhDetailModal .bh-modal-action:hover:not(:disabled) { border-color: #93c5fd; color: #0f172a; transform: translateY(-1px); box-shadow: 0 7px 18px rgba(37,99,235,.09); }
+    #bhDetailModal .bh-modal-action:disabled { cursor: not-allowed; opacity: .62; }
+    #bhDetailModal .bh-modal-action-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: #dbeafe; color: #1d4ed8; font-size: 1rem; }
+    #bhDetailModal .bh-modal-action-copy { min-width: 0; }
+    #bhDetailModal .bh-modal-action-copy strong, #bhDetailModal .bh-modal-action-copy small { display: block; }
+    #bhDetailModal .bh-modal-action-copy strong { color: #0f172a; font-size: .8rem; font-weight: 800; }
+    #bhDetailModal .bh-modal-action-copy small { margin-top: .12rem; color: #64748b; font-size: .65rem; line-height: 1.35; }
+    #bhDetailModal .bh-modal-action-arrow { color: #94a3b8; font-size: .75rem; }
+    #bhDetailModal .bh-modal-action--amber .bh-modal-action-icon { background: #fef3c7; color: #b45309; }
+    #bhDetailModal .bh-modal-action--red .bh-modal-action-icon { background: #fee2e2; color: #dc2626; }
+    #bhDetailModal .bh-modal-action--purple .bh-modal-action-icon { background: #ede9fe; color: #7c3aed; }
+    #bhDetailModal .bh-modal-action--green .bh-modal-action-icon { background: #d1fae5; color: #047857; }
+
     /* ── Rating ── */
     #bhDetailModal .bh-stars { color: #f59e0b; font-size: 1.05rem; letter-spacing: 0.1em; }
     #bhDetailModal .bh-rating-cta {
@@ -2278,6 +2323,7 @@
       #bhDetailModal .bh-modal-header { padding: 0.9rem 1.15rem; }
       #bhDetailModal .bh-modal-footer { padding: 0.85rem 1.15rem; }
       #bhDetailModal .bh-section-icon { width: 28px; height: 28px; font-size: 0.8rem; }
+      #bhDetailModal .bh-modal-action-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 575.98px) {
@@ -2412,7 +2458,7 @@
         align-self: start;
         justify-self: end;
       }
-      .book-history-premium .bh-table tbody td[data-label="Date"] {
+      .book-history-premium .bh-table tbody td[data-label="Date / Time"] {
         grid-column: 1;
       }
       .book-history-premium .bh-table tbody td[data-label="Location"] {
@@ -2451,6 +2497,7 @@
         border-radius: 11px;
         font-size: 0.95rem;
       }
+      .book-history-premium .bh-view-details-btn { width: 100%; justify-content: center; }
 
       /* ── Hide less-important columns on mobile ── */
       /* ── Pagination ── */
@@ -2489,7 +2536,382 @@
         display: block;
       }
     }
+
+    /* Keep every desktop value locked beneath its matching heading. */
+    @media (min-width: 768px) {
+      .book-history-premium .bh-table {
+        width: 100%;
+        min-width: 1100px;
+        table-layout: fixed;
+      }
+      .book-history-premium .bh-table .bh-col-booking { width: 12%; }
+      .book-history-premium .bh-table .bh-col-service { width: 17%; }
+      .book-history-premium .bh-table .bh-col-schedule { width: 13%; }
+      .book-history-premium .bh-table .bh-col-status { width: 17%; }
+      .book-history-premium .bh-table .bh-col-location { width: 19%; }
+      .book-history-premium .bh-table .bh-col-rating { width: 8%; }
+      .book-history-premium .bh-table .bh-col-actions { width: 14%; }
+      .book-history-premium .bh-table th,
+      .book-history-premium .bh-table td { box-sizing: border-box; }
+      .book-history-premium .bh-table .bh-status-cell { overflow: hidden; }
+      .book-history-premium .bh-table .bh-status-cell .badge {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.25;
+        text-align: center;
+      }
+      .book-history-premium .bh-table th:nth-child(6),
+      .book-history-premium .bh-table td:nth-child(6) { text-align: center; }
+      .book-history-premium .bh-table th:last-child,
+      .book-history-premium .bh-table td:last-child { text-align: right; }
+      .book-history-premium .bh-actions { flex-wrap: wrap; }
+      .book-history-premium .bh-table tbody tr.bh-row::before { display: none; }
+      .book-history-premium .bh-table tbody tr.bh-row--core td:first-child { box-shadow: inset 4px 0 #3b82f6; }
+      .book-history-premium .bh-table tbody tr.bh-row--repair td:first-child { box-shadow: inset 4px 0 #f59e0b; }
+      .book-history-premium .bh-table tbody tr.bh-row--mixed td:first-child { box-shadow: inset 4px 0 #8b5cf6; }
+    }
+
+    /* Reschedule dialog follows the same focused, step-based language as booking. */
+    #bhRescheduleModal .modal-dialog {
+      width: min(880px, calc(100vw - 2rem)) !important;
+      max-width: 880px !important;
+      margin: 1rem auto;
+    }
+    #bhRescheduleModal .bh-modal-content {
+      width: 100%;
+      height: auto;
+      max-height: calc(100vh - 2rem);
+      overflow: hidden;
+      border: 0;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 24px 64px rgba(15, 23, 42, .24);
+    }
+    #bhRescheduleModal .bh-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.15rem 1.35rem;
+      border: 0;
+      border-radius: 0;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 58%, #3b82f6 100%);
+    }
+    #bhRescheduleModal .bh-reschedule-header-icon {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 12px;
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      font-size: 1.15rem;
+    }
+    #bhRescheduleModal .bh-modal-title { color: #fff; font-size: 1.05rem; font-weight: 800; }
+    #bhRescheduleModal .bh-modal-subtitle { color: rgba(255,255,255,.8); font-size: .76rem; line-height: 1.4; }
+    #bhRescheduleModal .bh-modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 1.25rem;
+      overflow-y: auto;
+      background: #f8fafc;
+    }
+    #bhRescheduleModal .booking-step-lead { max-width: 46rem; margin: 0 0 1rem; color: #475569; font-size: .9rem; line-height: 1.6; }
+    #bhRescheduleModal .booking-confidence-note { display: flex; align-items: flex-start; gap: .7rem; padding: .85rem 1rem; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; color: #1e3a8a; font-size: .84rem; line-height: 1.5; }
+    #bhRescheduleModal .schedule-next-action { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 1rem; padding: .75rem 1rem; border: 1px solid #bfdbfe; border-radius: 16px; background: #f8fbff; box-shadow: 0 8px 24px rgba(15,23,42,.08); }
+    #bhRescheduleModal .schedule-next-action.is-ready { border-color: #86efac; background: #f0fdf4; }
+    #bhRescheduleModal .schedule-next-copy { display: grid; gap: .12rem; min-width: 0; }
+    #bhRescheduleModal .schedule-next-copy > span { color: #1e40af; font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    #bhRescheduleModal .schedule-next-action.is-ready .schedule-next-copy > span { color: #166534; }
+    #bhRescheduleModal .schedule-next-copy strong { color: #0f172a; font-size: .9rem; line-height: 1.35; overflow-wrap: anywhere; }
+    #bhRescheduleModal .schedule-next-copy small { color: #475569; font-size: .72rem; line-height: 1.4; }
+    #bhRescheduleModal .schedule-next-action button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; flex: 0 0 auto; min-height: 44px; padding: .6rem .9rem; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-size: .8rem; font-weight: 800; }
+    #bhRescheduleModal .schedule-next-action button:hover:not(:disabled) { background: #1d4ed8; }
+    #bhRescheduleModal .schedule-next-action button:disabled { background: #cbd5e1; color: #475569; cursor: not-allowed; }
+    #bhRescheduleModal .bh-service-schedule-picker .ent-calendar { border: 1px solid #dbe3ee; box-shadow: none; backdrop-filter: none; }
+    #bhRescheduleModal .bh-reschedule-reason { padding: 1rem; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+    #bhRescheduleModal .calendar-widget {
+      margin-bottom: 1rem !important;
+      padding: 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      box-shadow: none;
+    }
+    #bhRescheduleModal .calendar-header { margin-bottom: .75rem !important; padding: 0 0 .75rem; }
+    #bhRescheduleModal .calendar-grid,
+    #bhRescheduleModal .calendar-weekdays { gap: .35rem; }
+    #bhRescheduleModal .calendar-cell { min-height: 42px; border-radius: 9px; }
+    #bhRescheduleModal .time-slot { min-height: 48px; border-radius: 10px; }
+    #bhRescheduleModal .bh-character-count { color: #64748b; font-size: .72rem; font-weight: 700; }
+    #bhRescheduleModal .bh-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: .65rem;
+      padding: .85rem 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      border-radius: 0;
+      background: #fff;
+    }
+    #bhRescheduleModal .bh-btn-primary,
+    #bhRescheduleModal .bh-btn-secondary { min-height: 44px; border-radius: 10px; }
+    #bhRescheduleModal .bh-btn-primary { background: #2563eb; box-shadow: none; }
+
+    /* Booking editor mirrors the service-booking cards and controls. */
+    #bhBookingEditorModal .modal-content { overflow: hidden; border: 0; border-radius: 18px !important; }
+    #bhBookingEditorModal .bh-editor-header {
+      padding: 1.1rem 1.35rem;
+      border: 0 !important;
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 58%, #3b82f6 100%) !important;
+      color: #fff;
+    }
+    #bhBookingEditorModal .bh-editor-header .modal-title,
+    #bhBookingEditorModal .bh-editor-header .text-muted { color: #fff !important; }
+    #bhBookingEditorModal .bh-editor-header .text-muted { opacity: .78; }
+    #bhBookingEditorModal .bh-editor-tabs { padding: .65rem .8rem 0; background: #f8fafc !important; }
+    #bhBookingEditorModal .bh-editor-tabs .nav-link { min-height: 44px; border-radius: 10px 10px 0 0; color: #64748b; }
+    #bhBookingEditorModal .bh-editor-tabs .nav-link.active { color: #1d4ed8; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: start; gap: 1.25rem; }
+    #bhBookingEditorModal .bh-editor-catalog { min-width: 0; }
+    #bhBookingEditorModal .bh-editor-section-heading { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+    #bhBookingEditorModal .bh-editor-section-icon { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 12px; background: #dbeafe; color: #1d4ed8; }
+    #bhBookingEditorModal .bh-editor-kicker { display: block; color: #2563eb; font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    #bhBookingEditorModal .bh-editor-section-heading h6 { margin: .1rem 0; color: #0f172a; font-size: 1rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-section-heading p { margin: 0; color: #64748b; font-size: .76rem; }
+    #bhBookingEditorModal .bh-editor-service-tabs { gap: .4rem; margin-bottom: 1rem; padding: .3rem; border-radius: 12px; background: #f1f5f9; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link { min-height: 42px; border-radius: 9px; color: #64748b; font-size: .82rem; font-weight: 700; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link.active { background: #fff; color: #1d4ed8; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+    #bhBookingEditorModal .bh-core-service-column { display: flex; min-width: 0; }
+    #bhBookingEditorModal .bh-service-catalog-card { display: flex; width: 100%; min-width: 0; flex-direction: column; padding: .85rem; border: 1px solid #e2e8f0; border-radius: 15px; background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,.04); transition: .2s ease; }
+    #bhBookingEditorModal .bh-service-catalog-card:hover { border-color: #93c5fd; transform: translateY(-2px); box-shadow: 0 10px 25px rgba(37,99,235,.1); }
+    #bhBookingEditorModal .bh-service-card-media { width: 100%; overflow: hidden; aspect-ratio: 4/3; margin-bottom: .65rem; border-radius: 10px; background: #f1f5f9; }
+    #bhBookingEditorModal .bh-service-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
+    #bhBookingEditorModal .bh-service-catalog-card:hover .bh-service-card-media img { transform: scale(1.04); }
+    #bhBookingEditorModal .bh-service-icon { display: grid; width: 48px; height: 48px; margin: 0 auto .65rem; place-items: center; border-radius: 12px; background: #eff6ff; color: #2563eb; font-size: 1.25rem; }
+    #bhBookingEditorModal .bh-service-kicker { color: #2563eb; font-size: .58rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    #bhBookingEditorModal .bh-service-catalog-card h6 { min-height: 2.35em; margin: .25rem 0; overflow: hidden; color: #0f172a; font-size: .85rem; font-weight: 800; line-height: 1.18; }
+    #bhBookingEditorModal .bh-service-catalog-card > p { display: -webkit-box; min-height: 2.8em; margin: 0 0 .55rem; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: #64748b; font-size: .68rem; line-height: 1.4; }
+    #bhBookingEditorModal .bh-service-meta { display: flex; min-height: 2.1rem; flex-wrap: wrap; align-content: flex-start; gap: .25rem; }
+    #bhBookingEditorModal .bh-service-meta span { padding: .22rem .4rem; border-radius: 99px; background: #f1f5f9; color: #64748b; font-size: .55rem; font-weight: 700; }
+    #bhBookingEditorModal .bh-service-price { display: flex; align-items: flex-end; justify-content: space-between; gap: .4rem; margin-top: auto; padding: .7rem 0; }
+    #bhBookingEditorModal .bh-service-price span { color: #64748b; font-size: .58rem; }
+    #bhBookingEditorModal .bh-service-price strong { color: #1d4ed8; font-size: .77rem; text-align: right; }
+    #bhBookingEditorModal .bh-add-service-btn { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: .4rem; border: 0; border-radius: 10px; background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; font-size: .78rem; font-weight: 800; box-shadow: 0 5px 14px rgba(37,99,235,.22); }
+    #bhBookingEditorModal .bh-add-service-btn:hover { background: linear-gradient(135deg,#2563eb,#1d4ed8); }
+    #bhBookingEditorModal .bh-editor-cart { position: sticky; top: 0; overflow: hidden; border: 1px solid #dbeafe; border-radius: 17px; background: #fff; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+    #bhBookingEditorModal .bh-editor-cart-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 1rem 1rem .35rem; }
+    #bhBookingEditorModal .bh-editor-cart-header h6 { margin: .12rem 0 0; color: #0f172a; font-size: .95rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-cart-count { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: #2563eb; color: #fff; font-size: .75rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-cart-copy { margin: 0; padding: 0 1rem .75rem; border-bottom: 1px solid #eef2f7; color: #64748b; font-size: .7rem; }
+    #bhBookingEditorModal .bh-editor-cart-items { display: grid; max-height: 310px; gap: .65rem; overflow-y: auto; padding: .8rem; }
+    #bhBookingEditorModal .bh-editor-cart-item { padding: .75rem; border: 1px solid #e2e8f0; border-radius: 13px; background: #f8fafc; }
+    #bhBookingEditorModal .bh-editor-cart-item-top { display: grid; grid-template-columns: 34px minmax(0,1fr) 30px; align-items: start; gap: .55rem; }
+    #bhBookingEditorModal .bh-editor-cart-item-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: #dbeafe; color: #1d4ed8; }
+    #bhBookingEditorModal .bh-editor-cart-item-copy { min-width: 0; }
+    #bhBookingEditorModal .bh-editor-cart-item-copy span { display: block; color: #2563eb; font-size: .53rem; font-weight: 800; text-transform: uppercase; }
+    #bhBookingEditorModal .bh-editor-cart-item-copy strong { display: block; overflow: hidden; color: #0f172a; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+    #bhBookingEditorModal .bh-editor-cart-item-copy small { display: block; margin-top: .1rem; color: #64748b; font-size: .62rem; }
+    #bhBookingEditorModal .bh-item-remove { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #94a3b8; }
+    #bhBookingEditorModal .bh-item-remove:hover { background: #fee2e2; color: #dc2626; }
+    #bhBookingEditorModal .bh-editor-cart-problem { display: flex; gap: .35rem; margin: .55rem 0 0; color: #64748b; font-size: .62rem; line-height: 1.35; }
+    #bhBookingEditorModal .bh-editor-cart-item-bottom { display: flex; align-items: end; justify-content: space-between; gap: .5rem; margin-top: .65rem; }
+    #bhBookingEditorModal .bh-editor-item-price span { display: block; color: #64748b; font-size: .56rem; }
+    #bhBookingEditorModal .bh-editor-item-price strong { color: #1d4ed8; font-size: .78rem; }
+    #bhBookingEditorModal .bh-editor-cart-empty { display: flex; min-height: 150px; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; text-align: center; }
+    #bhBookingEditorModal .bh-editor-cart-empty i { margin-bottom: .35rem; font-size: 1.6rem; }
+    #bhBookingEditorModal .bh-editor-cart-empty strong { color: #475569; font-size: .8rem; }
+    #bhBookingEditorModal .bh-editor-cart-empty span { font-size: .67rem; }
+    #bhBookingEditorModal .bh-editor-cart-total { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; border-top: 1px solid #eef2f7; background: #f8fafc; color: #475569; font-size: .72rem; font-weight: 700; }
+    #bhBookingEditorModal .bh-editor-cart-total strong { color: #1d4ed8; font-size: 1rem; }
+    #bhBookingEditorModal .bh-editor-reason { padding: .8rem 1rem 1rem; background: #f8fafc; }
+    #bhBookingEditorModal .bh-editor-reason label { display: block; margin-bottom: .35rem; color: #475569; font-size: .64rem; font-weight: 800; text-transform: uppercase; }
+    #bhBookingEditorModal .bh-editor-reason textarea { width: 100%; min-height: 74px; padding: .65rem .75rem; resize: vertical; border: 1px solid #cbd5e1; border-radius: 10px; color: #0f172a; font-size: .75rem; }
+    #bhBookingEditorModal .bh-editor-reason textarea:focus { outline: 0; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    #bhBookingEditorModal #bhRepairSteps [data-step] { transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+    #bhBookingEditorModal #bhRepairSteps [data-step].bh-repair-step-current { border-color: #60a5fa !important; background: linear-gradient(180deg,#fff,#f8fbff) !important; box-shadow: 0 0 0 3px rgba(37,99,235,.08), 0 8px 22px rgba(37,99,235,.08); }
+    #bhBookingEditorModal #bhRepairSteps [data-step].bh-repair-step-complete { border-color: #a7f3d0 !important; }
+    #bhBookingEditorModal #bhRepairSteps [data-step].bh-repair-step-complete > div:first-child > span { background: #059669 !important; }
+    #bhBookingEditorModal #bhRepairSteps input:focus,
+    #bhBookingEditorModal #bhRepairSteps select:focus,
+    #bhBookingEditorModal #bhRepairSteps textarea:focus,
+    #bhBookingEditorModal #bhRepairSteps button:focus-visible { outline: 0; border-color: #2563eb !important; box-shadow: 0 0 0 4px rgba(37,99,235,.12) !important; }
+    #bhBookingEditorModal .bh-editor-stepper,
+    #bhHpModal .bh-editor-stepper { display: grid; grid-template-columns: 38px 42px 38px; overflow: hidden; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; }
+    #bhBookingEditorModal .bh-editor-stepper button,
+    #bhBookingEditorModal .bh-editor-stepper input,
+    #bhHpModal .bh-editor-stepper button,
+    #bhHpModal .bh-editor-stepper input { width: 100%; height: 38px; padding: 0; border: 0; background: #fff; color: #1d4ed8; text-align: center; }
+    #bhBookingEditorModal .bh-editor-stepper input,
+    #bhHpModal .bh-editor-stepper input { border-right: 1px solid #dbeafe; border-left: 1px solid #dbeafe; color: #172033; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-stepper button:hover,
+    #bhHpModal .bh-editor-stepper button:hover { background: #eff6ff; }
+    #bhBookingEditorModal .bh-editor-proposal { padding: 1rem; border: 1px solid #bfdbfe; border-radius: 14px; background: #eff6ff; }
+    #bhBookingEditorModal .bh-editor-proposal-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 11px; background: #dbeafe; color: #1d4ed8; font-size: 1.05rem; }
+
+    /* Same Brand → Aircon Type → HP configurator used by /services. */
+    #bhHpModal { z-index: 1080; }
+    #bhHpModal .modal-content { overflow: hidden; border-radius: 22px; box-shadow: 0 30px 90px rgba(15,23,42,.22); }
+    #bhHpModal .bh-cfg-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.5rem; background: linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#3b82f6 100%); color: #fff; }
+    #bhHpModal .bh-cfg-header h5 { margin: 0; color: #fff; font-size: 1.15rem; font-weight: 800; }
+    #bhHpModal .bh-cfg-header p { margin: .15rem 0 0; color: rgba(255,255,255,.78); font-size: .78rem; }
+    #bhHpModal .bh-cfg-icon { display: grid; width: 46px; height: 46px; flex: 0 0 46px; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 13px; background: rgba(255,255,255,.16); font-size: 1.25rem; }
+    #bhHpModal .bh-cfg-close { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; transition: .2s; }
+    #bhHpModal .bh-cfg-close:hover { background: rgba(255,255,255,.28); transform: rotate(90deg); }
+    #bhHpModal .bh-cfg-wizard { display: flex; align-items: center; gap: .5rem; padding: 1rem 1.75rem .25rem; }
+    #bhHpModal .bh-cfg-wizard > i { height: 3px; flex: 1; border-radius: 99px; background: #e2e8f0; }
+    #bhHpModal .bh-cfg-step { display: flex; align-items: center; gap: .55rem; }
+    #bhHpModal .bh-cfg-step > span { display: grid; width: 38px; height: 38px; place-items: center; border: 2px solid #e2e8f0; border-radius: 50%; background: #f1f5f9; color: #94a3b8; font-size: 1.05rem; }
+    #bhHpModal .bh-cfg-step small, #bhHpModal .bh-cfg-step strong { display: block; }
+    #bhHpModal .bh-cfg-step small { color: #64748b; font-size: .62rem; font-weight: 800; text-transform: uppercase; }
+    #bhHpModal .bh-cfg-step strong { color: #0f172a; font-size: .82rem; }
+    #bhHpModal .bh-cfg-step.is-active > span { border-color: #2563eb; background: #eff6ff; color: #2563eb; box-shadow: 0 0 0 5px rgba(37,99,235,.12); }
+    #bhHpModal .bh-cfg-step.is-active small { color: #2563eb; }
+    #bhHpModal .bh-cfg-step.is-done > span { border-color: #059669; background: #059669; color: #fff; }
+    #bhHpModal .bh-cfg-step.is-done + i { background: #10b981; }
+    #bhHpModal .bh-cfg-body { padding: 1.25rem 1.75rem .75rem; }
+    #bhHpModal .bh-cfg-context { display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: .7rem; margin-bottom: 1rem; padding: .8rem 1rem; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    #bhHpModal .bh-cfg-context > span { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+    #bhHpModal .bh-cfg-context small, #bhHpModal .bh-cfg-context strong { display: block; }
+    #bhHpModal .bh-cfg-context small { color: #64748b; font-size: .6rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+    #bhHpModal .bh-cfg-context strong { color: #0f172a; font-size: .84rem; }
+    #bhHpModal .bh-cfg-context b { color: #2563eb; font-size: .68rem; }
+    #bhHpModal .bh-cfg-panel { padding: 1.1rem; border: 1px solid #dbeafe; border-radius: 16px; background: linear-gradient(180deg,#fff,#f8fbff); box-shadow: 0 6px 22px rgba(15,23,42,.05); animation: bhCfgIn .24s ease; }
+    #bhHpModal .bh-cfg-panel-heading { display: flex; align-items: flex-start; gap: .75rem; margin-bottom: .95rem; }
+    #bhHpModal .bh-cfg-panel-heading > span { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 11px; background: #dbeafe; color: #1d4ed8; }
+    #bhHpModal .bh-cfg-panel-heading small { display: block; color: #2563eb; font-size: .62rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    #bhHpModal .bh-cfg-panel-heading h6 { margin: .05rem 0 .2rem; color: #0f172a; font-size: 1rem; font-weight: 800; }
+    #bhHpModal .bh-cfg-panel-heading p { margin: 0; color: #64748b; font-size: .78rem; }
+    #bhHpModal .bh-cfg-panel > label { display: block; margin-bottom: .3rem; color: #334155; font-size: .82rem; font-weight: 700; }
+    #bhHpModal .bh-cfg-panel > label em { color: #dc2626; font-style: normal; }
+    #bhHpModal #bhHpBrandSelect, #bhHpModal #bhHpBrandOther { width: 100%; min-height: 46px; padding: .68rem .85rem; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font-size: .9rem; }
+    #bhHpModal #bhHpBrandOther { margin-top: .5rem; }
+    #bhHpModal #bhHpBrandSelect:focus, #bhHpModal #bhHpBrandOther:focus { outline: 0; border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,.1); }
+    #bhHpModal .bh-cfg-help { display: flex; align-items: center; gap: .4rem; margin-top: .65rem; color: #64748b; font-size: .72rem; }
+    #bhHpModal .bh-cfg-help i { color: #2563eb; }
+    #bhHpModal .bh-cfg-qty-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; border: 1px solid #eef2f7; border-radius: 14px; background: #f8fafc; }
+    #bhHpModal .bh-cfg-qty-row strong, #bhHpModal .bh-cfg-qty-row small { display: block; }
+    #bhHpModal .bh-cfg-qty-row strong { color: #334155; font-size: .82rem; }
+    #bhHpModal .bh-cfg-qty-row small { color: #94a3b8; font-size: .72rem; }
+    #bhHpModal .bh-cfg-type-card { width: 100%; height: 100%; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 16px; background: #fff; color: #0f172a; text-align: left; transition: .2s; }
+    #bhHpModal .bh-cfg-type-card:hover, #bhHpModal .bh-cfg-type-card.is-selected { border-color: #2563eb; background: #eff6ff; transform: translateY(-2px); box-shadow: 0 8px 22px rgba(37,99,235,.14); }
+    #bhHpModal .bh-cfg-type-top { display: flex; align-items: flex-start; gap: .65rem; }
+    #bhHpModal .bh-cfg-type-top > span:last-child { min-width: 0; }
+    #bhHpModal .bh-cfg-type-icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+    #bhHpModal .bh-cfg-type-top strong, #bhHpModal .bh-cfg-type-top small { display: block; }
+    #bhHpModal .bh-cfg-type-top strong { font-size: .88rem; }
+    #bhHpModal .bh-cfg-type-top small { margin-top: .15rem; color: #64748b; font-size: .66rem; line-height: 1.35; }
+    #bhHpModal .bh-cfg-type-bottom { display: flex; align-items: end; justify-content: space-between; gap: .4rem; margin-top: .75rem; }
+    #bhHpModal .bh-cfg-type-bottom b { color: #1d4ed8; font-size: .72rem; }
+    #bhHpModal .bh-cfg-type-bottom small { color: #64748b; font-size: .6rem; }
+    #bhHpModal .bh-cfg-selected-type { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: .75rem .9rem; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; }
+    #bhHpModal .bh-cfg-selected-type small, #bhHpModal .bh-cfg-selected-type strong { display: block; }
+    #bhHpModal .bh-cfg-selected-type small { color: #64748b; font-size: .62rem; text-transform: uppercase; }
+    #bhHpModal .bh-cfg-selected-type strong { color: #1e3a8a; font-size: .86rem; }
+    #bhHpModal .bh-cfg-selected-type button { border: 0; border-radius: 8px; background: transparent; color: #2563eb; font-size: .72rem; font-weight: 700; }
+    #bhHpModal .bh-hp-card { border: 2px solid #e2e8f0; border-radius: 16px; background: #fff; cursor: pointer; transition: .2s; }
+    #bhHpModal .bh-hp-card:hover, #bhHpModal .bh-hp-card.selected { border-color: #059669; background: #ecfdf5; box-shadow: 0 8px 22px rgba(5,150,105,.12); }
+    #bhHpModal .bh-cfg-footer { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1rem; padding: 1rem 1.5rem 1.25rem; border-top: 1px solid #eef2f7; background: #f8fafc; }
+    #bhHpModal .bh-cfg-back { min-height: 42px; padding: .6rem 1rem; border: 1.5px solid #cbd5e1; border-radius: 12px; background: #fff; color: #475569; font-size: .8rem; font-weight: 700; }
+    #bhHpModal .bh-cfg-price { display: flex; min-width: 210px; flex: 1; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem 1rem; border: 1px solid #dbeafe; border-radius: 14px; background: #fff; }
+    #bhHpModal .bh-cfg-price span strong, #bhHpModal .bh-cfg-price span small { display: block; }
+    #bhHpModal .bh-cfg-price span strong { color: #1e3a8a; font-size: .82rem; }
+    #bhHpModal .bh-cfg-price span small { color: #64748b; font-size: .65rem; }
+    #bhHpModal .bh-cfg-price > b { color: #2563eb; font-size: 1.25rem; }
+    #bhHpModal .bh-cfg-primary { min-height: 42px; padding: .65rem 1.25rem; border: 0; border-radius: 12px; background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; font-size: .82rem; font-weight: 800; box-shadow: 0 6px 20px rgba(37,99,235,.25); }
+    #bhHpModal .bh-cfg-primary:disabled { opacity: .55; box-shadow: none; }
+    @keyframes bhCfgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    #bhDetailModal .bh-reschedule-review {
+      margin-top: 1rem;
+      padding: .85rem;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      background: #f8fbff;
+    }
+    #bhDetailModal .bh-reschedule-review-copy {
+      display: flex;
+      align-items: flex-start;
+      gap: .5rem;
+      margin-bottom: .75rem;
+      color: #475569;
+      font-size: .8rem;
+      line-height: 1.5;
+    }
+    #bhDetailModal .bh-reschedule-review-copy i { margin-top: .08rem; color: #2563eb; }
+    #bhDetailModal .bh-reschedule-review .bh-actions-bar { margin-top: 0; }
+    #bhDetailModal .bh-reschedule-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .65rem;
+      margin-top: 0;
+    }
+    #bhDetailModal .bh-reschedule-actions .bh-btn {
+      width: 100%;
+      min-height: 44px;
+      padding: .65rem .75rem;
+      line-height: 1.25;
+      white-space: normal;
+    }
+    #bhDetailModal .bh-reschedule-actions .bh-reschedule-cancel { grid-column: 1 / -1; }
+
+    @media (max-width: 575.98px) {
+      #bhDetailModal .bh-reschedule-actions { grid-template-columns: 1fr; }
+      #bhDetailModal .bh-reschedule-actions .bh-reschedule-cancel { grid-column: auto; }
+    }
+
+    @media (max-width: 991.98px) {
+      #bhBookingEditorModal .bh-editor-workspace { grid-template-columns: 1fr; }
+      #bhBookingEditorModal .bh-editor-cart { position: static; }
+      #bhBookingEditorModal .bh-editor-cart-items { max-height: none; }
+    }
+
+    @media (max-width: 767.98px) {
+      #bhRescheduleModal .modal-dialog { width: 100% !important; max-width: none !important; min-height: 100%; margin: 0; }
+      #bhRescheduleModal .bh-modal-content { min-height: 100vh; max-height: 100vh; border-radius: 0; }
+      #bhRescheduleModal .bh-modal-header { padding: .85rem 1rem; }
+      #bhRescheduleModal .bh-modal-subtitle { display: none; }
+      #bhRescheduleModal .bh-modal-body { padding: .8rem; }
+      #bhRescheduleModal .schedule-next-action { align-items: flex-start; gap: .65rem; padding: .7rem; border-radius: 12px; }
+      #bhRescheduleModal .schedule-next-copy small { display: none; }
+      #bhRescheduleModal .schedule-next-copy strong { font-size: .78rem; }
+      #bhRescheduleModal .schedule-next-action button { min-height: 44px; padding-inline: .65rem; white-space: nowrap; }
+      #bhRescheduleModal .calendar-widget { padding: .75rem; }
+      #bhRescheduleModal .calendar-cell { min-height: 40px; }
+      #bhRescheduleModal .bh-modal-footer { display: grid; grid-template-columns: .85fr 1.15fr; padding: .7rem; }
+      #bhRescheduleModal .bh-btn-primary,
+      #bhRescheduleModal .bh-btn-secondary { width: 100%; padding: .6rem .7rem; }
+      #bhBookingEditorModal .modal-dialog { width: 100%; max-width: none; min-height: 100%; margin: 0; }
+      #bhBookingEditorModal .modal-content { min-height: 100vh; border-radius: 0 !important; }
+      #bhBookingEditorModal .tab-content { padding: .8rem !important; }
+      #bhBookingEditorModal .bh-editor-section-heading p { display: none; }
+      #bhBookingEditorModal .bh-service-catalog-card { padding: .6rem; border-radius: 12px; }
+      #bhBookingEditorModal .bh-service-catalog-card h6 { font-size: .78rem; }
+      #bhBookingEditorModal .bh-service-catalog-card > p { display: none; min-height: 0; }
+      #bhBookingEditorModal .bh-service-meta { min-height: 1.7rem; }
+      #bhBookingEditorModal .bh-service-price { display: block; }
+      #bhBookingEditorModal .bh-service-price span { display: block; margin-bottom: .1rem; }
+      #bhHpModal .modal-dialog { width: 100%; max-width: none !important; min-height: 100%; margin: 0; }
+      #bhHpModal .modal-content { min-height: 100vh; border-radius: 0; }
+      #bhHpModal .bh-cfg-header { padding: .8rem 1rem; }
+      #bhHpModal .bh-cfg-header p { display: none; }
+      #bhHpModal .bh-cfg-wizard { padding: .75rem 1rem .25rem; gap: .3rem; }
+      #bhHpModal .bh-cfg-step > span { width: 30px; height: 30px; }
+      #bhHpModal .bh-cfg-step small { display: none; }
+      #bhHpModal .bh-cfg-step strong { font-size: .7rem; }
+      #bhHpModal .bh-cfg-body { padding: .8rem 1rem; }
+      #bhHpModal .bh-cfg-panel { padding: .85rem; }
+      #bhHpModal .bh-cfg-type-card { padding: .7rem; }
+      #bhHpModal .bh-cfg-type-top small, #bhHpModal .bh-cfg-type-bottom small { display: none; }
+      #bhHpModal .bh-hp-card .card-body { flex-direction: column; align-items: stretch !important; }
+      #bhHpModal .bh-hp-meta { min-width: 0 !important; text-align: left !important; }
+      #bhHpModal .bh-qty-group { justify-content: space-between; }
+      #bhHpModal .bh-cfg-footer { padding: .75rem 1rem; }
+      #bhHpModal .bh-cfg-price { order: -1; min-width: 100%; }
+      #bhHpModal .bh-cfg-back, #bhHpModal .bh-cfg-primary { flex: 1; }
+    }
   </style>
 
-<script src="/js/enterprise-calendar.js"></script>
-<script src="/js/book-history.js?v=20260925-schedule-status-v2"></script>
+<script src="/js/enterprise-calendar.js?v=20260926-scoped-picker-v1"></script>
+<script src="/js/book-history.js?v=20260926-sort-filter-v6"></script>

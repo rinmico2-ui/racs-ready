@@ -46,6 +46,7 @@ test("project rescheduling accepts a date-only customer preference", () => {
 
 test("booking history exposes one schedule action across customer-editable states", () => {
   const script = read("public/js/book-history.js");
+  const calendar = read("public/js/enterprise-calendar.js");
   for (const status of [
     "pending",
     "payment_verified",
@@ -57,11 +58,15 @@ test("booking history exposes one schedule action across customer-editable state
   ]) {
     assert.match(script, new RegExp(`CUSTOMER_RESCHEDULE_STATUSES = new Set\\(\\[[^\\]]*['\"]${status}['\"]`));
   }
-  assert.match(script, /title="\$\{hasPendingReschedule \? 'Schedule change awaiting review' : 'Change schedule'\}"/);
-  assert.match(script, /Company scheduling pool/);
+  assert.match(script, /const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES\.has\(status\) && !needsScheduleReview/);
+  assert.match(script, /actionButton\(\s*'reschedule'/);
+  assert.match(script, /hasPendingReschedule \? 'Schedule Change Pending' : 'Change Schedule'/);
+  assert.match(script, /action === 'reschedule'/);
+  assert.match(script, /root: pickerRoot/);
+  assert.match(script, /syncGlobalState: false/);
   assert.doesNotMatch(script, /schedule\/technician\/\$\{encodeURIComponent\(currentRescheduleTechnicianId\)\}/);
-  assert.match(script, /\/api\/schedule\/available-dates\?duration=/);
-  assert.match(script, /\/api\/schedule\/time-slots\?/);
+  assert.match(calendar, /\/api\/schedule\/available-dates\?/);
+  assert.match(calendar, /\/api\/schedule\/time-slots\?/);
 });
 
 test("customer rescheduling is ownership-scoped and revalidates capacity before request and approval", () => {

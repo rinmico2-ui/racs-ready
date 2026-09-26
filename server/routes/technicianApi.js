@@ -64,6 +64,12 @@ const TECHNICIAN_ACTIVE_ASSIGNMENT_STATUSES = [
 ];
 const TECHNICIAN_HIDDEN_ASSIGNMENT_STATUSES = ["expired"];
 
+// Role-wide notices have no named recipient. Never include another
+// technician's private notifications just because their role matches.
+function technicianNotificationInbox(userId) {
+  return { $or: [{ userId }, { userId: null, role: "technician" }] };
+}
+
 async function configuredBookingWarranty(booking, completedAt) {
   return buildBookingWarrantyCoverage(booking, completedAt);
 }
@@ -2022,15 +2028,11 @@ router.get("/notifications", async (req, res, next) => {
   try {
     const Notification = require("../models/Notification");
 
-    const notifications = await Notification.find({
-      $or: [
-        { userId: req.user._id },
-        { role: "technician" },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .limit(30)
-      .lean();
+    const inbox = technicianNotificationInbox(req.user._id);
+    const [notifications, unread] = await Promise.all([
+      Notification.find(inbox).sort({ createdAt: -1 }).limit(30).lean(),
+      Notification.countDocuments({ ...inbox, read: { $ne: true } }),
+    ]);
 
     // Map to the format the navbar expects
     const iconMap = {
@@ -2062,8 +2064,6 @@ router.get("/notifications", async (req, res, next) => {
         read: n.read || false,
       };
     });
-
-    const unread = mapped.filter((n) => !n.read).length;
 
     return res.json({ notifications: mapped, unread });
   } catch (err) {
@@ -2100,7 +2100,7 @@ router.get("/badge-counts", async (req, res, next) => {
       Expense.countDocuments({ technicianId: techId, status: "pending" }),
       Order.countDocuments({ technicianId: techId, status: { $in: ["pending", "confirmed", "processing"] } }),
       Notification.countDocuments({
-        $or: [{ userId: req.user._id }, { role: "technician" }],
+        ...technicianNotificationInbox(req.user._id),
         read: { $ne: true },
       }),
     ]);
@@ -2945,13 +2945,14 @@ router.get("/assignments", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const bookingIds = items.map(a => a.bookingId).filter(Boolean);
     const bookings = await BookingService.find({ _id: { $in: bookingIds } })
-      .select("bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo")
+      .select("bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo maintenance.paymentOnSite")
       .lean();
     const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
     for (const item of items) {
       const bk = bookingMap.get(String(item.bookingId));
       if (bk) {
         item.paymentMethod = bk.paymentMethod;
+        item.paymentOnSite = bk.maintenance?.paymentOnSite === true;
         item.paymentStatus = bk.paymentStatus;
         item.amountPaid = bk.amountPaid;
         item.balanceAmount = bk.balanceAmount;
@@ -3070,6 +3071,7 @@ router.get("/assignments/:id", async (req, res, next) => {
     if (assignment.bookingId && assignment.bookingId._id) {
       const bk = assignment.bookingId;
       assignment.paymentMethod = bk.paymentMethod;
+      assignment.paymentOnSite = bk.maintenance?.paymentOnSite === true;
       assignment.paymentStatus = bk.paymentStatus;
       assignment.amountPaid = bk.amountPaid;
       assignment.balanceAmount = bk.balanceAmount;

@@ -1485,17 +1485,32 @@ exports.verify = async (req, res) => {
   try {
     const cookies = parseCookies(req);
     const token = cookies["auth_token"];
-    if (!token) return res.json({ user: null });
+    if (!token) {
+      res.set("Cache-Control", "no-store, private");
+      return res.json({ user: null });
+    }
     let payload;
     try {
       payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     } catch (e) {
+      res.clearCookie("auth_token", { path: "/" });
+      res.set("Cache-Control", "no-store, private");
       return res.json({ user: null });
     }
     const user = await User.findById(payload.id).select("-passwordHash");
-    if (!user) return res.json({ user: null });
+    const sessionMismatch = payload.sessionId
+      && payload.sessionId !== String(user?.currentSessionId || "");
+    const passwordChanged = user?.lastPasswordChange && payload.iat
+      && payload.iat * 1000 < user.lastPasswordChange.getTime();
+    if (!isAccountEnabled(user) || sessionMismatch || passwordChanged) {
+      res.clearCookie("auth_token", { path: "/" });
+      res.set("Cache-Control", "no-store, private");
+      return res.json({ user: null });
+    }
+    res.set("Cache-Control", "no-store, private");
     res.json({ user });
   } catch (err) {
+    res.set("Cache-Control", "no-store, private");
     res.json({ user: null });
   }
 };

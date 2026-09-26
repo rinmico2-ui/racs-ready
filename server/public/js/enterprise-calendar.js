@@ -28,6 +28,8 @@ const EnterpriseCalendar = (() => {
   let _nextStep = 5;
   let _showCommercialProjects = true;
   let _timeSlotRequestId = 0;
+  let _root = document;
+  let _syncGlobalState = true;
 
   // Large-scale / project mode
   let _mode = "appointment"; // "appointment" | "project"
@@ -78,21 +80,36 @@ const EnterpriseCalendar = (() => {
     document.head.appendChild(link);
   }
 
+  function getElement(id) {
+    if (_root && _root !== document && typeof _root.querySelector === 'function') {
+      return _root.querySelector(`#${id}`);
+    }
+    return document.getElementById(id);
+  }
+
   async function init(opts = {}) {
+    _root = typeof opts.root === 'string'
+      ? (document.querySelector(opts.root) || document)
+      : (opts.root || document);
+    _syncGlobalState = opts.syncGlobalState !== false;
     _serviceId = opts.serviceId;
     _technicianId = opts.technicianId || null;
     _duration = opts.duration || 90;
     _travelTime = Math.max(0, Number(opts.travelTime) || 30);
     // Project classification is based on the total units in the complete
     // Core + Repair request, not only the last service card opened.
-    _quantity = Math.min(40, Math.max(1, Number(opts.quantity) || 1, getCustomerUnitTotal()));
+    _quantity = Math.min(40, Math.max(
+      1,
+      Number(opts.quantity) || 1,
+      _syncGlobalState ? getCustomerUnitTotal() : 1,
+    ));
     _onSelectCb = typeof opts.onSelect === 'function' ? opts.onSelect : null;
     _showCommercialProjects = opts.showCommercialProjects !== false;
     if (opts.resetSelection === true) {
       _selectedDate = null;
       _selectedSlot = null;
       _selectedEndDate = null;
-    } else if (window.BookingState) {
+    } else if (_syncGlobalState && window.BookingState) {
       const restoredDate = window.BookingState.selectedDate || window.BookingState.scheduleDate;
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
       if (parsedDate && !Number.isNaN(parsedDate.getTime())) _selectedDate = parsedDate;
@@ -264,7 +281,7 @@ const EnterpriseCalendar = (() => {
    * APPOINTMENT MODE (standard date + time-slot selection)
    * ────────────────────────────────────────────────────────────── */
   function renderAppointmentMode() {
-    const container = document.getElementById('calendarGrid');
+    const container = getElement('calendarGrid');
     if (!container) return;
 
     // Show blocked message if booking exceeds working hours
@@ -502,13 +519,13 @@ const EnterpriseCalendar = (() => {
     container.innerHTML = html;
 
     // Bind nav
-    document.getElementById('entCalPrev')?.addEventListener('click', () => {
+    getElement('entCalPrev')?.addEventListener('click', () => {
       const prevMonth = new Date(_currentMonth);
       prevMonth.setMonth(prevMonth.getMonth() - 1);
       _currentMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1);
       render();
     });
-    document.getElementById('entCalNext')?.addEventListener('click', () => {
+    getElement('entCalNext')?.addEventListener('click', () => {
       const nextMonth = new Date(_currentMonth);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       _currentMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
@@ -534,7 +551,7 @@ const EnterpriseCalendar = (() => {
     const parts = dateStr.split('-');
     _selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     _selectedSlot = null;
-    if (window.BookingState) {
+    if (_syncGlobalState && window.BookingState) {
       window.BookingState.selectedDate = _selectedDate;
       window.BookingState.scheduleDate = _selectedDate;
       window.BookingState.selectedTimeSlot = null;
@@ -543,13 +560,13 @@ const EnterpriseCalendar = (() => {
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
     render();
-    window.syncScheduleNextAction?.();
+    if (_syncGlobalState) window.syncScheduleNextAction?.();
     await loadTimeSlots(_selectedDate);
   }
 
   async function loadTimeSlots(date) {
-    const section = document.getElementById('timeSelection');
-    const container = document.getElementById('timeSlots');
+    const section = getElement('timeSelection');
+    const container = getElement('timeSlots');
     if (!section || !container) return;
     const requestId = ++_timeSlotRequestId;
 
@@ -577,7 +594,7 @@ const EnterpriseCalendar = (() => {
         </div>
       </div>`;
 
-    const grid = document.getElementById('entTimeGrid');
+    const grid = getElement('entTimeGrid');
 
     try {
       // Try API-based time slots first
@@ -656,14 +673,14 @@ const EnterpriseCalendar = (() => {
     if (stillAvailable) return true;
 
     _selectedSlot = null;
-    if (window.BookingState) {
+    if (_syncGlobalState && window.BookingState) {
       window.BookingState.selectedTimeSlot = null;
       window.BookingState.selectedTime = null;
       window.BookingState.scheduleTime = null;
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
-    if (window.RepairState) window.RepairState.preferredTime = '';
-    window.syncScheduleNextAction?.();
+    if (_syncGlobalState && window.RepairState) window.RepairState.preferredTime = '';
+    if (_syncGlobalState) window.syncScheduleNextAction?.();
     await loadTimeSlots(_selectedDate);
     return false;
   }
@@ -728,7 +745,7 @@ const EnterpriseCalendar = (() => {
           startMinutes: timeToMinutes(el.dataset.start),
         };
         // Sync with BookingState (if present)
-        if (window.BookingState) {
+        if (_syncGlobalState && window.BookingState) {
           window.BookingState.selectedTimeSlot = _selectedSlot;
           window.BookingState.selectedTime = _selectedSlot.label;
           window.BookingState.scheduleTime = _selectedSlot.label;
@@ -737,11 +754,11 @@ const EnterpriseCalendar = (() => {
           if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
         }
         // Sync with RepairState (if present)
-        if (window.RepairState) {
+        if (_syncGlobalState && window.RepairState) {
           window.RepairState.preferredDate = _selectedDate;
           window.RepairState.preferredTime = _selectedSlot.label;
         }
-        window.syncScheduleNextAction?.();
+        if (_syncGlobalState) window.syncScheduleNextAction?.();
         render();
         renderTimeSlotsUI(container, slots);
         // Fire onSelect callback if registered, otherwise auto-advance
@@ -771,7 +788,7 @@ const EnterpriseCalendar = (() => {
  * message is shown and the next available date range is suggested.
  * ────────────────────────────────────────────────────────────── */
   function renderProjectMode() {
-    const container = document.getElementById('calendarGrid');
+    const container = getElement('calendarGrid');
     if (!container) return;
 
     const year = _currentMonth.getFullYear();
@@ -1064,13 +1081,13 @@ const EnterpriseCalendar = (() => {
     container.innerHTML = html;
 
     // Nav
-    document.getElementById('entCalPrev')?.addEventListener('click', () => {
+    getElement('entCalPrev')?.addEventListener('click', () => {
       const prevMonth = new Date(_currentMonth);
       prevMonth.setMonth(prevMonth.getMonth() - 1);
       _currentMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1);
       render();
     });
-    document.getElementById('entCalNext')?.addEventListener('click', () => {
+    getElement('entCalNext')?.addEventListener('click', () => {
       const nextMonth = new Date(_currentMonth);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       _currentMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
@@ -1086,14 +1103,14 @@ const EnterpriseCalendar = (() => {
     });
 
     // Insufficient-window actions
-    document.getElementById('adjustEndDateBtn')?.addEventListener('click', () => {
+    getElement('adjustEndDateBtn')?.addEventListener('click', () => {
       _selectedEndDate = null;
       _selectingEndDate = true;
       _windowResult = null;
       render();
       container.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
-    document.getElementById('useRecommendedBtn')?.addEventListener('click', () => {
+    getElement('useRecommendedBtn')?.addEventListener('click', () => {
       if (_windowResult && _windowResult.earliestCompletionDate && _selectedDate) {
         applySuggestedRange(formatDateKey(_selectedDate), _windowResult.earliestCompletionDate);
       }
@@ -1151,7 +1168,7 @@ const EnterpriseCalendar = (() => {
 
     if (_selectedDate && _selectedEndDate && !_selectingEndDate) {
       const isValid = await validateProjectRange();
-      window.syncScheduleNextAction?.();
+      if (_syncGlobalState) window.syncScheduleNextAction?.();
 
       if (isValid) {
         if (_onSelectCb) {
@@ -1212,7 +1229,7 @@ const EnterpriseCalendar = (() => {
       if (!_windowResult.sufficient) {
         // Scroll to the verdict so the customer sees why, plus options.
         setTimeout(() => {
-          const msgEl = document.getElementById('projectRangeValidation');
+          const msgEl = getElement('projectRangeValidation');
           if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
         return false;
@@ -1246,7 +1263,7 @@ const EnterpriseCalendar = (() => {
    * preferred site access time, completion deadline.
    */
   function renderProjectPreferences() {
-    const prefsHost = document.getElementById('projectPrefs');
+    const prefsHost = getElement('projectPrefs');
     if (!prefsHost) return;
 
     prefsHost.classList.remove('d-none');
@@ -1399,18 +1416,18 @@ const EnterpriseCalendar = (() => {
 
   function readProjectPrefs() {
     const prefs = { workingDays: [], preferredWorkingHours: 'morning', completionDeadline: null, totalUnits: 1, startDate: null };
-    const daysHost = document.getElementById('prefWorkingDays');
+    const daysHost = getElement('prefWorkingDays');
     if (daysHost) {
       daysHost.querySelectorAll('.ent-pref-chip.active').forEach(c => prefs.workingDays.push(c.dataset.day));
     }
-    const hoursHost = document.getElementById('prefWorkingHours');
+    const hoursHost = getElement('prefWorkingHours');
     if (hoursHost) {
       const active = hoursHost.querySelector('.ent-pref-chip.active');
       prefs.preferredWorkingHours = active ? active.dataset.hours : 'morning';
     }
     prefs.startDate = _selectedDate ? formatDateKey(_selectedDate) : null;
     prefs.completionDeadline = _selectedEndDate ? formatDateKey(_selectedEndDate) : null;
-    const units = document.getElementById('prefTotalUnits');
+    const units = getElement('prefTotalUnits');
     if (units && units.value) {
       const n = parseInt(units.value, 10);
       prefs.totalUnits = Number.isFinite(n) ? Math.min(40, Math.max(1, n)) : 1;
@@ -1440,14 +1457,14 @@ const EnterpriseCalendar = (() => {
         earliestCompletionDate: _windowResult.earliestCompletionDate || null,
       };
     }
-    if (window.BookingState) {
+    if (_syncGlobalState && window.BookingState) {
       window.BookingState.selectedDate = _selectedDate;
       window.BookingState.isProject = true;
       window.BookingState.projectScheduling = selection;
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
     }
-    window.syncScheduleNextAction?.();
-    if (window.RepairState) {
+    if (_syncGlobalState) window.syncScheduleNextAction?.();
+    if (_syncGlobalState && window.RepairState) {
       window.RepairState.preferredDate = _selectedDate;
       window.RepairState.preferredTime = '';
       window.RepairState.isProject = true;
@@ -1506,7 +1523,7 @@ const EnterpriseCalendar = (() => {
 
     // Auto-validate the suggested range
     const isValid = await validateProjectRange();
-    window.syncScheduleNextAction?.();
+    if (_syncGlobalState) window.syncScheduleNextAction?.();
     if (isValid) {
       if (_onSelectCb) {
         _onSelectCb(getProjectSelection());

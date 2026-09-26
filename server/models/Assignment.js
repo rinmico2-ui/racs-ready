@@ -168,6 +168,7 @@ const assignmentSchema = new mongoose.Schema(
 assignmentSchema.index({ technicianId: 1, status: 1 });
 assignmentSchema.index({ technicianId: 1, bookingDate: -1 });
 assignmentSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
+assignmentSchema.index({ bookingId: 1, createdAt: -1, _id: -1 });
 assignmentSchema.index({ projectId: 1, technicianId: 1, status: 1 });
 assignmentSchema.index({ status: 1, assignedAt: -1 });
 assignmentSchema.index({ acceptanceDeadline: 1, status: 1 });

@@ -133,6 +133,12 @@
   .kpi-enterprise-icon.red { background: #fee2e2; color: var(--mw-danger); }
   .kpi-enterprise-icon.cyan { background: #cffafe; color: var(--mw-info); }
   .kpi-enterprise-icon.purple { background: #ede9fe; color: var(--mw-purple); }
+  .technician-page .kpi-enterprise[data-accent="accepted"]::before { background: #166534; }
+  .technician-page .kpi-enterprise-icon.accepted {
+    background: #dcfce7; color: #166534; border: 1px solid #86efac;
+  }
+  .technician-page .kpi-enterprise-icon.accepted > .bi { color: inherit; opacity: 1; }
+  .technician-page .kpi-enterprise-badge.accepted { background: #dcfce7; color: #166534; }
   .kpi-enterprise-badge { font-size: 0.62rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
   .kpi-enterprise-badge.blue { background: #dbeafe; color: #1e40af; }
   .kpi-enterprise-badge.green { background: #dcfce7; color: #166534; }
@@ -2695,10 +2701,10 @@
         </div>
       </div>
       <div class="col-6 col-md-4 col-lg-2" style="animation: mwFadeInUp 0.5s ease-out 0.2s both;">
-        <div class="kpi-enterprise" data-accent="orange">
+        <div class="kpi-enterprise" data-accent="accepted">
           <div class="kpi-enterprise-top">
-            <div class="kpi-enterprise-icon orange"><i class="bi bi-check-circle"></i></div>
-            <span class="kpi-enterprise-badge orange">Accepted</span>
+            <div class="kpi-enterprise-icon accepted"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div>
+            <span class="kpi-enterprise-badge accepted">Accepted</span>
           </div>
           <div class="kpi-enterprise-body">
             <p class="kpi-enterprise-label">Accepted</p>

@@ -95,7 +95,7 @@
     text("opsCancellationEvents", count(cancellations.events) + " events");
     text("opsCancellationEscalated", count(cancellations.escalated) + " escalated");
     text("opsCollected", money(today.net));
-    text("opsCollectedSub", money(today.gross) + " gross · " + money(month.net) + " month net");
+    text("opsCollectedSub", "Received payments: " + money(today.gross) + " gross · " + money(month.net) + " month net");
     text("opsCollectedTx", count(today.transactions) + " transactions");
     text("opsRefunds", money(today.refunds) + " refunds");
     text("opsEquipment", count(equipment.overdue));

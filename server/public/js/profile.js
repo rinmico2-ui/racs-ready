@@ -1,6 +1,4 @@
-// Client-only profile UI: local edits only (no backend requests)
-// - persists edits in localStorage under 'profile_ui_overrides' so changes survive reload
-// - updates DOM and avatar initial live
+// Customer profile editor. The server is the source of truth for account data.
 
 (function () {
   function qs(id) {
@@ -9,46 +7,33 @@
   var editBtn = qs("editProfileBtn");
   var viewCard = qs("profileView");
   var editForm = qs("profileEditForm");
+  var form = qs("customerProfileForm");
   var cancelBtn = qs("cancelProfileBtn");
   var saveBtn = qs("saveProfileBtn");
   var alertEl = qs("profileAlert");
   var firstInput = qs("profileFirstName");
   var lastInput = qs("profileLastName");
+  if (!editBtn || !editForm || !form) return;
 
-  // first/last name are not editable; skip sanitizer and storage
-  // (they remain read-only in the form)
-
-  // Phone sanitizer: digits only (no arbitrary length limit)
-  function attachPhoneSanitizer(el) {
-    if (!el) return;
-    el.addEventListener("input", function () {
-      var v = String(this.value || "");
-      this.value = v.replace(/\D+/g, "");
+  [qs("profilePhone"), qs("profile-addressPostal")].forEach(function (input) {
+    if (input) input.addEventListener("input", function () {
+      this.value = this.value.replace(/\D/g, "");
     });
-  }
-  attachPhoneSanitizer(qs("profilePhone"));
-
-  // Postal code sanitizer: digits only (no length cap)
-  function attachPostalSanitizer(el) {
-    if (!el) return;
-    el.addEventListener("input", function () {
-      var v = String(this.value || "");
-      this.value = v.replace(/\D+/g, "");
+  });
+  ["Province", "City", "Barangay"].forEach(function (part) {
+    var select = qs("profile-address" + part);
+    if (!select) return;
+    select.addEventListener("change", function (event) {
+      if (!event.isTrusted) return; // Keep saved names during the PSGC initial load.
+      delete select.dataset.selected;
+      if (part === "Province") {
+        delete qs("profile-addressCity").dataset.selected;
+        delete qs("profile-addressBarangay").dataset.selected;
+      } else if (part === "City") {
+        delete qs("profile-addressBarangay").dataset.selected;
+      }
     });
-  }
-  attachPostalSanitizer(qs("profile-addressPostal"));
-
-  var displayFirst = qs("displayFirstName");
-  var displayLast = qs("displayLastName");
-  var displayPhone = qs("displayPhone");
-  var displayProvince = qs("displayProvince");
-  var displayCity = qs("displayCity");
-  var displayBarangay = qs("displayBarangay");
-  var displayPostal = qs("displayPostal");
-  var displayName = qs("profileDisplayName");
-  var avatar = qs("profileAvatar");
-
-  if (!editBtn || !editForm) return; // page doesn't include editable area
+  });
 
   function showAlert(type, msg) {
     if (!alertEl) return;
@@ -56,85 +41,14 @@
       "alert alert-" + (type === "error" ? "danger" : "success");
     alertEl.textContent = msg;
     alertEl.classList.remove("d-none");
-    setTimeout(function () {
-      alertEl.classList.add("d-none");
-    }, 4000);
-  }
-
-  function getOverrides() {
-    try {
-      return JSON.parse(localStorage.getItem("profile_ui_overrides") || "{}");
-    } catch (e) {
-      return {};
-    }
-  }
-  function setOverrides(obj) {
-    try {
-      localStorage.setItem("profile_ui_overrides", JSON.stringify(obj || {}));
-    } catch (e) {}
-  }
-
-  function applyOverridesToView() {
-    var o = getOverrides();
-    if (!displayFirst || !displayLast) return;
-    function setText(el, val) {
-      if (!el) return;
-      if ("value" in el) el.value = val;
-      else el.textContent = val;
-    }
-    if (o.firstName) setText(displayFirst, o.firstName);
-    if (o.lastName) setText(displayLast, o.lastName);
-    if (o.email) setText(qs("displayEmail"), o.email);
-    if (o.phone) setText(displayPhone, o.phone);
-    if (o.province) setText(displayProvince, o.province);
-    if (o.city) setText(displayCity, o.city);
-    if (o.barangay) setText(displayBarangay, o.barangay);
-    if (o.postalCode) setText(displayPostal, o.postalCode);
-
-    // update display name and avatar initial based on names
-    var full = ((o.firstName || "") + " " + (o.lastName || "")).trim();
-    if (full) displayName.textContent = full;
-    var initial =
-      o.firstName || o.lastName
-        ? (o.firstName || o.lastName).charAt(0).toUpperCase()
-        : (displayName &&
-            displayName.textContent &&
-            displayName.textContent.charAt(0)) ||
-          "A";
-    if (avatar) avatar.textContent = initial;
-  }
-
-  // Populate edit form from displayed values (server-rendered or overrides)
-  function populateForm() {
-    var o = getOverrides();
-    function getDisplay(el) {
-      if (!el) return "";
-      return "value" in el ? el.value : el.textContent;
-    }
-    if (firstInput)
-      firstInput.value = o.firstName || getDisplay(displayFirst) || "";
-    if (lastInput)
-      lastInput.value = o.lastName || getDisplay(displayLast) || "";
-
-    var phoneEl = qs("profilePhone");
-    var provEl = qs("profile-addressProvince");
-    var cityEl = qs("profile-addressCity");
-    var barangayEl = qs("profile-addressBarangay");
-    var postalEl = qs("profile-addressPostal");
-
-    if (phoneEl) phoneEl.value = o.phone || getDisplay(displayPhone) || "";
-    if (provEl && o.province) provEl.setAttribute("data-selected", o.province);
-    if (cityEl && o.city) cityEl.setAttribute("data-selected", o.city);
-    if (barangayEl && o.barangay)
-      barangayEl.setAttribute("data-selected", o.barangay);
-    if (postalEl)
-      postalEl.value = o.postalCode || getDisplay(displayPostal) || "";
+    alertEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   editBtn.addEventListener("click", function () {
-    populateForm();
-    viewCard && viewCard.classList.add("d-none");
-    editForm && editForm.classList.remove("d-none");
+    viewCard.classList.add("d-none");
+    editForm.classList.remove("d-none");
+    alertEl && alertEl.classList.add("d-none");
+    editForm.scrollIntoView({ behavior: "smooth", block: "start" });
     firstInput && firstInput.focus();
   });
 
@@ -164,58 +78,94 @@
   });
 
   cancelBtn.addEventListener("click", function () {
-    editForm && editForm.classList.add("d-none");
-    viewCard && viewCard.classList.remove("d-none");
+    window.location.reload(); // Discard unsaved fields and restore server data.
   });
 
-  saveBtn.addEventListener("click", function () {
-    // names are readonly; do not update them from the edit form
-    var email = ((qs("profileEmail") && qs("profileEmail").value) || "").trim();
-    var phone = ((qs("profilePhone") && qs("profilePhone").value) || "").trim();
-    var province =
-      (qs("profile-addressProvince") &&
-        (qs("profile-addressProvince").selectedOptions[0] || {}).textContent) ||
-      "";
-    var city =
-      (qs("profile-addressCity") &&
-        (qs("profile-addressCity").selectedOptions[0] || {}).textContent) ||
-      "";
-    var barangay =
-      (qs("profile-addressBarangay") &&
-        (qs("profile-addressBarangay").selectedOptions[0] || {}).textContent) ||
-      "";
-    var postal = (
-      (qs("profile-addressPostal") && qs("profile-addressPostal").value) ||
-      ""
-    ).trim();
+  function selectedName(id) {
+    var select = qs(id);
+    if (!select) return "";
+    if (select.value) return (select.selectedOptions[0].textContent || "").trim();
+    return (select.dataset.selected || "").trim();
+  }
 
-    // basic validation
-    if (phone && !/^\d{10,11}$/.test(phone))
-      return showAlert("error", "Phone must be 10 or 11 digits");
+  form.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    var firstName = firstInput.value.trim().replace(/\s+/g, " ");
+    var lastName = lastInput.value.trim().replace(/\s+/g, " ");
+    var phoneInput = qs("profilePhone");
+    var phone = phoneInput.value.trim();
+    var postalInput = qs("profile-addressPostal");
+    var postalCode = postalInput.value.trim();
+    var namePattern = /^[A-Za-z\u00C0-\u024F\u1E00-\u1EFF.' -]+$/u;
+    if (!namePattern.test(firstName) || firstName.length > 50) {
+      showAlert("error", "Enter a valid first name.");
+      firstInput.focus();
+      return;
+    }
+    if (!namePattern.test(lastName) || lastName.length > 50) {
+      showAlert("error", "Enter a valid last name.");
+      lastInput.focus();
+      return;
+    }
+    if (!/^\d{7,15}$/.test(phone)) {
+      showAlert("error", "Enter a phone number with 7 to 15 digits.");
+      phoneInput.focus();
+      return;
+    }
+    if (postalCode && !/^\d{4}$/.test(postalCode)) {
+      showAlert("error", "Enter a 4-digit ZIP code.");
+      postalInput.focus();
+      return;
+    }
 
-    // save to localStorage (UI-only); do not store names since they are readonly
-    var o = getOverrides();
-    if (email) o.email = email;
-    else delete o.email;
-    if (phone) o.phone = phone;
-    else delete o.phone;
-    if (province) o.province = province;
-    else delete o.province;
-    if (city) o.city = city;
-    else delete o.city;
-    if (barangay) o.barangay = barangay;
-    else delete o.barangay;
-    if (postal) o.postalCode = postal;
-    else delete o.postalCode;
-    setOverrides(o);
-    applyOverridesToView();
-    showAlert("success", "Profile updated locally (UI-only)");
-    editForm && editForm.classList.add("d-none");
-    viewCard && viewCard.classList.remove("d-none");
+    var province = selectedName("profile-addressProvince");
+    var city = selectedName("profile-addressCity");
+    var barangay = selectedName("profile-addressBarangay");
+    var provinceSelect = qs("profile-addressProvince");
+    var citySelect = qs("profile-addressCity");
+    if (provinceSelect.value && !citySelect.value) {
+      showAlert("error", "Choose your city or municipality.");
+      citySelect.focus();
+      return;
+    }
+    if (city && !province || barangay && !city) {
+      showAlert("error", "Check your address selections.");
+      provinceSelect.focus();
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.setAttribute("aria-busy", "true");
+    saveBtn.textContent = "Saving...";
+    try {
+      var response = await fetch("/api/users/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          firstName: firstName,
+          lastName: lastName,
+          phone: phone,
+          address: { province: province, city: city, barangay: barangay, postalCode: postalCode }
+        })
+      });
+      var result = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        if (response.status === 401) {
+          window.location.assign("/login");
+          return;
+        }
+        throw new Error(result.error || "Your changes could not be saved. Please try again.");
+      }
+      try { localStorage.removeItem("profile_ui_overrides"); } catch (storageError) {}
+      showAlert("success", "Profile saved. Updating your page...");
+      window.setTimeout(function () { window.location.reload(); }, 700);
+    } catch (error) {
+      showAlert("error", error.message || "Your changes could not be saved. Please try again.");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.removeAttribute("aria-busy");
+      saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
+    }
   });
-
-  // apply overrides on load
-  try {
-    applyOverridesToView();
-  } catch (e) {}
 })();

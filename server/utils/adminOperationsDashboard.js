@@ -9,6 +9,7 @@ const { bookingReviewState } = require("./bookingReview");
 const { equipmentReturnState } = require("./equipmentReturnPolicy");
 const { orderAttentionState, REVIEWABLE_ORDER_STATUSES } = require("./orderAttention");
 const { RECEIVED_PAYMENT_STATUSES } = require("./paymentSummary");
+const { manilaDateTime, manilaDateParts } = require('./bookingDateTime');
 
 const TERMINAL_BOOKING_STATUSES = [
   "completed", "cancelled", "rejected", "expired", "no-show", "closed",
@@ -18,11 +19,10 @@ const TERMINAL_ORDER_STATUSES = ["completed", "cancelled"];
 
 function localBounds(now = new Date()) {
   const current = new Date(now);
-  const startOfDay = new Date(current);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(current);
-  endOfDay.setHours(23, 59, 59, 999);
-  const startOfMonth = new Date(current.getFullYear(), current.getMonth(), 1);
+  const startOfDay = manilaDateTime(current, 0);
+  const endOfDay = manilaDateTime(current, 24 * 60, -1);
+  const parts = manilaDateParts(current);
+  const startOfMonth = new Date(Date.UTC(parts.year, parts.month, 1) - 8 * 3600000);
   return { current, startOfDay, endOfDay, startOfMonth };
 }
 
@@ -38,7 +38,9 @@ function within(value, start, end) {
 }
 
 function paymentEventAt(payment) {
-  return payment.collectedAt || payment.verifiedAt || payment.completedAt || payment.submittedAt || null;
+  // Uploading a receipt is not evidence that money was received. In particular,
+  // legacy paid/partial snapshots with only submittedAt must not inflate cash.
+  return payment.collectedAt || payment.verifiedAt || payment.completedAt || null;
 }
 
 function summarizeCollections(payments, bounds) {
@@ -47,7 +49,7 @@ function summarizeCollections(payments, bounds) {
   const summarize = (start, end) => {
     const cohort = rows.filter(payment => within(paymentEventAt(payment), start, end));
     const gross = cohort.reduce((sum, payment) => sum + money(payment.amount), 0);
-    const refunds = (payments || []).filter(payment => within(payment.refundedAt, start, end))
+    const refunds = (payments || []).filter(payment => payment.refundStatus === 'completed' && within(payment.refundedAt, start, end))
       .reduce((sum, payment) => sum + money(payment.refundAmount), 0);
     // Net is cash movement, so it may legitimately be negative on a day where
     // refunds exceed new collections. Clamping would conceal treasury outflow.
@@ -249,7 +251,7 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     _id: { $nin: linkedOrderBookingIds },
   };
   const paymentDateQuery = {
-    $or: ["collectedAt", "verifiedAt", "completedAt", "submittedAt", "refundedAt"].map(field => ({ [field]: { $gte: bounds.startOfMonth } })),
+    $or: ["collectedAt", "verifiedAt", "completedAt", "refundedAt"].map(field => ({ [field]: { $gte: bounds.startOfMonth } })),
   };
   const cancellationPipeline = [
     { $match: { $or: [{ reassignmentCount: { $gt: 0 } }, { "cancellationHistory.0": { $exists: true } }] } },
@@ -286,7 +288,7 @@ async function buildAdminOperationsDashboard(now = new Date()) {
     BookingService.countDocuments({ status: { $in: ["no-show-reported", "no-show"] }, "noShowReport.reviewStatus": { $nin: ["confirmed", "rescheduled", "cancelled"] } }),
     BookingService.aggregate(cancellationPipeline),
     Payment.find({ status: { $in: [...RECEIVED_PAYMENT_STATUSES] }, ...paymentDateQuery })
-      .select("amount status collectedAt verifiedAt completedAt submittedAt refundedAt refundAmount").lean(),
+      .select("amount status collectedAt verifiedAt completedAt refundedAt refundAmount refundStatus").lean(),
     Payment.aggregate([
       { $match: { $or: [{ status: { $in: ["waiting_for_remittance", "remitted", "rejected"] } }, { status: "unaccounted", resolvedAt: null }] } },
       { $group: { _id: "$status", count: { $sum: 1 }, amount: { $sum: "$amount" } } },

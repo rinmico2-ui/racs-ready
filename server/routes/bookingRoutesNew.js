@@ -1618,11 +1618,20 @@ router.post('/:id/service-change-requests', async (req, res) => {
       return res.status(409).json({ error: 'This booking already has a service change awaiting a decision.' });
     }
 
+    const changeReason = String(req.body.reason || '').trim();
+    if (changeReason.length > 1000) {
+      return res.status(400).json({ error: 'Reason for change must be 1000 characters or fewer.' });
+    }
+
     const beforeServices = bookingServices(booking);
     const proposedServices = await validatedServiceItems(req.body.services, booking);
     const summary = summarizeChanges(beforeServices, proposedServices);
     const scheduleInput = req.body.requestedSchedule || null;
     const hasRequestedSchedule = Boolean(scheduleInput?.date && scheduleInput?.startTime);
+    const scheduleNotes = String(scheduleInput?.notes || changeReason).trim();
+    if (scheduleNotes.length > 500) {
+      return res.status(400).json({ error: 'Reschedule reason must be 500 characters or fewer.' });
+    }
     if (!summary.added && !summary.edited && !summary.removed && !hasRequestedSchedule) {
       return res.status(400).json({ error: 'No service or schedule changes were detected.' });
     }
@@ -1652,14 +1661,14 @@ router.post('/:id/service-change-requests', async (req, res) => {
         date,
         startTime: String(scheduleInput.startTime),
         endTime: minutesToTimeString(endMinutes),
-        notes: String(scheduleInput.notes || req.body.reason || '').trim(),
+        notes: scheduleNotes,
       };
     }
     const policy = mutationPolicy(booking);
     const requestRecord = {
       requestedBy: req.user._id,
       requestedByName: req.user.fullName || req.user.name || req.user.email,
-      reason: String(req.body.reason || '').trim(),
+      reason: changeReason,
       status: policy.direct ? 'approved' : 'pending',
       changeType: policy.direct ? 'direct_edit' : 'change_request',
       beforeServices,

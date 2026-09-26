@@ -69,6 +69,7 @@ const walkInSaleSchema = new mongoose.Schema(
       default: [],
       validate: (v) => v.length > 0,
     },
+    returnVersion: { type: Number, default: 0 },
 
     // ── Totals ─────────────────────────────────────────────────────────────
     subtotal: { type: Number, required: true, min: 0 },
@@ -79,6 +80,7 @@ const walkInSaleSchema = new mongoose.Schema(
     // ── Profit ─────────────────────────────────────────────────────────────
     totalCost: { type: Number, default: 0, min: 0 },     // sum of costPrice × qty
     totalProfit: { type: Number, default: 0 },             // subtotal - totalCost
+    productRefundAmount: { type: Number, min: 0, default: 0 },
 
     // ── Payment ────────────────────────────────────────────────────────────
     paymentMethod: {

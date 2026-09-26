@@ -91,6 +91,18 @@ test("payment screen shows explicit guidance and map next action is centered", (
   assert.match(styles, /@media \(max-width: 767\.98px\)[\s\S]*?\.location-next-action\.is-visible\s*\{[^}]*transform:\s*none/);
 });
 
+test("completed payment fields reveal one fixed confirm-booking action", () => {
+  assert.equal((view.match(/id="confirmBookingBtn"/g) || []).length, 1);
+  assert.match(view, /id="paymentConfirmAction"[^>]*hidden inert/);
+  assert.match(script, /function paymentConfirmationIsReady\(\)/);
+  assert.match(script, /validReference && !paymentProofValidationMessage\(receipt\)/);
+  assert.match(script, /function syncPaymentConfirmAction\(highlight = false\)/);
+  assert.match(script, /action\.parentElement !== document\.body\)[^\n]*document\.body\.appendChild\(action\)/);
+  assert.match(script, /field\.addEventListener\(field\.type === 'file' \? 'change' : 'input',[\s\S]*?syncPaymentConfirmAction\(\)/);
+  assert.match(styles, /\.payment-confirm-action\.is-visible\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*1040/);
+  assert.match(styles, /\.payment-confirm-action #confirmBookingBtn\s*\{[^}]*background:\s*#16a34a/);
+});
+
 test("payment summary uses the reviewed total and per-unit fallback without multiplying line totals twice", () => {
   assert.match(view, /var total=Number\(bs\.totalFee\)/);
   assert.match(view, /s\.unitPrice\?\?s\.price\?\?\(Number\(s\.totalPrice\|\|0\)\/qty\)/);

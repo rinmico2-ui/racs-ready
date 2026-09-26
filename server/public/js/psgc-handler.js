@@ -140,11 +140,11 @@
         } catch (e) {}
       });
 
-      profileProvince.addEventListener("change", function () {
+      profileProvince.addEventListener("change", function (event) {
         const provinceCode = this.value;
         resetSelect(profileCity, "Select City/Municipality");
         resetSelect(profileBarangay, "Select Barangay");
-        if (profilePostal) profilePostal.value = "";
+        if (profilePostal && event.isTrusted) profilePostal.value = "";
 
         if (provinceCode) {
           populateCities(profileCity, provinceCode).then(() => {
@@ -168,12 +168,12 @@
         }
       });
 
-      profileCity.addEventListener("change", async function () {
+      profileCity.addEventListener("change", async function (event) {
         const cityCode = this.value;
         resetSelect(profileBarangay, "Select Barangay");
 
         if (!cityCode) {
-          if (profilePostal) profilePostal.value = "";
+          if (profilePostal && event.isTrusted) profilePostal.value = "";
           if (profileBarangay) profileBarangay.disabled = true;
           return;
         }
@@ -184,7 +184,7 @@
           return String(c.code || "") === String(cityCode);
         });
         const cityPostal = selectedCity?.zip_code || "";
-        if (profilePostal)
+        if (profilePostal && (event.isTrusted || !profilePostal.value))
           profilePostal.value = String(cityPostal || "")
             .replace(/\D+/g, "")
             .slice(0, 4);
@@ -199,14 +199,14 @@
         }
       });
 
-      profileBarangay.addEventListener("change", function () {
+      profileBarangay.addEventListener("change", function (event) {
         const selected = this.selectedOptions && this.selectedOptions[0];
         const citySelect = document.querySelector("#profile-addressCity");
         const cityPostal =
           citySelect?.selectedOptions[0]?.getAttribute("data-postal") || "";
 
         if (!selected) {
-          if (profilePostal) profilePostal.value = "";
+          if (profilePostal && event.isTrusted) profilePostal.value = "";
           return;
         }
 
@@ -217,7 +217,7 @@
         const finalPostal = String(barangayPostal || cityPostal || "")
           .replace(/\D+/g, "")
           .slice(0, 4);
-        if (profilePostal) profilePostal.value = finalPostal;
+        if (profilePostal && (event.isTrusted || !profilePostal.value)) profilePostal.value = finalPostal;
       });
     }
 

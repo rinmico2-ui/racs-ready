@@ -365,41 +365,42 @@
             <h6 class="prof-edit-title"><i class="bi bi-pencil-square"></i> Edit Account Details</h6>
           </div>
           <div class="prof-edit-body">
-            <div id="profileAlert" class="alert d-none"></div>
-            <form class="row g-3">
+            <div id="profileAlert" class="alert d-none" role="alert" aria-live="polite"></div>
+            <form id="customerProfileForm" class="row g-3" novalidate>
               <div class="col-md-6">
                 <label class="prof-field-label">First Name</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-person prof-input-icon"></i>
-                  <input id="profileFirstName" name="firstName" type="text" readonly class="prof-input" value="<%= user.firstName||'' %>" />
+                  <input id="profileFirstName" name="firstName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.firstName||'' %>" />
                 </div>
               </div>
               <div class="col-md-6">
                 <label class="prof-field-label">Last Name</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-person prof-input-icon"></i>
-                  <input id="profileLastName" name="lastName" type="text" readonly class="prof-input" value="<%= user.lastName||'' %>" />
+                  <input id="profileLastName" name="lastName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.lastName||'' %>" />
                 </div>
               </div>
               <div class="col-md-6">
                 <label class="prof-field-label">Email</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-envelope prof-input-icon"></i>
-                  <input id="profileEmail" name="email" type="email" class="prof-input prof-input-editable" value="<%= user.email||'' %>" />
+                  <input id="profileEmail" name="email" type="email" readonly class="prof-input" value="<%= user.email||'' %>" aria-describedby="profileEmailHelp" />
                 </div>
+                <small id="profileEmailHelp" class="text-muted">Your sign-in email cannot be changed here.</small>
               </div>
               <div class="col-md-6">
                 <label class="prof-field-label">Phone</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-telephone prof-input-icon"></i>
-                  <input id="profilePhone" name="phone" type="tel" class="prof-input prof-input-editable" value="<%= user.phone||'' %>" />
+                  <input id="profilePhone" name="phone" type="tel" inputmode="numeric" maxlength="15" required class="prof-input prof-input-editable" value="<%= user.phone||'' %>" />
                 </div>
               </div>
               <div class="col-md-6">
                 <label class="prof-field-label">Province</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-map prof-input-icon"></i>
-                  <select id="profile-addressProvince" name="address[province]" class="prof-input prof-input-editable prof-input-select">
+                  <select id="profile-addressProvince" name="address[province]" data-selected="<%= (user.address && user.address.province) || '' %>" class="prof-input prof-input-editable prof-input-select">
                     <option value=""><%= (user.address && user.address.province) || 'Select Province' %></option>
                   </select>
                 </div>
@@ -408,7 +409,7 @@
                 <label class="prof-field-label">City / Municipality</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-building prof-input-icon"></i>
-                  <select id="profile-addressCity" name="address[city]" class="prof-input prof-input-editable prof-input-select">
+                  <select id="profile-addressCity" name="address[city]" data-selected="<%= (user.address && user.address.city) || '' %>" class="prof-input prof-input-editable prof-input-select">
                     <option value=""><%= (user.address && user.address.city) || 'Select City' %></option>
                   </select>
                 </div>
@@ -417,7 +418,7 @@
                 <label class="prof-field-label">Barangay</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-geo-alt prof-input-icon"></i>
-                  <select id="profile-addressBarangay" name="address[barangay]" class="prof-input prof-input-editable prof-input-select">
+                  <select id="profile-addressBarangay" name="address[barangay]" data-selected="<%= (user.address && user.address.barangay) || '' %>" class="prof-input prof-input-editable prof-input-select">
                     <option value=""><%= (user.address && user.address.barangay) || 'Select Barangay' %></option>
                   </select>
                 </div>
@@ -426,15 +427,15 @@
                 <label class="prof-field-label">Postal / Zip Code</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-mailbox prof-input-icon"></i>
-                  <input id="profile-addressPostal" name="address[postalCode]" type="text" class="prof-input prof-input-editable" value="<%= (user.address && user.address.postalCode) || '' %>" />
+                  <input id="profile-addressPostal" name="address[postalCode]" type="text" inputmode="numeric" maxlength="4" class="prof-input prof-input-editable" value="<%= (user.address && user.address.postalCode) || '' %>" />
                 </div>
               </div>
             </form>
             <div class="prof-edit-actions">
-              <button id="cancelProfileBtn" class="prof-btn prof-btn-ghost">
+              <button id="cancelProfileBtn" type="button" class="prof-btn prof-btn-ghost">
                 <i class="bi bi-x-lg"></i> Cancel
               </button>
-              <button id="saveProfileBtn" class="prof-btn prof-btn-primary">
+              <button id="saveProfileBtn" type="submit" form="customerProfileForm" class="prof-btn prof-btn-primary">
                 <i class="bi bi-check-lg"></i> Save Changes
               </button>
             </div>
@@ -676,8 +677,8 @@
 <% } %>
 </div>
 
-<script src="/js/psgc-handler.js"></script>
-<script src="/js/profile.js"></script>
+<script src="/js/psgc-handler.js?v=20260925-profile-address-v1"></script>
+<script src="/js/profile.js?v=20260925-customer-save-v1"></script>
 <script>
   // Tab switching (client-side)
   window.profSwitchTab = function(tab) {
@@ -693,4 +694,12 @@
       }
     }
   };
+
+  // The customer sidebar's "Account Settings" entry links here with ?edit=1.
+  if (new URLSearchParams(window.location.search).get('edit') === '1') {
+    window.addEventListener('load', function () {
+      var editBtn = document.getElementById('editProfileBtn');
+      if (editBtn && typeof editBtn.click === 'function') editBtn.click();
+    });
+  }
 </script>

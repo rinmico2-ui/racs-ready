@@ -35,6 +35,8 @@ const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderAssignmentPlan } = require("../utils/orderAssignmentPlanner");
 const { orderFulfillmentScopeFilter } = require("../utils/orderFulfillmentScope");
 const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
+const { listSortStages } = require('../utils/operationsListPolicy');
+const { ORDER_PHOTO_FIELDS, exclude } = require('../utils/operationsDetail');
 const {
   REVIEWABLE_ORDER_STATUSES,
   orderAttentionState,
@@ -318,7 +320,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     const {
       status, fulfillmentType, fulfillmentGroup, preparation, technicianId,
       scheduledFrom, scheduledTo, search, from, to, attention,
-      page = 1, limit = 50,
+      page = 1, limit = 50, sort = 'date_desc',
     } = req.query;
     const scopeFilter = orderFulfillmentScopeFilter(fulfillmentGroup, fulfillmentType);
     const filter = { ...scopeFilter };
@@ -331,7 +333,7 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
       }
       filter.status = requestedStatuses.length === 1 ? requestedStatuses[0] : { $in: requestedStatuses };
     }
-    if (technicianId && require("mongoose").isValidObjectId(technicianId)) filter.technicianId = technicianId;
+    if (technicianId && mongoose.isValidObjectId(technicianId)) filter.technicianId = new mongoose.Types.ObjectId(technicianId);
     if (preparation === "dispatch_pending") filter["preparation.dispatch.status"] = { $ne: "ready" };
     if (preparation === "dispatch_ready") filter["preparation.dispatch.status"] = "ready";
     if (preparation === "kit_pending") filter["preparation.installation.status"] = "pending";
@@ -397,23 +399,25 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     let total;
 
     if (attention === "past_date") {
-      const attentionRows = await Order.find({
-        ...filter,
-        status: { $in: [...REVIEWABLE_ORDER_STATUSES] },
-      }).sort({ createdAt: -1 }).populate("technicianId", "name phone").lean();
+      const attentionRows = await Order.aggregate([
+        { $match: { ...filter, status: { $in: [...REVIEWABLE_ORDER_STATUSES] } } },
+        ...listSortStages('order', sort),
+        { $project: { _listDate: 0, _listUndated: 0, _listAmount: 0 } },
+      ]);
+      await Order.populate(attentionRows, { path: 'technicianId', select: 'name phone' });
       const overdueRows = attentionRows.map((order) => withOrderPresentation(order)).filter((order) => order.isPastDate);
       total = overdueRows.length;
       orders = overdueRows.slice(skip, skip + pageLimit);
     } else {
       const result = await Promise.all([
-        Order.find(filter)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(pageLimit)
-          .populate("technicianId", "name phone")
-          .lean(),
+        Order.aggregate([
+          { $match: filter }, ...listSortStages('order', sort),
+          { $skip: skip }, { $limit: pageLimit },
+          { $project: { _listDate: 0, _listUndated: 0, _listAmount: 0 } },
+        ]),
         Order.countDocuments(filter),
       ]);
+      await Order.populate(result[0], { path: 'technicianId', select: 'name phone' });
       orders = result[0].map((order) => withOrderPresentation(order));
       total = result[1];
     }
@@ -1270,11 +1274,27 @@ router.get("/check-availability", async (req, res) => {
 /**
  * GET /api/orders/:id â€” Get single order
  */
+router.get('/:id/photos', authenticate, requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order reference.' });
+    const order = await Order.findById(req.params.id).select(ORDER_PHOTO_FIELDS.join(' ')).maxTimeMS(8000).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    const labels = ['Payment receipt', 'Arrival', 'Start work', 'Completion'];
+    const photos = ORDER_PHOTO_FIELDS.flatMap((field, index) => order[field] ? [{ src: order[field], label: labels[index] }] : []);
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ photos });
+  } catch (error) {
+    res.status(500).json({ error: 'Could not load photos. Please try again.' });
+  }
+});
+
 router.get("/:id", authenticate, async (req, res) => {
   try {
+    const modalView = ['admin', 'secretary'].includes(req.user.role) && req.query?.view === 'modal';
     const order = await Order.findById(req.params.id)
+      .select(modalView ? exclude(ORDER_PHOTO_FIELDS) : '')
       .populate("technicianId", "name phone")
-      .lean();
+      .maxTimeMS(8000).lean();
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // Only the owner, operational staff, or the assigned technician may view.
@@ -1313,6 +1333,8 @@ router.get("/:id", authenticate, async (req, res) => {
     if (req.user.role === "technician") {
       return res.json({ order: presentTechnicianOrder(withOrderPresentation(order)) });
     }
+    res.set('Cache-Control', 'private, no-store');
+    if (modalView) return res.json({ order: withOrderPresentation(order), photosDeferred: true });
     res.json({ order: withOrderPresentation(order) });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1480,6 +1502,10 @@ router.patch("/:id/status", authenticate, async (req, res) => {
     }
     if (status === "completed" && order.fulfillmentType === "delivery_installation" && normalizedSerialNumbers.length !== maintainableUnitCount) {
       return res.status(400).json({ error: `Record exactly ${maintainableUnitCount} installed unit serial number(s) before completion.`, code: "ORDER_SERIAL_NUMBERS_REQUIRED" });
+    }
+    if (status === "completed") {
+      try { await require("../utils/productReturnPolicy").assertNoReturnSerialConflict(normalizedSerialNumbers); }
+      catch (serialError) { return res.status(serialError.status || 409).json({ error: serialError.message }); }
     }
 
     const isStaff = ["admin", "secretary"].includes(req.user.role);
@@ -1814,6 +1840,7 @@ router.post("/:id/confirm-pickup", authenticate, requireRole(["admin", "secretar
     if (serialNumbers.length !== maintainableUnitCount) {
       throw new OrderCheckoutError(`Record exactly ${maintainableUnitCount} unit serial number(s) before confirming pickup.`, 400, "ORDER_SERIAL_NUMBERS_REQUIRED");
     }
+    await require("../utils/productReturnPolicy").assertNoReturnSerialConflict(serialNumbers, session);
     let paymentCollected = false;
     if (order.paymentMethod === "cash_onsite") {
       const now = new Date();

@@ -702,45 +702,6 @@
     }
   };
 
-  dashboardCardConfig.notifications = {
-    title: 'Notifications',
-    subtitle: 'Recent alerts and reminders',
-    iconClass: 'bi-bell-fill',
-    color: '#f59e0b',
-    getData: function() {
-      return { fullWidth: true };
-    },
-    getContent: function() {
-      var notes = (_dashData.notifications || []).slice();
-      var lowItems = _dashData.lowStockItems || [];
-      lowItems.slice(0, 5).forEach(function(it) {
-        notes.push({ type: 'danger', icon: 'bi-exclamation-triangle-fill', message: 'Low stock: ' + (it.name || it.title || 'Item') + ' (' + (it.quantity != null ? it.quantity : it.stock != null ? it.stock : 0) + ' left)' });
-      });
-      if (!notes.length) return renderSection('Alerts', 'amber', '<div class="dash-empty">No notifications</div>');
-      var total = notes.length;
-      var danger = notes.filter(function(n){ return n.type === 'danger'; }).length;
-      var warning = notes.filter(function(n){ return n.type === 'warning'; }).length;
-      return renderSection('Alert Summary', 'amber',
-        renderProgress('Critical', danger, total || 1, '#ef4444') +
-        renderProgress('Warning', warning, total || 1, '#f59e0b') +
-        renderProgress('Information', total - danger - warning, total || 1, '#3b82f6')
-      ) +
-      renderSection('All Alerts', 'amber',
-        '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">' + notes.map(function(n) {
-          var bg = n.type === 'danger' ? 'rgba(239,68,68,0.08)' : n.type === 'warning' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)';
-          var fg = n.type === 'danger' ? '#dc2626' : n.type === 'warning' ? '#d97706' : '#2563eb';
-          var border = n.type === 'danger' ? '#ef4444' : n.type === 'warning' ? '#f59e0b' : '#3b82f6';
-          return '<div class="notif-item" style="border-radius:10px;padding:10px 12px;background:' + bg + ';border-left:3px solid ' + border + ';">' +
-            '<div class="notif-icon" style="background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.05);color:' + fg + ';"><i class="bi ' + (n.icon || 'bi-info-circle') + '"></i></div>' +
-            '<div style="flex:1;">' +
-            '<div style="font-size:0.82rem;font-weight:600;color:#475569;">' + (n.message || '') + '</div>' +
-            (n.time ? '<div style="font-size:0.65rem;color:#94a3b8;margin-top:2px;">' + n.time + '</div>' : '') +
-            '</div></div>';
-        }).join('') + '</div>'
-      );
-    }
-  };
-
   dashboardCardConfig.customerInsights = {
     title: 'Customer Insights',
     subtitle: 'Customer growth and loyalty metrics',
@@ -1840,27 +1801,6 @@
         '<div class="dash-list-row"><span class="dash-list-label">Pending Approval</span><span class="dash-list-value" style="color:#f59e0b;">' + pendCount + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Pending Total</span><span class="dash-list-value" style="color:#ef4444;">' + fmtMoney(pendTotal, cur) + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Profit Margin</span><span class="dash-list-value" style="color:' + (margin >= 20 ? '#059669' : '#d97706') + ';">' + (d.profitMargin != null ? d.profitMargin + '%' : '--') + '</span></div>';
-    })();
-
-    // ── Notifications ──
-    (function() {
-      var body = $('notificationsBody');
-      var meta = $('notifCount');
-      if (!body) return;
-      var notes = (d.notifications || []).slice();
-      var lowItems = d.lowStockItems || [];
-      lowItems.slice(0, 3).forEach(function(it) {
-        notes.push({ type: 'danger', icon: 'bi-exclamation-triangle-fill', message: 'Low stock: ' + (it.name || it.title || 'Item') + ' (' + (it.quantity != null ? it.quantity : it.stock != null ? it.stock : 0) + ' left)' });
-      });
-      if (meta) meta.innerHTML = '<span class="dash-chip ' + (notes.length ? (notes[0].type === 'danger' ? 'danger' : 'warning') : 'success') + '"><i class="bi ' + (notes.length ? 'bi-bell-fill' : 'bi-check-circle') + '"></i> ' + notes.length + ' alert' + (notes.length !== 1 ? 's' : '') + '</span>';
-      if (!notes.length) { body.innerHTML = '<div class="dash-empty">No notifications</div>'; return; }
-      body.innerHTML = notes.map(function(n) {
-        var bg = n.type === 'danger' ? 'rgba(239,68,68,0.10)' : n.type === 'warning' ? 'rgba(245,158,11,0.10)' : 'rgba(59,130,246,0.10)';
-        var fg = n.type === 'danger' ? '#dc2626' : n.type === 'warning' ? '#d97706' : '#2563eb';
-        return '<div class="notif-item" style="border-radius:10px;padding:10px;background:' + bg + ';margin-bottom:6px;">' +
-          '<div class="notif-icon" style="background:#fff;color:' + fg + ';"><i class="bi ' + (n.icon || 'bi-info-circle') + '"></i></div>' +
-          '<div style="font-size:0.82rem;font-weight:600;color:#475569;">' + (n.message || '') + '</div></div>';
-      }).join('');
     })();
 
     // ── Aircon Inventory ──

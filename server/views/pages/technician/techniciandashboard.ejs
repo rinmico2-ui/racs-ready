@@ -272,15 +272,15 @@
         </div>
 
         <!-- 6. Notifications Panel -->
-        <div class="td-panel">
+        <div class="td-panel" id="dashboardNotifications">
           <div class="td-panel-header">
             <h6 class="td-panel-title"><i class="bi bi-bell me-2 text-primary"></i>Notifications</h6>
+            <button type="button" id="dashboardNotificationRefresh" class="btn btn-sm btn-outline-primary" aria-label="Refresh notifications"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
           </div>
-          <div class="td-panel-body">
-            <div class="td-empty-state py-4">
-              <i class="bi bi-bell-slash" style="font-size:2rem; color:#cbd5e1; margin-bottom:10px;"></i>
-              <p style="margin:0; font-size:0.9rem; color:#94a3b8;">You have no new notifications.</p>
-            </div>
+          <div class="td-panel-body" aria-busy="true" id="dashboardNotificationBody">
+            <p class="small text-muted mb-2" id="dashboardNotificationStatus" role="status">Loading notifications...</p>
+            <div id="dashboardNotificationList"></div>
+            <button type="button" id="dashboardNotificationMore" class="btn btn-sm btn-outline-primary mt-3" hidden aria-expanded="false" aria-controls="dashboardNotificationList">Show more</button>
           </div>
         </div>
 
@@ -489,6 +489,12 @@
   .td-panel-link { font-size: 0.78rem; color: #3b82f6; text-decoration: none; font-weight: 600; }
   .td-panel-link:hover { text-decoration: underline; }
   .td-panel-body { padding: 16px 20px; }
+  .td-notification-item { display: flex; gap: 10px; padding: 12px 10px; border-bottom: 1px solid var(--td-border); color: var(--td-ink); text-decoration: none; border-radius: 6px; overflow-wrap: anywhere; }
+  .td-notification-item:hover { background: #f1f5f9; color: var(--td-ink); }
+  .td-notification-item:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+  .td-notification-item.is-unread { background: #eff6ff; }
+  .td-notification-item + .td-notification-item { margin-top: 4px; }
+  .td-notification-item:last-child { border-bottom: 0; }
 
   /* Empty State */
   .td-empty-state { text-align: center; padding: 24px 0; color: #94a3b8; }
@@ -1690,14 +1696,19 @@
 
   // Initial load — seed the tracked date from the picker so refreshes and
   // batch checkout stay on the visible day.
-  loadDashboard();
-  loadTodayExpenses();
   const dpDash = document.getElementById('prepDateDash');
   if (dpDash && !dpDash.value) { dpDash.value = new Date().toISOString().slice(0, 10); }
   window._prepDate = dpDash ? dpDash.value : '';
-  loadPreparation(window._prepDate);
-
-  // Refresh every 30s — keep the user's selected date
-  setInterval(() => { loadDashboard(); loadTodayExpenses(); loadPreparation(window._prepDate); }, 30000);
+  let dashboardRefreshRunning=false;
+  async function refreshTechnicianDashboard(){
+    if(document.hidden||dashboardRefreshRunning)return;
+    dashboardRefreshRunning=true;
+    try{await Promise.allSettled([loadDashboard(),loadTodayExpenses(),loadPreparation(window._prepDate)]);}
+    finally{dashboardRefreshRunning=false;}
+  }
+  refreshTechnicianDashboard();
+  // Keep the selected date; background tabs must not compete with active work.
+  setInterval(refreshTechnicianDashboard,30000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshTechnicianDashboard();});
 })();
 </script>

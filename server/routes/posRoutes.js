@@ -478,6 +478,9 @@ async function checkoutAirconOrder(req, res) {
     if (fulfillmentChoice === "carry_out" && serialNumbers.length !== totalUnits) {
       throw posOrderError(`Record exactly ${totalUnits} unit serial number(s) before immediate handover.`, 400, "POS_SERIALS_REQUIRED");
     }
+    if (fulfillmentChoice === "carry_out") {
+      await require("../utils/productReturnPolicy").assertNoReturnSerialConflict(serialNumbers);
+    }
 
     let fulfillmentType = "customer_pickup";
     let pickupDate = null;
@@ -1198,6 +1201,13 @@ router.post("/sales/:id/void", async (req, res) => {
     const sale = await WalkInSale.findById(req.params.id).session(session);
     if (!sale) throw new Error("Sale not found");
     if (sale.status === "voided") throw new Error("Sale is already voided");
+    const ProductReturn = require("../models/ProductReturn");
+    const { OPEN_STATUSES } = require("../utils/productReturnPolicy");
+    const protectedReturn = await ProductReturn.exists({
+      sourceType: "walk_in", sourceId: sale._id,
+      status: { $in: [...OPEN_STATUSES, "completed"] },
+    }).session(session);
+    if (protectedReturn) throw new Error("This sale has an item return. Use Product Returns; do not void the whole receipt or restore defective stock.");
 
     // Restore stock to the same inventory collection used at checkout.
     for (const item of sale.items) {

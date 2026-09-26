@@ -83,6 +83,7 @@ const stockReservationSchema = new mongoose.Schema(
 // ─── Indexes ─────────────────────────────────────────────────────────────────
 
 stockReservationSchema.index({ bookingId: 1, status: 1 });
+stockReservationSchema.index({ bookingId: 1, reservedAt: -1 });
 stockReservationSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
 stockReservationSchema.index({ toolId: 1, status: 1 });
 

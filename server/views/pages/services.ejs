@@ -94,33 +94,85 @@
 
       <script>
         function updateEntStepper(step){
-          var n=document.querySelectorAll('.ent-n'),f=document.getElementById('stepperFill'),l=document.getElementById('stepperCurrentStep');
+          var n=document.querySelectorAll('.ent-n'),f=document.getElementById('stepperFill'),l=document.getElementById('stepperCurrentStep'),b=document.getElementById('bookingStepperBack'),bl=document.getElementById('bookingStepperBackLabel');
           if(!n.length)return;
           var logicalStep=step<=2?((window.BookingState&&window.BookingState.selectedServices&&window.BookingState.selectedServices.length)?2:1):step;
+          var storedMax=window.BookingState?Number(window.BookingState.maxReachedStep)||logicalStep:logicalStep;
+          var maxLogicalStep=storedMax<=2?logicalStep:Math.max(logicalStep,Math.min(storedMax,n.length));
           var i=logicalStep-1,t=n.length;
           n.forEach(function(e,j){
             e.classList.remove('active','completed','inactive');
             e.removeAttribute('aria-current');
-            if(j<i){e.classList.add('completed');}
+            e.removeAttribute('aria-disabled');
+            var label=e.getAttribute('data-step-label')||e.textContent.trim();
+            if(j!==i&&j<maxLogicalStep){
+              e.classList.add('completed');
+              e.setAttribute('aria-label',(j<i?'Go back to ':'Return to ')+label);
+              e.setAttribute('title',(j<i?'Go back to ':'Return to ')+label);
+              e.tabIndex=0;
+            }
             else if(j===i){e.classList.add('active'); e.setAttribute('aria-current','step');
+              e.setAttribute('aria-label',label+' — current step');
+              e.setAttribute('title','Current step: '+label);
+              e.tabIndex=0;
               var tr=e.closest('.ent-tr');
               if(tr && tr.scrollWidth>tr.clientWidth){
                 var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                 e.scrollIntoView({inline:'center',behavior:reduce?'auto':'smooth'});
               }
             }
-            else{e.classList.add('inactive');}
+            else{
+              e.classList.add('inactive');
+              e.setAttribute('aria-disabled','true');
+              e.setAttribute('aria-label',label+' — complete the earlier steps first');
+              e.setAttribute('title','Complete the earlier steps first');
+              e.tabIndex=-1;
+            }
           });
           f.style.height=(i/(t-1)*100)+'%';
           if(l)l.textContent=logicalStep;
+          var previousSteps={2:{step:2,label:'Service Selection',view:'service-catalog'},3:{step:2,label:'Services & Details'},4:{step:3,label:'Service Location'},5:{step:4,label:'Schedule'},6:{step:5,label:'Review Booking'}};
+          var previous=previousSteps[logicalStep];
+          if(b){
+            b.hidden=false;
+            b.disabled=!previous;
+            b.classList.toggle('is-visible',true);
+            b.setAttribute('aria-hidden','false');
+            if(previous){
+              b.dataset.targetStep=String(previous.step);
+              b.dataset.currentStep=String(step);
+              if(previous.view)b.dataset.backView=previous.view;else delete b.dataset.backView;
+              b.setAttribute('aria-label','Back to '+previous.label);
+              b.setAttribute('title','Back to '+previous.label);
+              if(bl)bl.textContent='Back';
+            }else{
+              delete b.dataset.targetStep;
+              delete b.dataset.currentStep;
+              delete b.dataset.backView;
+              b.setAttribute('aria-label','Back is unavailable on the first step');
+              b.setAttribute('title','You are on the first step');
+            }
+          }
         }
-        function navigateToStep(step){
+        function navigateToStep(step,trigger){
+          if(trigger&&trigger.classList.contains('inactive'))return false;
           if(typeof window.requestBookingStepNavigation==='function'){
             window.requestBookingStepNavigation(step);
-            return;
+            return true;
           }
           if(typeof showAlert==='function'){
             showAlert('Booking navigation is still loading. Please try again in a moment.','info');
+          }
+        }
+        function goBackOneBookingStep(){
+          var button=document.getElementById('bookingStepperBack');
+          var target=Number(button&&button.dataset.targetStep);
+          if(target&&typeof window.requestBookingStepNavigation==='function'){
+            var moved=window.requestBookingStepNavigation(target);
+            if(moved!==false&&button.dataset.backView==='service-catalog'){
+              var catalog=document.getElementById('serviceCatalogPanel');
+              if(catalog)setTimeout(function(){catalog.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});},0);
+            }
           }
         }
         document.addEventListener('DOMContentLoaded',function(){updateEntStepper(1);});
@@ -154,18 +206,24 @@
       <div class="ent-stepper" id="entStepper" data-authenticated="<%= user ? 'true' : 'false' %>" data-customer-id="<%= user ? String(user._id || user.id || '') : '' %>">
         <div class="ent-h">
           <span>Booking progress</span>
-          <span>Step <span id="stepperCurrentStep">1</span> of 6</span>
+          <div class="ent-h-controls">
+            <button type="button" class="booking-stepper-back" id="bookingStepperBack" onclick="goBackOneBookingStep()" aria-label="Back is unavailable on the first step" title="You are on the first step" disabled>
+              <span class="booking-stepper-back-icon"><i class="bi bi-arrow-left"></i></span>
+              <strong id="bookingStepperBackLabel">Back</strong>
+            </button>
+            <span class="ent-h-step">Step <span id="stepperCurrentStep">1</span> of 6</span>
+          </div>
         </div>
         <div class="ent-tr">
           <div class="ent-fill" id="stepperFill" style="height:0%;"></div>
-          <button type="button" class="ent-n active" data-logical-step="1" data-step="2" aria-current="step" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></span><span>Service</span></button>
-          <button type="button" class="ent-n" data-logical-step="2" data-step="2" onclick="navigateToStep(2)"><span class="ent-ni"><i class="bi bi-ui-checks-grid"></i></span><span>Details</span></button>
-          <button type="button" class="ent-n" data-logical-step="3" data-step="3" onclick="navigateToStep(3)"><span class="ent-ni"><i class="bi bi-geo-alt"></i></span><span>Location</span></button>
-          <button type="button" class="ent-n" data-logical-step="4" data-step="4" onclick="navigateToStep(4)"><span class="ent-ni"><i class="bi bi-calendar3"></i></span><span>Schedule</span></button>
-          <button type="button" class="ent-n" data-logical-step="5" data-step="5" onclick="navigateToStep(5)"><span class="ent-ni"><i class="bi bi-clipboard-check"></i></span><span>Review</span></button>
-          <button type="button" class="ent-n" data-logical-step="6" data-step="6" onclick="navigateToStep(6)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
+          <button type="button" class="ent-n active" data-logical-step="1" data-step="2" data-step-label="Service" aria-current="step" onclick="navigateToStep(2,this)"><span class="ent-ni"><i class="bi bi-grid-3x3-gap"></i></span><span>Service</span></button>
+          <button type="button" class="ent-n" data-logical-step="2" data-step="2" data-step-label="Details" onclick="navigateToStep(2,this)"><span class="ent-ni"><i class="bi bi-ui-checks-grid"></i></span><span>Details</span></button>
+          <button type="button" class="ent-n" data-logical-step="3" data-step="3" data-step-label="Location" onclick="navigateToStep(3,this)"><span class="ent-ni"><i class="bi bi-geo-alt"></i></span><span>Location</span></button>
+          <button type="button" class="ent-n" data-logical-step="4" data-step="4" data-step-label="Schedule" onclick="navigateToStep(4,this)"><span class="ent-ni"><i class="bi bi-calendar3"></i></span><span>Schedule</span></button>
+          <button type="button" class="ent-n" data-logical-step="5" data-step="5" data-step-label="Review" onclick="navigateToStep(5,this)"><span class="ent-ni"><i class="bi bi-clipboard-check"></i></span><span>Review</span></button>
+          <button type="button" class="ent-n" data-logical-step="6" data-step="6" data-step-label="Payment" onclick="navigateToStep(6,this)"><span class="ent-ni"><i class="bi bi-credit-card-2-front"></i></span><span>Payment</span></button>
         </div>
-        <p class="ent-stepper-help"><i class="bi bi-info-circle"></i>Follow the steps below. You can return to a step you finished.</p>
+        <p class="ent-stepper-help"><i class="bi bi-arrow-counterclockwise"></i><span><strong>Need to go back?</strong> Select any green completed step.</span></p>
       </div>
 
       <div class="booking-layout">
@@ -705,6 +763,11 @@
             </div>
             <div class="ent-step-body">
               <p class="booking-step-lead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
+              <%- include('../partials/customer-hours-note', {
+                hoursLabel: 'Service team hours',
+                hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
+                hoursNote: 'Available service dates and start times are shown below. Hours can vary by technician.'
+              }) %>
               <div class="booking-confidence-note mb-3"><i class="bi bi-info-circle"></i><span>Your date and time are a request. We will let you know when your booking is confirmed.</span></div>
               <div class="schedule-next-action" id="scheduleNextAction" aria-label="Selected schedule and next step">
                 <div class="schedule-next-copy" aria-live="polite">
@@ -927,7 +990,7 @@
                       <div class="mb-3">
                         <label class="form-label text-muted small fw-semibold">Payment Receipt Screenshot <span class="text-danger">*</span></label>
                         <div class="position-relative">
-                          <input id="gcashProof" type="file" class="form-control" accept="image/*" style="border-radius:12px;border:2px dashed #16a34a;background:rgba(22,163,74,0.02);padding:2rem 1rem;cursor:pointer;font-size:0.9rem;" />
+                        <input id="gcashProof" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" style="border-radius:12px;border:2px dashed #16a34a;background:rgba(22,163,74,0.02);padding:2rem 1rem;cursor:pointer;font-size:0.9rem;" />
                           <div class="position-absolute top-50 start-50 translate-middle text-center pointer-events-none">
                             <i class="bi bi-cloud-upload" style="font-size:1.5rem;color:#16a34a;display:block;margin-bottom:0.5rem;"></i>
                             <small class="text-muted d-block">Click to upload or drag & drop</small>
@@ -988,7 +1051,7 @@
                     </div>
                     <div>
                       <label class="form-label text-muted small fw-semibold">Down Payment Receipt <span class="text-danger">*</span></label>
-                      <input id="cashProof" type="file" class="form-control" accept="image/*" required
+                      <input id="cashProof" type="file" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required
                         style="border-radius:12px;border:1.5px dashed rgba(217,119,6,0.3);background:rgba(217,119,6,0.02);padding:1rem;" />
                       <div class="form-text" style="color:#d97706;font-size:0.82rem;font-weight:600;"><i class="bi bi-exclamation-circle me-1"></i>Upload the receipt so we can check it before confirming your booking.</div>
                       <div id="cashProofError" class="payment-inline-error d-none"></div>
@@ -1017,14 +1080,15 @@
                 </div>
               </div>
 
-              <div class="mt-4 text-center booking-primary-action">
+              <div class="booking-primary-action payment-confirm-action" id="paymentConfirmAction" aria-label="Confirm completed booking" aria-hidden="true" hidden inert>
+                <div class="payment-confirm-copy">
+                  <span>Payment details complete</span>
+                  <strong>Ready to send your booking request</strong>
+                  <small>Your receipt will be checked before confirmation.</small>
+                </div>
                 <button type="button" class="ent-btn-primary" id="confirmBookingBtn" style="padding-left:2rem;padding-right:2rem;">
                   <i class="bi bi-check-circle me-2"></i>Confirm Booking
                 </button>
-                <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
-                  <i class="bi bi-shield-check text-success" style="font-size:0.85rem;"></i>
-                  <p class="text-center text-muted small mb-0">Your payment details are secure. We will send an update after we check your request.</p>
-                </div>
               </div>
             </div>
           </div>
@@ -1040,7 +1104,7 @@
             <div class="ent-inv-header">
               <div class="ent-inv-header-top">
                 <div class="ent-inv-brand">
-                  <div class="ent-inv-logo"><i class="bi bi-tools"></i></div>
+                  <div class="ent-inv-logo"><i class="bi bi-check-circle-fill"></i></div>
                   <div>
                     <div class="ent-inv-company">CALIDRO RACS</div>
                     <div class="ent-inv-tagline">Booking request submitted</div>
@@ -1050,7 +1114,7 @@
               </div>
               <div class="ent-inv-status-badge">
                 <span class="ent-inv-status-dot"></span>
-                WAITING FOR REVIEW
+                REQUEST RECEIVED
               </div>
             </div>
 
@@ -1537,20 +1601,32 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .sv-btn-b:hover{background:var(--sv-bs)}
 
 .ent-stepper{background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:0 4px 24px rgba(15,23,42,0.04);position:sticky;top:84px;z-index:40}
-.ent-stepper-help{display:flex;align-items:center;justify-content:center;gap:.35rem;margin:.55rem 0 0;color:#64748b;font-size:.67rem;font-weight:600;text-align:center}
-.ent-stepper-help i{color:#2563eb}
-.ent-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem}
-.ent-h span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
-.ent-h span:last-child{font-size:0.72rem;color:#64748b;font-weight:600}
-.ent-h span:last-child span{color:var(--sv-b)}
+.ent-stepper-help{display:flex;align-items:center;justify-content:center;gap:.4rem;margin:.6rem 0 0;padding:.45rem .65rem;border:1px solid #bbf7d0;border-radius:9px;background:#f0fdf4;color:#166534;font-size:.67rem;font-weight:600;text-align:center}
+.ent-stepper-help i{color:#16a34a}
+.ent-h{display:flex;justify-content:space-between;align-items:center;gap:.75rem;margin-bottom:0.85rem}
+.ent-h > span:first-child{font-size:0.8rem;font-weight:700;color:#0f172a;letter-spacing:0.3px;text-transform:uppercase}
+.ent-h-controls{display:flex;align-items:center;gap:.6rem;flex:none}
+.ent-h-step{font-size:0.72rem;color:#64748b;font-weight:600;white-space:nowrap}
+.ent-h-step span{color:var(--sv-b)}
 .ent-tr{display:flex;justify-content:space-between;background:#f1f5f9;border-radius:9999px;padding:3px;gap:2px}
 .ent-fill{display:none}
-.ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:pointer;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap;border:none;background:transparent;font-family:inherit}
+.ent-n{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:9999px;cursor:default;transition:all 0.3s var(--sv-e);font-size:0.72rem;font-weight:600;color:#94a3b8;white-space:nowrap;border:1px solid transparent;background:transparent;font-family:inherit}
 .ent-n.active{background:var(--sv-b);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,0.2)}
-.ent-n.completed{background:#f0fdf4;color:#16a34a}
-.ent-n:hover{background:#e2e8f0;color:#475569}
+.ent-n.completed{background:#f0fdf4;border-color:#bbf7d0;color:#15803d;cursor:pointer}
+.ent-n.completed:hover{background:#dcfce7;border-color:#86efac;color:#166534;transform:translateY(-1px);box-shadow:0 3px 9px rgba(22,163,74,.14)}
+.ent-n.completed:focus-visible{outline:3px solid rgba(22,163,74,.3);outline-offset:2px}
+.ent-n.inactive{cursor:not-allowed;opacity:.58}
+.ent-n.inactive:hover{background:transparent;color:#94a3b8}
 .ent-n.active:hover{background:var(--sv-b)}
 .ent-ni{font-size:0.85rem;display:flex;align-items:center;justify-content:center}
+.booking-stepper-back{display:inline-flex;align-items:center;gap:.35rem;min-height:32px;margin:0;padding:.25rem .5rem;border:1px solid #cbd5e1;border-radius:9px;background:#f8fafc;color:#475569;font-family:inherit;cursor:pointer;box-shadow:none;transition:border-color .2s ease,background .2s ease,color .2s ease}
+.booking-stepper-back[hidden]{display:none!important}
+.booking-stepper-back:hover{border-color:#94a3b8;background:#f1f5f9;color:#1e293b}
+.booking-stepper-back:disabled{border-color:#e2e8f0;background:#f8fafc;color:#94a3b8;cursor:not-allowed;opacity:.72}
+.booking-stepper-back:disabled .booking-stepper-back-icon{background:#f1f5f9;color:#94a3b8}
+.booking-stepper-back:focus-visible{outline:3px solid rgba(100,116,139,.22);outline-offset:2px}
+.booking-stepper-back-icon{display:grid;width:20px;height:20px;place-items:center;flex:none;border-radius:6px;background:#e2e8f0;color:#475569;font-size:.72rem}
+.booking-stepper-back strong{color:inherit;font-size:.7rem;line-height:1;white-space:nowrap}
 
 .sv-card{width:100%;background:#fff;border-radius:var(--sv-r2);border:1px solid rgba(148,163,184,0.08);box-shadow:0 2px 16px rgba(15,23,42,0.04);margin-bottom:1.5rem;overflow:visible}
 .sv-card-h{display:flex;align-items:center;gap:12px;padding:1.15rem 1.5rem;background:linear-gradient(135deg,#fafbff,#f8fafc);border-bottom:1px solid #eef2f6}
@@ -2023,8 +2099,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   .sv-stats{gap:1.5rem;padding:1rem 1.5rem;flex-wrap:wrap}
   .ent-stepper{position:sticky !important;top:68px !important;padding:0.65rem 0.75rem !important;margin-bottom:1rem !important;z-index:50}
   .ent-h{margin-bottom:0.55rem}
-  .ent-h span:first-child{font-size:0.72rem}
-  .ent-h span:last-child{font-size:0.7rem}
+  .ent-h > span:first-child{font-size:0.72rem}
+  .ent-h-step{font-size:0.7rem}
   .ent-tr{justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;padding:4px;gap:4px;scroll-snap-type:x mandatory}
   .ent-tr::-webkit-scrollbar{display:none}
   .ent-n{flex:0 0 auto;padding:5px 10px;font-size:0.68rem;scroll-snap-align:start}
@@ -2127,7 +2203,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 @media(max-width:480px){
   /* Extra small mobile adjustments */
-  .ent-h span:first-child{display:none}
+  .ent-h > span:first-child{display:none}
   .ent-stepper{padding:0.55rem 0.6rem !important}
   .ent-tr{padding:3px;gap:3px}
   .ent-n{padding:4px 6px !important;gap:0}
@@ -2284,7 +2360,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   box-shadow:0 30px 80px rgba(15,23,42,0.22);
 }
 .ent-inv-header{
-  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+  background:linear-gradient(135deg,#15803d 0%,#16a34a 55%,#22c55e 100%);
   padding:1.5rem 1.5rem 1.25rem;
   color:#fff;
 }
@@ -2303,13 +2379,13 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   width:40px;
   height:40px;
   border-radius:10px;
-  background:linear-gradient(135deg,rgba(59,130,246,0.3),rgba(99,102,241,0.3));
-  border:1px solid rgba(255,255,255,0.15);
+  background:rgba(255,255,255,0.18);
+  border:1px solid rgba(255,255,255,0.32);
   display:flex;
   align-items:center;
   justify-content:center;
   font-size:1.1rem;
-  color:#60a5fa;
+  color:#fff;
 }
 .ent-inv-company{
   font-size:0.95rem;
@@ -2318,7 +2394,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 }
 .ent-inv-tagline{
   font-size:0.72rem;
-  color:rgba(255,255,255,0.5);
+  color:rgba(255,255,255,0.82);
 }
 .ent-inv-close{
   background:rgba(255,255,255,0.1);
@@ -2342,20 +2418,19 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   align-items:center;
   gap:8px;
   padding:6px 14px;
-  background:rgba(245,158,11,0.15);
-  border:1px solid rgba(245,158,11,0.3);
+  background:rgba(255,255,255,0.16);
+  border:1px solid rgba(255,255,255,0.3);
   border-radius:999px;
   font-size:0.72rem;
   font-weight:700;
-  color:#fbbf24;
+  color:#fff;
   letter-spacing:0.5px;
 }
 .ent-inv-status-dot{
   width:7px;
   height:7px;
   border-radius:50%;
-  background:#fbbf24;
-  animation:invPulse 1.5s ease-in-out infinite;
+  background:#dcfce7;
 }
 @keyframes invPulse{0%,100%{opacity:1}50%{opacity:0.4}}
 
@@ -2365,8 +2440,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .ent-inv-ref-section{
   text-align:center;
   padding:0.85rem;
-  background:#f8fafc;
-  border:1px dashed #e2e8f0;
+  background:#f0fdf4;
+  border:1px dashed #86efac;
   border-radius:12px;
   margin-bottom:1.25rem;
 }
@@ -2381,7 +2456,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .ent-inv-ref-number{
   font-size:1.1rem;
   font-weight:800;
-  color:#2563eb;
+  color:#15803d;
   letter-spacing:1.5px;
 }
 .ent-inv-section{
@@ -2532,9 +2607,13 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 }
 .ent-inv-note{
   font-size:0.78rem;
-  color:#94a3b8;
+  color:#166534;
   text-align:center;
   margin:0;
+  padding:0.7rem 0.85rem;
+  background:#f0fdf4;
+  border:1px solid #bbf7d0;
+  border-radius:10px;
 }
 .ent-inv-footer{
   padding:1rem 1.5rem 1.5rem;
@@ -2555,13 +2634,13 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   border:none;
 }
 .ent-inv-btn-primary{
-  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+  background:linear-gradient(135deg,#16a34a,#15803d);
   color:#fff;
-  box-shadow:0 4px 14px rgba(37,99,235,0.25);
+  box-shadow:0 4px 14px rgba(22,163,74,0.25);
 }
 .ent-inv-btn-primary:hover{
   transform:translateY(-1px);
-  box-shadow:0 6px 20px rgba(37,99,235,0.35);
+  box-shadow:0 6px 20px rgba(22,163,74,0.35);
   color:#fff;
 }
 .ent-inv-btn-secondary{
@@ -2573,6 +2652,12 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
   background:#e2e8f0;
   color:#0f172a;
 }
+#bookingSuccessModal .ent-btn-primary{
+  background:linear-gradient(135deg,#16a34a,#15803d);
+  border-color:#15803d;
+  box-shadow:0 4px 14px rgba(22,163,74,0.25);
+}
+#bookingSuccessModal .text-primary{color:#15803d!important}
 
 @media(max-width:575px){
   .ent-inv-info-grid{grid-template-columns:1fr}
@@ -2647,7 +2732,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260925-schedule-next-v6';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260925-gcash-real-qr-v42-fare-fix-route-2':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260926-preserved-progress-v5':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3248,5 +3333,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260925-review-visibility-v40">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260926-payment-confirm-v46">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

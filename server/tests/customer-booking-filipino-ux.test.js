@@ -107,6 +107,7 @@ test("step two guides customers through selection and repair one field at a time
   assert.match(script, /select\.addEventListener\('change',[\s\S]*?document\.getElementById\('unitModel'\)\?\.focus\(\)/);
   assert.match(script, /qtyInput\.addEventListener\('blur',[\s\S]*?continueRepairDetails\(\)/);
   assert.match(script, /problemEl\.addEventListener\('blur',[\s\S]*?continueRepairProblem\(\)/);
+  assert.match(script, /function toggleSymptom\(element, symptom\)[\s\S]*?textarea\.focus\(\{ preventScroll: true \}\)/);
   assert.match(view, /id="repairDetailsNext"[\s\S]*?Next: Describe the Problem/);
   assert.match(view, /id="repairProblemNext"[\s\S]*?Next: Photo \(Optional\)/);
   assert.match(view, /id="repairReviewSummary"[\s\S]*?Inspection fee/);

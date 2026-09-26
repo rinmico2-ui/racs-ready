@@ -15,12 +15,20 @@ function isRepairBooking(booking = {}) {
   const serviceType = text(booking.serviceType).toLowerCase();
   const serviceModel = text(booking.serviceModel).toLowerCase();
   const status = text(booking.status).toLowerCase();
+  const hasRepairItem = Array.isArray(booking.services)
+    && booking.services.some(item => text(item?.type).toLowerCase() === "repair");
+  const hasCoreItem = Array.isArray(booking.services)
+    && booking.services.some(item => text(item?.type).toLowerCase() === "core");
+  const hasRepairProblem = Boolean(text(booking.unitInfo?.problemDescription || booking.issueDescription || booking.repairIssues));
+  if (serviceType === "core" && serviceModel !== "repairservice" && !hasRepairItem && !status.startsWith("repair_")) {
+    if (serviceModel === "coreservice" || hasCoreItem || !hasRepairProblem) return false;
+  }
   return serviceType === "repair"
     || serviceType === "mixed"
     || serviceModel === "repairservice"
-    || Boolean(booking.unitInfo)
     || status.startsWith("repair_")
-    || (Array.isArray(booking.services) && booking.services.some(item => text(item?.type).toLowerCase() === "repair"));
+    || hasRepairItem
+    || (!serviceModel && hasRepairProblem);
 }
 
 function repairItem(item = {}, booking = {}, index = 0) {
@@ -91,6 +99,19 @@ function enrichCustomerBooking(booking = {}) {
   return presented;
 }
 
+function isUnpaidAftercareMaintenance(booking = {}) {
+  const createdFromAftercare = booking.maintenance?.isMaintenance
+    && (booking.maintenance?.paymentOnSite === true
+      || text(booking.paymentNotes).startsWith("Maintenance requested from Aftercare"));
+  if (!createdFromAftercare) return false;
+  const settled = ["paid", "verified", "partial", "payment_collected", "remitted"]
+    .includes(text(booking.paymentStatus).toLowerCase());
+  const paymentSubmitted = Array.isArray(booking.payments)
+    && booking.payments.some(payment => Number(payment?.amount) > 0
+      && !["rejected", "refunded", "failed"].includes(text(payment?.status).toLowerCase()));
+  return Number(booking.amountPaid || 0) <= 0 && !settled && !paymentSubmitted;
+}
+
 // Fields used by operations, fraud review, or payment verification must never be
 // included in the customer history payload. Keeping this boundary here avoids
 // coupling the public page to the full BookingService persistence model.
@@ -112,6 +133,12 @@ function presentCustomerBooking(booking = {}) {
   const scheduleWindowEnd = computeBookingEndDateTime(presented);
   presented.scheduleWindowEndAt = scheduleWindowEnd ? scheduleWindowEnd.toISOString() : null;
   CUSTOMER_HIDDEN_FIELDS.forEach((field) => delete presented[field]);
+  if (isUnpaidAftercareMaintenance(presented)) {
+    presented.paymentDetailsDeferred = true;
+    ["paymentMethod", "paymentChannel", "paymentStatus", "downpaymentPercentage",
+      "downpaymentAmount", "amountPaid", "balanceAmount", "paymentNotes", "payments"]
+      .forEach((field) => delete presented[field]);
+  }
 
   if (Array.isArray(presented.payments)) {
     const customerPaymentFields = [
@@ -142,5 +169,6 @@ module.exports = {
   customerRepairDetails,
   enrichCustomerBooking,
   isRepairBooking,
+  isUnpaidAftercareMaintenance,
   presentCustomerBooking,
 };

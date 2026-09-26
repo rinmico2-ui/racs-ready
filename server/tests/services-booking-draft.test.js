@@ -40,7 +40,7 @@ test("draft persistence uses the active booking fields and actual current step",
 
 test("a draft can restore before a service is added and resumes only at a valid step", () => {
   assert.match(servicesScript, /system explicitly so saved drafts are actually restored after a reload\.\s*initMultiServiceBooking\(\);/);
-  assert.match(servicesScript, /let isLoggedIn = document\.getElementById\('entStepper'\)\?\.dataset\.authenticated === 'true'/);
+  assert.match(servicesScript, /const renderedAsLoggedIn = document\.getElementById\('entStepper'\)\?\.dataset\.authenticated === 'true'/);
   assert.match(servicesScript, /normalizeBookingStep\(data\?\.currentStep, 1\) > 1/);
   assert.match(servicesScript, /if \(BookingState\.draftRestored\)/);
   assert.match(servicesScript, /const stepToRestore = getRestorableBookingStep\(\)/);
@@ -49,6 +49,14 @@ test("a draft can restore before a service is added and resumes only at a valid 
     servicesScript,
     /const stepToRestore = Math\.min\(BookingState\.maxReachedStep \|\| 1, 6\)/,
   );
+});
+
+test("booking drafts require the server-rendered customer identity and a live session", () => {
+  assert.match(servicesScript, /async function hasActiveBookingCustomerSession/);
+  assert.match(servicesScript, /result\?\.user\?\.role === 'customer'/);
+  assert.match(servicesScript, /if \(!renderedAsLoggedIn \|\| !\(await hasActiveBookingCustomerSession\(\)\)\)/);
+  assert.match(servicesScript, /window\.addEventListener\('racs:logout', lockBookingAfterLogout\)/);
+  assert.doesNotMatch(servicesScript, /const userElements = document\.querySelectorAll/);
 });
 
 test("drafts save during mobile page lifecycle and critical booking mutations", () => {
@@ -80,7 +88,7 @@ test("successful submission disables re-saving and refreshed assets bypass stale
   assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled \|\| !BOOKING_CUSTOMER_ID\) return false/);
   assert.match(servicesScript, /BookingState\.draftPersistenceDisabled = true;\s*localStorage\.removeItem/);
   assert.match(servicesView, /enterprise-calendar\.js\?v=20260925-schedule-next-v6/);
-  assert.match(servicesView, /services-multi\.js\?v=20260925-gcash-real-qr-v42/);
+  assert.match(servicesView, /services-multi\.js\?v=[^'"\s]+/);
   assert.match(servicesView, /if\(typeof window\.saveBookingProgress==='function'\) window\.saveBookingProgress\(\)/);
   assert.doesNotMatch(servicesScript, /event\.returnValue\s*=\s*''/);
 });

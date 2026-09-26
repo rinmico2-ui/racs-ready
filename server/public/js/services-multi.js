@@ -51,6 +51,53 @@ const BOOKING_STORAGE_VERSION = 3;
 const BOOKING_STORAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 let bookingProgressSaveTimer = null;
 
+async function hasActiveBookingCustomerSession() {
+  if (!BOOKING_CUSTOMER_ID) return false;
+  try {
+    const response = await fetch('/api/auth/verify', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    const activeUserId = String(result?.user?._id || result?.user?.id || '');
+    return result?.user?.role === 'customer' && activeUserId === String(BOOKING_CUSTOMER_ID);
+  } catch (_) {
+    return false;
+  }
+}
+
+function lockBookingAfterLogout() {
+  clearTimeout(bookingProgressSaveTimer);
+  BookingState.draftPersistenceDisabled = true;
+  BookingState.selectedServices = [];
+  BookingState.currentStep = 1;
+  BookingState.maxReachedStep = 1;
+  try {
+    if (BOOKING_CUSTOMER_ID) localStorage.removeItem(BOOKING_STORAGE_KEY);
+    localStorage.removeItem('calidro_booking_progress_v3_');
+  } catch (_) {}
+
+  const stepper = document.getElementById('entStepper');
+  if (stepper) {
+    stepper.dataset.authenticated = 'false';
+    stepper.dataset.customerId = '';
+  }
+  document.querySelectorAll('.booking-step').forEach(step => {
+    const isLoginStep = Number(step.dataset.step) === 1;
+    step.classList.toggle('d-none', !isLoginStep);
+    step.classList.toggle('step-visible', isLoginStep);
+    step.classList.toggle('step-active', isLoginStep);
+    if (!isLoginStep) step.classList.remove('step-completed');
+  });
+  document.querySelectorAll('.add-service-btn, .category-btn').forEach(button => {
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+  });
+  if (typeof updateEntStepper === 'function') updateEntStepper(1);
+}
+
 function normalizeBookingStep(value, fallback = 1) {
   const step = Number(value);
   return Number.isInteger(step) && step >= 1 && step <= 6 ? step : fallback;
@@ -295,13 +342,26 @@ window.addEventListener('beforeunload', () => {
   saveBookingProgress();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveBookingProgress();
+  if (document.visibilityState === 'hidden') {
+    saveBookingProgress();
+    return;
+  }
+  hasActiveBookingCustomerSession().then(active => {
+    if (!active) lockBookingAfterLogout();
+  });
 });
 window.addEventListener('pageshow', event => {
-  if (!event.persisted || BookingState.currentStep < 6 || !BookingState.paymentMethod) return;
-  restoreBookingProgressUI();
-  document.getElementById('bookingPaymentRestoreNotice')?.classList.remove('d-none');
+  hasActiveBookingCustomerSession().then(active => {
+    if (!active) {
+      lockBookingAfterLogout();
+      return;
+    }
+    if (!event.persisted || BookingState.currentStep < 6 || !BookingState.paymentMethod) return;
+    restoreBookingProgressUI();
+    document.getElementById('bookingPaymentRestoreNotice')?.classList.remove('d-none');
+  });
 });
+window.addEventListener('racs:logout', lockBookingAfterLogout);
 
 // Auto-save on step changes
 const _origShowStep = typeof showStep === 'function' ? showStep : null;
@@ -418,56 +478,12 @@ function initMultiServiceBooking() {
   }
 
   // Add a small delay to ensure all user data is loaded
-  setTimeout(() => {
+  setTimeout(async () => {
     // The server-rendered stepper is the source of truth for customer access.
-    let isLoggedIn = document.getElementById('entStepper')?.dataset.authenticated === 'true';
-
-    // Method 1: Check for user data in window object (most common)
-    if (typeof window.user !== 'undefined' && window.user) {
-      isLoggedIn = true;
-    }
-
-    // Method 2: Check for user data in script tags
-    if (!isLoggedIn) {
-      const userScripts = document.querySelectorAll('script[data-user], script[id*="user"], script[src*="user"]');
-      userScripts.forEach(script => {
-        const userData = script.getAttribute('data-user') || script.textContent;
-        if (userData && userData !== 'null' && userData !== 'undefined') {
-          isLoggedIn = true;
-        }
-      });
-    }
-
-    // Method 3: Check for any user-related elements
-    if (!isLoggedIn) {
-      const userElements = document.querySelectorAll('[data-user], [data-logged-in], .user-info, .logged-in-user');
-      if (userElements.length > 0) {
-        isLoggedIn = true;
-      }
-    }
-
-    // Method 4: Check if there are any disabled category buttons (server-side check)
-    if (!isLoggedIn) {
-      const categoryButtons = document.querySelectorAll('.category-btn');
-      const hasEnabledButtons = Array.from(categoryButtons).some(btn => !btn.disabled);
-      if (hasEnabledButtons) {
-        isLoggedIn = true;
-      }
-    }
-
-    // Method 5: Check for any existing login prompts (server-side already handled)
-    if (!isLoggedIn) {
-      const existingLoginPrompt = document.querySelector('.alert-warning');
-      if (existingLoginPrompt) {
-        // Don't add another prompt, just disable features
-        disableBookingFeatures();
-        return;
-      }
-    }
-
-
-    if (!isLoggedIn) {
-      disableBookingFeatures();
+    const renderedAsLoggedIn = document.getElementById('entStepper')?.dataset.authenticated === 'true'
+      && Boolean(BOOKING_CUSTOMER_ID);
+    if (!renderedAsLoggedIn || !(await hasActiveBookingCustomerSession())) {
+      lockBookingAfterLogout();
       return;
     }
 
@@ -487,7 +503,7 @@ function initMultiServiceBooking() {
     initializeBookingState();
 
     // Load services catalog
-    loadServicesCatalog();
+    const catalogReady = loadServicesCatalog();
 
     // Setup event listeners
     setupEventListeners();
@@ -524,6 +540,8 @@ function initMultiServiceBooking() {
       showStep(2);
       updateStepperIndicators(2);
     }
+
+    Promise.resolve(catalogReady).then(() => openAftercareMaintenanceService());
 
   }, 500); // 500ms delay to ensure everything is loaded
 }
@@ -936,9 +954,69 @@ function loadServicesCatalog() {
     // Render services immediately
     renderCoreServices();
     renderRepairServices();
+    return Promise.resolve();
   } else {
     // Fallback: fetch from API
-    fetchServicesFromAPI();
+    return fetchServicesFromAPI();
+  }
+}
+
+async function openAftercareMaintenanceService() {
+  const scheduleId = new URLSearchParams(window.location.search).get('maintenanceScheduleId');
+  if (!scheduleId || !/^[a-f\d]{24}$/i.test(scheduleId)) return;
+  try {
+    const response = await fetch(`/api/maintenance/schedules/${encodeURIComponent(scheduleId)}/booking-intent`, {
+      credentials: 'same-origin', cache: 'no-store'
+    });
+    const intent = await response.json();
+    if (!response.ok) throw new Error(intent.error || 'This maintenance booking is no longer available.');
+    const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(intent.serviceId));
+    if (!service) throw new Error('No maintenance service is available right now. Please contact us.');
+
+    const equipment = intent.equipment || {};
+    const equipmentName = [equipment.brand, equipment.model,
+      equipment.capacity ? `${equipment.capacity} ${equipment.capacityUnit || 'HP'}` : '']
+      .filter(Boolean).join(' ') || equipment.applianceTypeName || 'your aircon';
+    const bookingContainer = document.getElementById('bookingContainer');
+    const notice = document.createElement('div');
+    notice.className = 'alert alert-info mb-3';
+    notice.setAttribute('role', 'status');
+    const title = document.createElement('strong');
+    title.textContent = 'Maintenance service ready';
+    notice.appendChild(title);
+    notice.appendChild(document.createTextNode(` — ${equipmentName}. Check the service details and price before adding it.`));
+    bookingContainer?.prepend(notice);
+
+    // Never silently replace a customer's unfinished booking draft.
+    if (BookingState.draftRestored && BookingState.selectedServices.length) {
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'btn btn-sm btn-primary d-block mt-2';
+      action.textContent = 'Add maintenance service to this booking';
+      action.addEventListener('click', () => {
+        showStep(2);
+        showCombinedQuantityHpModal({ ...service, type: 'core' });
+      });
+      notice.appendChild(action);
+      return;
+    }
+
+    showStep(2);
+    showCombinedQuantityHpModal({ ...service, type: 'core' });
+    const brand = String(equipment.brand || '').trim();
+    if (brand && service.isAirconService) {
+      const brandSelect = document.getElementById('brandInput');
+      const customBrand = document.getElementById('brandInputCustom');
+      if (brandSelect) {
+        const match = Array.from(brandSelect.options).find(option => option.value.toLowerCase() === brand.toLowerCase());
+        brandSelect.value = match ? match.value : '__other__';
+        if (!match && customBrand) { customBrand.classList.remove('d-none'); customBrand.value = brand; }
+        BookingState.selectedBrand = brand;
+        syncConfigurationPrimaryAction();
+      }
+    }
+  } catch (error) {
+    showError(error.message || 'Unable to start maintenance booking.');
   }
 }
 
@@ -1178,7 +1256,7 @@ async function loadTechnicianOptions() {
         // Auto-advance after 1 second
         setTimeout(() => {
           console.log('⏭️ Auto-advancing to Step 4 after technician selection');
-          showStep(4);
+          requestBookingStepNavigation(4);
         }, 1000);
       }
     });
@@ -1419,8 +1497,21 @@ function showTechnicianChangeNotification(technicianName) {
 function showStep(stepNumber) {
   console.log(`🔧 showStep(${stepNumber}) called`);
 
-  const prevStep = BookingState.currentStep || 1;
-  const isBackward = stepNumber < prevStep;
+  const requestedStep = Number(stepNumber);
+  if (!Number.isInteger(requestedStep) || requestedStep < 1 || requestedStep > 6) return false;
+
+  const prevStep = Number(BookingState.currentStep) || 1;
+  if (requestedStep > prevStep && typeof getBookingStepIssue === 'function') {
+    for (let prerequisiteStep = 1; prerequisiteStep < requestedStep; prerequisiteStep += 1) {
+      const issue = getBookingStepIssue(prerequisiteStep);
+      if (issue) {
+        presentBookingStepIssue(issue);
+        return false;
+      }
+    }
+  }
+
+  stepNumber = requestedStep;
   BookingState.currentStep = stepNumber;
 
   // Track furthest step reached (for stepper navigation)
@@ -1436,39 +1527,9 @@ function showStep(stepNumber) {
     return;
   }
 
-  // ── Reset downstream state when navigating backward ──
-  if (isBackward) {
-    if (stepNumber <= 2) {
-      // Going back to services: clear schedule, location, fee, payment
-      BookingState.scheduleDate = null;
-      BookingState.scheduleTime = null;
-      BookingState.selectedDate = null;
-      BookingState.selectedTime = null;
-      BookingState.selectedTimeSlot = null;
-      BookingState.projectScheduling = null;
-      BookingState.isProject = false;
-      BookingState.location = null;
-      BookingState.customerLocation = null;
-      BookingState.userCoordinates = null;
-      BookingState.distance = null;
-      BookingState.fare = null;
-      BookingState.travelFare = null;
-      BookingState.travelDuration = null;
-      BookingState.selectedTechnicianId = null;
-    } else if (stepNumber <= 3) {
-      // Going back to location: clear schedule, fee, payment
-      BookingState.scheduleDate = null;
-      BookingState.scheduleTime = null;
-      BookingState.selectedDate = null;
-      BookingState.selectedTime = null;
-      BookingState.selectedTimeSlot = null;
-      BookingState.projectScheduling = null;
-      BookingState.isProject = false;
-    }
-  }
-
-  // Persist after downstream fields have been cleared so a refresh cannot
-  // bring back stale location or schedule information.
+  // Navigation is non-destructive. Going back to review or edit an earlier
+  // step must not erase a valid location, schedule, fare, or payment choice.
+  // Individual field-change handlers own any dependency invalidation.
   saveBookingProgress();
 
   // Sync the ent-stepper if available
@@ -1497,6 +1558,7 @@ function showStep(stepNumber) {
   syncBookingActionBarLayer();
   syncLocationContinueAction();
   syncScheduleNextAction(stepNumber === 4);
+  syncPaymentConfirmAction(stepNumber === 6);
 
   // Every path into Step 2 must prepare the catalog. Progress navigation,
   // restored drafts, and the normal Continue button all converge here.
@@ -1611,6 +1673,7 @@ function showStep(stepNumber) {
 
   // Update stepper
   updateStepper(stepNumber);
+  return true;
 }
 
 /**
@@ -3160,33 +3223,49 @@ function hideRouteLoading() {
 /**
  * Animate route drawing
  */
+let stopServiceRouteAnimation = null;
 function animateRoute(routeLine) {
+  if (stopServiceRouteAnimation) stopServiceRouteAnimation();
+  if (document.hidden || document.documentElement.classList.contains('perf-lite')
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   // Add CSS animation class
   routeLine.setStyle({
     dashArray: '15, 10',
     dashOffset: '0'
   });
 
-  // Animate the dashes
   let offset = 0;
-  const animateDash = () => {
-    offset = (offset + 1) % 25;
-    routeLine.setStyle({ dashOffset: offset.toString() });
-    requestAnimationFrame(animateDash);
+  let frame = 0;
+  let stopped = false;
+  let lastPaint = 0;
+  let startTimer;
+  let endTimer;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(frame);
+    clearTimeout(startTimer);
+    clearTimeout(endTimer);
+    routeLine.setStyle({ dashArray: '', dashOffset: '' });
+    routeLine.off('remove', stop);
+    document.removeEventListener('visibilitychange', onVisibility);
+    if (stopServiceRouteAnimation === stop) stopServiceRouteAnimation = null;
   };
-
-  // Start animation after a short delay
-  setTimeout(() => {
-    requestAnimationFrame(animateDash);
-  }, 500);
-
-  // Stop animation after 3 seconds
-  setTimeout(() => {
-    routeLine.setStyle({
-      dashArray: '',
-      dashOffset: ''
-    });
-  }, 3000);
+  const onVisibility = () => { if (document.hidden) stop(); };
+  const animateDash = timestamp => {
+    if (stopped) return;
+    if (timestamp - lastPaint >= 33) {
+      lastPaint = timestamp;
+      offset = (offset + 1) % 25;
+      routeLine.setStyle({ dashOffset: offset.toString() });
+    }
+    frame = requestAnimationFrame(animateDash);
+  };
+  stopServiceRouteAnimation = stop;
+  routeLine.once('remove', stop);
+  document.addEventListener('visibilitychange', onVisibility);
+  startTimer = setTimeout(() => { if (!stopped) frame = requestAnimationFrame(animateDash); }, 500);
+  endTimer = setTimeout(stop, 3000);
 }
 
 /**
@@ -3209,18 +3288,13 @@ async function getActualRoute(startPos, endPos) {
     }
 
     const data = await response.json();
-    console.log('📦 OSRM response data:', data);
 
     if (data.routes && data.routes.length > 0) {
       const route = data.routes[0];
       console.log('✅ Found route with', route.geometry.coordinates.length, 'coordinates');
 
       // Convert [lng, lat] to [lat, lng] for Leaflet
-      const coordinates = route.geometry.coordinates.map(coord => {
-        const leafletCoord = [coord[1], coord[0]];
-        console.log('📍 Converting coordinate:', coord, 'to', leafletCoord);
-        return leafletCoord;
-      });
+      const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
 
       // Create bounds from the route
       const bounds = L.latLngBounds(coordinates);
@@ -3867,8 +3941,7 @@ window.continueServiceBookingFromMap = function() {
     showError('Please wait for the route and travel fare to finish calculating.');
     return;
   }
-  showStep(4);
-  updateStepper(4);
+  requestBookingStepNavigation(4);
 };
 
 function getServiceFarePerKm() {
@@ -10819,24 +10892,9 @@ function renderCalendarMonth(scheduleData, holidaysData, bookedDatesData) {
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  // Check if capacity mode (no technician selected)
-  const isCapacityMode = !BookingState.selectedTechnicianId;
-  const workingDaysText = isCapacityMode
-    ? "Monday to Saturday"
-    : (scheduleData.workingDays || []).map(wd => dayNames[wd.dayOfWeek]).join(', ');
-  const workingHoursText = isCapacityMode
-    ? "8:00 AM - 5:00 PM"
-    : `${Math.floor(scheduleData.workingDays?.[0]?.startMinutes / 60 || 8)}:00 - ${Math.floor(scheduleData.workingDays?.[0]?.endMinutes / 60 || 17)}:00`;
-
   // Create calendar HTML
   let calendarHTML = `
     <div class="calendar-wrapper">
-      <!-- Weekly Working Days Display -->
-      <div class="mb-3 p-2 bg-light rounded text-center small">
-        <strong>Working Days:</strong> ${workingDaysText} | 
-        <strong>Hours:</strong> ${workingHoursText}
-      </div>
-      
       <!-- Legend at Top -->
       <div class="mb-3 d-flex flex-wrap gap-3 justify-content-center small">
         <div><span class="badge" style="background-color: #28a745;">●</span> Available</div>
@@ -12007,7 +12065,10 @@ function initializePaymentStep() {
     const field = document.getElementById(id);
     if (!field || field.dataset.paymentValidationBound === 'true') return;
     field.dataset.paymentValidationBound = 'true';
-    field.addEventListener(field.type === 'file' ? 'change' : 'input', () => refreshBookingPaymentFieldError(id));
+    field.addEventListener(field.type === 'file' ? 'change' : 'input', () => {
+      refreshBookingPaymentFieldError(id);
+      syncPaymentConfirmAction();
+    });
   });
 
   if (BookingState.paymentMethod && typeof window.selectPaymentMethod === 'function') {
@@ -12129,6 +12190,7 @@ function syncPaymentChoiceGuide() {
     document.getElementById('gcashFields')?.classList.add('d-none');
     document.getElementById('cashFields')?.classList.add('d-none');
   }
+  if (typeof syncPaymentConfirmAction === 'function') syncPaymentConfirmAction();
 }
 window.syncPaymentChoiceGuide = syncPaymentChoiceGuide;
 
@@ -12217,6 +12279,46 @@ function paymentProofValidationMessage(file) {
   if (file.size > 5 * 1024 * 1024) return 'The receipt must be 5 MB or smaller.';
   return '';
 }
+
+function paymentConfirmationIsReady() {
+  if (BookingState.currentStep !== 6 || BookingState.draftPersistenceDisabled) return false;
+  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) return false;
+  if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)) return false;
+  if (window.paymentMethodsConfig?.[BookingState.paymentChannel]?.available === false) return false;
+
+  const fullPayment = BookingState.paymentMethod === 'gcash';
+  const reference = document.getElementById(fullPayment ? 'gcashNumber' : 'cashNumber')?.value?.trim() || '';
+  const receipt = document.getElementById(fullPayment ? 'gcashProof' : 'cashProof')?.files?.[0];
+  const validReference = BookingState.paymentChannel === 'gcash'
+    ? isValidPhilippineMobile(reference)
+    : reference.length >= 3;
+  return validReference && !paymentProofValidationMessage(receipt);
+}
+
+function syncPaymentConfirmAction(highlight = false) {
+  const action = document.getElementById('paymentConfirmAction');
+  const button = document.getElementById('confirmBookingBtn');
+  if (!action || !button) return;
+
+  // Payment cards can clip fixed children, so keep the single real submit
+  // control at the viewport layer just like the other booking actions.
+  if (action.parentElement !== document.body) document.body.appendChild(action);
+  const visible = paymentConfirmationIsReady();
+  const wasVisible = action.classList.contains('is-visible');
+  action.hidden = !visible;
+  action.classList.toggle('is-visible', visible);
+  action.setAttribute('aria-hidden', String(!visible));
+  action.toggleAttribute('inert', !visible);
+  if (!button.dataset.submitting) button.disabled = !visible;
+  if (visible && (!wasVisible || highlight)) {
+    action.classList.remove('just-became-ready');
+    void action.offsetWidth;
+    action.classList.add('just-became-ready');
+  } else if (!visible) {
+    action.classList.remove('just-became-ready');
+  }
+}
+window.syncPaymentConfirmAction = syncPaymentConfirmAction;
 
 let currentBookingPaymentIssue = null;
 
@@ -13413,6 +13515,15 @@ function toggleSymptom(element, symptom) {
   }
   updateRepairCharCount();
   refreshRepairGuide(4);
+  if (element.classList.contains('active')) {
+    window.setTimeout(() => {
+      textarea.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'center'
+      });
+      textarea.focus({ preventScroll: true });
+    }, 120);
+  }
 }
 window.toggleSymptom = toggleSymptom;
 

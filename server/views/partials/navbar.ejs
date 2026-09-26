@@ -124,17 +124,6 @@
 
   /* ── Profile & Toggler ── */
   .premium-nav .btn-outline-primary { display: none; }
-  .premium-nav .nav-profile-btn {
-    background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.12);
-    transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px;
-    padding: 0.45rem 0.9rem; font-weight: 600; font-size: 0.8rem;
-    color: #1d4ed8; border-radius: 999px; letter-spacing: 0.03em;
-  }
-  .premium-nav .nav-profile-btn i { font-size: 1.15rem; color: #1d4ed8 !important; }
-  .premium-nav .nav-profile-btn:hover {
-    background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.25);
-    box-shadow: 0 2px 8px rgba(37,99,235,0.15);
-  }
   .premium-nav .navbar-toggler { border-color: rgba(0,0,0,0.15); }
 
   @media (min-width: 992px) and (max-width: 1199.98px) {
@@ -230,7 +219,6 @@
       padding: 0.75rem 1.6rem;
     }
     #mainNav .d-flex.align-items-center { width: 100%; justify-content: space-between; }
-    .premium-nav .nav-profile-btn { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
   }
 </style>
 
@@ -294,10 +282,20 @@
       </ul>
 
       <% if (typeof user !== 'undefined' && user) { %>
+        <%# The customer account navigation is an on-demand drawer at every
+            viewport size so it never permanently covers or shifts content. %>
         <div class="d-flex align-items-center">
-          <button id="profileToggle" class="btn btn-light border rounded-pill me-2 nav-profile-btn" aria-label="Account">
-            <i class="bi bi-person-circle"></i>
-            <span class="nav-profile-text">Account</span>
+          <button
+            id="racsMenuTrigger"
+            class="btn btn-light border racs-menu-trigger"
+            type="button"
+            aria-label="Open customer menu"
+            aria-controls="authSidebar"
+            aria-expanded="false"
+          >
+            <i class="bi bi-list"></i>
+            <span class="racs-menu-trigger-label">My Account</span>
+            <span class="racs-menu-trigger-badge" id="racsTriggerCartBadge" hidden></span>
           </button>
         </div>
         <%- include('../partials/sidebar') %>

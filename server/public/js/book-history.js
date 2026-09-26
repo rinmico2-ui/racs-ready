@@ -46,6 +46,8 @@
   let filtered = [];
   let page = 0;
   let totalBookings = 0;
+  let bookingListRequest = null;
+  let bookingListRequestId = 0;
 
   // UI elements
   const el = {
@@ -58,6 +60,7 @@
     next: document.getElementById("bh-next"),
     search: document.getElementById("bh-search"),
     status: document.getElementById("bh-status"),
+    sort: document.getElementById("bh-sort"),
     from: document.getElementById("bh-from"),
     to: document.getElementById("bh-to"),
     clear: document.getElementById("bh-clear"),
@@ -68,9 +71,12 @@
   };
 
   function setupModalEnvironment() {
-    if (!el.modalElement) return;
-    if (el.modalElement.parentElement !== document.body) {
+    if (el.modalElement && el.modalElement.parentElement !== document.body) {
       document.body.appendChild(el.modalElement);
+    }
+    const rescheduleModal = document.getElementById('bhRescheduleModal');
+    if (rescheduleModal && rescheduleModal.parentElement !== document.body) {
+      document.body.appendChild(rescheduleModal);
     }
   }
 
@@ -134,18 +140,34 @@
     const type = String(b?.serviceType || '').toLowerCase();
     const model = String(b?.serviceModel || '').toLowerCase();
     const status = String(b?.status || '').toLowerCase();
+    const hasRepairItem = (b?.services || []).some(item => String(item?.type || '').toLowerCase() === 'repair');
+    const hasCoreItem = (b?.services || []).some(item => String(item?.type || '').toLowerCase() === 'core');
+    const hasRepairProblem = Boolean(b?.unitInfo?.problemDescription || b?.issueDescription || b?.repairIssues);
+    if (type === 'core' && model !== 'repairservice' && !hasRepairItem && !status.startsWith('repair_')) {
+      if (model === 'coreservice' || hasCoreItem || !hasRepairProblem) return false;
+    }
     return type === 'repair'
       || type === 'mixed'
       || model === 'repairservice'
-      || Boolean(b?.unitInfo)
       || status.startsWith('repair_')
-      || (b?.services || []).some(item => String(item?.type || '').toLowerCase() === 'repair');
+      || hasRepairItem
+      || (!model && hasRepairProblem);
   }
 
   function repairDetailsForBooking(b) {
-    return b?.customerRepairDetails?.items?.length
+    return isRepairBooking(b) && b?.customerRepairDetails?.items?.length
       ? b.customerRepairDetails
       : null;
+  }
+
+  function isUnpaidAftercareMaintenance(b) {
+    if (b?.paymentDetailsDeferred === true) return true;
+    const createdFromAftercare = b?.maintenance?.isMaintenance
+      && (b.maintenance?.paymentOnSite === true
+        || String(b.paymentNotes || '').startsWith('Maintenance requested from Aftercare'));
+    const hasPayment = Number(b?.amountPaid || 0) > 0
+      || ['paid', 'verified', 'partial', 'payment_collected', 'remitted'].includes(String(b?.paymentStatus || '').toLowerCase());
+    return Boolean(createdFromAftercare && !hasPayment);
   }
 
   // The API supplies the Manila service-window end computed by bookingPolicy.
@@ -245,19 +267,48 @@
     if (!b) return;
 
     if (action === 'cancel') {
-      const reason = prompt('Please provide a reason for cancellation:');
-      if (reason === null) return;
-      if (!reason.trim()) {
-        alert('Please provide a reason for cancellation.');
-        return;
+      let reason = '';
+      if (typeof Swal !== 'undefined') {
+        const result = await Swal.fire({
+          title: 'Cancel this booking?',
+          text: 'Any eligible downpayment will be queued for refund.',
+          icon: 'warning',
+          input: 'textarea',
+          inputLabel: 'Cancellation reason',
+          inputPlaceholder: 'Briefly explain why you need to cancel.',
+          inputAttributes: { maxlength: 500, 'aria-label': 'Cancellation reason' },
+          showCancelButton: true,
+          confirmButtonText: 'Cancel Booking',
+          cancelButtonText: 'Keep Booking',
+          confirmButtonColor: '#dc2626',
+          inputValidator: value => value && value.trim() ? undefined : 'Please provide a cancellation reason.',
+        });
+        if (!result.isConfirmed) return;
+        reason = String(result.value || '').trim();
+      } else {
+        const value = prompt('Please provide a reason for cancellation:');
+        if (value === null || !value.trim()) return;
+        if (!confirm('Cancel this booking? Any eligible downpayment will be queued for refund.')) return;
+        reason = value.trim().slice(0, 500);
       }
-      if (!confirm('Are you sure you want to cancel this booking? Any downpayment will be refunded.')) return;
       await submitRescheduleAction(id, 'cancel', { reason });
       return;
     }
 
     if (action === 'accept') {
-      if (!confirm('Accept the proposed rescheduled date and time?')) return;
+      const proposal = b.proposedReschedule || {};
+      if (typeof Swal !== 'undefined') {
+        const result = await Swal.fire({
+          title: 'Accept this schedule?',
+          html: `<div class="text-start rounded-3 border bg-light p-3"><div class="small text-muted mb-1">Proposed appointment</div><strong>${escapeHtml(proposal.date ? new Date(proposal.date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Date unavailable')}</strong><div class="mt-1">${escapeHtml(proposal.timeLabel || proposal.time || 'Time unavailable')}</div></div>`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Accept Schedule',
+          cancelButtonText: 'Review Again',
+          confirmButtonColor: '#16a34a',
+        });
+        if (!result.isConfirmed) return;
+      } else if (!confirm('Accept the proposed rescheduled date and time?')) return;
       await submitRescheduleAction(id, 'accept');
       return;
     }
@@ -265,15 +316,51 @@
     alert('Unknown action');
   };
 
-  window.bhRequestNewSchedule = function (id) {
+  function runAfterClosingDetails(callback) {
     const detailModal = document.getElementById('bhDetailModal');
     if (detailModal) {
       const inst = bootstrap.Modal.getInstance(detailModal);
-      if (inst) inst.hide();
+      if (inst && detailModal.classList.contains('show')) {
+        detailModal.addEventListener('hidden.bs.modal', callback, { once: true });
+        inst.hide();
+        return;
+      }
     }
+    callback();
+  }
+
+  async function requestDirectBookingCancellation(booking) {
+    let reason = '';
+    if (typeof Swal !== 'undefined') {
+      const result = await Swal.fire({
+        title: 'Cancel this booking?',
+        text: 'Please tell us why you need to cancel.',
+        icon: 'warning',
+        input: 'textarea',
+        inputLabel: 'Cancellation reason',
+        inputPlaceholder: 'Enter a short reason',
+        inputAttributes: { maxlength: 500, 'aria-label': 'Cancellation reason' },
+        showCancelButton: true,
+        confirmButtonText: 'Cancel Booking',
+        cancelButtonText: 'Keep Booking',
+        confirmButtonColor: '#dc2626',
+        inputValidator: value => value && value.trim() ? undefined : 'Please provide a cancellation reason.',
+      });
+      if (!result.isConfirmed) return;
+      reason = String(result.value || '').trim();
+    } else {
+      const value = prompt('Please provide a reason for cancelling this booking:');
+      if (value === null || !value.trim()) return;
+      if (!confirm('Are you sure you want to cancel this booking?')) return;
+      reason = value.trim().slice(0, 500);
+    }
+    runAfterClosingDetails(() => cancelBooking(booking._id, reason));
+  }
+
+  window.bhRequestNewSchedule = function (id) {
     const booking = bookings.find(item => String(item._id) === String(id));
     if (!booking) return alert('Booking could not be loaded. Please refresh and try again.');
-    setTimeout(() => openRescheduleModal(booking), 400);
+    runAfterClosingDetails(() => openRescheduleModal(booking));
   };
 
   async function submitRescheduleAction(id, action, extras = {}) {
@@ -342,36 +429,8 @@
           if (rated) {
             return `<div class="text-warning" style="white-space:nowrap">${ratingStars(b.customerRating)}</div>`;
           }
-          return `<button class="bh-action-btn bh-action-btn--success bh-rate" data-id="${b._id}" title="Rate"><i class="bi bi-star"></i></button>`;
+          return '<span class="bh-rating-pending">Not rated</span>';
         })();
-
-        const reviewAction = b.status === 'awaiting_approval'
-          ? `<button class="bh-action-btn bh-action-btn--success bh-view" data-id="${b._id}" title="Review Quotation"><i class="bi bi-receipt"></i></button>`
-          : ['re-scheduled', 'awaiting_assignment'].includes(b.status) && b.proposedReschedule && b.proposedReschedule.status === 'pending'
-            ? `<button class="bh-action-btn bh-action-btn--warning bh-view" data-id="${b._id}" title="Review Reschedule"><i class="bi bi-calendar-check"></i></button>`
-            : `<button class="bh-action-btn bh-action-btn--primary bh-view" data-id="${b._id}" title="View Details"><i class="bi bi-eye"></i></button>`;
-
-        const hasPendingReschedule = b.rescheduleRequest?.status === 'pending';
-        const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(b.status) && !needsConfirmation;
-        const scheduleAction = canRequestReschedule
-          ? `<button class="bh-action-btn bh-action-btn--warning bh-reschedule" data-id="${b._id}" title="${hasPendingReschedule ? 'Schedule change awaiting review' : 'Change schedule'}" aria-label="${hasPendingReschedule ? 'Schedule change awaiting review' : 'Change schedule'}" ${hasPendingReschedule ? 'disabled aria-disabled="true"' : ''}><i class="bi bi-calendar-event"></i></button>`
-          : '';
-
-        const pendingActions = b.status === 'pending'
-          ? `<button class="bh-action-btn bh-action-btn--danger bh-cancel" data-id="${b._id}" title="Cancel"><i class="bi bi-x-circle"></i></button>`
-          : '';
-
-        const repairAction = b.status === 'repair_approved'
-          ? `<button class="bh-action-btn bh-action-btn--primary bh-schedule-later" data-id="${b._id}" title="Schedule Repair"><i class="bi bi-calendar-plus"></i></button>`
-          : '';
-
-        const editAction = ['pending','payment_verified','confirmed','awaiting_assignment'].includes(b.status)
-          ? `<button class="bh-action-btn bh-edit-services" data-id="${b._id}" title="Edit booking services" style="color:#0ea5e9;border-color:#bae6fd;"><i class="bi bi-list-check"></i></button>`
-          : '';
-        const maintenanceAction = b.maintenanceSummary || b.maintenance?.isMaintenance
-          ? `<a class="bh-action-btn" href="/maintenance" title="View maintenance" style="color:#0f766e;border-color:#99f6e4;"><i class="bi bi-calendar2-check"></i></a>`
-          : '';
-        const cardPaymentAction = '';
 
         return `
         <tr data-id="${b._id}" class="bh-row ${rowType}">
@@ -383,25 +442,19 @@
             <div class="bh-cell-service"><i class="bi ${svcIcon}"></i><span>${escapeHtml(serviceLabel)}</span></div>
             ${serviceMeta ? `<div class="bh-cell-meta">${escapeHtml(serviceMeta)}</div>` : ''}
           </td>
-          <td data-label="Date">
+          <td data-label="Date / Time">
             <div class="bh-cell-title">${escapeHtml(dateText)}</div>
             <div class="bh-cell-meta">${escapeHtml(timeText)}</div>
             ${rescheduleIndicator}
           </td>
-          <td data-label="Status">${statusBadge(displayStatus)}${missedIndicator}</td>
+          <td data-label="Status" class="bh-status-cell">${statusBadge(displayStatus)}${missedIndicator}</td>
           <td data-label="Location" class="bh-location" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
           <td data-label="Rating" class="text-center">${ratingCell}</td>
-          <td data-label="Actions">
+          <td data-label="Actions" class="bh-actions-cell text-end">
             <div class="bh-actions">
-              ${reviewAction}
-              <button class="bh-action-btn bh-download" data-id="${b._id}" title="Download JSON"><i class="bi bi-download"></i></button>
-              ${scheduleAction}
-              ${pendingActions}
-              ${repairAction}
-              ${editAction}
-              ${maintenanceAction}
-              ${cardPaymentAction}
-              <a class="bh-action-btn" href="/services" title="Rebook" style="color:#2563eb;border-color:#bfdbfe;"><i class="bi bi-arrow-repeat"></i></a>
+              <button class="bh-action-btn bh-action-btn--primary bh-view bh-view-details-btn" data-id="${b._id}" title="View booking details" aria-label="View booking details">
+                <i class="bi bi-eye"></i><span>View Details</span>
+              </button>
             </div>
           </td>
         </tr>`;
@@ -469,74 +522,6 @@
         const b = bookings.find((x) => String(x._id) === String(id));
         if (!b) return;
         showDetailModal(b);
-      };
-    });
-
-    document.querySelectorAll(".bh-download").forEach((btn) => {
-      btn.onclick = function () {
-        const id = this.getAttribute("data-id");
-        const b = bookings.find((x) => String(x._id) === String(id));
-        if (!b) return;
-        downloadJSON(b, `booking-${shortId(b._id)}.json`);
-      };
-    });
-
-    document.querySelectorAll(".bh-edit-services").forEach((btn) => {
-      btn.onclick = () => openBookingEditor(btn.getAttribute("data-id"), "services");
-    });
-
-    // rating buttons - use premium modal
-    document.querySelectorAll(".bh-rate").forEach((btn) => {
-      btn.onclick = function () {
-        const id = this.getAttribute("data-id");
-        const b = bookings.find((x) => String(x._id) === String(id));
-        if (!b) return;
-        // Open premium rating modal
-        if (window.openRatingModal) {
-          const techText = b.technicianName || (b.technician && b.technician.name) || null;
-          window.openRatingModal(id, b.serviceType || 'Service', techText);
-        } else {
-          // Fallback to native prompt if modal not available
-          const score = prompt("Enter rating (1-5)");
-          if (!score) return;
-          submitRating(id, Number(score), null);
-        }
-      };
-    });
-
-    // cancel button handler
-    document.querySelectorAll(".bh-cancel").forEach((btn) => {
-      btn.onclick = function () {
-        const id = this.getAttribute("data-id");
-        const b = bookings.find((x) => String(x._id) === String(id));
-        if (!b) return;
-        const reason = prompt("Please provide a reason for cancelling this booking:");
-        if (reason === null) return; // User clicked cancel
-        if (reason.trim() === "") {
-          alert("Please provide a reason for cancellation.");
-          return;
-        }
-        if (confirm("Are you sure you want to cancel this booking?")) {
-          cancelBooking(id, reason.trim());
-        }
-      };
-    });
-
-    // reschedule button handler
-    document.querySelectorAll(".bh-reschedule").forEach((btn) => {
-      btn.onclick = function () {
-        const id = this.getAttribute("data-id");
-        const b = bookings.find((x) => String(x._id) === String(id));
-        if (!b) return;
-        openRescheduleModal(b);
-      };
-    });
-
-    // schedule later button handler (for repair_approved bookings)
-    document.querySelectorAll(".bh-schedule-later").forEach((btn) => {
-      btn.onclick = function () {
-        const id = this.getAttribute("data-id");
-        bhShowRepairTodayChoice(id);
       };
     });
   }
@@ -668,36 +653,52 @@
   
     // Payment section
     const paymentHtml = (() => {
+      // One-click Aftercare only requests a visit. The persisted default
+      // payment plan is not a choice made by the customer and must stay hidden
+      // until an actual payment is recorded.
+      if (isUnpaidAftercareMaintenance(b)) return '';
       const pm = b.paymentMethod || '';
       if (!pm) return '';
       const total = Number(b.totalPrice ?? b.estimatedFee ?? 0);
       const percentage = Number(b.downpaymentPercentage ?? 10);
-      const dp = Number(b.downpaymentAmount ?? Math.round(total * percentage / 100));
-      const amountPaid = Number(b.amountPaid ?? (b.paymentStatus === 'paid' ? total : pm === 'cod' ? dp : 0));
-      const balance = Number(b.balanceAmount ?? (pm === 'cod' ? Math.max(0, total - dp) : 0));
+      const dp = Math.min(total, Math.max(0, Number(b.downpaymentAmount ?? Math.round(total * percentage / 100))));
+      const amountPaid = Math.max(0, Number(b.amountPaid ?? (b.paymentStatus === 'paid' ? total : 0)));
+      const travelFee = Math.max(0, Number(b.travelFare || 0));
+      const serviceFee = Math.max(0, total - travelFee);
+      const balanceAfterDeposit = Math.max(0, Number(b.balanceAmount ?? (total - Math.max(dp, amountPaid))));
+      if (b.maintenance?.paymentOnSite === true) {
+        return section('Payment Details', 'bi-cash-coin', `
+          ${kv('Payment plan', 'Pay on site after service')}
+          ${kv('Status', statusBadge(b.paymentStatus || 'pending'))}
+          ${kv('Paid so far', fmtCurrency(amountPaid))}
+          ${kv('Still to pay', fmtCurrency(Math.max(0, total - amountPaid)))}
+        `, '', 'blue');
+      }
       const inPersonCard = b.paymentChannel === 'card';
       const channelName = ({ card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' })[b.paymentChannel] || 'selected method';
-      const methodName = pm === 'cod' ? `${channelName} downpayment + balance at completion` : pm === 'gcash' ? (inPersonCard ? 'Full card payment at RACS store' : `Full payment via ${channelName}`) : pm.toUpperCase();
+      const methodName = pm === 'cod' ? `${channelName} downpayment + balance at completion`
+          : pm === 'gcash' ? (inPersonCard ? 'Full card payment at RACS store' : `Full payment via ${channelName}`) : pm.toUpperCase();
   
       let breakdown = '';
       if (pm === 'cod' && total > 0) {
         breakdown = `
           <div class="bh-payment-card">
             <div class="bh-payment-row">
-              <span class="bh-payment-label">Total Service Fee</span>
-              <span class="bh-payment-value">${fmtCurrency(total)}</span>
+              <span class="bh-payment-label">Service</span>
+              <span class="bh-payment-value">${fmtCurrency(serviceFee)}</span>
             </div>
+            ${travelFee > 0 ? `<div class="bh-payment-row"><span class="bh-payment-label">Travel fee</span><span class="bh-payment-value">${fmtCurrency(travelFee)}</span></div>` : ''}
             <div class="bh-payment-row">
-              <span class="bh-payment-label">${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? 'Downpayment due at RACS store' : 'Downpayment'}</span>
-              <span class="bh-payment-value ${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? 'bh-payment-value--warning' : 'bh-payment-value--negative'}">${inPersonCard && !['paid', 'verified'].includes(b.paymentStatus) ? '' : '-'}${fmtCurrency(dp)}</span>
+              <span class="bh-payment-label">${amountPaid >= dp ? 'Downpayment paid' : inPersonCard ? 'Downpayment due at RACS store' : 'Downpayment due'}</span>
+              <span class="bh-payment-value ${amountPaid >= dp ? 'bh-payment-value--success' : 'bh-payment-value--warning'}">${fmtCurrency(dp)}</span>
             </div>
             <div class="bh-payment-row bh-payment-total">
-              <span class="bh-payment-label">Balance on Completion</span>
-              <span class="bh-payment-value ${balance <= 0 ? 'bh-payment-value--success' : 'bh-payment-value--warning'}">${fmtCurrency(balance)}</span>
+              <span class="bh-payment-label">${amountPaid >= dp ? 'Still to pay' : 'After downpayment'}</span>
+              <span class="bh-payment-value ${balanceAfterDeposit <= 0 ? 'bh-payment-value--success' : 'bh-payment-value--warning'}">${fmtCurrency(balanceAfterDeposit)}</span>
             </div>
-            ${amountPaid > dp ? `
+            ${amountPaid > 0 ? `
             <div class="bh-payment-row bh-payment-paid">
-              <span class="bh-payment-label"><i class="bi bi-check-circle me-1"></i>Total Paid</span>
+              <span class="bh-payment-label"><i class="bi bi-check-circle me-1"></i>Paid so far</span>
               <span class="bh-payment-value bh-payment-value--success">${fmtCurrency(amountPaid)}</span>
             </div>` : ''}
           </div>`;
@@ -706,7 +707,7 @@
       return section('Payment Details', 'bi-cash-coin', `
         ${kv('Method', escapeHtml(methodName))}
         ${kv('Payment Status', statusBadge(b.paymentStatus || 'pending'))}
-        ${kv('Total Fee', fmtCurrency(total))}
+        ${kv('Estimated total', fmtCurrency(total))}
       `, breakdown, 'blue');
     })();
   
@@ -855,11 +856,17 @@
         ${kv('New Time', escapeHtml(b.proposedReschedule.timeLabel || b.proposedReschedule.time))}
         ${kv('Technician', escapeHtml(b.proposedReschedule.technicianName || 'To be assigned'), { full: true })}
       `, `
-        ${alert}
-        <div class="bh-actions-bar bh-actions-bar--inline mt-3">
-          <button class="bh-btn bh-btn--success" data-reschedule-action="accept" ${passed ? 'disabled' : ''}><i class="bi bi-check-lg me-1"></i>Accept Schedule</button>
-          <button class="bh-btn bh-btn--secondary" data-reschedule-action="request_new"><i class="bi bi-calendar-event me-1"></i>Request New Schedule</button>
-          <button class="bh-btn bh-btn--danger" data-reschedule-action="cancel"><i class="bi bi-x-lg me-1"></i>Cancel Booking</button>
+        <div class="bh-reschedule-review">
+          ${alert}
+          <div class="bh-reschedule-review-copy">
+            <i class="bi bi-info-circle"></i>
+            <span>Review the proposed appointment above. Accept it, or choose another available date and time.</span>
+          </div>
+          <div class="bh-reschedule-actions">
+            <button class="bh-btn bh-btn--success" data-reschedule-action="accept" ${passed ? 'disabled' : ''}><i class="bi bi-check-lg me-1"></i>Accept Schedule</button>
+            <button class="bh-btn bh-btn--secondary" data-reschedule-action="request_new"><i class="bi bi-calendar-event me-1"></i>Choose Another Schedule</button>
+            <button class="bh-btn bh-btn--danger bh-reschedule-cancel" data-reschedule-action="cancel"><i class="bi bi-x-lg me-1"></i>Cancel Booking</button>
+          </div>
         </div>
       `, 'blue');
     })();
@@ -880,10 +887,44 @@
         </div>
       `, 'yellow');
     })();
+
+    const bookingActionsHtml = (() => {
+      const needsScheduleReview = ['re-scheduled', 'awaiting_assignment'].includes(status)
+        && b.proposedReschedule?.status === 'pending';
+      const hasPendingReschedule = b.rescheduleRequest?.status === 'pending';
+      const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(status) && !needsScheduleReview;
+      const canEditServices = ['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status);
+      const actions = [];
+      const actionButton = (action, icon, title, description, tone = 'blue', disabled = false) => `
+        <button type="button" class="bh-modal-action bh-modal-action--${tone}" data-booking-action="${action}" ${disabled ? 'disabled aria-disabled="true"' : ''}>
+          <span class="bh-modal-action-icon"><i class="bi ${icon}"></i></span>
+          <span class="bh-modal-action-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
+          <i class="bi ${disabled ? 'bi-hourglass-split' : 'bi-chevron-right'} bh-modal-action-arrow"></i>
+        </button>`;
+
+      if (canEditServices) actions.push(actionButton('edit-services', 'bi-list-check', 'Edit Booking', 'Change services or quantities.'));
+      if (canRequestReschedule) actions.push(actionButton(
+        'reschedule',
+        'bi-calendar-event',
+        hasPendingReschedule ? 'Schedule Change Pending' : 'Change Schedule',
+        hasPendingReschedule ? 'Your request is waiting for review.' : 'Choose another available date and time.',
+        'amber',
+        hasPendingReschedule,
+      ));
+      if (status === 'pending') actions.push(actionButton('cancel', 'bi-x-circle', 'Cancel Booking', 'Cancel this request and provide a reason.', 'red'));
+      if (status === 'repair_approved') actions.push(actionButton('schedule-repair', 'bi-calendar-plus', 'Schedule Repair', 'Choose preferred repair dates.', 'purple'));
+      if (b.maintenanceSummary || b.maintenance?.isMaintenance) {
+        actions.push(`<a class="bh-modal-action bh-modal-action--green" href="/maintenance"><span class="bh-modal-action-icon"><i class="bi bi-calendar2-check"></i></span><span class="bh-modal-action-copy"><strong>View Maintenance</strong><small>Open your maintenance schedule.</small></span><i class="bi bi-chevron-right bh-modal-action-arrow"></i></a>`);
+      }
+      actions.push(`<a class="bh-modal-action bh-modal-action--blue" href="/services"><span class="bh-modal-action-icon"><i class="bi bi-arrow-repeat"></i></span><span class="bh-modal-action-copy"><strong>Book Again</strong><small>Start another service booking.</small></span><i class="bi bi-chevron-right bh-modal-action-arrow"></i></a>`);
+
+      return section('Booking Actions', 'bi-lightning-charge', '', `<div class="bh-modal-action-grid">${actions.join('')}</div>`, 'blue');
+    })();
   
     // Assemble body
     let html = '';
     html += heroHtml;
+    html += bookingActionsHtml;
   
     html += section('Schedule', 'bi-clock-history', `
       ${kv('Date', escapeHtml(dateText))}
@@ -895,7 +936,8 @@
     html += section('Service & Assignment', 'bi-tools', `
       ${kv('Service', escapeHtml(serviceTypeLabel) + (serviceName !== 'Service' ? ` · ${escapeHtml(serviceName)}` : ''))}
       ${kv('Technician', escapeHtml(String(techText)))}
-      ${kv('Estimated Fee', fmtCurrency(b.estimatedFee))}
+      ${kv(isUnpaidAftercareMaintenance(b) ? 'Estimated price' : 'Estimated Fee', fmtCurrency(b.estimatedFee))}
+      ${b.maintenance?.paymentOnSite === true ? kv('When to pay', 'On site after service. No down payment.') : ''}
       ${kv('Location', escapeHtml(locationText), { full: true })}
     `, '', 'purple');
   
@@ -941,6 +983,21 @@
     el.downloadJsonBtn.onclick = () => downloadJSON(b, `booking-${shortId(b._id)}.json`);
   
     setTimeout(() => {
+      el.modalBody.querySelectorAll('[data-booking-action]').forEach(button => {
+        button.addEventListener('click', () => {
+          if (button.disabled) return;
+          const action = button.dataset.bookingAction;
+          if (action === 'edit-services') {
+            runAfterClosingDetails(() => openBookingEditor(b._id, 'services'));
+          } else if (action === 'reschedule') {
+            window.bhRequestNewSchedule(b._id);
+          } else if (action === 'cancel') {
+            void requestDirectBookingCancellation(b);
+          } else if (action === 'schedule-repair') {
+            runAfterClosingDetails(() => window.bhShowRepairTodayChoice(b._id));
+          }
+        });
+      });
       el.modalBody.querySelectorAll('[data-reschedule-action]').forEach(btn => {
         btn.addEventListener('click', function (e) {
           e.preventDefault();
@@ -1010,6 +1067,7 @@
       const repair = catalog.repairs || [];
       const categories = categoriesData.categories || [];
       const rows = (state.services || []).map(item => ({ ...item }));
+      const initialServicesSnapshot = JSON.stringify(rows);
       let selectedDate = null;
       let selectedTime = null;
 
@@ -1023,18 +1081,18 @@
       host.innerHTML = `
       <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 rounded-4 shadow-lg" style="overflow:hidden">
-          <div class="modal-header border-bottom" style="background:linear-gradient(135deg,#f8fafc,#eff6ff);padding:20px 28px 16px">
+          <div class="modal-header bh-editor-header">
             <div class="d-flex align-items-center gap-3">
-              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:linear-gradient(135deg,#2563eb,#1d4ed8)"><i class="bi bi-pencil-square text-white fs-5"></i></div>
+              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22)"><i class="bi bi-pencil-square text-white fs-5"></i></div>
               <div>
                 <h5 class="modal-title fw-bold mb-0" style="color:#1e293b;font-size:1.1rem">Edit Booking</h5>
                 <div class="small text-muted mt-1" id="bhEditorPolicy">${state.policy?.direct ? "Changes apply immediately — this booking is not yet assigned." : "Changes will be submitted for administrator review."}</div>
               </div>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body p-0" style="background:#fff">
-            <ul class="nav nav-tabs nav-fill border-bottom fw-semibold" id="bhEditorTabs" role="tablist" style="background:#f8fafc">
+            <ul class="nav nav-tabs nav-fill border-bottom fw-semibold bh-editor-tabs" id="bhEditorTabs" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link ${activeTab === 'services' ? 'active' : ''}" id="bh-tab-services" data-bs-toggle="tab" data-bs-target="#bh-pane-services" type="button" role="tab" aria-selected="${activeTab === 'services'}">
                   <i class="bi bi-list-check me-2"></i>Services
@@ -1051,13 +1109,13 @@
             <div class="tab-content p-4" id="bhEditorTabContent">
               <div class="tab-pane fade ${activeTab === 'services' ? 'show active' : ''}" id="bh-pane-services" role="tabpanel">
                 <div id="bhScheduleProposal"></div>
-                <div class="mb-4">
-                  <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-list-check me-1"></i>Current Service Items</h6>
-                  <div id="bhCurrentItems"></div>
-                </div>
-                <hr class="my-3">
-                <h6 class="fw-bold text-uppercase text-muted mb-3" style="font-size:.7rem;letter-spacing:.05em;"><i class="bi bi-plus-circle me-1"></i>Add Service</h6>
-                <ul class="nav nav-pills mb-3" id="bhAddTabs" role="tablist">
+                <div class="bh-editor-workspace">
+                  <main class="bh-editor-catalog">
+                    <div class="bh-editor-section-heading">
+                      <span class="bh-editor-section-icon"><i class="bi bi-tools"></i></span>
+                      <div><span class="bh-editor-kicker">Services</span><h6>What service do you need?</h6><p>Add another service using the same choices available on the booking page.</p></div>
+                    </div>
+                <ul class="nav nav-pills bh-editor-service-tabs" id="bhAddTabs" role="tablist">
                   <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="pill"><i class="bi bi-gear me-2"></i>Core Services</button></li>
                   <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="pill"><i class="bi bi-tools me-2"></i>Repair Services</button></li>
                 </ul>
@@ -1101,15 +1159,25 @@
                           ${["Not Cooling","Strange Noise","Leaking Water","Not Turning On","Bad Smell","Error Code","Overheating","Electrical Issue"].map(s => `<button type="button" class="btn btn-sm btn-outline-secondary bh-symptom rounded-pill" data-symptom="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
                         </div>
                         <label class="form-label small text-muted">Detailed Issue <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="bhRepairProblem" rows="3" maxlength="2000" placeholder="Describe the problem in detail."></textarea>
+                        <textarea class="form-control" id="bhRepairProblem" rows="3" maxlength="500" placeholder="Describe the problem in detail."></textarea>
                         <div class="d-flex justify-content-between align-items-center mt-2"><span class="small text-muted"><i class="bi bi-info-circle me-1"></i>The more details, the better.</span><span class="small text-muted" id="bhCharCount">0 / 500</span></div>
                       </div>
                       <button class="btn btn-primary" id="bhAddRepair" disabled><i class="bi bi-plus-circle me-2"></i>Add Repair Service</button>
                     </div>
                   </div>
                 </div>
-                <hr class="my-3">
-                <div><label class="form-label fw-bold small text-uppercase text-muted" style="font-size:.65rem;letter-spacing:.05em;"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea class="form-control" id="bhServiceChangeReason" rows="2" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
+                  </main>
+                  <aside class="bh-editor-cart" aria-labelledby="bhEditorCartTitle">
+                    <div class="bh-editor-cart-header">
+                      <div><span class="bh-editor-kicker">Current selection</span><h6 id="bhEditorCartTitle"><i class="bi bi-bag-check me-2"></i>Your Booking</h6></div>
+                      <span class="bh-editor-cart-count" id="bhEditorCartCount">${rows.length}</span>
+                    </div>
+                    <p class="bh-editor-cart-copy" id="bhEditorCartCopy">Review quantities or remove a service.</p>
+                    <div class="bh-editor-cart-items" id="bhCurrentItems"></div>
+                    <div class="bh-editor-cart-total" id="bhEditorCartTotal"><span>Estimated total</span><strong id="bhEditorCartTotalValue">₱0</strong></div>
+                    <div class="bh-editor-reason"><label for="bhServiceChangeReason"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea id="bhServiceChangeReason" rows="3" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
+                  </aside>
+                </div>
               </div>
               <div class="tab-pane fade ${activeTab === 'schedule' ? 'show active' : ''}" id="bh-pane-schedule" role="tabpanel">
                 <div class="d-flex align-items-start gap-3 p-3 rounded-4 mb-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
@@ -1135,7 +1203,7 @@
                 </div>
                 <div class="mt-3">
                   <label class="form-label fw-semibold">Reason for rescheduling</label>
-                  <textarea class="form-control" id="bhEditorRescheduleReason" rows="2" placeholder="Optional: why do you need to reschedule?"></textarea>
+                  <textarea class="form-control" id="bhEditorRescheduleReason" rows="2" maxlength="500" placeholder="Optional: why do you need to reschedule?"></textarea>
                 </div>
               </div>
             </div>
@@ -1153,10 +1221,21 @@
 
       const scheduleProposal = [...(state.changeRequests || [])].reverse().find(change => change.status === "schedule_proposed");
       const proposalHost = bodyHost.querySelector("#bhScheduleProposal");
-      proposalHost.innerHTML = scheduleProposal ? `<div class="alert alert-warning border-warning-subtle rounded-3 mb-3"><div class="fw-bold mb-1"><i class="bi bi-calendar2-check me-2"></i>Administrator proposed a new schedule</div><div class="mb-3">${escapeHtml(new Date(scheduleProposal.proposedSchedule.date).toLocaleDateString())}, ${escapeHtml(scheduleProposal.proposedSchedule.startTime)}–${escapeHtml(scheduleProposal.proposedSchedule.endTime)}</div><div class="d-flex gap-2"><button class="btn btn-success btn-sm bh-schedule-response" data-accept="true">Accept schedule</button><button class="btn btn-outline-danger btn-sm bh-schedule-response" data-accept="false">Decline</button></div></div>` : "";
+      proposalHost.innerHTML = scheduleProposal?.proposedSchedule?.date ? `<div class="bh-editor-proposal mb-3"><div class="d-flex align-items-start gap-3"><span class="bh-editor-proposal-icon"><i class="bi bi-calendar2-check"></i></span><div><div class="fw-bold mb-1">A new schedule is ready for review</div><div class="small text-muted">${escapeHtml(new Date(scheduleProposal.proposedSchedule.date).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))}</div><div class="fw-semibold mt-1">${escapeHtml(scheduleProposal.proposedSchedule.startTime)}–${escapeHtml(scheduleProposal.proposedSchedule.endTime)}</div></div></div><div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-success btn-sm bh-schedule-response" data-accept="true"><i class="bi bi-check-lg me-1"></i>Accept schedule</button><button class="btn btn-outline-secondary btn-sm bh-schedule-response" data-accept="false"><i class="bi bi-calendar-x me-1"></i>Request another time</button></div></div>` : "";
       proposalHost.querySelectorAll(".bh-schedule-response").forEach(button => button.onclick = async () => {
         const accept = button.dataset.accept === "true";
-        if (!confirm(`${accept ? "Accept" : "Decline"} the proposed schedule?`)) return;
+        if (typeof Swal !== 'undefined') {
+          const confirmation = await Swal.fire({
+            title: accept ? 'Accept this schedule?' : 'Request another time?',
+            text: accept ? 'Your booking will be updated to the proposed date and time.' : 'The team will be notified that you need a different schedule.',
+            icon: accept ? 'question' : 'info',
+            showCancelButton: true,
+            confirmButtonText: accept ? 'Accept Schedule' : 'Request Another Time',
+            cancelButtonText: 'Go Back',
+            confirmButtonColor: accept ? '#16a34a' : '#2563eb',
+          });
+          if (!confirmation.isConfirmed) return;
+        } else if (!confirm(`${accept ? "Accept" : "Decline"} the proposed schedule?`)) return;
         button.disabled = true;
         try {
           const response = await fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-change-requests/${encodeURIComponent(scheduleProposal._id)}/schedule-response`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ accept }) });
@@ -1171,25 +1250,101 @@
       let selectedUnitType = null;
       let selectedSymptoms = [];
 
+      function advanceRepairEditor(step, targetSelector) {
+        const steps = Array.from(bodyHost.querySelectorAll("#bhRepairSteps [data-step]"));
+        steps.forEach(section => {
+          const sectionStep = Number(section.dataset.step);
+          section.classList.toggle("bh-repair-step-current", sectionStep === step);
+          section.classList.toggle("bh-repair-step-complete", sectionStep < step);
+        });
+        const target = targetSelector ? bodyHost.querySelector(targetSelector) : null;
+        if (!target) return;
+        window.setTimeout(() => {
+          target.scrollIntoView({
+            behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+            block: "center",
+          });
+          target.focus({ preventScroll: true });
+        }, 140);
+      }
+
+      function shouldKeepUserFocus(event) {
+        return Boolean(event?.relatedTarget?.closest("button, a, select, input, textarea, [role='button']"));
+      }
+
       function updateServiceCount() {
         const badge = host.querySelector("#bhServiceCount");
         if (badge) badge.textContent = rows.length;
+        const cartCount = host.querySelector("#bhEditorCartCount");
+        const cartCopy = host.querySelector("#bhEditorCartCopy");
+        const cartTotal = host.querySelector("#bhEditorCartTotalValue");
+        const unitCount = rows.reduce((sum, row) => sum + Math.max(1, Number(row.quantity) || 1), 0);
+        const total = rows.reduce((sum, row) => sum + (Number(row.totalPrice) || ((Number(row.unitPrice) || 0) * Math.max(1, Number(row.quantity) || 1))), 0);
+        if (cartCount) cartCount.textContent = rows.length;
+        if (cartCopy) cartCopy.textContent = rows.length
+          ? `${rows.length} service${rows.length === 1 ? '' : 's'} · ${unitCount} unit${unitCount === 1 ? '' : 's'}`
+          : "No service selected";
+        if (cartTotal) cartTotal.textContent = `₱${total.toLocaleString()}`;
       }
 
       function renderCurrentItems() {
         const itemsHost = bodyHost.querySelector("#bhCurrentItems");
-        if (!rows.length) { itemsHost.innerHTML = '<div class="text-muted small py-3 text-center"><i class="bi bi-inbox d-block fs-3 mb-2" style="color:#cbd5e1"></i>No service items yet. Add one below.</div>'; updateServiceCount(); return; }
+        if (!rows.length) { itemsHost.innerHTML = '<div class="bh-editor-cart-empty"><i class="bi bi-tools"></i><strong>No service selected</strong><span>Choose a service from the catalog.</span></div>'; updateServiceCount(); return; }
         itemsHost.innerHTML = rows.map((row, index) => {
           const svc = (row.type === "repair" ? repair : core).find(s => String(s._id) === String(row.serviceId));
           const svcName = svc?.name || row.name || "Service";
           const details = [row.brand, row.model, row.applianceTypeName || row.airconTypeName, row.hp ? row.hp + " HP" : ""].filter(Boolean).join(" · ");
           const problem = row.problemDescription || row.repairIssue || "";
-          const price = Number(row.totalPrice || row.unitPrice || 0);
-          return `<div class="card border rounded-3 mb-2" style="border-color:#e2e8f0!important"><div class="card-body py-2 px-3"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1"><div class="d-flex align-items-center gap-2 mb-1"><span class="badge rounded-pill ${row.type === 'repair' ? 'bg-warning text-dark' : 'bg-primary'}" style="font-size:.6rem">${row.type === 'repair' ? 'Repair' : 'Core'}</span><strong style="font-size:.85rem">${escapeHtml(svcName)}</strong>${price ? `<span class="badge bg-light text-muted rounded-pill" style="font-size:.6rem">₱${price.toLocaleString()}</span>` : ''}</div>${details ? `<div class="small text-muted">${escapeHtml(details)} · Qty ${Number(row.quantity||1)}</div>` : ''}${problem ? `<div class="small text-muted mt-1"><i class="bi bi-chat-square-text me-1"></i>${escapeHtml(problem)}</div>` : ''}</div><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="window._bhRemoveItem(${index})" title="Remove"><i class="bi bi-trash"></i></button></div></div></div>`;
+          const quantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
+          const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / quantity) || 0;
+          const lineTotal = unitPrice * quantity;
+          return `<div class="bh-editor-cart-item" data-item-index="${index}">
+            <div class="bh-editor-cart-item-top">
+              <span class="bh-editor-cart-item-icon"><i class="bi ${row.type === 'repair' ? 'bi-tools' : 'bi-snow'}"></i></span>
+              <div class="bh-editor-cart-item-copy">
+                <span>${row.type === 'repair' ? 'Repair service' : 'Aircon service'}</span>
+                <strong>${escapeHtml(svcName)}</strong>
+                ${details ? `<small>${escapeHtml(details)}</small>` : ''}
+              </div>
+              <button type="button" class="bh-item-remove" data-index="${index}" title="Remove ${escapeHtml(svcName)}" aria-label="Remove ${escapeHtml(svcName)}"><i class="bi bi-trash"></i></button>
+            </div>
+            ${problem ? `<p class="bh-editor-cart-problem"><i class="bi bi-chat-square-text"></i>${escapeHtml(problem)}</p>` : ''}
+            <div class="bh-editor-cart-item-bottom">
+              <div class="bh-editor-item-price"><span>Estimated price</span><strong>${lineTotal ? `₱${lineTotal.toLocaleString()}` : 'Price on quote'}</strong></div>
+              <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}">
+                <button type="button" class="bh-item-qty-minus" data-index="${index}" aria-label="Decrease ${escapeHtml(svcName)} quantity" ${quantity <= 1 ? 'disabled' : ''}><i class="bi bi-dash"></i></button>
+                <input type="number" value="${quantity}" min="1" max="40" readonly aria-label="${escapeHtml(svcName)} quantity">
+                <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= 40 ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+          </div>`;
         }).join("");
+        itemsHost.querySelectorAll('.bh-item-qty-minus, .bh-item-qty-plus').forEach(button => {
+          button.addEventListener('click', () => {
+            const index = Number(button.dataset.index);
+            const row = rows[index];
+            if (!row) return;
+            const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
+            const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
+            const delta = button.classList.contains('bh-item-qty-plus') ? 1 : -1;
+            row.quantity = Math.max(1, Math.min(40, previousQuantity + delta));
+            if (unitPrice) {
+              row.unitPrice = unitPrice;
+              row.totalPrice = unitPrice * row.quantity;
+            }
+            renderCurrentItems();
+          });
+        });
+        itemsHost.querySelectorAll('.bh-item-remove').forEach(button => {
+          button.addEventListener('click', () => {
+            const index = Number(button.dataset.index);
+            if (!Number.isInteger(index) || !rows[index]) return;
+            rows.splice(index, 1);
+            renderCurrentItems();
+          });
+        });
         updateServiceCount();
       }
-      window._bhRemoveItem = function(idx) { rows.splice(idx, 1); renderCurrentItems(); };
 
       function formatDuration(svc, hp) {
         if (hp?.durationMinutes) return `${hp.durationMinutes} min`;
@@ -1202,8 +1357,39 @@
         const hasAirconTypes = svc.isAirconService && svc.airconTypes && svc.airconTypes.length > 0;
         const hasLegacyHp = svc.isAirconService && svc.hpPricing && svc.hpPricing.length > 0;
         if (!hasAirconTypes && !hasLegacyHp) {
-          rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity: 1, brand: "", model: "", unitPrice: svc.basePrice || 0, totalPrice: svc.basePrice || 0 });
-          renderCurrentItems();
+          let quantityModal = document.getElementById("bhHpModal");
+          if (quantityModal) quantityModal.remove();
+          quantityModal = document.createElement("div");
+          quantityModal.id = "bhHpModal"; quantityModal.className = "modal fade"; quantityModal.tabIndex = -1;
+          const unitPrice = Number(svc.basePrice || svc.price) || 0;
+          quantityModal.innerHTML = `<div class="modal-dialog modal-dialog-centered" style="max-width:720px"><div class="modal-content border-0" data-bh-hp-modal>
+            <div class="bh-cfg-header"><div class="d-flex align-items-center gap-3"><span class="bh-cfg-icon"><i class="bi bi-sliders2"></i></span><div><h5>Set Up Your Service</h5><p>Enter how many units need service.</p></div></div><button type="button" class="bh-cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button></div>
+            <div class="modal-body bh-cfg-body">
+              <div class="bh-cfg-context"><span><i class="bi bi-tools"></i></span><div><small>Service being set up</small><strong>${escapeHtml(svc.name)}</strong></div><b>Quantity</b></div>
+              <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>How many units?</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="40" value="1" readonly><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
+            </div>
+            <div class="modal-footer bh-cfg-footer"><div class="bh-cfg-price"><span><strong>Estimated price</strong><small>Updates with quantity</small></span><b id="bhHpEstimatedPrice">${unitPrice ? `₱${unitPrice.toLocaleString()}` : 'Price on quote'}</b></div><button class="bh-cfg-primary" id="bhHpAddToBooking"><i class="bi bi-check-lg"></i>Add to Booking</button></div>
+          </div></div>`;
+          document.body.appendChild(quantityModal);
+          const quantityInput = quantityModal.querySelector("#bhSimpleQty");
+          const minus = quantityModal.querySelector("#bhSimpleQtyMinus");
+          const plus = quantityModal.querySelector("#bhSimpleQtyPlus");
+          const updateQuantity = delta => {
+            const quantity = Math.max(1, Math.min(40, (Number(quantityInput.value) || 1) + delta));
+            quantityInput.value = String(quantity); minus.disabled = quantity <= 1; plus.disabled = quantity >= 40;
+            quantityModal.querySelector("#bhHpEstimatedPrice").textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : "Price on quote";
+          };
+          minus.onclick = () => updateQuantity(-1); plus.onclick = () => updateQuantity(1);
+          quantityModal.querySelector("#bhHpAddToBooking").onclick = () => {
+            const quantity = Math.max(1, Math.min(40, Number(quantityInput.value) || 1));
+            rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model: "", unitPrice, totalPrice: unitPrice * quantity });
+            bootstrap.Modal.getOrCreateInstance(quantityModal).hide(); renderCurrentItems();
+          };
+          const childModal = bootstrap.Modal.getOrCreateInstance(quantityModal);
+          const editorModal = bootstrap.Modal.getOrCreateInstance(host);
+          quantityModal.addEventListener("hidden.bs.modal", () => { if (host.isConnected && !host.classList.contains("show")) editorModal.show(); }, { once: true });
+          if (host.classList.contains("show")) { host.addEventListener("hidden.bs.modal", () => childModal.show(), { once: true }); editorModal.hide(); }
+          else childModal.show();
           return;
         }
         let hpModal = document.getElementById("bhHpModal");
@@ -1211,52 +1397,45 @@
         hpModal = document.createElement("div");
         hpModal.id = "bhHpModal"; hpModal.className = "modal fade"; hpModal.tabIndex = -1;
         const allTypes = hasAirconTypes ? svc.airconTypes : [{ type: '', name: 'Standard', hpPricing: svc.hpPricing, description: '', durationMinutes: svc.durationMinutes }];
-        const allPrices = allTypes.flatMap(at => (at.hpPricing || []).map(h => h.price)).filter(Boolean);
-        const globalMin = allPrices.length ? Math.min(...allPrices) : 0;
-        const globalMax = allPrices.length ? Math.max(...allPrices) : 0;
-        const typeCards = allTypes.map((at, i) => `<div class="col-6 col-md-4"><div class="card bh-aircon-type-card h-100 text-center" data-aircon-index="${i}"><div class="card-body py-3 px-2"><i class="bi bi-snow fs-1 text-info"></i><h6 class="fw-bold mt-2 mb-1" style="font-size:.85rem">${escapeHtml(at.name)}</h6><p class="small text-muted mb-1 d-none d-md-block" style="font-size:.72rem;line-height:1.3">${escapeHtml(at.description || 'Standard aircon unit')}</p><span class="badge bg-success-subtle text-success" style="background:#dcfce7;color:#166534;font-size:.65rem">₱${Math.min(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()} - ₱${Math.max(...(at.hpPricing||[]).map(h=>h.price)).toLocaleString()}</span></div></div></div>`).join("");
+        const typeCards = allTypes.map((at, i) => {
+          const tierPrices = (at.hpPricing || []).map(row => Number(row.price)).filter(Number.isFinite);
+          const priceLabel = tierPrices.length
+            ? `₱${Math.min(...tierPrices).toLocaleString()} - ₱${Math.max(...tierPrices).toLocaleString()}`
+            : 'Pricing unavailable';
+          return `<div class="col-6"><button type="button" class="bh-cfg-type-card" data-aircon-index="${i}" aria-pressed="false"><span class="bh-cfg-type-top"><span class="bh-cfg-type-icon"><i class="bi bi-fan"></i></span><span><strong>${escapeHtml(at.name)}</strong><small>${escapeHtml(at.description || 'Aircon unit type')}</small></span></span><span class="bh-cfg-type-bottom"><b>${priceLabel}</b><small>${(at.hpPricing || []).length} HP option${(at.hpPricing || []).length === 1 ? '' : 's'} <i class="bi bi-chevron-right"></i></small></span></button></div>`;
+        }).join("");
         hpModal.innerHTML = `
-          <div class="modal-dialog modal-lg modal-fullscreen-sm-down modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 rounded-4 shadow" data-bh-hp-modal>
-              <style data-bh-hp-style>
-                [data-bh-hp-modal] .bh-aircon-type-card{border:1.5px solid #e2e8f0;border-radius:1rem;cursor:pointer;transition:all .15s;background:#fff}
-                [data-bh-hp-modal] .bh-aircon-type-card:hover,[data-bh-hp-modal] .bh-aircon-type-card.active{border-color:#2563eb;background:#eff6ff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(37,99,235,.12)}
-                [data-bh-hp-modal] .bh-hp-card{border:1.5px solid #e2e8f0;border-radius:1rem;cursor:pointer;transition:all .15s;background:#fff}
-                [data-bh-hp-modal] .bh-hp-card:hover,[data-bh-hp-modal] .bh-hp-card.selected{border-color:#2563eb;background:#eff6ff;box-shadow:0 4px 12px rgba(37,99,235,.12)}
-                [data-bh-hp-modal] .bh-hp-card .form-check-input{cursor:pointer;width:1.15rem;height:1.15rem}
-                [data-bh-hp-modal] .bh-qty-group{flex:0 0 auto}
-                [data-bh-hp-modal] .modal-footer .btn{min-height:44px}
-                @media(max-width:575.98px){
-                  [data-bh-hp-modal] .modal-body{padding:1rem}
-                  [data-bh-hp-modal] .bh-hp-card .card-body{flex-direction:column;align-items:flex-start;gap:.75rem}
-                  [data-bh-hp-modal] .bh-hp-card .bh-hp-meta{width:100%;text-align:left}
-                  [data-bh-hp-modal] .bh-qty-group{margin-left:0;width:100%;justify-content:space-between}
-                  [data-bh-hp-modal] .modal-footer{flex-wrap:wrap;gap:.5rem;padding:.75rem}
-                  [data-bh-hp-modal] .modal-footer .btn,[data-bh-hp-modal] .modal-footer>div{flex:1 1 auto;min-width:120px}
-                  [data-bh-hp-modal] .modal-footer .btn-primary{order:3;width:100%}
-                }
-              </style>
-              <div class="modal-header text-white" style="background:linear-gradient(135deg,#2563eb,#1d4ed8)">
-                <div class="d-flex align-items-center gap-2"><div class="rounded-3 d-flex align-items-center justify-content-center" style="width:40px;height:40px;background:rgba(255,255,255,.2)"><i class="bi bi-box-seam"></i></div><div><h5 class="modal-title fw-bold mb-0" style="font-size:1.05rem">Configure Service</h5><p class="mb-0 small" style="opacity:.85">Select aircon type & HP rating</p></div></div>
-                <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:720px">
+            <div class="modal-content border-0" data-bh-hp-modal>
+              <div class="bh-cfg-header">
+                <div class="d-flex align-items-center gap-3"><span class="bh-cfg-icon"><i class="bi bi-sliders2"></i></span><div><h5>Set Up Your Service</h5><p>Choose the brand, aircon type, and HP to get the right price.</p></div></div>
+                <button type="button" class="bh-cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button>
               </div>
-              <div class="modal-body p-3 p-md-4">
-                <h5 class="fw-bold mb-3" style="color:#1e293b">${escapeHtml(svc.name)}</h5>
-                <div class="mb-3"><label class="form-label fw-bold small">Brand Name <span class="text-danger">*</span></label><select class="form-select" id="bhHpBrandSelect"><option value="">Select brand...</option>${(svc.brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("")}</select><input class="form-control mt-2 d-none" id="bhHpBrandOther" placeholder="Enter brand" maxlength="100"></div>
-                <div class="d-flex align-items-center gap-2 mb-3"><div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">1</div><h6 class="fw-bold mb-0" style="font-size:.9rem">Select Aircon Type</h6></div>
-                <p class="small text-muted">Choose the type of aircon unit. Prices vary by type and HP rating.</p>
-                <div class="row g-3" id="bhAirconTypeGrid">${typeCards}</div>
-                <div id="bhHpOptionsSection" class="d-none mt-4">
-                  <div class="d-flex align-items-center gap-2 mb-2"><div class="rounded-circle d-flex align-items-center justify-content-center fw-bold text-white" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">2</div><h6 class="fw-bold mb-0" style="font-size:.9rem">Select HP Rating(s)</h6></div>
-                  <p class="small text-muted">Choose the horsepower rating and quantity for each unit.</p>
+              <div class="bh-cfg-wizard" aria-label="Service setup progress">
+                <div class="bh-cfg-step is-active" data-bh-cfg-step="1"><span><i class="bi bi-1-circle-fill"></i></span><div><small>1 of 3</small><strong>Brand</strong></div></div><i></i>
+                <div class="bh-cfg-step" data-bh-cfg-step="2"><span><i class="bi bi-2-circle"></i></span><div><small>2 of 3</small><strong>Aircon Type</strong></div></div><i></i>
+                <div class="bh-cfg-step" data-bh-cfg-step="3"><span><i class="bi bi-3-circle"></i></span><div><small>3 of 3</small><strong>HP</strong></div></div>
+              </div>
+              <div class="modal-body bh-cfg-body">
+                <div class="bh-cfg-context"><span><i class="bi bi-tools"></i></span><div><small>Service being set up</small><strong>${escapeHtml(svc.name)}</strong></div><b id="bhCfgCurrentStep">Step 1 of 3</b></div>
+                <section class="bh-cfg-panel" id="bhCfgBrandSection">
+                  <div class="bh-cfg-panel-heading"><span><i class="bi bi-upc-scan"></i></span><div><small>First</small><h6>What is the aircon brand?</h6><p>Choose the brand shown on the unit. Choose “I don't know” if you are not sure.</p></div></div>
+                  <label for="bhHpBrandSelect">Brand <em>*</em></label><select id="bhHpBrandSelect"><option value="">Choose a brand…</option>${(svc.brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("")}<option value="__other__">Other / enter manually</option><option value="I don't know">I don't know</option></select><input class="d-none" id="bhHpBrandOther" placeholder="Enter brand" maxlength="100"><div class="bh-cfg-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
+                </section>
+                <section class="bh-cfg-panel d-none" id="bhCfgTypeSection">
+                  <div class="bh-cfg-panel-heading"><span><i class="bi bi-snow"></i></span><div><small>Next</small><h6>What type of aircon is it?</h6><p>Choose the closest match. You will choose the HP next.</p></div></div>
+                  <div class="row g-2 g-md-3" id="bhAirconTypeGrid">${typeCards}</div>
+                </section>
+                <section class="bh-cfg-panel d-none" id="bhHpOptionsSection">
+                  <div class="bh-cfg-selected-type"><span><small>Selected aircon type</small><strong id="bhCfgSelectedType">—</strong></span><button type="button" id="bhCfgChangeType"><i class="bi bi-arrow-left"></i> Change</button></div>
+                  <div class="bh-cfg-panel-heading"><span><i class="bi bi-speedometer2"></i></span><div><small>Last</small><h6>What is the aircon HP?</h6><p>Choose the HP and enter the number of units.</p></div></div>
                   <div class="d-flex flex-column gap-2" id="bhHpOptionsList"></div>
-                </div>
-                <div class="alert alert-light border rounded-3 mt-3" role="alert"><i class="bi bi-info-circle me-2 text-info"></i>Final pricing may be confirmed by the technician after inspection.</div>
+                </section>
               </div>
-              <div class="modal-footer bg-light border-top flex-wrap justify-content-between gap-2">
-                <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <div class="d-flex align-items-center gap-2 p-2 rounded-3 flex-fill justify-content-center" style="background:#fff;border:1px solid #e2e8f0;min-width:140px"><div><div class="small text-muted">Estimated Price:</div><div class="small" style="color:#64748b">Includes service & travel</div></div><div class="fw-bold fs-5 text-primary" id="bhHpEstimatedPrice">₱0</div></div>
-                <button class="btn btn-primary ms-md-auto" id="bhHpAddToBooking" disabled><i class="bi bi-check-lg me-1"></i>Add to Booking</button>
+              <div class="modal-footer bh-cfg-footer">
+                <button type="button" class="bh-cfg-back d-none" id="bhCfgBack"><i class="bi bi-arrow-left"></i><span>Back</span></button>
+                <div class="bh-cfg-price"><span><strong>Estimated price</strong><small>Updates as you choose</small></span><b id="bhHpEstimatedPrice">₱0</b></div>
+                <button class="bh-cfg-primary" id="bhHpAddToBooking" disabled><i class="bi bi-upc-scan"></i>Choose a brand</button>
               </div>
             </div>
           </div>`;
@@ -1264,17 +1443,59 @@
 
         const brandSelect = hpModal.querySelector("#bhHpBrandSelect");
         const brandOther = hpModal.querySelector("#bhHpBrandOther");
-        brandSelect.onchange = () => {
-          if (brandSelect.value === "__other__") { brandOther.classList.remove("d-none"); brandOther.focus(); }
-          else { brandOther.classList.add("d-none"); brandOther.value = ""; }
-        };
-
+        const brandSection = hpModal.querySelector("#bhCfgBrandSection");
+        const typeSection = hpModal.querySelector("#bhCfgTypeSection");
+        const hpSection = hpModal.querySelector("#bhHpOptionsSection");
+        const backButton = hpModal.querySelector("#bhCfgBack");
+        const addButton = hpModal.querySelector("#bhHpAddToBooking");
         let selectedAirconIndex = null;
         let selectedHp = null;
 
+        function setConfigurationStep(step) {
+          hpModal.querySelectorAll("[data-bh-cfg-step]").forEach(element => {
+            const number = Number(element.dataset.bhCfgStep);
+            element.classList.toggle("is-active", number === step);
+            element.classList.toggle("is-done", number < step);
+            const icon = element.querySelector(".bi");
+            if (icon) icon.className = number < step ? "bi bi-check-lg" : `bi bi-${number}-circle${number === step ? '-fill' : ''}`;
+          });
+          hpModal.querySelector("#bhCfgCurrentStep").textContent = step === 3 && selectedHp ? "Ready to add" : `Step ${step} of 3`;
+        }
+
+        function showBrandStep() {
+          brandSection.classList.remove("d-none"); typeSection.classList.add("d-none"); hpSection.classList.add("d-none");
+          backButton.classList.add("d-none"); addButton.disabled = true; addButton.innerHTML = '<i class="bi bi-upc-scan"></i>Choose a brand'; setConfigurationStep(1);
+        }
+
+        function showTypeStep() {
+          const brand = brandSelect.value === "__other__" ? brandOther.value.trim() : brandSelect.value;
+          if (!brand) return;
+          brandSection.classList.add("d-none"); typeSection.classList.remove("d-none"); hpSection.classList.add("d-none");
+          backButton.classList.remove("d-none"); backButton.querySelector("span").textContent = "Back to Brand"; addButton.disabled = true; addButton.innerHTML = '<i class="bi bi-arrow-right"></i>Choose aircon type'; setConfigurationStep(2);
+        }
+
+        function showHpStep() {
+          if (selectedAirconIndex === null) return;
+          brandSection.classList.add("d-none"); typeSection.classList.add("d-none"); hpSection.classList.remove("d-none");
+          backButton.classList.remove("d-none"); backButton.querySelector("span").textContent = "Back to Aircon Type"; setConfigurationStep(3);
+        }
+
+        brandSelect.onchange = () => {
+          if (brandSelect.value === "__other__") { brandOther.classList.remove("d-none"); brandOther.focus(); return; }
+          brandOther.classList.add("d-none"); brandOther.value = "";
+          if (brandSelect.value) showTypeStep();
+        };
+        const finishCustomBrand = () => { if (brandOther.value.trim()) showTypeStep(); };
+        brandOther.addEventListener("blur", finishCustomBrand);
+        brandOther.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); finishCustomBrand(); } });
+        backButton.onclick = () => { if (!hpSection.classList.contains("d-none")) showTypeStep(); else showBrandStep(); };
+        hpModal.querySelector("#bhCfgChangeType").onclick = showTypeStep;
+
         function updateEstimatedPrice() {
           if (!selectedHp) { hpModal.querySelector("#bhHpEstimatedPrice").textContent = "₱0"; return; }
-          const qty = Math.max(1, Number(hpModal.querySelector("#bhHpQtyInput")?.value) || 1);
+          const qtyInput = hpModal.querySelector(`[data-hp-qty-input="${selectedHp.index}"]`);
+          const qty = Math.max(1, Math.min(40, Number(qtyInput?.value) || 1));
+          selectedHp.quantity = qty;
           hpModal.querySelector("#bhHpEstimatedPrice").textContent = `₱${(selectedHp.price * qty).toLocaleString()}`;
         }
 
@@ -1291,37 +1512,63 @@
                 <div class="bh-hp-meta text-center" style="min-width:120px"><div class="small text-muted"><i class="bi bi-clock me-1"></i>${duration}</div><div class="small text-muted">${escapeHtml(hp.description || '')}</div></div>
                 <div class="bh-qty-group d-flex align-items-center gap-2">
                   <span class="small text-muted d-none d-md-inline">Quantity:</span>
-                  <div class="input-group" style="width:120px"><button class="btn btn-outline-secondary" type="button" id="bhHpQtyMinus">&minus;</button><input class="form-control text-center" id="bhHpQtyInput" type="number" min="1" max="40" value="1" readonly><button class="btn btn-outline-secondary" type="button" id="bhHpQtyPlus">+</button></div>
+                  <div class="bh-editor-stepper"><button type="button" data-hp-qty-minus="${i}" aria-label="Decrease ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-dash"></i></button><input data-hp-qty-input="${i}" type="number" min="1" max="40" value="1" readonly aria-label="${escapeHtml(String(hp.hp))} HP quantity"><button type="button" data-hp-qty-plus="${i}" aria-label="Increase ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-plus"></i></button></div>
                 </div>
               </div>
             </div>`;
-          }).join("");
+          }).join("") || '<div class="alert alert-warning mb-0">No HP pricing is available for this aircon type. Please choose another type.</div>';
+          const selectHpCard = card => {
+            list.querySelectorAll("[data-hp-index]").forEach(c => c.classList.remove("selected"));
+            list.querySelectorAll("[data-hp-index] input[type='radio']").forEach(c => { c.checked = false; });
+            card.classList.add("selected");
+            card.querySelector("input[type='radio']").checked = true;
+            const index = Number(card.dataset.hpIndex);
+            selectedHp = {
+              index,
+              hp: parseFloat(card.dataset.hp),
+              price: parseFloat(card.dataset.price),
+              durationMinutes: parseFloat(card.dataset.duration) || null,
+              quantity: Math.max(1, Number(card.querySelector(`[data-hp-qty-input="${index}"]`)?.value) || 1),
+            };
+            addButton.disabled = false;
+            addButton.innerHTML = '<i class="bi bi-check-lg"></i>Add to Booking';
+            setConfigurationStep(3);
+            updateEstimatedPrice();
+          };
           list.querySelectorAll("[data-hp-index]").forEach(card => {
             card.onclick = (e) => {
-              if (e.target.tagName === "BUTTON" || e.target.id === "bhHpQtyInput") return;
-              list.querySelectorAll("[data-hp-index]").forEach(c => c.classList.remove("selected"));
-              list.querySelectorAll("[data-hp-index] input").forEach(c => c.checked = false);
-              card.classList.add("selected");
-              card.querySelector("input").checked = true;
-              selectedHp = { hp: parseFloat(card.dataset.hp), price: parseFloat(card.dataset.price), durationMinutes: parseFloat(card.dataset.duration) || null };
-              hpModal.querySelector("#bhHpAddToBooking").disabled = false;
-              updateEstimatedPrice();
+              if (e.target.closest('button') || e.target.matches('[data-hp-qty-input]')) return;
+              selectHpCard(card);
             };
           });
-          list.querySelector("#bhHpQtyMinus").onclick = () => { const inp = list.querySelector("#bhHpQtyInput"); inp.value = Math.max(1, Number(inp.value) - 1); updateEstimatedPrice(); };
-          list.querySelector("#bhHpQtyPlus").onclick = () => { const inp = list.querySelector("#bhHpQtyInput"); inp.value = Math.min(40, Number(inp.value) + 1); updateEstimatedPrice(); };
-          list.querySelector("#bhHpQtyInput").oninput = () => updateEstimatedPrice();
+          list.querySelectorAll('[data-hp-qty-minus], [data-hp-qty-plus]').forEach(button => {
+            button.addEventListener('click', event => {
+              event.preventDefault();
+              event.stopPropagation();
+              const index = Number(button.dataset.hpQtyMinus ?? button.dataset.hpQtyPlus);
+              const card = list.querySelector(`[data-hp-index="${index}"]`);
+              const input = list.querySelector(`[data-hp-qty-input="${index}"]`);
+              if (!card || !input) return;
+              selectHpCard(card);
+              const delta = button.hasAttribute('data-hp-qty-plus') ? 1 : -1;
+              input.value = String(Math.max(1, Math.min(40, Number(input.value) + delta)));
+              updateEstimatedPrice();
+            });
+          });
         }
 
         hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(card => card.onclick = () => {
-          hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(c => c.classList.remove("active"));
-          card.classList.add("active");
+          hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(c => { c.classList.remove("is-selected"); c.setAttribute("aria-pressed", "false"); });
+          card.classList.add("is-selected");
+          card.setAttribute("aria-pressed", "true");
           selectedAirconIndex = parseInt(card.dataset.airconIndex);
-          hpModal.querySelector("#bhHpOptionsSection").classList.remove("d-none");
+          hpModal.querySelector("#bhCfgSelectedType").textContent = allTypes[selectedAirconIndex].name || "Aircon type";
           renderHpOptions(allTypes[selectedAirconIndex]);
           selectedHp = null;
-          hpModal.querySelector("#bhHpAddToBooking").disabled = true;
+          addButton.disabled = true;
+          addButton.innerHTML = '<i class="bi bi-speedometer2"></i>Choose HP';
           hpModal.querySelector("#bhHpEstimatedPrice").textContent = "₱0";
+          showHpStep();
         });
 
         hpModal.querySelector("#bhHpAddToBooking").onclick = () => {
@@ -1330,7 +1577,7 @@
           if (!brand) { alert("Please select or enter a brand name."); brandSelect.focus(); return; }
           if (!selectedAirconIndex && selectedAirconIndex !== 0) { alert("Please select an aircon type."); return; }
           if (!selectedHp) { alert("Please select an HP rating."); return; }
-          const qty = Math.max(1, Number(hpModal.querySelector("#bhHpQtyInput").value) || 1);
+          const qty = Math.max(1, Math.min(40, Number(selectedHp.quantity) || 1));
           const airconType = allTypes[selectedAirconIndex];
           rows.push({
             type: "core", serviceId: svc._id, name: svc.name, quantity: qty,
@@ -1344,29 +1591,41 @@
           renderCurrentItems();
         };
 
-        bootstrap.Modal.getOrCreateInstance(hpModal).show();
+        const hpModalInstance = bootstrap.Modal.getOrCreateInstance(hpModal);
+        const editorModalInstance = bootstrap.Modal.getOrCreateInstance(host);
+        hpModal.addEventListener('hidden.bs.modal', () => {
+          if (host.isConnected && !host.classList.contains('show')) editorModalInstance.show();
+        }, { once: true });
+        if (host.classList.contains('show')) {
+          host.addEventListener('hidden.bs.modal', () => hpModalInstance.show(), { once: true });
+          editorModalInstance.hide();
+        } else {
+          hpModalInstance.show();
+        }
       }
 
       function renderCoreGrid() {
         const grid = bodyHost.querySelector("#bhCoreGrid");
         grid.innerHTML = core.map(s => {
           const isAircon = s.isAirconService && ((s.airconTypes && s.airconTypes.length > 0) || (s.hpPricing && s.hpPricing.length > 0));
-          const prices = isAircon ? (s.airconTypes || []).flatMap(at => (at.hpPricing || []).map(h => h.price)).concat(s.hpPricing || []).filter(Boolean) : [];
+          const prices = isAircon ? (s.airconTypes || []).flatMap(at => (at.hpPricing || []).map(h => Number(h.price))).concat((s.hpPricing || []).map(h => Number(h.price))).filter(Number.isFinite) : [];
           let priceDisplay = "";
           if (isAircon && prices.length) priceDisplay = `₱${Math.min(...prices).toLocaleString()} - ₱${Math.max(...prices).toLocaleString()}`;
           else if (s.basePrice) priceDisplay = `₱${Number(s.basePrice).toLocaleString()}`;
           const duration = isAircon ? 'Duration TBD' : formatDuration(s);
-          return `<div class="col-md-4"><div class="card border-0 rounded-4 shadow-sm h-100" style="transition:all .15s" data-svc="${escapeHtml(s._id)}"><div class="card-body p-4">
-            <div class="d-flex align-items-start gap-3 mb-3">
-              <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:linear-gradient(135deg,#eff6ff,#dbeafe)"><i class="bi ${escapeHtml(s.icon||'bi-gear')} fs-4 text-primary"></i></div>
-              <div class="flex-grow-1">
-                <h6 class="fw-bold mb-1" style="font-size:.9rem">${escapeHtml(s.name)}</h6>
-                <div class="d-flex gap-1 mb-1">${isAircon ? '<span class="badge" style="background:#06b6d4;color:#fff;font-size:.55rem">HP-based</span>' : ''}<span class="badge bg-light text-muted" style="font-size:.55rem">${escapeHtml(duration)}</span></div>
-              </div>
-            </div>
-            <div class="text-center mb-3"><span class="fw-bold text-primary" style="font-size:1.1rem">${priceDisplay || 'Price on quote'}</span></div>
-            <button class="btn btn-primary w-100 rounded-pill" type="button"><i class="bi bi-plus-circle me-2"></i>Add to Booking</button>
-          </div></div></div>`;
+          const description = s.description || s.summary || 'Choose this service to see the needed details and price.';
+          const media = Array.isArray(s.images) && s.images[0]
+            ? `<div class="bh-service-card-media"><img src="${escapeHtml(s.images[0])}" alt="${escapeHtml(s.name)}" loading="lazy"></div>`
+            : `<div class="bh-service-icon"><i class="bi ${escapeHtml(s.icon || 'bi-gear-fill')}"></i></div>`;
+          return `<div class="col-6 bh-core-service-column"><article class="bh-service-catalog-card" data-svc="${escapeHtml(s._id)}">
+            ${media}
+            <span class="bh-service-kicker">Aircon service</span>
+            <h6>${escapeHtml(s.name)}</h6>
+            <p>${escapeHtml(description)}</p>
+            <div class="bh-service-meta">${isAircon ? '<span>Price depends on HP and unit type</span>' : ''}<span>About ${escapeHtml(duration)}</span></div>
+            <div class="bh-service-price"><span>Estimated price</span><strong>${priceDisplay || 'Price on quote'}</strong></div>
+            <button class="bh-add-service-btn" type="button"><i class="bi bi-plus-lg"></i><span>Add</span></button>
+          </article></div>`;
         }).join("") || '<div class="text-muted small">No core services available.</div>';
         grid.querySelectorAll("[data-svc]").forEach(card => card.onclick = () => {
           const svcId = card.dataset.svc;
@@ -1385,15 +1644,16 @@
           card.style.borderColor = "#2563eb";
           selectedCategory = categories.find(c => c.slug === card.dataset.cat);
           bodyHost.querySelector("[data-step='2']").classList.remove("d-none");
-          renderUnitChips();
+          const hasUnitTypes = renderUnitChips();
           renderRepairSelect();
+          advanceRepairEditor(hasUnitTypes ? 2 : 3, hasUnitTypes ? "#bhUnitChips .bh-unit-chip" : "#bhRepairBrand");
         });
       }
 
       function renderUnitChips() {
         const section = bodyHost.querySelector("[data-step='2']");
         const chipsHost = bodyHost.querySelector("#bhUnitChips");
-        if (!selectedCategory || !selectedCategory.unitTypes?.length) { section.classList.add("d-none"); selectedUnitType = null; return; }
+        if (!selectedCategory || !selectedCategory.unitTypes?.length) { section.classList.add("d-none"); selectedUnitType = null; return false; }
         section.classList.remove("d-none");
         chipsHost.innerHTML = selectedCategory.unitTypes.map(ut => `<button type="button" class="btn btn-sm btn-outline-secondary bh-unit-chip rounded-pill" data-val="${escapeHtml(ut.value)}" data-label="${escapeHtml(ut.label)}"><i class="bi ${escapeHtml(ut.icon||'bi-circle')} me-1"></i>${escapeHtml(ut.label)}</button>`).join("");
         chipsHost.querySelectorAll(".bh-unit-chip").forEach(chip => chip.onclick = () => {
@@ -1401,7 +1661,9 @@
           chip.classList.add("btn-secondary", "text-white");
           selectedUnitType = { value: chip.dataset.val, label: chip.dataset.label };
           renderRepairSelect();
+          advanceRepairEditor(3, "#bhRepairBrand");
         });
+        return true;
       }
 
       function renderRepairSelect() {
@@ -1421,6 +1683,7 @@
           if (selectedSymptoms.includes(symptom)) { selectedSymptoms = selectedSymptoms.filter(s => s !== symptom); chip.classList.remove("btn-secondary","text-white"); chip.classList.add("btn-outline-secondary"); }
           else { selectedSymptoms.push(symptom); chip.classList.add("btn-secondary","text-white"); chip.classList.remove("btn-outline-secondary"); }
           updateProblemText();
+          advanceRepairEditor(4, "#bhRepairProblem");
         });
       }
       function updateProblemText() {
@@ -1444,12 +1707,50 @@
         bodyHost.querySelector("#bhAddRepair").disabled = !(svc && brand && problem);
       }
 
-      bodyHost.querySelector("#bhRepairBrand").oninput = updateAddRepairButton;
-      bodyHost.querySelector("#bhRepairModel").oninput = () => {};
-      bodyHost.querySelector("#bhRepairProblem").oninput = () => { updateProblemText(); };
+      const repairBrandInput = bodyHost.querySelector("#bhRepairBrand");
+      const repairModelInput = bodyHost.querySelector("#bhRepairModel");
+      const repairQuantityInput = bodyHost.querySelector("#bhRepairQty");
+      const repairServiceSelect = bodyHost.querySelector("#bhRepairSelect");
+      const repairProblemInput = bodyHost.querySelector("#bhRepairProblem");
+      repairBrandInput.oninput = updateAddRepairButton;
+      repairBrandInput.addEventListener("blur", event => {
+        if (repairBrandInput.value.trim() && !shouldKeepUserFocus(event)) advanceRepairEditor(3, "#bhRepairModel");
+      });
+      repairBrandInput.addEventListener("keydown", event => {
+        if (event.key !== "Enter" || !repairBrandInput.value.trim()) return;
+        event.preventDefault(); advanceRepairEditor(3, "#bhRepairModel");
+      });
+      repairModelInput.addEventListener("blur", event => {
+        if (!shouldKeepUserFocus(event)) advanceRepairEditor(3, "#bhRepairQty");
+      });
+      repairModelInput.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+        event.preventDefault(); advanceRepairEditor(3, "#bhRepairQty");
+      });
+      repairProblemInput.oninput = () => { updateProblemText(); };
+      repairProblemInput.addEventListener("blur", event => {
+        if (repairProblemInput.value.trim() && !shouldKeepUserFocus(event)) advanceRepairEditor(4, "#bhAddRepair");
+      });
       bodyHost.querySelector("#bhRepairQtyMinus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.max(1, Number(inp.value) - 1); };
       bodyHost.querySelector("#bhRepairQtyPlus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.min(40, Number(inp.value) + 1); };
-      bodyHost.querySelector("#bhRepairSelect").onchange = updateAddRepairButton;
+      repairQuantityInput.onchange = event => {
+        event.currentTarget.value = String(Math.max(1, Math.min(40, Number(event.currentTarget.value) || 1)));
+      };
+      repairQuantityInput.addEventListener("blur", event => {
+        if (!shouldKeepUserFocus(event)) advanceRepairEditor(3, "#bhRepairSelect");
+      });
+      repairQuantityInput.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+        event.preventDefault(); advanceRepairEditor(3, "#bhRepairSelect");
+      });
+      repairServiceSelect.onchange = () => {
+        updateAddRepairButton();
+        advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
+      };
+      repairServiceSelect.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+        event.preventDefault(); advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
+      });
 
       bodyHost.querySelector("#bhAddRepair").onclick = () => {
         const svcId = bodyHost.querySelector("#bhRepairSelect").value;
@@ -1459,7 +1760,7 @@
         if (!brand) { alert("Please enter a brand."); bodyHost.querySelector("#bhRepairBrand").focus(); return; }
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
         if (!problem) { alert("Please describe the problem."); bodyHost.querySelector("#bhRepairProblem").focus(); return; }
-        const qty = Math.max(1, Number(bodyHost.querySelector("#bhRepairQty").value) || 1);
+        const qty = Math.max(1, Math.min(40, Number(bodyHost.querySelector("#bhRepairQty").value) || 1));
         rows.push({
           type: "repair", serviceId: svc._id, name: svc.name, quantity: qty,
           brand, model: bodyHost.querySelector("#bhRepairModel").value.trim(),
@@ -1472,10 +1773,16 @@
         bodyHost.querySelector("#bhRepairModel").value = "";
         bodyHost.querySelector("#bhRepairProblem").value = "";
         bodyHost.querySelector("#bhRepairQty").value = "1";
+        selectedCategory = null;
+        selectedUnitType = null;
         selectedSymptoms = [];
+        bodyHost.querySelectorAll("#bhCatGrid [data-cat]").forEach(card => { card.classList.remove("border-primary", "bg-light"); card.style.borderColor = "#e2e8f0"; });
+        bodyHost.querySelector("[data-step='2']").classList.add("d-none");
         bodyHost.querySelectorAll(".bh-symptom").forEach(c => { c.classList.remove("btn-secondary","text-white"); c.classList.add("btn-outline-secondary"); });
         bodyHost.querySelector("#bhAddRepair").disabled = true;
+        bodyHost.querySelector("#bhCharCount").textContent = "0 / 500";
         renderCurrentItems();
+        advanceRepairEditor(1, "#bhCatGrid [data-cat]");
       };
 
       function attachSaveHandler() {
@@ -1483,11 +1790,18 @@
           const button = event.currentTarget; button.disabled = true;
           try {
             const promises = [];
-            let hasServices = rows.length > 0;
             const reasonEl = host.querySelector("#bhServiceChangeReason");
             const reason = reasonEl ? reasonEl.value.trim() : "";
+            const servicesChanged = JSON.stringify(rows) !== initialServicesSnapshot;
+            const scheduleChanged = Boolean(selectedDate && selectedTime);
 
-            if (hasServices) {
+            if (!rows.length) {
+              alert("A booking must keep at least one service item.");
+              button.disabled = false;
+              return;
+            }
+
+            if (servicesChanged || scheduleChanged) {
               const rescheduleReason = host.querySelector("#bhEditorRescheduleReason")?.value?.trim() || reason || "";
               const services = rows.map(row => ({
                 _id: row._id, type: row.type,
@@ -1512,7 +1826,7 @@
               );
             }
 
-            if (!promises.length) {
+            if (!servicesChanged && !scheduleChanged) {
               alert("Make a change to services or schedule before saving.");
               button.disabled = false;
               return;
@@ -1537,6 +1851,9 @@
           if (typeof EnterpriseCalendar === 'undefined') throw new Error('Calendar module not loaded');
           const serviceId = booking ? ((booking.serviceId && (booking.serviceId._id || booking.serviceId)) || (booking.service && booking.service._id) || null) : null;
           await EnterpriseCalendar.init({
+            root: host,
+            syncGlobalState: false,
+            resetSelection: true,
             serviceId,
             duration: booking ? (Number(booking.serviceDurationMinutes) || 90) : 90,
             quantity: booking ? (Number(booking.quantity) || 1) : 1,
@@ -1568,15 +1885,30 @@
       renderCategoryGrid();
       renderRepairSelect();
       renderSymptomChips();
+      host.querySelector("#bh-repair-tab")?.addEventListener("shown.bs.tab", () => {
+        if (!selectedCategory) return advanceRepairEditor(1, "#bhCatGrid [data-cat]");
+        if (selectedCategory.unitTypes?.length && !selectedUnitType) return advanceRepairEditor(2, "#bhUnitChips .bh-unit-chip");
+        if (!repairBrandInput.value.trim()) return advanceRepairEditor(3, "#bhRepairBrand");
+        if (!repairProblemInput.value.trim()) return advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
+        advanceRepairEditor(4, "#bhAddRepair");
+      });
       bootstrap.Modal.getOrCreateInstance(host).show();
     } catch (error) { alert(error.message || "Unable to open booking editor"); }
   }
 
   async function fetchBookings() {
+    const requestId = ++bookingListRequestId;
+    if (bookingListRequest) bookingListRequest.abort();
+    bookingListRequest = new AbortController();
     try {
-      el.loading.classList.remove("d-none");
-      el.tableWrap.classList.add("d-none");
-      el.empty.classList.add("d-none");
+      const isInitialLoad = bookings.length === 0;
+      if (isInitialLoad) {
+        el.loading.classList.remove("d-none");
+        el.tableWrap.classList.add("d-none");
+        el.empty.classList.add("d-none");
+      } else {
+        el.tableWrap.setAttribute("aria-busy", "true");
+      }
 
       const params = new URLSearchParams({
         limit: String(perPage),
@@ -1584,21 +1916,25 @@
       });
       const q = (el.search.value || "").trim();
       const status = (el.status.value || "all").trim();
+      const sort = (el.sort.value || "created_desc").trim();
       const from = dateFilterValue(el.from.value);
       const to = dateFilterValue(el.to.value);
       const highlightedReference = new URLSearchParams(window.location.search).get("highlight");
       if (highlightedReference) params.set("reference", highlightedReference);
       else if (q) params.set("q", q);
       if (status && status !== "all") params.set("status", status);
+      params.set("sort", sort);
       if (from) params.set("start", from);
       if (to) params.set("end", to);
 
       const res = await fetch(`/api/appointments?${params.toString()}`, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        signal: bookingListRequest.signal,
       });
       if (!res.ok) throw new Error("Failed to load");
       const payload = await res.json();
+      if (requestId !== bookingListRequestId) return;
       let items = [];
       if (Array.isArray(payload.items)) items = payload.items;
       else if (Array.isArray(payload)) items = payload;
@@ -1613,10 +1949,15 @@
       }
       renderTable();
     } catch (e) {
+      if (e?.name === "AbortError") return;
       console.error("Failed to load bookings", e);
       el.loading.innerHTML =
         '<div class="text-danger">Failed to load bookings. Try reloading the page.</div>';
-
+    } finally {
+      if (requestId === bookingListRequestId) {
+        bookingListRequest = null;
+        el.tableWrap.removeAttribute("aria-busy");
+      }
     }
   }
   window.refreshBookingHistory = fetchBookings;
@@ -1624,11 +1965,13 @@
   // events
   el.search.addEventListener("input", debounce(applyFilters, 250));
   el.status.addEventListener("change", applyFilters);
+  el.sort.addEventListener("change", applyFilters);
   el.from.addEventListener("change", applyFilters);
   el.to.addEventListener("change", applyFilters);
   el.clear.addEventListener("click", function () {
     el.search.value = "";
     el.status.value = "all";
+    el.sort.value = "created_desc";
     el.from.value = "";
     el.to.value = "";
     applyFilters();
@@ -2135,6 +2478,8 @@
   let currentRescheduleBooking = null;
   let selectedRescheduleDate = null;
   let selectedRescheduleTime = null;
+  let selectedRescheduleEndDate = null;
+  let currentRescheduleUsesProjectPicker = false;
   let rescheduleCalendarState = {
     currentMonth: new Date().getMonth(),
     currentYear: new Date().getFullYear(),
@@ -2146,32 +2491,119 @@
     return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   }
 
-  // Open reschedule modal
-  function openRescheduleModal(booking) {
+  function syncRescheduleActionState() {
+    const reason = document.getElementById('bhRescheduleReason')?.value.trim() || '';
+    const isProject = currentRescheduleUsesProjectPicker;
+    const hasSchedule = Boolean(selectedRescheduleDate && (isProject || selectedRescheduleTime));
+    const submitButton = document.getElementById('bhSubmitReschedule');
+    const continueButton = document.getElementById('bhRescheduleContinue');
+    if (submitButton) submitButton.disabled = !(hasSchedule && reason);
+    if (continueButton) continueButton.disabled = !hasSchedule;
+  }
+
+  function updateRescheduleSelectionSummary(date, time, endDate) {
+    const summary = document.getElementById('bhRescheduleNextSummary');
+    const hint = document.getElementById('bhRescheduleNextHint');
+    const action = document.getElementById('bhRescheduleNextAction');
+    if (!summary || !hint || !action) return;
+    const dateValue = date instanceof Date ? date : new Date(`${date}T00:00:00`);
+    const dateLabel = dateValue.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    if (endDate) {
+      const endValue = endDate instanceof Date ? endDate : new Date(`${endDate}T00:00:00`);
+      const endLabel = endValue.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      summary.textContent = `${dateLabel} – ${endLabel}`;
+      hint.textContent = 'Preferred project window selected. Add your reason below.';
+    } else {
+      summary.textContent = `${dateLabel} at ${time}`;
+      hint.textContent = 'Schedule selected. Add your reason below.';
+    }
+    action.classList.add('is-ready');
+  }
+
+  // Open the same enterprise date/time picker used by the booking-service flow.
+  async function openRescheduleModal(booking) {
     currentRescheduleBooking = booking;
     selectedRescheduleDate = null;
     selectedRescheduleTime = null;
+    selectedRescheduleEndDate = null;
+    currentRescheduleUsesProjectPicker = Boolean(booking.isProject || booking.projectScheduling);
 
-    // Show loading state
     document.getElementById('bhRescheduleLoading').classList.remove('d-none');
     document.getElementById('bhRescheduleError').classList.add('d-none');
     document.getElementById('bhRescheduleCalendarContent').classList.add('d-none');
     document.getElementById('bhSubmitReschedule').disabled = true;
     document.getElementById('bhRescheduleReason').value = '';
-    const timeSlotContainer = document.getElementById('bhTimeSlotsContainer');
-    timeSlotContainer.classList.add('d-none');
-    timeSlotContainer.innerHTML = '<h6 class="mb-3 fw-semibold">Select Preferred Time</h6><div class="d-flex flex-wrap gap-2" id="bhTimeSlots"></div>';
+    document.getElementById('bhRescheduleReasonCount').textContent = '0 / 500';
+    document.getElementById('bhRescheduleNextSummary').textContent = 'Choose a date and time';
+    document.getElementById('bhRescheduleNextHint').textContent = 'Select an available date, then a start time.';
+    document.getElementById('bhRescheduleNextAction').classList.remove('is-ready');
+    document.getElementById('bhRescheduleContinue').disabled = true;
+    const pickerRoot = document.getElementById('bhReschedulePickerRoot');
+    pickerRoot.querySelector('#calendarGrid').innerHTML = '';
+    pickerRoot.querySelector('#timeSelection').classList.add('d-none');
+    pickerRoot.querySelector('#timeSlots').innerHTML = '';
+    pickerRoot.querySelector('#projectPrefs').classList.add('d-none');
+    pickerRoot.querySelector('#projectPrefs').innerHTML = '';
 
-    // Set technician name
-    document.getElementById('bhRescheduleTechName').textContent = 'Company scheduling pool';
-
-    // Open modal
-    const modal = new bootstrap.Modal(document.getElementById('bhRescheduleModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('bhRescheduleModal'));
     modal.show();
 
-    // Schedule changes use company-wide capacity because an approved change
-    // can require reassignment to a different available technician.
-    fetchAvailableSlots();
+    document.getElementById('bhRescheduleContinue').onclick = () => {
+      document.getElementById('bhRescheduleReasonSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => document.getElementById('bhRescheduleReason')?.focus(), 300);
+    };
+
+    try {
+      if (typeof EnterpriseCalendar === 'undefined') throw new Error('Scheduling calendar is unavailable. Please reload the page.');
+      const serviceItems = Array.isArray(booking.services) ? booking.services : [];
+      const totalQuantity = Math.max(1, serviceItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) || Number(booking.quantity) || 1);
+      const totalServiceMinutes = serviceItems.reduce((sum, item) => {
+        const itemDuration = Number(item.duration || item.durationMinutes || item.serviceDurationMinutes) || 0;
+        return sum + itemDuration * (Number(item.quantity) || 1);
+      }, 0) || (Number(booking.serviceDurationMinutes) || 60);
+      const serviceId = (booking.serviceId && (booking.serviceId._id || booking.serviceId))
+        || (booking.service && booking.service._id)
+        || null;
+      const isProject = currentRescheduleUsesProjectPicker;
+
+      await EnterpriseCalendar.init({
+        root: pickerRoot,
+        syncGlobalState: false,
+        resetSelection: true,
+        serviceId,
+        duration: Math.max(1, Math.ceil(totalServiceMinutes / totalQuantity)),
+        quantity: totalQuantity,
+        totalEstimatedMinutes: totalServiceMinutes,
+        travelTime: Number(booking.travelTime) || 30,
+        mode: isProject ? 'project' : 'appointment',
+        showCommercialProjects: false,
+        onSelect: selection => {
+          if (EnterpriseCalendar.isProjectMode()) {
+            const start = selection.preferredStartDate || selection.startDate || selection.date;
+            const end = selection.endDate || null;
+            selectedRescheduleDate = EnterpriseCalendar.formatDateKey(start);
+            selectedRescheduleEndDate = end ? EnterpriseCalendar.formatDateKey(end) : null;
+            selectedRescheduleTime = null;
+            updateRescheduleSelectionSummary(start, null, end);
+          } else {
+            selectedRescheduleDate = EnterpriseCalendar.formatDateKey(selection.date);
+            selectedRescheduleTime = selection.slot.startTime || selection.slot.label;
+            selectedRescheduleEndDate = null;
+            updateRescheduleSelectionSummary(selection.date, selection.slot.label || selection.slot.startTime, null);
+          }
+          syncRescheduleActionState();
+        },
+      });
+      currentRescheduleUsesProjectPicker = EnterpriseCalendar.isProjectMode();
+      document.getElementById('bhRescheduleLoading').classList.add('d-none');
+      document.getElementById('bhRescheduleCalendarContent').classList.remove('d-none');
+    } catch (error) {
+      console.error('Unable to initialize reschedule calendar:', error);
+      document.getElementById('bhRescheduleLoading').classList.add('d-none');
+      const errorBox = document.getElementById('bhRescheduleError');
+      errorBox.textContent = error.message || 'Unable to load available dates. Please try again.';
+      errorBox.classList.remove('d-none');
+    }
   }
 
   // Fetch available slots for the technician
@@ -2238,6 +2670,7 @@
       const dateStr = formatDateKeyLocal(date);
 
       const cell = document.createElement('button');
+      cell.type = 'button';
       cell.className = 'calendar-cell';
       cell.innerHTML = `<span class="date-num">${day}</span>`;
 
@@ -2284,7 +2717,7 @@
 
     // For project bookings, hide time slots — date only is sufficient
     const container = document.getElementById('bhTimeSlotsContainer');
-    const isProject = currentRescheduleBooking && (currentRescheduleBooking.isProject || currentRescheduleBooking.projectScheduling);
+    const isProject = currentRescheduleUsesProjectPicker;
     if (isProject) {
       if (container) {
         container.classList.remove('d-none');
@@ -2350,10 +2783,11 @@
 
     timeSlots.forEach(slot => {
       const slotBtn = document.createElement('button');
+      slotBtn.type = 'button';
       slotBtn.className = 'time-slot';
       slotBtn.innerHTML = `
-        <div class="time-slot-time">${slot.time}</div>
-        <div class="text-muted small">${slot.duration || '60 min'}</div>
+        <div class="time-slot-time">${escapeHtml(slot.time || slot.startTime || '')}</div>
+        <div class="text-muted small">${escapeHtml(slot.duration || '60 min')}</div>
       `;
       slotBtn.onclick = () => selectRescheduleTime(slot.time, slotBtn);
       slotsContainer.appendChild(slotBtn);
@@ -2378,7 +2812,7 @@
   }
 
   // Setup calendar navigation
-  document.getElementById('bhPrevMonth').addEventListener('click', () => {
+  document.getElementById('bhPrevMonth')?.addEventListener('click', () => {
     rescheduleCalendarState.currentMonth--;
     if (rescheduleCalendarState.currentMonth < 0) {
       rescheduleCalendarState.currentMonth = 11;
@@ -2387,7 +2821,7 @@
     renderRescheduleCalendar();
   });
 
-  document.getElementById('bhNextMonth').addEventListener('click', () => {
+  document.getElementById('bhNextMonth')?.addEventListener('click', () => {
     rescheduleCalendarState.currentMonth++;
     if (rescheduleCalendarState.currentMonth > 11) {
       rescheduleCalendarState.currentMonth = 0;
@@ -2398,15 +2832,15 @@
 
   // Handle reason input change
   document.getElementById('bhRescheduleReason').addEventListener('input', function() {
-    const reason = this.value.trim();
-    const isProject = Boolean(currentRescheduleBooking?.isProject || currentRescheduleBooking?.projectScheduling);
-    document.getElementById('bhSubmitReschedule').disabled = !reason || !selectedRescheduleDate || (!isProject && !selectedRescheduleTime);
+    if (this.value.length > 500) this.value = this.value.slice(0, 500);
+    document.getElementById('bhRescheduleReasonCount').textContent = `${this.value.length} / 500`;
+    syncRescheduleActionState();
   });
 
   // Submit reschedule request
   document.getElementById('bhSubmitReschedule').addEventListener('click', async function() {
     const reason = document.getElementById('bhRescheduleReason').value.trim();
-    const isProject = currentRescheduleBooking && (currentRescheduleBooking.isProject || currentRescheduleBooking.projectScheduling);
+    const isProject = currentRescheduleUsesProjectPicker;
 
     if (!reason || !selectedRescheduleDate) {
       alert('Please select a date and provide a reason for rescheduling.');
@@ -2418,7 +2852,23 @@
       return;
     }
 
+    const submitButton = this;
+    const originalHtml = submitButton.innerHTML;
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Submitting...';
     try {
+      if (!isProject && typeof EnterpriseCalendar !== 'undefined' && typeof EnterpriseCalendar.validateSelectedSlot === 'function') {
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Checking availability...';
+        const stillAvailable = await EnterpriseCalendar.validateSelectedSlot();
+        if (!stillAvailable) {
+          selectedRescheduleTime = null;
+          document.getElementById('bhRescheduleNextSummary').textContent = 'Choose another start time';
+          document.getElementById('bhRescheduleNextHint').textContent = 'That time was just taken. The available times have been refreshed.';
+          document.getElementById('bhRescheduleNextAction').classList.remove('is-ready');
+          throw new Error('That start time is no longer available. Please choose another time.');
+        }
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Submitting...';
+      }
       const response = await fetch(`/api/appointments/${encodeURIComponent(currentRescheduleBooking._id)}/reschedule-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2426,7 +2876,8 @@
           requestedDate: selectedRescheduleDate,
           requestedTime: selectedRescheduleTime || null,
           reason: reason,
-          isProject: isProject
+          isProject: isProject,
+          requestedEndDate: selectedRescheduleEndDate || null
         })
       });
 
@@ -2440,17 +2891,26 @@
       const modal = bootstrap.Modal.getInstance(document.getElementById('bhRescheduleModal'));
       modal.hide();
 
-      alert(data.message || (data.applied
+      const message = data.message || (data.applied
         ? 'Schedule updated successfully.'
-        : 'Schedule change submitted. You will be notified after it is reviewed.'));
+        : 'Schedule change submitted. You will be notified after it is reviewed.');
+      if (typeof Swal !== 'undefined') {
+        await Swal.fire({ icon: 'success', title: data.applied ? 'Schedule Updated' : 'Request Submitted', text: message, confirmButtonColor: '#2563eb' });
+      } else {
+        alert(message);
+      }
       fetchBookings();
     } catch (error) {
       console.error('Error submitting reschedule request:', error);
-      alert('Failed to submit reschedule request: ' + error.message);
+      if (typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'Request Not Submitted', text: error.message || 'Please try again.', confirmButtonColor: '#2563eb' });
+      else alert('Failed to submit reschedule request: ' + error.message);
+    } finally {
+      submitButton.innerHTML = originalHtml;
+      syncRescheduleActionState();
     }
   });
 
-  document.addEventListener("DOMContentLoaded", function() {
+  function initializeBookingHistory() {
     fetchBookings().then(() => {
       // Handle ?highlight= query parameter from email links
       const params = new URLSearchParams(window.location.search);
@@ -2501,7 +2961,11 @@
         }, 500);
       }
     });
-  });
+  }
+
+  // This bundle is loaded after the booking-history markup, so begin the API
+  // request immediately instead of waiting for unrelated page/CDN resources.
+  initializeBookingHistory();
 
   // helpers
   function debounce(fn, delay) {

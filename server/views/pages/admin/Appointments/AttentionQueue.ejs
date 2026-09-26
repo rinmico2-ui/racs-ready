@@ -469,6 +469,7 @@
       if (!res.ok) throw new Error(data.error || 'Failed to load resolution center');
       if (requestId !== queueRequest) return;
       allResolutionCases = data.cases || [];
+      window.dispatchEvent(new CustomEvent('resolution:counts', { detail: data.summary }));
       document.getElementById('resolutionTotal').textContent = data.summary?.total || 0;
       document.getElementById('resolutionPastDue').textContent = data.summary?.pastDue || 0;
       document.getElementById('resolutionPriority').textContent = (data.summary?.bySeverity?.critical || 0) + (data.summary?.bySeverity?.high || 0);

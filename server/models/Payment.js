@@ -87,6 +87,9 @@ const paymentSchema = new mongoose.Schema({
   payrollDeductionId: { type: mongoose.Schema.Types.ObjectId, ref: "Payroll" },
   recoveryFollowUpDate: { type: Date },
   refundedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  // A write-conflict guard for item-level return approvals; no payment amount
+  // or original collection status is rewritten by an RMA.
+  rmaRefundVersion: { type: Number, default: 0 },
   refundedAt: Date,
   refundReason: String,
   refundAmount: { type: Number, default: 0 },
@@ -112,6 +115,7 @@ const paymentSchema = new mongoose.Schema({
 }, { optimisticConcurrency: true });
 
 paymentSchema.index({ bookingId: 1 });
+paymentSchema.index({ bookingId: 1, submittedAt: 1, collectedAt: 1 });
 paymentSchema.index({ orderId: 1 });
 paymentSchema.index({ projectId: 1 });
 paymentSchema.index(

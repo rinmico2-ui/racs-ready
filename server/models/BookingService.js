@@ -493,6 +493,7 @@ const bookingSchema = new mongoose.Schema({
   // linking back to the customer's equipment and one maintenance cycle.
   maintenance: {
     isMaintenance: { type: Boolean, default: false, index: true },
+    paymentOnSite: { type: Boolean, default: false },
     assetId: { type: mongoose.Schema.Types.ObjectId, ref: "CustomerAsset", default: null },
     scheduleId: { type: mongoose.Schema.Types.ObjectId, ref: "MaintenanceSchedule", default: null },
     nextRecommendedDays: { type: Number, min: 30, max: 730, default: 90 },
@@ -742,6 +743,7 @@ const bookingSchema = new mongoose.Schema({
     type: {
       requested: { type: Boolean, default: false },
       requestedDate: { type: String },
+      requestedEndDate: { type: String },
       requestedTime: { type: String },
       reason: { type: String },
       requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -1044,7 +1046,7 @@ bookingSchema.virtual("serviceDescription").get(function () {
 // validation: ensure cash/GCash fields are present depending on method
 bookingSchema.pre("validate", function () {
   // require a downpayment for the legacy `cod` reservation plan
-  if (this.paymentMethod === "cod") {
+  if (this.paymentMethod === "cod" && !(this.maintenance?.isMaintenance && this.maintenance?.paymentOnSite)) {
     if (!this.downpaymentAmount || this.downpaymentAmount <= 0) {
       this.invalidate(
         "downpaymentAmount",
@@ -1404,6 +1406,8 @@ bookingSchema.pre("save", async function () {
 // Indexes for performance optimization
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
+bookingSchema.index({ customerId: 1, bookingDate: -1, createdAt: -1 }); // Fast default customer-history page and pagination
+bookingSchema.index({ customerId: 1, status: 1, bookingDate: -1, createdAt: -1 }); // Fast filtered customer history
 bookingSchema.index({ status: 1, bookingDate: 1 }); // For filtering by status and date
 // bookingReference and workOrderNumber already have unique: true which creates an index
 bookingSchema.index({ serviceModel: 1, status: 1 }); // For repair queue queries

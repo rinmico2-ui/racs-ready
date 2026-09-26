@@ -266,6 +266,21 @@ router.post("/", requireRole("customer"), submitLimiter, receiveEvidence, async 
       await removeUploadedFiles(req.files);
       return res.status(400).json({ error: "Select a product or service included in this record." });
     }
+    if (sourceType === "order" && ["product_defect", "replacement_part", "safety_defect"].includes(claimType)) {
+      const ProductReturn = require("../models/ProductReturn");
+      const { OPEN_STATUSES } = require("../utils/productReturnPolicy");
+      const existingReturn = await ProductReturn.exists({
+        sourceType: "order", sourceId: source._id, productId: affected.itemKey,
+        $or: [
+          { status: { $in: OPEN_STATUSES } },
+          { status: "completed", "resolution.type": { $in: ["refund", "replacement"] } },
+        ],
+      });
+      if (existingReturn) {
+        await removeUploadedFiles(req.files);
+        return res.status(409).json({ error: "A product return is already open or resolved for this item. Check its status in your order details." });
+      }
+    }
     const coverageItemKey = String(coverage.itemKey || coverage.serviceId || "");
     if (coverageItemKey && coverageItemKey !== affected.itemKey) {
       await removeUploadedFiles(req.files);

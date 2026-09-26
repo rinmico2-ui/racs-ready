@@ -241,6 +241,11 @@ app.post(
 app.use("/api", apiLimiter, requireTrustedOrigin);
 app.use("/appointments", apiLimiter, requireTrustedOrigin);
 
+// Deliver public assets without a session-store read or a user lookup for
+// every stylesheet, script and image. Private uploads are still served below
+// their authentication and evidence-access middleware.
+app.use(require('./middleware/publicAssets')(path.join(__dirname, 'public')));
+
 // Some payment proofs still arrive as base64 payloads.
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -433,8 +438,15 @@ app.use("/api/maintenance", maintenanceRoutes);
 const warrantyRoutes = require("./routes/warrantyRoutes");
 app.use("/api/warranty-claims", warrantyRoutes);
 
+const productReturnRoutes = require("./routes/productReturnRoutes");
+app.use("/api/product-returns", productReturnRoutes);
+
 const airconCartRoutes = require("./routes/airconCartRoutes");
 app.use("/api/aircon-cart", airconCartRoutes);
+
+// Customer sidebar badge counts (cart / bookings / orders / aftercare)
+const customerNavRoutes = require("./routes/customerNavRoutes");
+app.use("/api/customer", customerNavRoutes);
 
 const serviceRoutes = require("./routes/serviceRoutes");
 app.use("/api/services", serviceRoutes);

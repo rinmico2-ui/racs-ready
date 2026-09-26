@@ -8,9 +8,11 @@ const {
   customerRepairDetails,
   enrichCustomerBooking,
   isRepairBooking,
+  isUnpaidAftercareMaintenance,
   presentCustomerBooking,
 } = require("../utils/customerBookingPresentation");
 const { isBookingPast } = require("../utils/bookingPolicy");
+const BookingService = require("../models/BookingService");
 
 test("normalizes legacy repair details stored outside unitInfo", () => {
   const booking = {
@@ -65,6 +67,86 @@ test("does not add repair presentation data to a core-service booking", () => {
   const booking = { _id: "core", serviceType: "core", services: [{ type: "core", name: "Cleaning" }] };
   assert.equal(isRepairBooking(booking), false);
   assert.equal(enrichCustomerBooking(booking).customerRepairDetails, undefined);
+});
+
+test("a core booking with Mongoose's empty unitInfo defaults is not treated as repair", () => {
+  const booking = new BookingService({
+    serviceType: "core", serviceModel: "CoreService", status: "pending",
+    service: { name: "Aircon Cleaning" },
+    services: [{ type: "core", name: "Aircon Cleaning", brand: "Kolin" }],
+  }).toObject();
+  assert.deepEqual(booking.unitInfo, { photos: [] });
+  assert.equal(isRepairBooking(booking), false);
+  assert.equal(presentCustomerBooking(booking).customerRepairDetails, undefined);
+
+  const client = fs.readFileSync(path.join(__dirname, "../public/js/book-history.js"), "utf8");
+  assert.match(client, /if \(type === 'core' && model !== 'repairservice'/);
+  assert.match(client, /return isRepairBooking\(b\) && b\?\.customerRepairDetails\?\.items\?\.length/);
+});
+
+test("mixed bookings still show only their repair appliances", () => {
+  const booking = {
+    serviceType: "mixed", serviceModel: "CoreService", unitInfo: { photos: [] },
+    services: [
+      { type: "core", name: "Aircon Cleaning", quantity: 1 },
+      { type: "repair", name: "Window Repair", quantity: 2, problemDescription: "Not cooling" },
+    ],
+  };
+  assert.equal(isRepairBooking(booking), true);
+  const details = customerRepairDetails(booking);
+  assert.equal(details.applianceCount, 1);
+  assert.equal(details.unitCount, 2);
+  assert.equal(details.items[0].name, "Window Repair");
+});
+
+test("legacy repair with an explicit problem remains a repair even if serviceType defaulted to core", () => {
+  const booking = { serviceType: "core", status: "pending", unitInfo: { unitType: "Refrigerator", problemDescription: "Not cooling" } };
+  assert.equal(isRepairBooking(booking), true);
+  assert.equal(customerRepairDetails(booking).primary.problemDescription, "Not cooling");
+});
+
+test("unpaid Aftercare maintenance omits payment details until a payment is recorded", () => {
+  const client = fs.readFileSync(path.join(__dirname, "../public/js/book-history.js"), "utf8");
+  const source = {
+    serviceType: "core", status: "pending", maintenance: { isMaintenance: true },
+    paymentNotes: "Maintenance requested from Aftercare. Payment has not been collected; contact customer to arrange the down payment.",
+    paymentMethod: "cod", paymentStatus: "pending", amountPaid: 0,
+  };
+  const booking = presentCustomerBooking(source);
+  assert.equal(isUnpaidAftercareMaintenance(source), true);
+  assert.equal(booking.paymentDetailsDeferred, true);
+  assert.equal(booking.paymentMethod, undefined);
+  assert.equal(booking.paymentStatus, undefined);
+  assert.equal(booking.downpaymentAmount, undefined);
+  assert.equal(booking.paymentNotes, undefined);
+  assert.match(client, /function isUnpaidAftercareMaintenance\(b\)/);
+  assert.match(client, /b\?\.paymentDetailsDeferred === true/);
+  assert.match(client, /if \(isUnpaidAftercareMaintenance\(b\)\) return '';/);
+  const withPayment = presentCustomerBooking({ ...source, amountPaid: 121, paymentStatus: "partial" });
+  assert.equal(withPayment.paymentDetailsDeferred, undefined);
+  assert.equal(withPayment.paymentMethod, "cod");
+  const regularBooking = presentCustomerBooking({ serviceType: "core", paymentMethod: "cod", paymentStatus: "pending", amountPaid: 0 });
+  assert.equal(regularBooking.paymentDetailsDeferred, undefined);
+  assert.equal(regularBooking.paymentMethod, "cod");
+});
+
+test("new on-site maintenance has no upfront payment section but retains its estimated price", () => {
+  const source = {
+    serviceType: "core", status: "awaiting_assignment",
+    maintenance: { isMaintenance: true, paymentOnSite: true },
+    paymentMethod: "cod", paymentStatus: "pending", downpaymentAmount: 0,
+    totalPrice: 2420, estimatedFee: 2420, balanceAmount: 2420, amountPaid: 0,
+  };
+  const presented = presentCustomerBooking(source);
+  assert.equal(presented.paymentDetailsDeferred, true);
+  assert.equal(presented.paymentMethod, undefined);
+  assert.equal(presented.estimatedFee, 2420);
+  const paid = presentCustomerBooking({ ...source, amountPaid: 2420, balanceAmount: 0, paymentStatus: "waiting_for_remittance" });
+  assert.equal(paid.paymentDetailsDeferred, undefined);
+  assert.equal(paid.maintenance.paymentOnSite, true);
+  const client = fs.readFileSync(path.join(__dirname, "../public/js/book-history.js"), "utf8");
+  assert.match(client, /On site after service\. No down payment\./);
+  assert.match(client, /Payment plan', 'Pay on site after service'/);
 });
 
 test("customer booking payload removes payment proof and internal operational history", () => {

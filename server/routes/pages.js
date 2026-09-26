@@ -146,6 +146,7 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
     farePerKm,
     projectLaborRatePerDay,
     publicStats,
+    businessHours: await getBusinessHours(),
   });
 });
 
@@ -239,6 +240,7 @@ router.get("/products", pageAuth.requireCustomerOrGuest, async (req, res, next) 
       title: "Products",
       products,
       grouped,
+      businessHours: await getBusinessHours(),
       adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || ''
     });
   } catch (err) {
@@ -367,6 +369,7 @@ router.get("/products/:id", pageAuth.requireCustomerOrGuest, async (req, res, ne
       },
       related,
       cartData,
+      businessHours: await getBusinessHours(),
       adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || '',
     });
   } catch (err) {
@@ -529,6 +532,7 @@ router.get("/aircon-cart", pageAuth.requireRole("customer"), async (req, res, ne
     res.render("pages/aircon-cart", {
       title: "Shopping Cart",
       cart,
+      businessHours: await getBusinessHours(),
       adminGcashNumber: process.env.ADMIN_GCASH_NUMBER || "",
     });
   } catch (err) {
@@ -2315,6 +2319,7 @@ router.get(
     try {
       const Order = require("../models/Order");
       const Payment = require("../models/Payment");
+      const ProductRefund = require("../models/ProductRefund");
       const Inventory = require("../models/Inventory");
       const Technician = require("../models/Technician");
       const mongoose = require("mongoose");
@@ -2373,16 +2378,20 @@ router.get(
           { refundedAt: completionRange },
         ],
       };
-      const [orders, previousOrders, completionCandidates, activityPayments, brands, technicians] = await Promise.all([
+      const [orders, previousOrders, completionCandidates, activityPayments, activityProductRefunds, brands, technicians] = await Promise.all([
         Order.find(currentCohortFilter).lean(),
         Order.find(previousCohortFilter).select("total status").lean(),
         Order.find(completionFilter).lean(),
         Payment.find(paymentActivityFilter).select("orderId").lean(),
+        ProductRefund.find({ sourceType: "order", status: "completed", processedAt: completionRange }).select("sourceId").lean(),
         Order.distinct("items.brand"),
         Technician.find({}).select("name active").sort({ active: -1, name: 1 }).lean(),
       ]);
 
-      const activityOrderIds = [...new Set(activityPayments.map(payment => String(payment.orderId || "")).filter(mongoose.isValidObjectId))];
+      const activityOrderIds = [...new Set([
+        ...activityPayments.map(payment => String(payment.orderId || "")),
+        ...activityProductRefunds.map(refund => String(refund.sourceId || "")),
+      ].filter(mongoose.isValidObjectId))];
       const eligibleActivityIds = reportFilters.activeCount && activityOrderIds.length
         ? await Order.find(combineOrderFilters(orderFilter, { _id: { $in: activityOrderIds } })).distinct("_id")
         : activityOrderIds;
@@ -2394,6 +2403,9 @@ router.get(
       const payments = ledgerOrderIds.length
         ? await Payment.find({ orderId: { $in: ledgerOrderIds }, status: { $in: ledgerStatuses } }).lean()
         : [];
+      const productRefunds = ledgerOrderIds.length
+        ? await ProductRefund.find({ sourceType: "order", sourceId: { $in: ledgerOrderIds }, status: "completed" }).lean()
+        : [];
       const inventoryIds = [...new Set(completionCandidates.flatMap(order => (order.items || []).map(item => String(item.inventoryId || ""))).filter(mongoose.isValidObjectId))];
       const inventoryItems = inventoryIds.length
         ? await Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice").lean()
@@ -2403,6 +2415,7 @@ router.get(
         previousCohortOrders: previousOrders,
         completionCandidates,
         payments,
+        productRefunds,
         inventoryItems,
         startDate: start,
         endDate: end,
@@ -3715,6 +3728,10 @@ router.get("/admin/audit-trail", pageAuth.requireRole("admin"), (req, res) => {
 });
 
 // Admin - Warranty Management page
+router.get("/admin/product-returns", pageAuth.requireRole("admin"), (req, res) => {
+  res.render("pages/admin/Warranty/ProductReturns", { title: "Product Returns", layout: "layouts/admin" });
+});
+
 router.get("/admin/warranty", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Warranty/Warranty", {
     title: "Warranty Management",

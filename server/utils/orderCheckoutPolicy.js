@@ -8,6 +8,7 @@ const DELIVERY_PAYMENT_METHODS = new Set(["cod", "gcash_full"]);
 const PICKUP_PAYMENT_METHODS = new Set(["cash_onsite", "gcash_full"]);
 const MAX_CHECKOUT_LINE_ITEMS = 50;
 const MAX_CHECKOUT_UNITS = 40;
+const MAX_DELIVERY_NOTES_LENGTH = 500;
 
 const DEFAULT_STORE_HOURS = Object.freeze([
   { dayOfWeek: 0, open: false, startMinutes: 0, endMinutes: 0 },
@@ -140,6 +141,18 @@ function validateCheckoutSelection(input, { storeHours, now = new Date() } = {})
   const contactNumber = String(input?.delivery?.contactNumber || "").trim();
   const preferredDate = parseDateOnly(input?.delivery?.preferredDate);
   const timeSlot = String(input?.timeSlot || "").trim();
+  const rawNotes = input?.delivery?.notes;
+  if (rawNotes != null && typeof rawNotes !== "string") {
+    throw new OrderCheckoutError("Delivery notes must be plain text.", 400, "ORDER_DELIVERY_NOTES_INVALID");
+  }
+  const notes = String(rawNotes || "").trim();
+  if (notes.length > MAX_DELIVERY_NOTES_LENGTH) {
+    throw new OrderCheckoutError(
+      `Delivery notes cannot exceed ${MAX_DELIVERY_NOTES_LENGTH} characters.`,
+      400,
+      "ORDER_DELIVERY_NOTES_TOO_LONG",
+    );
+  }
   if (address.length < 8) {
     throw new OrderCheckoutError("Enter a complete delivery address.", 400, "ORDER_DELIVERY_ADDRESS_REQUIRED");
   }
@@ -163,7 +176,7 @@ function validateCheckoutSelection(input, { storeHours, now = new Date() } = {})
       address: address.slice(0, 500),
       contactNumber: contactNumber.slice(0, 50),
       preferredDate,
-      notes: String(input?.delivery?.notes || "").trim().slice(0, 1000),
+      notes,
       coordinates: normalizeCoordinates(input?.delivery?.coordinates),
     },
   };
@@ -229,6 +242,7 @@ function initialOrderLifecycle(fulfillmentType, paymentMethod) {
 
 module.exports = {
   DEFAULT_STORE_HOURS,
+  MAX_DELIVERY_NOTES_LENGTH,
   OrderCheckoutError,
   authoritativeDeliveryQuote,
   haversineDistanceKm,

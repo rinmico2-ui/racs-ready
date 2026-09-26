@@ -106,12 +106,20 @@ document.addEventListener("DOMContentLoaded", function () {
   const scheduledFrom = document.getElementById("aoScheduledFrom");
   const scheduledTo = document.getElementById("aoScheduledTo");
   const filterBtn     = document.getElementById("aoFilterBtn");
+  const sortFilter = document.getElementById('aoSort');
+  let overviewRequest = 0;
+  let orderDetailRequest = 0;
+  let orderDetailController = null;
 
   const modalEl = document.getElementById("aoDetailsModal");
   const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
   const modalBody = document.getElementById("aoModalBody");
   const modalFooter = document.getElementById("aoModalFooter");
   const modalSubtitle = document.getElementById("aoModalSubtitle");
+  modalEl?.addEventListener('hidden.bs.modal', () => {
+    orderDetailRequest++;
+    orderDetailController?.abort();
+  });
 
   const assignTechModalEl = document.getElementById("aoAssignTechModal");
   const assignTechModal = assignTechModalEl ? new bootstrap.Modal(assignTechModalEl) : null;
@@ -121,6 +129,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function scopedOrdersUrl(params) {
     const query = params instanceof URLSearchParams ? params : new URLSearchParams(params || {});
     query.set("fulfillmentGroup", currentFulfillmentScope);
+    query.set('sort', sortFilter?.value || 'date_desc');
     return "/api/orders/all?" + query.toString();
   }
 
@@ -230,6 +239,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const count = Number(data?.summary?.bySource?.order) || 0;
       setText('aoResolutionCount', count);
       document.getElementById('aoResolutionCount')?.setAttribute('aria-label', `${count} order cases need resolution`);
+      window.dispatchEvent(new CustomEvent('resolution:counts', { detail: data.summary }));
     } catch (_) {
       setText('aoResolutionCount', 0);
     }
@@ -257,6 +267,7 @@ document.addEventListener("DOMContentLoaded", function () {
       const color = s.color || 'blue';
       const hex = sparkColors[color] || sparkColors.blue;
       const badge = s.percent || (s.label && s.label.split(' ')[0]) || '';
+      const acceptedTone = s.tone === 'accepted';
       const card = `
       <div class="stat-card ${overviewMode ? 'workflow-overview-kpi' : 'h-100'}" data-spark-color="${hex}">
         <div class="d-flex justify-content-between align-items-start mb-2">
@@ -269,8 +280,8 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
             <small class="text-muted">${s.sub || ''}</small>
           </div>
-          <div class="stat-icon" style="background:${gradients[color] || gradients.blue};">
-            <i class="bi ${s.icon} text-white"></i>
+          <div class="stat-icon${acceptedTone ? ' ao-accepted-stat-icon' : ''}"${acceptedTone ? '' : ` style="background:${gradients[color] || gradients.blue};"`}>
+            <i class="bi ${s.icon}${acceptedTone ? '' : ' text-white'}" aria-hidden="true"></i>
           </div>
         </div>
         <div class="stat-sparkline"><canvas height="40"></canvas></div>
@@ -465,6 +476,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ═══ OVERVIEW ════════════════════════════════════════════════════════════════
   async function loadOverview(pg) {
+    const request = ++overviewRequest;
     currentPage = pg || 1;
     const params = new URLSearchParams({ page: currentPage, limit: LIMIT });
     if (searchInput.value.trim()) params.set("search", searchInput.value.trim());
@@ -478,9 +490,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     try {
       if (currentFulfillmentScope === "delivery" && fulfillFilter.value !== "all") params.set("fulfillmentType", fulfillFilter.value);
-      const res = await fetch(scopedOrdersUrl(params));
-      if (!res.ok) throw new Error("Fetch failed");
-      const data = await res.json();
+      const data = await operationsFetchJson(scopedOrdersUrl(params));
+      if (request !== overviewRequest) return;
       const orders = data.orders || [];
 
       const kpi = data.kpi || {};
@@ -520,6 +531,7 @@ document.addEventListener("DOMContentLoaded", function () {
       renderPagination(data, 'window._aoGoPage');
       window._aoGoPage = function(p) { loadOverview(p); };
     } catch(err) {
+      if (request !== overviewRequest) return;
       container.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load orders.</td></tr>';
       setText("aoOverviewPagInfo", "Unable to load orders");
     }
@@ -992,7 +1004,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       setText("aoTabActiveBadge", orders.length);
       renderStats("aoActiveStats", [
-        { icon: "bi-person-check", color: "purple", value: orders.filter(o=>o.status==="technician_accepted").length, label: "Accepted", sub: "Technician confirmed" },
+        { icon: "bi-check-circle-fill", color: "green", tone: "accepted", value: orders.filter(o=>o.status==="technician_accepted").length, label: "Accepted", sub: "Technician confirmed" },
         { icon: "bi-truck", color: "amber", value: orders.filter(o=>o.status==="out_for_delivery").length, label: "En Route", sub: "Heading to customer" },
         { icon: "bi-geo-alt", color: "cyan", value: orders.filter(o=>o.status==="arrived").length, label: "Arrived", sub: "On site" },
         { icon: "bi-tools", color: "rose", value: orders.filter(o=>o.status==="installing").length, label: "Installing" },
@@ -1042,8 +1054,34 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ═══ VIEW ORDER DETAILS ══════════════════════════════════════════════════════
+  window._aoLoadPhotos = async function (id, button) {
+    const container = button.parentElement;
+    button.disabled = true; button.textContent = 'Loading photos...';
+    try {
+      const data = await operationsFetchJson('/api/orders/' + encodeURIComponent(id) + '/photos', { signal: orderDetailController?.signal });
+      if (!container.isConnected) return;
+      container.replaceChildren();
+      if (!data.photos?.length) { container.textContent = 'No photos have been uploaded.'; return; }
+      for (const photo of data.photos) {
+        const view = document.createElement('button');
+        view.type = 'button'; view.className = 'btn btn-sm btn-outline-primary'; view.textContent = photo.label;
+        view.addEventListener('click', () => window.openAoImage(photo.src));
+        container.appendChild(view);
+      }
+    } catch (error) {
+      if (!container.isConnected || error.name === 'AbortError') return;
+      button.disabled = false; button.textContent = 'Try loading photos again';
+      let message = container.querySelector('[role="alert"]');
+      if (!message) { message = document.createElement('p'); message.className = 'text-danger small w-100'; message.setAttribute('role', 'alert'); container.appendChild(message); }
+      message.textContent = error.message || 'Could not load photos.';
+    }
+  };
+
   window._aoViewOrder = async function (id) {
     if (!modal) return;
+    orderDetailController?.abort();
+    orderDetailController = new AbortController();
+    const request = ++orderDetailRequest;
     modalBody.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading order details...</p></div>';
     modalSubtitle.textContent = "Loading...";
     modalFooter.innerHTML = '';
@@ -1051,11 +1089,10 @@ document.addEventListener("DOMContentLoaded", function () {
     modal.show();
 
     try {
-      const res = await fetch("/api/orders/" + encodeURIComponent(id));
-      if (!res.ok) throw new Error("Not found");
-      const data = await res.json();
+      const data = await operationsFetchJson('/api/orders/' + encodeURIComponent(id) + '?view=modal', { signal: orderDetailController.signal });
+      if (request !== orderDetailRequest) return;
       const o = data.order;
-      if (!o) { modalBody.innerHTML = '<p class="text-center text-danger">Order not found</p>'; return; }
+      if (!o) throw new Error('Order not found. Refresh the list and try again.');
 
       const refText = o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
       modalSubtitle.textContent = o.isPastDate ? `${refText} · ${o.attentionTitle || 'Past schedule'} · Needs resolution` : refText;
@@ -1154,6 +1191,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
           </div>` : ''}
 
+          ${data.photosDeferred ? `<div class="pm-card"><div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Photos &amp; Payment Proofs</h3></div><div class="pm-card-body d-flex flex-wrap gap-2"><button type="button" class="btn btn-sm btn-outline-primary" onclick="window._aoLoadPhotos('${esc(o._id)}',this)"><i class="bi bi-images me-1"></i>View photos and receipts</button></div></div>` : ''}
           ${o.arrivalProofUrl || o.startProofUrl || o.proofPhoto ? `
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#f0fdf4;color:#15803d;"><i class="bi bi-camera"></i></div><h3 class="pm-card-title">Field Evidence</h3></div>
@@ -1215,7 +1253,16 @@ document.addEventListener("DOMContentLoaded", function () {
       modalFooter.innerHTML = footerBtns;
       modalFooter.style.display = footerBtns ? '' : 'none';
     } catch(err) {
-      modalBody.innerHTML = '<p class="text-center text-danger py-4">Failed to load order details</p>';
+      if (request !== orderDetailRequest || err.name === 'AbortError') return;
+      modalSubtitle.textContent = 'Unable to load order';
+      modalBody.replaceChildren();
+      const message = document.createElement('p');
+      message.className = 'text-center text-danger mt-4';
+      message.textContent = err.message || 'Could not load order details.';
+      const retry = document.createElement('button');
+      retry.type = 'button'; retry.className = 'btn btn-primary d-block mx-auto mb-4'; retry.textContent = 'Try again';
+      retry.onclick = () => window._aoViewOrder(id);
+      modalBody.append(message, retry);
     }
   };
 
@@ -1719,7 +1766,7 @@ document.addEventListener("DOMContentLoaded", function () {
     window.clearTimeout(overviewSearchTimer);
     overviewSearchTimer = window.setTimeout(() => loadOverview(1), 350);
   });
-  [statusFilter, fulfillFilter, preparationFilter].filter(Boolean).forEach(control => control.addEventListener("change", () => loadOverview(1)));
+  [statusFilter, fulfillFilter, preparationFilter, sortFilter].filter(Boolean).forEach(control => control.addEventListener("change", () => loadOverview(1)));
   document.getElementById("aoClearDates")?.addEventListener("click", () => {
     scheduledFrom.value = "";
     scheduledTo.value = "";

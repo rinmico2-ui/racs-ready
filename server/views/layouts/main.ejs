@@ -73,6 +73,7 @@
     <link rel="stylesheet" href="/css/main.css" />
     <link rel="stylesheet" href="/css/footer.css" />
     <link rel="stylesheet" href="/css/navbar.css" />
+    <link rel="stylesheet" href="/css/customer-sidebar.css?v=20260926-account-drawer-v4" />
     <% if (!lightweightPage) { %>
     <link rel="stylesheet" href="/css/servicescards.css" />
     <!-- custom fonts removed (using Google Fonts CDN) -->
@@ -80,7 +81,7 @@
     <% } %>
     <link rel="stylesheet" href="/css/performance.css?v=20260911" />
   </head>
-  <body>
+  <body class="<%= (typeof user !== 'undefined' && user) ? 'has-racs-dock' : '' %>">
     <%- include('../partials/navbar') %>
 
     <main><%- body %></main>
@@ -126,7 +127,7 @@
     <script src="/js/animations.js"></script>
     <% } %>
     <script src="/js/cta.js"></script>
-    <script src="/js/navbar-auth.js"></script>
+    <script src="/js/navbar-auth.js?v=20260926-account-drawer-v4"></script>
 
     <% if (renderLandingChatbot) { %>
     <!-- AI Chatbot: intentionally available only on the landing page. -->

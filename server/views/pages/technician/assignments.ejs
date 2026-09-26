@@ -7683,7 +7683,8 @@ if (a.status === 'accepted') {
       const dp = b.downpaymentAmount || a.downpaymentAmount || 0;
       const bal = b.balanceAmount ?? a.balanceAmount ?? 0;
       const financialStatus = b.paymentStatus || a.paymentStatus || 'pending';
-      const payMethod = (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
+      const paymentOnSite = a.paymentOnSite === true || b.maintenance?.paymentOnSite === true;
+      const payMethod = paymentOnSite ? 'PAY ON SITE' : (a.paymentMethod || '—').replace(/_/g,' ').toUpperCase();
 
       const phoneLink = phone !== 'N/A' ? String(phone).replace(/[^+\d]/g, '') : '';
       const destination = hasCoords ? `${Number(custLat)},${Number(custLng)}` : address;
@@ -7759,9 +7760,9 @@ if (a.status === 'accepted') {
         const paymentLabel = isPaid ? 'paid' : String(financialStatus).replace(/_/g, ' ');
         sideHtml += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-receipt"></i>Payment Snapshot</h6><span class="booking-payment-status ${(isPaid || settledPayment) ? 'settled' : 'unsettled'}">${_e(paymentLabel)}</span></div><div class="booking-detail-card-body">`;
         sideHtml += `<div class="booking-money-row"><span>Payment method</span><strong>${_e(payMethod)}</strong></div>`;
-        if (dp > 0) sideHtml += `<div class="booking-money-row"><span>Downpayment</span><strong>₱${Number(dp).toLocaleString()}</strong></div>`;
+        if (dp > 0 && !paymentOnSite) sideHtml += `<div class="booking-money-row"><span>${String(b.paymentMethod || a.paymentMethod || '').toLowerCase() === 'gcash' ? 'Full payment' : 'Down payment'}</span><strong>₱${Number(dp).toLocaleString()}</strong></div>`;
         sideHtml += `<div class="booking-money-row"><span>${isPaid ? 'Paid' : 'Paid so far'}</span><strong>₱${Number(paid).toLocaleString()}</strong></div>`;
-        if (displayBal > 0 && !isPaid) sideHtml += `<div class="booking-money-row"><span>Balance due</span><strong>₱${Number(displayBal).toLocaleString()}</strong></div>`;
+        if (displayBal > 0 && !isPaid) sideHtml += `<div class="booking-money-row"><span>${paymentOnSite ? 'Collect on site' : 'Balance due'}</span><strong>₱${Number(displayBal).toLocaleString()}</strong></div>`;
         sideHtml += `<div class="booking-money-row total"><span>Service total</span><strong>₱${Number(total).toLocaleString()}</strong></div></div></section>`;
       }
 
@@ -8344,7 +8345,7 @@ ${isRepair ? `
         const hasAnyPaid = downpayment > 0 || inspPaid > 0 || repairPaid > 0 || amountPaid > 0;
         if (hasAnyPaid) {
           paymentsHtml = '';
-          if (downpayment > 0) paymentsHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;"><div><div style="font-size:0.82rem;font-weight:600;color:#334155;">Downpayment <span style="font-size:0.72rem;font-weight:500;color:#94a3b8;">via ${(b.paymentMethod || 'cash').toUpperCase()}</span></div></div><div style="font-size:0.85rem;font-weight:700;color:#059669;">₱${Number(downpayment).toLocaleString()}</div></div>`;
+          if (downpayment > 0) paymentsHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;"><div><div style="font-size:0.82rem;font-weight:600;color:#334155;">${String(b.paymentMethod || a.paymentMethod || '').toLowerCase() === 'gcash' ? 'Full payment' : 'Down payment'} <span style="font-size:0.72rem;font-weight:500;color:#94a3b8;">via ${(b.paymentMethod || 'cash').toUpperCase()}</span></div></div><div style="font-size:0.85rem;font-weight:700;color:#059669;">₱${Number(downpayment).toLocaleString()}</div></div>`;
           if (inspPaid > 0) paymentsHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;"><div><div style="font-size:0.82rem;font-weight:600;color:#334155;">Inspection Fee</div></div><div style="font-size:0.85rem;font-weight:700;color:#059669;">₱${Number(inspPaid).toLocaleString()}</div></div>`;
           if (repairPaid > 0) paymentsHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;"><div><div style="font-size:0.82rem;font-weight:600;color:#334155;">Repair Payment</div></div><div style="font-size:0.85rem;font-weight:700;color:#059669;">₱${Number(repairPaid).toLocaleString()}</div></div>`;
         } else {

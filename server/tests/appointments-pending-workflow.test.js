@@ -16,12 +16,23 @@ function section(source, startMarker, endMarker) {
 }
 
 test('pending tab requests one bounded compact booking payload', () => {
-  const pendingLoad = section(view, 'AU.Pending.load=function()', 'AU.Pending.applyFilters=function');
-  assert.match(pendingLoad, /stage=pending_review&page=1&limit=100&compact=true/);
+  const pendingLoad = section(view, 'AU.Pending.applyFilters=function', 'AU.Pending.renderStats=function');
+  assert.match(pendingLoad, /stage:'pending_review',page:page,limit:_pdLimit,compact:'true',sort:sort/);
   assert.doesNotMatch(pendingLoad, /limit=500/);
   assert.match(route, /req\.query\.compact === 'true'/);
   assert.match(route, /'services\.name'.*'services\.repairIssue'/s);
   assert.doesNotMatch(route, /'services', 'serviceType'/);
+});
+
+test('pending sorting and filters run on the whole queue before server-side pagination', () => {
+  const pendingLoad = section(view, 'AU.Pending.applyFilters=function', 'AU.Pending.renderStats=function');
+  assert.match(pendingLoad, /operationsFetchJson/);
+  assert.match(pendingLoad, /dateRange/);
+  assert.match(pendingLoad, /_pdRequest/);
+  assert.doesNotMatch(pendingLoad, /f\.sort|f\.slice|_pdAll\.slice/);
+  assert.match(route, /listSortStages\('booking'/);
+  assert.match(view, /Service Date: Latest First/);
+  assert.match(view, /<th>Service Date<\/th>/);
 });
 
 test('flow statistics use one faceted aggregation instead of sequential count loops', () => {

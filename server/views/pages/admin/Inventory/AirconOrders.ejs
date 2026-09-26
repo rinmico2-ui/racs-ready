@@ -70,6 +70,13 @@
   .ao-stat-icon.green { background: #dcfce7; color: #16a34a; }
   .ao-stat-icon.purple { background: #e9d5ff; color: #7c3aed; }
   .ao-stat-icon.cyan { background: #cffafe; color: #0891b2; }
+  /* Accepted is a success cue, with a dark icon rather than white on pale UI. */
+  .ao-page .stat-icon.ao-accepted-stat-icon {
+    color: #166534;
+    background: #dcfce7;
+    border: 1px solid #86efac;
+  }
+  .ao-page .ao-accepted-stat-icon > .bi { color: inherit; opacity: 1; }
   .ao-stat-icon.rose { background: #fce7f3; color: #e11d48; }
   .ao-stat-value { font-size: 1.6rem; font-weight: 600; color: #0f172a; font-family: "Outfit", sans-serif; line-height: 1.1; }
   .ao-stat-label { font-size: 0.78rem; color: #64748b; font-family: "Inter", sans-serif; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
@@ -290,6 +297,7 @@
           <input type="date" class="form-control form-control-sm" id="aoScheduledTo" title="Scheduled to" aria-label="Scheduled to" style="width:150px;">
           <button class="btn btn-sm btn-outline-secondary" id="aoClearDates" type="button" title="Clear scheduled dates"><i class="bi bi-x-circle"></i></button>
           <button class="btn btn-sm btn-outline-secondary" id="aoRefreshOverview" type="button" title="Refresh order overview"><i class="bi bi-arrow-clockwise"></i></button>
+          <select class="form-select form-select-sm" id="aoSort" aria-label="Sort orders" style="width:205px;"><option value="date_desc">Scheduled Date: Latest First</option><option value="date_asc">Scheduled Date: Earliest First</option><option value="newest">Order: Newest First</option><option value="oldest">Order: Oldest First</option></select>
         </div>
       </div>
 
@@ -553,4 +561,5 @@
   resolutionPath: <%- JSON.stringify(ordersResolutionUrl).replace(/</g, '\\u003c') %>,
   resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
 };</script>
-<script src="/js/admin-aircon-orders.js?v=20260916-payment-channels-v1"></script>
+<script src="/js/operations-request.js?v=20260926"></script>
+<script src="/js/admin-aircon-orders.js?v=20260926-accepted-contrast-v4"></script>
