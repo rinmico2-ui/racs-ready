@@ -281,31 +281,33 @@
         </li>
       </ul>
 
-      <% if (typeof user !== 'undefined' && user) { %>
-        <%# The customer account navigation is an on-demand drawer at every
-            viewport size so it never permanently covers or shifts content. %>
-        <div class="d-flex align-items-center">
-          <button
-            id="racsMenuTrigger"
-            class="btn btn-light border racs-menu-trigger"
-            type="button"
-            aria-label="Open customer menu"
-            aria-controls="authSidebar"
-            aria-expanded="false"
-          >
-            <i class="bi bi-list"></i>
-            <span class="racs-menu-trigger-label">My Account</span>
-            <span class="racs-menu-trigger-badge" id="racsTriggerCartBadge" hidden></span>
-          </button>
-        </div>
-        <%- include('../partials/sidebar') %>
-      <% } else { %>
+      <% if (typeof user === 'undefined' || !user) { %>
         <a href="/login" class="btn btn-login-premium ms-lg-3">
           <i class="bi bi-box-arrow-in-right"></i>
           <span>Sign In</span>
         </a>
       <% } %>
     </div>
+
+    <% if (typeof user !== 'undefined' && user) { %>
+      <%# Kept outside #mainNav so it remains a one-tap control when the main
+          mobile navigation is collapsed. %>
+      <div class="racs-navbar-account ms-2">
+        <button
+          id="racsMenuTrigger"
+          class="btn btn-light border racs-menu-trigger"
+          type="button"
+          aria-label="Open customer menu"
+          aria-controls="authSidebar"
+          aria-expanded="false"
+        >
+          <i class="bi bi-list"></i>
+          <span class="racs-menu-trigger-label">My Account</span>
+          <span class="racs-menu-trigger-badge" id="racsTriggerCartBadge" hidden></span>
+        </button>
+      </div>
+      <%- include('../partials/sidebar') %>
+    <% } %>
   </div>
 </nav>
 

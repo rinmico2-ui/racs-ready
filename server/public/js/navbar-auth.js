@@ -3,11 +3,9 @@
  *
  * Two modes, chosen by viewport:
  *
- *   Desktop (>=992px) — a 60px icon rail floats at the right edge. The arrow
- *   expands it without resizing or offsetting page content.
- *
- *   Mobile (<992px) — the same markup is a slide-out drawer opened from the
- *   navbar menu button.
+ *   Desktop and mobile use the same on-demand account drawer. This avoids a
+ *   permanent page gutter and prevents a persistent rail from covering page
+ *   controls. The navbar button is the single entry point at every size.
  *
  * Also owns badge counts from /api/customer/nav-summary, the account dropdown,
  * active-page marking, and sign out.
@@ -22,7 +20,6 @@
   }
 
   function init() {
-    var COLLAPSE_KEY = "racsSidebarCollapsed";
     var DESKTOP_QUERY = window.matchMedia("(min-width: 992px)");
 
     var sidebar = document.getElementById("authSidebar");
@@ -32,7 +29,6 @@
     var triggerCartBadge = document.getElementById("racsTriggerCartBadge");
     var closeBtn = document.getElementById("closeSidebar");
     var backdrop = document.getElementById("authSidebarBackdrop");
-    var collapseBtn = document.getElementById("racsSidebarCollapse");
     var userWrap = document.getElementById("racsSidebarUser");
     var userBtn = document.getElementById("racsSidebarUserBtn");
     var userMenu = document.getElementById("racsSidebarUserMenu");
@@ -118,53 +114,7 @@
       userBtn.setAttribute("aria-expanded", open ? "true" : "false");
     }
 
-    /* ── Docked (desktop) state ───────────────────────────────────────── */
-
-    // The rail is always collapsed by default: the customer clicks the arrow to
-    // view the labels. Only an explicit "0" (an expand the customer chose)
-    // overrides that, so a first-time visitor sees the icons-only rail.
-    var collapsedPref = readStoredCollapsed();
-
-    function readStoredCollapsed() {
-      try {
-        return window.localStorage.getItem(COLLAPSE_KEY) !== "0";
-      } catch (e) {
-        return true;
-      }
-    }
-
-    function isCollapsed() {
-      return sidebar.classList.contains("is-collapsed");
-    }
-
-    function applyCollapsed(collapsed) {
-      collapsedPref = collapsed;
-      sidebar.classList.toggle("is-collapsed", collapsed);
-      if (collapseBtn) {
-        collapseBtn.setAttribute("aria-label", collapsed ? "Expand menu" : "Collapse menu");
-        collapseBtn.setAttribute("data-tip", collapsed ? "Expand menu" : "Collapse menu");
-        collapseBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-      }
-      if (!collapsed) hideTip();
-    }
-
-    function writeCollapsed(collapsed) {
-      applyCollapsed(collapsed);
-      try {
-        window.localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
-      } catch (e) {
-        /* Storage can be unavailable in private modes; the rail still works. */
-      }
-    }
-
-    if (collapseBtn) {
-      collapseBtn.hidden = false;
-      collapseBtn.addEventListener("click", function () {
-        writeCollapsed(!collapsedPref);
-      });
-    }
-
-    /* ── Drawer (mobile) ──────────────────────────────────────────────── */
+    /* ── Responsive account drawer ───────────────────────────────────── */
 
     function showBackdrop(show) {
       if (!backdrop) return;
@@ -184,6 +134,8 @@
     function openDrawer() {
       lastFocused = document.activeElement;
       sidebar.classList.add("is-open");
+      sidebar.removeAttribute("inert");
+      sidebar.setAttribute("aria-hidden", "false");
       // Force a reflow so the transition runs from the hidden state.
       void sidebar.offsetWidth;
       sidebar.classList.add("open");
@@ -197,8 +149,9 @@
 
     function closeDrawer() {
       setMenuOpen(false);
-      hideTip();
       sidebar.classList.remove("open");
+      sidebar.setAttribute("aria-hidden", "true");
+      sidebar.setAttribute("inert", "");
       if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "false");
       showBackdrop(false);
       document.body.style.overflow = "";
@@ -212,7 +165,7 @@
     }
 
     function drawerIsOpen() {
-      return sidebar.classList.contains("is-open");
+      return sidebar.classList.contains("open");
     }
 
     if (menuTrigger) {
@@ -227,35 +180,42 @@
     if (backdrop) backdrop.addEventListener("click", closeDrawer);
 
     document.addEventListener("keydown", function (event) {
-      if (event.key !== "Escape" || !drawerIsOpen()) return;
-      if (isMenuOpen()) {
-        setMenuOpen(false);
-        if (userBtn) userBtn.focus();
+      if (!drawerIsOpen()) return;
+      if (event.key === "Escape") {
+        if (isMenuOpen()) {
+          setMenuOpen(false);
+          if (userBtn) userBtn.focus();
+          return;
+        }
+        closeDrawer();
         return;
       }
-      closeDrawer();
+      if (event.key !== "Tab") return;
+      var focusable = Array.prototype.slice.call(sidebar.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(function (node) { return node.offsetParent !== null; });
+      if (!focusable.length) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     });
 
     /* ── Viewport mode ────────────────────────────────────────────────── */
 
-    // Desktop: dock the rail permanently. Mobile: hide it and let the navbar
-    // button drive the drawer.
+    // Changing viewport mode always leaves the drawer closed. The same navbar
+    // control reopens it with the correct responsive width.
     function applyMode() {
       setMenuOpen(false);
-      hideTip();
-
-      if (DESKTOP_QUERY.matches) {
-        // Docked rail: never an overlay, never locks page scroll, so the fixed
-        // navbar stays visible and clickable.
-        document.body.style.overflow = "";
-        hideBackdrop();
-        sidebar.classList.remove("is-open", "open");
-        applyCollapsed(collapsedPref);
-        return;
-      }
-
       document.body.style.overflow = "";
-      sidebar.classList.remove("is-collapsed", "open", "is-open");
+      sidebar.classList.remove("open", "is-open");
+      sidebar.setAttribute("aria-hidden", "true");
+      sidebar.setAttribute("inert", "");
       if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "false");
       hideBackdrop();
     }
@@ -271,53 +231,6 @@
     } else if (typeof DESKTOP_QUERY.addListener === "function") {
       DESKTOP_QUERY.addListener(applyMode);
     }
-
-    /* ── Collapsed tooltips ───────────────────────────────────────────── */
-
-    // The rail scrolls, so an in-flow tooltip would be clipped. One shared
-    // fixed element is positioned against the trigger's bounding box.
-    var tip = document.createElement("div");
-    tip.className = "racs-sidebar-tip";
-    tip.setAttribute("role", "tooltip");
-    tip.hidden = true;
-    document.body.appendChild(tip);
-
-    function showTip(trigger) {
-      var text = trigger.getAttribute("data-tip");
-      if (!text || !DESKTOP_QUERY.matches || !isCollapsed()) return hideTip();
-
-      tip.textContent = text;
-      tip.hidden = false;
-
-      var box = trigger.getBoundingClientRect();
-      var width = tip.offsetWidth;
-      var height = tip.offsetHeight;
-      var left = box.right + 10;
-      var top = box.top + box.height / 2 - height / 2;
-
-      // Keep the tooltip on screen on narrow desktop windows.
-      if (left + width > window.innerWidth - 8) left = box.left - width - 10;
-      if (left < 8) left = 8;
-      top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
-
-      tip.style.left = Math.round(left) + "px";
-      tip.style.top = Math.round(top) + "px";
-    }
-
-    function hideTip() {
-      tip.hidden = true;
-    }
-
-    sidebar.querySelectorAll("[data-tip]").forEach(function (trigger) {
-      trigger.addEventListener("mouseenter", function () {
-        showTip(trigger);
-      });
-      trigger.addEventListener("mouseleave", hideTip);
-      trigger.addEventListener("focus", function () {
-        showTip(trigger);
-      });
-      trigger.addEventListener("blur", hideTip);
-    });
 
     /* ── Active page ──────────────────────────────────────────────────── */
 
@@ -335,12 +248,11 @@
 
     /* ── Wiring ───────────────────────────────────────────────────────── */
 
-    // Mobile drawer: close right after the customer picks a destination so they
-    // are not left with a menu covering the page they just opened. On desktop
-    // the rail stays put and the new page simply re-marks the active item.
+    // Close after choosing a destination at every size so the drawer never
+    // remains over the page while navigation starts.
     sidebar.querySelectorAll(".racs-sidebar-link").forEach(function (link) {
       link.addEventListener("click", function () {
-        if (!DESKTOP_QUERY.matches) closeDrawer();
+        closeDrawer();
       });
     });
 
