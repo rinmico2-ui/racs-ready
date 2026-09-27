@@ -38,7 +38,7 @@
     <!-- Shared admin/technician CSS -->
     <link rel="stylesheet" href="/css/admin.css" />
     <link rel="stylesheet" href="/css/main.css" />
-    <link rel="stylesheet" href="/css/sidebaradmin.css" />
+    <link rel="stylesheet" href="/css/sidebaradmin.css?v=20260927-modern-nav" />
 
     <!-- Technician navbar responsive behavior -->
     <link rel="stylesheet" href="/css/technician/technician-navbar.css" />
@@ -214,7 +214,7 @@
         window.socket.emit('tech:join', '<%= technician._id %>');
       <% } %>
     </script>
-    <script src="/js/admin.js"></script>
+    <script src="/js/admin.js?v=20260927-shell-components"></script>
     <% if (pageUsesChart) { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script><% } %>
     <!-- Optional technician scripts -->
     <script src="/js/technician.js"></script>

@@ -1403,6 +1403,9 @@
     if (!staffSearch && !staffFilterRole && !staffFilterStatus)
       console.warn("Staff list: filter elements not found on page.");
 
+    var viewStaffRequestController = null;
+    var editStaffRequestController = null;
+
     // make role badges clickable: clicking a badge will set/toggle the role filter
     document
       .getElementById("staffCards")
@@ -1430,10 +1433,24 @@
       var id = btn.dataset.id;
       if (!id) return;
 
-      fetch(staffApiBase + "/" + id)
-        .then(function (r) { return r.json(); })
+      if (viewStaffRequestController) viewStaffRequestController.abort();
+      viewStaffRequestController = new AbortController();
+      var requestController = viewStaffRequestController;
+      var viewModalEl = document.getElementById("viewStaffModal");
+      if (window.AdminModalUX) {
+        window.AdminModalUX.open(viewModalEl, { loadingMessage: "Loading staff details…" });
+      } else {
+        bootstrap.Modal.getOrCreateInstance(viewModalEl).show();
+      }
+
+      fetch(staffApiBase + "/" + id, { signal: requestController.signal })
+        .then(function (r) {
+          if (!r.ok) throw new Error("Failed to load staff");
+          return r.json();
+        })
         .then(function (j) {
-          if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
+          if (requestController !== viewStaffRequestController) return;
+          if (!j || j.error) throw new Error("Failed to load staff");
           var u = j.staff;
           var name = ((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email || "";
           document.getElementById("viewStaffName").innerText = name;
@@ -1469,9 +1486,19 @@
           var initial = (u.firstName || "")[0] || (u.name || "")[0] || "U";
           avatarEl.innerText = initial.toUpperCase();
 
-          new bootstrap.Modal(document.getElementById("viewStaffModal")).show();
+          window.AdminModalUX?.settle(viewModalEl);
         })
-        .catch(function () { window.notify.error("Failed to load staff"); });
+        .catch(function (error) {
+          if (error && error.name === "AbortError") return;
+          if (window.AdminModalUX) {
+            window.AdminModalUX.fail(viewModalEl, "Could not load staff details right now.");
+          } else {
+            window.notify.error("Failed to load staff");
+          }
+        })
+        .finally(function () {
+          if (viewStaffRequestController === requestController) viewStaffRequestController = null;
+        });
     });
 
     // ── Edit Staff click handler ──
@@ -1482,10 +1509,24 @@
       var id = btn.dataset.id;
       if (!id) return;
 
-      fetch(staffApiBase + "/" + id)
-        .then(function (r) { return r.json(); })
+      if (editStaffRequestController) editStaffRequestController.abort();
+      editStaffRequestController = new AbortController();
+      var requestController = editStaffRequestController;
+      var editModalEl = document.getElementById("editStaffModal");
+      if (window.AdminModalUX) {
+        window.AdminModalUX.open(editModalEl, { loadingMessage: "Loading staff record…" });
+      } else {
+        bootstrap.Modal.getOrCreateInstance(editModalEl).show();
+      }
+
+      fetch(staffApiBase + "/" + id, { signal: requestController.signal })
+        .then(function (r) {
+          if (!r.ok) throw new Error("Failed to load staff");
+          return r.json();
+        })
         .then(function (j) {
-          if (!j || j.error) { window.notify.error("Failed to load staff"); return; }
+          if (requestController !== editStaffRequestController) return;
+          if (!j || j.error) throw new Error("Failed to load staff");
           var u = j.staff;
           document.getElementById("editStaffId").value = u._id;
           document.getElementById("editStaffFirst").value = u.firstName || "";
@@ -1496,9 +1537,19 @@
           var name = ((u.firstName || "") + " " + (u.lastName || "")).trim() || u.email || "";
           document.getElementById("editStaffSubtitle").innerText = "Editing " + name;
 
-          new bootstrap.Modal(document.getElementById("editStaffModal")).show();
+          window.AdminModalUX?.settle(editModalEl);
         })
-        .catch(function () { window.notify.error("Failed to load staff"); });
+        .catch(function (error) {
+          if (error && error.name === "AbortError") return;
+          if (window.AdminModalUX) {
+            window.AdminModalUX.fail(editModalEl, "Could not load this staff record right now.");
+          } else {
+            window.notify.error("Failed to load staff");
+          }
+        })
+        .finally(function () {
+          if (editStaffRequestController === requestController) editStaffRequestController = null;
+        });
     });
 
     // ── Save Edit ──

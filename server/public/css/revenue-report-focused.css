@@ -148,6 +148,51 @@
 .revenue-report .rr-table th { position: sticky; z-index: 1; top: 0; background: #f8fafc; }
 .revenue-report .rr-table tbody tr { transition: background-color .16s ease; }
 .revenue-report .rr-table tbody tr:hover td { background: #f7fafc; }
+.revenue-report .rr-forecast-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(250px, .8fr); gap: 16px; }
+.revenue-report .rr-forecast-chart { height: 310px; }
+.revenue-report .rr-forecast-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.revenue-report .rr-forecast-kpis article { display: flex; min-width: 0; flex-direction: column; justify-content: center; padding: 17px; border-top: 3px solid #0f766e; }
+.revenue-report .rr-forecast-kpis small { color: #718096; font-size: .61rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.revenue-report .rr-forecast-kpis strong { margin: 7px 0 3px; color: #17243b; font: 750 1.15rem/1.2 "Outfit", sans-serif; overflow-wrap: anywhere; }
+.revenue-report .rr-forecast-kpis strong.positive { color: #047857; }
+.revenue-report .rr-forecast-kpis strong.negative { color: #b91c1c; }
+.revenue-report .rr-forecast-kpis p { margin: 0; color: #8793a5; font-size: .62rem; }
+.revenue-report .rr-forecast-caveat { display: flex; gap: 8px; padding: 11px 16px; border-top: 1px solid #e9eef5; background: #f8fafc; color: #64748b; font-size: .66rem; line-height: 1.5; }
+.revenue-report .rr-profit-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.revenue-report .rr-profit-kpis article { display: flex; min-width: 0; align-items: center; gap: 12px; padding: 16px; }
+.revenue-report .rr-profit-kpis small { display: block; color: #6b788c; font-size: .58rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.revenue-report .rr-profit-kpis strong { display: block; overflow: hidden; margin: 3px 0; color: #17243b; font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+.revenue-report .rr-profit-kpis p { margin: 0; color: #69778c; font-size: .63rem; }
+.revenue-report .rr-profit-kpi-icon { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 11px; background: #ecfdf5; color: #047857; }
+.revenue-report .rr-profit-kpi-icon.review,
+.revenue-report .rr-profit-kpi-icon.risk { background: #fef2f2; color: #b91c1c; }
+.revenue-report .rr-profit-kpi-icon.margin { background: #eff6ff; color: #1d4ed8; }
+.revenue-report .rr-decision-list { display: grid; gap: 0; }
+.revenue-report .rr-decision-list article { --decision:#2563eb; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 15px 17px; border-bottom: 1px solid #edf1f6; }
+.revenue-report .rr-decision-list article:last-child { border-bottom: 0; }
+.revenue-report .rr-decision-list article.success { --decision:#059669; }
+.revenue-report .rr-decision-list article.warning { --decision:#d97706; }
+.revenue-report .rr-decision-list article.danger { --decision:#dc2626; }
+.revenue-report .rr-decision-list article > i { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: color-mix(in srgb, var(--decision) 10%, white); color: var(--decision); }
+.revenue-report .rr-decision-list strong { color: #24364d; font-size: .72rem; }
+.revenue-report .rr-decision-list p { margin: 3px 0 5px; color: #69778c; font-size: .65rem; line-height: 1.45; }
+.revenue-report .rr-decision-list span { color: var(--decision); font-size: .61rem; font-weight: 750; }
+.revenue-report .rr-rank { display: inline-grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #f1f5f9; color: #64748b; font-size: .66rem; font-weight: 800; }
+.revenue-report .rr-rank.top { background: #ecfdf5; color: #047857; }
+.revenue-report .rr-action { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: .59rem; font-weight: 800; white-space: nowrap; }
+.revenue-report .rr-action.success { background: #ecfdf5; color: #047857; }
+.revenue-report .rr-action.warning { background: #fffbeb; color: #b45309; }
+.revenue-report .rr-action.danger { background: #fef2f2; color: #b91c1c; }
+.revenue-report .rr-action-detail { max-width: 280px; margin-top: 4px; white-space: normal; }
+.revenue-report .rr-allocation-note { display: flex; gap: 9px; padding: 12px 16px; border-top: 1px solid #e6edf5; background: #f8fafc; color: #64748b; font-size: .65rem; line-height: 1.5; }
+.revenue-report .rr-portfolio-table { min-width: 1040px; }
+.rr-drilldown-modal { overflow: hidden; border-radius: 16px; }
+.rr-drilldown-modal .modal-header { border: 0; background: linear-gradient(135deg,#102a43,#0f766e); color: #fff; }
+.rr-drilldown-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid #e6edf5; background: #f8fafc; }
+.rr-drilldown-summary article { padding: 15px 18px; border-right: 1px solid #e6edf5; }
+.rr-drilldown-summary article:last-child { border-right: 0; }
+.rr-drilldown-summary small { display: block; color: #718096; font-size: .59rem; font-weight: 800; text-transform: uppercase; }
+.rr-drilldown-summary strong { display: block; margin-top: 4px; color: #17243b; font: 750 1rem "Outfit", sans-serif; }
 
 @keyframes rr-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes rr-panel-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -162,6 +207,8 @@
   .revenue-report .rr-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .revenue-report .rr-control-grid article:nth-child(2) { border-right: 0; }
   .revenue-report .rr-control-grid article:nth-child(-n+2) { border-bottom: 1px solid #edf1f6; }
+  .revenue-report .rr-forecast-layout { grid-template-columns: 1fr; }
+  .revenue-report .rr-profit-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 767px) {
@@ -181,6 +228,12 @@
   .revenue-report .rr-activity-grid article:not(:last-child) { border-right: 0; border-bottom: 1px solid #edf1f6; }
   .revenue-report .rr-control-grid { grid-template-columns: 1fr; }
   .revenue-report .rr-control-grid article:not(:last-child) { border-right: 0; border-bottom: 1px solid #edf1f6; }
+  .revenue-report .rr-forecast-kpis,
+  .revenue-report .rr-profit-kpis { grid-template-columns: 1fr; }
+  .revenue-report .rr-forecast-chart { height: 260px; }
+  .rr-drilldown-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rr-drilldown-summary article:nth-child(2) { border-right: 0; }
+  .rr-drilldown-summary article:nth-child(-n+2) { border-bottom: 1px solid #e6edf5; }
 }
 
 @media (prefers-reduced-motion: reduce) {

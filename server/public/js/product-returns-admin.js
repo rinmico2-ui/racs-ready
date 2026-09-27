@@ -19,6 +19,11 @@
     try {
       const data = await json(`/api/product-returns/admin${statusFilter.value ? `?status=${encodeURIComponent(statusFilter.value)}` : ""}`);
       rows = data.returns || [];
+      const summary = data.summary || {};
+      $("rmaKpiOpen").textContent = Number(summary.open || 0).toLocaleString("en-PH");
+      $("rmaKpiPriority").textContent = Number(summary.highPriority || 0).toLocaleString("en-PH");
+      $("rmaKpiRefund").textContent = Number(summary.refundDecisions || 0).toLocaleString("en-PH");
+      $("rmaKpiCompleted").textContent = Number(summary.completed || 0).toLocaleString("en-PH");
       selectedId = preferredId || selectedId;
       if (!rows.some(row => row._id === selectedId)) selectedId = rows[0]?._id || null;
       renderList();

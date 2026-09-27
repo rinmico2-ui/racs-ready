@@ -357,10 +357,23 @@
   }
 
   async function viewDetail(id) {
+    if (viewDetail.requestController) viewDetail.requestController.abort();
+    const requestController = new AbortController();
+    viewDetail.requestController = requestController;
+    const detailModalEl = document.getElementById('detailModal');
+    document.getElementById('detailTitle').textContent = 'Booking Details';
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(detailModalEl, { loadingMessage: 'Loading booking details…' });
+    } else {
+      bootstrap.Modal.getOrCreateInstance(detailModalEl).show();
+    }
     try {
-      const res = await fetch(`/api/admin/appointments/${id}`);
+      const res = await fetch(`/api/admin/appointments/${id}`, { signal: requestController.signal });
+      if (!res.ok) throw new Error('Failed to load booking details');
       const data = await res.json();
+      if (viewDetail.requestController !== requestController) return;
       const b = data.booking;
+      if (!b) throw new Error('Booking details were not returned');
       const date = new Date(b.bookingDate).toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
       const stLabel = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
@@ -456,8 +469,15 @@
             </div>
           </div>` : ''}
         </div>`;
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
-    } catch (e) { console.error(e); showNotification({ type: 'error', title: 'Error', message: 'Failed to load booking details.', duration: 4000 }); }
+      window.AdminModalUX?.settle(detailModalEl);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      console.error(e);
+      if (window.AdminModalUX) window.AdminModalUX.fail(detailModalEl, 'Could not load booking details right now.');
+      else showNotification({ type: 'error', title: 'Error', message: 'Failed to load booking details.', duration: 4000 });
+    } finally {
+      if (viewDetail.requestController === requestController) viewDetail.requestController = null;
+    }
   }
 
   // Enterprise notification system

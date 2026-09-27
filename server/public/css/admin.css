@@ -1696,6 +1696,68 @@ button:focus {
 .modal-backdrop { z-index: 10600 !important; }
 .modal-backdrop.show { opacity: 0.5; }
 
+/* Fast, consistent admin modal feedback. Bootstrap's default transition is long
+   enough to feel sluggish when a modal is also waiting on remote data. */
+.modal.fade {
+  transition: opacity 0.1s linear;
+}
+.modal.fade .modal-dialog {
+  transform: translateY(7px) scale(0.99);
+  transition: transform 0.14s ease-out;
+}
+.modal.show .modal-dialog {
+  transform: none;
+}
+.modal-backdrop.fade {
+  transition: opacity 0.1s linear;
+}
+
+.admin-modal-loading-host {
+  position: relative;
+  min-height: 150px;
+}
+.admin-modal-loading-state {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.97);
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
+.admin-modal-state-spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--admin-primary, #2563eb);
+}
+.admin-modal-loading-state.is-error {
+  color: #991b1b;
+  background: #fffafa;
+}
+.admin-modal-state-icon {
+  color: #dc2626;
+  font-size: 1.35rem;
+}
+.admin-modal-loading .modal-footer button:not([data-bs-dismiss]) {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.fade,
+  .modal.fade .modal-dialog,
+  .modal-backdrop.fade {
+    transition: none !important;
+  }
+}
+
 /* ═══ Enterprise Resource Reservation Styles ═══ */
 .mat-field {
   transition: border-color 0.2s, box-shadow 0.2s;

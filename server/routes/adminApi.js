@@ -98,6 +98,18 @@ router.get("/audit", admin.listAuditTrail);
 // Dashboard KPI summary (counts used by admin dashboard)
 router.get("/analytics/summary", admin.analyticsSummary);
 
+// Consolidated report-center snapshot. The page shell renders immediately;
+// this endpoint composes cached financial analytics with bounded aggregates.
+router.get("/reports/overview", async (req, res, next) => {
+  try {
+    const { buildReportCenterSnapshot } = require("../utils/reportCenter");
+    res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
+    return res.json(await buildReportCenterSnapshot(new Date()));
+  } catch (error) {
+    return next(error);
+  }
+});
+
 // Authoritative operational control-center snapshot. This intentionally stays
 // separate from long-range analytics: every number represents current work,
 // a review queue, custody exposure, or cash-control responsibility.
@@ -2822,24 +2834,28 @@ router.get("/ratings/technicians", async (req, res, next) => {
     const Technician = require("../models/Technician");
     const BookingService = require("../models/BookingService");
 
-    // Fetch ALL technicians
-    const allTechs = await Technician.find({}).sort({ name: 1 }).lean();
-
-    // 1. Get ratings from Rating collection (targetType: "technician")
-    const techRatings = await Rating.find({ targetType: "technician", moderationStatus: { $ne: "hidden" } })
-      .populate("customerId", "firstName lastName email")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // 2. Get ratings from BookingService (customerRating on completed bookings with a technician)
-    const ratedBookings = await BookingService.find({
-      customerRating: { $exists: true, $ne: null },
-      technicianId: { $exists: true, $ne: null },
-    })
-      .populate("customerId", "firstName lastName email")
-      .select("technicianId customerRating customerRatingComment createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
+    // These datasets are independent. Loading them together removes three
+    // avoidable database round-trips from the initial ratings screen.
+    const [allTechs, techRatings, ratedBookings, completedJobCounts] = await Promise.all([
+      Technician.find({}).select("name userEmail active availabilityStatus createdAt").sort({ name: 1 }).lean(),
+      Rating.find({ targetType: "technician", moderationStatus: { $ne: "hidden" } })
+        .populate("customerId", "firstName lastName email")
+        .select("targetId score comment customerId createdAt")
+        .sort({ createdAt: -1 })
+        .lean(),
+      BookingService.find({
+        customerRating: { $exists: true, $ne: null },
+        technicianId: { $exists: true, $ne: null },
+      })
+        .populate("customerId", "firstName lastName email")
+        .select("technicianId customerRating customerRatingComment customerId createdAt")
+        .sort({ createdAt: -1 })
+        .lean(),
+      BookingService.aggregate([
+        { $match: { status: "completed", technicianId: { $ne: null } } },
+        { $group: { _id: "$technicianId", count: { $sum: 1 } } },
+      ]),
+    ]);
 
     // Merge: group all ratings by technician ID
     const techGroups = {};
@@ -2872,19 +2888,8 @@ router.get("/ratings/technicians", async (req, res, next) => {
       techGroups[tid].count++;
     }
 
-    // Count completed jobs per technician
-    let jobCounts = {};
-    try {
-      const completedBookings = await BookingService.find({ status: "completed" }).select("technicianId").lean();
-      for (const b of completedBookings) {
-        if (b.technicianId) {
-          const tid = String(b.technicianId);
-          jobCounts[tid] = (jobCounts[tid] || 0) + 1;
-        }
-      }
-    } catch (e) {
-      console.error("Error counting jobs:", e.message);
-    }
+    // Aggregate counts in MongoDB instead of transferring every completed job.
+    const jobCounts = Object.fromEntries(completedJobCounts.map(row => [String(row._id), Number(row.count) || 0]));
 
     // Build technician objects — only include those with at least 1 rating
     const technicians = allTechs

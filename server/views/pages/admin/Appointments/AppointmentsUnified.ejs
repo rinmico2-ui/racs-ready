@@ -3106,7 +3106,11 @@
     .then(function(){
       showNotification({type:'success',title:'Repair Approved',message:'Repair request has been approved and moved to the assignment queue.',duration:4000});
       var queueTabBtn=document.querySelector('.au-tab-btn[data-bs-target="#tab-queue"]');
-      if(queueTabBtn){var bsTab=new bootstrap.Tab(queueTabBtn);bsTab.show();}
+      if(queueTabBtn){
+        if(window.bootstrap&&bootstrap.Tab)bootstrap.Tab.getOrCreateInstance(queueTabBtn).show();
+        else if(window.AdminTabs)window.AdminTabs.show(queueTabBtn);
+        else queueTabBtn.click();
+      }
       else{AU.Pending.loadRepairRequests();AU.Pending.loadRepairStats();}
     })
     .catch(function(e){showNotification({type:'error',title:'Approval Failed',message:e.message||'Failed to approve repair request.',duration:5000});});
@@ -4469,7 +4473,9 @@
     // calls switchTab/loadTab. Only call switchTab directly when the requested
     // tab starts active, preventing duplicate initial API requests.
     if(tabButton&&tabButton.classList.contains('active'))switchTab(initialTab);
-    else if(tabButton&&typeof bootstrap!=='undefined')bootstrap.Tab.getOrCreateInstance(tabButton).show();
+    else if(tabButton&&typeof bootstrap!=='undefined'&&bootstrap.Tab)bootstrap.Tab.getOrCreateInstance(tabButton).show();
+    else if(tabButton&&window.AdminTabs)window.AdminTabs.show(tabButton);
+    else if(tabButton)tabButton.click();
     loadBookingResolutionCount();
     // Calendar "Open full record" links include the selected booking ID.
     // Open that exact record after the workspace and Bootstrap modal are ready.

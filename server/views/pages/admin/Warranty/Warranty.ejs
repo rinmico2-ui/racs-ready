@@ -1,4 +1,5 @@
-<div class="admin-dashboard container-fluid py-4 inventory-premium">
+<link rel="stylesheet" href="/css/operations-aftercare.css?v=20260927-warranty-tabs">
+<div class="admin-dashboard container-fluid py-4 inventory-premium ops-modern">
   <%- include('../../../partials/dashboard-styles') %>
   <style>
     .inventory-premium .dash-card {
@@ -197,39 +198,34 @@
     <div id="claimQueueRows"><div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading claims...</div></div>
   </div>
 
-  <div class="rp-toolbar">
-    <div class="rp-filter-group">
-      <label class="rp-filter-label">Warranty Status</label>
-      <div class="d-flex gap-2">
-        <button class="btn btn-light rp-filter-btn active" data-status="all" onclick="filterStatus('all',this)"><i class="bi bi-list me-1"></i>All</button>
-        <button class="btn btn-light rp-filter-btn" data-status="active" onclick="filterStatus('active',this)"><i class="bi bi-shield-check me-1"></i>Active</button>
-        <button class="btn btn-light rp-filter-btn" data-status="claimed" onclick="filterStatus('claimed',this)"><i class="bi bi-exclamation-triangle me-1"></i>Claims</button>
-        <button class="btn btn-light rp-filter-btn" data-status="expired" onclick="filterStatus('expired',this)"><i class="bi bi-shield-x me-1"></i>Expired</button>
-        <button class="btn btn-light rp-filter-btn" data-status="incomplete" onclick="filterStatus('incomplete',this)"><i class="bi bi-calendar-x me-1"></i>Needs Dates</button>
-      </div>
+  <section class="warranty-controls" aria-label="Warranty record filters">
+    <div class="warranty-controls-head">
+      <div><div class="warranty-controls-eyebrow">Coverage records</div><h2>Warranty registry</h2><p>Filter coverage records by lifecycle status or source.</p></div>
+      <label class="warranty-search" for="searchInput"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search warranty records</span><input type="search" id="searchInput" placeholder="Search reference or customer" autocomplete="off" oninput="debounceSearch()"></label>
     </div>
-    <div class="rp-filter-group">
-      <label class="rp-filter-label">Type</label>
-      <div class="d-flex gap-2">
-        <button class="btn btn-light rp-filter-btn active" data-type="all" onclick="filterType('all',this)"><i class="bi bi-grid me-1"></i>All</button>
-        <button class="btn btn-light rp-filter-btn" data-type="booking" onclick="filterType('booking',this)"><i class="bi bi-wrench me-1"></i>Bookings</button>
-        <button class="btn btn-light rp-filter-btn" data-type="order" onclick="filterType('order',this)"><i class="bi bi-bag me-1"></i>Orders</button>
-      </div>
+    <div class="warranty-status-tabs" role="tablist" aria-label="Warranty status">
+      <button type="button" class="warranty-status-tab active" role="tab" aria-selected="true" tabindex="0" data-status="all" onclick="filterStatus('all',this)"><i class="bi bi-grid"></i><span>All</span><span class="warranty-tab-count" data-count-status="all">0</span></button>
+      <button type="button" class="warranty-status-tab" role="tab" aria-selected="false" tabindex="-1" data-status="active" onclick="filterStatus('active',this)"><i class="bi bi-shield-check"></i><span>Active</span><span class="warranty-tab-count" data-count-status="active">0</span></button>
+      <button type="button" class="warranty-status-tab" role="tab" aria-selected="false" tabindex="-1" data-status="claimed" onclick="filterStatus('claimed',this)"><i class="bi bi-exclamation-triangle"></i><span>Claims</span><span class="warranty-tab-count" data-count-status="claimed">0</span></button>
+      <button type="button" class="warranty-status-tab" role="tab" aria-selected="false" tabindex="-1" data-status="expired" onclick="filterStatus('expired',this)"><i class="bi bi-shield-x"></i><span>Expired</span><span class="warranty-tab-count" data-count-status="expired">0</span></button>
+      <button type="button" class="warranty-status-tab" role="tab" aria-selected="false" tabindex="-1" data-status="incomplete" onclick="filterStatus('incomplete',this)"><i class="bi bi-calendar-x"></i><span>Needs dates</span><span class="warranty-tab-count" data-count-status="incomplete">0</span></button>
     </div>
-    <div class="rp-filter-group search">
-      <label class="rp-filter-label">Search</label>
-      <div class="input-group">
-        <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" class="form-control" id="searchInput" placeholder="Search by reference or customer name..." oninput="debounceSearch()">
+    <div class="warranty-subfilters">
+      <span class="warranty-subfilter-label">Record source</span>
+      <div class="warranty-type-switch" role="group" aria-label="Warranty source">
+        <button type="button" class="warranty-type-option active" aria-pressed="true" data-type="all" onclick="filterType('all',this)">All sources <span data-count-type="all">0</span></button>
+        <button type="button" class="warranty-type-option" aria-pressed="false" data-type="booking" onclick="filterType('booking',this)"><i class="bi bi-wrench"></i>Services <span data-count-type="booking">0</span></button>
+        <button type="button" class="warranty-type-option" aria-pressed="false" data-type="order" onclick="filterType('order',this)"><i class="bi bi-box-seam"></i>Products <span data-count-type="order">0</span></button>
       </div>
+      <button type="button" class="warranty-clear-filter" id="warrantyClearFilters"><i class="bi bi-arrow-counterclockwise"></i>Reset filters</button>
     </div>
-  </div>
+  </section>
 
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white" style="border-bottom: 1px solid #f1f5f9;">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0 fw-bold" id="tableTitle">All Warranties</h5>
-        <span class="badge bg-primary-subtle text-primary" id="tableCount">0 records</span>
+      <div class="d-flex justify-content-between align-items-center gap-3">
+        <div><h5 class="mb-1 fw-bold" id="tableTitle">All warranties</h5><div class="small text-muted" id="tableSubtitle">Showing every service and product warranty.</div></div>
+        <span class="warranty-result-count" id="tableCount">0 records</span>
       </div>
     </div>
     <div class="table-responsive">
@@ -301,22 +297,56 @@ let activeClaimId = null;
 const warrantyFooter = document.getElementById('warrantyFooter');
 const re = v => String(v ?? '—').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 
+const warrantyStatusTitles = { all:'All warranties', active:'Active warranties', claimed:'Warranty claims', expired:'Expired warranties', incomplete:'Warranties needing dates' };
+const warrantyTypeTitles = { all:'service and product', booking:'service', order:'product' };
+
+function updateWarrantyFilterCounts() {
+  const statusCounts = { all:allData.length, active:0, claimed:0, expired:0, incomplete:0 };
+  const typeCounts = { all:allData.length, booking:0, order:0 };
+  allData.forEach(item => {
+    const status = item.warranty?.status;
+    if (Object.prototype.hasOwnProperty.call(statusCounts, status)) statusCounts[status] += 1;
+    if (Object.prototype.hasOwnProperty.call(typeCounts, item.type)) typeCounts[item.type] += 1;
+  });
+  document.querySelectorAll('[data-count-status]').forEach(node => { node.textContent = statusCounts[node.dataset.countStatus] || 0; });
+  document.querySelectorAll('[data-count-type]').forEach(node => { node.textContent = typeCounts[node.dataset.countType] || 0; });
+}
+
+function updateWarrantyHeading() {
+  document.getElementById('tableTitle').textContent = warrantyStatusTitles[currentStatus] || 'Warranty records';
+  const statusText = currentStatus === 'all' ? 'every lifecycle status' : `status: ${warrantyStatusTitles[currentStatus].toLowerCase()}`;
+  document.getElementById('tableSubtitle').textContent = `Showing ${warrantyTypeTitles[currentType] || 'matching'} warranties with ${statusText}.`;
+}
+
+function syncWarrantyFilterUrl() {
+  const url = new URL(window.location.href);
+  currentStatus === 'all' ? url.searchParams.delete('status') : url.searchParams.set('status', currentStatus);
+  currentType === 'all' ? url.searchParams.delete('type') : url.searchParams.set('type', currentType);
+  window.history.replaceState({}, '', url);
+}
+
 function filterStatus(status, btn) {
   currentStatus = status;
-  document.querySelectorAll('[data-status]').forEach(x => x.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tableTitle').textContent =
-    status === 'all' ? 'All Warranties' :
-    status === 'active' ? 'Active Warranties' :
-    status === 'expired' ? 'Expired Warranties' :
-    status === 'incomplete' ? 'Warranties Missing Dates' : 'Warranty Claims';
+  document.querySelectorAll('.warranty-status-tab').forEach(x => {
+    const selected = x === btn;
+    x.classList.toggle('active', selected);
+    x.setAttribute('aria-selected', selected ? 'true' : 'false');
+    x.tabIndex = selected ? 0 : -1;
+  });
+  updateWarrantyHeading();
+  syncWarrantyFilterUrl();
   applyFilters();
 }
 
 function filterType(type, btn) {
   currentType = type;
-  document.querySelectorAll('[data-type]').forEach(x => x.classList.remove('active'));
-  btn.classList.add('active');
+  document.querySelectorAll('.warranty-type-option').forEach(x => {
+    const selected = x === btn;
+    x.classList.toggle('active', selected);
+    x.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  updateWarrantyHeading();
+  syncWarrantyFilterUrl();
   applyFilters();
 }
 
@@ -358,9 +388,8 @@ async function loadWarranties() {
     if (listRes.ok) {
       const data = await listRes.json();
       allData = data.items || [];
-      filteredData = [...allData];
-      document.getElementById('tableCount').textContent = filteredData.length + ' records';
-      renderPage(1);
+      updateWarrantyFilterCounts();
+      applyFilters();
     }
   } catch (e) {
     console.error('Failed to load warranties:', e);
@@ -819,6 +848,62 @@ window.openWarrantyDetails = async function(type, id, button) {
   }
 };
 
+function initializeWarrantyControls() {
+  const params = new URLSearchParams(window.location.search);
+  const requestedStatus = params.get('status');
+  const requestedType = params.get('type');
+  const allowedStatuses = ['all','active','claimed','expired','incomplete'];
+  const allowedTypes = ['all','booking','order'];
+  currentStatus = allowedStatuses.includes(requestedStatus) ? requestedStatus : 'all';
+  currentType = allowedTypes.includes(requestedType) ? requestedType : 'all';
+
+  document.querySelectorAll('.warranty-status-tab').forEach(tab => {
+    const selected = tab.dataset.status === currentStatus;
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+    tab.tabIndex = selected ? 0 : -1;
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      const tabs = Array.from(document.querySelectorAll('.warranty-status-tab'));
+      const index = tabs.indexOf(tab);
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % tabs.length : (index - 1 + tabs.length) % tabs.length;
+      event.preventDefault();
+      tabs[nextIndex].focus();
+      tabs[nextIndex].click();
+    });
+  });
+  document.querySelectorAll('.warranty-type-option').forEach(option => {
+    const selected = option.dataset.type === currentType;
+    option.classList.toggle('active', selected);
+    option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  updateWarrantyHeading();
+
+  document.getElementById('warrantyClearFilters').addEventListener('click', () => {
+    document.getElementById('searchInput').value = '';
+    const statusTab = document.querySelector('.warranty-status-tab[data-status="all"]');
+    const typeOption = document.querySelector('.warranty-type-option[data-type="all"]');
+    currentStatus = 'all';
+    currentType = 'all';
+    document.querySelectorAll('.warranty-status-tab').forEach(tab => {
+      const selected = tab === statusTab;
+      tab.classList.toggle('active', selected);
+      tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    document.querySelectorAll('.warranty-type-option').forEach(option => {
+      const selected = option === typeOption;
+      option.classList.toggle('active', selected);
+      option.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    updateWarrantyHeading();
+    syncWarrantyFilterUrl();
+    applyFilters();
+    statusTab.focus({ preventScroll:true });
+  });
+}
+
+initializeWarrantyControls();
 loadWarranties();
 loadClaimQueue().then(() => {
   const focusedClaim = new URLSearchParams(location.search).get('claim');

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { remember } = require("./reportCache");
 
 const ALLOWED_RANGES = new Set(["today", "7", "30", "90", "365", "mtd", "qtd", "ytd", "all", "custom"]);
 const ALLOWED_SORTS = new Set(["newest", "oldest", "highest", "lowest"]);
@@ -312,7 +313,7 @@ function publicFilters(filters) {
   };
 }
 
-async function loadServiceRatingReport(source = {}, options = {}) {
+async function computeServiceRatingReport(source = {}, options = {}) {
   const Rating = require("../models/Rating");
   const BookingService = require("../models/BookingService");
   const filters = parseServiceRatingFilters(source, options.now || new Date());
@@ -334,18 +335,20 @@ async function loadServiceRatingReport(source = {}, options = {}) {
       .lean(),
   ]);
   const legacyIds = legacyCandidates.map(booking => booking._id);
-  const normalizedLegacyLinks = legacyIds.length
+  const primaryBookingIds = [...new Set(primaryRatings.map(rating => String(rating.targetId || "")).filter(mongoose.isValidObjectId))];
+  const [normalizedLegacyLinks, enrichmentBookings] = await Promise.all([
     // Include hidden normalized ratings here so their legacy booking snapshot
     // cannot re-enter the report as an unmoderated fallback row.
-    ? await Rating.find({ targetType: "booking", targetId: { $in: legacyIds } }).select("targetId").lean()
-    : [];
-  const primaryBookingIds = [...new Set(primaryRatings.map(rating => String(rating.targetId || "")).filter(mongoose.isValidObjectId))];
-  const enrichmentBookings = primaryBookingIds.length
-    ? await BookingService.find({ _id: { $in: primaryBookingIds } })
-      .populate("customerId", "firstName lastName name email")
-      .populate("technicianId", "name active")
-      .lean()
-    : [];
+    legacyIds.length
+      ? Rating.find({ targetType: "booking", targetId: { $in: legacyIds } }).select("targetId").lean()
+      : [],
+    primaryBookingIds.length
+      ? BookingService.find({ _id: { $in: primaryBookingIds } })
+        .populate("customerId", "firstName lastName name email")
+        .populate("technicianId", "name active")
+        .lean()
+      : [],
+  ]);
   const bookingMap = new Map([...legacyCandidates, ...enrichmentBookings].map(booking => [String(booking._id), booking]));
   const reviews = buildCanonicalReviews({
     bookings: [...bookingMap.values()],
@@ -376,6 +379,14 @@ async function loadServiceRatingReport(source = {}, options = {}) {
     reportStart: filters.start ? localDateKey(filters.start) : "all",
     reportEnd: localDateKey(filters.end),
   };
+}
+
+function loadServiceRatingReport(source = {}, options = {}) {
+  if (options.paginate === false || options.now) return computeServiceRatingReport(source, options);
+  return remember("service-rating-report", source, () => computeServiceRatingReport(source, options), {
+    ttlMs: 30000,
+    maxEntries: 60,
+  });
 }
 
 module.exports = {

@@ -1,6 +1,8 @@
 <%
   const calendarRole = typeof calendarWorkspaceRole === 'string' ? calendarWorkspaceRole : 'admin';
   const calendarIsTechnicianView = calendarRole === 'technician';
+  const calendarBookingsHref = typeof calendarBookingsPath === 'string' ? calendarBookingsPath : '/admin/appointments';
+  const calendarOrdersHref = typeof calendarOrdersPath === 'string' ? calendarOrdersPath : '/admin/appointments/orders';
 %>
 <div class="admin-dashboard container-fluid py-4 appointments-calendar<%= calendarIsTechnicianView ? ' technician-calendar' : '' %>">
   <%- include('../../../partials/dashboard-styles') %>
@@ -541,48 +543,71 @@
       .filter-controls { gap: 6px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-appointments-calendar.css?v=1">
+  <link rel="stylesheet" href="/css/admin-appointments-calendar.css?v=20260927-enterprise-v2">
 
-  <!-- Hero Header -->
-  <div class="cal-hero mb-4">
+  <!-- Scheduling command header -->
+  <header class="cal-hero cal-command-header">
     <div class="cal-hero-bg"></div>
     <div class="cal-hero-inner">
       <div class="cal-hero-left">
         <div class="cal-hero-icon"><i class="bi bi-calendar4-week"></i></div>
-        <div>
+        <div class="cal-title-block">
+          <div class="cal-eyebrow"><span><%= calendarIsTechnicianView ? 'My workspace' : 'Operations' %></span><i class="bi bi-chevron-right"></i><span>Scheduling</span></div>
           <h1 class="cal-hero-title"><%= calendarIsTechnicianView ? 'My Calendar' : 'Operations Calendar' %></h1>
           <p class="cal-hero-sub"><%= calendarIsTechnicianView ? 'See your assigned service bookings, deliveries, and installations in one schedule.' : 'Coordinate service bookings, deliveries, installations, and customer pickups.' %></p>
         </div>
       </div>
       <div class="cal-hero-right">
-        <span class="cal-live-badge"><%= calendarIsTechnicianView ? 'My schedule' : 'Live schedule' %></span>
-        <span class="cal-hero-range" id="calendarRangeLabel">Current range</span>
+        <div class="cal-header-context">
+          <span class="cal-live-badge"><%= calendarIsTechnicianView ? 'My live schedule' : 'Live operations' %></span>
+          <span class="cal-timezone"><i class="bi bi-globe2"></i> Asia/Manila</span>
+        </div>
+        <div class="cal-header-actions">
+          <a class="cal-header-action" href="<%= calendarBookingsHref %>"><i class="bi bi-calendar2-check"></i><span>Bookings</span></a>
+          <a class="cal-header-action" href="<%= calendarOrdersHref %>"><i class="bi bi-bag-check"></i><span>Orders</span></a>
+        </div>
       </div>
     </div>
-  </div>
+    <div class="cal-range-row">
+      <span class="cal-range-label"><i class="bi bi-calendar-range"></i>Viewing</span>
+      <strong class="cal-hero-range" id="calendarRangeLabel" aria-live="polite">Current range</strong>
+      <span class="cal-range-hint"><i class="bi bi-info-circle"></i>Select a date to inspect its complete agenda</span>
+    </div>
+  </header>
 
   <section class="cal-summary-grid" aria-label="Visible schedule summary">
-    <article class="cal-summary-card" style="--metric-color:#2563eb;--metric-bg:#eff6ff;">
+    <article class="cal-summary-card is-bookings">
       <span class="cal-summary-icon"><i class="bi bi-calendar2-check"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricBookings">0</div><div class="cal-summary-label">Visible bookings</div></div>
+      <div class="cal-summary-content"><div class="cal-summary-label">Visible bookings</div><div class="cal-summary-value" id="calMetricBookings">0</div><div class="cal-summary-caption">In the current range</div></div>
     </article>
-    <article class="cal-summary-card" style="--metric-color:#d97706;--metric-bg:#fffbeb;">
+    <article class="cal-summary-card is-unassigned">
       <span class="cal-summary-icon"><i class="bi bi-person-exclamation"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricUnassigned">0</div><div class="cal-summary-label"><%= calendarIsTechnicianView ? "Today's work" : 'Unassigned bookings' %></div></div>
+      <div class="cal-summary-content"><div class="cal-summary-label"><%= calendarIsTechnicianView ? "Today's work" : 'Unassigned bookings' %></div><div class="cal-summary-value" id="calMetricUnassigned">0</div><div class="cal-summary-caption"><%= calendarIsTechnicianView ? 'Scheduled today' : 'Needs assignment' %></div></div>
     </article>
-    <article class="cal-summary-card" style="--metric-color:#059669;--metric-bg:#ecfdf5;">
+    <article class="cal-summary-card is-active">
       <span class="cal-summary-icon"><i class="bi bi-activity"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricActive">0</div><div class="cal-summary-label"><%= calendarIsTechnicianView ? 'Active jobs' : 'Active field work' %></div></div>
+      <div class="cal-summary-content"><div class="cal-summary-label"><%= calendarIsTechnicianView ? 'Active jobs' : 'Active field work' %></div><div class="cal-summary-value" id="calMetricActive">0</div><div class="cal-summary-caption">Currently in progress</div></div>
     </article>
-    <article class="cal-summary-card" style="--metric-color:#ea580c;--metric-bg:#fff7ed;">
+    <article class="cal-summary-card is-orders">
       <span class="cal-summary-icon"><i class="bi bi-truck"></i></span>
-      <div class="cal-summary-content"><div class="cal-summary-value" id="calMetricOrders">0</div><div class="cal-summary-label">Scheduled orders</div></div>
+      <div class="cal-summary-content"><div class="cal-summary-label">Scheduled orders</div><div class="cal-summary-value" id="calMetricOrders">0</div><div class="cal-summary-caption">Delivery and pickup</div></div>
     </article>
   </section>
 
   <!-- Main Layout -->
   <div class="page-shell">
     <section class="cal-card">
+      <div class="cal-workspace-head">
+        <div>
+          <span class="cal-workspace-kicker">Schedule board</span>
+          <h2>Workload calendar</h2>
+          <p>Bookings and order fulfillment in one operational view.</p>
+        </div>
+        <div class="cal-type-legend" aria-label="Calendar record types">
+          <span><i class="cal-legend-dot is-booking"></i>Service booking</span>
+          <span><i class="cal-legend-dot is-order"></i>Product order</span>
+        </div>
+      </div>
       <!-- Filter Bar -->
       <div class="cal-filter-bar" id="calFilterBar">
         <div class="filter-left" id="calFilterChips">
@@ -595,7 +620,7 @@
             <button type="button" class="cal-search-clear" id="calSearchClear" aria-label="Clear calendar search"><i class="bi bi-x-lg"></i></button>
           </div>
           <% if (!calendarIsTechnicianView) { %><div class="tech-filter-wrapper" id="techFilterWrapper">
-            <button class="tech-filter-trigger" id="techFilterTrigger">
+            <button class="tech-filter-trigger" id="techFilterTrigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="techFilterDropdown">
               <i class="bi bi-person-badge"></i>
               <span id="techFilterLabel">All Technicians</span>
               <span class="trigger-count" id="techFilterCount" style="display:none;">0</span>
@@ -614,10 +639,10 @@
             </div>
           </div>
           <div class="view-toggle" id="viewToggle">
-            <button data-view="dayGridMonth" class="active"><i class="bi bi-calendar-month"></i> Month</button>
-            <button data-view="timeGridWeek"><i class="bi bi-calendar-week"></i> Week</button>
-            <button data-view="timeGridDay"><i class="bi bi-calendar-day"></i> Day</button>
-            <button data-view="listWeek"><i class="bi bi-list-ul"></i> List</button>
+            <button type="button" data-view="dayGridMonth" class="active" aria-pressed="true"><i class="bi bi-calendar-month"></i> Month</button>
+            <button type="button" data-view="timeGridWeek" aria-pressed="false"><i class="bi bi-calendar-week"></i> Week</button>
+            <button type="button" data-view="timeGridDay" aria-pressed="false"><i class="bi bi-calendar-day"></i> Day</button>
+            <button type="button" data-view="listWeek" aria-pressed="false"><i class="bi bi-list-ul"></i> List</button>
           </div><% } %>
         </div>
       </div>
@@ -628,21 +653,25 @@
       </div>
     </section>
 
-    <aside class="list-card">
+    <aside class="list-card" aria-label="Selected date agenda">
       <div class="list-head">
-        <div>
-          <h5 id="selectedDateLabel">Selected Date</h5>
-          <small id="selectedDateSub">Bookings and orders for this day</small>
+        <div class="list-head-main">
+          <span class="list-head-icon"><i class="bi bi-list-check"></i></span>
+          <div>
+            <span class="list-eyebrow">Daily agenda</span>
+            <h5 id="selectedDateLabel">Selected Date</h5>
+            <small id="selectedDateSub">Bookings and orders for this day</small>
+          </div>
         </div>
-        <span id="selectedDateCount" class="list-count">0</span>
+        <span id="selectedDateCount" class="list-count" aria-label="Scheduled item count">0</span>
       </div>
-      <div id="selectedDateList" class="list-body"></div>
+      <div id="selectedDateList" class="list-body" aria-live="polite"></div>
     </aside>
   </div>
 
   <!-- Detail Modal -->
   <div class="modal fade" id="calDetailModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width:560px;margin:auto;">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered cal-detail-dialog">
       <div class="modal-content ent-modal">
         <div class="modal-header ent-modal-header">
           <div class="d-flex align-items-center gap-3">
@@ -1003,6 +1032,7 @@
         if (!dom.techDropdown || !dom.techTrigger) return;
         const isOpen = dom.techDropdown.classList.toggle("open");
         dom.techTrigger.classList.toggle("active", isOpen);
+        dom.techTrigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
         if (isOpen && dom.techSearchInput) setTimeout(() => dom.techSearchInput.focus(), 50);
       }
 
@@ -1108,15 +1138,15 @@
         STATUS_DEFS.forEach(def => {
           const count = counts[def.key] || 0;
           if (count === 0 && !state.activeFilters.has(def.key)) return;
-          html += `<button class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`;
+          html += `<button type="button" class="cal-filter-chip ${state.activeFilters.has(def.key) ? 'active' : ''}" data-status="${def.key}" aria-pressed="${state.activeFilters.has(def.key) ? 'true' : 'false'}"><span class="chip-dot" style="background:${def.color};"></span>${def.label}<span class="chip-count">${count}</span></button>`;
         });
 
-        html += `<button class="cal-filter-chip ${state.showBookings ? 'active' : ''}" id="calToggleBookings"><i class="bi bi-calendar2-check"></i> Bookings<span class="chip-count">${bookingCount}</span></button>`;
+        html += `<button type="button" class="cal-filter-chip ${state.showBookings ? 'active' : ''}" id="calToggleBookings" aria-pressed="${state.showBookings ? 'true' : 'false'}"><i class="bi bi-calendar2-check"></i> Bookings<span class="chip-count">${bookingCount}</span></button>`;
         html += `<div class="cal-filter-divider"></div>`;
-        html += `<button class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders"><i class="bi bi-truck"></i> Orders<span class="chip-count">${orderCount}</span></button>`;
+        html += `<button type="button" class="cal-filter-chip ${state.showOrders ? 'active' : ''}" id="calToggleOrders" aria-pressed="${state.showOrders ? 'true' : 'false'}"><i class="bi bi-truck"></i> Orders<span class="chip-count">${orderCount}</span></button>`;
 
         const hasFilters = state.activeFilters.size > 0 || state.selectedTechIds.length > 0 || Boolean(state.query) || !state.showBookings || !state.showOrders;
-        if (hasFilters) html += `<div class="cal-filter-divider"></div><button class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Reset all</button>`;
+        if (hasFilters) html += `<div class="cal-filter-divider"></div><button type="button" class="cal-clear-filters" id="calClearFilters"><i class="bi bi-x-circle me-1"></i>Reset all</button>`;
         html += `<span class="cal-filter-summary"><i class="bi bi-eye"></i>${state.appointments.length + (state.showOrders ? state.orders.length : 0)} visible</span>`;
 
         if (state.currentViewType === "timeGridWeek" || state.currentViewType === "timeGridDay") {
@@ -1230,8 +1260,6 @@
           return d && toDateKey(d) === state.selectedDateKey;
         }).sort((a, b) => orderEventStart(a).getTime() - orderEventStart(b).getTime()) : [];
         const totalItems = dayItems.length + orderItems.length;
-        console.log("[Calendar] renderDateList:", state.selectedDateKey, "→", dayItems.length, "bookings,", orderItems.length, "orders (source:", source.length, "appts,", orderSource.length, "orders)");
-
         dom.selectedDateLabel.textContent = toPrettyDate(state.selectedDateKey);
         dom.selectedDateSub.textContent = totalItems > 0 ? "Bookings and orders scheduled for this date" : "No scheduled work for this date";
         dom.selectedDateCount.textContent = String(totalItems);
@@ -1248,7 +1276,7 @@
           const tname = technicianName(a);
           const tcolor = tid ? getTechColor(tid) : "#94a3b8";
           const assignmentLabel = calendarIsTechnician ? "My assignment" : tname;
-          html += `<article class="appt-item" data-id="${escHtml(id)}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><div class="appt-body" onclick="openCalDetail('${escHtml(detailId)}','appt','${escHtml(id)}')"><div class="appt-row1"><span class="appt-time">${escHtml(timeLabel(a))}</span><span class="appt-name">${escHtml(customerName(a))}</span><span class="appt-status-label">${escHtml(prettyStatus(s))}</span></div><div class="appt-row2"><span>${escHtml(serviceName(a))}</span><span class="appt-sep">&middot;</span><span><span class="tdot" style="background:${tcolor}"></span>${escHtml(assignmentLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(a.bookingReference || a.workOrderNumber || "\u2014")}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(detailId)}','appt','${escHtml(id)}')" title="View details" aria-label="View ${escHtml(customerName(a))} booking"><i class="bi bi-chevron-right"></i></button></article>`;
+          html += `<article class="appt-item" data-id="${escHtml(id)}" data-type="appt"><div class="appt-marker" style="background:${getColor(s)}"></div><button type="button" class="appt-body" onclick="openCalDetail('${escHtml(detailId)}','appt','${escHtml(id)}')" aria-label="View ${escHtml(customerName(a))} booking details"><div class="appt-row1"><span class="appt-time">${escHtml(timeLabel(a))}</span><span class="appt-name">${escHtml(customerName(a))}</span><span class="appt-status-label">${escHtml(prettyStatus(s))}</span></div><div class="appt-row2"><span>${escHtml(serviceName(a))}</span><span class="appt-sep">&middot;</span><span><span class="tdot" style="background:${tcolor}"></span>${escHtml(assignmentLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(a.bookingReference || a.workOrderNumber || "\u2014")}</span></div></button><span class="appt-chevron" aria-hidden="true"><i class="bi bi-chevron-right"></i></span></article>`;
         });
         // Order items
         orderItems.forEach(o => {
@@ -1259,7 +1287,7 @@
           const fulfillLabel = ({ delivery_only: "Delivery Only", delivery_installation: "Delivery + Install", customer_pickup: "Customer Pickup" })[o.fulfillmentType] || o.fulfillmentType;
           const tech = (o.technician && o.technician.name) || "Unassigned";
           const orderIcon = o.fulfillmentType === "customer_pickup" ? "bi-bag-check" : o.fulfillmentType === "delivery_installation" ? "bi-tools" : "bi-truck";
-          html += `<article class="appt-item order-item" data-id="${escHtml(id)}" data-type="order"><div class="appt-marker" style="background:#f97316"></div><div class="appt-body" onclick="openCalDetail('${escHtml(id)}','order')"><div class="appt-row1"><span class="appt-time">${escHtml(orderTimeLabel(o))}</span><span class="appt-type-badge"><i class="bi ${orderIcon}"></i>Order</span><span class="appt-name">${escHtml(cust)}</span><span class="appt-status-label">${escHtml(prettyStatus(o.status))}</span></div><div class="appt-row2"><span>${escHtml(fulfillLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(items.substring(0, 36))}</span><span class="appt-sep">&middot;</span><span>${escHtml(tech)}</span><span class="appt-sep">&middot;</span><span>${escHtml(oRef)}</span></div></div><button class="appt-chevron" onclick="event.stopPropagation(); openCalDetail('${escHtml(id)}','order')" title="View details" aria-label="View ${escHtml(cust)} order"><i class="bi bi-chevron-right"></i></button></article>`;
+          html += `<article class="appt-item order-item" data-id="${escHtml(id)}" data-type="order"><div class="appt-marker" style="background:#f97316"></div><button type="button" class="appt-body" onclick="openCalDetail('${escHtml(id)}','order')" aria-label="View ${escHtml(cust)} order details"><div class="appt-row1"><span class="appt-time">${escHtml(orderTimeLabel(o))}</span><span class="appt-type-badge"><i class="bi ${orderIcon}"></i>Order</span><span class="appt-name">${escHtml(cust)}</span><span class="appt-status-label">${escHtml(prettyStatus(o.status))}</span></div><div class="appt-row2"><span>${escHtml(fulfillLabel)}</span><span class="appt-sep">&middot;</span><span>${escHtml(items.substring(0, 36))}</span><span class="appt-sep">&middot;</span><span>${escHtml(tech)}</span><span class="appt-sep">&middot;</span><span>${escHtml(oRef)}</span></div></button><span class="appt-chevron" aria-hidden="true"><i class="bi bi-chevron-right"></i></span></article>`;
         });
 
         dom.selectedDateList.innerHTML = html;
@@ -1267,6 +1295,16 @@
 
       /* ── Detail Modal ───────────────────────────────────────────── */
       window.openCalDetail = async function(id, type, workspaceId) {
+        if (window.openCalDetail.requestController) window.openCalDetail.requestController.abort();
+        const requestController = new AbortController();
+        window.openCalDetail.requestController = requestController;
+        const detailModalEl = document.getElementById("calDetailModal");
+        document.getElementById("calDetailTitle").textContent = type === 'order' ? 'Order Details' : 'Booking Details';
+        if (window.AdminModalUX) {
+          window.AdminModalUX.open(detailModalEl, { loadingMessage: type === 'order' ? 'Loading order details…' : 'Loading booking details…' });
+        } else {
+          bootstrap.Modal.getOrCreateInstance(detailModalEl).show();
+        }
         try {
           const isOrder = type === 'order';
           const targetId = workspaceId || id;
@@ -1277,9 +1315,10 @@
             : calendarBookingsPath + "?" + encodeURIComponent(calendarBookingsQueryParam) + "=" + encodeURIComponent(targetId);
           if (detailSubtitle) detailSubtitle.textContent = isOrder ? "Order fulfillment schedule" : "Service booking schedule";
           if (isOrder) {
-            const res = await fetch(calendarOrdersApi + "/" + id, { credentials: "same-origin", cache: "no-store" });
+            const res = await fetch(calendarOrdersApi + "/" + id, { credentials: "same-origin", cache: "no-store", signal: requestController.signal });
             if (!res.ok) throw new Error("Failed to fetch order");
             const data = await res.json();
+            if (window.openCalDetail.requestController !== requestController) return;
             const o = data.order;
             const oRef = o.orderReference || '#' + o._id.toString().slice(-8).toUpperCase();
             const scheduledDate = orderScheduledDate(o);
@@ -1302,11 +1341,11 @@
               '</div>' +
               '<div style="margin-top:14px;" class="ent-items-box"><h6><i class="bi bi-box me-1"></i>Items</h6>' + items + '</div>' +
               '<div class="ent-timeline"><h6><i class="bi bi-clock-history me-1"></i>Status Timeline</h6>' + timeline + '</div>';
-            new bootstrap.Modal(document.getElementById("calDetailModal")).show();
           } else {
-            const res = await fetch(calendarAppointmentsApi + "/" + id);
+            const res = await fetch(calendarAppointmentsApi + "/" + id, { signal: requestController.signal });
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
+            if (window.openCalDetail.requestController !== requestController) return;
             const b = data.booking;
             const date = new Date(b.bookingDate).toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
             const stLabel = (b.status || "pending").replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -1325,13 +1364,20 @@
                 '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-secondary-subtle"><i class="bi bi-geo-alt-fill text-secondary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Location</span><span class="ent-detail-value">' + (b.location?.address || b.customer?.address || "\u2014") + '</span></div></div>' +
               '</div>' +
               '<div class="ent-timeline"><h6><i class="bi bi-clock-history me-1"></i>Status Timeline</h6>' + timeline + '</div>';
-            new bootstrap.Modal(document.getElementById("calDetailModal")).show();
           }
+          window.AdminModalUX?.settle(detailModalEl);
         } catch (e) {
+          if (e && e.name === 'AbortError') return;
           console.error(e);
-          window.location.href = type === "order"
-            ? calendarOrdersPath + "?" + encodeURIComponent(calendarOrdersQueryParam) + "=" + encodeURIComponent(workspaceId || id)
-            : calendarBookingsPath + "?" + encodeURIComponent(calendarBookingsQueryParam) + "=" + encodeURIComponent(workspaceId || id);
+          if (window.AdminModalUX) {
+            window.AdminModalUX.fail(detailModalEl, 'Could not load these calendar details right now.');
+          } else {
+            window.location.href = type === "order"
+              ? calendarOrdersPath + "?" + encodeURIComponent(calendarOrdersQueryParam) + "=" + encodeURIComponent(workspaceId || id)
+              : calendarBookingsPath + "?" + encodeURIComponent(calendarBookingsQueryParam) + "=" + encodeURIComponent(workspaceId || id);
+          }
+        } finally {
+          if (window.openCalDetail.requestController === requestController) window.openCalDetail.requestController = null;
         }
       };
 
@@ -1365,6 +1411,12 @@
       }
 
       /* ── Calendar Init ──────────────────────────────────────────── */
+      function markSelectedDay(dateKey, dayElement) {
+        dom.calendarEl.querySelectorAll(".cal-selected-day").forEach(element => element.classList.remove("cal-selected-day"));
+        const target = dayElement || dom.calendarEl.querySelector('[data-date="' + dateKey + '"]');
+        if (target) target.classList.add("cal-selected-day");
+      }
+
       const initView = window.innerWidth < 600 ? "listWeek" : "dayGridMonth";
       const calendar = new FullCalendar.Calendar(dom.calendarEl, {
         initialView: initView,
@@ -1386,15 +1438,12 @@
         dayCellClassNames(info) { return toDateKey(info.date) === state.selectedDateKey ? ["cal-selected-day"] : []; },
         dateClick(info) {
           state.selectedDateKey = toDateKey(info.date);
-          console.log("[Calendar] dateClick:", state.selectedDateKey, "appointments:", state.allAppointments.length, "filtered:", state.appointments.length);
-          if (state.allAppointments.length > 0) {
-            const sample = state.allAppointments[0];
-            console.log("[Calendar] sample bookingDate:", sample.bookingDate, "→ key:", toDateKey(sample.bookingDate));
-          }
+          markSelectedDay(state.selectedDateKey, info.dayEl);
           renderDateList();
         },
         eventClick(info) {
           state.selectedDateKey = toDateKey(info.event.start || new Date());
+          markSelectedDay(state.selectedDateKey);
           renderDateList();
           const id = info.event.id;
           const type = info.event.extendedProps.type || 'appt';
@@ -1435,7 +1484,11 @@
         viewDidMount(info) {
           state.currentViewType = info.view.type;
           updateTimeGridHours(info.view.type, info.view.currentStart);
-          if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(button => button.classList.toggle("active", button.dataset.view === info.view.type));
+          if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(button => {
+            const active = button.dataset.view === info.view.type;
+            button.classList.toggle("active", active);
+            button.setAttribute("aria-pressed", active ? "true" : "false");
+          });
           buildFilterBar();
         },
 
@@ -1464,7 +1517,6 @@
               state.workingDaysMap = computeWorkingDaysMap(schedules);
               state.allAppointments = appts;
               state.allOrders = orders.filter(o => orderScheduledDate(o));
-              console.log("[Calendar] loaded", state.allAppointments.length, "appointments,", state.allOrders.length, "orders for range", start, "to", end);
               applyFilters();
               buildFilterBar();
               renderDateList();
@@ -1518,7 +1570,18 @@
         document.addEventListener("click", (e) => {
           if (dom.techFilterWrapper && !dom.techFilterWrapper.contains(e.target)) {
             if (dom.techDropdown) dom.techDropdown.classList.remove("open");
-            if (dom.techTrigger) dom.techTrigger.classList.remove("active");
+            if (dom.techTrigger) {
+              dom.techTrigger.classList.remove("active");
+              dom.techTrigger.setAttribute("aria-expanded", "false");
+            }
+          }
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && dom.techDropdown?.classList.contains("open")) {
+            dom.techDropdown.classList.remove("open");
+            dom.techTrigger?.classList.remove("active");
+            dom.techTrigger?.setAttribute("aria-expanded", "false");
+            dom.techTrigger?.focus();
           }
         });
         if (dom.techSelectAll) dom.techSelectAll.addEventListener("click", () => {
@@ -1540,11 +1603,15 @@
           });
         });
 
+        let calendarSearchTimer;
         if (dom.searchInput) dom.searchInput.addEventListener("input", () => {
-          state.query = dom.searchInput.value.trim().toLowerCase();
-          if (dom.searchWrap) dom.searchWrap.classList.toggle("has-value", Boolean(state.query));
-          applyFilters();
-          buildFilterBar();
+          window.clearTimeout(calendarSearchTimer);
+          if (dom.searchWrap) dom.searchWrap.classList.toggle("has-value", Boolean(dom.searchInput.value.trim()));
+          calendarSearchTimer = window.setTimeout(() => {
+            state.query = dom.searchInput.value.trim().toLowerCase();
+            applyFilters();
+            buildFilterBar();
+          }, 140);
         });
         if (dom.searchClear) dom.searchClear.addEventListener("click", () => {
           if (dom.searchInput) { dom.searchInput.value = ""; dom.searchInput.focus(); }
@@ -1556,8 +1623,12 @@
 
         if (dom.viewToggle) dom.viewToggle.querySelectorAll("button").forEach(btn => {
           btn.addEventListener("click", () => {
-            dom.viewToggle.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            dom.viewToggle.querySelectorAll("button").forEach(b => {
+              b.classList.remove("active");
+              b.setAttribute("aria-pressed", "false");
+            });
             btn.classList.add("active");
+            btn.setAttribute("aria-pressed", "true");
             calendar.changeView(btn.dataset.view);
           });
         });

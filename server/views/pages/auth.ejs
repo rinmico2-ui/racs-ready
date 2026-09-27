@@ -162,14 +162,14 @@
           <div class="auth-field-row">
             <div class="auth-field">
               <label class="auth-field-label" for="register-password">Password</label>
-              <div class="auth-field-input-wrap"><i class="bi bi-lock auth-field-icon" aria-hidden="true"></i><input id="register-password" name="password" type="password" class="auth-field-input auth-field-input-password" placeholder="Create a password" required autocomplete="new-password" maxlength="30" aria-describedby="register-password-suggestions" /><button type="button" class="auth-field-toggle" id="togglePasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-password-check" class="auth-match-indicator d-none"></span></div>
+              <div class="auth-field-input-wrap"><i class="bi bi-lock auth-field-icon" aria-hidden="true"></i><input id="register-password" name="password" type="password" class="auth-field-input auth-field-input-password" placeholder="Create a password" required autocomplete="new-password" minlength="8" maxlength="30" aria-describedby="register-password-suggestions" /><button type="button" class="auth-field-toggle" id="togglePasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-password-check" class="auth-match-indicator d-none"></span></div>
               <div class="auth-password-meter" aria-hidden="true"><span id="register-strength-fill"></span></div>
-              <ul class="auth-password-rules" id="register-password-suggestions"><li data-rule="length"><i class="bi bi-circle"></i> 8–30 characters</li><li data-rule="letter"><i class="bi bi-circle"></i> One uppercase</li><li data-rule="digitOrSpecial"><i class="bi bi-circle"></i> Number or symbol</li></ul>
+              <ul class="auth-password-rules" id="register-password-suggestions"><li data-rule="length"><i class="bi bi-circle"></i> 8–30 characters</li><li data-rule="uppercase"><i class="bi bi-circle"></i> Uppercase letter</li><li data-rule="numberOrSymbol"><i class="bi bi-circle"></i> Number or symbol</li></ul>
             </div>
             <div class="auth-field">
               <label class="auth-field-label" for="register-confirm">Confirm password</label>
-              <div class="auth-field-input-wrap"><i class="bi bi-shield-lock auth-field-icon" aria-hidden="true"></i><input id="register-confirm" name="confirmPassword" type="password" class="auth-field-input auth-field-input-password" placeholder="Repeat your password" required autocomplete="new-password" maxlength="30" /><button type="button" class="auth-field-toggle" id="toggleConfirmPasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-confirm-check" class="auth-match-indicator d-none"></span></div>
-              <p class="auth-field-hint" id="passwordMatchHint">Both passwords must match.</p>
+              <div class="auth-field-input-wrap"><i class="bi bi-shield-lock auth-field-icon" aria-hidden="true"></i><input id="register-confirm" name="confirmPassword" type="password" class="auth-field-input auth-field-input-password" placeholder="Repeat your password" required autocomplete="new-password" minlength="8" maxlength="30" aria-describedby="passwordMatchHint" /><button type="button" class="auth-field-toggle" id="toggleConfirmPasswordReg" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button><span id="register-confirm-check" class="auth-match-indicator d-none"></span></div>
+              <p class="auth-field-hint" id="passwordMatchHint" aria-live="polite">Retype your password to confirm it.</p>
             </div>
           </div>
 

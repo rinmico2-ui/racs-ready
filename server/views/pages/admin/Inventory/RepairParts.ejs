@@ -750,8 +750,19 @@
   let currentPage = 1;
   const partsPerPage = 10;
   let lastFiltered = [];
+  let serverStockSummary = null;
 
   const effectiveClass = (p) => p.inventoryClass || (['equipment', 'tool'].includes(p.type) ? 'operational_asset' : 'merchandise');
+  const effectiveStockStatus = (p) => {
+    if (p?.status === 'discontinued') return 'discontinued';
+    const rawQuantity = Number(p?.quantity);
+    const rawMinimum = Number(p?.minStockLevel);
+    const quantity = Number.isFinite(rawQuantity) ? Math.max(0, rawQuantity) : 0;
+    const minStockLevel = Number.isFinite(rawMinimum) ? Math.max(0, rawMinimum) : 3;
+    if (quantity <= 0) return 'out_of_stock';
+    if (quantity <= minStockLevel) return 'low_stock';
+    return 'in_stock';
+  };
 
   // ── Load Parts ────────────────────────────────────────────────────────
   window.loadParts = async function() {
@@ -769,6 +780,10 @@
       if (!Array.isArray(allParts)) {
         throw new Error('The parts catalog returned an invalid response.');
       }
+      // Atomic stock operations can leave the persisted status stale. Use the
+      // current quantity and threshold consistently for cards, filters, and rows.
+      allParts = allParts.map(part => ({ ...part, status: effectiveStockStatus(part) }));
+      serverStockSummary = !Array.isArray(data) && data?.stockSummary ? data.stockSummary : null;
       console.log('[Parts] Loaded', allParts.length, 'items. Types:', allParts.reduce((acc, p) => { const t = p.type || 'undefined'; acc[t] = (acc[t] || 0) + 1; return acc; }, {}));
       extractCategories();
       renderStats();
@@ -829,10 +844,17 @@
   function renderStats() {
     const active = allParts.filter(p => p.active !== false);
     const merchandise = active.filter(p => effectiveClass(p) === 'merchandise');
-    const total = active.length;
-    const inStock = active.filter(p => p.status === 'in_stock').length;
-    const lowStock = active.filter(p => p.status === 'low_stock').length;
-    const outOf = active.filter(p => p.status === 'out_of_stock').length;
+    const localSummary = {
+      total: active.length,
+      inStock: active.filter(p => effectiveStockStatus(p) === 'in_stock').length,
+      lowStock: active.filter(p => effectiveStockStatus(p) === 'low_stock').length,
+      outOfStock: active.filter(p => effectiveStockStatus(p) === 'out_of_stock').length,
+    };
+    const summary = serverStockSummary || localSummary;
+    const total = Number(summary.total) || 0;
+    const inStock = Number(summary.inStock) || 0;
+    const lowStock = Number(summary.lowStock) || 0;
+    const outOf = Number(summary.outOfStock) || 0;
     const totalValue = merchandise.reduce((sum, p) => sum + ((p.sellingPrice || 0) * (p.quantity || 0)), 0);
     const totalCost = merchandise.reduce((sum, p) => sum + ((p.costPrice || 0) * (p.quantity || 0)), 0);
     const totalProfit = totalValue - totalCost;
@@ -855,7 +877,7 @@
     document.getElementById('statTotalSub').textContent = total + ' active parts';
     document.getElementById('statInStockSub').textContent = inStock + ' in stock';
     document.getElementById('statLowStockSub').textContent = lowStock + ' low stock';
-    document.getElementById('statOutOfSub').textContent = outOf + ' out of stock';
+    document.getElementById('statOutOfSub').textContent = outOf + ' with 0 on hand';
     document.getElementById('statValueSub').textContent = merchandise.length + ' sellable SKUs only';
     document.getElementById('statProfitSub').textContent = marginPct + '% merchandise margin';
   }
@@ -963,7 +985,8 @@
       if (!activeFilter && p.active === false) return false;
 
       if (selectedCategory && p.category !== selectedCategory) return false;
-      if (statusFilter && p.status !== statusFilter) return false;
+      const stockStatus = effectiveStockStatus(p);
+      if (statusFilter && stockStatus !== statusFilter) return false;
       if (typeFilter && (p.type || 'part') !== typeFilter) return false;
       if (classFilter && effectiveClass(p) !== classFilter) return false;
 
@@ -979,7 +1002,7 @@
       // Stock level filter
       if (stockLevelFilter === 'in_stock' && (p.quantity || 0) <= 0) return false;
       if (stockLevelFilter === 'out_of_stock' && (p.quantity || 0) > 0) return false;
-      if (stockLevelFilter === 'low_stock' && (p.quantity || 0) > (p.minStockLevel || 0)) return false;
+      if (stockLevelFilter === 'low_stock' && stockStatus !== 'low_stock') return false;
       if (stockLevelFilter === 'has_reserved' && (p.reservedQuantity || 0) <= 0) return false;
       if (stockLevelFilter === 'no_reserved' && (p.reservedQuantity || 0) > 0) return false;
 
@@ -1050,6 +1073,7 @@
       const typeBadgeClass = typeClasses[rawType] || 'rp-type-part';
       const inventoryClass = effectiveClass(p);
       const classLabel = inventoryClass === 'operational_asset' ? 'Operational Asset' : 'Merchandise';
+      const stockStatus = effectiveStockStatus(p);
 
       return `<tr>
         <td>
@@ -1060,7 +1084,7 @@
         <td><span class="rp-class-badge ${inventoryClass}"><i class="bi ${inventoryClass === 'operational_asset' ? 'bi-tools' : 'bi-bag-check'}"></i>${classLabel}</span>${inventoryClass === 'operational_asset' ? `<div class="rp-min-stock mt-1" style="cursor:pointer;" onclick="editAssetStatus('${p._id}', '${esc(p.assetStatus || 'available')}')" title="Click to edit status"><i class="bi bi-pencil-square" style="font-size:0.7rem;margin-right:4px;"></i>${esc((p.assetStatus || 'available').replaceAll('_', ' '))}</div>` : ''}</td>
         <td><span class="rp-cat-badge ${catClass}">${esc(p.category || 'General')}</span></td>
         <td>
-          <div class="rp-stock ${p.status}"><span class="rp-stock-dot"></span>${p.quantity || 0} ${p.unit || 'pcs'}</div>
+          <div class="rp-stock ${stockStatus}"><span class="rp-stock-dot"></span>${p.quantity || 0} ${p.unit || 'pcs'}</div>
           <div class="rp-min-stock">Min: ${p.minStockLevel || 0}</div>
         </td>
         <td><span class="rp-stock in_stock"><span class="rp-stock-dot"></span>${p.available != null ? p.available : Math.max(0, (p.quantity || 0) - (p.reservedQuantity || 0))} ${p.unit || 'pcs'}</span></td>

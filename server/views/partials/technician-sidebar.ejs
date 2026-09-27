@@ -1,245 +1,150 @@
-<% const sidebarTechnician = (typeof technician !== 'undefined' && technician) ? technician : {}; %>
-<div class="sidebar" id="sidebar">
-  <!-- Sidebar Header -->
-  <div class="sidebar-header premium-card">
-    <div class="admin-avatar">
-      <i class="bi bi-person-badge"></i>
-    </div>
-    <div class="header-meta">
-      <span class="workspace-badge">
-        <i class="bi bi-tools me-1"></i>Service Team
-      </span>
-      <span class="admin-name">
-        <%= sidebarTechnician.name || 'Technician' %>
-      </span>
-      <span class="admin-role">
-        <span
-          class="status-dot <%= (sidebarTechnician.availabilityStatus === 'Available' || sidebarTechnician.availabilityStatus === 'On The Way' || sidebarTechnician.availabilityStatus === 'In Progress') ? 'online' : 'offline' %>"></span>
-        <%= sidebarTechnician.availabilityStatus || 'Offline' %>
-      </span>
-    </div>
+<%
+  const sidebarTechnician = (typeof technician !== 'undefined' && technician) ? technician : {};
+  const technicianName = sidebarTechnician.name
+    || [sidebarTechnician.firstName, sidebarTechnician.lastName].filter(Boolean).join(' ')
+    || sidebarTechnician.email || 'Technician';
+  const technicianStatus = sidebarTechnician.availabilityStatus || 'Offline';
+  const technicianOnline = technicianStatus === 'Available'
+    || technicianStatus === 'On The Way'
+    || technicianStatus === 'In Progress';
+  const technicianInitial = String(technicianName || 'T').trim().charAt(0).toUpperCase() || 'T';
+%>
+
+<div class="sidebar admin-modern-sidebar technician-modern-sidebar" id="sidebar">
+  <a class="sidebar-brand" href="/technician" aria-label="RACS Technician dashboard">
+    <span class="brand-icon" aria-hidden="true"><img src="/images/LOGO/RACS.png" alt="" /></span>
+    <span class="brand-text">
+      <strong class="brand-name">RACS</strong>
+      <span class="brand-sub">Technician Console</span>
+    </span>
+    <span class="brand-status<%= technicianOnline ? '' : ' is-offline' %>" title="<%= technicianStatus %>" aria-label="<%= technicianStatus %>"></span>
+  </a>
+  <button class="sidebar-mobile-close" type="button" data-admin-sidebar-close aria-label="Close navigation"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+
+  <nav class="sidebar-navigation" aria-label="Technician navigation">
+    <ul class="sidebar-nav nav-list">
+      <li class="nav-section" aria-hidden="true"><span class="section-label">Workspace</span><span class="section-line"></span></li>
+      <li class="nav-item">
+        <a href="/technician" class="nav-link" data-permission="dashboard.view">
+          <i class="bi bi-grid-1x2-fill nav-icon"></i><span class="nav-label">Dashboard</span><span class="nav-tooltip">Dashboard</span>
+        </a>
+      </li>
+
+      <li class="nav-section" aria-hidden="true"><span class="section-label">My Work</span><span class="section-line"></span></li>
+      <li class="nav-item">
+        <a href="/technician/assignments" class="nav-link" data-permission="assignments.self.view">
+          <i class="bi bi-calendar2-check nav-icon"></i><span class="nav-label">Bookings</span><span class="nav-badge badge bg-primary" id="pendingBadge" style="display:none;">0</span><span class="nav-tooltip">Assigned bookings</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/orders" class="nav-link" data-permission="assignments.self.view">
+          <i class="bi bi-bag-check nav-icon"></i><span class="nav-label">Orders</span><span class="nav-badge badge bg-info" id="ordersBadge" style="display:none;">0</span><span class="nav-tooltip">Assigned orders</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/calendar" class="nav-link" data-permission="assignments.self.view">
+          <i class="bi bi-calendar4-week nav-icon"></i><span class="nav-label">My Calendar</span><span class="nav-tooltip">Bookings and orders</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/warranty-claims" class="nav-link" data-permission="warranties.self.manage">
+          <i class="bi bi-shield-check nav-icon"></i><span class="nav-label">Warranty Inspections</span><span class="nav-tooltip">Assigned warranty inspections</span>
+        </a>
+      </li>
+
+      <li class="nav-section" aria-hidden="true"><span class="section-label">Work Essentials</span><span class="section-line"></span></li>
+      <li class="nav-item">
+        <a href="/technician/remittances" class="nav-link" data-permission="remittances.self.manage">
+          <i class="bi bi-cash-stack nav-icon"></i><span class="nav-label">My Remittances</span><span class="nav-tooltip">Submit collected payments</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/attendance" class="nav-link" data-permission="attendance.self.manage">
+          <i class="bi bi-qr-code-scan nav-icon"></i><span class="nav-label">Check In / Out</span><span class="nav-tooltip">Manage attendance</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/payroll" class="nav-link" data-permission="payroll.self.view">
+          <i class="bi bi-wallet2 nav-icon"></i><span class="nav-label">My Payroll</span><span class="nav-tooltip">Payslips and pay history</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/expenses" class="nav-link" data-permission="expenses.self.manage">
+          <i class="bi bi-receipt-cutoff nav-icon"></i><span class="nav-label">Expenses</span><span class="nav-badge badge bg-warning text-dark" id="expenseBadge" style="display:none;">0</span><span class="nav-tooltip">My expenses</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/tools" class="nav-link" data-permission="tools.self.manage">
+          <i class="bi bi-tools nav-icon"></i><span class="nav-label">My Tools</span><span class="nav-tooltip">Assigned tools</span>
+        </a>
+      </li>
+
+      <li class="nav-section" aria-hidden="true"><span class="section-label">Insights</span><span class="section-line"></span></li>
+      <li class="nav-item">
+        <a href="/technician/tracking" class="nav-link" data-permission="tracking.self.manage">
+          <i class="bi bi-geo-alt nav-icon"></i><span class="nav-label">Live Tracking</span><span class="nav-tooltip">Share live location</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="/technician/analytics" class="nav-link" data-permission="dashboard.view">
+          <i class="bi bi-bar-chart-line nav-icon"></i><span class="nav-label">Analytics</span><span class="nav-tooltip">Performance analytics</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="sidebar-footer">
+    <span class="footer-avatar" aria-hidden="true"><%= technicianInitial %></span>
+    <span class="footer-meta"><strong class="footer-name"><%= technicianName %></strong><span class="footer-role"><span class="role-status-dot<%= technicianOnline ? '' : ' is-offline' %>"></span><%= technicianStatus %></span></span>
+    <a class="footer-profile-link" href="/technician/profile" aria-label="Open technician profile" title="Profile"><i class="bi bi-chevron-right"></i></a>
   </div>
-
-  <!-- Sidebar Navigation -->
-  <ul class="sidebar-nav nav-list">
-
-    <!-- Dashboard -->
-    <li class="nav-section-label">Main</li>
-    <li class="nav-item">
-      <a href="/technician" class="nav-link" data-permission="dashboard.view">
-        <i class="bi bi-grid-1x2 nav-icon"></i>
-        <span class="nav-label">Dashboard</span>
-        <span class="nav-tooltip">Dashboard</span>
-      </a>
-    </li>
-
-    <!-- My Work (Assignments + Schedule merged) -->
-    <li class="nav-section-label">Work</li>
-    <li class="nav-item">
-      <a href="/technician/assignments" class="nav-link" data-permission="assignments.self.view">
-        <i class="bi bi-clipboard-check nav-icon"></i>
-        <span class="nav-label">Bookings</span>
-        <span class="nav-badge" id="pendingBadge" style="display:none;">0</span>
-        <span class="nav-tooltip">Bookings</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/orders" class="nav-link" data-permission="assignments.self.view">
-        <i class="bi bi-box-seam nav-icon"></i>
-        <span class="nav-label">Orders</span>
-        <span class="nav-badge" id="ordersBadge" style="display:none;">0</span>
-        <span class="nav-tooltip">Orders</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/calendar" class="nav-link" data-permission="assignments.self.view">
-        <i class="bi bi-calendar4-week nav-icon"></i>
-        <span class="nav-label">My Calendar</span>
-        <span class="nav-tooltip">Bookings and orders</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/warranty-claims" class="nav-link" data-permission="warranties.self.manage">
-        <i class="bi bi-shield-check nav-icon"></i>
-        <span class="nav-label">Warranty Inspections</span>
-        <span class="nav-tooltip">Assigned warranty inspections</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/remittances" class="nav-link" data-permission="remittances.self.manage">
-        <i class="bi bi-cash-stack nav-icon"></i>
-        <span class="nav-label">My Remittances</span>
-        <span class="nav-tooltip">Submit collected payments</span>
-      </a>
-    </li>
-
-    <!-- Attendance -->
-    <li class="nav-section-label">Attendance</li>
-    <li class="nav-item">
-      <a href="/technician/attendance" class="nav-link" data-permission="attendance.self.manage">
-        <i class="bi bi-qr-code-scan nav-icon"></i>
-        <span class="nav-label">Check In / Out</span>
-        <span class="nav-tooltip">Check In / Out</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/payroll" class="nav-link" data-permission="payroll.self.view">
-        <i class="bi bi-wallet2 nav-icon"></i>
-        <span class="nav-label">My Payroll</span>
-        <span class="nav-tooltip">Payslips and pay history</span>
-      </a>
-    </li>
-
-    <!-- Inventory & Expenses -->
-    <li class="nav-section-label">Expenses</li>
-    <li class="nav-item">
-      <a href="/technician/expenses" class="nav-link" data-permission="expenses.self.manage">
-        <i class="bi bi-receipt-cutoff nav-icon"></i>
-        <span class="nav-label">Expenses</span>
-        <span class="nav-badge" id="expenseBadge" style="display:none;">0</span>
-        <span class="nav-tooltip">Expenses</span>
-      </a>
-    </li>
-    <li class="nav-item">
-      <a href="/technician/tools" class="nav-link" data-permission="tools.self.manage">
-        <i class="bi bi-tools nav-icon"></i>
-        <span class="nav-label">My Tools</span>
-        <span class="nav-tooltip">My Tools</span>
-      </a>
-    </li>
-
-    <!-- Live Tracking -->
-    <li class="nav-section-label">Tracking</li>
-    <li class="nav-item">
-      <a href="/technician/tracking" class="nav-link" data-permission="tracking.self.manage">
-        <i class="bi bi-geo-alt nav-icon"></i>
-        <span class="nav-label">Live Tracking</span>
-        <span class="nav-tooltip">Live Tracking</span>
-      </a>
-    </li>
-
-    <!-- Analytics -->
-    <li class="nav-item">
-      <a href="/technician/analytics" class="nav-link" data-permission="dashboard.view">
-        <i class="bi bi-bar-chart-line nav-icon"></i>
-        <span class="nav-label">Analytics</span>
-        <span class="nav-tooltip">Analytics</span>
-      </a>
-    </li>
-  </ul>
-
 </div>
 
-<style>
-  .nav-section-label {
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #94a3b8;
-    padding: 16px 20px 4px;
-    margin: 0;
-  }
-
-  .nav-badge {
-    flex: 0 0 auto;
-    background: #ef4444;
-    color: #fff;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 10px;
-    margin-left: 8px;
-    min-width: 18px;
-    text-align: center;
-    line-height: 1.2;
-  }
-
-  .technician-layout .sidebar-nav .nav-link {
-    min-height: 44px;
-  }
-
-  .technician-layout .sidebar-nav .nav-label {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .technician-layout .sidebar.collapsed .nav-badge {
-    display: none !important;
-  }
-</style>
-
 <script>
-  const technicianAllowedPermissions = new Set(<%- JSON.stringify(typeof effectivePermissions !== 'undefined' ? effectivePermissions : []).replace(/</g, '\\u003c') %>);
-  document.querySelectorAll('#sidebar [data-permission]').forEach(function(link) {
-    if (!technicianAllowedPermissions.has(link.dataset.permission)) {
-      const item = link.closest('li');
-      if (item) item.remove();
+  document.addEventListener('DOMContentLoaded', function () {
+    const technicianAllowedPermissions = new Set(<%- JSON.stringify(typeof effectivePermissions !== 'undefined' ? effectivePermissions : []).replace(/</g, '\\u003c') %>);
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+
+    sidebar.querySelectorAll('[data-permission]').forEach(function (link) {
+      if (!technicianAllowedPermissions.has(link.dataset.permission)) {
+        const item = link.closest('li');
+        if (item) item.remove();
+      }
+    });
+
+    function setTechnicianBadge(id, value) {
+      const badge = document.getElementById(id);
+      if (!badge) return;
+      const count = Math.max(0, Number(value) || 0);
+      badge.textContent = count > 99 ? '99+' : (count > 0 ? String(count) : '');
+      badge.style.display = count > 0 ? 'inline-flex' : 'none';
     }
+
+    let technicianBadgeRefreshRunning = false;
+    async function updateTechnicianSidebarBadges() {
+      if (document.hidden || technicianBadgeRefreshRunning) return;
+      technicianBadgeRefreshRunning = true;
+      try {
+        const response = await fetch('/api/technician/badge-counts', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        setTechnicianBadge('pendingBadge', data.pendingAssignments);
+        setTechnicianBadge('ordersBadge', data.pendingOrders);
+        setTechnicianBadge('expenseBadge', data.pendingExpenses);
+      } catch (error) {
+        // Counts are supplementary; navigation remains usable if they fail.
+      } finally {
+        technicianBadgeRefreshRunning = false;
+      }
+    }
+
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) updateTechnicianSidebarBadges(); });
+    window.addEventListener('notification:new', updateTechnicianSidebarBadges);
+    updateTechnicianSidebarBadges();
+    window.setInterval(updateTechnicianSidebarBadges, 60000);
   });
-
-  // Fetch all sidebar badge counts
-  (async function () {
-    try {
-      const res = await fetch('/api/technician/badge-counts', { credentials: 'same-origin' });
-      if (res.ok) {
-        const data = await res.json();
-
-        // Pending assignments badge
-        const pendingBadge = document.getElementById('pendingBadge');
-        if (pendingBadge && data.pendingAssignments > 0) {
-          pendingBadge.textContent = data.pendingAssignments;
-          pendingBadge.style.display = '';
-        }
-
-        // Pending orders badge
-        const ordersBadge = document.getElementById('ordersBadge');
-        if (ordersBadge && data.pendingOrders > 0) {
-          ordersBadge.textContent = data.pendingOrders;
-          ordersBadge.style.display = '';
-        }
-
-        // Pending expenses badge
-        const expenseBadge = document.getElementById('expenseBadge');
-        if (expenseBadge && data.pendingExpenses > 0) {
-          expenseBadge.textContent = data.pendingExpenses;
-          expenseBadge.style.display = '';
-        }
-      }
-    } catch (e) { }
-  })();
-
-  // Refresh badges every 30s
-  let technicianBadgeRefreshRunning=false;
-  setInterval(async function () {
-    if(document.hidden||technicianBadgeRefreshRunning)return;
-    technicianBadgeRefreshRunning=true;
-    try {
-      const res = await fetch('/api/technician/badge-counts', { credentials: 'same-origin' });
-      if (res.ok) {
-        const data = await res.json();
-        var pendingBadge = document.getElementById('pendingBadge');
-        if (pendingBadge) {
-          pendingBadge.textContent = data.pendingAssignments > 0 ? data.pendingAssignments : '';
-          pendingBadge.style.display = data.pendingAssignments > 0 ? '' : 'none';
-        }
-        var scheduleBadge = document.getElementById('scheduleBadge');
-        if (scheduleBadge) {
-          scheduleBadge.textContent = data.todayJobs > 0 ? data.todayJobs : '';
-          scheduleBadge.style.display = data.todayJobs > 0 ? '' : 'none';
-        }
-        var ordersBadge = document.getElementById('ordersBadge');
-        if (ordersBadge) {
-          ordersBadge.textContent = data.pendingOrders > 0 ? data.pendingOrders : '';
-          ordersBadge.style.display = data.pendingOrders > 0 ? '' : 'none';
-        }
-        var expenseBadge = document.getElementById('expenseBadge');
-        if (expenseBadge) {
-          expenseBadge.textContent = data.pendingExpenses > 0 ? data.pendingExpenses : '';
-          expenseBadge.style.display = data.pendingExpenses > 0 ? '' : 'none';
-        }
-      }
-    } catch (e) { }
-    finally { technicianBadgeRefreshRunning=false; }
-  }, 30000);
 </script>

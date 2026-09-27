@@ -24,6 +24,7 @@ const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { addMinutesToClock } = require("../utils/clockTime");
+const { clear: clearReportCache } = require("../utils/reportCache");
 const {
   CustomerInvitationError,
   normalizeInvitationEmail,
@@ -756,6 +757,7 @@ async function checkoutAirconOrder(req, res) {
     order.paymentId = paymentRecord._id;
     await order.save({ session });
     await session.commitTransaction();
+    clearReportCache("revenue-analytics");
 
     let accountEmailDelivery = customerAccount.state === "pending_verification" ? "pending_registration" : "not_sent";
     if (customerAccount.state === "active" || customerAccount.activationToken) {
@@ -1092,6 +1094,7 @@ router.post("/checkout", async (req, res) => {
 
     await sale.save({ session });
     await session.commitTransaction();
+    clearReportCache("revenue-analytics");
 
     require("../utils/audit").logEvent({
       actor: req.user && req.user._id,
@@ -1257,6 +1260,7 @@ router.post("/sales/:id/void", async (req, res) => {
     await sale.save({ session });
 
     await session.commitTransaction();
+    clearReportCache("revenue-analytics");
 
     require("../utils/audit").logEvent({
       actor: req.user && req.user._id,

@@ -17,10 +17,12 @@ const revenueAnalyticsSource = fs.readFileSync(path.join(__dirname, "..", "utils
 const revenueAuditSource = fs.readFileSync(path.join(__dirname, "..", "scripts", "auditRevenueAnalytics.js"), "utf8");
 
 test("revenue report renders with valid browser JavaScript", () => {
-  const html = ejs.render(revenueTemplate, { analytics: {} }, { filename: revenuePath });
-  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
-  assert.ok(scripts.length);
-  scripts.forEach((script) => assert.doesNotThrow(() => new Function(script)));
+  [{ analytics: {} }, { analytics: null, deferredAnalytics: true }].forEach((locals) => {
+    const html = ejs.render(revenueTemplate, locals, { filename: revenuePath });
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+    assert.ok(scripts.length);
+    scripts.forEach((script) => assert.doesNotThrow(() => new Function(script)));
+  });
 });
 
 test("revenue report starts with four decision KPIs", () => {
@@ -56,6 +58,22 @@ test("revenue drilldowns use progressive disclosure", () => {
   assert.match(revenueAnalyticsSource, /totalProductUnits = allProducts\.reduce/);
 });
 
+test("revenue report provides service portfolio decisions and a disclosed forecast", () => {
+  for (const label of [
+    "Highest known profit",
+    "Lowest known contribution",
+    "Profitability Ranking &amp; Recommended Action",
+    "30-Day Sales Outlook",
+    "Expected range",
+  ]) assert.match(revenueTemplate, new RegExp(label));
+  assert.match(revenueTemplate, /id="serviceProfitRanking"/);
+  assert.match(revenueTemplate, /id="revenueForecast"/);
+  assert.match(revenueTemplate, /serviceLineDrilldownModal/);
+  assert.match(revenueTemplate, /Allocation policy:/);
+  assert.match(revenueTemplate, /not audited job costing/);
+  assert.match(revenueTemplate, /planning estimate/);
+});
+
 test("revenue, service, and order reports share one KPI system", () => {
   for (const template of [revenueTemplate, serviceTemplate, orderTemplate]) {
     assert.match(template, /\/css\/report-kpis\.css/);
@@ -77,6 +95,8 @@ test("revenue overview exposes decision controls derived from the full ledger", 
   assert.match(revenueAnalyticsSource, /changedAt: dateFilter/);
   assert.match(revenueAnalyticsSource, /Expense\.find\(\{ expenseDate: dateFilter \}\)/);
   assert.match(revenueAnalyticsSource, /Payroll\.find\(\{ status: \{ \$ne: "voided" \}/);
+  assert.match(revenueAnalyticsSource, /buildServiceProfitability/);
+  assert.match(revenueAnalyticsSource, /buildRevenueForecast/);
 });
 
 test("database revenue audit is aggregate-only and does not mutate records", () => {

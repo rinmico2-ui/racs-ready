@@ -21,6 +21,27 @@ const INVENTORY_CLASSES = ["merchandise", "operational_asset"];
 const ASSET_CONDITIONS = ["good", "fair", "needs_repair", "damaged"];
 const ASSET_STATUSES = ["available", "reserved", "checked_out", "under_maintenance", "damaged", "retired"];
 
+/**
+ * Derive stock state from the values that actually control availability.
+ *
+ * `status` is persisted for querying, but quantity is also changed by atomic
+ * inventory operations that do not execute document save middleware. Keeping
+ * this calculation in one place prevents a stale persisted status from being
+ * presented as the current stock state.
+ */
+function effectiveStockStatus(item) {
+  if (item && item.status === "discontinued") return "discontinued";
+
+  const rawQuantity = Number(item && item.quantity);
+  const rawMinimum = Number(item && item.minStockLevel);
+  const quantity = Number.isFinite(rawQuantity) ? Math.max(0, rawQuantity) : 0;
+  const minStockLevel = Number.isFinite(rawMinimum) ? Math.max(0, rawMinimum) : 3;
+
+  if (quantity <= 0) return "out_of_stock";
+  if (quantity <= minStockLevel) return "low_stock";
+  return "in_stock";
+}
+
 // ─── Main Tool Schema ────────────────────────────────────────────────────────
 
 const toolSchema = new mongoose.Schema(
@@ -228,13 +249,7 @@ toolSchema.pre("save", async function () {
 
   // ── Auto-compute stock status ──────────────────────────────────────────
   if (this.status !== "discontinued") {
-    if (this.quantity <= 0) {
-      this.status = "out_of_stock";
-    } else if (this.quantity <= this.minStockLevel) {
-      this.status = "low_stock";
-    } else {
-      this.status = "in_stock";
-    }
+    this.status = effectiveStockStatus(this);
   }
 });
 
@@ -273,6 +288,8 @@ toolSchema.statics.effectiveInventoryClass = function (item) {
   if (item && item.inventoryClass) return item.inventoryClass;
   return item && ["equipment", "tool"].includes(item.type) ? "operational_asset" : "merchandise";
 };
+
+toolSchema.statics.effectiveStockStatus = effectiveStockStatus;
 
 /**
  * Find items that are low on stock or out of stock.

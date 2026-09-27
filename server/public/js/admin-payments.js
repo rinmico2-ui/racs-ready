@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const statFailed = document.getElementById("statFailed");
 
   const detailsModalEl = document.getElementById("paymentDetailsModal");
-  const detailsModal = detailsModalEl ? new bootstrap.Modal(detailsModalEl) : null;
+  const detailsModal = detailsModalEl ? bootstrap.Modal.getOrCreateInstance(detailsModalEl) : null;
 
   const detailsBookingReference = document.getElementById("detailsBookingReference");
   const detailsBookingStatus = document.getElementById("detailsBookingStatus");
@@ -196,6 +196,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   let currentPaymentId = null;
+  let detailsRequestController = null;
+
+  if (detailsModalEl) {
+    detailsModalEl.addEventListener("hidden.bs.modal", function () {
+      if (detailsRequestController) detailsRequestController.abort();
+      detailsRequestController = null;
+      window.AdminModalUX?.settle(detailsModalEl);
+    });
+  }
 
   async function changePaymentStatus(paymentId, newStatus) {
     if (!paymentId || !paymentsCanManage) return false;
@@ -249,6 +258,9 @@ document.addEventListener("DOMContentLoaded", function () {
   async function openDetails(paymentId) {
     if (!paymentId || !detailsModal) return;
     currentPaymentId = paymentId;
+    if (detailsRequestController) detailsRequestController.abort();
+    const requestController = new AbortController();
+    detailsRequestController = requestController;
     // configure footer buttons based on booking/ payment status later
     const configureButtons = (paid, method, currentStatus) => {
       if (detailsVerifyBtn) {
@@ -272,13 +284,20 @@ document.addEventListener("DOMContentLoaded", function () {
     };
     // temporarily hide until we know current state
     configureButtons(true, null, null);
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(detailsModalEl, { loadingMessage: "Loading payment details…" });
+    } else {
+      detailsModal.show();
+    }
     try {
       const res = await fetch(`${paymentsApiBase}/${encodeURIComponent(paymentId)}`, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
+        signal: requestController.signal,
       });
       if (!res.ok) throw new Error("Failed to fetch payment details");
       const data = await res.json();
+      if (requestController !== detailsRequestController) return;
       const payment = data && data.payment ? data.payment : null;
       if (!payment) throw new Error("Missing payment details");
 
@@ -332,10 +351,17 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      detailsModal.show();
+      window.AdminModalUX?.settle(detailsModalEl);
     } catch (err) {
+      if (err && err.name === "AbortError") return;
       console.warn("admin-payments: failed to load details", err && err.message);
-      alert("Could not load payment details right now.");
+      if (window.AdminModalUX) {
+        window.AdminModalUX.fail(detailsModalEl, "Could not load payment details right now.");
+      } else {
+        window.notify?.error("Could not load payment details right now.");
+      }
+    } finally {
+      if (detailsRequestController === requestController) detailsRequestController = null;
     }
   }
 

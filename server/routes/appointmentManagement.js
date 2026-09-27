@@ -1475,7 +1475,10 @@ router.post('/expenses/:id/approve', requireRole("admin"), async (req, res) => {
  */
 router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
   try {
-    const { reason } = req.body;
+    const reason = String(req.body.reason || '').trim();
+    if (reason.length < 10 || reason.length > 600) {
+      return res.status(400).json({ error: 'Rejection reason must be between 10 and 600 characters' });
+    }
     const expense = await Expense.findById(req.params.id);
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
     if (expense.status !== 'pending') {
@@ -1483,7 +1486,7 @@ router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
     }
 
     expense.status = 'rejected';
-    expense.rejectionReason = reason || 'Rejected by admin';
+    expense.rejectionReason = reason;
     expense.rejectedBy = req.user._id;
     expense.rejectedAt = new Date();
     await expense.save();

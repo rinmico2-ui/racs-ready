@@ -322,7 +322,7 @@
   }
 
   document.querySelectorAll('[data-trend]').forEach(function (button) { button.addEventListener('click', function () { document.querySelectorAll('[data-trend]').forEach(function (item) { item.classList.remove('active'); }); button.classList.add('active'); renderTrend(button.dataset.trend); }); });
-  document.querySelectorAll('[data-open-tab]').forEach(function (link) { link.addEventListener('click', function (event) { event.preventDefault(); var trigger = document.getElementById(link.dataset.openTab); if (trigger && window.bootstrap) bootstrap.Tab.getOrCreateInstance(trigger).show(); }); });
+  document.querySelectorAll('[data-open-tab]').forEach(function (link) { link.addEventListener('click', function (event) { event.preventDefault(); var trigger = document.getElementById(link.dataset.openTab); if (trigger && window.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(trigger).show(); else if (trigger && window.AdminTabs) window.AdminTabs.show(trigger, { focus: true }); else if (trigger) trigger.click(); }); });
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (tab) { tab.addEventListener('shown.bs.tab', function () { Object.keys(charts).forEach(function (key) { charts[key].resize(); }); }); });
   var evidenceModalElement = document.getElementById('serviceEvidenceModal');
   var evidencePreview = document.getElementById('serviceEvidencePreview');

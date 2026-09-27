@@ -208,7 +208,12 @@ router.get("/my", requireRole("customer"), async (req, res) => {
 router.get("/admin", requireRole("admin"), async (req, res) => {
   try {
     const filter = ProductReturn.STATUSES.includes(req.query.status) ? { status: req.query.status } : {};
-    const returns = await ProductReturn.find(filter).sort({ createdAt: -1 }).limit(500).lean();
+    const [returns, statusCounts] = await Promise.all([
+      ProductReturn.find(filter).sort({ createdAt: -1 }).limit(500).lean(),
+      ProductReturn.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 }, highPriority: { $sum: { $cond: [{ $eq: ["$priority", "high"] }, 1, 0] } } } },
+      ]),
+    ]);
     returns.sort((left, right) => {
       const leftOpen = !["completed", "rejected", "cancelled"].includes(left.status);
       const rightOpen = !["completed", "rejected", "cancelled"].includes(right.status);
@@ -216,7 +221,17 @@ router.get("/admin", requireRole("admin"), async (req, res) => {
       if (leftOpen && left.priority !== right.priority) return left.priority === "high" ? -1 : 1;
       return leftOpen ? new Date(left.createdAt) - new Date(right.createdAt) : new Date(right.createdAt) - new Date(left.createdAt);
     });
-    return res.json({ returns });
+    const counts = Object.fromEntries(statusCounts.map(row => [row._id, Number(row.count || 0)]));
+    const closedStatuses = new Set(["completed", "rejected", "cancelled"]);
+    return res.json({
+      returns,
+      summary: {
+        open: statusCounts.reduce((total, row) => total + (closedStatuses.has(row._id) ? 0 : Number(row.count || 0)), 0),
+        highPriority: statusCounts.reduce((total, row) => total + (closedStatuses.has(row._id) ? 0 : Number(row.highPriority || 0)), 0),
+        refundDecisions: Number(counts.refund_pending || 0) + Number(counts.refund_approved || 0) + Number(counts.refund_processing || 0),
+        completed: Number(counts.completed || 0),
+      },
+    });
   } catch (err) { return sendError(res, err); }
 });
 router.get("/policy", requireRole("admin"), async (_req, res) => {

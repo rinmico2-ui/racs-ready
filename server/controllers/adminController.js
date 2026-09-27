@@ -3103,9 +3103,11 @@ exports.listTools = async (req, res, next) => {
       .sort({ itemName: 1 })
       .lean();
 
-    // Expose a deterministic class for legacy rows without mutating them.
+    // Expose deterministic derived fields for legacy or atomically-updated
+    // rows without turning this read endpoint into a database migration.
     tools.forEach((tool) => {
       tool.inventoryClass = Tool.effectiveInventoryClass(tool);
+      tool.status = Tool.effectiveStockStatus(tool);
     });
 
     // Backfill missing type field
@@ -3136,7 +3138,16 @@ exports.listTools = async (req, res, next) => {
       t.available = Math.max(0, (t.quantity || 0) - reserved);
     });
 
-    return res.json({ tools, count: tools.length });
+    const activeTools = tools.filter((tool) => tool.active !== false);
+    const stockSummary = {
+      total: activeTools.length,
+      inStock: activeTools.filter((tool) => tool.status === "in_stock").length,
+      lowStock: activeTools.filter((tool) => tool.status === "low_stock").length,
+      outOfStock: activeTools.filter((tool) => tool.status === "out_of_stock").length,
+      discontinued: activeTools.filter((tool) => tool.status === "discontinued").length,
+    };
+
+    return res.json({ tools, count: tools.length, stockSummary });
   } catch (err) {
     next(err);
   }

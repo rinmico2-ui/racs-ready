@@ -213,35 +213,19 @@
   var validityIndicator = document.getElementById('register-password-check');
   var suggestionEl = document.getElementById('register-password-suggestions');
 
-  function sanitizePwd(val) {
-    var v = String(val || '');
-    v = v.replace(/[^A-Za-z0-9@!#$]/g, '');
-    var seen = {};
-    var out = '';
-    for (var i = 0; i < v.length; i++) {
-      var ch = v[i];
-      if (/[@!#$]/.test(ch)) {
-        if (seen[ch]) continue;
-        seen[ch] = true;
-      }
-      out += ch;
-    }
-    var upperSeen = false;
-    var result = '';
-    for (var j = 0; j < out.length; j++) {
-      var c = out[j];
-      if (c >= 'A' && c <= 'Z') {
-        if (!upperSeen) { result += c; upperSeen = true; }
-      } else {
-        result += c;
-      }
-    }
-    return result.slice(0, 30);
+  function getPasswordState(value) {
+    var password = String(value || '');
+    var state = {
+      length: password.length >= 8 && password.length <= 30,
+      uppercase: /[A-Z]/.test(password),
+      numberOrSymbol: /[0-9]/.test(password) || /[^A-Za-z0-9\s]/.test(password)
+    };
+    state.valid = state.length && state.uppercase && state.numberOrSymbol;
+    return state;
   }
 
   if (passField) {
     passField.addEventListener('input', function () {
-      this.value = sanitizePwd(this.value);
       updateIndicators();
       updateSuggestions();
     });
@@ -249,7 +233,6 @@
 
   if (confirmField) {
     confirmField.addEventListener('input', function () {
-      this.value = sanitizePwd(this.value);
       updateIndicators();
     });
   }
@@ -258,12 +241,10 @@
     if (!suggestionEl) return;
     var pwd = passField ? passField.value : '';
     var items = suggestionEl.querySelectorAll('li[data-rule]');
+    var state = getPasswordState(pwd);
     items.forEach(function (li) {
       var rule = li.getAttribute('data-rule');
-      var met = false;
-      if (rule === 'letter') met = /[A-Z]/.test(pwd);
-      else if (rule === 'digitOrSpecial') met = /[0-9@!#$]/.test(pwd);
-      else if (rule === 'length') met = pwd.length >= 8 && pwd.length <= 30;
+      var met = Boolean(state[rule]);
       li.classList.toggle('met', met);
       var ico = li.querySelector('i');
       if (ico) {
@@ -277,7 +258,7 @@
       if (pwd.length >= 8) score += 1;
       if (/[A-Z]/.test(pwd)) score += 1;
       if (/[0-9]/.test(pwd)) score += 1;
-      if (/[@!#$]/.test(pwd)) score += 1;
+      if (/[^A-Za-z0-9\s]/.test(pwd)) score += 1;
       strengthFill.style.width = pwd ? (score * 25) + '%' : '0';
       strengthFill.style.background = score <= 1 ? '#d92d3f' : (score <= 2 ? '#d98a18' : '#168653');
     }
@@ -286,14 +267,15 @@
   function updateIndicators() {
     var pwd = passField ? passField.value : '';
     var conf = confirmField ? confirmField.value : '';
-    var ok = /^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,30}$/.test(pwd);
+    var passwordState = getPasswordState(pwd);
+    var passwordsMatch = conf.length > 0 && pwd === conf;
 
     if (matchIndicator) {
       if (conf.length === 0) {
         matchIndicator.classList.add('d-none');
       } else {
         matchIndicator.classList.remove('d-none');
-        matchIndicator.innerHTML = pwd === conf && ok
+        matchIndicator.innerHTML = passwordsMatch
           ? '<i class="bi bi-check-circle-fill text-success"></i>'
           : '<i class="bi bi-x-circle-fill text-danger"></i>';
       }
@@ -301,22 +283,27 @@
 
     var matchHint = document.getElementById('passwordMatchHint');
     if (matchHint) {
+      matchHint.classList.remove('is-success', 'is-warning', 'is-error');
       if (!conf) {
-        matchHint.textContent = 'Both passwords must match.';
-        matchHint.style.color = '';
-      } else if (pwd === conf && ok) {
+        matchHint.textContent = 'Retype your password to confirm it.';
+      } else if (passwordsMatch && passwordState.valid) {
         matchHint.textContent = 'Passwords match.';
-        matchHint.style.color = '#168653';
+        matchHint.classList.add('is-success');
+      } else if (passwordsMatch) {
+        matchHint.textContent = 'Passwords match. Complete the requirements above.';
+        matchHint.classList.add('is-warning');
+      } else if (pwd.indexOf(conf) === 0 && document.activeElement === confirmField) {
+        matchHint.textContent = 'Keep typing to match your password.';
       } else {
         matchHint.textContent = 'Passwords do not match.';
-        matchHint.style.color = '#d92d3f';
+        matchHint.classList.add('is-error');
       }
     }
 
     if (validityIndicator) {
       if (pwd.length > 0) {
         validityIndicator.classList.remove('d-none');
-        validityIndicator.innerHTML = ok && (conf.length === 0 || pwd === conf)
+        validityIndicator.innerHTML = passwordState.valid
           ? '<i class="bi bi-check-circle-fill text-success"></i>'
           : '<i class="bi bi-x-circle-fill text-danger"></i>';
       } else {
@@ -434,8 +421,8 @@
       return passField.focus();
     }
 
-    if (!/^(?=(?:.*[A-Z]){1})(?=.*[0-9@!#$])[A-Za-z0-9@!#$]{8,30}$/.test(password)) {
-      showFieldError(passField, 'Include one uppercase letter and a number or symbol.');
+    if (!getPasswordState(password).valid) {
+      showFieldError(passField, 'Include at least one uppercase letter and at least one number or symbol.');
       return passField.focus();
     }
 

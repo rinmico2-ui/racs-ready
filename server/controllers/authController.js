@@ -10,6 +10,10 @@ const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { hashInvitationToken } = require("../utils/customerAccountInvitation");
+const {
+  REGISTRATION_PASSWORD_MESSAGE,
+  isValidRegistrationPassword,
+} = require("../utils/registrationPasswordPolicy");
 
 const FAKE_HASH = bcrypt.hashSync("invalid-password", 12);
 
@@ -388,9 +392,16 @@ exports.register = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      const passwordError = errors
+        .array()
+        .some((error) => (error.path || error.param) === "password");
       return res
         .status(400)
-        .json({ error: "Registration failed. Please check your input." });
+        .json({
+          error: passwordError
+            ? REGISTRATION_PASSWORD_MESSAGE
+            : "Registration failed. Please check your input.",
+        });
     }
 
     const systemConfiguration = await getSystemConfiguration();
@@ -449,15 +460,10 @@ exports.register = async (req, res, next) => {
         .json({ error: "Registration failed. Please check your input." });
     }
 
-    // Enforce the same 8-30 character policy used by the registration form.
-    if (
-      !/^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]{8,30}$/.test(
-        password,
-      )
-    ) {
+    // Enforce the same policy as the registration form and route validator.
+    if (!isValidRegistrationPassword(password)) {
       return res.status(400).json({
-        error:
-          "Password must be 8–30 characters, letters/numbers and may include !,#,$; each may appear at most once and exactly one uppercase letter.",
+        error: REGISTRATION_PASSWORD_MESSAGE,
       });
     }
 

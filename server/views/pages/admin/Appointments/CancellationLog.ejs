@@ -221,15 +221,27 @@
   window.goPage = function(p) { currentPage = p; loadLog(); };
 
   async function viewHistory(id) {
+    if (viewHistory.requestController) viewHistory.requestController.abort();
+    const requestController = new AbortController();
+    viewHistory.requestController = requestController;
+    const detailModalEl = document.getElementById('detailModal');
+    document.getElementById('detailTitle').textContent = 'Cancellation History';
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(detailModalEl, { loadingMessage: 'Loading cancellation history…' });
+    } else {
+      bootstrap.Modal.getOrCreateInstance(detailModalEl).show();
+    }
     try {
       let b = pageCache.find(x => x._id === id);
       if (!b) {
         // Fallback: search the API for this booking
-        const res = await fetch(`${CANCELLATION_API}/cancellation-log?limit=100`);
+        const res = await fetch(`${CANCELLATION_API}/cancellation-log?limit=100`, { signal: requestController.signal });
+        if (!res.ok) throw new Error('Failed to load cancellation history');
         const data = await res.json();
+        if (viewHistory.requestController !== requestController) return;
         b = (data.bookings || []).find(x => x._id === id);
       }
-      if (!b) return;
+      if (!b) throw new Error('Cancellation history was not found');
       document.getElementById('detailTitle').textContent = `Cancellation History — ${b.bookingReference || b.workOrderNumber || b._id.toString().slice(-8).toUpperCase()}`;
       const history = b.cancellationHistory || [];
       const hasRefund = b.refundStatus && b.refundStatus !== 'none';
@@ -264,9 +276,13 @@
           }).join('')
         }
       `;
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
+      window.AdminModalUX?.settle(detailModalEl);
     } catch (e) {
+      if (e && e.name === 'AbortError') return;
       console.error(e);
+      if (window.AdminModalUX) window.AdminModalUX.fail(detailModalEl, 'Could not load cancellation history right now.');
+    } finally {
+      if (viewHistory.requestController === requestController) viewHistory.requestController = null;
     }
   }
 

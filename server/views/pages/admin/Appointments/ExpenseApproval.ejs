@@ -29,6 +29,33 @@
   .expense-receipt { max-height:320px; border-radius:10px; border:1px solid #e2e8f0; object-fit:contain; width:100%; }
   .expense-empty-state { color:#94a3b8; font-size:0.85rem; padding:1rem 0; text-align:center; }
   .expense-empty-state i { font-size:2rem; display:block; margin-bottom:0.5rem; }
+
+  /* Expense rejection decision modal */
+  .expense-reject-modal .modal-dialog { max-width: 620px; }
+  .expense-reject-modal .modal-content { overflow:hidden; border:0; border-radius:18px; box-shadow:0 28px 80px rgba(15,23,42,.24); }
+  .expense-reject-modal .modal-header { align-items:flex-start; padding:20px 22px; border:0; background:linear-gradient(135deg,#7f1d1d 0%,#b91c1c 58%,#dc2626 100%) !important; color:#fff; }
+  .expense-reject-modal .modal-header .btn-close { margin-top:2px; filter:invert(1); opacity:.8; }
+  .expense-reject-modal .modal-kicker { color:#fecaca; font-size:.65rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+  .expense-reject-modal .modal-title { margin-top:3px; color:#fff; font-size:1.12rem; font-weight:800; }
+  .expense-reject-modal .modal-subtitle { margin-top:4px; color:#fee2e2; font-size:.76rem; }
+  .expense-reject-modal .modal-body { padding:20px 22px; background:#f8fafc; }
+  .expense-reject-summary { display:grid; grid-template-columns:1fr auto; gap:12px 20px; margin-bottom:18px; padding:15px 16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; }
+  .expense-reject-summary-label { color:#64748b; font-size:.64rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+  .expense-reject-summary-value { margin-top:3px; color:#0f172a; font-size:.84rem; font-weight:700; overflow-wrap:anywhere; }
+  .expense-reject-summary-amount { align-self:center; grid-row:1 / span 2; grid-column:2; color:#991b1b; font-size:1.35rem; font-weight:850; letter-spacing:-.03em; white-space:nowrap; }
+  .expense-reject-modal .form-label { margin-bottom:6px; color:#334155; font-size:.73rem; font-weight:750; }
+  .expense-reject-modal .required-mark { color:#dc2626; }
+  .expense-reject-modal .form-select,.expense-reject-modal .form-control { border-color:#cbd5e1; border-radius:10px; background:#fff; font-size:.82rem; }
+  .expense-reject-modal .form-select:focus,.expense-reject-modal .form-control:focus { border-color:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .expense-reject-modal textarea { min-height:116px; resize:vertical; line-height:1.5; }
+  .expense-reject-help { display:flex; align-items:flex-start; gap:8px; margin-top:8px; color:#64748b; font-size:.7rem; line-height:1.45; }
+  .expense-reject-counter { color:#94a3b8; font-size:.67rem; font-weight:700; }
+  .expense-reject-counter.near-limit { color:#b45309; }
+  .expense-reject-impact { display:flex; gap:10px; margin-top:16px; padding:12px 13px; border:1px solid #fde68a; border-radius:10px; background:#fffbeb; color:#78350f; font-size:.72rem; line-height:1.45; }
+  .expense-reject-error { margin-top:14px; padding:10px 12px; border:1px solid #fecaca; border-radius:9px; background:#fef2f2; color:#991b1b; font-size:.74rem; }
+  .expense-reject-modal .modal-footer { gap:8px; padding:14px 22px; border-top:1px solid #e2e8f0; background:#fff; }
+  .expense-reject-modal .btn { min-height:40px; border-radius:9px; font-size:.78rem; font-weight:750; }
+  @media(max-width:575px){ .expense-reject-modal .modal-dialog { margin:10px; } .expense-reject-modal .modal-body { padding:17px; } .expense-reject-summary { grid-template-columns:1fr; } .expense-reject-summary-amount { grid-row:auto; grid-column:auto; } .expense-reject-modal .modal-footer { display:grid; grid-template-columns:1fr 1fr; } }
 </style>
 
 <div class="main-content">
@@ -276,12 +303,63 @@
   </div>
 </div>
 
+<!-- Reject Expense Modal -->
+<div class="modal fade expense-reject-modal" id="expenseRejectModal" tabindex="-1" aria-labelledby="expenseRejectTitle" aria-describedby="expenseRejectSubtitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" id="expenseRejectForm" novalidate>
+      <div class="modal-header">
+        <div>
+          <div class="modal-kicker">Expense decision</div>
+          <h5 class="modal-title" id="expenseRejectTitle"><i class="bi bi-x-octagon me-2"></i>Reject expense submission</h5>
+          <div class="modal-subtitle" id="expenseRejectSubtitle">Give the technician a clear reason and what they should correct.</div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close rejection dialog"></button>
+      </div>
+      <div class="modal-body">
+        <div class="expense-reject-summary" aria-label="Expense being rejected">
+          <div><div class="expense-reject-summary-label">Technician</div><div class="expense-reject-summary-value" id="rejectExpenseTechnician">—</div></div>
+          <div class="expense-reject-summary-amount" id="rejectExpenseAmount">₱0.00</div>
+          <div><div class="expense-reject-summary-label">Expense</div><div class="expense-reject-summary-value" id="rejectExpenseDescription">—</div></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rejectExpenseCategory">Primary issue <span class="required-mark" aria-hidden="true">*</span></label>
+          <select class="form-select" id="rejectExpenseCategory" required>
+            <option value="">Select the main reason</option>
+            <option value="Missing or unclear receipt">Missing or unclear receipt</option>
+            <option value="Amount does not match receipt">Amount does not match receipt</option>
+            <option value="Incomplete expense details">Incomplete expense details</option>
+            <option value="Duplicate submission">Duplicate submission</option>
+            <option value="Expense is not business-related">Expense is not business-related</option>
+            <option value="Outside expense policy">Outside expense policy</option>
+            <option value="Other">Other reason</option>
+          </select>
+        </div>
+        <div>
+          <div class="d-flex justify-content-between align-items-center gap-3">
+            <label class="form-label" for="rejectExpenseReason">Feedback for technician <span class="required-mark" aria-hidden="true">*</span></label>
+            <span class="expense-reject-counter" id="rejectExpenseCounter">0 / 500</span>
+          </div>
+          <textarea class="form-control" id="rejectExpenseReason" minlength="10" maxlength="500" required placeholder="Explain what is incorrect and what the technician should submit or correct next."></textarea>
+          <div class="expense-reject-help"><i class="bi bi-info-circle"></i><span>Be specific and professional. This message will be included in the technician's notification.</span></div>
+        </div>
+        <div class="expense-reject-impact"><i class="bi bi-exclamation-triangle-fill"></i><span>Rejecting removes this submission from the approval queue. The expense stays in the audit history and must be corrected through the normal expense workflow.</span></div>
+        <div class="expense-reject-error d-none" id="expenseRejectError" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep pending</button>
+        <button type="submit" class="btn btn-danger" id="expenseRejectSubmit"><i class="bi bi-x-circle me-1"></i>Reject expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   const EXPENSES_API = <%- JSON.stringify(typeof expensesApiBase === 'string' ? expensesApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
   const EXPENSES_CAN_APPROVE = <%- JSON.stringify(typeof expensesCanApprove === 'boolean' ? expensesCanApprove : true) %>;
   let currentFilter = '';
   let _expenseData = {};
+  let activeRejectExpenseId = null;
 
   const TYPE_LABELS = { fuel: 'Fuel', material: 'Material', transport: 'Transport', meal: 'Meal', other: 'Other' };
   const STATUS_CLASSES = { pending: 'bg-warning text-dark', approved: 'bg-success', rejected: 'bg-danger' };
@@ -364,16 +442,85 @@
     } catch (e) { showNotification({ type: 'error', title: 'Error', message: 'Failed to approve expense.', duration: 5000 }); }
   }
 
-  async function rejectExpense(id) {
-    const reason = prompt('Rejection reason:');
-    if (!reason) return;
-    try {
-      if (!EXPENSES_CAN_APPROVE) return;
-      await fetch(`${EXPENSES_API}/expenses/${id}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) });
-      showNotification({ type: 'success', title: 'Expense Rejected', message: 'The expense has been rejected.', duration: 3000 });
-      loadList(); loadStats();
-    } catch (e) { showNotification({ type: 'error', title: 'Error', message: 'Failed to reject expense.', duration: 5000 }); }
+  function rejectExpense(id) {
+    if (!EXPENSES_CAN_APPROVE) return;
+    const expense = _expenseData[id];
+    if (!expense || expense.status !== 'pending') {
+      showNotification({ type:'error', title:'Expense unavailable', message:'Refresh the queue and try again.', duration:4000 });
+      return;
+    }
+    activeRejectExpenseId = id;
+    document.getElementById('expenseRejectForm').reset();
+    document.getElementById('rejectExpenseTechnician').textContent = expense.technicianName || 'Technician';
+    document.getElementById('rejectExpenseAmount').textContent = `₱${Number(expense.amount || 0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
+    document.getElementById('rejectExpenseDescription').textContent = `${TYPE_LABELS[expense.type] || expense.type || 'Expense'} · ${expense.description || 'No description'}`;
+    document.getElementById('rejectExpenseCounter').textContent = '0 / 500';
+    document.getElementById('rejectExpenseCounter').classList.remove('near-limit');
+    document.getElementById('expenseRejectError').classList.add('d-none');
+    document.getElementById('expenseRejectSubmit').disabled = false;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('expenseRejectModal')).show();
   }
+
+  document.getElementById('rejectExpenseReason').addEventListener('input', event => {
+    const length = event.target.value.length;
+    const counter = document.getElementById('rejectExpenseCounter');
+    counter.textContent = `${length} / 500`;
+    counter.classList.toggle('near-limit', length >= 450);
+    event.target.classList.remove('is-invalid');
+    document.getElementById('expenseRejectError').classList.add('d-none');
+  });
+
+  document.getElementById('rejectExpenseCategory').addEventListener('change', event => {
+    event.target.classList.remove('is-invalid');
+    document.getElementById('expenseRejectError').classList.add('d-none');
+  });
+
+  document.getElementById('expenseRejectModal').addEventListener('shown.bs.modal', () => {
+    document.getElementById('rejectExpenseCategory').focus({ preventScroll:true });
+  });
+
+  document.getElementById('expenseRejectModal').addEventListener('hidden.bs.modal', () => {
+    activeRejectExpenseId = null;
+    document.getElementById('expenseRejectForm').reset();
+  });
+
+  document.getElementById('expenseRejectForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!activeRejectExpenseId || !EXPENSES_CAN_APPROVE) return;
+    const category = document.getElementById('rejectExpenseCategory');
+    const feedback = document.getElementById('rejectExpenseReason');
+    const errorBox = document.getElementById('expenseRejectError');
+    const submit = document.getElementById('expenseRejectSubmit');
+    const detail = feedback.value.trim();
+    category.classList.toggle('is-invalid', !category.value);
+    feedback.classList.toggle('is-invalid', detail.length < 10);
+    if (!category.value || detail.length < 10) {
+      errorBox.textContent = !category.value ? 'Select the primary issue before rejecting this expense.' : 'Give the technician at least 10 characters of actionable feedback.';
+      errorBox.classList.remove('d-none');
+      (!category.value ? category : feedback).focus();
+      return;
+    }
+    const reason = `${category.value}: ${detail}`;
+    submit.disabled = true;
+    submit.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Rejecting...';
+    errorBox.classList.add('d-none');
+    try {
+      const response = await fetch(`${EXPENSES_API}/expenses/${encodeURIComponent(activeRejectExpenseId)}/reject`, {
+        method:'POST', credentials:'same-origin', headers:{ 'Content-Type':'application/json', Accept:'application/json' }, body:JSON.stringify({ reason })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'The expense could not be rejected.');
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('expenseRejectModal')).hide();
+      showNotification({ type:'success', title:'Expense rejected', message:'The technician can now review the reason and correct the submission.', duration:3500 });
+      await Promise.all([loadList(), loadStats()]);
+    } catch (error) {
+      errorBox.textContent = error.message || 'Failed to reject the expense. Please try again.';
+      errorBox.classList.remove('d-none');
+    } finally {
+      submit.disabled = false;
+      submit.innerHTML = '<i class="bi bi-x-circle me-1"></i>Reject expense';
+    }
+  });
 
   function viewExpense(id) {
     const e = _expenseData[id];

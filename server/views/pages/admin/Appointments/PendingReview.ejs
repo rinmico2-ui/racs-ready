@@ -806,10 +806,24 @@
   }
 
   async function viewDetail(id) {
+    if (viewDetail.requestController) viewDetail.requestController.abort();
+    const requestController = new AbortController();
+    viewDetail.requestController = requestController;
+    const detailModalEl = document.getElementById('detailModal');
+    const detailModal = bootstrap.Modal.getOrCreateInstance(detailModalEl);
+    document.getElementById('detailTitle').textContent = 'Booking Details';
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(detailModalEl, { loadingMessage: 'Loading booking details…' });
+    } else {
+      detailModal.show();
+    }
     try {
-      const res = await fetch(`/api/admin/appointments/${id}`);
+      const res = await fetch(`/api/admin/appointments/${id}`, { signal: requestController.signal });
+      if (!res.ok) throw new Error('Failed to load booking details');
       const data = await res.json();
+      if (viewDetail.requestController !== requestController) return;
       const b = data.booking;
+      if (!b) throw new Error('Booking details were not returned');
       const date = new Date(b.preferredDate || b.bookingDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const stLabel = (b.status || '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
@@ -943,8 +957,17 @@
           })()}
         </div>`;
 
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
-    } catch (e) { showToast('Error loading details', 'error'); }
+      window.AdminModalUX?.settle(detailModalEl);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      if (window.AdminModalUX) {
+        window.AdminModalUX.fail(detailModalEl, 'Could not load booking details right now.');
+      } else {
+        showToast('Error loading details', 'error');
+      }
+    } finally {
+      if (viewDetail.requestController === requestController) viewDetail.requestController = null;
+    }
   }
 
   function refreshList() { loadPendingBookings(currentPage); }

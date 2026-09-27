@@ -1,0 +1,114 @@
+.ops-modern { max-width: 1440px; margin: 0 auto; color: #1e293b; }
+.ops-modern .ops-hero,
+.ops-modern .au-hero { position: relative; overflow: hidden; border: 0; border-radius: 20px; background: linear-gradient(128deg,#0f172a 0%,#172554 52%,#1d4ed8 100%); box-shadow: 0 18px 44px rgba(15,23,42,.16); color:#fff; }
+.ops-modern .ops-hero::after,
+.ops-modern .au-hero::after { content:""; position:absolute; width:360px; height:360px; right:-120px; top:-190px; border-radius:50%; background:rgba(255,255,255,.08); pointer-events:none; }
+.ops-modern .ops-hero-inner { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:28px 32px; }
+.ops-modern .ops-hero-copy { display:flex; align-items:center; gap:16px; min-width:0; }
+.ops-modern .ops-hero-icon { width:52px; height:52px; flex:0 0 52px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.18); border-radius:15px; background:rgba(255,255,255,.11); font-size:1.35rem; }
+.ops-modern .ops-eyebrow { color:#bfdbfe; font-size:.68rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.ops-modern .ops-hero h1 { margin:3px 0 4px; color:#fff; font-size:1.45rem; font-weight:800; letter-spacing:-.02em; }
+.ops-modern .ops-hero p { margin:0; max-width:700px; color:#cbd5e1; font-size:.84rem; }
+.ops-modern .ops-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.ops-modern .ops-kpi { position:relative; min-height:108px; padding:17px 18px; overflow:hidden; border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 4px 14px rgba(15,23,42,.045); }
+.ops-modern .ops-kpi::before { content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--kpi,#2563eb); }
+.ops-modern .ops-kpi-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.ops-modern .ops-kpi-label { color:#64748b; font-size:.68rem; font-weight:800; letter-spacing:.055em; text-transform:uppercase; }
+.ops-modern .ops-kpi-icon { width:34px; height:34px; display:grid; place-items:center; border-radius:10px; background:color-mix(in srgb,var(--kpi,#2563eb) 12%,white); color:var(--kpi,#2563eb); }
+.ops-modern .ops-kpi-value { margin-top:7px; color:#0f172a; font-size:1.55rem; font-weight:800; line-height:1; }
+.ops-modern .ops-kpi-meta { margin-top:8px; color:#94a3b8; font-size:.7rem; }
+.ops-modern .ops-panel { border:1px solid #e2e8f0; border-radius:16px; background:#fff; box-shadow:0 6px 20px rgba(15,23,42,.045); overflow:hidden; }
+.ops-modern .ops-panel-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:17px 20px; border-bottom:1px solid #e2e8f0; background:#fff; }
+.ops-modern .ops-panel-head h2 { margin:0; color:#0f172a; font-size:.98rem; font-weight:800; }
+.ops-modern .ops-panel-head p { margin:3px 0 0; color:#64748b; font-size:.73rem; }
+.ops-modern .btn { border-radius:9px; font-weight:650; }
+.ops-modern .form-control,.ops-modern .form-select { min-height:40px; border-color:#cbd5e1; border-radius:9px; }
+.ops-modern .form-control:focus,.ops-modern .form-select:focus { border-color:#60a5fa; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+
+/* Warranty */
+.ops-modern.inventory-premium .dash-card { border-radius:14px; box-shadow:0 4px 14px rgba(15,23,42,.045); transform:none; }
+.ops-modern.inventory-premium .dash-card:hover { transform:none; border-color:#bfdbfe; box-shadow:0 8px 22px rgba(15,23,42,.07); }
+.ops-modern.inventory-premium .rp-toolbar { border-radius:14px; background:#fff; box-shadow:0 4px 14px rgba(15,23,42,.035); }
+.ops-modern.inventory-premium > .card { border:1px solid #e2e8f0 !important; border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.045) !important; overflow:hidden; }
+.ops-modern .warranty-controls { margin-bottom:18px; overflow:hidden; border:1px solid #e2e8f0; border-radius:16px; background:#fff; box-shadow:0 5px 18px rgba(15,23,42,.04); }
+.ops-modern .warranty-controls-head { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:18px 20px 15px; }
+.ops-modern .warranty-controls-eyebrow { color:#2563eb; font-size:.63rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; }
+.ops-modern .warranty-controls h2 { margin:2px 0 1px; color:#0f172a; font-size:1rem; font-weight:800; }
+.ops-modern .warranty-controls p { margin:0; color:#64748b; font-size:.72rem; }
+.ops-modern .warranty-search { position:relative; width:min(330px,100%); flex:0 1 330px; }
+.ops-modern .warranty-search i { position:absolute; z-index:1; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; }
+.ops-modern .warranty-search input { width:100%; height:40px; padding:0 13px 0 37px; border:1px solid #cbd5e1; border-radius:10px; background:#f8fafc; color:#0f172a; font-size:.78rem; outline:0; transition:border-color .16s ease,box-shadow .16s ease,background .16s ease; }
+.ops-modern .warranty-search input:focus { border-color:#60a5fa; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+.ops-modern .warranty-status-tabs { display:flex; gap:5px; overflow-x:auto; padding:0 14px; border-top:1px solid #f1f5f9; border-bottom:1px solid #e2e8f0; scrollbar-width:thin; }
+.ops-modern .warranty-status-tab { position:relative; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:52px; padding:0 14px; border:0; border-bottom:3px solid transparent; background:transparent; color:#64748b; font-size:.76rem; font-weight:700; white-space:nowrap; transition:color .16s ease,background .16s ease,border-color .16s ease; }
+.ops-modern .warranty-status-tab:hover { background:#f8fafc; color:#1d4ed8; }
+.ops-modern .warranty-status-tab:focus-visible { z-index:1; outline:3px solid rgba(37,99,235,.2); outline-offset:-3px; }
+.ops-modern .warranty-status-tab.active { border-bottom-color:#2563eb; background:linear-gradient(180deg,transparent,#eff6ff); color:#1d4ed8; }
+.ops-modern .warranty-tab-count { display:inline-grid; min-width:23px; height:20px; padding:0 6px; place-items:center; border-radius:999px; background:#f1f5f9; color:#64748b; font-size:.65rem; }
+.ops-modern .warranty-status-tab.active .warranty-tab-count { background:#dbeafe; color:#1d4ed8; }
+.ops-modern .warranty-subfilters { display:flex; align-items:center; gap:12px; padding:12px 18px; background:#f8fafc; }
+.ops-modern .warranty-subfilter-label { color:#64748b; font-size:.67rem; font-weight:800; letter-spacing:.045em; text-transform:uppercase; }
+.ops-modern .warranty-type-switch { display:inline-flex; gap:3px; padding:3px; border:1px solid #e2e8f0; border-radius:9px; background:#fff; }
+.ops-modern .warranty-type-option { display:inline-flex; align-items:center; gap:6px; min-height:31px; padding:5px 10px; border:0; border-radius:6px; background:transparent; color:#64748b; font-size:.7rem; font-weight:700; }
+.ops-modern .warranty-type-option:hover { color:#1d4ed8; }
+.ops-modern .warranty-type-option.active { background:#0f172a; color:#fff; box-shadow:0 2px 5px rgba(15,23,42,.16); }
+.ops-modern .warranty-type-option span { min-width:17px; opacity:.75; font-size:.62rem; text-align:center; }
+.ops-modern .warranty-clear-filter { display:inline-flex; align-items:center; gap:6px; margin-left:auto; padding:6px 9px; border:0; background:transparent; color:#64748b; font-size:.69rem; font-weight:700; }
+.ops-modern .warranty-clear-filter:hover { color:#1d4ed8; }
+.ops-modern .warranty-result-count { display:inline-flex; align-items:center; min-height:28px; padding:5px 10px; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:.69rem; font-weight:800; white-space:nowrap; }
+
+/* Product returns */
+.ops-modern .rma-workspace { display:grid; grid-template-columns:minmax(300px,.78fr) minmax(0,1.7fr); gap:16px; align-items:start; }
+.ops-modern .rma-workspace > [class*="col-"] { width:auto; padding:0; }
+.ops-modern .rma-card { border-radius:16px; box-shadow:0 6px 20px rgba(15,23,42,.045); }
+.ops-modern .rma-workspace > :first-child .rma-card { position:sticky; top:82px; max-height:calc(100vh - 110px); display:flex; flex-direction:column; }
+.ops-modern .rma-workspace > :first-child .rma-card-body { overflow:auto; }
+.ops-modern .rma-list-button { position:relative; margin-bottom:8px; border-radius:11px; transition:border-color .16s ease,background .16s ease,transform .16s ease; }
+.ops-modern .rma-list-button:hover { transform:translateY(-1px); }
+.ops-modern .rma-list-button.active { border-color:#2563eb; box-shadow:inset 3px 0 #2563eb; }
+.ops-modern .rma-status { white-space:nowrap; }
+.ops-modern .rma-action-panel { border-radius:12px; background:#f8fafc; }
+
+/* Maintenance */
+.ops-modern.maintenance-shell .maintenance-head { position:relative; overflow:hidden; margin-bottom:18px; padding:26px 30px; border-radius:20px; background:linear-gradient(128deg,#0f172a 0%,#172554 52%,#1d4ed8 100%); box-shadow:0 18px 44px rgba(15,23,42,.16); color:#fff; }
+.ops-modern.maintenance-shell .maintenance-head h1 { color:#fff; }
+.ops-modern.maintenance-shell .maintenance-head p { color:#cbd5e1; }
+.ops-modern.maintenance-shell .maintenance-head-icon { width:52px; height:52px; border:1px solid rgba(255,255,255,.18); border-radius:15px; background:rgba(255,255,255,.11); color:#fff; }
+.ops-modern.maintenance-shell .maintenance-kpis { grid-template-columns:repeat(6,minmax(0,1fr)); }
+.ops-modern.maintenance-shell .maintenance-kpi { min-height:100px; border-radius:14px; box-shadow:0 4px 14px rgba(15,23,42,.045); }
+.ops-modern.maintenance-shell .maintenance-toolbar { padding:14px 16px; border-radius:14px 14px 0 0; }
+.ops-modern.maintenance-shell .maintenance-tab { border-radius:8px; border-bottom:0; }
+.ops-modern.maintenance-shell .maintenance-tab:hover { background:#f1f5f9; color:#1d4ed8; }
+.ops-modern.maintenance-shell .maintenance-tab.active { background:#eff6ff; color:#1d4ed8; box-shadow:inset 0 0 0 1px #bfdbfe; }
+.ops-modern.maintenance-shell .maintenance-table-wrap { border-radius:0; }
+.ops-modern.maintenance-shell .maintenance-table tbody tr:hover { background:#f8fbff; }
+.ops-modern.maintenance-shell .maintenance-pagination { border-radius:0 0 14px 14px; }
+.ops-modern.maintenance-shell + .modal .modal-content,
+.ops-modern.maintenance-shell ~ .modal .modal-content { border:0; border-radius:16px; overflow:hidden; box-shadow:0 24px 60px rgba(15,23,42,.22); }
+.ops-modern.maintenance-shell + .modal .modal-header,
+.ops-modern.maintenance-shell ~ .modal .modal-header { padding:17px 20px; background:#0f172a !important; color:#fff !important; }
+.ops-modern.maintenance-shell + .modal .modal-header .btn-close,
+.ops-modern.maintenance-shell ~ .modal .modal-header .btn-close { filter:invert(1); }
+
+@media(max-width:991px){
+  .ops-modern .ops-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ops-modern .rma-workspace { grid-template-columns:1fr; }
+  .ops-modern .rma-workspace > :first-child .rma-card { position:static; max-height:none; }
+  .ops-modern.maintenance-shell .maintenance-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media(max-width:640px){
+  .ops-modern .ops-hero-inner { align-items:flex-start; flex-direction:column; padding:22px 20px; }
+  .ops-modern .ops-hero-copy { align-items:flex-start; }
+  .ops-modern .ops-kpis { grid-template-columns:1fr 1fr; }
+  .ops-modern .ops-kpi { min-height:96px; padding:14px; }
+  .ops-modern.maintenance-shell .maintenance-head { padding:22px 20px; }
+  .ops-modern.maintenance-shell .maintenance-kpis { grid-template-columns:1fr 1fr; }
+  .ops-modern .warranty-controls-head { align-items:stretch; flex-direction:column; gap:12px; }
+  .ops-modern .warranty-search { width:100%; flex-basis:auto; }
+  .ops-modern .warranty-status-tabs { padding:0 8px; }
+  .ops-modern .warranty-status-tab { min-height:48px; padding:0 10px; }
+  .ops-modern .warranty-subfilters { align-items:flex-start; flex-direction:column; }
+  .ops-modern .warranty-type-switch { width:100%; }
+  .ops-modern .warranty-type-option { flex:1; justify-content:center; }
+  .ops-modern .warranty-clear-filter { margin-left:0; }
+}

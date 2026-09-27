@@ -120,6 +120,7 @@ const walkInSaleSchema = new mongoose.Schema(
 
 // ─── Indexes ────────────────────────────────────────────────────────────────
 walkInSaleSchema.index({ status: 1, createdAt: -1 });
+walkInSaleSchema.index({ status: 1, completedAt: -1 });
 
 // ─── Auto-generate Invoice Number ───────────────────────────────────────────
 walkInSaleSchema.pre("save", async function () {

@@ -212,10 +212,23 @@
   function goPage(p) { currentPage = p; loadList(); }
 
   async function viewDetail(id) {
+    if (viewDetail.requestController) viewDetail.requestController.abort();
+    const requestController = new AbortController();
+    viewDetail.requestController = requestController;
+    const detailModalEl = document.getElementById('detailModal');
+    document.getElementById('detailTitle').textContent = 'Completed Job Details';
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(detailModalEl, { loadingMessage: 'Loading completed job details…' });
+    } else {
+      bootstrap.Modal.getOrCreateInstance(detailModalEl).show();
+    }
     try {
-      const res = await fetch(`/api/admin/appointments/${id}`);
+      const res = await fetch(`/api/admin/appointments/${id}`, { signal: requestController.signal });
+      if (!res.ok) throw new Error('Failed to load job details');
       const data = await res.json();
+      if (viewDetail.requestController !== requestController) return;
       const b = data.booking;
+      if (!b) throw new Error('Job details were not returned');
       const date = new Date(b.bookingDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
       const completedAt = b.updatedAt ? new Date(b.updatedAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : '—';
       const f = data.financialSummary || {};
@@ -313,9 +326,13 @@
         </div>` : ''}
         <section class="mt-4"><h6 class="fw-bold mb-2"><i class="bi bi-calculator text-success me-2"></i>Financial Summary</h6><div class="ent-detail-grid"><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Revenue</span><span class="ent-detail-value">${money(f.revenue)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Labor Cost</span><span class="ent-detail-value">${money(f.laborCost)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Repair Parts Cost</span><span class="ent-detail-value">${money(f.repairPartsCost)}</span></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Consumables Cost</span><span class="ent-detail-value">${money(f.consumablesCost)}</span></div></div><div class="ent-detail-card ent-detail-card-wide" style="border-left:4px solid ${Number(f.grossProfit||0)>=0?'#10b981':'#ef4444'}"><div class="ent-detail-card-content"><span class="ent-detail-label">Gross Profit</span><span class="ent-detail-value" style="color:${Number(f.grossProfit||0)>=0?'#059669':'#dc2626'}">${money(f.grossProfit)} · ${Number(f.grossProfitMargin||0).toFixed(1)}%</span></div></div></div></section>
         <section class="mt-4"><h6 class="fw-bold mb-2"><i class="bi bi-clipboard-data text-primary me-2"></i>Operational Summary</h6><div class="ent-detail-card ent-detail-card-wide mb-2"><div class="ent-detail-card-content"><span class="ent-detail-label">Assigned Technician & Duration</span><span class="ent-detail-value">${o.assignedTechnician || 'Unassigned'} · ${Number(o.serviceDurationHours||0).toFixed(1)} hours</span></div></div><div class="ent-detail-grid"><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Consumables Used</span><ul class="mb-0 ps-3 ent-detail-sub">${resourceRows(o.consumablesUsed)}</ul></div></div><div class="ent-detail-card"><div class="ent-detail-card-content"><span class="ent-detail-label">Repair Parts Used</span><ul class="mb-0 ps-3 ent-detail-sub">${resourceRows(o.repairPartsUsed)}</ul></div></div><div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-content"><span class="ent-detail-label">Equipment Used (cost excluded)</span><ul class="mb-0 ps-3 ent-detail-sub">${(o.equipmentUsed||[]).length ? o.equipmentUsed.map(item=>`<li>${item.name} — ${item.technician} · ${item.checkoutStatus} / ${item.returnStatus}</li>`).join('') : '<li>None recorded</li>'}</ul></div></div></div></section>`;
-      new bootstrap.Modal(document.getElementById('detailModal')).show();
+      window.AdminModalUX?.settle(detailModalEl);
     } catch (e) {
-      showNotification({ type: 'error', title: 'Error', message: 'Failed to load job details.', duration: 4000 });
+      if (e && e.name === 'AbortError') return;
+      if (window.AdminModalUX) window.AdminModalUX.fail(detailModalEl, 'Could not load completed job details right now.');
+      else showNotification({ type: 'error', title: 'Error', message: 'Failed to load job details.', duration: 4000 });
+    } finally {
+      if (viewDetail.requestController === requestController) viewDetail.requestController = null;
     }
   }
 

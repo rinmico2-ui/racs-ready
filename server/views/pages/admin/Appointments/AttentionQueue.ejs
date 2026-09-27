@@ -193,7 +193,7 @@
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content ent-modal-content">
       <div class="modal-header ent-modal-header info">
-        <h5 class="modal-title ent-modal-title"><i class="bi bi-info-circle" style="font-size:1.2rem;"></i>Booking Details</h5>
+        <h5 class="modal-title ent-modal-title" id="detailModalTitle"><i class="bi bi-info-circle" style="font-size:1.2rem;"></i><span>Record Details</span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" id="detailBody" style="max-height:70vh;overflow-y:auto;background:#fff;">
@@ -656,7 +656,7 @@
 
   function renderOrderActions(item) {
     const allowed = new Set(item.allowedActions || []);
-    return `<a class="btn btn-outline-secondary" href="${RESOLUTION_ORDERS_PATH}?order=${encodeURIComponent(item.id)}"><i class="bi bi-eye me-1"></i>View order</a>${allowed.has('verify_payment') ? `<button class="btn btn-success" onclick="verifyOrderPayment('${item.id}')"><i class="bi bi-check2-circle me-1"></i>Verify payment</button>` : ''}${allowed.has('reschedule') ? `<button class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}')"><i class="bi bi-calendar2-week me-1"></i>Set future schedule</button>` : ''}${contactActions(item)}`;
+    return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button class="btn btn-success" onclick="verifyOrderPayment('${item.id}')"><i class="bi bi-check2-circle me-1"></i>Verify payment</button>` : ''}${allowed.has('reschedule') ? `<button class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}')"><i class="bi bi-calendar2-week me-1"></i>Set future schedule</button>` : ''}${contactActions(item)}`;
   }
 
   function findResolutionCase(source, id) {
@@ -942,6 +942,7 @@
   async function viewDetail(id) {
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
     const body = document.getElementById('detailBody');
+    document.querySelector('#detailModalTitle span').textContent = 'Booking Details';
     body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     modal.show();
     try {
@@ -1043,6 +1044,44 @@
         </div>`;
     } catch (e) {
       body.innerHTML = `<div class="text-center text-danger py-4">${e.message || 'Failed to load details'}</div>`;
+    }
+  }
+
+  async function viewOrderDetail(id) {
+    const modalElement = document.getElementById('detailModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    const body = document.getElementById('detailBody');
+    document.querySelector('#detailModalTitle span').textContent = 'Order Details';
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted small mt-3 mb-0">Loading order details...</p></div>';
+    modal.show();
+    try {
+      const response = await fetch(`/api/orders/${encodeURIComponent(id)}?view=modal`, { headers:{ Accept:'application/json' }, credentials:'same-origin' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.order) throw new Error(data.error || 'Order not found');
+      const order = data.order;
+      const customer = order.customer || {};
+      const delivery = order.delivery || {};
+      const reference = order.orderReference || `#${String(order._id || id).slice(-8).toUpperCase()}`;
+      const money = value => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })}`;
+      const detail = (icon, label, value, tone = '') => `<div class="ent-detail-card"><div class="ent-detail-card-icon" ${tone ? `style="${tone}"` : ''}><i class="bi ${icon}"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">${escapeHtml(label)}</div><div class="ent-detail-card-value">${escapeHtml(value || 'Not recorded')}</div></div></div>`;
+      const items = Array.isArray(order.items) ? order.items : [];
+      const scheduledDate = order.pickupDate || delivery.preferredDate || order.scheduledDate;
+      const address = delivery.address || order.deliveryAddress || (order.fulfillmentType === 'customer_pickup' ? 'Customer pickup at company location' : 'Not recorded');
+      body.innerHTML = `<div class="ent-detail-grid">
+        ${detail('bi-hash', 'Reference', reference)}
+        ${detail('bi-diagram-3', 'Status', niceLabel(order.status || 'pending'), 'background:#f1f5f9;color:#475569;')}
+        ${detail('bi-person', 'Customer', customer.name || order.customerName, 'background:#fff7ed;color:#c2410c;')}
+        ${detail('bi-telephone', 'Phone', customer.phone || delivery.contactNumber, 'background:#f0fdf4;color:#15803d;')}
+        ${detail('bi-truck', 'Fulfillment', niceLabel(order.fulfillmentType || 'order'), 'background:#eff6ff;color:#1d4ed8;')}
+        ${detail('bi-credit-card', 'Payment', niceLabel(order.paymentStatus || 'pending'), 'background:#f5f3ff;color:#7c3aed;')}
+        ${detail('bi-calendar3', 'Requested schedule', scheduledDate ? `${new Date(scheduledDate).toLocaleDateString('en-PH')} ${order.timeSlot || ''}`.trim() : 'Not scheduled', 'background:#ecfeff;color:#0e7490;')}
+        ${detail('bi-cash-stack', 'Order total', money(order.total), 'background:#f0fdf4;color:#15803d;')}
+        <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-box-seam"></i></div><div class="ent-detail-card-content" style="width:100%;"><div class="ent-detail-card-label">Order items (${items.length})</div>${items.length ? items.map(item => `<div class="d-flex justify-content-between gap-3 py-2 border-bottom"><span>${escapeHtml([item.brand, item.modelLine || item.name, item.capacity ? `${item.capacity}${item.capacityUnit || 'HP'}` : ''].filter(Boolean).join(' ') || 'Product')} <span class="text-muted">× ${Number(item.quantity || 1)}</span></span><strong class="text-nowrap">${money(item.totalPrice || (Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1)))}</strong></div>`).join('') : '<div class="text-muted small mt-2">No item details recorded.</div>'}</div></div>
+        <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Delivery / pickup location</div><div class="ent-detail-card-value">${escapeHtml(address)}</div></div></div>
+        ${delivery.notes ? `<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fffbeb;color:#b45309;"><i class="bi bi-sticky"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer note</div><div class="ent-detail-card-value">${escapeHtml(delivery.notes)}</div></div></div>` : ''}
+      </div>`;
+    } catch (error) {
+      body.innerHTML = `<div class="text-center py-5"><i class="bi bi-exclamation-triangle text-danger fs-2"></i><h6 class="mt-3">Unable to load this order</h6><p class="text-muted small mb-3">${escapeHtml(error.message || 'Please try again.')}</p><button type="button" class="btn btn-outline-primary btn-sm" onclick="viewOrderDetail('${escapeHtml(id)}')"><i class="bi bi-arrow-clockwise me-1"></i>Try again</button></div>`;
     }
   }
 

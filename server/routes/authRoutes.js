@@ -3,6 +3,10 @@ const router = express.Router();
 const { body } = require("express-validator");
 const authController = require("../controllers/authController");
 const googleAuthController = require("../controllers/googleAuthController");
+const {
+  REGISTRATION_PASSWORD_MESSAGE,
+  isValidRegistrationPassword,
+} = require("../utils/registrationPasswordPolicy");
 // secure (session) auth - optional new implementation
 const secureAuthRoutes = require("./secureAuth");
 
@@ -28,13 +32,9 @@ router.post(
       }),
     body("password")
       .isLength({ min: 8, max: 30 })
-      .withMessage("Invalid input")
-      .matches(
-        /^(?=(?:.*[A-Z]){1})(?!.*[A-Z].*[A-Z])(?!.*!.*!)(?!.*@.*@)(?!.*#.*#)(?!.*\$.*\$)[A-Za-z0-9@!#$]+$/,
-      )
-      .withMessage(
-        "Password must be 8–30 chars, include exactly one uppercase, and each of !,@,#,$ may appear at most once",
-      ),
+      .withMessage(REGISTRATION_PASSWORD_MESSAGE)
+      .custom(isValidRegistrationPassword)
+      .withMessage(REGISTRATION_PASSWORD_MESSAGE),
     body("mathCaptcha")
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 3 }) 

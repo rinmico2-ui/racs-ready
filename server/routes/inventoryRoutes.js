@@ -84,9 +84,10 @@ router.get('/snapshots', auth.authenticate, auth.requireRole(['admin', 'secretar
         const value = (t.sellingPrice || 0) * qty;
         totalValue += value;
         totalProfit += (value - cost);
-        if (qty === 0) outOfStock++;
-        else if (qty < (t.minStockLevel || 1)) lowStock++;
-        else inStock++;
+        const status = Tool.effectiveStockStatus({ ...t, quantity: qty });
+        if (status === 'out_of_stock') outOfStock++;
+        else if (status === 'low_stock') lowStock++;
+        else if (status === 'in_stock') inStock++;
       });
 
       snapshots.push({

@@ -331,6 +331,8 @@ async function buildAdminOperationsDashboard(now = new Date()) {
 }
 
 module.exports = {
+  TERMINAL_BOOKING_STATUSES,
+  TERMINAL_ORDER_STATUSES,
   buildAdminOperationsDashboard,
   buildSnapshot,
   localBounds,

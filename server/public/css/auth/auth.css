@@ -106,6 +106,9 @@ select.auth-field-input { appearance: none; padding-right: 36px; cursor: pointer
 .auth-select-chevron { position: absolute; right: 14px; color: #8794a6; font-size: 11px; pointer-events: none; }
 .auth-match-indicator { position: absolute; right: 41px; }
 .auth-field-hint { margin: 6px 0 0; color: var(--auth-subtle); font-size: 10.5px; }
+.auth-field-hint.is-success { color: var(--auth-success); }
+.auth-field-hint.is-warning { color: var(--auth-warning); }
+.auth-field-hint.is-error { color: var(--auth-danger); }
 .auth-field-input.error, .auth-field-input.auth-input-error, .auth-security-input.error { border-color: var(--auth-danger); background: var(--auth-danger-soft); box-shadow: 0 0 0 3px rgba(217,45,63,.08); }
 .auth-field-input.success { border-color: var(--auth-success); background: #fbfffd; }
 .field-error, .auth-field-error { display: flex; align-items: center; gap: 5px; margin-top: 6px; color: var(--auth-danger); font-size: 11px; line-height: 1.35; }

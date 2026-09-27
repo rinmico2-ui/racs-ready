@@ -2,6 +2,7 @@ const ServiceToolUsage = require("../models/ServiceToolUsage");
 const ServiceReport = require("../models/ServiceReport");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
 const { bookingCompletionDate, RECOGNIZED_BOOKING_STATUSES } = require("./enterpriseRevenue");
+const { allocateServiceRevenue } = require("./serviceAnalytics");
 
 function bookingRevenue(booking) {
   const items = booking.services || [];
@@ -34,6 +35,62 @@ function usageCost(item) {
 
 function directLaborCost(report) {
   return Number(report?.actualLaborCost || 0);
+}
+
+function buildServiceLineAllocations(booking, summary = {}) {
+  const revenue = Number(summary.revenue || 0);
+  const partsCost = Number(summary.partsCost || 0);
+  const consumablesCost = Number(summary.consumablesCost || 0);
+  const laborCost = Number(summary.laborCost || 0);
+  const localPurchaseCost = Number(summary.localPurchaseCost || 0);
+  const allocatedRevenue = allocateServiceRevenue(booking, revenue);
+  const rawAllocatedTotal = allocatedRevenue.reduce((sum, line) => sum + Number(line.allocatedRevenue || 0), 0);
+  const totalUnits = allocatedRevenue.reduce((sum, line) => sum + Math.max(1, Number(line.quantity) || 1), 0) || 1;
+  const itemCosts = summary.itemCosts instanceof Map ? summary.itemCosts : new Map();
+  const allocatedLineIds = new Set(allocatedRevenue.map((line) => String(line._id || "")).filter(Boolean));
+  const exactTotals = [...itemCosts.entries()].filter(([lineId]) => allocatedLineIds.has(String(lineId))).map(([, costs]) => costs).reduce((totals, costs) => ({
+    partsCost: totals.partsCost + Number(costs.partsCost || 0),
+    consumablesCost: totals.consumablesCost + Number(costs.consumablesCost || 0),
+    laborCost: totals.laborCost + Number(costs.laborCost || 0),
+  }), { partsCost: 0, consumablesCost: 0, laborCost: 0 });
+  const sharedCosts = {
+    partsCost: Math.max(0, partsCost - exactTotals.partsCost),
+    consumablesCost: Math.max(0, consumablesCost - exactTotals.consumablesCost),
+    laborCost: Math.max(0, laborCost - exactTotals.laborCost),
+  };
+  return allocatedRevenue.map((line) => {
+    const quantity = Math.max(1, Number(line.quantity) || 1);
+    const lineRevenue = rawAllocatedTotal > 0
+      ? Number(line.allocatedRevenue || 0) * (revenue / rawAllocatedTotal)
+      : revenue * (quantity / totalUnits);
+    const share = revenue > 0 ? lineRevenue / revenue : quantity / totalUnits;
+    const lineId = String(line._id || "");
+    const exact = itemCosts.get(lineId) || {};
+    const linePartsCost = Number(exact.partsCost || 0) + sharedCosts.partsCost * share;
+    const lineConsumablesCost = Number(exact.consumablesCost || 0) + sharedCosts.consumablesCost * share;
+    const lineLaborCost = Number(exact.laborCost || 0) + sharedCosts.laborCost * share;
+    const lineLocalPurchaseCost = localPurchaseCost * share;
+    const lineDirectCost = linePartsCost + lineConsumablesCost + lineLaborCost + lineLocalPurchaseCost;
+    const lineGrossProfit = lineRevenue - lineDirectCost;
+    const type = String(line.type || booking.serviceType || "core").toLowerCase();
+    return {
+      serviceItemId: line._id || line.serviceId || null,
+      serviceName: line.name || summary.fallbackName || "Service",
+      serviceCategory: type === "repair" ? "repair" : type === "mixed" ? "mix" : "core",
+      quantity,
+      completedAt: summary.completedAt,
+      revenue: lineRevenue,
+      partsCost: linePartsCost,
+      consumablesCost: lineConsumablesCost,
+      laborCost: lineLaborCost,
+      localPurchaseCost: lineLocalPurchaseCost,
+      grossProfit: lineGrossProfit,
+      grossProfitMargin: lineRevenue ? (lineGrossProfit / lineRevenue) * 100 : 0,
+      allocationMethod: allocatedRevenue.length > 1
+        ? (itemCosts.has(lineId) ? "service_item_then_revenue_share" : "revenue_share")
+        : "direct_booking",
+    };
+  });
 }
 
 async function buildServiceCostAnalytics(bookings, options = {}) {
@@ -102,7 +159,30 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     // revenue. Deduct only a separately recorded internal labor expense.
     const laborCost = bookingReports.reduce((sum, row) => sum + directLaborCost(row), 0);
     const grossProfit = revenue - partsCost - consumablesCost - laborCost - localPurchaseCost;
-    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: bookingCompletionDate(booking), revenue, partsCost, consumablesCost, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment };
+    const itemCosts = new Map();
+    const addItemCost = (serviceItemId, field, amount) => {
+      if (!serviceItemId || Number(amount || 0) <= 0) return;
+      const key = String(serviceItemId);
+      if (!itemCosts.has(key)) itemCosts.set(key, { partsCost: 0, consumablesCost: 0, laborCost: 0 });
+      itemCosts.get(key)[field] += Number(amount || 0);
+    };
+    serviceUsages.forEach((item) => {
+      if (item.itemType === "part") addItemCost(item.serviceItemId, "partsCost", usageCost(item));
+      if (item.itemType === "consumable") addItemCost(item.serviceItemId, "consumablesCost", usageCost(item));
+    });
+    bookingReports.forEach((row) => addItemCost(row.serviceItemId, "laborCost", directLaborCost(row)));
+    if (!serviceUsages.some((item) => item.itemType === "part")) {
+      bookingReports.forEach((row) => (row.partsReplaced || []).forEach((item) => {
+        addItemCost(row.serviceItemId, "partsCost", Number(item.cost || 0) * Number(item.quantity || 1));
+      }));
+    }
+    const serviceLines = buildServiceLineAllocations(booking, {
+      revenue, partsCost, consumablesCost, laborCost, localPurchaseCost,
+      fallbackName: serviceName(booking, report),
+      completedAt: bookingCompletionDate(booking),
+      itemCosts,
+    });
+    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: bookingCompletionDate(booking), revenue, partsCost, consumablesCost, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment, serviceLines };
   });
   const totals = services.reduce((sum, row) => ({ revenue: sum.revenue + row.revenue, partsCost: sum.partsCost + row.partsCost, consumablesCost: sum.consumablesCost + row.consumablesCost, laborCost: sum.laborCost + row.laborCost, localPurchaseCost: sum.localPurchaseCost + row.localPurchaseCost, grossProfit: sum.grossProfit + row.grossProfit }), { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, localPurchaseCost: 0, grossProfit: 0 });
   totals.grossProfitMargin = totals.revenue ? (totals.grossProfit / totals.revenue) * 100 : 0;
@@ -120,4 +200,4 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
   return result;
 }
 
-module.exports = { buildServiceCostAnalytics, bookingRevenue, directLaborCost };
+module.exports = { buildServiceCostAnalytics, bookingRevenue, buildServiceLineAllocations, directLaborCost };

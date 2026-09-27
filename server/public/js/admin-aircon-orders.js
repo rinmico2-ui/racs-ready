@@ -111,8 +111,54 @@ document.addEventListener("DOMContentLoaded", function () {
   let orderDetailRequest = 0;
   let orderDetailController = null;
 
+  const fallbackModals = new WeakMap();
+  function orderModal(element) {
+    if (!element) return null;
+    if (window.bootstrap && bootstrap.Modal) return bootstrap.Modal.getOrCreateInstance(element);
+    if (fallbackModals.has(element)) return fallbackModals.get(element);
+
+    let backdrop = null;
+    const controller = {
+      show() {
+        if (element.classList.contains('show')) return;
+        element.dispatchEvent(new CustomEvent('show.bs.modal', { bubbles:true }));
+        element.style.display = 'block';
+        element.removeAttribute('aria-hidden');
+        element.setAttribute('aria-modal', 'true');
+        element.setAttribute('role', 'dialog');
+        element.classList.add('show');
+        document.body.classList.add('modal-open');
+        backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.dataset.orderModalBackdrop = element.id || 'modal';
+        document.body.appendChild(backdrop);
+        element.dispatchEvent(new CustomEvent('shown.bs.modal', { bubbles:true }));
+        const focusTarget = element.querySelector('[autofocus], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
+        if (focusTarget) focusTarget.focus({ preventScroll:true });
+      },
+      hide() {
+        if (!element.classList.contains('show')) return;
+        element.dispatchEvent(new CustomEvent('hide.bs.modal', { bubbles:true }));
+        element.classList.remove('show');
+        element.style.display = 'none';
+        element.setAttribute('aria-hidden', 'true');
+        element.removeAttribute('aria-modal');
+        if (backdrop) backdrop.remove();
+        backdrop = null;
+        if (!document.querySelector('.modal.show')) document.body.classList.remove('modal-open');
+        element.dispatchEvent(new CustomEvent('hidden.bs.modal', { bubbles:true }));
+      },
+    };
+    element.addEventListener('click', event => {
+      const dismiss = event.target.closest('[data-bs-dismiss="modal"]');
+      if (dismiss && element.contains(dismiss)) controller.hide();
+    });
+    fallbackModals.set(element, controller);
+    return controller;
+  }
+
   const modalEl = document.getElementById("aoDetailsModal");
-  const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+  const modal = orderModal(modalEl);
   const modalBody = document.getElementById("aoModalBody");
   const modalFooter = document.getElementById("aoModalFooter");
   const modalSubtitle = document.getElementById("aoModalSubtitle");
@@ -122,7 +168,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   const assignTechModalEl = document.getElementById("aoAssignTechModal");
-  const assignTechModal = assignTechModalEl ? new bootstrap.Modal(assignTechModalEl) : null;
+  const assignTechModal = orderModal(assignTechModalEl);
   let _aoAssignTargetOrderId = null;
   let _aoSelectedTechId = null;
 
@@ -192,7 +238,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (options.load === false) return;
     if (!workflowAllowed(currentTab)) {
       const overviewButton = document.querySelector('[data-bs-target="#ao-tab-overview"]');
-      bootstrap.Tab.getOrCreateInstance(overviewButton).show();
+      if (window.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(overviewButton).show();
+      else if (window.AdminTabs) window.AdminTabs.show(overviewButton);
+      else overviewButton.click();
     } else {
       loadTab(currentTab);
     }
@@ -805,7 +853,7 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById('aoBulkPlanSummary').innerHTML = '';
     document.getElementById('aoBulkPlanBody').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload, conflicts and travel...</p></div>';
     document.getElementById('aoConfirmBulkPlan').disabled = true;
-    new bootstrap.Modal(document.getElementById('aoBulkAssignmentModal')).show();
+    orderModal(document.getElementById('aoBulkAssignmentModal'))?.show();
     try {
       await fetchOrderAssignmentPlan();
       renderOrderBulkPlan();
@@ -834,7 +882,7 @@ document.addEventListener("DOMContentLoaded", function () {
         failures.push(`${assignment.row.orderReference || assignment.row.orderId}: ${error.message}`);
       }
     }
-    bootstrap.Modal.getInstance(document.getElementById('aoBulkAssignmentModal'))?.hide();
+    orderModal(document.getElementById('aoBulkAssignmentModal'))?.hide();
     button.disabled = false;
     button.innerHTML = original;
     await Swal.fire({

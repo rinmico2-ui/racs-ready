@@ -13,6 +13,18 @@ const { getSystemConfiguration } = require("../utils/systemConfiguration");
 
 let farePerKm = 40;
 
+// Report pages are read-only and expensive to render. A short private browser
+// cache makes back/forward and repeated sidebar navigation instant while the
+// process-level analytics cache below keeps fresh computations bounded.
+router.use((req, res, next) => {
+  const isReportPage = req.method === "GET" && /^\/(?:admin|secretary)\/(?:reports|ratings)(?:\/|$)/.test(req.path);
+  if (isReportPage) {
+    res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=45");
+    res.vary("Cookie");
+  }
+  next();
+});
+
 function generateMathCaptcha() {
   const num1 = Math.floor(Math.random() * 90) + 10; // 10-99 (double digit)
   const num2 = Math.floor(Math.random() * 9) + 1;   // 1-9 (single digit)
@@ -749,7 +761,7 @@ router.get("/login", async (req, res) => {
     extraScripts: [
       "/js/auth-panel.js",
       "/js/login.js?v=20260906-login-policy",
-      "/js/register.js",
+      "/js/register.js?v=20260927-password-validation",
       "/js/psgc-handler.js",
     ],
   });
@@ -783,7 +795,7 @@ router.get("/register", async (req, res) => {
     extraScripts: [
       "/js/auth-panel.js",
       "/js/login.js?v=20260906-login-policy",
-      "/js/register.js",
+      "/js/register.js?v=20260927-password-validation",
       "/js/psgc-handler.js",
     ],
   });
@@ -2307,6 +2319,17 @@ router.get("/admin/roles", pageAuth.requireRole("admin"), async (req, res) => {
 
 // Admin - Reports
 router.get(
+  "/admin/reports",
+  pageAuth.requireRole("admin"),
+  (req, res) => {
+    res.render("pages/admin/Reports/ReportCenter", {
+      title: "Report Center",
+      layout: "layouts/admin",
+    });
+  },
+);
+
+router.get(
   "/admin/reports/orders",
   pageAuth.requireRole("admin"),
   async (req, res) => {
@@ -2400,16 +2423,18 @@ router.get(
         ...completionCandidates.map(order => String(order._id)),
         ...eligibleActivityIds.map(String),
       ])];
-      const payments = ledgerOrderIds.length
-        ? await Payment.find({ orderId: { $in: ledgerOrderIds }, status: { $in: ledgerStatuses } }).lean()
-        : [];
-      const productRefunds = ledgerOrderIds.length
-        ? await ProductRefund.find({ sourceType: "order", sourceId: { $in: ledgerOrderIds }, status: "completed" }).lean()
-        : [];
       const inventoryIds = [...new Set(completionCandidates.flatMap(order => (order.items || []).map(item => String(item.inventoryId || ""))).filter(mongoose.isValidObjectId))];
-      const inventoryItems = inventoryIds.length
-        ? await Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice").lean()
-        : [];
+      const [payments, productRefunds, inventoryItems] = await Promise.all([
+        ledgerOrderIds.length
+          ? Payment.find({ orderId: { $in: ledgerOrderIds }, status: { $in: ledgerStatuses } }).lean()
+          : [],
+        ledgerOrderIds.length
+          ? ProductRefund.find({ sourceType: "order", sourceId: { $in: ledgerOrderIds }, status: "completed" }).lean()
+          : [],
+        inventoryIds.length
+          ? Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice").lean()
+          : [],
+      ]);
       const analytics = buildOrderAnalytics({
         cohortOrders: orders,
         previousCohortOrders: previousOrders,
@@ -2678,9 +2703,22 @@ router.get(
       const valueBookings = bookings.filter(b => statusGroup(b.status) !== "cancelled");
 
       const filteredBookingIdsForRatings = bookings.map(b => b._id);
-      const ratingRows = filteredBookingIdsForRatings.length
-        ? await Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings }, moderationStatus: { $ne: "hidden" } }).select("targetId score").lean()
-        : [];
+      const Assignment = require("../models/Assignment");
+      const PartsRequest = require("../models/PartsRequest");
+      const workflowMatch = filteredBookingIdsForRatings.length ? { bookingId: { $in: filteredBookingIdsForRatings } } : { _id: null };
+      // Ratings, cost evidence, assignments, and parts requests are independent
+      // once the booking cohort is known. Run them in one database round-trip.
+      const [ratingRows, serviceCostAnalytics, workflowAssignments, partsRequests] = await Promise.all([
+        filteredBookingIdsForRatings.length
+          ? Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings }, moderationStatus: { $ne: "hidden" } }).select("targetId score").lean()
+          : [],
+        require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
+          revenueResolver: getBookingRevenue,
+          includeSourceRows: true,
+        }),
+        Assignment.find(workflowMatch).select("acceptedAt startedAt completedAt status slaBreached").lean(),
+        PartsRequest.find(workflowMatch).select("status requestedAt completedAt").lean(),
+      ]);
       const ratingTotals = new Map();
       ratingRows.forEach((row) => {
         const key = String(row.targetId);
@@ -3082,19 +3120,7 @@ router.get(
       // Fetch cost and workflow data concurrently. Cost analytics exposes the
       // ServiceReport and EquipmentAssignment rows it already loaded so the
       // controls below do not query the same collections a second time.
-      const filteredBookingIds = bookings.map(b => b._id);
       const completedBookingIds = bookings.filter(b => statusGroup(b.status) === "completed").map(b => b._id);
-      const Assignment = require("../models/Assignment");
-      const PartsRequest = require("../models/PartsRequest");
-      const workflowMatch = filteredBookingIds.length ? { bookingId: { $in: filteredBookingIds } } : { _id: null };
-      const [serviceCostAnalytics, workflowAssignments, partsRequests] = await Promise.all([
-        require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
-          revenueResolver: getBookingRevenue,
-          includeSourceRows: true,
-        }),
-        Assignment.find(workflowMatch).select("acceptedAt startedAt completedAt status slaBreached").lean(),
-        PartsRequest.find(workflowMatch).select("status requestedAt completedAt").lean(),
-      ]);
       const completedReports = serviceCostAnalytics.sourceRows?.reports || [];
       const completedEquipment = serviceCostAnalytics.sourceRows?.assignments || [];
       const completedAssignmentCycles = workflowAssignments
@@ -3318,8 +3344,10 @@ router.get(
       usageStart.setDate(usageStart.getDate() - Number(filterContext.range));
 
       // Populate catalog labels so filters and analysis use meaningful names.
-      let inventoryItems = await Inventory.find({ active: { $ne: false } }).populate("brand", "name").populate("category", "name").lean();
-      let tools = await Tool.find({ active: { $ne: false } }).lean();
+      let [inventoryItems, tools] = await Promise.all([
+        Inventory.find({ active: { $ne: false } }).populate("brand", "name").populate("category", "name").lean(),
+        Tool.find({ active: { $ne: false } }).lean(),
+      ]);
       tools.forEach(t => { t.inventoryClass = Tool.effectiveInventoryClass(t); });
       const rawInventory = inventoryItems.slice();
       const rawTools = tools.slice();
@@ -3443,13 +3471,18 @@ router.get(
       const inventoryHealthScore = totalItems > 0 ? Math.round((healthyItems / totalItems) * 100) : 0;
       
       // Tool usage analytics for selected reporting period and selected items.
-      const toolUsage = await ServiceToolUsage.find({
-        lifecycleStatus: { $ne: "voided" },
-        usedAt: { $gte: usageStart },
-        ...(tools.length ? { $or: [{ toolItemId: { $in: tools.map(t => t._id) } }, { inventoryItemId: { $in: tools.map(t => t._id) } }] } : { toolItemId: { $in: [] } })
-      }).lean();
-      const productOrders = await Order.find({ createdAt: { $gte: usageStart }, status: { $ne: "cancelled" }, "items.inventoryId": { $in: inventoryItems.map(i => i._id) } }).select("items createdAt status").lean();
-      const merchandiseSales = await WalkInSale.find({ createdAt: { $gte: usageStart }, status: "completed", "items.toolId": { $in: merchandiseTools.map(t => t._id) } }).select("items createdAt totalAmount").lean();
+      const selectedToolIds = tools.map(t => t._id);
+      const [toolUsage, productOrders, merchandiseSales, reservations, adjustments] = await Promise.all([
+        ServiceToolUsage.find({
+          lifecycleStatus: { $ne: "voided" },
+          usedAt: { $gte: usageStart },
+          ...(tools.length ? { $or: [{ toolItemId: { $in: selectedToolIds } }, { inventoryItemId: { $in: selectedToolIds } }] } : { toolItemId: { $in: [] } })
+        }).lean(),
+        Order.find({ createdAt: { $gte: usageStart }, status: { $ne: "cancelled" }, "items.inventoryId": { $in: inventoryItems.map(i => i._id) } }).select("items createdAt status").lean(),
+        WalkInSale.find({ createdAt: { $gte: usageStart }, status: "completed", "items.toolId": { $in: merchandiseTools.map(t => t._id) } }).select("items createdAt totalAmount").lean(),
+        StockReservation.find({ toolId: { $in: selectedToolIds }, status: "reserved" }).lean(),
+        StockAdjustment.find({ toolId: { $in: selectedToolIds }, createdAt: { $gte: usageStart } }).sort({ createdAt: 1 }).lean(),
+      ]);
       const merchandiseSummary = {
         skus: merchandiseTools.length,
         stock: merchandiseTools.reduce((s,t) => s + (Number(t.quantity)||0), 0),
@@ -3492,13 +3525,8 @@ router.get(
 
       // Decision analytics: committed stock, actual cover, reorder cash need,
       // slow/dead stock, overstock, pricing quality and supplier exposure.
-      const selectedToolIds = tools.map(t => t._id);
-      const [reservations, adjustments] = await Promise.all([
-        // Checked-out parts have already been deducted from on-hand quantity;
-        // only soft reservations are still committed stock.
-        StockReservation.find({ toolId: { $in: selectedToolIds }, status: "reserved" }).lean(),
-        StockAdjustment.find({ toolId: { $in: selectedToolIds }, createdAt: { $gte: usageStart } }).sort({ createdAt: 1 }).lean(),
-      ]);
+      // Checked-out parts have already been deducted from on-hand quantity;
+      // only soft reservations are still committed stock.
       const reservedByTool = {};
       reservations.forEach(r => { reservedByTool[String(r.toolId)] = (reservedByTool[String(r.toolId)] || 0) + (Number(r.quantity) || 0); });
       const usageByTool = {};
@@ -3607,23 +3635,15 @@ router.get(
 router.get(
   "/admin/reports/revenue",
   pageAuth.requireRole("admin"),
-  async (req, res) => {
-    try {
-      const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
-      const { analytics } = await buildRevenueAnalytics(req.query);
-      res.render("pages/admin/Reports/RevenueReports", {
-        title: "Revenue",
-        layout: "layouts/admin",
-        analytics
-      });
-    } catch (err) {
-      console.error("Revenue reports error:", err);
-      res.render("pages/admin/Reports/RevenueReports", {
-        title: "Revenue",
-        layout: "layouts/admin",
-        analytics: null
-      });
-    }
+  (req, res) => {
+    // Render the report shell immediately. The page already has a filtered API
+    // updater, so expensive financial analytics must not block navigation.
+    res.render("pages/admin/Reports/RevenueReports", {
+      title: "Revenue",
+      layout: "layouts/admin",
+      analytics: null,
+      deferredAnalytics: true,
+    });
   },
 );
 
@@ -4131,8 +4151,13 @@ router.get(
       const Inventory = require("../models/Inventory");
       const Tool = require("../models/Tool");
       const ServiceToolUsage = require("../models/ServiceToolUsage");
-      const inventoryItems = await Inventory.find({ active: { $ne: false } }).lean();
-      const tools = await Tool.find({ active: { $ne: false } }).lean();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const [inventoryItems, tools, toolUsage] = await Promise.all([
+        Inventory.find({ active: { $ne: false } }).lean(),
+        Tool.find({ active: { $ne: false } }).lean(),
+        ServiceToolUsage.find({ usedAt: { $gte: thirtyDaysAgo }, lifecycleStatus: { $ne: "voided" } }).lean(),
+      ]);
       const totalProducts = inventoryItems.length;
       const inStock = inventoryItems.filter(i => i.status === "in_stock").length;
       const lowStock = inventoryItems.filter(i => i.status === "low_stock").length;
@@ -4191,9 +4216,6 @@ router.get(
       const healthyItems = inStock + toolsInStock;
       const inventoryHealthScore = totalItems > 0 ? Math.round((healthyItems / totalItems) * 100) : 0;
       const profitPotential = (inventoryValue - inventoryCost) + (toolsValue - toolsCost);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const toolUsage = await ServiceToolUsage.find({ usedAt: { $gte: thirtyDaysAgo }, lifecycleStatus: { $ne: "voided" } }).lean();
       const totalToolUsage = toolUsage.reduce((sum, u) => sum + (u.quantityUsed || 0), 0);
       const toolUsageValue = toolUsage.reduce((sum, u) => sum + ((u.quantityUsed || 0) * (u.unitPrice || 0)), 0);
       const toolUsageMap = {};

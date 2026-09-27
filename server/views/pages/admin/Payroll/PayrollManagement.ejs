@@ -2126,11 +2126,24 @@
 
   // ── View Record ───────────────────────────────────────────────
   async function viewRecord(id) {
+    if (viewRecord.requestController) viewRecord.requestController.abort();
+    const requestController = new AbortController();
+    viewRecord.requestController = requestController;
+    const viewModalEl = document.getElementById('viewPayrollModal');
+    document.getElementById('viewModalTitle').textContent = 'Payroll Details';
+    document.getElementById('viewModalSub').textContent = 'Loading record…';
+    if (window.AdminModalUX) {
+      window.AdminModalUX.open(viewModalEl, { loadingMessage: 'Loading payroll record…' });
+    } else {
+      bootstrap.Modal.getOrCreateInstance(viewModalEl).show();
+    }
     try {
-      const res = await fetch(API + '/' + id, { credentials: 'same-origin' });
+      const res = await fetch(API + '/' + id, { credentials: 'same-origin', signal: requestController.signal });
+      if (!res.ok) throw new Error('Failed to load payroll record');
       const data = await res.json();
+      if (viewRecord.requestController !== requestController) return;
       const r = data.record;
-      if (!r) return;
+      if (!r) throw new Error('Payroll record was not returned');
 
       const emp = r.employee || {};
       const name = (emp.firstName || '') + ' ' + (emp.lastName || '');
@@ -2247,8 +2260,14 @@
         </div>
       `;
 
-      new bootstrap.Modal(document.getElementById('viewPayrollModal')).show();
-    } catch(e) { showCalcMsg('Failed to load record.', 'error'); }
+      window.AdminModalUX?.settle(viewModalEl);
+    } catch(e) {
+      if (e && e.name === 'AbortError') return;
+      if (window.AdminModalUX) window.AdminModalUX.fail(viewModalEl, 'Could not load this payroll record right now.');
+      else showCalcMsg('Failed to load record.', 'error');
+    } finally {
+      if (viewRecord.requestController === requestController) viewRecord.requestController = null;
+    }
   }
 
   // ── Approve ───────────────────────────────────────────────────

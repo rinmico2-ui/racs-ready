@@ -19,6 +19,8 @@ const {
   bookingApprovedValue, buildProjectPricingMap, isRepairBooking, normalizePaymentMethod,
 } = require("./revenueRecognition");
 const { buildServiceCostAnalytics } = require("./serviceCostAnalytics");
+const { buildRevenueForecast, buildServiceProfitability } = require("./revenueDecisionAnalytics");
+const { remember } = require("./reportCache");
 const {
   ACCEPTED_PAYMENT_STATUSES,
   bookingCompletionDate,
@@ -28,7 +30,9 @@ const {
   localDateKey,
   netPaymentsThrough,
   orderCompletionDate,
+  paymentAmounts,
   parseReportDate,
+  refundDate,
   summarizeOrderCosts,
   summarizePaymentLedger,
 } = require("./enterpriseRevenue");
@@ -77,7 +81,7 @@ function resolveDateRange({ from, to, period }) {
  *
  * @param {object} query — { from, to, source, paymentMethod, paymentStatus, serviceType, technician, period }
  */
-async function buildRevenueAnalytics(query = {}) {
+async function computeRevenueAnalytics(query = {}) {
   const { from, to, source, paymentMethod, paymentStatus, serviceType, technician, period } = query;
   const { startDate, endDate } = resolveDateRange({ from, to, period });
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) {
@@ -114,7 +118,15 @@ async function buildRevenueAnalytics(query = {}) {
   }
   if (psFilter !== "all") ordersQuery.paymentStatus = psFilter;
 
-  const posQuery = { createdAt: dateFilter, status: "completed" };
+  // Walk-in sales become revenue when checkout completes. Legacy rows without
+  // completedAt fall back to createdAt so historical counter sales remain visible.
+  const posQuery = {
+    status: "completed",
+    $or: [
+      { completedAt: dateFilter },
+      { completedAt: null, createdAt: dateFilter },
+    ],
+  };
   if (pmFilter !== "all") {
     const posAliases = { gcash: ["gcash"], cod: ["cash", "cod"], bank: ["bank", "bank_transfer"] };
     posQuery.paymentMethod = posAliases[pmFilter] ? { $in: posAliases[pmFilter] } : { $nin: ["gcash", "cash", "cod", "bank", "bank_transfer"] };
@@ -145,13 +157,14 @@ async function buildRevenueAnalytics(query = {}) {
   if (ordersQuery.paymentMethod) recognizedOrderQuery.paymentMethod = ordersQuery.paymentMethod;
   if (ordersQuery.paymentStatus) recognizedOrderQuery.paymentStatus = ordersQuery.paymentStatus;
 
-  const [bookings, rawPayments, orders, posSales, recognizedBookingRows, recognizedOrderRows] = await Promise.all([
+  const [bookings, rawPayments, orders, posSales, recognizedBookingRows, recognizedOrderRows, technicians] = await Promise.all([
     sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(bookingsQuery).lean(),
     Payment.find(paymentsQuery).lean(),
     sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(ordersQuery).lean(),
     sourceFilter === "service" || sourceFilter === "order" || serviceOnlyScope || !["all", "paid"].includes(psFilter) ? [] : WalkInSale.find(posQuery).lean(),
     sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(recognizedBookingQuery).lean(),
     sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(recognizedOrderQuery).lean(),
+    Technician.find({}, "name").sort({ name: 1 }).lean(),
   ]);
   const uniqueBookings = Array.from(new Map(
     [...bookings, ...recognizedBookingRows].map((booking) => [String(booking._id), booking]),
@@ -225,6 +238,11 @@ async function buildRevenueAnalytics(query = {}) {
   // ── Core metrics ──
   const serviceRevenue = filteredBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
   const orderRevenue = orders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0);
+  const walkInOrders = orders.filter((order) => order.salesChannel === "walk_in");
+  const walkInOrderRevenue = walkInOrders.reduce((sum, order) => sum + Number(order.total || order.totalAmount || 0), 0);
+  const onlineOrderRevenue = Math.max(0, orderRevenue - walkInOrderRevenue);
+  const walkInOrderTransactions = walkInOrders.length;
+  const onlineOrderTransactions = Math.max(0, orders.length - walkInOrderTransactions);
   const posRevenue = posSales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
   const posCost = posSales.reduce((sum, s) => sum + Number(s.totalCost || 0), 0);
   const posProfit = posRevenue - posCost;
@@ -290,7 +308,7 @@ async function buildRevenueAnalytics(query = {}) {
 
     const mBookings = filteredBookings.filter((b) => { const d = new Date(b.createdAt); return d >= monthStart && d < monthEnd; });
     const mOrders = orders.filter((o) => { const d = new Date(o.createdAt); return d >= monthStart && d < monthEnd; });
-    const mPos = posSales.filter((s) => { const d = new Date(s.createdAt); return d >= monthStart && d < monthEnd; });
+    const mPos = posSales.filter((s) => { const d = new Date(s.completedAt || s.createdAt); return d >= monthStart && d < monthEnd; });
     const mRecognizedBookings = recognizedBookings.filter((booking) => {
       const date = new Date(bookingCompletionDate(booking));
       return date >= monthStart && date < monthEnd;
@@ -514,7 +532,7 @@ async function buildRevenueAnalytics(query = {}) {
     })),
     ...posSales.map((s) => ({
       type: "pos", reference: s.invoiceNumber, customer: s.customerName || "Walk-In", amount: s.totalAmount || 0,
-      status: s.status, method: normalizePaymentMethod(s.paymentMethod) || "other", date: s.createdAt,
+      status: s.status, method: normalizePaymentMethod(s.paymentMethod) || "other", date: s.completedAt || s.createdAt,
     })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -618,10 +636,10 @@ async function buildRevenueAnalytics(query = {}) {
   const halfStart = new Date(startDate.getTime() + (endDate - startDate) / 2);
   const firstHalfRevenue = filteredBookings.filter((b) => new Date(b.createdAt) < halfStart).reduce((s, b) => s + getBookingRevenue(b), 0)
     + orders.filter((o) => new Date(o.createdAt) < halfStart).reduce((s, o) => s + (o.total || 0), 0)
-    + posSales.filter((s) => new Date(s.createdAt) < halfStart).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+    + posSales.filter((s) => new Date(s.completedAt || s.createdAt) < halfStart).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
   const secondHalfRevenue = filteredBookings.filter((b) => new Date(b.createdAt) >= halfStart).reduce((s, b) => s + getBookingRevenue(b), 0)
     + orders.filter((o) => new Date(o.createdAt) >= halfStart).reduce((s, o) => s + (o.total || 0), 0)
-    + posSales.filter((s) => new Date(s.createdAt) >= halfStart).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+    + posSales.filter((s) => new Date(s.completedAt || s.createdAt) >= halfStart).reduce((s, p) => s + Number(p.totalAmount || 0), 0);
   const growthRate = firstHalfRevenue > 0 ? ((secondHalfRevenue - firstHalfRevenue) / firstHalfRevenue * 100) : 0;
 
   // ── Derived executive metrics ──
@@ -655,6 +673,46 @@ async function buildRevenueAnalytics(query = {}) {
   const completionEvidenceCoverage = recognizedActivityCount > 0
     ? (evidencedRecognizedActivity / recognizedActivityCount) * 100
     : 100;
+
+  const projectToBooking = new Map(Array.from(projectPricingMap.entries()).map(([bookingId, entry]) => [String(entry.projectId), bookingId]));
+  const materialCostByBooking = new Map();
+  projectMaterials.forEach((material) => {
+    const bookingId = projectToBooking.get(String(material.projectId));
+    if (!bookingId) return;
+    const cost = Number(material.totalPrice || (Number(material.quantity || 0) * Number(material.unitPrice || 0)));
+    materialCostByBooking.set(bookingId, Number(materialCostByBooking.get(bookingId) || 0) + cost);
+  });
+  const refundByBooking = new Map();
+  payments.forEach((payment) => {
+    const refunded = paymentAmounts(payment).refunded;
+    if (refunded <= 0 || !inDateRange(refundDate(payment), startDate, endDate)) return;
+    const bookingId = payment.bookingId
+      ? String(payment.bookingId)
+      : projectToBooking.get(String(payment.projectId || ""));
+    if (!bookingId) return;
+    refundByBooking.set(bookingId, Number(refundByBooking.get(bookingId) || 0) + refunded);
+  });
+  const profitabilityServiceRows = serviceCostAnalytics.services.map((service) => {
+    const bookingId = String(service.bookingId);
+    const projectCost = Number(materialCostByBooking.get(bookingId) || 0);
+    const refund = Math.min(Number(service.revenue || 0), Number(refundByBooking.get(bookingId) || 0));
+    const lineRevenueTotal = (service.serviceLines || []).reduce((sum, line) => sum + Number(line.revenue || 0), 0);
+    const serviceLines = (service.serviceLines || []).map((line) => {
+      const share = lineRevenueTotal > 0 ? Number(line.revenue || 0) / lineRevenueTotal : 1 / Math.max(1, service.serviceLines.length);
+      const lineRefund = refund * share;
+      const lineProjectCost = projectCost * share;
+      const revenue = Math.max(0, Number(line.revenue || 0) - lineRefund);
+      const partsCost = Number(line.partsCost || 0) + lineProjectCost;
+      const directCost = partsCost + Number(line.consumablesCost || 0) + Number(line.laborCost || 0) + Number(line.localPurchaseCost || 0);
+      return { ...line, revenue, partsCost, refundAmount: lineRefund, projectMaterialCost: lineProjectCost, grossProfit: revenue - directCost };
+    });
+    const revenue = Math.max(0, Number(service.revenue || 0) - refund);
+    const partsCost = Number(service.partsCost || 0) + projectCost;
+    const directCost = partsCost + Number(service.consumablesCost || 0) + Number(service.laborCost || 0) + Number(service.localPurchaseCost || 0);
+    return { ...service, revenue, partsCost, refundAmount: refund, projectMaterialCost: projectCost, grossProfit: revenue - directCost, serviceLines };
+  });
+  const serviceProfitability = buildServiceProfitability(profitabilityServiceRows, { startDate, endDate });
+  const salesForecast = buildRevenueForecast(dailyRevenue, { anchorDate: endDate, horizonDays: 30 });
 
   // ── Executive insights (strategic call-outs shown at the top of the report) ──
   const executiveInsights = [];
@@ -693,16 +751,22 @@ async function buildRevenueAnalytics(query = {}) {
   if (pendingExpenseCount + draftPayrollCount > 0) {
     executiveInsights.push({ tone: "warning", title: "Financial close backlog", text: `${pendingExpenseCount} pending expense${pendingExpenseCount === 1 ? "" : "s"} and ${draftPayrollCount} draft payroll${draftPayrollCount === 1 ? "" : "s"} are excluded from operating profit until approved.` });
   }
+  if (serviceProfitability.leastProfitable && serviceProfitability.leastProfitable.grossProfitMargin < 15) {
+    const weakest = serviceProfitability.leastProfitable;
+    executiveInsights.push({ tone: weakest.grossProfit < 0 ? "danger" : "warning", title: "Service margin intervention", text: `${weakest.serviceName} is the lowest service contributor at ${weakest.grossProfitMargin.toFixed(1)}% known gross margin. ${weakest.action.detail}` });
+  }
+  if (salesForecast.projectedGrowthPercent !== null && Math.abs(salesForecast.projectedGrowthPercent) >= 10) {
+    executiveInsights.push({ tone: salesForecast.projectedGrowthPercent > 0 ? "success" : "warning", title: "30-day sales outlook", text: `Approved booked value is projected to ${salesForecast.projectedGrowthPercent > 0 ? "increase" : "decrease"} ${Math.abs(salesForecast.projectedGrowthPercent).toFixed(1)}% versus the latest comparable ${salesForecast.horizonDays}-day period (${salesForecast.confidence} confidence).` });
+  }
   if (!executiveInsights.length) executiveInsights.push({ tone: "info", title: "Stable performance", text: "No material revenue or collection exception was detected in this period." });
 
   // ── Technicians for filter dropdown ──
-  const technicians = await Technician.find({}, "name").sort({ name: 1 }).lean();
-
   return {
     filters: { startDate, endDate, source: sourceFilter, paymentMethod: pmFilter, paymentStatus: psFilter, serviceType: stFilter, technician: techFilter },
     technicians: technicians.map((t) => ({ id: t._id, name: t.name })),
     analytics: {
-      totalRevenue, serviceRevenue, orderRevenue, posRevenue, posCost, posProfit,
+      totalRevenue, serviceRevenue, orderRevenue, onlineOrderRevenue, walkInOrderRevenue,
+      onlineOrderTransactions, walkInOrderTransactions, posRevenue, posCost, posProfit,
       recognizedRevenue, recognizedGrossRevenue, recognizedServiceRevenue, recognizedOrderRevenue,
       grossCollections, refunds, refundRate, netCollections: paymentRevenue, cohortNetCollections,
       posMargin: posRevenue ? (posProfit / posRevenue) * 100 : 0,
@@ -729,6 +793,8 @@ async function buildRevenueAnalytics(query = {}) {
       orderCostBasis: orderCostSummary.basis, projectMaterialCost, approvedExpenseTotal, payrollCost,
       operatingExpenses, operatingProfit, operatingMargin, operatingProfitMargin: operatingMargin, costDataCoverage,
       serviceCosts: serviceCostAnalytics.totals,
+      serviceProfitability,
+      salesForecast,
       completedServiceCosts: serviceCostAnalytics.services.map(s => {
         const booking = recognizedBookings.find(b => String(b._id) === s.bookingId);
         return { ...s, serviceCategory: booking ? serviceCategory(booking) : "core" };
@@ -757,6 +823,13 @@ async function buildRevenueAnalytics(query = {}) {
   };
 }
 
+function buildRevenueAnalytics(query = {}) {
+  return remember("revenue-analytics", query, () => computeRevenueAnalytics(query), {
+    ttlMs: 30000,
+    maxEntries: 40,
+  });
+}
+
 async function buildRevenueDashboardSnapshot(now = new Date()) {
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -772,6 +845,8 @@ async function buildRevenueDashboardSnapshot(now = new Date()) {
   const lastSeven = (current.dailyRevenue || []).slice(-7);
 
   return {
+    periodStart: currentMonthStart.toISOString(),
+    periodEnd: now.toISOString(),
     revenueToday: Number(today.recognized || 0),
     monthlyRevenue: Number(current.recognizedRevenue || 0),
     lastMonthRevenue: Number(previous.recognizedRevenue || 0),
@@ -786,6 +861,8 @@ async function buildRevenueDashboardSnapshot(now = new Date()) {
     netCollections: Number(current.netCollections || 0),
     bookedValue: Number(current.totalRevenue || 0),
     costDataCoverage: Number(current.costDataCoverage || 0),
+    paymentExceptionCount: Number(current.paymentExceptionCount || 0),
+    pendingLedgerCount: Number(current.pendingLedgerCount || 0),
     revenueBreakdown: {
       services: Number(current.recognizedServiceRevenue || 0),
       orders: Number(current.recognizedOrderRevenue || 0),

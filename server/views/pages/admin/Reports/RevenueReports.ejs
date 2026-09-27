@@ -78,12 +78,14 @@
     .rr-chart{position:relative}
     .rr-chart::after{content:'Click chart for details';position:absolute;bottom:6px;right:8px;font-size:.6rem;color:#94a3b8;pointer-events:none;opacity:0;transition:opacity .2s}
     .rr-chart:hover::after{opacity:1}
+    .rr-data-state{display:flex;align-items:center;gap:12px;padding:13px 16px;margin:-8px 0 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:.78rem;font-weight:600}.rr-data-state[hidden]{display:none}.rr-data-state.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}.rr-data-state .spinner-border{width:1rem;height:1rem;border-width:2px}
   </style>
   <link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
   <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260906-decision-view">
-  <% const A=analytics||{}; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
+  <% const A=analytics||{}; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
-  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Revenue Intelligence</h1><p>Services, online orders, and point-of-sale performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/admin/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="/admin/inventory/pos"><i class="bi bi-shop me-1"></i> POS</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Export</button></div></div></div>
+  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Revenue Intelligence</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/admin/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="/admin/inventory/pos"><i class="bi bi-shop me-1"></i> POS</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Export</button></div></div></div>
+  <div class="rr-data-state" id="revenueDataState" role="status" aria-live="polite" <%= isDeferred ? '' : 'hidden' %>><span class="spinner-border" aria-hidden="true"></span><span>Loading live revenue, including completed walk-in and POS sales&hellip;</span></div>
 
   <!-- --- SECTION NAV --- -->
   <div class="report-nav" id="reportNav" role="tablist" aria-label="Revenue analysis sections">
@@ -129,8 +131,8 @@
         <select id="filterSource" class="form-select form-select-sm" style="border-radius:8px;border-color:#e2e8f0;font-size:0.8rem;min-width:130px;">
           <option value="all" selected>All Sources</option>
           <option value="service">Services / Projects</option>
-          <option value="order">Online Orders</option>
-          <option value="pos">POS Sales</option>
+          <option value="order">Product Orders (Online + Walk-in)</option>
+          <option value="pos">Walk-in Counter / POS Sales</option>
         </select>
       </div>
       <!-- Service Type -->
@@ -260,8 +262,8 @@
     <div class="rr-head"><div><span class="rr-eyebrow">Operational context</span><h3 id="revenueActivityTitle"><i class="bi bi-diagram-3 me-2 text-primary"></i>Activity behind revenue</h3><p>Valid activity created in the selected period; completed activity is shown separately.</p></div><span class="rr-badge">Volume context</span></div>
     <div class="rr-activity-grid" id="revenueActivitySnapshot">
       <article><span class="rr-activity-icon service"><i class="bi bi-calendar2-check"></i></span><div><small>Service bookings</small><strong><%= Number(A.serviceTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgServiceTicket) %> average booked value</p></div></article>
-      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Online orders</small><strong><%= Number(A.orderTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgOrderValue) %> average order value</p></div></article>
-      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>POS sales</small><strong><%= Number(A.posTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgPosSale) %> average sale</p></div></article>
+      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Product orders</small><strong><%= Number(A.orderTransactions||0).toLocaleString('en-PH') %></strong><p><%= Number(A.walkInOrderTransactions||0).toLocaleString('en-PH') %> walk-in · <%= peso(A.avgOrderValue) %> average</p></div></article>
+      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>Walk-in counter / POS sales</small><strong><%= Number(A.posTransactions||0).toLocaleString('en-PH') %></strong><p><%= peso(A.avgPosSale) %> average sale</p></div></article>
       <article><span class="rr-activity-icon completed"><i class="bi bi-check2-circle"></i></span><div><small>Completed activity</small><strong><%= Number(A.recognizedTransactions||0).toLocaleString('en-PH') %></strong><p>Revenue-recognized transactions</p></div></article>
     </div>
   </section>
@@ -296,19 +298,35 @@
       <div class="rr-meta"><%= pct(A.serviceShare) %> of total · Core <%= peso(A.coreRevenue) %> · Repair <%= peso(A.repairRevenue) %></div>
     </article>
     <article class="rr-source-card orders">
-      <div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Online Product Orders</div>
+      <div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div>
       <div class="rr-source-value"><%= peso(A.orderRevenue) %></div>
-      <div class="rr-meta"><%= A.orderTransactions||0 %> orders · <%= peso(A.avgOrderValue) %> avg order</div>
+      <div class="rr-meta"><%= A.onlineOrderTransactions||0 %> online · <%= A.walkInOrderTransactions||0 %> walk-in orders</div>
       <div class="rr-progress"><span style="width:<%= Math.min(100,A.orderShare||0) %>%;background:#10b981"></span></div>
-      <div class="rr-meta"><%= pct(A.orderShare) %> of total · Products <%= peso(A.productRevenue) %> · Delivery <%= peso(A.deliveryRevenue) %> · Install <%= peso(A.installationRevenue) %></div>
+      <div class="rr-meta"><%= pct(A.orderShare) %> of total · Online <%= peso(A.onlineOrderRevenue) %> · Walk-in <%= peso(A.walkInOrderRevenue) %></div>
     </article>
     <article class="rr-source-card pos">
-      <div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Point of Sale</div>
+      <div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in Counter / POS Sales</div>
       <div class="rr-source-value"><%= peso(A.posRevenue) %></div>
       <div class="rr-meta"><%= A.posTransactions||0 %> sales · <%= peso(A.avgPosSale) %> avg sale</div>
       <div class="rr-progress"><span style="width:<%= Math.min(100,A.posShare||0) %>%;background:#f59e0b"></span></div>
       <div class="rr-meta"><%= pct(A.posShare) %> of total · COGS <%= peso(A.posCost) %> · Profit <%= peso(A.posProfit) %> (<%= pct(A.posMargin) %> margin)</div>
     </article>
+  </div>
+
+  <% const F=A.salesForecast||{}; %>
+  <div class="rr-subsection" style="margin:20px 0 12px;"><h2><i class="bi bi-graph-up-arrow me-2"></i>30-Day Sales Outlook</h2><span class="text-muted small">Approved booked value forecast · planning estimate</span></div>
+  <div class="rr-forecast-layout">
+    <article class="rr-card">
+      <div class="rr-head"><div><span class="rr-eyebrow">Forward view</span><h3><i class="bi bi-stars me-2 text-primary"></i>Booked Value Forecast</h3><p id="forecastMethod"><%= F.method||'Forecast becomes available after revenue data loads.' %></p></div><span class="rr-badge" id="forecastConfidence"><%= F.confidence ? F.confidence+' confidence' : 'Awaiting data' %></span></div>
+      <div class="rr-chart rr-forecast-chart"><canvas id="revenueForecast"></canvas></div>
+      <div class="rr-forecast-caveat" id="forecastCaveat"><i class="bi bi-info-circle"></i><span><%= F.caveat||'This forecast is a planning aid and does not replace recognized-revenue reporting.' %></span></div>
+    </article>
+    <div class="rr-forecast-kpis" id="forecastKpis">
+      <article class="rr-card"><small>Projected booked value</small><strong><%= peso(F.total) %></strong><p>Next <%= F.horizonDays||30 %> days</p></article>
+      <article class="rr-card"><small>Expected range</small><strong><%= peso(F.lower) %>–<%= peso(F.upper) %></strong><p>Model uncertainty band</p></article>
+      <article class="rr-card"><small>Versus latest 30 days</small><strong class="<%= Number(F.projectedGrowthPercent||0)>=0?'positive':'negative' %>"><%= F.projectedGrowthPercent==null?'—':(Number(F.projectedGrowthPercent)>=0?'+':'')+pct(F.projectedGrowthPercent) %></strong><p><%= peso(F.comparisonTotal) %> recent actual</p></article>
+      <article class="rr-card"><small>Historical basis</small><strong><%= F.basisDays||0 %> days</strong><p><%= F.activeDays||0 %> revenue-active days</p></article>
+    </div>
   </div>
 
   <!-- ═══ SECTION 3: CASH COLLECTION & PAYMENT INTELLIGENCE ═══ -->
@@ -378,8 +396,32 @@
 
   <!-- ═══ SECTION 5: SERVICE PROFITABILITY DEEP DIVE ═══ -->
   <div id="section-service-profit" class="rr-section"><h2><i class="bi bi-clipboard-check me-2" style="color:#2563eb;"></i>Service Profitability Deep Dive</h2><span class="text-muted small">Per-service financial breakdown with resource detail — core vs repair contribution</span></div>
-  <article class="rr-card">
-    <div class="rr-head"><h3><i class="bi bi-list-check me-2 text-primary"></i>Completed Service Profitability</h3><div class="d-flex align-items-center gap-2"><span class="rr-badge" id="serviceProfitabilityBadge">Latest 5 of <%= (A.completedServiceCosts||[]).length %></span><button class="btn btn-primary btn-sm" id="serviceProfitabilityViewAllBtn" data-bs-toggle="modal" data-bs-target="#serviceProfitabilityModal" style="display:<%= (A.completedServiceCosts||[]).length>5?'inline-flex':'none' %>;"><i class="bi bi-arrows-angle-expand me-1"></i>View All</button></div></div>
+  <% const SP=A.serviceProfitability||{}; const SPR=SP.rows||[]; %>
+  <div class="rr-profit-kpis" id="servicePortfolioKpis">
+    <article class="rr-card"><span class="rr-profit-kpi-icon leader"><i class="bi bi-trophy"></i></span><div><small>Highest known profit</small><strong><%= SP.mostProfitable?.serviceName||'No completed data' %></strong><p><%= SP.mostProfitable?peso(SP.mostProfitable.grossProfit)+' · '+pct(SP.mostProfitable.grossProfitMargin)+' margin':'—' %></p></div></article>
+    <article class="rr-card"><span class="rr-profit-kpi-icon review"><i class="bi bi-graph-down-arrow"></i></span><div><small>Lowest known contribution</small><strong><%= SP.leastProfitable?.serviceName||'No completed data' %></strong><p><%= SP.leastProfitable?peso(SP.leastProfitable.grossProfit)+' · '+pct(SP.leastProfitable.grossProfitMargin)+' margin':'—' %></p></div></article>
+    <article class="rr-card"><span class="rr-profit-kpi-icon margin"><i class="bi bi-percent"></i></span><div><small>Highest known margin</small><strong><%= SP.highestMargin?.serviceName||'No completed data' %></strong><p><%= SP.highestMargin?pct(SP.highestMargin.grossProfitMargin)+' · '+SP.highestMargin.jobs+' jobs':'—' %></p></div></article>
+    <article class="rr-card"><span class="rr-profit-kpi-icon risk"><i class="bi bi-exclamation-triangle"></i></span><div><small>Services requiring action</small><strong><%= SP.atRiskCount||0 %></strong><p>Negative or below 15% known margin</p></div></article>
+  </div>
+  <div class="rr-equal mt-3">
+    <article class="rr-card">
+      <div class="rr-head"><div><span class="rr-eyebrow">Portfolio comparison</span><h3><i class="bi bi-bar-chart-steps me-2 text-primary"></i>Profit by Service</h3><p>Ranked using completed jobs and known direct cost</p></div><span class="rr-badge" id="servicePortfolioBadge"><%= SPR.length %> service lines</span></div>
+      <div class="rr-chart"><canvas id="serviceProfitRanking"></canvas></div>
+    </article>
+    <article class="rr-card">
+      <div class="rr-head"><div><span class="rr-eyebrow">Decision support</span><h3><i class="bi bi-lightbulb me-2 text-warning"></i>Service Actions</h3><p>What management should review next</p></div></div>
+      <div class="rr-decision-list" id="serviceDecisionInsights"><% if(!(SP.insights||[]).length){ %><div class="rr-empty">Insights appear when completed service cost data is available.</div><% } (SP.insights||[]).forEach(function(insight){ %><article class="<%= insight.tone %>"><i class="bi <%= insight.tone==='danger'?'bi-exclamation-octagon':insight.tone==='success'?'bi-arrow-up-right-circle':'bi-info-circle' %>"></i><div><strong><%= insight.title %></strong><p><%= insight.text %></p><span>Recommended: <%= insight.action %></span></div></article><% }); %></div>
+    </article>
+  </div>
+  <article class="rr-card mt-3">
+    <div class="rr-head"><div><span class="rr-eyebrow">Service portfolio</span><h3><i class="bi bi-sort-down me-2 text-primary"></i>Profitability Ranking &amp; Recommended Action</h3><p>Revenue and shared booking-level costs reconcile to completed service totals</p></div><span class="rr-badge">Click Details for underlying jobs</span></div>
+    <div class="rr-body table-responsive">
+      <table class="rr-table rr-portfolio-table"><thead><tr><th>Rank</th><th>Service</th><th class="text-center">Jobs / Units</th><th class="text-end">Revenue</th><th class="text-end">Known Direct Cost</th><th class="text-end">Gross Profit</th><th>Decision</th><th></th></tr></thead><tbody id="servicePortfolioBody"><% if(!SPR.length){ %><tr><td colspan="8" class="rr-empty">No completed service profitability data in this period.</td></tr><% } SPR.forEach(function(row,index){ %><tr><td><span class="rr-rank <%= index<3?'top':'' %>"><%= row.rank %></span></td><td><strong><%= row.serviceName %></strong><div class="rr-meta"><%= row.serviceCategory %> · <%= pct(row.costEvidenceCoverage) %> cost evidence</div></td><td class="text-center"><%= row.jobs %> / <%= row.units %></td><td class="text-end"><%= peso(row.revenue) %></td><td class="text-end"><%= peso(row.directCost) %></td><td class="text-end fw-bold <%= row.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(row.grossProfit) %><div class="rr-meta"><%= pct(row.grossProfitMargin) %> margin</div></td><td><span class="rr-action <%= row.action?.tone||'info' %>"><%= row.action?.label||'Monitor' %></span><div class="rr-meta rr-action-detail"><%= row.action?.detail||'' %></div></td><td><button type="button" class="btn btn-sm btn-outline-primary service-drilldown-btn" data-service-index="<%= index %>">Details</button></td></tr><% }); %></tbody></table>
+    </div>
+    <div class="rr-allocation-note"><i class="bi bi-calculator"></i><span><strong>Allocation policy:</strong> stored service-line prices determine revenue share; residual booking value is distributed by quantity. Service-item costs are assigned directly, while costs recorded only at booking level are allocated by revenue share. Use this for management decisions, not audited job costing.</span></div>
+  </article>
+  <article class="rr-card mt-3">
+    <div class="rr-head"><div><span class="rr-eyebrow">Job-cost evidence</span><h3><i class="bi bi-list-check me-2 text-primary"></i>Completed Booking Detail</h3><p>Underlying booking-level costs used by the portfolio ranking</p></div><div class="d-flex align-items-center gap-2"><span class="rr-badge" id="serviceProfitabilityBadge">Latest 5 of <%= (A.completedServiceCosts||[]).length %></span><button class="btn btn-primary btn-sm" id="serviceProfitabilityViewAllBtn" data-bs-toggle="modal" data-bs-target="#serviceProfitabilityModal" style="display:<%= (A.completedServiceCosts||[]).length>5?'inline-flex':'none' %>;"><i class="bi bi-arrows-angle-expand me-1"></i>View All</button></div></div>
     <div class="rr-body table-responsive">
       <table class="rr-table"><thead><tr><th>Service</th><th class="text-end">Revenue</th><th class="text-end">Repair Parts</th><th class="text-end">Consumables</th><th class="text-end">Labor</th><th class="text-end">Gross Profit</th></tr></thead><tbody id="serviceProfitabilityBody"><% if(!(A.completedServiceCosts||[]).length){ %><tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr><% } (A.completedServiceCosts||[]).slice(0,5).forEach(function(s){ %><tr><td><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div>Technician: <%= s.technician %> · Duration: <%= s.laborHours.toFixed(1) %>h</div><div>Consumables: <%= s.consumables.length ? s.consumables.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div><div>Repair parts: <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table>
     </div>
@@ -544,6 +586,22 @@
   <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content border-0" style="border-radius:16px;overflow:hidden"><div class="modal-header"><div><h5 class="modal-title"><i class="bi bi-calculator me-2"></i>All Completed Service Profitability</h5><div class="small text-white-50">Financial and resource detail · 10 services per page</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><div class="table-responsive"><table class="rr-table mb-0"><thead><tr><th class="ps-4">Service</th><th class="text-end">Revenue</th><th class="text-end">Repair Parts</th><th class="text-end">Consumables</th><th class="text-end">Labor</th><th class="text-end pe-4">Gross Profit</th></tr></thead><tbody id="serviceProfitabilityRows"><% (A.completedServiceCosts||[]).forEach(function(s,index){ %><tr class="profitability-modal-row" data-row-index="<%= index %>"><td class="ps-4"><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Consumables:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div><div><strong>Repair parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end pe-4 fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table></div></div><div class="modal-footer d-flex justify-content-between"><span class="small text-muted" id="profitabilityPageInfo"></span><nav aria-label="Completed service profitability pages"><ul class="pagination pagination-sm mb-0" id="profitabilityPagination"></ul></nav></div></div></div>
 </div>
 
+<div class="modal fade" id="serviceLineDrilldownModal" tabindex="-1" aria-hidden="true" aria-labelledby="serviceLineDrilldownTitle">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content border-0 rr-drilldown-modal">
+      <div class="modal-header">
+        <div><span class="rr-eyebrow text-white-50">Underlying completed jobs</span><h5 class="modal-title" id="serviceLineDrilldownTitle">Service Profitability Detail</h5><div class="small text-white-50" id="serviceLineDrilldownSubtitle"></div></div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="rr-drilldown-summary" id="serviceLineDrilldownSummary"></div>
+        <div class="table-responsive"><table class="rr-table mb-0"><thead><tr><th class="ps-4">Completed</th><th>Reference</th><th>Customer</th><th>Technician</th><th class="text-center">Units</th><th class="text-end">Revenue</th><th class="text-end">Known Cost</th><th class="text-end pe-4">Gross Profit</th></tr></thead><tbody id="serviceLineDrilldownBody"></tbody></table></div>
+      </div>
+      <div class="modal-footer"><span class="small text-muted">Service-item costs are direct; only shared booking costs are allocated by service revenue share.</span><button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
 <!-- Chart Detail Modal -->
 <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -579,6 +637,14 @@
 <script>
 (()=>{
   const A=<%- JSON.stringify(analytics||{}).replace(/</g,'\\u003c') %>;
+  if (<%- JSON.stringify(isDeferred) %>) {
+    // Start the database work before Chart.js downloads so network and server
+    // latency overlap instead of making the user wait for them sequentially.
+    window.__revenueInitialRequest = fetch('/api/admin/reports/revenue', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    }).then(async response => ({ response, data: await response.json().catch(() => ({})) }));
+  }
   const labels=Object.keys(A.monthlyRevenue||{}).reverse();
   const months=Object.values(A.monthlyRevenue||{}).reverse();
   const costs=Object.values(A.monthlyPartsCost||{}).reverse();
@@ -633,6 +699,7 @@
 
   // ── Populate technician dropdown from initial analytics ──
   const initA = <%- JSON.stringify(analytics || {}).replace(/</g, '\\u003c') %>;
+  const deferredAnalytics = <%- JSON.stringify(isDeferred) %>;
   if (initA.topTechnicians) {
     const techSelect = document.getElementById('filterTechnician');
     initA.topTechnicians.forEach(t => {
@@ -652,9 +719,16 @@
   document.getElementById('applyFilters').addEventListener('click', applyFilters);
   document.getElementById('resetFilters').addEventListener('click', resetFilters);
 
-  async function applyFilters() {
+  async function applyFilters(options = {}) {
     const btn = document.getElementById('applyFilters');
+    const dataState = document.getElementById('revenueDataState');
     btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Loading...';
+    document.querySelector('.revenue-report')?.setAttribute('aria-busy', 'true');
+    if (dataState && options.initialLoad) {
+      dataState.hidden = false;
+      dataState.classList.remove('error');
+      dataState.innerHTML = '<span class="spinner-border" aria-hidden="true"></span><span>Loading live revenue, including completed walk-in and POS sales&hellip;</span>';
+    }
 
     const params = new URLSearchParams();
     const period = document.getElementById('filterPeriod').value;
@@ -678,20 +752,36 @@
     if (tech !== 'all') params.set('technician', tech);
 
     try {
-      const resp = await fetch(`/api/admin/reports/revenue?${params.toString()}`, { credentials: 'same-origin' });
-      const data = await resp.json();
+      let resp;
+      let data;
+      if (options.initialLoad && window.__revenueInitialRequest && !params.toString()) {
+        const initialResult = await window.__revenueInitialRequest;
+        window.__revenueInitialRequest = null;
+        resp = initialResult.response;
+        data = initialResult.data;
+      } else {
+        resp = await fetch(`/api/admin/reports/revenue?${params.toString()}`, { credentials: 'same-origin' });
+        data = await resp.json().catch(() => ({}));
+      }
       if (resp.ok && data.success) {
         updateDashboard(data.analytics, data.technicians);
         showFilterStatus(data.filters);
+        if (dataState) dataState.hidden = true;
       } else {
-        alert('Failed to load filtered data.');
+        throw new Error(data.error || 'Failed to load filtered data.');
       }
     } catch (e) {
       console.error('Filter error:', e);
-      alert('Network error.');
+      if (dataState) {
+        dataState.hidden = false;
+        dataState.classList.add('error');
+        dataState.innerHTML = '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>Revenue data could not be loaded. Use Apply to retry.</span>';
+      }
+      if (!options.initialLoad) alert(e.message || 'Network error.');
     }
 
     btn.disabled = false; btn.innerHTML = '<i class="bi bi-funnel me-1"></i> Apply';
+    document.querySelector('.revenue-report')?.removeAttribute('aria-busy');
   }
 
   function resetFilters() {
@@ -804,8 +894,8 @@
     const activitySnapshot = document.getElementById('revenueActivitySnapshot');
     if (activitySnapshot) activitySnapshot.innerHTML = `
       <article><span class="rr-activity-icon service"><i class="bi bi-calendar2-check"></i></span><div><small>Service bookings</small><strong>${Number(A.serviceTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgServiceTicket)} average booked value</p></div></article>
-      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Online orders</small><strong>${Number(A.orderTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgOrderValue)} average order value</p></div></article>
-      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>POS sales</small><strong>${Number(A.posTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgPosSale)} average sale</p></div></article>
+      <article><span class="rr-activity-icon orders"><i class="bi bi-bag-check"></i></span><div><small>Product orders</small><strong>${Number(A.orderTransactions||0).toLocaleString('en-PH')}</strong><p>${Number(A.walkInOrderTransactions||0).toLocaleString('en-PH')} walk-in · ${peso(A.avgOrderValue)} average</p></div></article>
+      <article><span class="rr-activity-icon pos"><i class="bi bi-shop"></i></span><div><small>Walk-in counter / POS</small><strong>${Number(A.posTransactions||0).toLocaleString('en-PH')}</strong><p>${peso(A.avgPosSale)} average sale</p></div></article>
       <article><span class="rr-activity-icon completed"><i class="bi bi-check2-circle"></i></span><div><small>Completed activity</small><strong>${Number(A.recognizedTransactions||0).toLocaleString('en-PH')}</strong><p>Revenue-recognized transactions</p></div></article>`;
 
     const controlGrid = document.getElementById('revenueControlGrid');
@@ -818,7 +908,7 @@
     if (controlBadge) controlBadge.textContent = `${pct(A.completionEvidenceCoverage === undefined ? 100 : A.completionEvidenceCoverage)} completion traceability`;
 
     // Update source cards
-    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(A.serviceRevenue)}</div><div class="rr-meta">${A.serviceTransactions || 0} bookings · ${peso(A.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, A.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(A.serviceShare)} of combined revenue · Core ${peso(A.coreRevenue)} · Repair ${peso(A.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Online Product Orders</div><div class="rr-source-value">${peso(A.orderRevenue)}</div><div class="rr-meta">${A.orderTransactions || 0} orders · ${peso(A.avgOrderValue)} average order value</div><div class="rr-progress"><span style="width:${Math.min(100, A.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(A.orderShare)} of combined revenue · Products ${peso(A.productRevenue)} · Delivery ${peso(A.deliveryRevenue)} · Installation ${peso(A.installationRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Point of Sale</div><div class="rr-source-value">${peso(A.posRevenue)}</div><div class="rr-meta">${A.posTransactions || 0} completed sales · ${peso(A.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, A.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(A.posShare)} of combined revenue · COGS ${peso(A.posCost)} · Profit ${peso(A.posProfit)} (${pct(A.posMargin)})</div></article>`;
+    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(A.serviceRevenue)}</div><div class="rr-meta">${A.serviceTransactions || 0} bookings · ${peso(A.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, A.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(A.serviceShare)} of combined revenue · Core ${peso(A.coreRevenue)} · Repair ${peso(A.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div><div class="rr-source-value">${peso(A.orderRevenue)}</div><div class="rr-meta">${A.onlineOrderTransactions || 0} online · ${A.walkInOrderTransactions || 0} walk-in orders</div><div class="rr-progress"><span style="width:${Math.min(100, A.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(A.orderShare)} of combined revenue · Online ${peso(A.onlineOrderRevenue)} · Walk-in ${peso(A.walkInOrderRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in Counter / POS Sales</div><div class="rr-source-value">${peso(A.posRevenue)}</div><div class="rr-meta">${A.posTransactions || 0} completed sales · ${peso(A.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, A.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(A.posShare)} of combined revenue · COGS ${peso(A.posCost)} · Profit ${peso(A.posProfit)} (${pct(A.posMargin)})</div></article>`;
     document.querySelector('.rr-source').innerHTML = sourceCards;
 
     const collectionBody = document.getElementById('collectionHealthBody');
@@ -878,6 +968,9 @@
     const posBadge = document.getElementById('posSummaryBadge');
     if (posBadge) posBadge.textContent = `${A.posTransactions||0} sales · ${peso(A.posRevenue)} total`;
 
+    renderForecastSummary(A);
+    renderServicePortfolio(A);
+
     // Update product intelligence section
     updateProductSection(A);
 
@@ -900,6 +993,54 @@
   }
 
   // ── Update product intelligence section ──
+  function renderForecastSummary(A) {
+    const forecast = A.salesForecast || {};
+    const growth = forecast.projectedGrowthPercent;
+    const kpis = document.getElementById('forecastKpis');
+    if (kpis) kpis.innerHTML = `
+      <article class="rr-card"><small>Projected booked value</small><strong>${peso(forecast.total)}</strong><p>Next ${forecast.horizonDays||30} days</p></article>
+      <article class="rr-card"><small>Expected range</small><strong>${peso(forecast.lower)}–${peso(forecast.upper)}</strong><p>Model uncertainty band</p></article>
+      <article class="rr-card"><small>Versus latest ${forecast.horizonDays||30} days</small><strong class="${Number(growth||0)>=0?'positive':'negative'}">${growth==null?'—':`${Number(growth)>=0?'+':''}${pct(growth)}`}</strong><p>${peso(forecast.comparisonTotal)} recent actual</p></article>
+      <article class="rr-card"><small>Historical basis</small><strong>${Number(forecast.basisDays||0)} days</strong><p>${Number(forecast.activeDays||0)} revenue-active days</p></article>`;
+    const confidence = document.getElementById('forecastConfidence');
+    if (confidence) confidence.textContent = forecast.confidence ? `${forecast.confidence} confidence` : 'Insufficient history';
+    const method = document.getElementById('forecastMethod');
+    if (method) method.textContent = forecast.method || 'Forecast becomes available after revenue data loads.';
+    const caveat = document.getElementById('forecastCaveat');
+    if (caveat) caveat.innerHTML = `<i class="bi bi-info-circle"></i><span>${esc(forecast.caveat || 'This forecast is a planning aid and does not replace recognized-revenue reporting.')}</span>`;
+  }
+
+  function renderServicePortfolio(A) {
+    const portfolio = A.serviceProfitability || {};
+    const rows = portfolio.rows || [];
+    const leader = portfolio.mostProfitable;
+    const laggard = portfolio.leastProfitable;
+    const highest = portfolio.highestMargin;
+    const kpis = document.getElementById('servicePortfolioKpis');
+    if (kpis) kpis.innerHTML = `
+      <article class="rr-card"><span class="rr-profit-kpi-icon leader"><i class="bi bi-trophy"></i></span><div><small>Highest known profit</small><strong>${esc(leader?.serviceName||'No completed data')}</strong><p>${leader?`${peso(leader.grossProfit)} · ${pct(leader.grossProfitMargin)} margin`:'—'}</p></div></article>
+      <article class="rr-card"><span class="rr-profit-kpi-icon review"><i class="bi bi-graph-down-arrow"></i></span><div><small>Lowest known contribution</small><strong>${esc(laggard?.serviceName||'No completed data')}</strong><p>${laggard?`${peso(laggard.grossProfit)} · ${pct(laggard.grossProfitMargin)} margin`:'—'}</p></div></article>
+      <article class="rr-card"><span class="rr-profit-kpi-icon margin"><i class="bi bi-percent"></i></span><div><small>Highest known margin</small><strong>${esc(highest?.serviceName||'No completed data')}</strong><p>${highest?`${pct(highest.grossProfitMargin)} · ${highest.jobs} jobs`:'—'}</p></div></article>
+      <article class="rr-card"><span class="rr-profit-kpi-icon risk"><i class="bi bi-exclamation-triangle"></i></span><div><small>Services requiring action</small><strong>${Number(portfolio.atRiskCount||0)}</strong><p>Negative or below 15% known margin</p></div></article>`;
+    const badge = document.getElementById('servicePortfolioBadge');
+    if (badge) badge.textContent = `${rows.length} service lines`;
+    const body = document.getElementById('servicePortfolioBody');
+    if (body) body.innerHTML = rows.length ? rows.map((row, index) => `<tr>
+      <td><span class="rr-rank ${index<3?'top':''}">${row.rank}</span></td>
+      <td><strong>${esc(row.serviceName)}</strong><div class="rr-meta">${esc(row.serviceCategory)} · ${pct(row.costEvidenceCoverage)} cost evidence</div></td>
+      <td class="text-center">${Number(row.jobs||0)} / ${Number(row.units||0)}</td>
+      <td class="text-end">${peso(row.revenue)}</td><td class="text-end">${peso(row.directCost)}</td>
+      <td class="text-end fw-bold ${Number(row.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(row.grossProfit)}<div class="rr-meta">${pct(row.grossProfitMargin)} margin</div></td>
+      <td><span class="rr-action ${esc(row.action?.tone||'info')}">${esc(row.action?.label||'Monitor')}</span><div class="rr-meta rr-action-detail">${esc(row.action?.detail||'')}</div></td>
+      <td><button type="button" class="btn btn-sm btn-outline-primary service-drilldown-btn" data-service-index="${index}">Details</button></td></tr>`).join('') : '<tr><td colspan="8" class="rr-empty">No completed service profitability data in this period.</td></tr>';
+    const insights = document.getElementById('serviceDecisionInsights');
+    if (insights) insights.innerHTML = (portfolio.insights || []).length ? portfolio.insights.map(insight => {
+      const tone = ['success','warning','danger'].includes(insight.tone) ? insight.tone : 'info';
+      const icon = tone === 'danger' ? 'bi-exclamation-octagon' : tone === 'success' ? 'bi-arrow-up-right-circle' : 'bi-info-circle';
+      return `<article class="${tone}"><i class="bi ${icon}"></i><div><strong>${esc(insight.title)}</strong><p>${esc(insight.text)}</p><span>Recommended: ${esc(insight.action)}</span></div></article>`;
+    }).join('') : '<div class="rr-empty">Insights appear when completed service cost data is available.</div>';
+  }
+
   function updateProductSection(A) {
     // Update product KPIs (enterprise style)
     const totalProdRev = A.totalProductRevenue || 1;
@@ -995,7 +1136,7 @@
   // ── Chart management ──
   function destroyCharts() {
     Object.values(charts).forEach(c => { try { c.destroy(); } catch(e){} });
-    ['revenueTrend', 'sourceMix', 'paymentMix', 'posPaymentMix', 'marginTrend', 'serviceEconomics', 'productChannelMix', 'brandRevenue', 'fulfillmentMix', 'kpiSparkRevenue', 'kpiSparkCash', 'kpiSparkAvgTxn'].forEach(id => {
+    ['revenueTrend', 'revenueForecast', 'sourceMix', 'paymentMix', 'posPaymentMix', 'marginTrend', 'serviceProfitRanking', 'serviceEconomics', 'productChannelMix', 'brandRevenue', 'fulfillmentMix', 'kpiSparkRevenue', 'kpiSparkCash', 'kpiSparkAvgTxn'].forEach(id => {
       const existing = typeof Chart !== 'undefined' ? Chart.getChart(id) : null;
       if (existing) { try { existing.destroy(); } catch (e) {} }
     });
@@ -1022,7 +1163,7 @@
     charts.revenueTrend = new Chart(document.getElementById('revenueTrend'), {
       type: 'bar', data: { labels, datasets: [
         { label: 'Services', data: months.map(x => x.service || 0), backgroundColor: '#2563eb', borderRadius: 5 },
-        { label: 'Online Orders', data: months.map(x => x.orders || 0), backgroundColor: '#10b981', borderRadius: 5 },
+        { label: 'Product Orders', data: months.map(x => x.orders || 0), backgroundColor: '#10b981', borderRadius: 5 },
         { label: 'POS', data: months.map(x => x.pos || 0), backgroundColor: '#f59e0b', borderRadius: 5 },
       ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.revenueTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales: { x: { ...scales.x, stacked: true }, y: { ...scales.y, stacked: true } }, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
     });
@@ -1035,7 +1176,7 @@
       });
     }
 
-    donut('sourceMix', ['Services', 'Online Orders', 'POS'], [A.serviceRevenue || 0, A.orderRevenue || 0, A.posRevenue || 0]);
+    donut('sourceMix', ['Services', 'Product Orders', 'Counter / POS'], [A.serviceRevenue || 0, A.orderRevenue || 0, A.posRevenue || 0]);
     const grossMethods = A.grossCollectionMethods || {};
     donut('paymentMix', ['GCash', 'COD / Cash', 'Bank', 'Other'], [grossMethods.gcash || 0, grossMethods.cash || 0, grossMethods.bank || 0, grossMethods.other || 0]);
 
@@ -1048,6 +1189,35 @@
         { label: 'Known Direct Cost', data: months.map((x, i) => costs[i] || 0), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, pointRadius: 3 },
       ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.marginTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
     });
+
+    const forecastEl = document.getElementById('revenueForecast');
+    if (forecastEl) {
+      const forecast = A.salesForecast || {};
+      const actual = forecast.actual || [];
+      const projected = forecast.forecast || [];
+      const forecastLabels = [...actual, ...projected].map(row => new Date(`${row.date}T12:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }));
+      const bridge = actual.length ? actual[actual.length - 1].value : null;
+      charts.revenueForecast = new Chart(forecastEl, {
+        type: 'line',
+        data: { labels: forecastLabels, datasets: [
+          { label: 'Actual booked value', data: [...actual.map(row => row.value), ...projected.map(() => null)], borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.08)', fill: true, tension: .3, pointRadius: 2 },
+          { label: '30-day forecast', data: [...actual.map((row, index) => index === actual.length - 1 ? bridge : null), ...projected.map(row => row.value)], borderColor: '#2563eb', borderDash: [6,4], tension: .3, pointRadius: 1 },
+          { label: 'Upper range', data: [...actual.map(() => null), ...projected.map(row => row.upper)], borderColor: 'rgba(37,99,235,.25)', borderDash: [2,4], pointRadius: 0, tension: .3 },
+          { label: 'Lower range', data: [...actual.map(() => null), ...projected.map(row => row.lower)], borderColor: 'rgba(37,99,235,.25)', borderDash: [2,4], pointRadius: 0, tension: .3 },
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
+      });
+    }
+
+    const serviceRankingEl = document.getElementById('serviceProfitRanking');
+    if (serviceRankingEl) {
+      const ranking = ((A.serviceProfitability || {}).rows || []).slice(0, 8).reverse();
+      charts.serviceProfitRanking = new Chart(serviceRankingEl, {
+        type: 'bar',
+        data: { labels: ranking.map(row => row.serviceName), datasets: [{ label: 'Known gross profit', data: ranking.map(row => row.grossProfit), backgroundColor: ranking.map(row => Number(row.grossProfit||0) >= 0 ? '#0f766e' : '#dc2626'), borderRadius: 5 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { callback: value => pesoFmt(value), font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false }, tooltip: tooltipFmt } }
+      });
+    }
 
     // Service economics chart — computed from completedServiceCosts for consistency with modal table
     const completedByCat = { core: [], repair: [], mix: [] };
@@ -1067,7 +1237,7 @@
       const orderProdRev = Number(A.onlineOrderProductRevenue || 0);
       const posProdRev = Number(A.posProductRevenue || 0);
       charts.productChannelMix = new Chart(productChannelEl, {
-        type: 'doughnut', data: { labels: ['Online Orders', 'POS Sales'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
+        type: 'doughnut', data: { labels: ['Product Orders', 'Counter / POS Sales'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.productChannelMix, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
       });
     }
@@ -1125,6 +1295,34 @@
   let currentA = initA;
   let cdmChart = null;
   let cdmModal = null;
+  let serviceLineModal = null;
+
+  function openServiceLineDrilldown(index) {
+    const row = (currentA.serviceProfitability?.rows || [])[index];
+    if (!row) return;
+    const modalElement = document.getElementById('serviceLineDrilldownModal');
+    if (!modalElement) return;
+    if (!serviceLineModal) serviceLineModal = new bootstrap.Modal(modalElement);
+    document.getElementById('serviceLineDrilldownTitle').textContent = row.serviceName;
+    document.getElementById('serviceLineDrilldownSubtitle').textContent = `${String(row.serviceCategory||'service').replaceAll('_',' ')} · ${row.jobs||0} completed jobs · ${pct(row.costEvidenceCoverage)} direct-cost evidence`;
+    document.getElementById('serviceLineDrilldownSummary').innerHTML = `
+      <article><small>Revenue</small><strong>${peso(row.revenue)}</strong></article>
+      <article><small>Known direct cost</small><strong>${peso(row.directCost)}</strong></article>
+      <article><small>Gross profit</small><strong style="color:${Number(row.grossProfit||0)>=0?'#047857':'#b91c1c'}">${peso(row.grossProfit)}</strong></article>
+      <article><small>Known margin</small><strong>${pct(row.grossProfitMargin)}</strong></article>`;
+    const records = row.records || [];
+    document.getElementById('serviceLineDrilldownBody').innerHTML = records.length ? records.map(record => {
+      const completed = record.completedAt ? new Date(record.completedAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+      return `<tr><td class="ps-4">${esc(completed)}</td><td class="fw-bold">${esc(record.reference||'—')}</td><td>${esc(record.customer||'Customer')}</td><td>${esc(record.technician||'Unassigned')}</td><td class="text-center">${Number(record.quantity||1)}</td><td class="text-end">${peso(record.revenue)}</td><td class="text-end">${peso(record.directCost)}</td><td class="text-end pe-4 fw-bold ${Number(record.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(record.grossProfit)}</td></tr>`;
+    }).join('') : '<tr><td colspan="8" class="rr-empty">No underlying jobs are available.</td></tr>';
+    serviceLineModal.show();
+  }
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('.service-drilldown-btn');
+    if (!button) return;
+    openServiceLineDrilldown(Number(button.dataset.serviceIndex));
+  });
 
   function pesoFmt(v) { return '\u20B1' + Math.round(Number(v || 0)).toLocaleString('en-PH'); }
 
@@ -1201,7 +1399,7 @@
   const chartConfigs = {
     revenueTrend: {
       icon: 'bar-chart-line', title: 'Monthly Approved Value', subtitle: 'Booked value by business line — click a month to see transactions',
-      chartTitle: 'Monthly Booked Value Breakdown', chartSubtitle: 'Services · Online Orders · POS',
+      chartTitle: 'Monthly Booked Value Breakdown', chartSubtitle: 'Services · Product Orders · Counter / POS',
       dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Method','Amount'],
       type: 'bar',
       chartData: () => {
@@ -1209,7 +1407,7 @@
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
         return { labels, datasets: [
           { label: 'Services', data: months.map(x => x.service||0), backgroundColor: '#2563eb', borderRadius: 5 },
-          { label: 'Online Orders', data: months.map(x => x.orders||0), backgroundColor: '#10b981', borderRadius: 5 },
+          { label: 'Product Orders', data: months.map(x => x.orders||0), backgroundColor: '#10b981', borderRadius: 5 },
           { label: 'POS', data: months.map(x => x.pos||0), backgroundColor: '#f59e0b', borderRadius: 5 },
         ]};
       },
@@ -1230,11 +1428,11 @@
     },
     sourceMix: {
       icon: 'pie-chart', title: 'Business Mix', subtitle: 'Booked value share by source — click a slice to see transactions',
-      chartTitle: 'Booked Value by Source', chartSubtitle: 'Services · Online Orders · POS',
+      chartTitle: 'Booked Value by Source', chartSubtitle: 'Services · Product Orders · Counter / POS',
       dataTitle: 'Transactions', headers: ['Date','Reference','Customer','Method','Amount'],
       type: 'doughnut', cutout: '68%',
-      chartData: () => ({ labels: ['Services','Online Orders','POS'], datasets: [{ data: [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
-      getFilterLabel: (i) => ['Services','Online Orders','POS'][i] || 'All',
+      chartData: () => ({ labels: ['Services','Product Orders','Counter / POS'], datasets: [{ data: [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
+      getFilterLabel: (i) => ['Services','Product Orders','Counter / POS'][i] || 'All',
       getSummary: (i) => {
         const vals = [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0];
         const counts = [currentA.serviceTransactions||0, currentA.orderTransactions||0, currentA.posTransactions||0];
@@ -1281,8 +1479,8 @@
       getFilterLabel: (i) => { const pm = currentA.posPaymentMethods || {}; return Object.keys(pm).map(x => x.replaceAll('_',' ').replace(/\b\w/g, c => c.toUpperCase()))[i] || 'All'; },
       getSummary: (i) => {
         const prods = currentA.topPosProducts || [];
-        if (i === null) return [{label:'POS Revenue',value:pesoFmt(currentA.posRevenue)},{label:'POS Sales',value:(currentA.posTransactions||0)},{label:'Margin',value:pct(currentA.posMargin)}];
-        return [{label:'Products',value:prods.length},{label:'POS Revenue',value:pesoFmt(currentA.posRevenue)}];
+        if (i === null) return [{label:'Walk-in / POS Revenue',value:pesoFmt(currentA.posRevenue)},{label:'Completed Sales',value:(currentA.posTransactions||0)},{label:'Margin',value:pct(currentA.posMargin)}];
+        return [{label:'Products',value:prods.length},{label:'Walk-in / POS Revenue',value:pesoFmt(currentA.posRevenue)}];
       },
       getRows: (i) => {
         const prods = currentA.topPosProducts || [];
@@ -1367,15 +1565,15 @@
     },
     productChannelMix: {
       icon: 'pie-chart', title: 'Product Revenue by Channel', subtitle: 'Online orders vs POS — click a slice for products',
-      chartTitle: 'Channel Split', chartSubtitle: 'Online Orders vs POS Sales',
+      chartTitle: 'Channel Split', chartSubtitle: 'Product orders vs counter sales',
       dataTitle: 'Products', headers: ['Product','Category','Channel','Qty','Revenue'],
       type: 'doughnut', cutout: '68%',
       chartData: () => {
         const orderRev = Number(currentA.onlineOrderProductRevenue || 0);
         const posRev = Number(currentA.posProductRevenue || 0);
-        return { labels: ['Online Orders','POS Sales'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
+        return { labels: ['Product Orders','Counter / POS Sales'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
       },
-      getFilterLabel: (i) => ['Online Orders','POS Sales'][i] || 'All',
+      getFilterLabel: (i) => ['Product Orders','Counter / POS Sales'][i] || 'All',
       getSummary: (i) => {
         const prods = currentA.combinedTopProducts || [];
         if (i === null) return [{label:'Total Product Rev',value:pesoFmt(currentA.totalProductRevenue)},{label:'Total Units',value:(currentA.totalProductUnits||0).toLocaleString()}];
@@ -1444,6 +1642,7 @@
   // Initialize charts on page load
   updateCharts(initA);
   renderSparklines(initA);
+  if (deferredAnalytics) requestAnimationFrame(() => applyFilters({ initialLoad: true }));
 })();
 </script>
 
