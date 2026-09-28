@@ -28,7 +28,7 @@ test("service dialogs require deliberate acknowledgement", () => {
   assert.match(servicesScript, /allowOutsideClick: false/);
   assert.match(servicesScript, /confirmButtonText: 'Review Details'/);
   assert.match(servicesScript, /confirmButtonText: 'Continue'/);
-  assert.match(servicesView, /services-multi\.js\?v=20260928-hp-quantity-zero-v6/);
+  assert.match(servicesView, /services-multi\.js\?v=20260928-session-resilience-v7/);
 });
 
 test("service-added confirmation is a subtle live-region toast after the configurator closes", () => {

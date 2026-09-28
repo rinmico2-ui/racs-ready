@@ -54,7 +54,9 @@ test("a draft can restore before a service is added and resumes only at a valid 
 test("booking drafts require the server-rendered customer identity and a live session", () => {
   assert.match(servicesScript, /async function hasActiveBookingCustomerSession/);
   assert.match(servicesScript, /result\?\.user\?\.role === 'customer'/);
-  assert.match(servicesScript, /if \(!renderedAsLoggedIn \|\| !\(await hasActiveBookingCustomerSession\(\)\)\)/);
+  assert.match(servicesScript, /if \(!renderedAsLoggedIn \|\| activeSession === false\)/);
+  assert.match(servicesScript, /if \(!response\.ok\) return null/);
+  assert.match(servicesScript, /if \(active === false\) lockBookingAfterLogout\(\)/);
   assert.match(servicesScript, /window\.addEventListener\('racs:logout', lockBookingAfterLogout\)/);
   assert.doesNotMatch(servicesScript, /const userElements = document\.querySelectorAll/);
 });
@@ -87,7 +89,7 @@ test("large uploads and payment evidence are not written to localStorage", () =>
 test("successful submission disables re-saving and refreshed assets bypass stale browser caches", () => {
   assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled \|\| !BOOKING_CUSTOMER_ID\) return false/);
   assert.match(servicesScript, /BookingState\.draftPersistenceDisabled = true;\s*localStorage\.removeItem/);
-  assert.match(servicesView, /enterprise-calendar\.js\?v=20260925-schedule-next-v6/);
+  assert.match(servicesView, /enterprise-calendar\.js\?v=20260928-project-scheduling-v7/);
   assert.match(servicesView, /services-multi\.js\?v=[^'"\s]+/);
   assert.match(servicesView, /if\(typeof window\.saveBookingProgress==='function'\) window\.saveBookingProgress\(\)/);
   assert.doesNotMatch(servicesScript, /event\.returnValue\s*=\s*''/);

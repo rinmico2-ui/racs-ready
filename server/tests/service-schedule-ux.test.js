@@ -24,7 +24,7 @@ test("appointment time choices do not expose technician counts", () => {
   assert.doesNotMatch(times, /technician|slot\.availableCount/);
   assert.match(times, /statusLabel = isSelected \? 'Selected' : 'Available'/);
   assert.match(times, /statusLabel = 'Fully booked'/);
-  assert.match(view, /enterprise-calendar\.js\?v=20260925-schedule-next-v6/);
+  assert.match(view, /enterprise-calendar\.js\?v=20260928-project-scheduling-v7/);
 });
 
 test("calendar cells show only the day number; counts appear after choosing a date", () => {
@@ -34,7 +34,7 @@ test("calendar cells show only the day number; counts appear after choosing a da
   assert.doesNotMatch(appointment, /<span class="ent-cal-slots">|slotsText =/);
   assert.match(calendar, /const availableTimes = slots\.filter/);
   assert.match(calendar, /class="ent-time-count"/);
-  assert.match(view, /enterprise-calendar\.css\?v=20260925-date-only-v4/);
+  assert.match(view, /enterprise-calendar\.css\?v=20260928-project-scheduling-v7/);
 });
 
 test("the schedule guides users from date to time with accessible choices", () => {
@@ -56,4 +56,17 @@ test("empty or failed schedule responses never create unverified booking times",
 test("changing the date clears the previous time before a new one is chosen", () => {
   assert.match(calendar, /async function handleDateSelect[\s\S]*?BookingState\.selectedTimeSlot = null;[\s\S]*?BookingState\.scheduleTime = null;/);
   assert.match(calendar, /window\.BookingState\.selectedTime = _selectedSlot\.label;[\s\S]*?window\.BookingState\.scheduleTime = _selectedSlot\.label;/);
+});
+
+test("large-project range and arrival preferences are clear and persistent", () => {
+  assert.match(calendar, /First choose a preferred date range, then an optional site-arrival window/);
+  assert.match(calendar, /id="projectRangeResetBtn"/);
+  assert.match(calendar, /Tap a date to set the <strong>start date<\/strong>/);
+  assert.match(calendar, /Preferred Daily Site Arrival/);
+  assert.match(calendar, /8:00 AM–12:00 PM/);
+  assert.match(calendar, /aria-pressed=/);
+  assert.match(calendar, /_projectPreferences\.workingDays/);
+  assert.match(calendar, /normalizeProjectPreferences\(restoredProjectPreferences\)/);
+  assert.match(styles, /\.ent-pref-time-options\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 575px\)[\s\S]*?\.ent-pref-time-options\s*\{[^}]*grid-template-columns:\s*1fr/);
 });

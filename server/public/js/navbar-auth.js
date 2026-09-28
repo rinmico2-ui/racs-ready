@@ -276,17 +276,35 @@
     if (logoutBtn) {
       logoutBtn.addEventListener("click", function () {
         logoutBtn.disabled = true;
-        window.dispatchEvent(new Event("racs:logout"));
         fetch("/api/auth/logout", {
           method: "POST",
           credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
         })
-          .then(function () {
-            window.location.replace("/login");
+          .then(function (response) {
+            if (!response.ok) {
+              return response.json().catch(function () { return {}; }).then(function (body) {
+                throw new Error(body.error || "The server could not end your session.");
+              });
+            }
+            // Update booking/cart UI only after the server has revoked the
+            // session and sent the cookie-clearing response.
+            window.dispatchEvent(new Event("racs:logout"));
+            window.location.replace("/login?logged_out=1");
           })
-          .catch(function () {
-            window.location.replace("/login");
+          .catch(function (error) {
+            logoutBtn.disabled = false;
+            var message = (error && error.message) || "Please check your connection and try signing out again.";
+            if (window.Swal && typeof window.Swal.fire === "function") {
+              window.Swal.fire({
+                icon: "error",
+                title: "Sign out did not finish",
+                text: message,
+                confirmButtonText: "Try Again",
+              });
+            } else {
+              window.alert(message);
+            }
           });
       });
     }

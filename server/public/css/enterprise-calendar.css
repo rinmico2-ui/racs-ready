@@ -735,6 +735,7 @@
   gap: 7px;
 }
 .ent-pref-chip {
+  appearance: none;
   font-size: 0.76rem;
   font-weight: 600;
   color: #475569;
@@ -747,12 +748,34 @@
   transition: all 0.15s ease;
 }
 .ent-pref-chip:hover { border-color: #c7d2fe; }
+.ent-pref-chip:focus-visible,
+.ent-range-reset:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}
 .ent-pref-chip.active {
   background: #4f46e5;
   border-color: #4f46e5;
   color: #fff;
   box-shadow: 0 2px 6px rgba(79,70,229,0.25);
 }
+.ent-pref-time-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 480px;
+}
+.ent-pref-time-options .ent-pref-chip {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 54px;
+  padding: 8px 13px;
+  border-radius: 11px;
+  text-align: left;
+}
+.ent-pref-time-options .ent-pref-chip strong { font-size: 0.8rem; }
+.ent-pref-time-options .ent-pref-chip small { color: #64748b; font-size: 0.68rem; }
+.ent-pref-time-options .ent-pref-chip.active small { color: rgba(255,255,255,.86); }
 
 /* -- Commercial project overlay (read-only) -- */
 .ent-cal-cell.project-reserved {
@@ -783,6 +806,7 @@
   border-radius: 12px;
 }
 .ent-range-step {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -820,13 +844,32 @@
   color: #fff;
 }
 .ent-range-step-label {
-  white-space: nowrap;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .ent-range-step-arrow {
   color: #cbd5e1;
   font-size: 0.9rem;
   margin: 0 4px;
 }
+.ent-range-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 38px;
+  margin-left: auto;
+  padding: 6px 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 9px;
+  background: #fff;
+  color: #4338ca;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ent-range-reset:hover { background: #eef2ff; }
 .ent-range-prompt {
   text-align: center;
   font-size: 0.82rem;
@@ -855,6 +898,32 @@
 .ent-range-partial {
   color: #94a3b8;
   font-style: italic;
+}
+
+@media (max-width: 575px) {
+  .ent-calendar-project .ent-project-banner { padding: 12px; }
+  .ent-calendar-project .ent-project-banner-sub { font-size: .76rem; }
+  .ent-range-steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 9px;
+  }
+  .ent-range-step {
+    align-items: flex-start;
+    min-height: 58px;
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    background: #fff;
+    font-size: .74rem;
+  }
+  .ent-range-step-arrow { display: none; }
+  .ent-range-reset { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+  .ent-range-prompt { font-size: .78rem; line-height: 1.4; }
+  .ent-project-prefs { padding: 13px; }
+  .ent-pref-time-options { grid-template-columns: 1fr; max-width: none; }
+  .ent-pref-time-options .ent-pref-chip { width: 100%; min-height: 56px; }
 }
 
 /* Calendar cell range highlighting */

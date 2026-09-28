@@ -85,4 +85,6 @@ test("Google callback is explicitly existing-account only", () => {
   assert.match(controller, /User\.findOne\(\{ email \}\)/);
   assert.doesNotMatch(controller, /User\.(create|findOneAndUpdate)\(/);
   assert.match(controller, /sameSite: "lax"/);
+  assert.match(controller, /loginRateLimiter\.reset\("email", email\)/);
+  assert.match(controller, /loginRateLimiter\.reset\("ip", req\.ip \|\| ""\)/);
 });

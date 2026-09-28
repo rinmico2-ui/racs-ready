@@ -4,6 +4,7 @@ const { google } = require("googleapis");
 const User = require("../models/User");
 const AuthSession = require("../models/AuthSession");
 const { isAccountEnabled } = require("../middleware/accountState");
+const loginRateLimiter = require("../middleware/loginRateLimiter");
 const authController = require("./authController");
 
 const OAUTH_COOKIE = "google_oauth_state";
@@ -233,6 +234,12 @@ exports.callback = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return callbackError(res, "account_not_found");
     if (!isAccountEnabled(user)) return callbackError(res, "account_unavailable");
+
+    // A verified Google identity is a successful authentication. Clear stale
+    // password/OTP failure counters so a prior typo cannot poison the next
+    // legitimate sign-in from the same account or device.
+    loginRateLimiter.reset("email", email);
+    loginRateLimiter.reset("ip", req.ip || "");
 
     await regenerateSession(req);
     req.session.userId = user._id.toString();

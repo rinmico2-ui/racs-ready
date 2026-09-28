@@ -14,6 +14,10 @@ const attachCurrentUser = require("./middleware/currentUser");
 const User = require("./models/User");
 const dns = require("dns");
 const rateLimit = require("express-rate-limit");
+const {
+  shouldSkipAuthAttemptLimit,
+  shouldSkipGeneralApiLimit,
+} = require("./utils/authRateLimitPolicy");
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
@@ -202,12 +206,13 @@ if (process.env.NODE_ENV === "production") {
 }
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────
-const authLimiter = rateLimit({
+const authAttemptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 attempts per window
   message: { error: "Too many attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: shouldSkipAuthAttemptLimit,
 });
 
 const apiLimiter = rateLimit({
@@ -216,6 +221,9 @@ const apiLimiter = rateLimit({
   message: { error: "Too many requests, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  // Session verification and logout must remain available even after a busy
+  // booking page reaches the general API budget.
+  skip: shouldSkipGeneralApiLimit,
 });
 
 const chatLimiter = rateLimit({
@@ -483,7 +491,7 @@ const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
 
 const authRoutes = require("./routes/authRoutes");
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authAttemptLimiter, authRoutes);
 
 const adminApi = require("./routes/adminApi");
 app.use("/api/admin", adminApi);

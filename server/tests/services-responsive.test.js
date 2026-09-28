@@ -40,7 +40,7 @@ test("mobile booking progress fits without a horizontal scroller", () => {
   assert.match(mobileStyles, /\.ent-tr\s*\{[^}]*grid-template-columns:\s*repeat\(6/);
   assert.match(mobileStyles, /\.ent-n\s*\{[^}]*min-height:\s*44px/);
   assert.match(mobileStyles, /\.ent-step-body \.form-control[\s\S]*?min-height:\s*48px/);
-  assert.match(servicesView, /services-mobile-ux\.css\?v=20260928-hp-quantity-zero-v47/);
+  assert.match(servicesView, /services-mobile-ux\.css\?v=20260928-mobile-booking-v48/);
 });
 
 test("mobile service configuration keeps type and HP choices compact", () => {
@@ -74,4 +74,18 @@ test("service-added feedback stays compact and non-blocking", () => {
   assert.match(mobileStyles, /\.service-booking-toast\s*\{[\s\S]*?position:\s*fixed/);
   assert.match(mobileStyles, /\.service-booking-toast\.is-visible\s*\{[^}]*opacity:\s*1/);
   assert.match(mobileStyles, /\.service-booking-toast[\s\S]*?pointer-events:\s*none/);
+});
+
+test("mobile map text stays inside the viewport", () => {
+  assert.match(mobileStyles, /\.service-map-address,[\s\S]*?overflow-wrap:\s*anywhere/);
+  assert.match(mobileStyles, /\.service-checkout-map-card \.custom-popup \.leaflet-popup-content\s*\{[^}]*max-width:\s*min\(260px, calc\(100vw - 84px\)\)/);
+  assert.match(mobileStyles, /@media \(max-width: 767\.98px\)[\s\S]*?\.service-map-address\s*\{[^}]*text-overflow:\s*clip/);
+});
+
+test("mobile final confirmation copy and button use one aligned column", () => {
+  const paymentStart = mobileStyles.indexOf("@media (max-width: 767.98px) {", mobileStyles.indexOf(".payment-confirm-action.is-visible"));
+  const paymentMobile = mobileStyles.slice(paymentStart);
+  assert.match(paymentMobile, /\.payment-confirm-action\.is-visible\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(paymentMobile, /\.payment-confirm-copy\s*\{[^}]*justify-items:\s*center;[^}]*text-align:\s*center/);
+  assert.match(paymentMobile, /\.payment-confirm-action #confirmBookingBtn\s*\{[^}]*width:\s*100%/);
 });

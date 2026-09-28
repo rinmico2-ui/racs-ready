@@ -353,6 +353,10 @@
   .service-checkout-map-card .technician-map { height: min(72vw, 310px); }
   .service-map-legend { bottom: 10px; }
   .service-map-selection, .service-route-panel { padding: .9rem; }
+  .service-map-selection { width: 100%; overflow: hidden; }
+  .service-map-address { overflow: visible; text-overflow: clip; }
+  .service-map-coordinate { min-width: 0; padding-left: 42px; }
+  .service-checkout-map-card .leaflet-popup-content-wrapper { max-width: calc(100vw - 44px); }
   .service-route-stats { gap: .65rem; }
   .service-route-stat { min-height: 82px; padding: .7rem .4rem; }
 
@@ -779,6 +783,22 @@ body.booking-sheet-open { overflow: hidden; }
 .service-location-overview .service-map-selection { border-top: 0; border-bottom: 1px solid #eef2f7; }
 .service-location-overview .service-route-panel { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 .service-location-overview .service-map-selection.has-location { background: #f7fef9; }
+.service-map-selection-main > .min-w-0 { width: 100%; min-width: 0; }
+.service-map-address,
+.service-map-coordinate strong,
+.service-map-coordinate small {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+.service-checkout-map-card .custom-popup .leaflet-popup-content {
+  max-width: min(260px, calc(100vw - 84px));
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
+}
+.service-checkout-map-card .custom-popup .leaflet-popup-content > div { min-width: 0 !important; }
 .service-checkout-map-card { margin-top: 1rem; }
 .service-manual-pin-link { display: inline-flex; align-items: center; gap: .45rem; min-height: 44px; margin-top: .45rem; padding: .35rem .1rem; border: 0; background: transparent; color: #1d4ed8; font-size: .75rem; font-weight: 800; text-align: left; }
 .service-manual-pin-link:hover:not(:disabled) { color: #1e40af; text-decoration: underline; }
@@ -1552,6 +1572,9 @@ body.booking-sheet-open { overflow: hidden; }
 #paymentStep.step-active .ent-step-body { padding-bottom: 112px !important; }
 @media (max-width: 767.98px) {
   .payment-confirm-action.is-visible {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .65rem;
     right: 0;
     bottom: 0;
     left: 0;
@@ -1562,10 +1585,13 @@ body.booking-sheet-open { overflow: hidden; }
     box-shadow: 0 -10px 28px rgba(15,23,42,.12);
     transform: none;
   }
+  .payment-confirm-copy { justify-items: center; text-align: center; }
+  .payment-confirm-copy span,
+  .payment-confirm-copy strong { overflow-wrap: anywhere; }
   .payment-confirm-copy small { display: none; }
-  .payment-confirm-copy strong { font-size: .78rem; }
-  .payment-confirm-action #confirmBookingBtn { min-height: 48px; padding-inline: .8rem !important; }
-  #paymentStep.step-active .ent-step-body { padding-bottom: 128px !important; }
+  .payment-confirm-copy strong { font-size: .82rem; }
+  .payment-confirm-action #confirmBookingBtn { width: 100%; min-height: 50px; padding-inline: 1rem !important; }
+  #paymentStep.step-active .ent-step-body { padding-bottom: 170px !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .payment-confirm-action.just-became-ready { animation: none; }

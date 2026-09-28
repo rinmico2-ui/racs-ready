@@ -345,11 +345,25 @@
     return [];
   }
 
+  const addressNameCollator = new Intl.Collator("en-PH", {
+    sensitivity: "base",
+    numeric: true,
+  });
+
+  function alphabetizeByName(items) {
+    return [...items].sort((left, right) =>
+      addressNameCollator.compare(
+        String(left?.name || "").trim(),
+        String(right?.name || "").trim(),
+      ),
+    );
+  }
+
   // Use official psgc.cloud endpoints. We fetch provinces once and fetch cities/barangays on demand,
   // matching both PSGC id and correspondence code to handle different code formats.
   async function populateProvinces(selectElement) {
     const raw = await fetchJSON("/api/psgc/provinces");
-    const provinces = normalizeList(raw);
+    const provinces = alphabetizeByName(normalizeList(raw));
     selectElement.innerHTML = '<option value="">Select Province</option>';
     provinces.forEach(function (p) {
       const option = document.createElement("option");
@@ -410,7 +424,7 @@
       '<option value="">Select City/Municipality</option>';
 
     // Filter cities by province name (primary) or by PSGC code prefix (fallback)
-    const matches = cities.filter((c) => {
+    const matches = alphabetizeByName(cities.filter((c) => {
       // Primary: match by province name field
       if (provinceName && matchesByProvince(c, provinceName)) return true;
       // Fallback: match by PSGC code prefix (first 5 digits)
@@ -421,7 +435,7 @@
             cityCode.slice(0, 5) === provCode.slice(0, 5)) return true;
       }
       return false;
-    });
+    }));
 
     if (!matches.length) {
       const noopt = document.createElement("option");
@@ -479,7 +493,7 @@
       citySelect?.selectedOptions[0]?.getAttribute("data-postal") || "";
 
     const raw = await fetchJSON(`/api/psgc/barangays?city_code=${cityCode}`);
-    const barangays = normalizeList(raw);
+    const barangays = alphabetizeByName(normalizeList(raw));
 
     selectElement.innerHTML =
       '<option value="">Select Barangay (optional)</option>';

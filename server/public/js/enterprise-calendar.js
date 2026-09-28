@@ -43,11 +43,25 @@ const EnterpriseCalendar = (() => {
   let _availabilityMeta = null;     // { totalActiveTechnicians, dailyHours, horizonStart, horizonEnd }
   let _windowResult = null;         // last preferred-window verdict for the selected range
   let _windowError = null;          // transport/API failure message (distinct from "insufficient")
+  let _projectPreferences = {
+    workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    preferredWorkingHours: 'morning',
+  };
 
   const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const DAYS_LONG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const WORKING_DAY_KEYS = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+  function normalizeProjectPreferences(value) {
+    const suppliedDays = Array.isArray(value?.workingDays)
+      ? value.workingDays.filter(day => WORKING_DAY_KEYS.includes(day))
+      : null;
+    return {
+      workingDays: suppliedDays || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+      preferredWorkingHours: value?.preferredWorkingHours === 'afternoon' ? 'afternoon' : 'morning',
+    };
+  }
 
   function formatDateKey(d) {
     const dt = new Date(d);
@@ -105,10 +119,15 @@ const EnterpriseCalendar = (() => {
     ));
     _onSelectCb = typeof opts.onSelect === 'function' ? opts.onSelect : null;
     _showCommercialProjects = opts.showCommercialProjects !== false;
+    const restoredProjectPreferences = _syncGlobalState
+      ? window.BookingState?.projectScheduling?.preferences
+      : null;
+    _projectPreferences = normalizeProjectPreferences(restoredProjectPreferences);
     if (opts.resetSelection === true) {
       _selectedDate = null;
       _selectedSlot = null;
       _selectedEndDate = null;
+      _selectingEndDate = false;
     } else if (_syncGlobalState && window.BookingState) {
       const restoredDate = window.BookingState.selectedDate || window.BookingState.scheduleDate;
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
@@ -118,6 +137,7 @@ const EnterpriseCalendar = (() => {
       const restoredEndDate = window.BookingState.projectScheduling?.endDate;
       const parsedEndDate = restoredEndDate ? new Date(restoredEndDate) : null;
       if (parsedEndDate && !Number.isNaN(parsedEndDate.getTime())) _selectedEndDate = parsedEndDate;
+      _selectingEndDate = Boolean(_selectedDate && !_selectedEndDate);
     }
     if (typeof opts.nextStep === 'number') _nextStep = opts.nextStep;
     _currentMonth = _selectedDate ? new Date(_selectedDate) : new Date();
@@ -832,8 +852,8 @@ const EnterpriseCalendar = (() => {
     const techCount = _availabilityMeta?.totalActiveTechnicians || null;
     const bannerTechNote = techCount ? ` Our team currently has <strong>${techCount} technician${techCount !== 1 ? 's' : ''}</strong> available.` : '';
     const bannerSub = _scheduleData.blocked
-      ? `This service requires multiple working days (est. ${totalHours}h of work). Select your <strong>preferred start and end dates</strong> — work is scheduled on available days inside this window, and unavailable dates are skipped.${bannerTechNote}`
-      : `This service requires multiple working days (est. ${totalHours}h of work). Select a preferred date window — no appointment time needed.${bannerTechNote}`;
+      ? `This service requires multiple working days (est. ${totalHours}h of work). First choose your <strong>start and end dates</strong>, then choose a preferred morning or afternoon site-arrival window. Unavailable dates inside the range are skipped.${bannerTechNote}`
+      : `This service requires multiple working days (est. ${totalHours}h of work). First choose a preferred date range, then an optional site-arrival window. This is not an exact appointment time.${bannerTechNote}`;
     html += `
       <div class="ent-project-banner">
         <i class="bi bi-kanban"></i>
@@ -849,7 +869,7 @@ const EnterpriseCalendar = (() => {
     const step1Class = startSelected ? 'completed' : 'active';
     const step2Class = endSelected ? 'completed' : (startSelected ? 'active' : 'pending');
     html += `
-      <div class="ent-range-steps">
+      <div class="ent-range-steps" aria-live="polite">
         <div class="ent-range-step ${step1Class}">
           <span class="ent-range-step-num">${startSelected ? '<i class="bi bi-check-lg"></i>' : '1'}</span>
           <span class="ent-range-step-label">Start Date${_selectedDate ? ': ' + formatDateDisplay(_selectedDate) : ''}</span>
@@ -859,13 +879,14 @@ const EnterpriseCalendar = (() => {
           <span class="ent-range-step-num">${endSelected ? '<i class="bi bi-check-lg"></i>' : '2'}</span>
           <span class="ent-range-step-label">End Date${_selectedEndDate ? ': ' + formatDateDisplay(_selectedEndDate) : (startSelected ? ' — select below' : '')}</span>
         </div>
+        ${startSelected ? '<button type="button" class="ent-range-reset" id="projectRangeResetBtn"><i class="bi bi-arrow-counterclockwise"></i> Change dates</button>' : ''}
       </div>`;
 
     // Prompt text
     if (!startSelected) {
-      html += `<div class="ent-range-prompt"><i class="bi bi-cursor me-1"></i>Click a date to set the <strong>start date</strong></div>`;
+      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-hand-index-thumb me-1"></i>Tap a date to set the <strong>start date</strong></div>`;
     } else if (!_selectedEndDate) {
-      html += `<div class="ent-range-prompt"><i class="bi bi-cursor me-1"></i>Now click a date to set the <strong>end date</strong></div>`;
+      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-hand-index-thumb me-1"></i>Now tap a later date to set the <strong>end date</strong></div>`;
     }
 
     // Calendar header
@@ -1009,7 +1030,8 @@ const EnterpriseCalendar = (() => {
 
       if (isToday) cellClass += ' today';
 
-      html += `<div class="${cellClass}" data-date="${key}" ${clickable ? 'role="button" tabindex="0"' : ''}>`;
+      const dateAriaLabel = escapeHtml(`${formatDateDisplay(dateObj)}. ${tooltipText || 'Select date'}`);
+      html += `<div class="${cellClass}" data-date="${key}" ${clickable ? `role="button" tabindex="0" aria-label="${dateAriaLabel}"` : ''}>`;
       if (tooltipText) html += `<span class="ent-cal-tooltip">${tooltipText}</span>`;
       html += `<span class="ent-cal-date">${day}</span>`;
       if (slotsText) html += `<span class="ent-cal-slots">${slotsText}</span>`;
@@ -1092,6 +1114,10 @@ const EnterpriseCalendar = (() => {
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       _currentMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
       render();
+    });
+    getElement('projectRangeResetBtn')?.addEventListener('click', () => {
+      resetRange();
+      getElement('calendarGrid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     // Day clicks → range selection (both available and limited-capacity days)
@@ -1226,12 +1252,14 @@ const EnterpriseCalendar = (() => {
       render();
       syncProjectSelection();
 
+      // Keep the capacity verdict and the next scheduling preference in view,
+      // especially after the mobile calendar has pushed them below the fold.
+      setTimeout(() => {
+        const target = getElement('projectRangeValidation') || getElement('projectPrefs');
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+
       if (!_windowResult.sufficient) {
-        // Scroll to the verdict so the customer sees why, plus options.
-        setTimeout(() => {
-          const msgEl = getElement('projectRangeValidation');
-          if (msgEl) msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
         return false;
       }
 
@@ -1303,20 +1331,21 @@ const EnterpriseCalendar = (() => {
           ${workingDaysCount > 0 ? `<div class="ent-project-prefs-note mt-1">${workingDaysCount} calendar day${workingDaysCount > 1 ? 's' : ''} selected${excludedDaysCount > 0 ? ` &middot; ${excludedDaysCount} holiday/non-working day${excludedDaysCount > 1 ? 's' : ''} in this window` : ''}. Unavailable dates inside the window are skipped — the end date is the latest acceptable completion date.</div>` : ''}
         </div>
 
+        <div class="ent-pref-group ent-pref-time-group">
+          <label class="ent-pref-label">Preferred Daily Site Arrival</label>
+          <p class="ent-project-prefs-note mb-2">Choose when technicians may arrive on scheduled workdays. This is a preference, not an exact appointment time.</p>
+          <div class="ent-pref-chips ent-pref-time-options" id="prefWorkingHours" role="group" aria-label="Preferred daily site arrival">
+            <button type="button" class="ent-pref-chip${_projectPreferences.preferredWorkingHours === 'morning' ? ' active' : ''}" data-hours="morning" aria-pressed="${_projectPreferences.preferredWorkingHours === 'morning'}"><strong>Morning</strong><small>8:00 AM–12:00 PM</small></button>
+            <button type="button" class="ent-pref-chip${_projectPreferences.preferredWorkingHours === 'afternoon' ? ' active' : ''}" data-hours="afternoon" aria-pressed="${_projectPreferences.preferredWorkingHours === 'afternoon'}"><strong>Afternoon</strong><small>12:00 PM–5:00 PM</small></button>
+          </div>
+        </div>
+
         ${buildProjectEstimateHtml()}
 
         <div class="ent-pref-group">
           <label class="ent-pref-label">Preferred Working Days</label>
-          <div class="ent-pref-chips" id="prefWorkingDays">
-            ${WORKING_DAY_KEYS.map(k => `<span class="ent-pref-chip${['monday','tuesday','wednesday','thursday','friday'].includes(k) ? ' active' : ''}" data-day="${k}">${k.charAt(0).toUpperCase() + k.slice(1)}</span>`).join('')}
-          </div>
-        </div>
-
-        <div class="ent-pref-group">
-          <label class="ent-pref-label">Preferred Site Access Time</label>
-          <div class="ent-pref-chips" id="prefWorkingHours">
-            <span class="ent-pref-chip active" data-hours="morning">Morning</span>
-            <span class="ent-pref-chip" data-hours="afternoon">Afternoon</span>
+          <div class="ent-pref-chips" id="prefWorkingDays" role="group" aria-label="Preferred working days">
+            ${WORKING_DAY_KEYS.map(k => `<button type="button" class="ent-pref-chip${_projectPreferences.workingDays.includes(k) ? ' active' : ''}" data-day="${k}" aria-pressed="${_projectPreferences.workingDays.includes(k)}">${k.charAt(0).toUpperCase() + k.slice(1)}</button>`).join('')}
           </div>
         </div>
 
@@ -1333,6 +1362,11 @@ const EnterpriseCalendar = (() => {
     prefsHost.querySelectorAll('#prefWorkingDays .ent-pref-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         chip.classList.toggle('active');
+        chip.setAttribute('aria-pressed', String(chip.classList.contains('active')));
+        _projectPreferences.workingDays = Array.from(
+          prefsHost.querySelectorAll('#prefWorkingDays .ent-pref-chip.active'),
+          selected => selected.dataset.day,
+        );
         syncProjectSelection();
       });
     });
@@ -1340,6 +1374,10 @@ const EnterpriseCalendar = (() => {
       chip.addEventListener('click', () => {
         prefsHost.querySelectorAll('#prefWorkingHours .ent-pref-chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
+        prefsHost.querySelectorAll('#prefWorkingHours .ent-pref-chip').forEach(c => {
+          c.setAttribute('aria-pressed', String(c === chip));
+        });
+        _projectPreferences.preferredWorkingHours = chip.dataset.hours;
         syncProjectSelection();
       });
     });
@@ -1415,15 +1453,17 @@ const EnterpriseCalendar = (() => {
   }
 
   function readProjectPrefs() {
-    const prefs = { workingDays: [], preferredWorkingHours: 'morning', completionDeadline: null, totalUnits: 1, startDate: null };
+    const prefs = { workingDays: [..._projectPreferences.workingDays], preferredWorkingHours: _projectPreferences.preferredWorkingHours, completionDeadline: null, totalUnits: 1, startDate: null };
     const daysHost = getElement('prefWorkingDays');
     if (daysHost) {
-      daysHost.querySelectorAll('.ent-pref-chip.active').forEach(c => prefs.workingDays.push(c.dataset.day));
+      prefs.workingDays = Array.from(daysHost.querySelectorAll('.ent-pref-chip.active'), c => c.dataset.day);
+      _projectPreferences.workingDays = [...prefs.workingDays];
     }
     const hoursHost = getElement('prefWorkingHours');
     if (hoursHost) {
       const active = hoursHost.querySelector('.ent-pref-chip.active');
       prefs.preferredWorkingHours = active ? active.dataset.hours : 'morning';
+      _projectPreferences.preferredWorkingHours = prefs.preferredWorkingHours;
     }
     prefs.startDate = _selectedDate ? formatDateKey(_selectedDate) : null;
     prefs.completionDeadline = _selectedEndDate ? formatDateKey(_selectedEndDate) : null;
@@ -1482,10 +1522,19 @@ const EnterpriseCalendar = (() => {
   function resetRange() {
     _selectedDate = null;
     _selectedEndDate = null;
+    _selectedSlot = null;
     _selectingEndDate = false;
     _lastValidationResult = null;
     _windowResult = null;
+    _windowError = null;
     _isValidating = false;
+    if (_syncGlobalState && window.BookingState) {
+      window.BookingState.selectedDate = null;
+      window.BookingState.selectedTimeSlot = null;
+      window.BookingState.projectScheduling = null;
+      if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
+      window.syncScheduleNextAction?.();
+    }
     render();
   }
 

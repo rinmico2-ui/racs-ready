@@ -50,22 +50,45 @@ const BOOKING_STORAGE_KEY = `calidro_booking_progress_v3_${BOOKING_CUSTOMER_ID}`
 const BOOKING_STORAGE_VERSION = 3;
 const BOOKING_STORAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 let bookingProgressSaveTimer = null;
+let bookingSessionCheckPromise = null;
+let bookingSessionCheckResult = null;
+let bookingSessionCheckedAt = 0;
+const BOOKING_SESSION_CHECK_CACHE_MS = 5000;
 
-async function hasActiveBookingCustomerSession() {
+async function hasActiveBookingCustomerSession({ force = false } = {}) {
   if (!BOOKING_CUSTOMER_ID) return false;
-  try {
-    const response = await fetch('/api/auth/verify', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' }
-    });
-    if (!response.ok) return false;
-    const result = await response.json();
-    const activeUserId = String(result?.user?._id || result?.user?.id || '');
-    return result?.user?.role === 'customer' && activeUserId === String(BOOKING_CUSTOMER_ID);
-  } catch (_) {
-    return false;
+  const now = Date.now();
+  if (!force && bookingSessionCheckResult !== null && now - bookingSessionCheckedAt < BOOKING_SESSION_CHECK_CACHE_MS) {
+    return bookingSessionCheckResult;
   }
+  if (bookingSessionCheckPromise) return bookingSessionCheckPromise;
+
+  bookingSessionCheckPromise = (async () => {
+    try {
+      const response = await fetch('/api/auth/verify', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      // Only a definitive authentication response may lock the booking UI.
+      // Rate limits, server errors, and temporary network failures are not
+      // evidence that the customer's valid server-rendered session ended.
+      if (!response.ok) return null;
+      const result = await response.json();
+      const activeUserId = String(result?.user?._id || result?.user?.id || '');
+      const active = result?.user?.role === 'customer'
+        && activeUserId === String(BOOKING_CUSTOMER_ID);
+      bookingSessionCheckResult = active;
+      bookingSessionCheckedAt = Date.now();
+      return active;
+    } catch (_) {
+      return null;
+    } finally {
+      bookingSessionCheckPromise = null;
+    }
+  })();
+
+  return bookingSessionCheckPromise;
 }
 
 function lockBookingAfterLogout() {
@@ -346,13 +369,13 @@ document.addEventListener('visibilitychange', () => {
     saveBookingProgress();
     return;
   }
-  hasActiveBookingCustomerSession().then(active => {
-    if (!active) lockBookingAfterLogout();
+  hasActiveBookingCustomerSession({ force: true }).then(active => {
+    if (active === false) lockBookingAfterLogout();
   });
 });
 window.addEventListener('pageshow', event => {
-  hasActiveBookingCustomerSession().then(active => {
-    if (!active) {
+  hasActiveBookingCustomerSession({ force: true }).then(active => {
+    if (active === false) {
       lockBookingAfterLogout();
       return;
     }
@@ -482,7 +505,10 @@ function initMultiServiceBooking() {
     // The server-rendered stepper is the source of truth for customer access.
     const renderedAsLoggedIn = document.getElementById('entStepper')?.dataset.authenticated === 'true'
       && Boolean(BOOKING_CUSTOMER_ID);
-    if (!renderedAsLoggedIn || !(await hasActiveBookingCustomerSession())) {
+    const activeSession = renderedAsLoggedIn
+      ? await hasActiveBookingCustomerSession()
+      : false;
+    if (!renderedAsLoggedIn || activeSession === false) {
       lockBookingAfterLogout();
       return;
     }

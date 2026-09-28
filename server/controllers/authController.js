@@ -1517,6 +1517,7 @@ exports.verify = async (req, res) => {
     res.json({ user });
   } catch (err) {
     res.set("Cache-Control", "no-store, private");
-    res.json({ user: null });
+    console.warn("auth.verify: temporary verification failure", err && err.message);
+    res.status(503).json({ error: "Session verification is temporarily unavailable" });
   }
 };

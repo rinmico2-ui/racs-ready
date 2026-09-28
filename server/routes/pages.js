@@ -792,7 +792,7 @@ router.get("/login", async (req, res) => {
       "/js/auth-panel.js",
       "/js/login.js?v=20260906-login-policy",
       "/js/register.js?v=20260927-password-validation",
-      "/js/psgc-handler.js",
+      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2",
     ],
   });
 });
@@ -826,7 +826,7 @@ router.get("/register", async (req, res) => {
       "/js/auth-panel.js",
       "/js/login.js?v=20260906-login-policy",
       "/js/register.js?v=20260927-password-validation",
-      "/js/psgc-handler.js",
+      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2",
     ],
   });
 });
