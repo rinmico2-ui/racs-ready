@@ -78,6 +78,8 @@
 #quantitySelectionModal .aircon-type-card.selected .cfg-type-icon-wrap { background: #dbeafe; }
 #quantitySelectionModal .aircon-type-card:focus-visible { outline: 3px solid rgba(37,99,235,.28); outline-offset: 2px; }
 #quantitySelectionModal .cfg-hp-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem !important; margin: 0 !important; }
+#quantitySelectionModal .cfg-hp-quantity-hint { display: flex; align-items: flex-start; gap: .5rem; margin: -.1rem 0 .75rem; padding: .6rem .7rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e3a8a; font-size: .67rem; font-weight: 700; line-height: 1.45; }
+#quantitySelectionModal .cfg-hp-quantity-hint i { flex: 0 0 auto; margin-top: .05rem; color: #2563eb; }
 #quantitySelectionModal .cfg-hp-option { width: auto; padding: 0; }
 #quantitySelectionModal .hp-selection-card { min-height: 174px; padding: 0 !important; border: 1px solid #dbe3ee !important; border-radius: 14px !important; background: #fff !important; box-shadow: none !important; }
 #quantitySelectionModal .hp-selection-card:hover { transform: none !important; border-color: #93c5fd !important; box-shadow: 0 7px 18px rgba(37,99,235,.09) !important; }
@@ -99,11 +101,14 @@
 #quantitySelectionModal .cfg-hp-quantity-copy { display: grid; gap: .05rem; }
 #quantitySelectionModal .cfg-hp-quantity-copy strong { color: #334155; font-size: .65rem; }
 #quantitySelectionModal .cfg-hp-quantity-copy span { color: #166534; font-size: .62rem; font-weight: 800; }
+#quantitySelectionModal .hp-quantity-control:not(.is-selected) .cfg-hp-quantity-copy span { color: #64748b; }
 #quantitySelectionModal .cfg-hp-stepper { display: grid; grid-template-columns: 38px 38px 38px; overflow: hidden; border: 1px solid #bfdbfe; border-radius: 10px; background: #fff; }
 #quantitySelectionModal .cfg-hp-stepper button,
 #quantitySelectionModal .cfg-hp-stepper input { width: 38px; height: 38px; padding: 0; border: 0; background: #fff; color: #1d4ed8; text-align: center; }
 #quantitySelectionModal .cfg-hp-stepper input { border-right: 1px solid #dbeafe; border-left: 1px solid #dbeafe; color: #172033; font-size: .8rem; font-weight: 900; }
+#quantitySelectionModal .cfg-hp-stepper input:disabled { opacity: 1; -webkit-text-fill-color: #64748b; }
 #quantitySelectionModal .cfg-hp-stepper button:hover:not(:disabled) { background: #eff6ff; }
+#quantitySelectionModal .cfg-hp-stepper button:disabled { color: #94a3b8; cursor: not-allowed; opacity: .45; }
 #quantitySelectionModal .cfg-hp-stepper button:focus-visible,
 #quantitySelectionModal .cfg-hp-choice .hp-checkbox:focus-visible { outline: 3px solid rgba(37,99,235,.25); outline-offset: -2px; }
 #quantitySelectionModal .cfg-footer { flex-wrap: nowrap; }

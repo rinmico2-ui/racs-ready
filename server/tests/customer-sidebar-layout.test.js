@@ -22,8 +22,19 @@ test("customer account drawer creates no page gutter or persistent content cover
 });
 
 test("customer sidebar assets are cache-busted together", () => {
-  assert.match(layout, /customer-sidebar\.css\?v=20260928-unified-mobile-nav-v5/);
-  assert.match(layout, /navbar-auth\.js\?v=20260928-unified-mobile-nav-v5/);
+  assert.match(layout, /customer-sidebar\.css\?v=20260928-account-top-v6/);
+  assert.match(layout, /navbar-auth\.js\?v=20260928-account-top-v6/);
+});
+
+test("customer identity appears at the top without duplicating its profile menu", () => {
+  const sidebar = read("views/partials/sidebar.ejs");
+  const identity = sidebar.indexOf('class="racs-sidebar-account"');
+  const navigation = sidebar.indexOf('class="racs-sidebar-nav"');
+
+  assert.ok(identity > -1 && identity < navigation);
+  assert.doesNotMatch(sidebar, /id="racsGroupAccount"/);
+  assert.equal((sidebar.match(/href="\/profile"/g) || []).length, 1);
+  assert.match(styles, /\.racs-sidebar-menu\s*\{[^}]*top:\s*calc\(100% \+ 0\.5rem\)[^}]*bottom:\s*auto/);
 });
 
 test("authenticated mobile navigation uses one accessible combined drawer trigger", () => {

@@ -6650,6 +6650,12 @@ function showCombinedQuantityHpModal(service) {
           showBrandConfigurationStep(hpContainer);
         } else if (hasLegacyHpPricing) {
           // LEGACY: Show HP options directly
+          hpContainer.insertAdjacentHTML('beforeend', `
+            <div class="cfg-hp-quantity-hint" role="note">
+              <i class="bi bi-lightbulb" aria-hidden="true"></i>
+              <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
+            </div>
+          `);
           service.hpPricing.forEach((hpOption, index) => {
             const hpCard = createProfessionalHpCard(hpOption, index);
             hpContainer.appendChild(hpCard);
@@ -6844,6 +6850,10 @@ function renderAirconTypeSelection(airconTypes, container) {
     <div class="cfg-stage-heading mb-3">
       <span class="cfg-stage-icon"><i class="bi bi-speedometer2"></i></span>
       <div><span class="cfg-stage-kicker">Last</span><h6 id="cfgHpHeading" tabindex="-1">What is the aircon HP?</h6><p>Choose the HP and enter the number of units.</p></div>
+    </div>
+    <div class="cfg-hp-quantity-hint" role="note">
+      <i class="bi bi-lightbulb" aria-hidden="true"></i>
+      <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
     </div>
     <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
   `;
@@ -7183,17 +7193,17 @@ function createProfessionalHpCardForType(hpOption, index, airconType) {
       <div class="cfg-hp-meta">
         <span><i class="bi bi-clock" aria-hidden="true"></i>${durationLabel}</span>
       </div>
-      <div class="hp-quantity-control" aria-label="Number of ${hpOption.hp} HP units" style="opacity:0.5;pointer-events:none;">
+      <div class="hp-quantity-control" aria-label="Number of ${hpOption.hp} HP units" style="opacity:0.75;pointer-events:auto;">
         <div class="cfg-hp-quantity-copy">
           <strong>Number of units</strong>
-          <span class="quantity-price">₱${hpOption.price.toLocaleString()} total</span>
+          <span class="quantity-price">Not selected</span>
         </div>
         <div class="cfg-hp-stepper">
           <button class="quantity-decrease" type="button" disabled aria-label="Decrease quantity">
             <i class="bi bi-dash-lg" aria-hidden="true"></i>
           </button>
-          <input type="number" class="hp-quantity-input" value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled aria-label="Number of units">
-          <button class="quantity-increase" type="button" disabled aria-label="Increase quantity">
+          <input type="number" class="hp-quantity-input" value="0" min="0" max="${MAX_BOOKING_UNITS}" readonly disabled aria-label="Number of units">
+          <button class="quantity-increase" type="button" aria-label="Select this HP and increase quantity">
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
           </button>
         </div>
@@ -7263,16 +7273,31 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
     card.dataset.selected = isChecked;
 
     if (isChecked) {
+      const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, airconType.type);
+      if (maxAllowed < 1) {
+        e.target.checked = false;
+        card.dataset.selected = 'false';
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+        return;
+      }
+
+      const selectedQuantity = Math.max(1, parseInt(quantityInput.value, 10) || 0);
+      quantityInput.value = selectedQuantity;
       card.classList.add('selected');
+      quantityControl.classList.add('is-selected');
       quantityControl.style.opacity = '1';
       quantityControl.style.pointerEvents = 'auto';
-      quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = false);
+      quantityInput.disabled = false;
+      decreaseBtn.disabled = false;
+      increaseBtn.disabled = selectedQuantity >= maxAllowed;
+      increaseBtn.setAttribute('aria-label', 'Increase quantity');
+      updateQuantityPriceDisplay(quantityPrice, hpOption.price, selectedQuantity);
 
       // Add to selected HPs with type info
       const newHpSelection = {
         hp: parseFloat(hpOption.hp),
         price: parseInt(hpOption.price),
-        quantity: 1,
+        quantity: selectedQuantity,
         description: hpOption.description,
         durationMinutes: Number(hpOption.durationMinutes) || 60,
         airconType: airconType.type,
@@ -7282,13 +7307,20 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
       const existing = BookingState.selectedHps.find(
         hp => hp.hp === parseFloat(hpOption.hp) && hp.airconType === airconType.type
       );
-      if (!existing) BookingState.selectedHps.push(newHpSelection);
+      if (existing) existing.quantity = selectedQuantity;
+      else BookingState.selectedHps.push(newHpSelection);
 
     } else {
+      quantityInput.value = 0;
       card.classList.remove('selected');
-      quantityControl.style.opacity = '0.5';
-      quantityControl.style.pointerEvents = 'none';
-      quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = true);
+      quantityControl.classList.remove('is-selected');
+      quantityControl.style.opacity = '0.75';
+      quantityControl.style.pointerEvents = 'auto';
+      quantityInput.disabled = true;
+      decreaseBtn.disabled = true;
+      increaseBtn.disabled = false;
+      increaseBtn.setAttribute('aria-label', 'Select this HP and increase quantity');
+      updateQuantityPriceDisplay(quantityPrice, hpOption.price, 0);
 
       // Remove from selected HPs
       const beforeCount = BookingState.selectedHps.length;
@@ -7305,24 +7337,40 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
 
   // Quantity controls with animation
   decreaseBtn.addEventListener('click', () => {
-    const currentValue = parseInt(quantityInput.value);
+    const currentValue = parseInt(quantityInput.value, 10) || 0;
     if (currentValue > 1) {
       const newValue = currentValue - 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantityForType(hpOption.hp, newValue, airconType.type);
+      increaseBtn.disabled = false;
+      animateQuantityChange(quantityInput);
+    } else if (currentValue === 1) {
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       animateQuantityChange(quantityInput);
     }
   });
 
   increaseBtn.addEventListener('click', () => {
-    const currentValue = parseInt(quantityInput.value);
+    const currentValue = parseInt(quantityInput.value, 10) || 0;
     const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, airconType.type);
+    if (!checkbox.checked) {
+      if (maxAllowed < 1) {
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+        return;
+      }
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      animateQuantityChange(quantityInput);
+      return;
+    }
     if (currentValue < maxAllowed) {
       const newValue = currentValue + 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantityForType(hpOption.hp, newValue, airconType.type);
+      increaseBtn.disabled = newValue >= maxAllowed;
       animateQuantityChange(quantityInput);
     } else {
       showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
@@ -7402,7 +7450,7 @@ function createProfessionalHpCard(hpOption, index) {
           </div>
         </div>
         <div class="col-12 col-md-6">
-          <div class="hp-quantity-control w-100" style="opacity:0.5;pointer-events:none;">
+          <div class="hp-quantity-control w-100" style="opacity:0.75;pointer-events:auto;">
             <label class="form-label fw-semibold text-dark mb-2 d-none d-md-block">Quantity:</label>
             <div class="quantity-selector w-100">
               <div class="input-group input-group-lg shadow-sm w-100">
@@ -7411,15 +7459,16 @@ function createProfessionalHpCard(hpOption, index) {
                   <i class="bi bi-dash-lg"></i>
                 </button>
                 <input type="number" class="form-control text-center hp-quantity-input fw-bold"
-                       value="1" min="1" max="${MAX_BOOKING_UNITS}" readonly disabled
+                       value="0" min="0" max="${MAX_BOOKING_UNITS}" readonly disabled
                        style="background: #f8f9fa; border: none; font-size: 1.1rem;">
-                <button class="btn btn-outline-primary quantity-increase" type="button" disabled
+                <button class="btn btn-outline-primary quantity-increase" type="button"
+                        aria-label="Select this HP and increase quantity"
                         style="border-radius: 0 8px 8px 0; min-width: 50px;">
                   <i class="bi bi-plus-lg"></i>
                 </button>
               </div>
               <div class="text-muted small mt-2 text-center d-none d-md-block">
-                <span class="quantity-price">₱${hpOption.price.toLocaleString()}</span> per unit
+                <span class="quantity-price">Not selected</span>
               </div>
             </div>
           </div>
@@ -7458,31 +7507,50 @@ function addHpCardEventListeners(card, hpOption) {
     card.dataset.selected = isChecked;
 
     if (isChecked) {
+      const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, null);
+      if (maxAllowed < 1) {
+        e.target.checked = false;
+        card.dataset.selected = 'false';
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+        return;
+      }
+
+      const selectedQuantity = Math.max(1, parseInt(quantityInput.value, 10) || 0);
+      quantityInput.value = selectedQuantity;
       // Professional selection styling
+      card.classList.add('selected');
       card.style.cssText += `
         border-color: #3b82f6 !important;
         background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
         box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15) !important;
         transform: translateY(-2px) !important;
       `;
+      quantityControl.classList.add('is-selected');
       quantityControl.style.opacity = '1';
       quantityControl.style.pointerEvents = 'auto';
-      quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = false);
+      quantityInput.disabled = false;
+      decreaseBtn.disabled = false;
+      increaseBtn.disabled = selectedQuantity >= maxAllowed;
+      increaseBtn.setAttribute('aria-label', 'Increase quantity');
+      updateQuantityPriceDisplay(quantityPrice, hpOption.price, selectedQuantity);
 
       // Add to selected HPs
       const newHpSelection = {
         hp: parseFloat(hpOption.hp),
         price: parseInt(hpOption.price),
-        quantity: 1,
+        quantity: selectedQuantity,
         description: hpOption.description,
         durationMinutes: Number(hpOption.durationMinutes) || 60
       };
 
       const existing = BookingState.selectedHps.find(hp => hp.hp === parseFloat(hpOption.hp));
-      if (!existing) BookingState.selectedHps.push(newHpSelection);
+      if (existing) existing.quantity = selectedQuantity;
+      else BookingState.selectedHps.push(newHpSelection);
 
     } else {
+      quantityInput.value = 0;
       // Reset styling
+      card.classList.remove('selected');
       card.style.cssText = `
         border-radius: 12px !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -7492,9 +7560,14 @@ function addHpCardEventListeners(card, hpOption) {
         overflow: hidden !important;
         transform: translateY(0) !important;
       `;
-      quantityControl.style.opacity = '0.5';
-      quantityControl.style.pointerEvents = 'none';
-      quantityControl.querySelectorAll('button, input').forEach(el => el.disabled = true);
+      quantityControl.classList.remove('is-selected');
+      quantityControl.style.opacity = '0.75';
+      quantityControl.style.pointerEvents = 'auto';
+      quantityInput.disabled = true;
+      decreaseBtn.disabled = true;
+      increaseBtn.disabled = false;
+      increaseBtn.setAttribute('aria-label', 'Select this HP and increase quantity');
+      updateQuantityPriceDisplay(quantityPrice, hpOption.price, 0);
 
       // Remove from selected HPs
       const beforeCount = BookingState.selectedHps.length;
@@ -7509,24 +7582,40 @@ function addHpCardEventListeners(card, hpOption) {
 
   // Quantity controls with animation
   decreaseBtn.addEventListener('click', () => {
-    const currentValue = parseInt(quantityInput.value);
+    const currentValue = parseInt(quantityInput.value, 10) || 0;
     if (currentValue > 1) {
       const newValue = currentValue - 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantity(hpOption.hp, newValue);
+      increaseBtn.disabled = false;
+      animateQuantityChange(quantityInput);
+    } else if (currentValue === 1) {
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       animateQuantityChange(quantityInput);
     }
   });
 
   increaseBtn.addEventListener('click', () => {
-    const currentValue = parseInt(quantityInput.value);
+    const currentValue = parseInt(quantityInput.value, 10) || 0;
     const maxAllowed = remainingBookingUnits() - selectedHpsTotalExcluding(hpOption.hp, null);
+    if (!checkbox.checked) {
+      if (maxAllowed < 1) {
+        showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
+        return;
+      }
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      animateQuantityChange(quantityInput);
+      return;
+    }
     if (currentValue < maxAllowed) {
       const newValue = currentValue + 1;
       quantityInput.value = newValue;
       updateQuantityPriceDisplay(quantityPrice, hpOption.price, newValue);
       updateHpQuantity(hpOption.hp, newValue);
+      increaseBtn.disabled = newValue >= maxAllowed;
       animateQuantityChange(quantityInput);
     } else {
       showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
@@ -7538,6 +7627,11 @@ function addHpCardEventListeners(card, hpOption) {
  * Update quantity price display
  */
 function updateQuantityPriceDisplay(element, basePrice, quantity) {
+  if (!element) return;
+  if (quantity <= 0) {
+    element.textContent = 'Not selected';
+    return;
+  }
   const total = basePrice * quantity;
   element.textContent = `₱${total.toLocaleString()} total`;
 }
@@ -8347,9 +8441,6 @@ function setupQuantityButtonOverride(modalElement) {
     };
 
   }
-
-  // Also setup HP card quantity controls if they exist
-  setupHpCardQuantityOverrides(modalElement);
 
 }
 
