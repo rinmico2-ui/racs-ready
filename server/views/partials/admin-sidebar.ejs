@@ -209,6 +209,9 @@
       if (document.hidden || sidebarBadgeRefreshRunning) return;
       sidebarBadgeRefreshRunning = true;
       try {
+        // The Resolution Center page publishes its own fresh summary; avoid
+        // running the same expensive queue query twice during page load.
+        const onResolutionCenter = ['/admin/operations/resolution-center', '/admin/appointments/attention'].includes(window.location.pathname);
         const results = await Promise.allSettled([
           sidebarJson('/api/notifications/counts'),
           sidebarJson('/api/admin/warranties/stats'),
@@ -216,7 +219,7 @@
           sidebarJson('/api/orders/badge'),
           sidebarJson('/api/projects/dashboard'),
           sidebarJson('/api/admin/repair-scheduling-queue/stats'),
-          fetch('/api/admin/resolution-center?page=1&perPage=1', { credentials: 'same-origin', cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Resolution count unavailable'))),
+          onResolutionCenter ? Promise.resolve(null) : fetch('/api/admin/resolution-center?page=1&perPage=1', { credentials: 'same-origin', cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Resolution count unavailable'))),
           sidebarJson('/api/admin/appointments/equipment-returns/summary'),
         ]);
         const value = index => results[index].status === 'fulfilled' ? results[index].value : null;

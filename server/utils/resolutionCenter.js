@@ -41,6 +41,7 @@ function orderResolutionCase(order, now = new Date()) {
     subject: itemName,
     serviceName: itemName,
     itemCount,
+    routeDurationMin: Number(order.routeDurationMin) || 30,
     status: order.status,
     issueType: attention.attentionType,
     issueLabel: orderIssueLabel(attention.attentionType),

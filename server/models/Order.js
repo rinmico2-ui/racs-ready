@@ -345,8 +345,11 @@ const orderSchema = new mongoose.Schema(
 // ─── Indexes ────────────────────────────────────────────────────────────────
 
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ bookingId: 1, status: 1 }); // Linked booking suppression in the resolution center
 orderSchema.index({ "delivery.preferredDate": 1 }); // Date-bounded delivery calendar
 orderSchema.index({ pickupDate: 1 }); // Date-bounded customer-pickup calendar
+orderSchema.index({ status: 1, "delivery.preferredDate": 1 }); // Due delivery exceptions
+orderSchema.index({ status: 1, pickupDate: 1 }); // Due pickup exceptions
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index(
   { userId: 1, checkoutRequestId: 1 },

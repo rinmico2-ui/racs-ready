@@ -2279,11 +2279,43 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     proposed.timeSlot = isPickup ? null : timeSlot;
     if (isPickup) proposed.pickupDate = parsedDate;
     else proposed.delivery = { ...(proposed.delivery || {}), preferredDate: parsedDate };
-
     const cutoff = requestedOrderCutoff(proposed);
     if (!cutoff || cutoff.getTime() <= Date.now()) {
       return res.status(400).json({ error: "Choose a delivery or pickup schedule that is still in the future." });
     }
+
+    if (isPickup) {
+      try {
+        const settings = await getOrderCheckoutSettings();
+        validatePickupDate(scheduledDate, settings.storeHours);
+      } catch (error) {
+        if (error instanceof OrderCheckoutError) {
+          return res.status(error.status || 400).json({ error: error.message, code: error.code });
+        }
+        throw error;
+      }
+    } else {
+      // Use the same capacity and advance-notice rules as customer checkout.
+      const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+      const slotCheck = await require("./scheduleRoutes").getTimeSlotsForQuery({
+        date: String(scheduledDate).slice(0, 10),
+        duration: "60",
+        quantity: order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
+        travelTime: String(Number(order.routeDurationMin) || 30),
+      });
+      const requestedSlot = String(timeSlot).trim().toLowerCase();
+      const available = slotCheck.statusCode < 400
+        && Array.isArray(slotCheck.payload?.timeSlots)
+        && slotCheck.payload.timeSlots.some((slot) => String(slot.startTime || "").trim().toLowerCase() === requestedSlot);
+      if (!available) {
+        return res.status(409).json({
+          error: slotCheck.payload?.message || "This delivery time is no longer available. Choose another date or time.",
+          code: "ORDER_SLOT_UNAVAILABLE",
+          refreshSlots: true,
+        });
+      }
+    }
+
     const previousKitTarget = orderKitTarget(order);
 
     if (isPickup) {

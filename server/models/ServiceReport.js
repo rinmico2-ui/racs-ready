@@ -123,6 +123,7 @@ const serviceReportSchema = new mongoose.Schema(
 // ── Indexes ──────────────────────────────────────────────────────────────────
 serviceReportSchema.index({ technicianId: 1, status: 1 });
 serviceReportSchema.index({ technicianId: 1, createdAt: -1 });
+serviceReportSchema.index({ followUpRequired: 1, updatedAt: -1 }); // Resolution center follow-up queue
 serviceReportSchema.index(
   { bookingId: 1, serviceItemId: 1 },
   { unique: true, partialFilterExpression: { serviceItemId: { $type: "objectId" } }, name: "booking_service_item_unique" },

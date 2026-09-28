@@ -22,6 +22,7 @@ const EnterpriseCalendar = (() => {
   let _serviceId = null;
   let _technicianId = null;
   let _duration = 90;
+  let _hasExplicitDuration = false;
   let _quantity = 1;
   let _travelTime = 30;
   let _onSelectCb = null;
@@ -109,6 +110,7 @@ const EnterpriseCalendar = (() => {
     _serviceId = opts.serviceId;
     _technicianId = opts.technicianId || null;
     _duration = opts.duration || 90;
+    _hasExplicitDuration = Number.isFinite(Number(opts.duration)) && Number(opts.duration) > 0;
     _travelTime = Math.max(0, Number(opts.travelTime) || 30);
     // Project classification is based on the total units in the complete
     // Core + Repair request, not only the last service card opened.
@@ -205,7 +207,7 @@ const EnterpriseCalendar = (() => {
       if (policyRes.ok) {
         const policyData = await policyRes.json();
         window.__bookingPolicy = policyData;
-        if (!_serviceId && policyData.inspectionDurationMinutes) {
+        if (!_serviceId && !_hasExplicitDuration && policyData.inspectionDurationMinutes) {
           _duration = policyData.inspectionDurationMinutes;
         }
         if (policyData.largeProjectThresholdHours) {

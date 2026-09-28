@@ -7329,6 +7329,9 @@ router.get("/resolution-center", async (req, res, next) => {
     } = require("../utils/resolutionCenter");
     const now = new Date();
     const recentCancellationCutoff = new Date(now.getTime() - 90 * 86400000);
+    // Date-only schedules may be stored at UTC midnight; keep a one-day
+    // buffer so today's Manila appointments are still checked in JavaScript.
+    const orderScheduleUpperBound = new Date(now.getTime() + 86400000);
     const candidateStatuses = [
       "pending", "no-show-reported", "no-show", "reschedule-required", "awaiting_assignment", "pending_reassignment", "re-scheduled",
       "confirmed", "scheduled", "on-the-way", "arrived", "in-progress",
@@ -7342,9 +7345,16 @@ router.get("/resolution-center", async (req, res, next) => {
         .select("bookingId followUpNotes followUpDate updatedAt")
         .lean(),
       canViewOrderCases
-        ? Order.find({ status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
+        ? Order.find({
+          status: { $in: [...REVIEWABLE_ORDER_STATUSES] },
+          $or: [
+            { fulfillmentType: "customer_pickup", pickupDate: { $lt: orderScheduleUpperBound } },
+            { fulfillmentType: { $ne: "customer_pickup" }, "delivery.preferredDate": { $lt: orderScheduleUpperBound } },
+          ],
+        })
           .sort({ createdAt: -1 })
           .limit(500)
+          .select("bookingId orderReference status fulfillmentType pickupDate delivery.preferredDate delivery.contactNumber timeSlot statusHistory.status statusHistory.timestamp items.modelLine items.brand items.quantity technicianId technician.name customer.name customer.email customer.phone paymentStatus paymentMethod total preparation routeDurationMin")
           .populate("technicianId", "name phone")
           .lean()
         : Promise.resolve([]),
@@ -7374,6 +7384,7 @@ router.get("/resolution-center", async (req, res, next) => {
     })
       .sort({ bookingDate: 1, updatedAt: -1 })
       .limit(500)
+      .select("status bookingDate preferredDate startTime endTime selectedTimeLabel preferredTime serviceDurationMinutes resolutionCases.issueType resolutionCases.sourceStatus resolutionCases.state customerId customer.name customer.email customer.phone customer.mobile noShowReport.reviewStatus noShowReport.arrivedAt noShowReport.contactAttempts noShowReport.waitedMinutes noShowReport.arrivalProofUrl noShowReport.reportedAt noShowReport.reportedByName assignmentId technicianId technician.name technicianName bookingReference workOrderNumber service.name service.price serviceName serviceModel quantity proposedReschedule cancellationHistory.technicianName cancellationHistory.action cancellationHistory.reason cancellationReason rescheduleAccessExpiry noShowRescheduleExpiry quotation.totalAmount estimatedTotal payment.downpaymentAmount downpaymentAmount rescheduleRequest.status rescheduleReason")
       .populate("customerId", "firstName lastName name email phone")
       .populate("technicianId", "name")
       .populate("assignmentId", "technicianId customerName serviceName arrivalProofUrl")

@@ -44,3 +44,21 @@ test("booking, order, and Resolution Center pages publish fresh queue counts", (
     assert.match(source, /dispatchEvent\(new CustomEvent\('resolution:counts'/);
   }
 });
+
+test("Resolution Center page reuses its queue summary instead of requesting the sidebar count again", () => {
+  const admin = read("../views/partials/admin-sidebar.ejs");
+  const secretary = read("../views/partials/secretary-sidebar.ejs");
+  assert.match(admin, /onResolutionCenter \? Promise\.resolve\(null\) : fetch\('\/api\/admin\/resolution-center/);
+  assert.match(secretary, /onResolutionCenter \? Promise\.resolve\(null\) : fetch\('\/api\/secretary\/operations\/resolution-center/);
+});
+
+test("Resolution Center queries only due orders and projected case fields", () => {
+  const route = read("../routes/adminApi.js");
+  const routeStart = route.indexOf('router.get("/resolution-center"');
+  const routeEnd = route.indexOf('router.post("/resolution-center/:id/close"', routeStart);
+  const queueRoute = route.slice(routeStart, routeEnd);
+  assert.match(queueRoute, /pickupDate: \{ \$lt: orderScheduleUpperBound \}/);
+  assert.match(queueRoute, /"delivery\.preferredDate": \{ \$lt: orderScheduleUpperBound \}/);
+  assert.match(queueRoute, /\.select\("bookingId orderReference status fulfillmentType/);
+  assert.match(queueRoute, /\.select\("status bookingDate preferredDate startTime/);
+});

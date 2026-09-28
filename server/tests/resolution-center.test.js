@@ -1,5 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const ejs = require("ejs");
 const {
   filterResolutionCases,
   orderResolutionCase,
@@ -21,6 +25,7 @@ test("normalizes an overdue order into the shared resolution contract", () => {
     timeSlot: "09:00",
     customer: { name: "Ana Cruz", email: "ana@example.test" },
     items: [{ modelLine: "Premium Inverter", quantity: 2 }],
+    routeDurationMin: 45,
     paymentStatus: "pending",
     total: 85000,
   }, NOW);
@@ -29,8 +34,26 @@ test("normalizes an overdue order into the shared resolution contract", () => {
   assert.equal(item.issueType, "payment_review_overdue");
   assert.equal(item.linkedBookingId, "64b000000000000000000002");
   assert.equal(item.itemCount, 2);
+  assert.equal(item.routeDurationMin, 45);
   assert.equal(item.severity, "critical");
   assert.deepEqual(item.allowedActions, ["view", "verify_payment", "reschedule", "call"]);
+});
+
+test("order recovery uses the customer availability calendar and validates slots when saving", () => {
+  const page = fs.readFileSync(path.join(__dirname, "../views/pages/admin/Appointments/AttentionQueue.ejs"), "utf8");
+  const html = ejs.render(page, {});
+  const inlineScripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]);
+  for (const script of inlineScripts) new vm.Script(script);
+  assert.match(page, /rescheduleDeliveryOrder\(item\)/);
+  assert.match(page, /EnterpriseCalendar\.init\(\{/);
+  assert.match(page, /routeDurationMin/);
+  const orders = fs.readFileSync(path.join(__dirname, "../routes/orderRoutes.js"), "utf8");
+  const routeStart = orders.indexOf('router.post("/:id/admin-reschedule"');
+  const routeEnd = orders.indexOf('router.post("/:id/requeue-assignment"', routeStart);
+  const recoveryRoute = orders.slice(routeStart, routeEnd);
+  assert.match(recoveryRoute, /getTimeSlotsForQuery\(/);
+  assert.match(recoveryRoute, /validatePickupDate\(/);
+  assert.match(recoveryRoute, /ORDER_SLOT_UNAVAILABLE/);
 });
 
 test("does not create a resolution case for an order with a future schedule", () => {
