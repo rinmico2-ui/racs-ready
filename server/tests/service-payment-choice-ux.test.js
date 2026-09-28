@@ -14,6 +14,10 @@ const functions = script.slice(
   script.indexOf("function syncPaymentChoiceGuide()"),
   script.indexOf("function selectBookingPaymentChannel(channel")
 );
+const confirmationFunctions = script.slice(
+  script.indexOf("function paymentProofValidationMessage(file)"),
+  script.indexOf("let currentBookingPaymentIssue = null;")
+);
 
 function setupGuide() {
   const elements = new Map();
@@ -91,16 +95,73 @@ test("payment screen shows explicit guidance and map next action is centered", (
   assert.match(styles, /@media \(max-width: 767\.98px\)[\s\S]*?\.location-next-action\.is-visible\s*\{[^}]*transform:\s*none/);
 });
 
-test("completed payment fields reveal one fixed confirm-booking action", () => {
+test("the payment step keeps one guided confirm-booking action visible", () => {
   assert.equal((view.match(/id="confirmBookingBtn"/g) || []).length, 1);
   assert.match(view, /id="paymentConfirmAction"[^>]*hidden inert/);
+  assert.match(view, /id="paymentConfirmTitle"/);
+  assert.match(script, /function getPaymentConfirmationState\(\)/);
   assert.match(script, /function paymentConfirmationIsReady\(\)/);
-  assert.match(script, /validReference && !paymentProofValidationMessage\(receipt\)/);
+  assert.match(script, /return getPaymentConfirmationState\(\)\.ready/);
   assert.match(script, /function syncPaymentConfirmAction\(highlight = false\)/);
   assert.match(script, /action\.parentElement !== document\.body\)[^\n]*document\.body\.appendChild\(action\)/);
   assert.match(script, /field\.addEventListener\(field\.type === 'file' \? 'change' : 'input',[\s\S]*?syncPaymentConfirmAction\(\)/);
   assert.match(styles, /\.payment-confirm-action\.is-visible\s*\{[^}]*position:\s*fixed[^}]*z-index:\s*1040/);
   assert.match(styles, /\.payment-confirm-action #confirmBookingBtn\s*\{[^}]*background:\s*#16a34a/);
+  assert.match(styles, /\.payment-confirm-action:not\(\.is-ready\)/);
+});
+
+test("large-scale projects show the final action before it is ready and unlock it after payment evidence", () => {
+  const elements = new Map();
+  const make = id => {
+    if (!elements.has(id)) {
+      const classes = new Set();
+      elements.set(id, {
+        id, value: "", files: [], hidden: true, disabled: false, textContent: "", dataset: {}, offsetWidth: 10,
+        parentElement: null,
+        classList: {
+          add: name => classes.add(name),
+          remove: name => classes.delete(name),
+          contains: name => classes.has(name),
+          toggle: (name, force) => force ? classes.add(name) : classes.delete(name),
+        },
+        setAttribute() {}, toggleAttribute() {},
+      });
+    }
+    return elements.get(id);
+  };
+  const body = { appendChild(node) { node.parentElement = body; } };
+  const action = make("paymentConfirmAction");
+  action.parentElement = body;
+  const state = {
+    currentStep: 6,
+    isProject: true,
+    projectScheduling: { startDate: "2026-10-01", endDate: "2026-10-08" },
+    paymentMethod: null,
+    paymentChannel: null,
+    draftPersistenceDisabled: false,
+  };
+  const context = {
+    BookingState: state,
+    document: { body, getElementById: make },
+    window: { paymentMethodsConfig: { bank_transfer: { available: true } } },
+  };
+  vm.runInNewContext(confirmationFunctions, context);
+
+  context.syncPaymentConfirmAction();
+  assert.equal(action.hidden, false);
+  assert.equal(action.classList.contains("is-visible"), true);
+  assert.equal(make("confirmBookingBtn").disabled, true);
+  assert.match(make("paymentConfirmTitle").textContent, /Choose Full Payment/);
+
+  state.paymentMethod = "cod";
+  state.paymentChannel = "bank_transfer";
+  make("cashNumber").value = "PROJECT-REF-100";
+  make("cashProof").files = [{ type: "image/png", size: 2000 }];
+  context.syncPaymentConfirmAction();
+
+  assert.equal(make("confirmBookingBtn").disabled, false);
+  assert.equal(action.classList.contains("is-ready"), true);
+  assert.equal(make("paymentConfirmTitle").textContent, "Ready to send your project request");
 });
 
 test("payment summary uses the reviewed total and per-unit fallback without multiplying line totals twice", () => {

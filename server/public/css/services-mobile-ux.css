@@ -1569,6 +1569,15 @@ body.booking-sheet-open { overflow: hidden; }
 .payment-confirm-action #confirmBookingBtn { flex: 0 0 auto; min-height: 48px; border: 0; background: #16a34a; color: #fff; white-space: nowrap; box-shadow: 0 8px 18px rgba(22,163,74,.22); }
 .payment-confirm-action #confirmBookingBtn:hover:not(:disabled) { background: #15803d; }
 .payment-confirm-action #confirmBookingBtn:focus-visible { outline: 3px solid #86efac; outline-offset: 3px; }
+.payment-confirm-action:not(.is-ready) { border-color: #bfdbfe; background: #eff6ff; }
+.payment-confirm-action:not(.is-ready) .payment-confirm-copy span { color: #1d4ed8; }
+.payment-confirm-action:not(.is-ready) #confirmBookingBtn:disabled {
+  background: #94a3b8;
+  color: #fff;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+}
 #paymentStep.step-active .ent-step-body { padding-bottom: 112px !important; }
 @media (max-width: 767.98px) {
   .payment-confirm-action.is-visible {

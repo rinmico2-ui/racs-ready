@@ -9794,7 +9794,8 @@ function syncScheduleNextAction(highlight = false) {
   if (action.parentElement !== document.body) document.body.appendChild(action);
 
   const calendar = window.EnterpriseCalendar;
-  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
+  const isProject = (typeof isLargeScaleSelection === 'function' && isLargeScaleSelection()) ||
+    BookingState.isProject === true || !!BookingState.projectScheduling ||
     calendar?.isProjectMode?.() === true;
   const start = formatScheduleActionDate(BookingState.selectedDate || BookingState.scheduleDate);
   const end = isProject ? formatScheduleActionDate(
@@ -12397,11 +12398,33 @@ function paymentProofValidationMessage(file) {
   return '';
 }
 
-function paymentConfirmationIsReady() {
-  if (BookingState.currentStep !== 6 || BookingState.draftPersistenceDisabled) return false;
-  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) return false;
-  if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel)) return false;
-  if (window.paymentMethodsConfig?.[BookingState.paymentChannel]?.available === false) return false;
+function getPaymentConfirmationState() {
+  const paymentStep = document.getElementById('paymentStep');
+  const active = Number(BookingState.currentStep) === 6 || paymentStep?.classList.contains('step-active');
+  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
+    (typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.isProjectMode?.() === true);
+  const projectLabel = isProject ? 'project request' : 'booking request';
+
+  if (!active || BookingState.draftPersistenceDisabled) {
+    return { active: false, ready: false, isProject, eyebrow: '', title: '', hint: '' };
+  }
+  if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
+    return {
+      active: true, ready: false, isProject,
+      eyebrow: isProject ? 'Large-scale project' : 'Payment not finished',
+      title: 'Choose Full Payment or Down Payment',
+      hint: `Complete this step to send your ${projectLabel}.`,
+    };
+  }
+  if (!['gcash', 'maya', 'bank_transfer', 'other'].includes(BookingState.paymentChannel) ||
+      window.paymentMethodsConfig?.[BookingState.paymentChannel]?.available === false) {
+    return {
+      active: true, ready: false, isProject,
+      eyebrow: isProject ? 'Large-scale project' : 'Payment not finished',
+      title: 'Choose where you will send the payment',
+      hint: `Select an available payment method before sending your ${projectLabel}.`,
+    };
+  }
 
   const fullPayment = BookingState.paymentMethod === 'gcash';
   const reference = document.getElementById(fullPayment ? 'gcashNumber' : 'cashNumber')?.value?.trim() || '';
@@ -12409,7 +12432,35 @@ function paymentConfirmationIsReady() {
   const validReference = BookingState.paymentChannel === 'gcash'
     ? isValidPhilippineMobile(reference)
     : reference.length >= 3;
-  return validReference && !paymentProofValidationMessage(receipt);
+  if (!validReference) {
+    return {
+      active: true, ready: false, isProject,
+      eyebrow: isProject ? 'Large-scale project' : 'Payment not finished',
+      title: BookingState.paymentChannel === 'gcash' ? 'Enter the sender mobile number' : 'Enter the payment reference',
+      hint: 'Use the same details shown on your payment receipt.',
+    };
+  }
+
+  const receiptError = paymentProofValidationMessage(receipt);
+  if (receiptError) {
+    return {
+      active: true, ready: false, isProject,
+      eyebrow: isProject ? 'Large-scale project' : 'Payment not finished',
+      title: 'Upload a valid payment receipt',
+      hint: receiptError,
+    };
+  }
+
+  return {
+    active: true, ready: true, isProject,
+    eyebrow: 'Payment details complete',
+    title: isProject ? 'Ready to send your project request' : 'Ready to send your booking request',
+    hint: 'Your receipt will be checked before confirmation.',
+  };
+}
+
+function paymentConfirmationIsReady() {
+  return getPaymentConfirmationState().ready;
 }
 
 function syncPaymentConfirmAction(highlight = false) {
@@ -12420,18 +12471,26 @@ function syncPaymentConfirmAction(highlight = false) {
   // Payment cards can clip fixed children, so keep the single real submit
   // control at the viewport layer just like the other booking actions.
   if (action.parentElement !== document.body) document.body.appendChild(action);
-  const visible = paymentConfirmationIsReady();
-  const wasVisible = action.classList.contains('is-visible');
+  const state = getPaymentConfirmationState();
+  const visible = state.active;
+  const wasReady = action.classList.contains('is-ready');
+  const eyebrow = document.getElementById('paymentConfirmEyebrow');
+  const title = document.getElementById('paymentConfirmTitle');
+  const hint = document.getElementById('paymentConfirmHint');
+  if (eyebrow) eyebrow.textContent = state.eyebrow;
+  if (title) title.textContent = state.title;
+  if (hint) hint.textContent = state.hint;
   action.hidden = !visible;
   action.classList.toggle('is-visible', visible);
+  action.classList.toggle('is-ready', state.ready);
   action.setAttribute('aria-hidden', String(!visible));
   action.toggleAttribute('inert', !visible);
-  if (!button.dataset.submitting) button.disabled = !visible;
-  if (visible && (!wasVisible || highlight)) {
+  if (!button.dataset.submitting) button.disabled = !state.ready;
+  if (state.ready && (!wasReady || highlight)) {
     action.classList.remove('just-became-ready');
     void action.offsetWidth;
     action.classList.add('just-became-ready');
-  } else if (!visible) {
+  } else if (!state.ready) {
     action.classList.remove('just-became-ready');
   }
 }

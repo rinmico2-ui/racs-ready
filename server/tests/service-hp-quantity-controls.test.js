@@ -26,6 +26,6 @@ test("HP plus selects from zero and minus at one removes the selection", () => {
 });
 
 test("HP quantity assets are cache-busted", () => {
-  assert.match(view, /services-multi\.js\?v=20260928-session-resilience-v7/);
-  assert.match(view, /services-mobile-ux\.css\?v=20260928-mobile-booking-v48/);
+  assert.match(view, /services-multi\.js\?v=20260928-project-confirm-v8/);
+  assert.match(view, /services-mobile-ux\.css\?v=20260928-project-confirm-v49/);
 });

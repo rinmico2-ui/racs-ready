@@ -41,6 +41,19 @@ test("booking UI does not convert transient verification failures into logout", 
   assert.match(services, /if \(bookingSessionCheckPromise\) return bookingSessionCheckPromise/);
 });
 
+test("session verification agrees with server-rendered session authentication", () => {
+  const controller = read("controllers/authController.js");
+  const verify = controller.slice(
+    controller.indexOf("exports.verify = async"),
+    controller.indexOf("exports.verify = async") + 5000,
+  );
+  assert.match(verify, /if \(isAccountEnabled\(req\.user\)\)/);
+  assert.match(verify, /if \(req\.session\?\.userId\)/);
+  assert.match(verify, /User\.findById\(req\.session\.userId\)/);
+  assert.match(verify, /A stale JWT must not erase a still-valid server session/);
+  assert.doesNotMatch(verify, /if \(!token\)[\s\S]{0,160}user: null/);
+});
+
 test("customer logout redirects only after a successful server response", () => {
   const navbar = read("public/js/navbar-auth.js");
   const successCheck = navbar.indexOf("if (!response.ok)");

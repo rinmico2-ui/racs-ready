@@ -1488,35 +1488,46 @@ exports.logout = async (req, res) => {
 };
 
 exports.verify = async (req, res) => {
+  res.set("Cache-Control", "no-store, private");
   try {
+    // attachCurrentUser already validates both supported authentication paths.
+    // Reuse it when available so this endpoint cannot disagree with the page
+    // that the customer is currently viewing.
+    if (isAccountEnabled(req.user)) {
+      return res.json({ user: req.user });
+    }
+
     const cookies = parseCookies(req);
     const token = cookies["auth_token"];
-    if (!token) {
-      res.set("Cache-Control", "no-store, private");
-      return res.json({ user: null });
+    if (token) {
+      try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+        const user = await User.findById(payload.id).select("-passwordHash");
+        const sessionMismatch = payload.sessionId
+          && payload.sessionId !== String(user?.currentSessionId || "");
+        const passwordChanged = user?.lastPasswordChange && payload.iat
+          && payload.iat * 1000 < user.lastPasswordChange.getTime();
+        if (isAccountEnabled(user) && !sessionMismatch && !passwordChanged) {
+          return res.json({ user });
+        }
+        res.clearCookie("auth_token", { path: "/" });
+      } catch (error) {
+        // A stale JWT must not erase a still-valid server session. Clear only
+        // the token and continue to the session fallback below.
+        res.clearCookie("auth_token", { path: "/" });
+      }
     }
-    let payload;
-    try {
-      payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
-    } catch (e) {
-      res.clearCookie("auth_token", { path: "/" });
-      res.set("Cache-Control", "no-store, private");
-      return res.json({ user: null });
+
+    if (req.session?.userId) {
+      const sessionUser = await User.findById(req.session.userId).select("-passwordHash");
+      if (isAccountEnabled(sessionUser)) {
+        req.user = sessionUser;
+        return res.json({ user: sessionUser });
+      }
     }
-    const user = await User.findById(payload.id).select("-passwordHash");
-    const sessionMismatch = payload.sessionId
-      && payload.sessionId !== String(user?.currentSessionId || "");
-    const passwordChanged = user?.lastPasswordChange && payload.iat
-      && payload.iat * 1000 < user.lastPasswordChange.getTime();
-    if (!isAccountEnabled(user) || sessionMismatch || passwordChanged) {
-      res.clearCookie("auth_token", { path: "/" });
-      res.set("Cache-Control", "no-store, private");
-      return res.json({ user: null });
-    }
-    res.set("Cache-Control", "no-store, private");
-    res.json({ user });
+
+    return res.json({ user: null });
   } catch (err) {
-    res.set("Cache-Control", "no-store, private");
     console.warn("auth.verify: temporary verification failure", err && err.message);
     res.status(503).json({ error: "Session verification is temporarily unavailable" });
   }
