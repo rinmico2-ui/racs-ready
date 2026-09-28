@@ -18,6 +18,10 @@ const errorHelpers = script.slice(
   script.indexOf("let currentBookingPaymentIssue = null;"),
   script.indexOf("/**\n * Handle booking submission")
 );
+const gcashGuidance = script.slice(
+  script.indexOf("function syncGcashNumberGuidance(fieldId)"),
+  script.indexOf("function paymentChannelLabel(channel)")
+);
 
 function validatePayment({ number = "", proof = null, channel = "gcash" } = {}) {
   const fields = {
@@ -105,4 +109,47 @@ test("a failed payment focuses and marks the field that needs correction", () =>
   assert.equal(get("cashNumber").getAttribute("aria-invalid"), "true");
   assert.equal(get("cashNumber").scrolled, true);
   assert.equal(get("cashNumber").focused, true);
+});
+
+test("GCash sender numbers show live 11-digit guidance", () => {
+  const classes = new Set(["d-none"]);
+  const attributes = new Map();
+  const field = {
+    value: "0917abc",
+    classList: {
+      add: name => classes.add(name),
+      remove: name => classes.delete(name),
+      toggle: (name, force) => force ? classes.add(name) : classes.delete(name)
+    },
+    getAttribute: name => attributes.get(name) || null,
+    setAttribute: (name, value) => attributes.set(name, value),
+    removeAttribute: name => attributes.delete(name)
+  };
+  const feedback = {
+    textContent: "",
+    classList: field.classList
+  };
+  const context = {
+    BookingState: { paymentChannel: "gcash" },
+    document: { getElementById: id => id === "gcashNumber" ? field : id === "gcashNumberError" ? feedback : null }
+  };
+
+  const invalid = vm.runInNewContext(`${gcashGuidance}\nsyncGcashNumberGuidance('gcashNumber');`, context);
+  assert.equal(invalid, false);
+  assert.equal(field.value, "0917");
+  assert.equal(attributes.get("aria-invalid"), "true");
+  assert.match(feedback.textContent, /4\/11 digits entered/);
+
+  field.value = "09171234567";
+  const valid = vm.runInNewContext("syncGcashNumberGuidance('gcashNumber');", context);
+  assert.equal(valid, true);
+  assert.equal(attributes.has("aria-invalid"), false);
+  assert.equal(feedback.textContent, "Valid 11-digit GCash number.");
+});
+
+test("GCash fields switch to an exact 11-digit input contract", () => {
+  assert.match(script, /input\.maxLength = isGcash \? 11 : 80/);
+  assert.match(script, /input\.setAttribute\('pattern', '09\[0-9\]\{9\}'\)/);
+  assert.match(view, /id="gcashNumber"[^>]*aria-errormessage="gcashNumberError"/);
+  assert.match(styles, /#paymentStep \.payment-inline-valid\s*\{[^}]*color:\s*#15803d/);
 });

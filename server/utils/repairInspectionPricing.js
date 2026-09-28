@@ -71,7 +71,11 @@ function resolveCatalogInspectionFee(item, categories, defaultFee) {
 
   if (!category) throw pricingError("The selected appliance is not in the active repair catalog.");
   if (category.isCustom && !(category.unitTypes || []).length) {
-    return { fee: defaultFee, source: "default", categorySlug: category.slug, unitType: item?.unitType || item?.applianceTypeName };
+    const customUnit = String(item?.unitType || item?.applianceTypeName || "").trim();
+    if (customUnit.length < 2 || customUnit.length > 80) {
+      throw pricingError("Enter an appliance name between 2 and 80 characters.");
+    }
+    return { fee: defaultFee, source: "default", categorySlug: category.slug, unitType: customUnit, unitLabel: customUnit };
   }
 
   const unit = (category.unitTypes || []).find((row) => (

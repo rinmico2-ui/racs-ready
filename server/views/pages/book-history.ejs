@@ -2661,6 +2661,52 @@
     #bhRescheduleModal .bh-btn-primary { background: #2563eb; box-shadow: none; }
 
     /* Booking editor mirrors the service-booking cards and controls. */
+    .bh-editor-loader[hidden] { display: none !important; }
+    .bh-editor-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: rgba(15, 23, 42, .42);
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      transition: opacity .16s ease;
+    }
+    .bh-editor-loader.is-visible { opacity: 1; }
+    .bh-editor-loader-card {
+      display: flex;
+      width: min(390px, 100%);
+      align-items: center;
+      gap: 1rem;
+      padding: 1.15rem 1.25rem;
+      border: 1px solid rgba(255, 255, 255, .8);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+      color: #0f172a;
+    }
+    .bh-editor-loader-card strong,
+    .bh-editor-loader-card span { display: block; }
+    .bh-editor-loader-card strong { font-size: .9rem; font-weight: 800; }
+    .bh-editor-loader-card div > span { margin-top: .2rem; color: #64748b; font-size: .74rem; line-height: 1.4; }
+    .bh-editor-loader-spinner {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      border: 4px solid #dbeafe;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: bhEditorSpin .72s linear infinite;
+    }
+    body.bh-editor-loading { overflow: hidden; }
+    @keyframes bhEditorSpin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) {
+      .bh-editor-loader-spinner { animation-duration: 1.5s; }
+      .bh-editor-loader { transition: none; }
+    }
+
     #bhBookingEditorModal .modal-content { overflow: hidden; border: 0; border-radius: 18px !important; }
     #bhBookingEditorModal .bh-editor-header {
       padding: 1.1rem 1.35rem;
@@ -2684,6 +2730,71 @@
     #bhBookingEditorModal .bh-editor-service-tabs { gap: .4rem; margin-bottom: 1rem; padding: .3rem; border-radius: 12px; background: #f1f5f9; }
     #bhBookingEditorModal .bh-editor-service-tabs .nav-link { min-height: 42px; border-radius: 9px; color: #64748b; font-size: .82rem; font-weight: 700; }
     #bhBookingEditorModal .bh-editor-service-tabs .nav-link.active { background: #fff; color: #1d4ed8; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+    #bhBookingEditorModal .bh-editor-guide { display: flex; align-items: center; gap: .75rem; margin-bottom: .85rem; padding: .75rem .9rem; border: 1px solid #bfdbfe; border-radius: 13px; background: #eff6ff; }
+    #bhBookingEditorModal .bh-editor-guide > span { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; border-radius: 50%; background: #2563eb; color: #fff; font-size: .78rem; font-weight: 900; }
+    #bhBookingEditorModal .bh-editor-guide strong, #bhBookingEditorModal .bh-editor-guide small { display: block; }
+    #bhBookingEditorModal .bh-editor-guide strong { color: #1e3a8a; font-size: .78rem; }
+    #bhBookingEditorModal .bh-editor-guide small { margin-top: .1rem; color: #475569; font-size: .66rem; }
+    #bhBookingEditorModal .bh-editor-service-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; padding: 0; background: transparent; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-item { min-width: 0; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link { display: grid; width: 100%; min-height: 74px; grid-template-columns: 42px minmax(0, 1fr) 16px; align-items: center; gap: .65rem; padding: .7rem; border: 1.5px solid #e2e8f0; border-radius: 13px; background: #fff; text-align: left; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link > span:nth-child(2) { min-width: 0; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link strong, #bhBookingEditorModal .bh-editor-service-tabs .nav-link small { display: block; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link strong { color: #0f172a; font-size: .78rem; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link small { margin-top: .12rem; overflow: hidden; color: #64748b; font-size: .6rem; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+    #bhBookingEditorModal .bh-editor-service-tabs .nav-link.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,.08); }
+    #bhBookingEditorModal .bh-service-tab-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: #eff6ff; color: #2563eb; font-size: 1rem; }
+    #bhBookingEditorModal .nav-link.active .bh-service-tab-icon { background: #2563eb; color: #fff; }
+    #bhBookingEditorModal #bhAddTabContent { padding-top: .85rem; }
+    #bhBookingEditorModal .bh-picker-intro { display: flex; align-items: center; gap: .7rem; margin-bottom: .85rem; padding: .7rem .8rem; border-radius: 12px; background: linear-gradient(135deg,#eff6ff,#dbeafe); }
+    #bhBookingEditorModal .bh-picker-intro > span { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; background: #fff; color: #2563eb; }
+    #bhBookingEditorModal .bh-picker-intro strong, #bhBookingEditorModal .bh-picker-intro small { display: block; }
+    #bhBookingEditorModal .bh-picker-intro strong { color: #1e293b; font-size: .8rem; }
+    #bhBookingEditorModal .bh-picker-intro small { margin-top: .1rem; color: #64748b; font-size: .64rem; }
+    #bhBookingEditorModal .bh-core-pager { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .85rem; padding: .65rem .75rem; border: 1px solid #dbeafe; border-radius: 12px; background: #f8fafc; }
+    #bhBookingEditorModal .bh-core-pager button { min-height: 38px; padding: .4rem .7rem; border: 1px solid #bfdbfe; border-radius: 9px; background: #fff; color: #1d4ed8; font-size: .68rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-core-pager button:disabled { opacity: .42; }
+    #bhBookingEditorModal .bh-core-pager span { color: #475569; font-size: .66rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-repair-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; margin-bottom: .55rem; padding: .35rem; border-radius: 12px; background: #f1f5f9; }
+    #bhBookingEditorModal .bh-repair-progress button { display: flex; min-width: 0; min-height: 42px; align-items: center; justify-content: center; gap: .35rem; border: 0; border-radius: 9px; background: transparent; color: #94a3b8; font-size: .62rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-repair-progress button > span { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: .62rem; }
+    #bhBookingEditorModal .bh-repair-progress button.is-active { background: #fff; color: #1d4ed8; box-shadow: 0 2px 8px rgba(15,23,42,.08); }
+    #bhBookingEditorModal .bh-repair-progress button.is-active > span { background: #2563eb; }
+    #bhBookingEditorModal .bh-repair-progress button.is-complete { color: #047857; }
+    #bhBookingEditorModal .bh-repair-progress button.is-complete > span { background: #10b981; }
+    #bhBookingEditorModal .bh-repair-hint { margin: 0 0 .7rem; color: #475569; font-size: .67rem; text-align: center; }
+    #bhBookingEditorModal .bh-repair-section { padding: 1rem; border: 1px solid #dbeafe; border-radius: 15px; background: #fff; box-shadow: 0 6px 20px rgba(37,99,235,.06); }
+    #bhBookingEditorModal .bh-repair-section-head { display: flex; align-items: center; gap: .65rem; margin-bottom: .85rem; }
+    #bhBookingEditorModal .bh-repair-section-head > span { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 9px; background: #2563eb; color: #fff; font-size: .72rem; font-weight: 900; }
+    #bhBookingEditorModal .bh-repair-section-head h6 { margin: 0; color: #0f172a; font-size: .86rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-repair-section-head p { margin: .1rem 0 0; color: #64748b; font-size: .65rem; }
+    #bhBookingEditorModal .bh-repair-category { display: grid; width: 100%; min-height: 126px; grid-template-rows: 44px auto auto; place-items: center; position: relative; padding: .8rem .6rem; border: 1.5px solid #e2e8f0; border-radius: 13px; background: #fff; color: #0f172a; text-align: center; transition: .18s ease; }
+    #bhBookingEditorModal .bh-repair-category:hover, #bhBookingEditorModal .bh-repair-category.is-selected { border-color: #2563eb; background: #eff6ff; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(37,99,235,.1); }
+    #bhBookingEditorModal .bh-repair-category:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    #bhBookingEditorModal .bh-repair-category-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: #dbeafe; color: #2563eb; font-size: 1.05rem; }
+    #bhBookingEditorModal .bh-repair-category strong { font-size: .75rem; }
+    #bhBookingEditorModal .bh-repair-category small { color: #64748b; font-size: .6rem; }
+    #bhBookingEditorModal .bh-repair-category > .bi-chevron-right { position: absolute; top: .55rem; right: .55rem; color: #94a3b8; font-size: .62rem; }
+    #bhBookingEditorModal .bh-unit-chip { min-height: 42px; padding: .48rem .7rem; border-color: #cbd5e1; background: #fff; color: #475569; font-size: .7rem; font-weight: 700; }
+    #bhBookingEditorModal .bh-unit-chip.is-selected { border-color: #2563eb; background: #2563eb; color: #fff; }
+    #bhBookingEditorModal .bh-custom-unit { padding: .85rem; border: 1px solid #dbeafe; border-radius: 12px; background: #f8fbff; }
+    #bhBookingEditorModal .bh-custom-unit-row { display: flex; gap: .55rem; }
+    #bhBookingEditorModal .bh-custom-unit-row input { min-width: 0; flex: 1; }
+    #bhBookingEditorModal .bh-custom-unit-row button { min-height: 44px; flex-shrink: 0; padding: .5rem .8rem; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-size: .7rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-custom-unit-row button:disabled { background: #cbd5e1; cursor: not-allowed; }
+    #bhBookingEditorModal .bh-custom-unit > small { display: block; margin-top: .4rem; color: #64748b; font-size: .65rem; }
+    #bhBookingEditorModal .bh-repair-section .form-label { margin-bottom: .35rem; color: #475569; font-size: .69rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-repair-section .form-control { min-height: 44px; border: 1.5px solid #dbe3ef; border-radius: 10px; font-size: .78rem; }
+    #bhBookingEditorModal .bh-repair-section .form-control.is-invalid { border-color: #dc3545; }
+    #bhBookingEditorModal .bh-field-hint { display: block; margin-top: .3rem; color: #64748b; font-size: .63rem; }
+    #bhBookingEditorModal .bh-repair-step-action { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .9rem; padding-top: .8rem; border-top: 1px solid #eef2f7; }
+    #bhBookingEditorModal .bh-repair-step-action > span { color: #64748b; font-size: .65rem; }
+    #bhBookingEditorModal .bh-repair-step-action button, #bhBookingEditorModal .bh-repair-add-button { min-height: 42px; padding: .55rem .8rem; border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-size: .7rem; font-weight: 800; }
+    #bhBookingEditorModal .bh-repair-step-action button:disabled, #bhBookingEditorModal .bh-repair-add-button:disabled { background: #cbd5e1; cursor: not-allowed; }
+    #bhBookingEditorModal .bh-repair-add-summary { display: flex; align-items: center; justify-content: space-between; gap: .65rem; margin-top: .75rem; padding: .65rem .75rem; border: 1px solid #bbf7d0; border-radius: 10px; background: #f0fdf4; color: #166534; font-size: .66rem; }
+    #bhBookingEditorModal .bh-repair-add-summary span { display: flex; align-items: center; gap: .35rem; }
+    #bhBookingEditorModal .bh-repair-add-button { display: flex; width: 100%; align-items: center; justify-content: center; gap: .4rem; margin-top: .65rem; }
+    #bhBookingEditorModal .bh-editor-empty { grid-column: 1 / -1; padding: 1.5rem; color: #64748b; text-align: center; font-size: .75rem; }
     #bhBookingEditorModal .bh-core-service-column { display: flex; min-width: 0; }
     #bhBookingEditorModal .bh-service-catalog-card { display: flex; width: 100%; min-width: 0; flex-direction: column; padding: .85rem; border: 1px solid #e2e8f0; border-radius: 15px; background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,.04); transition: .2s ease; }
     #bhBookingEditorModal .bh-service-catalog-card:hover { border-color: #93c5fd; transform: translateY(-2px); box-shadow: 0 10px 25px rgba(37,99,235,.1); }
@@ -2746,6 +2857,8 @@
     #bhHpModal .bh-editor-stepper input { width: 100%; height: 38px; padding: 0; border: 0; background: #fff; color: #1d4ed8; text-align: center; }
     #bhBookingEditorModal .bh-editor-stepper input,
     #bhHpModal .bh-editor-stepper input { border-right: 1px solid #dbeafe; border-left: 1px solid #dbeafe; color: #172033; font-weight: 800; }
+    #bhBookingEditorModal .bh-editor-stepper input:focus,
+    #bhHpModal .bh-editor-stepper input:focus { position: relative; z-index: 1; outline: 2px solid #2563eb; outline-offset: -2px; background: #eff6ff; }
     #bhBookingEditorModal .bh-editor-stepper button:hover,
     #bhHpModal .bh-editor-stepper button:hover { background: #eff6ff; }
     #bhBookingEditorModal .bh-editor-proposal { padding: 1rem; border: 1px solid #bfdbfe; border-radius: 14px; background: #eff6ff; }
@@ -2892,6 +3005,15 @@
       #bhBookingEditorModal .bh-service-meta { min-height: 1.7rem; }
       #bhBookingEditorModal .bh-service-price { display: block; }
       #bhBookingEditorModal .bh-service-price span { display: block; margin-bottom: .1rem; }
+      #bhBookingEditorModal .bh-editor-service-tabs .nav-link { min-height: 66px; grid-template-columns: 36px minmax(0,1fr) 12px; gap: .45rem; padding: .55rem; }
+      #bhBookingEditorModal .bh-service-tab-icon { width: 36px; height: 36px; }
+      #bhBookingEditorModal .bh-editor-service-tabs .nav-link small { display: none; }
+      #bhBookingEditorModal .bh-repair-section { padding: .8rem; }
+      #bhBookingEditorModal .bh-repair-step-action { align-items: stretch; flex-direction: column; }
+      #bhBookingEditorModal .bh-repair-step-action button { width: 100%; }
+      #bhBookingEditorModal .bh-repair-add-summary { align-items: flex-start; flex-direction: column; }
+      #bhBookingEditorModal .bh-custom-unit-row { flex-direction: column; }
+      #bhBookingEditorModal .bh-custom-unit-row button { width: 100%; }
       #bhHpModal .modal-dialog { width: 100%; max-width: none !important; min-height: 100%; margin: 0; }
       #bhHpModal .modal-content { min-height: 100vh; border-radius: 0; }
       #bhHpModal .bh-cfg-header { padding: .8rem 1rem; }
@@ -2911,7 +3033,14 @@
       #bhHpModal .bh-cfg-price { order: -1; min-width: 100%; }
       #bhHpModal .bh-cfg-back, #bhHpModal .bh-cfg-primary { flex: 1; }
     }
+
+    @media (max-width: 420px) {
+      #bhBookingEditorModal .bh-editor-service-tabs { grid-template-columns: 1fr; }
+      #bhBookingEditorModal .bh-repair-progress button { min-height: 38px; padding: .25rem; }
+      #bhBookingEditorModal .bh-repair-progress button small { display: none; }
+      #bhBookingEditorModal .bh-repair-category { min-height: 112px; }
+    }
   </style>
 
 <script src="/js/enterprise-calendar.js?v=20260926-scoped-picker-v1"></script>
-<script src="/js/book-history.js?v=20260926-sort-filter-v6"></script>
+<script src="/js/book-history.js?v=20260928-service-picker-v9"></script>

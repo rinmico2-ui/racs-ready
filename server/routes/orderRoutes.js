@@ -35,6 +35,7 @@ const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const { buildOrderAssignmentPlan } = require("../utils/orderAssignmentPlanner");
 const { orderFulfillmentScopeFilter } = require("../utils/orderFulfillmentScope");
 const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
+const { parseOperationsCalendarRange } = require("../utils/operationsCalendarRange");
 const { listSortStages } = require('../utils/operationsListPolicy');
 const { ORDER_PHOTO_FIELDS, exclude } = require('../utils/operationsDetail');
 const {
@@ -315,6 +316,29 @@ async function findAvailableTechnician(preferredDate) {
  * Query params: status, fulfillmentType, fulfillmentGroup, preparation, technicianId,
  * scheduledFrom, scheduledTo, search, from, to, page, limit
  */
+// Date-bounded, projection-only calendar feed. The full orders list also
+// computes several dashboard KPIs, which are unnecessary for every month view.
+router.get("/calendar", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const { startDate, endDate } = parseOperationsCalendarRange(req.query.scheduledFrom, req.query.scheduledTo);
+    const scheduledRange = {
+      $gte: manilaDateTime(startDate, 0),
+      $lte: manilaDateTime(endDate, 24 * 60, -1),
+    };
+    const orders = await Order.find({ $or: [
+      { fulfillmentType: "customer_pickup", pickupDate: scheduledRange },
+      { fulfillmentType: { $ne: "customer_pickup" }, "delivery.preferredDate": scheduledRange },
+    ] })
+      .select("_id orderReference status fulfillmentType customer.name customer.phone technicianId technician.name delivery.preferredDate pickupDate timeSlot items.brand items.modelLine items.capacity items.capacityUnit")
+      .lean();
+    return res.json({ orders, pages: 1 });
+  } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ error: error.message });
+    console.error("GET /api/orders/calendar failed", error);
+    return res.status(500).json({ error: "Failed to load calendar orders" });
+  }
+});
+
 router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const {

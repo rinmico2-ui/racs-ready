@@ -31,6 +31,7 @@ const { createNotification } = require("../utils/notify");
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
+const { parseOperationsCalendarRange } = require("../utils/operationsCalendarRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const {
@@ -608,6 +609,24 @@ const CUSTOMER_HISTORY_EXCLUDED_FIELDS = [
 ].join(" ");
 
 // ─── List bookings for the logged-in user (used by book-history.js) ─────────
+// Operations Calendar needs a bounded schedule snapshot, not full booking
+// documents or the customer-history pagination and presentation work.
+router.get("/calendar", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    parseOperationsCalendarRange(req.query.start, req.query.end);
+    const bookingDate = buildCalendarBookingDateRange({ start: req.query.start, end: req.query.end });
+    const items = await BookingService.find({ bookingDate })
+      .select("_id bookingDate startTime status bookingReference workOrderNumber customer.name customerName technicianId technician.name technicianName service.name serviceModel serviceType services.name")
+      .sort({ bookingDate: 1, startTime: 1, _id: 1 })
+      .lean();
+    return res.json({ items });
+  } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ error: error.message });
+    console.error("GET /api/appointments/calendar failed", error);
+    return res.status(500).json({ error: "Failed to load calendar bookings" });
+  }
+});
+
 router.get("/", auth.authenticate, async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 2000);

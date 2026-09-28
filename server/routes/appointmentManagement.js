@@ -40,7 +40,15 @@ router.use((req, res, next) => {
 router.get('/assignment-plan', requireRole(['admin','secretary']), async (req,res) => {
   try {
     const statuses=String(req.query.status||'awaiting_assignment,pending_reassignment').split(',').filter(s=>['awaiting_assignment','pending_reassignment'].includes(s));
-    const bookings=await BookingService.find({status:{$in:statuses.length?statuses:['awaiting_assignment','pending_reassignment']},isProject:{$ne:true}}).sort({bookingDate:1,startTime:1}).limit(200).lean();
+    const bookingIds = req.query.bookingIds == null ? null : String(req.query.bookingIds).split(',').filter(Boolean);
+    if (bookingIds && (!bookingIds.length || bookingIds.length > 20 || bookingIds.some(id => !mongoose.Types.ObjectId.isValid(id)))) {
+      return res.status(400).json({ error: 'Select 1 to 20 valid booking IDs' });
+    }
+    const filter = { status: { $in: statuses.length ? statuses : ['awaiting_assignment', 'pending_reassignment'] }, isProject: { $ne: true } };
+    if (bookingIds) filter._id = { $in: bookingIds.map(id => new mongoose.Types.ObjectId(id)) };
+    const bookings=await BookingService.find(filter)
+      .select('_id status bookingDate startTime endTime serviceDurationMinutes bookingReference customer.name service.name location.coordinates bookingLocation cancellationHistory.action cancellationHistory.technicianId')
+      .sort({bookingDate:1,startTime:1}).limit(bookingIds ? 20 : 200).lean();
     const {buildAssignmentPlan}=require('../utils/assignmentPlanner');
     const plan=await buildAssignmentPlan(bookings);
     res.json({plan,total:plan.length,assignable:plan.filter(p=>p.recommended).length,unmatched:plan.filter(p=>!p.recommended).length});
@@ -148,6 +156,12 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
     ];
     const revenueMatch = { status: { $in: allCompletedStatuses }, paymentStatus: PaymentStatus.PAID, ...dateFilter };
     const [dashboard = {}] = await BookingService.aggregate([{
+      $project: {
+        status: 1, bookingDate: 1, preferredDate: 1, preferredTime: 1,
+        selectedTimeLabel: 1, startTime: 1, endTime: 1, serviceDurationMinutes: 1,
+        createdAt: 1, updatedAt: 1, paymentStatus: 1, totalPrice: 1, customerRating: 1,
+      },
+    }, {
       $facet: {
         filteredStatuses: [
           { $match: dateFilter },
@@ -175,7 +189,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
           { $group: { _id: null, avg: { $avg: '$customerRating' }, count: { $sum: 1 } } },
         ],
         pendingReviews: [
-          { $match: { status: 'pending' } },
+          { $match: { status: 'pending', $or: [{ bookingDate: { $lte: new Date() } }, { preferredDate: { $lte: new Date() } }] } },
           { $project: { status: 1, bookingDate: 1, preferredDate: 1, preferredTime: 1, selectedTimeLabel: 1, startTime: 1, endTime: 1, serviceDurationMinutes: 1 } },
         ],
       },
@@ -292,21 +306,34 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     }
     const sortKeys = { '-createdAt': 'newest', createdAt: 'oldest', '-bookingDate': 'date_desc', bookingDate: 'date_asc' };
     const sortKey = req.query.sort || (stage === 'pending_review' ? 'date_desc' : 'newest');
-    const pipeline = [{ $match: query }, ...listSortStages('booking', sortKeys[sortKey] || sortKey),
+    const sortPreset = sortKeys[sortKey] || sortKey;
+    // Keep the common recent-bookings path indexable. Computed sort fields
+    // are only needed for service-date and amount ordering.
+    const sortStages = sortPreset === 'newest' || sortPreset === 'oldest'
+      ? [{ $sort: { createdAt: sortPreset === 'newest' ? -1 : 1, _id: sortPreset === 'newest' ? -1 : 1 } }]
+      : listSortStages('booking', sortPreset);
+    const pipeline = [{ $match: query }, ...sortStages,
       { $skip: (page - 1) * limit }, { $limit: limit }];
-    if (req.query.compact === 'true') {
+    if (req.query.compact === 'true' || req.query.compact === 'queue') {
       const fields = [
         'bookingReference', 'workOrderNumber', 'status', 'preferredDate', 'bookingDate',
         'preferredTime', 'selectedTimeLabel', 'startTime', 'endTime', 'serviceDurationMinutes',
-        'customer.name', 'customer.email', 'service.name',
+        'customer.name', 'customer.email', 'customer.phone', 'technician.name', 'service.name',
         'services.name', 'services.type', 'services.brand', 'services.model',
         'services.hpDescription', 'services.hp', 'services.applianceTypeName', 'services.applianceType',
         'services.problemDescription', 'services.repairIssue',
         'serviceType', 'serviceModel',
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
-        'createdAt', 'updatedAt',
+        'autoReschedulePending', 'duration', 'createdAt', 'updatedAt',
       ];
-      pipeline.push({ $project: Object.fromEntries(fields.map(field => [field, 1])) });
+      const projection = Object.fromEntries(fields.map(field => [field, 1]));
+      if (req.query.compact === 'queue') {
+        ['location.address', 'isMultiService', 'maintenance.isMaintenance', 'reassignmentCount', 'escalated'].forEach(field => {
+          projection[field] = 1;
+        });
+        projection.cancellationHistory = { $slice: [{ $ifNull: ['$cancellationHistory', []] }, -3] };
+      }
+      pipeline.push({ $project: projection });
     } else {
       pipeline.push({ $project: { _listDate: 0, _listUndated: 0, _listAmount: 0, completionProofFileId: 0 } });
     }
@@ -488,6 +515,24 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
   } catch (error) {
     console.error('âŒ Error verifying payment:', error);
     res.status(500).json({ error: 'Failed to verify payment' });
+  }
+});
+
+/** Lightweight counts for the assignment queue; no booking documents are sent. */
+router.get('/queue-metrics', requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    const [statusRows, escalated] = await Promise.all([
+      BookingService.aggregate([
+        { $match: { status: { $in: ['awaiting_assignment', 'pending_reassignment'] } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      BookingService.countDocuments({ $or: [{ escalated: true }, { reassignmentCount: { $gte: 3 } }] }),
+    ]);
+    const counts = Object.fromEntries(statusRows.map(row => [row._id, row.count]));
+    res.json({ awaiting: counts.awaiting_assignment || 0, reassign: counts.pending_reassignment || 0, escalated });
+  } catch (error) {
+    console.error('Error fetching queue metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch queue metrics' });
   }
 });
 
@@ -1575,9 +1620,22 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
 
     const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus autoReschedulePending autoRescheduleAt';
 
-    const queueBookings = await BookingService.find({ status: { $in: queueStatuses } })
-      .select(select)
-      .lean();
+    // An overdue booking cannot be scheduled after now. The verification
+    // window only spans today (and possibly tomorrow) in Manila time.
+    const upcomingStart = manilaDateTime(now, 0);
+    const upcomingEnd = manilaDateTime(windowEnd, 24 * 60);
+    const [queueBookings, upcoming] = await Promise.all([
+      BookingService.find({ status: { $in: queueStatuses }, bookingDate: { $lte: now } })
+        .select(select).lean(),
+      BookingService.find({
+        status: { $in: [
+          'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
+          'pending_reassignment', 'confirmed', 'scheduled',
+        ] },
+        bookingDate: { $gte: upcomingStart, $lt: upcomingEnd },
+        verificationReminderAt: null,
+      }).select(select).lean(),
+    ]);
 
     const overdueItems = [];
     for (const b of queueBookings) {
@@ -1598,18 +1656,6 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
         autoReschedulePending: !!b.autoReschedulePending,
       });
     }
-
-    const upcoming = await BookingService.find({
-      status: {
-        $in: [
-          'pending', 'payment_verified', 'awaiting_assignment', 'assigned',
-          'pending_reassignment', 'confirmed', 'scheduled',
-        ],
-      },
-      verificationReminderAt: null,
-    })
-      .select(select)
-      .lean();
 
     const verifyItems = [];
     for (const b of upcoming) {

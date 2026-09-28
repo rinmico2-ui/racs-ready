@@ -168,6 +168,7 @@
 /* The public links stay in the desktop navbar. On smaller screens they move
    into this same account drawer so the header needs only one menu trigger. */
 .racs-sidebar-site-navigation { display: none; }
+.racs-sidebar-mobile-contact { display: none; }
 
 .racs-sidebar-group-label {
   margin: 0 0 0.375rem;
@@ -511,6 +512,7 @@
   }
 
   .racs-sidebar-site-navigation { display: block; }
+  .racs-sidebar-mobile-contact { display: list-item; }
 
   .racs-sidebar {
     border-left: 1px solid var(--racs-line);

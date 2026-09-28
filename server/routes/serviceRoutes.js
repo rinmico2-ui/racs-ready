@@ -11,6 +11,7 @@ const auth = require("../middleware/authenticate");
 const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/bookingPolicy");
 const { getPaymentPolicy } = require("../utils/paymentPolicy");
 const { overtimeMinutesForWindow } = require("../utils/technicianOvertimePolicy");
+const { getDefaultRepairInspectionFee } = require("../utils/repairInspectionPricing");
 
 async function fetchJsonWithTimeout(url, timeoutMs = 7000) {
   const controller = new AbortController();
@@ -64,8 +65,11 @@ router.get("/", async (req, res) => {
 router.get("/categories", async (req, res) => {
   try {
     const ServiceCategory = require("../models/ServiceCategory");
-    const categories = await ServiceCategory.find({ active: true }).sort({ order: 1 }).lean();
-    return res.json({ categories });
+    const [categories, defaultInspectionFee] = await Promise.all([
+      ServiceCategory.find({ active: true }).sort({ order: 1 }).lean(),
+      getDefaultRepairInspectionFee(),
+    ]);
+    return res.json({ categories, defaultInspectionFee });
   } catch (err) {
     console.error("GET /api/services/categories failed", err && err.message);
     return res.status(500).json({ error: "Failed to load service categories" });

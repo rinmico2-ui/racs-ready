@@ -37,7 +37,7 @@ test("booking-history rows expose only View Details and keep operations in the m
   assert.match(script, /Book Again/);
   assert.match(script, /View Maintenance/);
   assert.match(view, /id="bh-download-json"/);
-  assert.match(view, /sort-filter-v6/);
+  assert.match(view, /service-picker-v9/);
 });
 
 test("booking-history keeps status, location, filters, and schedule actions readable", () => {
@@ -100,6 +100,21 @@ test("edit booking quantity controls are item-scoped and have no duplicate HP id
   assert.match(view, /#bhHpModal \.bh-cfg-wizard/);
 });
 
+test("edit-booking quantities support typing as well as plus and minus", () => {
+  const view = read("views/pages/book-history.ejs");
+  const script = read("public/js/book-history.js");
+
+  assert.match(script, /class="bh-item-qty-input"[^>]*inputmode="numeric"/);
+  assert.doesNotMatch(script, /class="bh-item-qty-input"[^>]*readonly/);
+  assert.doesNotMatch(script, /id="bhSimpleQty"[^>]*readonly/);
+  assert.doesNotMatch(script, /data-hp-qty-input="\$\{i\}"[^>]*readonly/);
+  assert.match(script, /input\.addEventListener\('input', \(\) => commitTypedQuantity\(false\)\)/);
+  assert.match(script, /quantityInput\.addEventListener\('input', \(\) => syncQuantity\(false\)\)/);
+  assert.match(script, /input\.addEventListener\('input', \(\) => syncTypedHpQuantity\(false\)\)/);
+  assert.match(script, /Math\.trunc\(Number\(raw\)\)/);
+  assert.match(view, /\.bh-editor-stepper input:focus/);
+});
+
 test("edit-booking repair fields guide focus to the next completed step", () => {
   const view = read("views/pages/book-history.ejs");
   const script = read("public/js/book-history.js");
@@ -108,11 +123,54 @@ test("edit-booking repair fields guide focus to the next completed step", () => 
   assert.match(script, /renderUnitChips\(\)[\s\S]*?advanceRepairEditor\(3, "#bhRepairBrand"\)/);
   assert.match(script, /repairBrandInput\.addEventListener\("keydown"[\s\S]*?"#bhRepairModel"/);
   assert.match(script, /repairModelInput\.addEventListener\("keydown"[\s\S]*?"#bhRepairQty"/);
-  assert.match(script, /repairQuantityInput\.addEventListener\("keydown"[\s\S]*?"#bhRepairSelect"/);
-  assert.match(script, /repairServiceSelect\.onchange[\s\S]*?"#bhSymptomChips \.bh-symptom"/);
+  assert.match(script, /repairQuantityInput\.addEventListener\("keydown"[\s\S]*?bhRepairDetailsNext/);
+  assert.match(script, /bhRepairDetailsNext'\)\.onclick[\s\S]*?advanceRepairEditor\(4, '#bhSymptomChips \.bh-symptom'\)/);
   assert.match(script, /renderSymptomChips\(\)[\s\S]*?advanceRepairEditor\(4, "#bhRepairProblem"\)/);
+  assert.doesNotMatch(script, /id="bhRepairSelect"/);
+  assert.match(script, /function selectedRepairPricing\(\)/);
+  assert.match(script, /serviceId: null, name: `\$\{unitLabel\} Repair`/);
   assert.match(view, /bh-repair-step-current/);
-  assert.match(view, /sort-filter-v6/);
+  assert.match(view, /service-picker-v9/);
+});
+
+test("edit booking mirrors the booking-page service picker", () => {
+  const view = read("views/pages/book-history.ejs");
+  const script = read("public/js/book-history.js");
+  const routes = read("routes/bookingRoutesNew.js");
+  const serviceRoutes = read("routes/serviceRoutes.js");
+  const bookingModel = read("models/BookingService.js");
+
+  assert.match(script, /CORE_SERVICES_PER_PAGE = 4/);
+  assert.match(script, /id="bhCorePager"/);
+  assert.match(script, /id="bhUnitPager"/);
+  assert.match(script, /selectedCategory\.unitTypes\.slice\(repairUnitPage \* 4, \(repairUnitPage \+ 1\) \* 4\)/);
+  assert.match(script, /class="bh-repair-progress"/);
+  assert.match(script, /data-bh-repair-nav="1"/);
+  assert.match(script, /Which appliance needs repair\?/);
+  assert.match(script, /id="bhCustomUnitType"/);
+  assert.match(script, /customUnitNext\.onclick = \(\) =>/);
+  assert.match(script, /advanceRepairEditor\(2, selectedCategory\?\.isCustom && !selectedCategory\.unitTypes\?\.length \? "#bhCustomUnitType"/);
+  assert.match(view, /\.bh-editor-service-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
+  assert.match(view, /\.bh-repair-category\.is-selected/);
+  assert.match(view, /\.bh-custom-unit-row/);
+  assert.match(serviceRoutes, /return res\.json\(\{ categories, defaultInspectionFee \}\)/);
+  assert.match(routes, /categoryRepairContexts[\s\S]*?resolveRepairInspectionFees/);
+  assert.match(routes, /serviceId: null,[\s\S]*?phase: "repair_phase_1"/);
+  assert.match(bookingModel, /unitType: \{ type: String, trim: true, maxlength: 80 \}/);
+});
+
+test("edit booking uses one guarded loader and cleans orphaned modal backdrops", () => {
+  const view = read("views/pages/book-history.ejs");
+  const script = read("public/js/book-history.js");
+
+  assert.match(script, /let bookingEditorOpening = false/);
+  assert.match(script, /function requestBookingEditor\(bookingId, focusTab, trigger\)[\s\S]*?if \(bookingEditorOpening\) return;[\s\S]*?setBookingEditorLoading\(true/);
+  assert.match(script, /action === 'edit-services'[\s\S]*?requestBookingEditor\(b\._id, 'services', button\)/);
+  assert.match(script, /function removeOrphanedModalArtifacts\(\)[\s\S]*?if \(document\.querySelector\('\.modal\.show'\)\) return;[\s\S]*?\.modal-backdrop/);
+  assert.match(script, /BOOKING_EDITOR_CATALOG_TTL_MS = 5 \* 60 \* 1000/);
+  assert.match(script, /Booking editor catalog prefetch failed/);
+  assert.match(view, /\.bh-editor-loader\[hidden\]/);
+  assert.match(view, /@keyframes bhEditorSpin/);
 });
 
 test("reschedule dialogs use accessible Bootstrap structure and bounded reasons", () => {

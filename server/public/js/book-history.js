@@ -48,6 +48,11 @@
   let totalBookings = 0;
   let bookingListRequest = null;
   let bookingListRequestId = 0;
+  let bookingEditorOpening = false;
+  let bookingEditorTrigger = null;
+  let bookingEditorCatalogCache = null;
+  let bookingEditorCatalogRequest = null;
+  const BOOKING_EDITOR_CATALOG_TTL_MS = 5 * 60 * 1000;
 
   // UI elements
   const el = {
@@ -90,6 +95,79 @@
       return el.modal;
     }
     return null;
+  }
+
+  function removeOrphanedModalArtifacts() {
+    window.requestAnimationFrame(() => {
+      if (document.querySelector('.modal.show')) return;
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+    });
+  }
+
+  function ensureBookingEditorLoader() {
+    let loader = document.getElementById('bhEditorLoader');
+    if (loader) return loader;
+    loader = document.createElement('div');
+    loader.id = 'bhEditorLoader';
+    loader.className = 'bh-editor-loader';
+    loader.hidden = true;
+    loader.setAttribute('role', 'status');
+    loader.setAttribute('aria-live', 'polite');
+    loader.setAttribute('aria-label', 'Loading booking editor');
+    loader.innerHTML = `
+      <div class="bh-editor-loader-card">
+        <span class="bh-editor-loader-spinner" aria-hidden="true"></span>
+        <div><strong>Opening booking editor</strong><span>Loading your services and available options...</span></div>
+      </div>`;
+    document.body.appendChild(loader);
+    return loader;
+  }
+
+  function setBookingEditorLoading(loading, trigger = bookingEditorTrigger) {
+    const loader = ensureBookingEditorLoader();
+    loader.hidden = !loading;
+    loader.classList.toggle('is-visible', loading);
+    document.body.classList.toggle('bh-editor-loading', loading);
+    if (!trigger) return;
+    trigger.disabled = loading;
+    trigger.setAttribute('aria-busy', String(loading));
+    const copy = trigger.querySelector('.bh-modal-action-copy small');
+    const arrow = trigger.querySelector('.bh-modal-action-arrow');
+    if (loading) {
+      trigger.dataset.originalDescription = copy?.textContent || '';
+      if (copy) copy.textContent = 'Loading booking editor...';
+      if (arrow) arrow.className = 'spinner-border spinner-border-sm bh-modal-action-arrow';
+    } else {
+      if (copy && trigger.dataset.originalDescription) copy.textContent = trigger.dataset.originalDescription;
+      if (arrow) arrow.className = 'bi bi-chevron-right bh-modal-action-arrow';
+      trigger.removeAttribute('aria-busy');
+      delete trigger.dataset.originalDescription;
+    }
+  }
+
+  async function loadBookingEditorCatalog() {
+    if (bookingEditorCatalogCache && Date.now() - bookingEditorCatalogCache.loadedAt < BOOKING_EDITOR_CATALOG_TTL_MS) {
+      return bookingEditorCatalogCache;
+    }
+    if (bookingEditorCatalogRequest) return bookingEditorCatalogRequest;
+
+    bookingEditorCatalogRequest = Promise.all([
+      fetch('/api/services', { credentials: 'include' }),
+      fetch('/api/services/categories', { credentials: 'include' }),
+    ]).then(async ([catalogResponse, categoriesResponse]) => {
+      const catalog = await catalogResponse.json();
+      const categoriesData = await categoriesResponse.json();
+      if (!catalogResponse.ok) throw new Error(catalog.error || 'Unable to load service catalog');
+      if (!categoriesResponse.ok) throw new Error(categoriesData.error || 'Unable to load service categories');
+      bookingEditorCatalogCache = { catalog, categoriesData, loadedAt: Date.now() };
+      return bookingEditorCatalogCache;
+    }).finally(() => {
+      bookingEditorCatalogRequest = null;
+    });
+    return bookingEditorCatalogRequest;
   }
 
   function statusBadge(status) {
@@ -523,6 +601,22 @@
         if (!b) return;
         showDetailModal(b);
       };
+    });
+  }
+
+  function requestBookingEditor(bookingId, focusTab, trigger) {
+    if (bookingEditorOpening) return;
+    bookingEditorOpening = true;
+    bookingEditorTrigger = trigger || null;
+    setBookingEditorLoading(true, bookingEditorTrigger);
+
+    runAfterClosingDetails(() => {
+      Promise.resolve(openBookingEditor(bookingId, focusTab)).finally(() => {
+        setBookingEditorLoading(false, bookingEditorTrigger);
+        bookingEditorTrigger = null;
+        bookingEditorOpening = false;
+        removeOrphanedModalArtifacts();
+      });
     });
   }
 
@@ -978,6 +1072,14 @@
     html += ratingHtml;
   
     el.modalBody.innerHTML = html;
+
+    // Warm the shared catalog while the customer reviews the details. If they
+    // choose Edit Booking, only the booking-specific service items remain to load.
+    if (['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status)) {
+      window.setTimeout(() => {
+        loadBookingEditorCatalog().catch(error => console.warn('Booking editor catalog prefetch failed:', error));
+      }, 0);
+    }
   
     // Wire controls
     el.downloadJsonBtn.onclick = () => downloadJSON(b, `booking-${shortId(b._id)}.json`);
@@ -988,7 +1090,7 @@
           if (button.disabled) return;
           const action = button.dataset.bookingAction;
           if (action === 'edit-services') {
-            runAfterClosingDetails(() => openBookingEditor(b._id, 'services'));
+            requestBookingEditor(b._id, 'services', button);
           } else if (action === 'reschedule') {
             window.bhRequestNewSchedule(b._id);
           } else if (action === 'cancel') {
@@ -1053,19 +1155,19 @@
   async function openBookingEditor(bookingId, focusTab) {
     try {
       const booking = bookings.find(x => String(x._id) === String(bookingId));
-      const [itemsResponse, catalogResponse, categoriesResponse] = await Promise.all([
+      const [itemsResponse, editorCatalog] = await Promise.all([
         fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-items`, { credentials: "include" }),
-        fetch("/api/services", { credentials: "include" }),
-        fetch("/api/services/categories", { credentials: "include" }),
+        loadBookingEditorCatalog(),
       ]);
       const state = await itemsResponse.json();
-      const catalog = await catalogResponse.json();
-      const categoriesData = await categoriesResponse.json();
       if (!itemsResponse.ok) throw new Error(state.error || "Unable to load booking services");
-      if (!catalogResponse.ok) throw new Error(catalog.error || "Unable to load service catalog");
+      const { catalog, categoriesData } = editorCatalog;
       const core = catalog.coreServices || [];
       const repair = catalog.repairs || [];
       const categories = categoriesData.categories || [];
+      const configuredRepairInspectionFee = Number(categoriesData.defaultInspectionFee);
+      const defaultRepairInspectionFee = Number.isFinite(configuredRepairInspectionFee) && configuredRepairInspectionFee >= 0
+        ? configuredRepairInspectionFee : 500;
       const rows = (state.services || []).map(item => ({ ...item }));
       const initialServicesSnapshot = JSON.stringify(rows);
       let selectedDate = null;
@@ -1115,54 +1217,60 @@
                       <span class="bh-editor-section-icon"><i class="bi bi-tools"></i></span>
                       <div><span class="bh-editor-kicker">Services</span><h6>What service do you need?</h6><p>Add another service using the same choices available on the booking page.</p></div>
                     </div>
-                <ul class="nav nav-pills bh-editor-service-tabs" id="bhAddTabs" role="tablist">
-                  <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="pill"><i class="bi bi-gear me-2"></i>Core Services</button></li>
-                  <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="pill"><i class="bi bi-tools me-2"></i>Repair Services</button></li>
+                <div class="bh-editor-guide"><span>1</span><div><strong>Choose a service</strong><small>Select Core Service or Repair Service, then configure the unit.</small></div></div>
+                <ul class="nav nav-pills bh-editor-service-tabs" id="bhAddTabs" role="tablist" aria-label="Service type">
+                  <li class="nav-item"><button class="nav-link active" id="bh-core-tab" data-bs-toggle="pill" data-bs-target="#bh-core-pane" type="button" role="tab"><span class="bh-service-tab-icon"><i class="bi bi-gear-fill"></i></span><span><strong>Core Services</strong><small>Cleaning, installation and maintenance</small></span><i class="bi bi-chevron-right"></i></button></li>
+                  <li class="nav-item"><button class="nav-link" id="bh-repair-tab" data-bs-toggle="pill" data-bs-target="#bh-repair-pane" type="button" role="tab"><span class="bh-service-tab-icon"><i class="bi bi-tools"></i></span><span><strong>Repair Services</strong><small>Inspection and appliance diagnosis</small></span><i class="bi bi-chevron-right"></i></button></li>
                 </ul>
                 <div class="tab-content" id="bhAddTabContent">
                   <div class="tab-pane fade show active" id="bh-core-pane" role="tabpanel">
-                    <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
-                      <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff"><i class="bi bi-gear fs-4 text-primary"></i></div>
-                      <div><h6 class="fw-bold mb-0" style="color:#1e293b;font-size:.95rem">Core Services</h6><p class="mb-0 small text-muted">Professional maintenance, installation & servicing</p></div>
-                    </div>
+                    <div class="bh-picker-intro"><span><i class="bi bi-stars"></i></span><div><strong>Choose a core service</strong><small>Four services are shown at a time, just like the booking page.</small></div></div>
                     <div class="row g-3" id="bhCoreGrid"></div>
+                    <nav class="bh-core-pager d-none" id="bhCorePager" aria-label="Core service pages"><button type="button" id="bhCorePrev"><i class="bi bi-chevron-left"></i> Previous</button><span id="bhCorePageStatus">Page 1 of 1</span><button type="button" id="bhCoreNext">Next <i class="bi bi-chevron-right"></i></button></nav>
                   </div>
                   <div class="tab-pane fade" id="bh-repair-pane" role="tabpanel">
-                    <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
-                      <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff"><i class="bi bi-wrench-adjustable-circle fs-4 text-primary"></i></div>
-                      <div><h6 class="fw-bold mb-0" style="color:#1e293b;font-size:.95rem">Repair Service Configuration</h6><p class="mb-0 small text-muted">Configure repair request step by step.</p></div>
-                    </div>
+                    <div class="bh-picker-intro"><span><i class="bi bi-wrench-adjustable-circle"></i></span><div><strong>Add a repair request</strong><small>Tell us about the appliance one step at a time.</small></div></div>
+                    <nav class="bh-repair-progress" id="bhRepairProgress" aria-label="Repair request progress">
+                      <button type="button" class="is-active" data-bh-repair-nav="1"><span>1</span><small>Appliance</small></button>
+                      <button type="button" data-bh-repair-nav="2" disabled><span>2</span><small>Type</small></button>
+                      <button type="button" data-bh-repair-nav="3" disabled><span>3</span><small>Details</small></button>
+                      <button type="button" data-bh-repair-nav="4" disabled><span>4</span><small>Problem</small></button>
+                    </nav>
+                    <p class="bh-repair-hint" id="bhRepairHint" role="status" aria-live="polite">Step 1 of 4: Choose the appliance that needs repair.</p>
                     <div class="d-flex flex-column gap-3" id="bhRepairSteps">
-                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="1">
-                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">1</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Service Category</h6><p class="small text-muted mb-0">Select the type of equipment.</p></div></div>
+                      <section class="bh-repair-section" data-step="1">
+                        <div class="bh-repair-section-head"><span>1</span><div><h6>Which appliance needs repair?</h6><p>Choose the appliance you want us to inspect.</p></div></div>
                         <div class="row g-2" id="bhCatGrid"></div>
-                      </div>
-                      <div class="p-3 rounded-4 d-none" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="2">
-                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">2</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Specific Unit Type</h6><p class="small text-muted mb-0">Choose the model or configuration.</p></div></div>
+                      </section>
+                      <section class="bh-repair-section d-none" data-step="2">
+                        <div class="bh-repair-section-head"><span>2</span><div><h6>Choose the appliance type</h6><p>Select the closest match for the unit.</p></div></div>
                         <div class="d-flex flex-wrap gap-2" id="bhUnitChips"></div>
-                      </div>
-                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="3">
-                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">3</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Unit Specifications</h6><p class="small text-muted mb-0">Basic identifiers for the technician.</p></div></div>
-                        <div class="row g-2">
-                          <div class="col-md-6"><label class="form-label small text-muted">Brand <span class="text-danger">*</span></label><input class="form-control" id="bhRepairBrand" placeholder="e.g. Carrier, Samsung, LG" maxlength="100"></div>
-                          <div class="col-md-6"><label class="form-label small text-muted">Model Number <span class="text-muted">(optional)</span></label><input class="form-control" id="bhRepairModel" placeholder="e.g. 42KDPV48" maxlength="100"></div>
+                        <nav class="bh-core-pager d-none" id="bhUnitPager" aria-label="Appliance type pages"><button type="button" id="bhUnitPrev"><i class="bi bi-chevron-left"></i> Previous</button><span id="bhUnitPageStatus">Page 1 of 1</span><button type="button" id="bhUnitNext">Next <i class="bi bi-chevron-right"></i></button></nav>
+                        <div class="bh-custom-unit d-none" id="bhCustomUnitWrap"><label class="form-label" for="bhCustomUnitType">Appliance name <span class="text-danger">*</span></label><div class="bh-custom-unit-row"><input class="form-control" id="bhCustomUnitType" maxlength="80" autocomplete="off" placeholder="Example: Water dispenser"><button type="button" id="bhCustomUnitNext" disabled>Continue <i class="bi bi-arrow-right"></i></button></div><small>Name the appliance that needs repair.</small></div>
+                      </section>
+                      <section class="bh-repair-section d-none" data-step="3">
+                        <div class="bh-repair-section-head"><span>3</span><div><h6>Add the appliance details</h6><p>Brand is required. The model number is optional.</p></div></div>
+                        <div class="row g-3">
+                          <div class="col-md-6"><label class="form-label">Brand <span class="text-danger">*</span></label><input class="form-control" id="bhRepairBrand" placeholder="Example: Carrier, Samsung, LG" maxlength="100" autocomplete="off"></div>
+                          <div class="col-md-6"><label class="form-label">Model Number <span class="text-muted">(optional)</span></label><input class="form-control" id="bhRepairModel" placeholder="Example: 42KDPV48" maxlength="50" autocomplete="off" aria-describedby="bhRepairModelHint"><small class="bh-field-hint" id="bhRepairModelHint">Up to 50 letters, numbers, spaces, and . - _ / # ( ) +</small></div>
                           <div class="col-md-6">
-                            <label class="form-label small text-muted">Number of Units</label>
-                            <div class="input-group" style="max-width:160px"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyMinus">&minus;</button><input class="form-control text-center" id="bhRepairQty" type="number" min="1" max="40" value="1"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyPlus">+</button></div>
+                            <label class="form-label">Number of Units</label>
+                            <div class="input-group" style="max-width:160px"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyMinus">&minus;</button><input class="form-control text-center" id="bhRepairQty" type="number" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Repair service quantity"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyPlus">+</button></div>
                           </div>
-                          <div class="col-md-6"><label class="form-label small text-muted">Repair Service <span class="text-danger">*</span></label><select class="form-select" id="bhRepairSelect"></select></div>
                         </div>
-                      </div>
-                      <div class="p-3 rounded-4" style="background:#f8fafc;border:1px solid #e2e8f0" data-step="4">
-                        <div class="d-flex align-items-center gap-2 mb-3"><span class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:28px;height:28px;font-size:.8rem;background:#2563eb">4</span><div><h6 class="fw-bold mb-0" style="font-size:.9rem">Problem Description</h6><p class="small text-muted mb-0">Tap symptoms, then add details.</p></div></div>
+                        <div class="bh-repair-step-action"><span id="bhRepairDetailsHint">Enter the brand to continue.</span><button type="button" id="bhRepairDetailsNext" disabled>Next: Describe the Problem <i class="bi bi-arrow-right"></i></button></div>
+                      </section>
+                      <section class="bh-repair-section d-none" data-step="4">
+                        <div class="bh-repair-section-head"><span>4</span><div><h6>What is wrong?</h6><p>Choose what you noticed, then add a short description.</p></div></div>
                         <div class="d-flex flex-wrap gap-2 mb-2" id="bhSymptomChips">
                           ${["Not Cooling","Strange Noise","Leaking Water","Not Turning On","Bad Smell","Error Code","Overheating","Electrical Issue"].map(s => `<button type="button" class="btn btn-sm btn-outline-secondary bh-symptom rounded-pill" data-symptom="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
                         </div>
-                        <label class="form-label small text-muted">Detailed Issue <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="bhRepairProblem" rows="3" maxlength="500" placeholder="Describe the problem in detail."></textarea>
-                        <div class="d-flex justify-content-between align-items-center mt-2"><span class="small text-muted"><i class="bi bi-info-circle me-1"></i>The more details, the better.</span><span class="small text-muted" id="bhCharCount">0 / 500</span></div>
-                      </div>
-                      <button class="btn btn-primary" id="bhAddRepair" disabled><i class="bi bi-plus-circle me-2"></i>Add Repair Service</button>
+                        <label class="form-label">Detailed Issue <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="bhRepairProblem" rows="4" minlength="10" maxlength="500" placeholder="Example: It stopped cooling yesterday and makes a clicking sound."></textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-2"><span class="small text-muted"><i class="bi bi-info-circle me-1"></i>Add at least 10 characters.</span><span class="small text-muted" id="bhCharCount">0 / 500</span></div>
+                        <div class="bh-repair-add-summary" id="bhRepairAddSummary">Inspection fee will be based on the selected appliance type.</div>
+                        <button class="bh-repair-add-button" id="bhAddRepair" disabled><i class="bi bi-plus-circle"></i>Add Repair to Booking</button>
+                      </section>
                     </div>
                   </div>
                 </div>
@@ -1249,14 +1357,38 @@
       let selectedCategory = null;
       let selectedUnitType = null;
       let selectedSymptoms = [];
+      let repairCurrentStep = 1;
+      let repairMaxStep = 1;
+      let repairUnitPage = 0;
+      let coreServicePage = 0;
+      const CORE_SERVICES_PER_PAGE = 4;
 
       function advanceRepairEditor(step, targetSelector) {
+        repairCurrentStep = Math.max(1, Math.min(4, Number(step) || 1));
+        repairMaxStep = Math.max(repairMaxStep, repairCurrentStep);
         const steps = Array.from(bodyHost.querySelectorAll("#bhRepairSteps [data-step]"));
         steps.forEach(section => {
           const sectionStep = Number(section.dataset.step);
-          section.classList.toggle("bh-repair-step-current", sectionStep === step);
-          section.classList.toggle("bh-repair-step-complete", sectionStep < step);
+          section.classList.toggle("d-none", sectionStep !== repairCurrentStep);
+          section.classList.toggle("bh-repair-step-current", sectionStep === repairCurrentStep);
+          section.classList.toggle("bh-repair-step-complete", sectionStep < repairMaxStep);
         });
+        bodyHost.querySelectorAll('[data-bh-repair-nav]').forEach(button => {
+          const navStep = Number(button.dataset.bhRepairNav);
+          button.classList.toggle('is-active', navStep === repairCurrentStep);
+          button.classList.toggle('is-complete', navStep < repairMaxStep);
+          button.disabled = navStep > repairMaxStep;
+          if (navStep === repairCurrentStep) button.setAttribute('aria-current', 'step');
+          else button.removeAttribute('aria-current');
+        });
+        const hints = {
+          1: 'Step 1 of 4: Choose the appliance that needs repair.',
+          2: 'Step 2 of 4: Choose the appliance type.',
+          3: 'Step 3 of 4: Add the brand, optional model, and quantity.',
+          4: 'Step 4 of 4: Describe the problem, then add the repair request.',
+        };
+        const hint = bodyHost.querySelector('#bhRepairHint');
+        if (hint) hint.textContent = hints[repairCurrentStep];
         const target = targetSelector ? bodyHost.querySelector(targetSelector) : null;
         if (!target) return;
         window.setTimeout(() => {
@@ -1267,6 +1399,13 @@
           target.focus({ preventScroll: true });
         }, 140);
       }
+
+      bodyHost.querySelectorAll('[data-bh-repair-nav]').forEach(button => {
+        button.addEventListener('click', () => {
+          if (button.disabled) return;
+          advanceRepairEditor(Number(button.dataset.bhRepairNav));
+        });
+      });
 
       function shouldKeepUserFocus(event) {
         return Boolean(event?.relatedTarget?.closest("button, a, select, input, textarea, [role='button']"));
@@ -1313,7 +1452,7 @@
               <div class="bh-editor-item-price"><span>Estimated price</span><strong>${lineTotal ? `₱${lineTotal.toLocaleString()}` : 'Price on quote'}</strong></div>
               <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}">
                 <button type="button" class="bh-item-qty-minus" data-index="${index}" aria-label="Decrease ${escapeHtml(svcName)} quantity" ${quantity <= 1 ? 'disabled' : ''}><i class="bi bi-dash"></i></button>
-                <input type="number" value="${quantity}" min="1" max="40" readonly aria-label="${escapeHtml(svcName)} quantity">
+                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="40" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity">
                 <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= 40 ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
               </div>
             </div>
@@ -1333,6 +1472,42 @@
               row.totalPrice = unitPrice * row.quantity;
             }
             renderCurrentItems();
+          });
+        });
+        itemsHost.querySelectorAll('.bh-item-qty-input').forEach(input => {
+          const commitTypedQuantity = normalize => {
+            const index = Number(input.dataset.index);
+            const row = rows[index];
+            if (!row) return;
+            const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
+            const raw = String(input.value || '').trim();
+            if (!raw && !normalize) return;
+            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || previousQuantity));
+            const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
+            row.quantity = quantity;
+            if (unitPrice) {
+              row.unitPrice = unitPrice;
+              row.totalPrice = unitPrice * quantity;
+            }
+            if (normalize || String(quantity) !== raw) input.value = String(quantity);
+            const stepper = input.closest('.bh-editor-stepper');
+            const minus = stepper?.querySelector('.bh-item-qty-minus');
+            const plus = stepper?.querySelector('.bh-item-qty-plus');
+            if (minus) minus.disabled = quantity <= 1;
+            if (plus) plus.disabled = quantity >= 40;
+            const price = input.closest('.bh-editor-cart-item')?.querySelector('.bh-editor-item-price strong');
+            if (price) price.textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : 'Price on quote';
+            updateServiceCount();
+          };
+          input.addEventListener('input', () => commitTypedQuantity(false));
+          input.addEventListener('focus', () => input.select());
+          input.addEventListener('change', () => commitTypedQuantity(true));
+          input.addEventListener('blur', () => commitTypedQuantity(true));
+          input.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            commitTypedQuantity(true);
+            input.blur();
           });
         });
         itemsHost.querySelectorAll('.bh-item-remove').forEach(button => {
@@ -1366,7 +1541,7 @@
             <div class="bh-cfg-header"><div class="d-flex align-items-center gap-3"><span class="bh-cfg-icon"><i class="bi bi-sliders2"></i></span><div><h5>Set Up Your Service</h5><p>Enter how many units need service.</p></div></div><button type="button" class="bh-cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button></div>
             <div class="modal-body bh-cfg-body">
               <div class="bh-cfg-context"><span><i class="bi bi-tools"></i></span><div><small>Service being set up</small><strong>${escapeHtml(svc.name)}</strong></div><b>Quantity</b></div>
-              <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>How many units?</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="40" value="1" readonly><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
+              <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>Type a number or use the buttons.</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Service quantity"><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
             </div>
             <div class="modal-footer bh-cfg-footer"><div class="bh-cfg-price"><span><strong>Estimated price</strong><small>Updates with quantity</small></span><b id="bhHpEstimatedPrice">${unitPrice ? `₱${unitPrice.toLocaleString()}` : 'Price on quote'}</b></div><button class="bh-cfg-primary" id="bhHpAddToBooking"><i class="bi bi-check-lg"></i>Add to Booking</button></div>
           </div></div>`;
@@ -1374,14 +1549,32 @@
           const quantityInput = quantityModal.querySelector("#bhSimpleQty");
           const minus = quantityModal.querySelector("#bhSimpleQtyMinus");
           const plus = quantityModal.querySelector("#bhSimpleQtyPlus");
-          const updateQuantity = delta => {
-            const quantity = Math.max(1, Math.min(40, (Number(quantityInput.value) || 1) + delta));
-            quantityInput.value = String(quantity); minus.disabled = quantity <= 1; plus.disabled = quantity >= 40;
+          const syncQuantity = normalize => {
+            const raw = String(quantityInput.value || '').trim();
+            if (!raw && !normalize) return;
+            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || 1));
+            if (normalize || String(quantity) !== raw) quantityInput.value = String(quantity);
+            minus.disabled = quantity <= 1; plus.disabled = quantity >= 40;
             quantityModal.querySelector("#bhHpEstimatedPrice").textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : "Price on quote";
+            return quantity;
+          };
+          const updateQuantity = delta => {
+            quantityInput.value = String(Math.max(1, Math.min(40, (Number(quantityInput.value) || 1) + delta)));
+            syncQuantity(true);
           };
           minus.onclick = () => updateQuantity(-1); plus.onclick = () => updateQuantity(1);
+          quantityInput.addEventListener('input', () => syncQuantity(false));
+          quantityInput.addEventListener('focus', () => quantityInput.select());
+          quantityInput.addEventListener('change', () => syncQuantity(true));
+          quantityInput.addEventListener('blur', () => syncQuantity(true));
+          quantityInput.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            syncQuantity(true);
+            quantityInput.blur();
+          });
           quantityModal.querySelector("#bhHpAddToBooking").onclick = () => {
-            const quantity = Math.max(1, Math.min(40, Number(quantityInput.value) || 1));
+            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(quantityInput.value)) || 1));
             rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model: "", unitPrice, totalPrice: unitPrice * quantity });
             bootstrap.Modal.getOrCreateInstance(quantityModal).hide(); renderCurrentItems();
           };
@@ -1494,7 +1687,7 @@
         function updateEstimatedPrice() {
           if (!selectedHp) { hpModal.querySelector("#bhHpEstimatedPrice").textContent = "₱0"; return; }
           const qtyInput = hpModal.querySelector(`[data-hp-qty-input="${selectedHp.index}"]`);
-          const qty = Math.max(1, Math.min(40, Number(qtyInput?.value) || 1));
+          const qty = Math.max(1, Math.min(40, Math.trunc(Number(qtyInput?.value)) || 1));
           selectedHp.quantity = qty;
           hpModal.querySelector("#bhHpEstimatedPrice").textContent = `₱${(selectedHp.price * qty).toLocaleString()}`;
         }
@@ -1512,7 +1705,7 @@
                 <div class="bh-hp-meta text-center" style="min-width:120px"><div class="small text-muted"><i class="bi bi-clock me-1"></i>${duration}</div><div class="small text-muted">${escapeHtml(hp.description || '')}</div></div>
                 <div class="bh-qty-group d-flex align-items-center gap-2">
                   <span class="small text-muted d-none d-md-inline">Quantity:</span>
-                  <div class="bh-editor-stepper"><button type="button" data-hp-qty-minus="${i}" aria-label="Decrease ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-dash"></i></button><input data-hp-qty-input="${i}" type="number" min="1" max="40" value="1" readonly aria-label="${escapeHtml(String(hp.hp))} HP quantity"><button type="button" data-hp-qty-plus="${i}" aria-label="Increase ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-plus"></i></button></div>
+                  <div class="bh-editor-stepper"><button type="button" data-hp-qty-minus="${i}" aria-label="Decrease ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-dash"></i></button><input data-hp-qty-input="${i}" type="number" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(String(hp.hp))} HP quantity"><button type="button" data-hp-qty-plus="${i}" aria-label="Increase ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-plus"></i></button></div>
                 </div>
               </div>
             </div>`;
@@ -1553,6 +1746,34 @@
               const delta = button.hasAttribute('data-hp-qty-plus') ? 1 : -1;
               input.value = String(Math.max(1, Math.min(40, Number(input.value) + delta)));
               updateEstimatedPrice();
+            });
+          });
+          list.querySelectorAll('[data-hp-qty-input]').forEach(input => {
+            const syncTypedHpQuantity = normalize => {
+              const index = Number(input.dataset.hpQtyInput);
+              const card = list.querySelector(`[data-hp-index="${index}"]`);
+              if (!card) return;
+              const raw = String(input.value || '').trim();
+              if (!raw && !normalize) return;
+              const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || 1));
+              if (normalize || String(quantity) !== raw) input.value = String(quantity);
+              if (!selectedHp || selectedHp.index !== index) selectHpCard(card);
+              selectedHp.quantity = quantity;
+              updateEstimatedPrice();
+            };
+            input.addEventListener('focus', () => {
+              input.select();
+              const card = input.closest('[data-hp-index]');
+              if (card && (!selectedHp || selectedHp.index !== Number(input.dataset.hpQtyInput))) selectHpCard(card);
+            });
+            input.addEventListener('input', () => syncTypedHpQuantity(false));
+            input.addEventListener('change', () => syncTypedHpQuantity(true));
+            input.addEventListener('blur', () => syncTypedHpQuantity(true));
+            input.addEventListener('keydown', event => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              syncTypedHpQuantity(true);
+              input.blur();
             });
           });
         }
@@ -1606,7 +1827,10 @@
 
       function renderCoreGrid() {
         const grid = bodyHost.querySelector("#bhCoreGrid");
-        grid.innerHTML = core.map(s => {
+        const totalPages = Math.max(1, Math.ceil(core.length / CORE_SERVICES_PER_PAGE));
+        coreServicePage = Math.max(0, Math.min(totalPages - 1, coreServicePage));
+        const visibleCoreServices = core.slice(coreServicePage * CORE_SERVICES_PER_PAGE, (coreServicePage + 1) * CORE_SERVICES_PER_PAGE);
+        grid.innerHTML = visibleCoreServices.map(s => {
           const isAircon = s.isAirconService && ((s.airconTypes && s.airconTypes.length > 0) || (s.hpPricing && s.hpPricing.length > 0));
           const prices = isAircon ? (s.airconTypes || []).flatMap(at => (at.hpPricing || []).map(h => Number(h.price))).concat((s.hpPricing || []).map(h => Number(h.price))).filter(Number.isFinite) : [];
           let priceDisplay = "";
@@ -1633,48 +1857,123 @@
           if (!svc) return;
           showCoreConfigureModal(svc);
         });
+        const pager = bodyHost.querySelector('#bhCorePager');
+        const previous = bodyHost.querySelector('#bhCorePrev');
+        const next = bodyHost.querySelector('#bhCoreNext');
+        const status = bodyHost.querySelector('#bhCorePageStatus');
+        pager?.classList.toggle('d-none', totalPages <= 1);
+        if (status) status.textContent = `Page ${coreServicePage + 1} of ${totalPages}`;
+        if (previous) {
+          previous.disabled = coreServicePage <= 0;
+          previous.onclick = () => { coreServicePage -= 1; renderCoreGrid(); };
+        }
+        if (next) {
+          next.disabled = coreServicePage >= totalPages - 1;
+          next.onclick = () => { coreServicePage += 1; renderCoreGrid(); };
+        }
       }
 
       function renderCategoryGrid() {
         const grid = bodyHost.querySelector("#bhCatGrid");
-        grid.innerHTML = categories.map(cat => `<div class="col-md-4"><div class="card border rounded-4 h-100 text-center" style="cursor:pointer;transition:all .15s" data-cat="${escapeHtml(cat.slug)}" onmouseover="this.style.borderColor='#2563eb';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.transform=''"><div class="card-body py-3"><i class="bi ${escapeHtml(cat.icon||'bi-grid')} fs-1 text-${escapeHtml(cat.iconColor||'primary')}"></i><h6 class="fw-bold mt-2 mb-1" style="font-size:.9rem">${escapeHtml(cat.name)}</h6><p class="small text-muted mb-0">${cat.isCustom ? 'Custom description' : (cat.unitTypes||[]).length + ' unit types'}</p></div></div></div>`).join("") || '<div class="text-muted small">No categories available.</div>';
+        grid.innerHTML = categories.map(cat => `<div class="col-6 col-md-4"><button type="button" class="bh-repair-category" data-cat="${escapeHtml(cat.slug)}" aria-pressed="false" ${!cat.isCustom && !cat.unitTypes?.length ? 'disabled' : ''}><span class="bh-repair-category-icon"><i class="bi ${escapeHtml(cat.icon||'bi-grid')}"></i></span><strong>${escapeHtml(cat.name)}</strong><small>${cat.isCustom ? 'Describe another appliance' : cat.unitTypes?.length ? cat.unitTypes.length + ' unit types' : 'Temporarily unavailable'}</small><i class="bi bi-chevron-right"></i></button></div>`).join("") || '<div class="bh-editor-empty"><i class="bi bi-exclamation-circle"></i>No repair categories are available right now.</div>';
         grid.querySelectorAll("[data-cat]").forEach(card => card.onclick = () => {
-          grid.querySelectorAll("[data-cat]").forEach(c => { c.classList.remove("border-primary", "bg-light"); c.style.borderColor = "#e2e8f0"; });
-          card.classList.add("border-primary", "bg-light");
-          card.style.borderColor = "#2563eb";
+          grid.querySelectorAll("[data-cat]").forEach(c => { c.classList.remove('is-selected'); c.setAttribute('aria-pressed', 'false'); });
+          card.classList.add('is-selected');
+          card.setAttribute('aria-pressed', 'true');
           selectedCategory = categories.find(c => c.slug === card.dataset.cat);
-          bodyHost.querySelector("[data-step='2']").classList.remove("d-none");
-          const hasUnitTypes = renderUnitChips();
-          renderRepairSelect();
-          advanceRepairEditor(hasUnitTypes ? 2 : 3, hasUnitTypes ? "#bhUnitChips .bh-unit-chip" : "#bhRepairBrand");
+          selectedUnitType = null;
+          repairUnitPage = 0;
+          repairMaxStep = 1;
+          renderUnitChips();
+          updateRepairSummary();
+          updateAddRepairButton();
+          advanceRepairEditor(2, selectedCategory?.isCustom && !selectedCategory.unitTypes?.length ? "#bhCustomUnitType" : "#bhUnitChips .bh-unit-chip");
         });
       }
 
       function renderUnitChips() {
-        const section = bodyHost.querySelector("[data-step='2']");
         const chipsHost = bodyHost.querySelector("#bhUnitChips");
-        if (!selectedCategory || !selectedCategory.unitTypes?.length) { section.classList.add("d-none"); selectedUnitType = null; return false; }
-        section.classList.remove("d-none");
-        chipsHost.innerHTML = selectedCategory.unitTypes.map(ut => `<button type="button" class="btn btn-sm btn-outline-secondary bh-unit-chip rounded-pill" data-val="${escapeHtml(ut.value)}" data-label="${escapeHtml(ut.label)}"><i class="bi ${escapeHtml(ut.icon||'bi-circle')} me-1"></i>${escapeHtml(ut.label)}</button>`).join("");
-        chipsHost.querySelectorAll(".bh-unit-chip").forEach(chip => chip.onclick = () => {
-          chipsHost.querySelectorAll(".bh-unit-chip").forEach(c => c.classList.remove("btn-secondary", "text-white"));
-          chip.classList.add("btn-secondary", "text-white");
-          selectedUnitType = { value: chip.dataset.val, label: chip.dataset.label };
-          renderRepairSelect();
-          advanceRepairEditor(3, "#bhRepairBrand");
+        const customWrap = bodyHost.querySelector('#bhCustomUnitWrap');
+        const customInput = bodyHost.querySelector('#bhCustomUnitType');
+        const customNext = bodyHost.querySelector('#bhCustomUnitNext');
+        const pager = bodyHost.querySelector('#bhUnitPager');
+        const isCustom = Boolean(selectedCategory?.isCustom && !selectedCategory.unitTypes?.length);
+        customWrap.classList.toggle('d-none', !isCustom);
+        chipsHost.classList.toggle('d-none', isCustom);
+        customInput.value = '';
+        customNext.disabled = true;
+        if (!selectedCategory?.unitTypes?.length) { chipsHost.innerHTML = ''; pager.classList.add('d-none'); return isCustom; }
+        const pageCount = Math.ceil(selectedCategory.unitTypes.length / 4);
+        repairUnitPage = Math.max(0, Math.min(pageCount - 1, repairUnitPage));
+        const visibleTypes = selectedCategory.unitTypes.slice(repairUnitPage * 4, (repairUnitPage + 1) * 4);
+        chipsHost.innerHTML = visibleTypes.map(ut => `<button type="button" class="btn btn-sm btn-outline-secondary bh-unit-chip rounded-pill" data-val="${escapeHtml(ut.value)}" data-label="${escapeHtml(ut.label)}" aria-pressed="false"><i class="bi ${escapeHtml(ut.icon||'bi-circle')} me-1"></i>${escapeHtml(ut.label)}</button>`).join("");
+        pager.classList.toggle('d-none', pageCount <= 1);
+        bodyHost.querySelector('#bhUnitPageStatus').textContent = `Page ${repairUnitPage + 1} of ${pageCount}`;
+        const previous = bodyHost.querySelector('#bhUnitPrev');
+        const next = bodyHost.querySelector('#bhUnitNext');
+        previous.disabled = repairUnitPage === 0;
+        next.disabled = repairUnitPage >= pageCount - 1;
+        previous.onclick = () => { repairUnitPage -= 1; renderUnitChips(); };
+        next.onclick = () => { repairUnitPage += 1; renderUnitChips(); };
+        chipsHost.querySelectorAll(".bh-unit-chip").forEach(chip => {
+          if (chip.dataset.val === selectedUnitType?.value) {
+            chip.classList.add('is-selected');
+            chip.setAttribute('aria-pressed', 'true');
+          }
+          chip.onclick = () => {
+            chipsHost.querySelectorAll(".bh-unit-chip").forEach(c => { c.classList.remove('is-selected'); c.setAttribute('aria-pressed', 'false'); });
+            chip.classList.add('is-selected');
+            chip.setAttribute('aria-pressed', 'true');
+            selectedUnitType = { value: chip.dataset.val, label: chip.dataset.label };
+            updateRepairSummary();
+            advanceRepairEditor(3, "#bhRepairBrand");
+          };
         });
         return true;
       }
 
-      function renderRepairSelect() {
-        const sel = bodyHost.querySelector("#bhRepairSelect");
-        let filtered = repair;
-        if (selectedCategory) {
-          const catSlug = selectedCategory.slug;
-          filtered = repair.filter(r => r.applianceType === catSlug || r.applianceType === selectedCategory.name || (catSlug === "aircon" && r.isAirconService));
-          if (!filtered.length) filtered = repair;
+      const customUnitInput = bodyHost.querySelector('#bhCustomUnitType');
+      const customUnitNext = bodyHost.querySelector('#bhCustomUnitNext');
+      customUnitInput.addEventListener('input', () => {
+        selectedUnitType = null;
+        customUnitNext.disabled = customUnitInput.value.trim().length < 2;
+        updateRepairSummary();
+        updateAddRepairButton();
+      });
+      customUnitInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        customUnitNext.click();
+      });
+      customUnitNext.onclick = () => {
+        const label = customUnitInput.value.trim();
+        if (!selectedCategory?.isCustom || label.length < 2 || label.length > 80) return;
+        selectedUnitType = { value: label, label };
+        updateRepairSummary();
+        updateAddRepairButton();
+        advanceRepairEditor(3, '#bhRepairBrand');
+      };
+
+      function selectedRepairPricing() {
+        const unit = (selectedCategory?.unitTypes || []).find(item => item.value === selectedUnitType?.value);
+        const override = Number(unit?.inspectionFee);
+        const fee = unit?.inspectionFee !== undefined && unit?.inspectionFee !== null && Number.isFinite(override)
+          ? override
+          : defaultRepairInspectionFee;
+        return { fee, unit };
+      }
+
+      function updateRepairSummary() {
+        const summary = bodyHost.querySelector('#bhRepairAddSummary');
+        if (!summary) return;
+        if (!selectedCategory) {
+          summary.textContent = 'Inspection fee will be based on the selected appliance type.';
+          return;
         }
-        sel.innerHTML = filtered.map(s => `<option value="${escapeHtml(s._id)}">${escapeHtml(s.name)}</option>`).join("") || '<option value="">No repair services available</option>';
+        const { fee } = selectedRepairPricing();
+        const label = selectedUnitType?.label || selectedCategory.name;
+        const quantity = Math.max(1, Math.min(40, Math.trunc(Number(bodyHost.querySelector('#bhRepairQty')?.value)) || 1));
+        summary.innerHTML = `<span><i class="bi bi-check-circle-fill"></i>${escapeHtml(label)}</span><strong>₱${(fee * quantity).toLocaleString()} inspection fee</strong>`;
       }
 
       function renderSymptomChips() {
@@ -1694,25 +1993,33 @@
           ta.value = symptomsText + (existing ? ". " + existing : "");
         }
         bodyHost.querySelector("#bhCharCount").textContent = `${ta.value.length} / 500`;
-        const svc = repair.find(s => String(s._id) === String(bodyHost.querySelector("#bhRepairSelect").value));
-        const brand = bodyHost.querySelector("#bhRepairBrand").value.trim();
-        const problem = ta.value.trim();
-        bodyHost.querySelector("#bhAddRepair").disabled = !(svc && brand && problem);
+        updateAddRepairButton();
       }
 
       function updateAddRepairButton() {
-        const svc = repair.find(s => String(s._id) === String(bodyHost.querySelector("#bhRepairSelect").value));
         const brand = bodyHost.querySelector("#bhRepairBrand").value.trim();
+        const model = bodyHost.querySelector('#bhRepairModel').value.trim();
+        const modelValid = !model || /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model);
+        const modelHint = bodyHost.querySelector('#bhRepairModelHint');
+        modelHint.classList.toggle('text-danger', !modelValid);
+        bodyHost.querySelector('#bhRepairModel').classList.toggle('is-invalid', !modelValid);
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
-        bodyHost.querySelector("#bhAddRepair").disabled = !(svc && brand && problem);
+        const typeReady = Boolean(selectedCategory && selectedUnitType);
+        bodyHost.querySelector("#bhAddRepair").disabled = !(typeReady && brand && modelValid && problem.length >= 10);
+        const detailsNext = bodyHost.querySelector('#bhRepairDetailsNext');
+        const detailsHint = bodyHost.querySelector('#bhRepairDetailsHint');
+        if (detailsNext) detailsNext.disabled = !(typeReady && brand && modelValid);
+        if (detailsHint) detailsHint.textContent = !typeReady
+          ? 'Choose the appliance type first.'
+          : !brand ? 'Enter the brand to continue.' : !modelValid ? 'Check the model number format.' : 'Details complete. Continue to describe the problem.';
       }
 
       const repairBrandInput = bodyHost.querySelector("#bhRepairBrand");
       const repairModelInput = bodyHost.querySelector("#bhRepairModel");
       const repairQuantityInput = bodyHost.querySelector("#bhRepairQty");
-      const repairServiceSelect = bodyHost.querySelector("#bhRepairSelect");
       const repairProblemInput = bodyHost.querySelector("#bhRepairProblem");
       repairBrandInput.oninput = updateAddRepairButton;
+      repairModelInput.oninput = updateAddRepairButton;
       repairBrandInput.addEventListener("blur", event => {
         if (repairBrandInput.value.trim() && !shouldKeepUserFocus(event)) advanceRepairEditor(3, "#bhRepairModel");
       });
@@ -1731,43 +2038,48 @@
       repairProblemInput.addEventListener("blur", event => {
         if (repairProblemInput.value.trim() && !shouldKeepUserFocus(event)) advanceRepairEditor(4, "#bhAddRepair");
       });
-      bodyHost.querySelector("#bhRepairQtyMinus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.max(1, Number(inp.value) - 1); };
-      bodyHost.querySelector("#bhRepairQtyPlus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.min(40, Number(inp.value) + 1); };
+      bodyHost.querySelector("#bhRepairQtyMinus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.max(1, Number(inp.value) - 1); updateRepairSummary(); };
+      bodyHost.querySelector("#bhRepairQtyPlus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.min(40, Number(inp.value) + 1); updateRepairSummary(); };
+      repairQuantityInput.addEventListener('input', updateRepairSummary);
       repairQuantityInput.onchange = event => {
-        event.currentTarget.value = String(Math.max(1, Math.min(40, Number(event.currentTarget.value) || 1)));
+        event.currentTarget.value = String(Math.max(1, Math.min(40, Math.trunc(Number(event.currentTarget.value)) || 1)));
+        updateRepairSummary();
       };
+      repairQuantityInput.addEventListener('focus', () => repairQuantityInput.select());
       repairQuantityInput.addEventListener("blur", event => {
-        if (!shouldKeepUserFocus(event)) advanceRepairEditor(3, "#bhRepairSelect");
+        if (!shouldKeepUserFocus(event)) updateAddRepairButton();
       });
       repairQuantityInput.addEventListener("keydown", event => {
         if (event.key !== "Enter") return;
-        event.preventDefault(); advanceRepairEditor(3, "#bhRepairSelect");
+        event.preventDefault(); bodyHost.querySelector('#bhRepairDetailsNext')?.click();
       });
-      repairServiceSelect.onchange = () => {
+      bodyHost.querySelector('#bhRepairDetailsNext').onclick = () => {
         updateAddRepairButton();
-        advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
+        if (bodyHost.querySelector('#bhRepairDetailsNext').disabled) return;
+        advanceRepairEditor(4, '#bhSymptomChips .bh-symptom');
       };
-      repairServiceSelect.addEventListener("keydown", event => {
-        if (event.key !== "Enter") return;
-        event.preventDefault(); advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
-      });
 
       bodyHost.querySelector("#bhAddRepair").onclick = () => {
-        const svcId = bodyHost.querySelector("#bhRepairSelect").value;
-        const svc = repair.find(s => String(s._id) === String(svcId));
-        if (!svc) { alert("Please select a repair service."); return; }
+        if (!selectedCategory) { alert("Please choose the appliance category."); advanceRepairEditor(1, '#bhCatGrid [data-cat]'); return; }
+        if (!selectedUnitType) { alert("Please choose or name the appliance type."); advanceRepairEditor(2, selectedCategory.isCustom && !selectedCategory.unitTypes?.length ? '#bhCustomUnitType' : '#bhUnitChips .bh-unit-chip'); return; }
         const brand = bodyHost.querySelector("#bhRepairBrand").value.trim();
         if (!brand) { alert("Please enter a brand."); bodyHost.querySelector("#bhRepairBrand").focus(); return; }
+        const model = bodyHost.querySelector("#bhRepairModel").value.trim();
+        if (model && !/^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model)) { alert("Model number may use letters, numbers, spaces, and . - _ / # ( ) + only."); bodyHost.querySelector("#bhRepairModel").focus(); return; }
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
-        if (!problem) { alert("Please describe the problem."); bodyHost.querySelector("#bhRepairProblem").focus(); return; }
-        const qty = Math.max(1, Math.min(40, Number(bodyHost.querySelector("#bhRepairQty").value) || 1));
+        if (problem.length < 10) { alert("Please describe the problem using at least 10 characters."); bodyHost.querySelector("#bhRepairProblem").focus(); return; }
+        const qty = Math.max(1, Math.min(40, Math.trunc(Number(bodyHost.querySelector("#bhRepairQty").value)) || 1));
+        const unitType = selectedUnitType?.value || selectedCategory.slug;
+        const unitLabel = selectedUnitType?.label || selectedCategory.name;
+        const { fee } = selectedRepairPricing();
         rows.push({
-          type: "repair", serviceId: svc._id, name: svc.name, quantity: qty,
-          brand, model: bodyHost.querySelector("#bhRepairModel").value.trim(),
-          applianceType: selectedCategory?.slug || "", applianceTypeName: selectedCategory?.name || "",
-          airconType: selectedUnitType?.value || "", airconTypeName: selectedUnitType?.label || "",
+          type: "repair", serviceId: null, name: `${unitLabel} Repair`, quantity: qty,
+          brand, model,
+          unitCategory: selectedCategory.slug, unitType,
+          applianceType: unitType, applianceTypeName: unitLabel,
+          airconType: selectedCategory.slug === 'aircon' ? unitType : "", airconTypeName: selectedCategory.slug === 'aircon' ? unitLabel : "",
           problemDescription: problem, repairIssue: problem,
-          unitPrice: svc.initialPrice || svc.basePrice || 0, totalPrice: (svc.initialPrice || svc.basePrice || 0) * qty,
+          unitPrice: fee, totalPrice: fee * qty,
         });
         bodyHost.querySelector("#bhRepairBrand").value = "";
         bodyHost.querySelector("#bhRepairModel").value = "";
@@ -1776,12 +2088,17 @@
         selectedCategory = null;
         selectedUnitType = null;
         selectedSymptoms = [];
-        bodyHost.querySelectorAll("#bhCatGrid [data-cat]").forEach(card => { card.classList.remove("border-primary", "bg-light"); card.style.borderColor = "#e2e8f0"; });
+        customUnitInput.value = '';
+        customUnitNext.disabled = true;
+        bodyHost.querySelectorAll("#bhCatGrid [data-cat]").forEach(card => { card.classList.remove('is-selected'); card.setAttribute('aria-pressed', 'false'); });
         bodyHost.querySelector("[data-step='2']").classList.add("d-none");
         bodyHost.querySelectorAll(".bh-symptom").forEach(c => { c.classList.remove("btn-secondary","text-white"); c.classList.add("btn-outline-secondary"); });
         bodyHost.querySelector("#bhAddRepair").disabled = true;
         bodyHost.querySelector("#bhCharCount").textContent = "0 / 500";
+        repairMaxStep = 1;
         renderCurrentItems();
+        updateRepairSummary();
+        updateAddRepairButton();
         advanceRepairEditor(1, "#bhCatGrid [data-cat]");
       };
 
@@ -1805,10 +2122,11 @@
               const rescheduleReason = host.querySelector("#bhEditorRescheduleReason")?.value?.trim() || reason || "";
               const services = rows.map(row => ({
                 _id: row._id, type: row.type,
-                serviceId: row.serviceId,
+                serviceId: row.serviceId, name: row.name || "",
                 quantity: Number(row.quantity || 1),
                 brand: row.brand || "", model: row.model || "",
                 problemDescription: row.problemDescription || row.repairIssue || "",
+                unitCategory: row.unitCategory || "", unitType: row.unitType || row.applianceType || "",
                 applianceType: row.applianceType || "", applianceTypeName: row.applianceTypeName || "",
                 airconType: row.airconType || "", airconTypeName: row.airconTypeName || "", hp: row.hp,
               }));
@@ -1883,16 +2201,22 @@
       renderCurrentItems();
       renderCoreGrid();
       renderCategoryGrid();
-      renderRepairSelect();
       renderSymptomChips();
+      updateRepairSummary();
+      updateAddRepairButton();
+      advanceRepairEditor(1);
       host.querySelector("#bh-repair-tab")?.addEventListener("shown.bs.tab", () => {
         if (!selectedCategory) return advanceRepairEditor(1, "#bhCatGrid [data-cat]");
-        if (selectedCategory.unitTypes?.length && !selectedUnitType) return advanceRepairEditor(2, "#bhUnitChips .bh-unit-chip");
+        if (!selectedUnitType) return advanceRepairEditor(2, selectedCategory.isCustom && !selectedCategory.unitTypes?.length ? "#bhCustomUnitType" : "#bhUnitChips .bh-unit-chip");
         if (!repairBrandInput.value.trim()) return advanceRepairEditor(3, "#bhRepairBrand");
         if (!repairProblemInput.value.trim()) return advanceRepairEditor(4, "#bhSymptomChips .bh-symptom");
         advanceRepairEditor(4, "#bhAddRepair");
       });
-      bootstrap.Modal.getOrCreateInstance(host).show();
+      if (host.dataset.backdropCleanupBound !== 'true') {
+        host.dataset.backdropCleanupBound = 'true';
+        host.addEventListener('hidden.bs.modal', removeOrphanedModalArtifacts);
+      }
+      bootstrap.Modal.getOrCreateInstance(host, { backdrop: 'static', keyboard: true }).show();
     } catch (error) { alert(error.message || "Unable to open booking editor"); }
   }
 

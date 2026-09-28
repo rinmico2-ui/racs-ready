@@ -24,6 +24,10 @@ const MaintenanceSchedule = require('../models/MaintenanceSchedule');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
 const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
+const {
+  normalizeRepairModel,
+  validateRepairModel,
+} = require('../utils/repairModelPolicy');
 
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
@@ -82,6 +86,15 @@ router.post('/create-new', async (req, res) => {
     // Basic validation
     if (!parsedServices || !Array.isArray(parsedServices) || parsedServices.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
+    }
+    for (let index = 0; index < parsedServices.length; index += 1) {
+      const service = parsedServices[index];
+      if (service?.type !== 'repair') continue;
+      const modelResult = validateRepairModel(service.model);
+      if (!modelResult.valid) {
+        return res.status(400).json({ error: `Repair service ${index + 1}: ${modelResult.error}` });
+      }
+      service.model = modelResult.value;
     }
     const normalizedQuantities = parsedServices.map(service => Number(service.quantity));
     if (normalizedQuantities.some(value => !Number.isInteger(value) || value < 1)) {
@@ -345,7 +358,7 @@ router.post('/create-new', async (req, res) => {
       isAirconService: Boolean(svc.isAirconService),
       repairIssue: svc.repairIssue || null,
       problemDescription: svc.problemDescription || svc.repairIssue || null,
-      model: svc.model || null,
+      model: svc.type === 'repair' ? normalizeRepairModel(svc.model) || null : null,
       status: svc.type === 'repair' ? 'inspection_pending' : 'pending',
       phase: svc.type === 'repair' ? 'repair_phase_1' : 'core',
       schedule: {
@@ -815,20 +828,74 @@ async function validatedServiceItems(inputItems, booking) {
   const existingServices = bookingServices(booking);
   const existing = new Map(existingServices.map(item => [String(item._id || ""), item]));
   const existingByServiceId = new Map(existingServices.filter(item => item.serviceId).map(item => [String(item.serviceId), item]));
-  return Promise.all(inputItems.map(async (input) => {
+  const contexts = inputItems.map(input => {
     const type = input.type === "repair" ? "repair" : "core";
-    const Catalog = type === "repair" ? RepairService : CoreService;
     const prior = (input._id ? existing.get(String(input._id)) : null) || existingByServiceId.get(String(input.serviceId || ""));
+    return { input, type, prior };
+  });
+  const categoryRepairContexts = contexts.filter(({ input, type, prior }) => type === "repair" && !prior && !input.serviceId);
+  const categoryRepairPrices = categoryRepairContexts.length
+    ? await resolveRepairInspectionFees(categoryRepairContexts.map(({ input }) => ({ ...input, type: "repair" })))
+    : [];
+  const categoryRepairPriceByInput = new Map(categoryRepairContexts.map((context, index) => [context.input, categoryRepairPrices[index]]));
+
+  return Promise.all(contexts.map(async ({ input, type, prior }) => {
+    const Catalog = type === "repair" ? RepairService : CoreService;
+    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "");
+    if (type === "repair" && !modelResult.valid) {
+      const error = new Error(modelResult.error);
+      error.status = 400;
+      throw error;
+    }
+    if (type === "repair" && !prior && !input.serviceId) {
+      const brand = String(input.brand || "").trim().slice(0, 100);
+      const problemDescription = String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000);
+      if (brand.length < 2 || problemDescription.length < 10) {
+        const error = new Error("Repair requests require a brand and a problem description of at least 10 characters.");
+        error.status = 400;
+        throw error;
+      }
+      const pricing = categoryRepairPriceByInput.get(input);
+      const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Math.trunc(Number(input.quantity)) || 1));
+      const duration = await getInspectionDurationMinutes();
+      const unitLabel = String(pricing?.unitLabel || input.unitType || input.applianceTypeName || input.applianceType || "Appliance").trim();
+      return {
+        serviceId: null,
+        name: `${unitLabel} Repair`,
+        type: "repair",
+        quantity,
+        unitPrice: Number(pricing?.fee || 0),
+        totalPrice: Number(pricing?.fee || 0) * quantity,
+        duration,
+        hp: null,
+        hpDescription: "",
+        airconType: String(input.airconType || input.applianceType || "").trim(),
+        airconTypeName: String(input.airconTypeName || input.applianceTypeName || unitLabel).trim(),
+        applianceType: String(input.applianceType || input.unitType || "").trim(),
+        applianceTypeName: String(input.applianceTypeName || unitLabel).trim(),
+        unitType: String(pricing?.unitType || input.unitType || input.applianceType || "").trim(),
+        unitCategory: String(pricing?.categorySlug || input.unitCategory || "").trim(),
+        brand,
+        model: modelResult.value,
+        repairIssue: problemDescription,
+        problemDescription,
+        status: "inspection_pending",
+        phase: "repair_phase_1",
+        schedule: { date: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime, durationMinutes: duration, kind: "inspection" },
+      };
+    }
     const catalog = prior
       ? await Catalog.findOne({ _id: input.serviceId }).lean()
       : await Catalog.findOne({ _id: input.serviceId, active: { $ne: false } }).lean();
     if (!catalog && prior) {
+      const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Math.trunc(Number(input.quantity)) || Number(prior.quantity) || 1));
       return {
         ...prior,
         _id: prior._id,
-        quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(input.quantity) || Number(prior.quantity) || 1)),
+        quantity,
+        totalPrice: (Number(prior.unitPrice) || (Number(prior.totalPrice) / (Number(prior.quantity) || 1)) || 0) * quantity,
         brand: String(input.brand || prior.brand || "").trim().slice(0, 100),
-        model: String(input.model || prior.model || "").trim().slice(0, 100),
+        model: type === "repair" ? modelResult.value : "",
         repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.repairIssue || "").trim().slice(0, 2000) : prior.repairIssue || "",
         problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.problemDescription || "").trim().slice(0, 2000) : prior.problemDescription || "",
       };
@@ -866,7 +933,7 @@ async function validatedServiceItems(inputItems, booking) {
       applianceType: input.applianceType || airconType,
       applianceTypeName: input.applianceTypeName || input.airconTypeName || typeTier?.name || "",
       brand: String(input.brand || "").trim().slice(0, 100),
-      model: String(input.model || "").trim().slice(0, 100),
+      model: type === "repair" ? modelResult.value : "",
       repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
       problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
       status: prior?.status || (type === "repair" ? "inspection_pending" : "pending"),
@@ -1186,7 +1253,7 @@ router.post('/create-repair', (req, res, next) => {
     repairItems = repairItems.slice(0, 20).map(item => ({
       unitType: String(item.unitType || item.applianceTypeName || '').trim(),
       unitCategory: String(item.unitCategory || item.repairCategory || '').trim(),
-      brand: String(item.brand || '').trim(), model: String(item.model || '').trim(),
+      brand: String(item.brand || '').trim(), model: normalizeRepairModel(item.model),
       problemDescription: String(item.problemDescription || item.repairIssue || '').trim(),
       quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(item.quantity) || 1)),
     }));
@@ -1209,6 +1276,8 @@ router.post('/create-repair', (req, res, next) => {
     repairItems.forEach((item, index) => {
       if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);
       if (item.brand.length < 2) errors.push(`Appliance ${index + 1}: brand is required`);
+      const modelResult = validateRepairModel(item.model);
+      if (!modelResult.valid) errors.push(`Appliance ${index + 1}: ${modelResult.error}`);
       if (item.problemDescription.length < 10) errors.push(`Appliance ${index + 1}: problem description must be at least 10 characters`);
     });
     if (errors.length > 0) {
@@ -1222,6 +1291,7 @@ router.post('/create-repair', (req, res, next) => {
         errors
       });
     }
+    const primaryRepairModel = repairItems[0]?.model || '';
 
     const repairPricing = await resolveRepairInspectionFees(
       repairItems.map(item => ({ ...item, type: 'repair' })),
@@ -1361,7 +1431,7 @@ router.post('/create-repair', (req, res, next) => {
       unitInfo: {
         unitType: unitType.trim(),
         brand: brand.trim(),
-        model: (model || '').trim(),
+        model: primaryRepairModel,
         problemDescription: problemDescription.trim(),
         photos: photoUrls,
       },
@@ -1433,7 +1503,7 @@ router.post('/create-repair', (req, res, next) => {
         changedByModel: 'User',
         changedByName: [req.user.firstName, req.user.lastName].filter(Boolean).join(' ') || 'Customer',
         reason: 'Customer submitted repair request',
-        notes: `${unitType} - ${brand} ${model || ''}: ${problemDescription}`.trim(),
+        notes: `${unitType} - ${brand} ${primaryRepairModel}: ${problemDescription}`.trim(),
         timestamp: new Date(),
       }],
     });
@@ -1511,7 +1581,7 @@ router.post('/create-repair', (req, res, next) => {
           workOrderNumber: workOrder,
           unitType,
           brand,
-          model,
+          model: primaryRepairModel,
           problemDescription,
           preferredDateLabel,
           preferredTime,

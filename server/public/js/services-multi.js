@@ -425,6 +425,8 @@ fetch('/api/services/payment-policy')
   .catch(() => console.warn('Using the default 10% downpayment policy.'));
 const LARGE_SCALE_MIN_UNITS = 8;
 const MAX_BOOKING_UNITS = 40;
+const REPAIR_MODEL_MAX_LENGTH = 50;
+const SAFE_REPAIR_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/;
 let customerLocationRequestToken = 0;
 let routeRequestToken = 0;
 let addressGeocodeRequestToken = 0;
@@ -438,6 +440,13 @@ let addressAutocompleteStatusLoaded = false;
 const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
   return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
+}
+function repairModelValidationMessage(value) {
+  const model = String(value || '').trim();
+  if (!model) return '';
+  if (model.length > REPAIR_MODEL_MAX_LENGTH) return `Model number must be ${REPAIR_MODEL_MAX_LENGTH} characters or fewer.`;
+  if (!SAFE_REPAIR_MODEL_PATTERN.test(model)) return 'Use letters, numbers, spaces, and . - _ / # ( ) + only.';
+  return '';
 }
 function isLargeScaleSelection() { return selectedUnitTotal() >= LARGE_SCALE_MIN_UNITS; }
 function remainingBookingUnits() {
@@ -12185,6 +12194,7 @@ function initializePaymentStep() {
     field.dataset.paymentValidationBound = 'true';
     field.addEventListener(field.type === 'file' ? 'change' : 'input', () => {
       refreshBookingPaymentFieldError(id);
+      if (field.type !== 'file') syncGcashNumberGuidance(id);
       syncPaymentConfirmAction();
     });
   });
@@ -12262,6 +12272,43 @@ function updatePaymentAmounts() {
 function isValidPhilippineMobile(value) {
   const digits = String(value || '').replace(/\D/g, '');
   return /^(?:09\d{9}|639\d{9})$/.test(digits);
+}
+
+function syncGcashNumberGuidance(fieldId) {
+  const field = document.getElementById(fieldId);
+  const feedback = document.getElementById(`${fieldId}Error`);
+  if (!field || !feedback) return true;
+
+  if (BookingState.paymentChannel !== 'gcash') {
+    field.classList.remove('payment-field-invalid');
+    field.removeAttribute('aria-invalid');
+    feedback.textContent = '';
+    feedback.classList.remove('payment-inline-valid');
+    feedback.classList.add('d-none');
+    return true;
+  }
+
+  const digits = String(field.value || '').replace(/\D/g, '').slice(0, 11);
+  if (field.value !== digits) field.value = digits;
+  const valid = /^09\d{9}$/.test(digits);
+  const empty = digits.length === 0;
+  field.classList.toggle('payment-field-invalid', !empty && !valid);
+  if (!empty && !valid) field.setAttribute('aria-invalid', 'true');
+  else field.removeAttribute('aria-invalid');
+
+  feedback.classList.toggle('d-none', empty);
+  feedback.classList.toggle('payment-inline-valid', valid);
+  feedback.textContent = empty
+    ? ''
+    : valid
+      ? 'Valid 11-digit GCash number.'
+      : `GCash number must have 11 digits and start with 09 (${digits.length}/11 digits entered).`;
+  if (!empty) {
+    const describedBy = new Set((field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+    describedBy.add(`${fieldId}Error`);
+    field.setAttribute('aria-describedby', [...describedBy].join(' '));
+  }
+  return valid;
 }
 
 function paymentChannelLabel(channel) {
@@ -12370,6 +12417,9 @@ function selectBookingPaymentChannel(channel, guideNext = false) {
       input.placeholder = isGcash ? '09XXXXXXXXX' : 'Transaction or reference number';
       input.inputMode = isGcash ? 'tel' : 'text';
       input.autocomplete = isGcash ? 'tel' : 'off';
+      input.maxLength = isGcash ? 11 : 80;
+      if (isGcash) input.setAttribute('pattern', '09[0-9]{9}');
+      else input.removeAttribute('pattern');
     }
   });
   const fullTitle = document.getElementById('fullPaymentPanelTitle');
@@ -12381,6 +12431,8 @@ function selectBookingPaymentChannel(channel, guideNext = false) {
   updatePaymentAmounts();
   syncPaymentChoiceGuide();
   clearBookingPaymentError();
+  syncGcashNumberGuidance('gcashNumber');
+  syncGcashNumberGuidance('cashNumber');
   saveBookingProgress();
   if (guideNext && BookingState.currentStep === 6) {
     window.setTimeout(guidePaymentNextAction, 80);
@@ -13533,16 +13585,17 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
   if (guideHint && guideHint.textContent !== guideMessages[activeStep]) guideHint.textContent = guideMessages[activeStep];
 
   const brandReady = Boolean(getSelectedRepairBrand());
+  const modelError = repairModelValidationMessage(document.getElementById('unitModel')?.value);
   const quantity = Number(document.getElementById('repairUnitQuantity')?.value);
   const quantityReady = Number.isInteger(quantity) && quantity >= 1 && quantity <= remainingBookingUnits();
   const detailsButton = document.getElementById('repairDetailsNext');
   const detailsHint = document.getElementById('repairDetailsHint');
   const skipModel = document.getElementById('repairSkipModel');
-  if (detailsButton) detailsButton.disabled = !brandReady || !quantityReady;
+  if (detailsButton) detailsButton.disabled = !brandReady || Boolean(modelError) || !quantityReady;
   if (skipModel) skipModel.disabled = !brandReady;
   if (detailsHint) detailsHint.textContent = !brandReady
     ? 'Choose a brand to continue.'
-    : !quantityReady ? 'Enter a valid number of units.' : 'Model number is optional. You can continue now.';
+    : modelError || (!quantityReady ? 'Enter a valid number of units.' : 'Model number is optional. You can continue now.');
 
   const problemReady = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
   const problemButton = document.getElementById('repairProblemNext');
@@ -13576,8 +13629,21 @@ function focusRepairQuantity() {
 }
 window.focusRepairQuantity = focusRepairQuantity;
 
+function skipRepairModel() {
+  const model = document.getElementById('unitModel');
+  if (model) model.value = '';
+  syncRepairModelGuidance();
+  refreshRepairGuide(3);
+  focusRepairQuantity();
+}
+window.skipRepairModel = skipRepairModel;
+
 function continueRepairDetails() {
   if (!getSelectedRepairBrand()) return goToRepairGuideStep(3);
+  if (!syncRepairModelGuidance()) {
+    document.getElementById('unitModel')?.focus();
+    return;
+  }
   const quantity = document.getElementById('repairUnitQuantity');
   const count = Number(quantity?.value);
   if (!Number.isInteger(count) || count < 1 || count > remainingBookingUnits()) {
@@ -13712,6 +13778,25 @@ function updateRepairCharCount() {
   counter.style.color = len > 500 ? 'var(--color-danger)' : 'var(--gray-400)';
 }
 
+function syncRepairModelGuidance() {
+  const input = document.getElementById('unitModel');
+  const counter = document.getElementById('repairModelCount');
+  const errorNode = document.getElementById('repairModelError');
+  if (!input) return true;
+
+  const value = input.value;
+  const error = repairModelValidationMessage(value);
+  if (counter) counter.textContent = `${value.length} / ${REPAIR_MODEL_MAX_LENGTH}`;
+  input.classList.toggle('payment-field-invalid', Boolean(error));
+  if (error) input.setAttribute('aria-invalid', 'true');
+  else input.removeAttribute('aria-invalid');
+  if (errorNode) {
+    errorNode.textContent = error;
+    errorNode.classList.toggle('d-none', !error);
+  }
+  return !error;
+}
+
 function getRepairBrandCatalog() {
   const coreServices = BookingState.catalog.coreServices.length
     ? BookingState.catalog.coreServices
@@ -13817,7 +13902,7 @@ function getCurrentRepairItem() {
 }
 
 function repairItemIsComplete(item) {
-  return Boolean(item.unitType && item.brand && Number.isInteger(item.quantity) && item.quantity >= 1 && item.problemDescription.trim().length >= 10);
+  return Boolean(item.unitType && item.brand && !repairModelValidationMessage(item.model) && Number.isInteger(item.quantity) && item.quantity >= 1 && item.problemDescription.trim().length >= 10);
 }
 
 function addCurrentRepairItem() {
@@ -13829,6 +13914,13 @@ function addCurrentRepairItem() {
   if (!item.brand) {
     goToRepairGuideStep(3);
     return showAlert('Choose the brand or choose “I don\'t know.”', 'warning');
+  }
+  const modelError = repairModelValidationMessage(item.model);
+  if (modelError) {
+    goToRepairGuideStep(3);
+    syncRepairModelGuidance();
+    document.getElementById('unitModel')?.focus();
+    return showAlert(modelError, 'warning');
   }
   if (!Number.isInteger(item.quantity) || item.quantity < 1) {
     goToRepairGuideStep(3);
@@ -13924,6 +14016,7 @@ function editRepairItem(index) {
   updatePricingDisplay();
   updateContinueButtonState();
   updateRepairCharCount();
+  syncRepairModelGuidance();
   window.setTimeout(() => {
     repairGuidanceSuspended = false;
     refreshRepairGuide(3);
@@ -13969,6 +14062,7 @@ function resetRepairForm() {
   const photoInput = document.getElementById('repairUnitPhotos');
   if (photoInput) photoInput.value = '';
   updateRepairCharCount();
+  syncRepairModelGuidance();
   refreshRepairGuide(1);
 }
 
@@ -14159,14 +14253,20 @@ function initRepairFormControls() {
   setupRepairPhotoUpload();
   const modelEl = document.getElementById('unitModel');
   if (modelEl) {
+    modelEl.addEventListener('input', () => {
+      syncRepairModelGuidance();
+      refreshRepairGuide(3);
+    });
     modelEl.addEventListener('blur', event => {
-      if (modelEl.value.trim() && !event.relatedTarget?.closest('button, a, select, [role="button"]')) focusRepairQuantity();
+      if (modelEl.value.trim() && syncRepairModelGuidance() && !event.relatedTarget?.closest('button, a, select, [role="button"]')) focusRepairQuantity();
     });
     modelEl.addEventListener('keydown', event => {
       if (event.key !== 'Enter') return;
       event.preventDefault();
+      if (!syncRepairModelGuidance()) return;
       focusRepairQuantity();
     });
+    syncRepairModelGuidance();
   }
   const problemEl = document.getElementById('repairProblemDescription');
   if (problemEl) {

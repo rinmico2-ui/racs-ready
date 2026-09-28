@@ -464,8 +464,10 @@
                           </div>
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model number <span class="rp-optional">(optional)</span></label>
-                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="Example: 42KDPV48" />
-                            <button type="button" class="repair-inline-action" id="repairSkipModel" onclick="focusRepairQuantity()">I don't know the model <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="Example: 42KDPV48" maxlength="50" autocomplete="off" spellcheck="false" aria-describedby="repairModelHelp repairModelCount repairModelError" aria-errormessage="repairModelError" />
+                            <div class="repair-model-meta"><small id="repairModelHelp">Up to 50 characters. Use letters, numbers, spaces, and . - _ / # ( ) + only.</small><small id="repairModelCount">0 / 50</small></div>
+                            <div id="repairModelError" class="payment-inline-error d-none" role="alert" aria-live="polite"></div>
+                            <button type="button" class="repair-inline-action" id="repairSkipModel" onclick="skipRepairModel()">I don't know the model <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
                           </div>
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="repairUnitQuantity"><i class="bi bi-stack me-2 text-primary"></i>How many units?</label>
@@ -983,9 +985,9 @@
                       </div>
                       <div class="mb-3">
                         <label id="fullPaymentReferenceLabel" class="form-label text-muted small fw-semibold">Payment reference <span class="text-danger">*</span></label>
-                        <input id="gcashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" aria-describedby="fullPaymentReferenceHelp" style="border-radius:12px;border:1.5px solid #e2e8f0;padding:0.8rem 1rem;font-size:0.95rem;" />
+                        <input id="gcashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" maxlength="80" aria-describedby="fullPaymentReferenceHelp gcashNumberError" aria-errormessage="gcashNumberError" style="border-radius:12px;border:1.5px solid #e2e8f0;padding:0.8rem 1rem;font-size:0.95rem;" />
                         <small id="fullPaymentReferenceHelp" class="text-muted mt-1 d-block">Enter the reference shown on your payment receipt.</small>
-                        <div id="gcashNumberError" class="payment-inline-error d-none"></div>
+                        <div id="gcashNumberError" class="payment-inline-error d-none" role="alert" aria-live="polite"></div>
                       </div>
                       <div class="mb-3">
                         <label class="form-label text-muted small fw-semibold">Payment Receipt Screenshot <span class="text-danger">*</span></label>
@@ -1044,10 +1046,10 @@
                     <div class="customer-payment-fields mb-3">
                     <div>
                       <label id="depositPaymentReferenceLabel" class="form-label text-muted small fw-semibold">Payment reference <span class="text-danger">*</span></label>
-                      <input id="cashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" aria-describedby="depositPaymentReferenceHelp"
+                      <input id="cashNumber" class="form-control" placeholder="Transaction or reference number" autocomplete="off" maxlength="80" aria-describedby="depositPaymentReferenceHelp cashNumberError" aria-errormessage="cashNumberError"
                         style="border-radius:12px;border:1.5px solid #e5e7eb;padding:0.8rem 1rem;" />
                       <small id="depositPaymentReferenceHelp" class="text-muted">Enter the reference shown on your payment receipt.</small>
-                      <div id="cashNumberError" class="payment-inline-error d-none"></div>
+                      <div id="cashNumberError" class="payment-inline-error d-none" role="alert" aria-live="polite"></div>
                     </div>
                     <div>
                       <label class="form-label text-muted small fw-semibold">Down Payment Receipt <span class="text-danger">*</span></label>
@@ -1491,7 +1493,7 @@
                   <div class="racs-track"><div class="racs-track-dash"></div></div>
                 </div>
                 <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-                <span class="racs-title">Isinusumite ang booking...</span>
+                <span class="racs-title">Submitting Your Booking...</span>
                 <span class="racs-desc">Please wait while we send your request</span>
                 <div class="racs-pulse"><span></span><span></span><span></span></div>
               </div>
@@ -2732,7 +2734,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260928-project-scheduling-v7';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260928-project-confirm-v8':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260928-input-security-v9':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3285,7 +3287,7 @@ document.addEventListener("DOMContentLoaded",()=>{
             <div class="racs-track"><div class="racs-track-dash"></div></div>
           </div>
           <div class="racs-progress"><div class="racs-progress-fill"></div></div>
-          <span class="racs-title">Isinusumite ang booking...</span>
+          <span class="racs-title">Submitting Your Booking...</span>
           <span class="racs-desc">Please wait while we send your request</span>
           <div class="racs-pulse"><span></span><span></span><span></span></div>
         </div>
@@ -3333,5 +3335,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260928-project-confirm-v49">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260929-modal-spacing-v51">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

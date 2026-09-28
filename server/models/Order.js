@@ -345,6 +345,8 @@ const orderSchema = new mongoose.Schema(
 // ─── Indexes ────────────────────────────────────────────────────────────────
 
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ "delivery.preferredDate": 1 }); // Date-bounded delivery calendar
+orderSchema.index({ pickupDate: 1 }); // Date-bounded customer-pickup calendar
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index(
   { userId: 1, checkoutRequestId: 1 },

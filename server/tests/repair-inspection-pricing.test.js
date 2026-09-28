@@ -78,6 +78,13 @@ test("custom repair categories accept another appliance at the default fee", () 
   assert.equal(result.fee, 500);
   assert.equal(result.categorySlug, "other");
   assert.equal(result.unitType, "Television");
+  assert.equal(result.unitLabel, "Television");
+});
+
+test("custom repair categories require a bounded appliance name", () => {
+  const custom = [{ name: "Other", slug: "other", active: true, isCustom: true, unitTypes: [] }];
+  assert.throws(() => resolveCatalogInspectionFee({ unitCategory: "other", unitType: "" }, custom, 500), /between 2 and 80 characters/i);
+  assert.throws(() => resolveCatalogInspectionFee({ unitCategory: "other", unitType: "X".repeat(81) }, custom, 500), /between 2 and 80 characters/i);
 });
 
 test("inspection-fee validation accepts currency values within policy limits", () => {

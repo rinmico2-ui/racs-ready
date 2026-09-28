@@ -22,7 +22,7 @@ test("customer account drawer creates no page gutter or persistent content cover
 });
 
 test("customer sidebar assets are cache-busted together", () => {
-  assert.match(layout, /customer-sidebar\.css\?v=20260928-account-top-v6/);
+  assert.match(layout, /customer-sidebar\.css\?v=20260929-mobile-support-v7/);
   assert.match(layout, /navbar-auth\.js\?v=20260928-session-logout-v7/);
 });
 
@@ -45,7 +45,14 @@ test("authenticated mobile navigation uses one accessible combined drawer trigge
   assert.match(navbar, /has-customer-drawer/);
   assert.match(styles, /#publicNavbar\.has-customer-drawer \.navbar-toggler,[\s\S]*?#publicNavbar\.has-customer-drawer #mainNav\s*\{\s*display:\s*none\s*!important/);
   assert.match(styles, /\.racs-sidebar-site-navigation\s*\{\s*display:\s*block/);
-  assert.match(sidebar, /racs-sidebar-site-navigation[\s\S]*?href="\/"[\s\S]*?href="\/services"[\s\S]*?href="\/products"[\s\S]*?href="\/about"[\s\S]*?href="\/contact"/);
+  const explore = sidebar.slice(sidebar.indexOf('id="racsGroupExplore"'), sidebar.indexOf('id="racsGroupServices"'));
+  const support = sidebar.slice(sidebar.indexOf('id="racsGroupSupport"'));
+  assert.match(explore, /href="\/"[\s\S]*?href="\/services"[\s\S]*?href="\/products"[\s\S]*?href="\/about"/);
+  assert.doesNotMatch(explore, /href="\/contact"/);
+  assert.match(support, /class="racs-sidebar-mobile-contact"[\s\S]*?href="\/contact"/);
+  assert.equal((sidebar.match(/href="\/contact"/g) || []).length, 1);
+  assert.match(styles, /\.racs-sidebar-mobile-contact\s*\{\s*display:\s*none/);
+  assert.match(styles, /@media \(max-width: 991\.98px\)\s*\{[\s\S]*?\.racs-sidebar-mobile-contact\s*\{\s*display:\s*list-item/);
   assert.match(navbar, /<\/div>\s*<% if \(typeof user !== 'undefined' && user\) \{ %>\s*[\s\S]*?class="racs-navbar-account/);
   assert.match(sidebar, /id="authSidebar"[^>]*role="dialog"[^>]*aria-hidden="true"[^>]*inert/);
   assert.match(script, /sidebar\.removeAttribute\("inert"\)/);

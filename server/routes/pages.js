@@ -984,8 +984,16 @@ router.get("/book-history", pageAuth.requireRole("customer"), (req, res) => {
   res.render("pages/book-history", { title: "Booking History" });
 });
 
-// Live Tracking (customers only)
-router.get("/tracking", pageAuth.requireRole("customer"), async (req, res, next) => {
+// Render the schedule shell immediately; its owned, bounded data feed follows.
+router.get("/tracking", pageAuth.requireRole("customer"), (req, res) => {
+  res.render("pages/tracking", {
+    title: "My Schedule",
+    initialBookings: [],
+    initialBooking: null,
+  });
+});
+
+router.get("/tracking/data", pageAuth.requireRole("customer"), async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
     const Project = require("../models/Project");
@@ -1028,9 +1036,9 @@ router.get("/tracking", pageAuth.requireRole("customer"), async (req, res, next)
         ],
       },
     })
-      .populate("technicianId", "name phone profileImage rating")
-      .populate("customerId", "name phone")
-      .sort({ bookingDate: 1, startTime: 1 })
+      .select("_id customerId customer technicianId technician status bookingDate startTime endTime bookingReference workOrderNumber service.name service.basePrice serviceType serviceModel serviceId services.name services.duration services.quantity services.unitPrice services.totalPrice serviceDurationMinutes duration quantity isProject location.address location.lat location.lng proposedReschedule.status travelFare amountPaid downpaymentAmount servicePrice approval.status quotation.totalCost totalPrice")
+      .populate("technicianId", "name phone")
+      .sort({ bookingDate: -1 })
       .limit(100)
       .lean();
 
@@ -1039,10 +1047,6 @@ router.get("/tracking", pageAuth.requireRole("customer"), async (req, res, next)
       if (b.technicianId && typeof b.technicianId === "object") {
         b.technicianName = b.technicianId.name || b.technicianName;
         b.technicianPhone = b.technicianId.phone || "";
-      }
-      if (b.customerId && typeof b.customerId === "object") {
-        b.customerName = b.customerId.name || b.customerName;
-        b.customerPhone = b.customerId.phone || "";
       }
     });
 
@@ -1053,7 +1057,7 @@ router.get("/tracking", pageAuth.requireRole("customer"), async (req, res, next)
     const projectBookingIds = items.map(b => b._id);
     const projects = projectBookingIds.length
       ? await Project.find({ bookingId: { $in: projectBookingIds } })
-          .select("bookingId customer service status projectPhase totalUnits completedUnits payment quotationReview location assignedTechnicians leadTechnicianId plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline dailyAcceptance")
+          .select("bookingId customer.name customer.phone customer.email service.name status projectPhase totalUnits completedUnits payment.paymentMethod payment.amountPaid payment.totalAmount quotationReview.status quotationReview.totalAmount repair.quotation.approvedAt repair.quotation.totalCost location.address location.lat location.lng assignedTechnicians._id assignedTechnicians.name assignedTechnicians.phone leadTechnicianId plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline dailyAcceptance.required")
           .lean()
       : [];
     const projectIds = projects.map(project => project._id);
@@ -1158,19 +1162,13 @@ router.get("/tracking", pageAuth.requireRole("customer"), async (req, res, next)
       if (projectMethod) b.paymentMethod = projectMethod;
     });
 
-    const current =
-      items.find(
-        (b) =>
-          String(b.status || "").toLowerCase() === "confirmed" &&
-          b.bookingDate &&
-          new Date(b.bookingDate) >= today,
-      ) || items[0] || null;
+    const current = items
+      .filter((booking) => String(booking.status || "").toLowerCase() === "confirmed"
+        && booking.bookingDate && new Date(booking.bookingDate) >= today)
+      .sort((a, b) => new Date(a.bookingDate) - new Date(b.bookingDate))[0]
+      || items[0] || null;
 
-    res.render("pages/tracking", {
-      title: "Live Tracking",
-      initialBookings: items,
-      initialBooking: current,
-    });
+    res.json({ bookings: items, currentBookingId: current?._id || null });
   } catch (e) {
     next(e);
   }
@@ -1340,8 +1338,9 @@ function renderOperationsCalendar(res, role) {
     calendarTechniciansApi: isSecretary ? "/api/secretary/technicians" : "/api/admin/technicians",
     calendarSchedulesApi: isSecretary ? "/api/secretary/technician-schedules" : "/api/admin/technician-schedules",
     calendarAppointmentsApi: isSecretary ? "/api/secretary/appointments" : "/api/admin/appointments",
-    calendarAppointmentsListApi: "/api/appointments",
+    calendarAppointmentsListApi: "/api/appointments/calendar",
     calendarOrdersApi: "/api/orders",
+    calendarOrdersListApi: "/api/orders/calendar",
     calendarBookingsPath: isSecretary ? "/secretary/appointments" : "/admin/appointments",
     calendarOrdersPath: isSecretary ? "/secretary/inventory/ordered-products" : "/admin/appointments/orders",
   });

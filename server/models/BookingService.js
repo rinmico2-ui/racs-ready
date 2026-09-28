@@ -107,9 +107,10 @@ const bookingSchema = new mongoose.Schema({
     duration: Number,
     isAirconService: Boolean,
     repairIssue: String, // Individual repair issue description
-    model: { type: String, trim: true },
+    model: { type: String, trim: true, maxlength: 50 },
     problemDescription: { type: String, trim: true },
     unitCategory: { type: String, trim: true },
+    unitType: { type: String, trim: true, maxlength: 80 },
     symptoms: [String],
     photos: [String],
 
@@ -326,7 +327,7 @@ const bookingSchema = new mongoose.Schema({
   unitInfo: {
     unitType: String,       // e.g. "Split Type Aircon", "Refrigerator"
     brand: String,          // e.g. "Carrier"
-    model: String,          // e.g. "42KDPV48"
+    model: { type: String, trim: true, maxlength: 50 }, // e.g. "42KDPV48"
     hp: Number,             // HP rating for aircon services
     hpDescription: String,  // e.g. "1.5 HP Split Type"
     problemDescription: String,
@@ -1405,6 +1406,7 @@ bookingSchema.pre("save", async function () {
 
 // Indexes for performance optimization
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
+bookingSchema.index({ bookingDate: 1, startTime: 1, _id: 1 }); // Date-bounded operations calendar without a status filter
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
 bookingSchema.index({ customerId: 1, bookingDate: -1, createdAt: -1 }); // Fast default customer-history page and pagination
 bookingSchema.index({ customerId: 1, status: 1, bookingDate: -1, createdAt: -1 }); // Fast filtered customer history
@@ -1417,6 +1419,8 @@ bookingSchema.index({ 'slaTracking.responseTarget': 1, 'slaTracking.responseBrea
 bookingSchema.index({ 'slaTracking.resolutionTarget': 1, 'slaTracking.resolutionBreached': 1 }); // For resolution SLA
 bookingSchema.index({ 'technicianAssistant.repairComplexity': 1 }); // For complexity-based queries
 bookingSchema.index({ createdAt: -1 }); // For recent repairs listing
+bookingSchema.index({ createdAt: -1, _id: -1 }); // Stable, index-backed pagination for the appointments overview
+bookingSchema.index({ status: 1, createdAt: -1, _id: -1 }); // Filtered overview pages
 bookingSchema.index({ status: 1, updatedAt: -1 }); // For completion-based revenue reporting
 bookingSchema.index({ status: 1, completedAt: -1 }); // Primary completed-service revenue path
 bookingSchema.index({ status: 1, "repairCompletion.completedAt": -1 }); // Repair completion revenue path

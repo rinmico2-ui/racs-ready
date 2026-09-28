@@ -2527,7 +2527,7 @@
     switch(tab){
       case'overview':AU.Overview.load();break;
       case'pending':AU.Pending.load();break;
-      case'queue':AU.Queue.loadStats();AU.Queue.loadWarnings();AU.Queue.loadQueue(1);break;
+      case'queue':AU.Queue.loadQueue(1);AU.Queue.loadStats();AU.Queue.loadWarnings();break;
       case'waiting':loadWaitingAcceptTab();break;
       case'active':AU.Active.load();break;
       case'completed':AU.Completed.load();break;
@@ -2652,6 +2652,7 @@
   AU.Overview={};
   var _ovPage=1,_ovLimit=10;
   var _overviewSearchTimeout=null;
+  var _overviewStatsRequest=0,_overviewListRequest=0;
 
   AU.Overview.load=function(){
     var startDate=(document.getElementById('filterStartDate')||{}).value||'';
@@ -2662,18 +2663,26 @@
       dateParams='?'+(startDate?'start='+startDate:'')+(startDate&&endDate?'&':'')+(endDate?'end='+endDate:'');
     }
     var listDate=startDate||endDate||'';
-    Promise.all([
-      fetch(statsUrl+dateParams).then(appointmentResponseJson),
-      fetch(APPOINTMENTS_API+'/list?page=1&limit='+_ovLimit+(listDate?'&date='+listDate:'')).then(appointmentResponseJson)
-    ]).then(function(res){
-      AU.Overview.renderPipeline(res[0].statusCounts||{});
-      AU.Overview.renderKPIs(res[0]);
-      AU.Overview.renderTable(res[1].bookings);
-      AU.Overview.renderPagination(res[1].pagination);
+    var statsRequest=++_overviewStatsRequest;
+    var listRequest=++_overviewListRequest;
+    fetch(statsUrl+dateParams).then(appointmentResponseJson).then(function(data){
+      if(statsRequest!==_overviewStatsRequest)return;
+      AU.Overview.renderPipeline(data.statusCounts||{});
+      AU.Overview.renderKPIs(data);
     }).catch(function(e){
-      console.error('Overview load error:',e);
+      if(statsRequest!==_overviewStatsRequest)return;
+      console.error('Overview statistics load error:',e);
       AU.Overview.renderPipeline({});
       AU.Overview.renderKPIs({});
+    });
+    fetch(APPOINTMENTS_API+'/list?page=1&limit='+_ovLimit+'&compact=true'+(listDate?'&date='+encodeURIComponent(listDate):'')).then(appointmentResponseJson).then(function(data){
+      if(listRequest!==_overviewListRequest)return;
+      AU.Overview.renderTable(data.bookings);
+      AU.Overview.renderPagination(data.pagination);
+      _ovPage=(data.pagination||{}).page||1;
+    }).catch(function(e){
+      if(listRequest!==_overviewListRequest)return;
+      console.error('Overview recent bookings load error:',e);
       AU.Overview.renderTable([]);
       AU.Overview.renderPagination({page:1,limit:_ovLimit,total:0,pages:0});
     });
@@ -2687,12 +2696,15 @@
     var search=(document.getElementById('overviewSearchInput')||{}).value||'';
     var dateParam='';
     if(startDate&&endDate){dateParam='&date='+startDate;}else if(startDate){dateParam='&date='+startDate;}else if(endDate){dateParam='&date='+endDate;}
-    fetch(APPOINTMENTS_API+'/list?page='+page+'&limit='+_ovLimit+'&status='+status+'&search='+encodeURIComponent(search)+dateParam)
+    var listRequest=++_overviewListRequest;
+    fetch(APPOINTMENTS_API+'/list?page='+page+'&limit='+_ovLimit+'&compact=true&status='+encodeURIComponent(status)+'&search='+encodeURIComponent(search)+dateParam)
     .then(appointmentResponseJson).then(function(data){
+      if(listRequest!==_overviewListRequest)return;
       AU.Overview.renderTable(data.bookings);
       AU.Overview.renderPagination(data.pagination);
       _ovPage=(data.pagination||{}).page||1;
     }).catch(function(e){
+      if(listRequest!==_overviewListRequest)return;
       console.error(e);
       AU.Overview.renderTable([]);
       AU.Overview.renderPagination({page:1,limit:_ovLimit,total:0,pages:0});
@@ -3247,18 +3259,14 @@
 
   // â•â•â• QUEUE â•â•â•
   AU.Queue={};
-  var _qCurrentBookingId=null,_qSelectedTechId=null,_qRecommendedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[];
+  var _qCurrentBookingId=null,_qSelectedTechId=null,_qRecommendedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[],_qLoadRequest=0;
 
   var _qStatusFilter='all_active';
   AU.Queue.loadStats=function(){
-    Promise.all([
-      fetch(APPOINTMENTS_API+'/list?status=awaiting_assignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
-      fetch(APPOINTMENTS_API+'/list?status=pending_reassignment&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});}),
-      fetch(APPOINTMENTS_API+'/cancellation-log?escalated=true&limit=1').then(function(r){return r.json().catch(function(){return{pagination:{total:0}};});})
-    ]).then(function(res){
-      var awaiting=res[0].pagination?res[0].pagination.total||0:0;
-      var reassign=res[1].pagination?res[1].pagination.total||0:0;
-      var escalated=res[2].pagination?res[2].pagination.total||0:0;
+    fetch(APPOINTMENTS_API+'/queue-metrics').then(appointmentResponseJson).then(function(data){
+      var awaiting=data.awaiting||0;
+      var reassign=data.reassign||0;
+      var escalated=data.escalated||0;
       document.getElementById('statAwaiting').textContent=awaiting;
       document.getElementById('statReassign').textContent=reassign;
       document.getElementById('statTotal').textContent=awaiting+reassign;
@@ -3274,20 +3282,22 @@
     document.querySelectorAll('#aqFilterPills .aj-pill').forEach(function(p){p.classList.remove('active');});
     btn.classList.add('active');
     AU.Queue.loadQueue(1);
-    AU.Queue.loadRecommendations();
   };
 
   AU.Queue.loadQueue=function(page){
     page=page||1;_qPage=page;
+    var loadRequest=++_qLoadRequest;
     var searchEl=document.getElementById('aqSearchInput');
     var filter=_qStatusFilter||'all_active';
     var search=searchEl?searchEl.value:'';
     var url;
-    if(filter==='all_active')url=APPOINTMENTS_API+'/list?page='+page+'&limit=20&status=awaiting_assignment,pending_reassignment';
-    else url=APPOINTMENTS_API+'/list?status='+filter+'&page='+page+'&limit=20';
+    if(filter==='all_active')url=APPOINTMENTS_API+'/list?page='+page+'&limit=20&compact=queue&status=awaiting_assignment,pending_reassignment';
+    else url=APPOINTMENTS_API+'/list?status='+filter+'&page='+page+'&limit=20&compact=queue';
     if(search)url+='&search='+encodeURIComponent(search);
     var container=document.getElementById('queueContainer');
-    fetch(url).then(function(r){return r.json();}).then(function(data){
+    container.innerHTML='<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div>';
+    fetch(url).then(appointmentResponseJson).then(function(data){
+      if(loadRequest!==_qLoadRequest)return;
       if(!data.bookings||!data.bookings.length){container.innerHTML='<div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Bookings in Queue</h6><p>All assignments have been handled</p></div>';document.getElementById('aqPagination').innerHTML='';return;}
       var statusColors={awaiting_assignment:'bg-warning text-dark',assigned:'bg-info text-dark',pending_reassignment:'bg-danger',payment_verified:'bg-success',confirmed:'bg-primary','waiting-for-customer':'bg-warning text-dark'};
       container.innerHTML=data.bookings.map(function(b){
@@ -3320,7 +3330,7 @@
         (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
         '</div>';
       }).join('');
-      AU.Queue.loadRecommendations();
+      AU.Queue.loadRecommendations(data.bookings.filter(function(b){return !b.assignmentTiming?.isExpired;}).map(function(b){return b._id;}),loadRequest);
       var pag=data.pagination||{};
       if(pag.pages>1){
         var pg='<ul class="pagination pagination-sm">';
@@ -3328,15 +3338,17 @@
         pg+='</ul>';
         document.getElementById('aqPagination').innerHTML=pg;
       }else document.getElementById('aqPagination').innerHTML='';
-    }).catch(function(){container.innerHTML='<div class="alert alert-danger">Failed to load queue</div>';});
+    }).catch(function(){if(loadRequest===_qLoadRequest)container.innerHTML='<div class="alert alert-danger">Failed to load queue</div>';});
   };
 
   function qEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
-  AU.Queue.loadRecommendations=function(){
+  AU.Queue.loadRecommendations=function(bookingIds,loadRequest){
+    if(!bookingIds||!bookingIds.length)return;
     var filter=_qStatusFilter||'all_active';
     var statuses=filter==='all_active'?'awaiting_assignment,pending_reassignment':filter;
-    fetch(APPOINTMENTS_API+'/assignment-plan?status='+encodeURIComponent(statuses)).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(data){
+    fetch(APPOINTMENTS_API+'/assignment-plan?status='+encodeURIComponent(statuses)+'&bookingIds='+encodeURIComponent(bookingIds.join(','))).then(appointmentResponseJson).then(function(data){
+      if(loadRequest!==_qLoadRequest)return;
       _qRecommendations={};
       (data.plan||[]).forEach(function(row){
         _qRecommendations[row.bookingId]=row;
@@ -3346,7 +3358,7 @@
         el.innerHTML='<div class="d-flex justify-content-between gap-3 flex-wrap"><div><div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended Technician</div><div class="fw-bold fs-6 mt-1">⭐ '+qEsc(r.name)+' <span class="badge bg-primary-subtle text-primary ms-1">Score '+r.score+'</span></div><ul class="small text-muted mb-0 mt-1 ps-3">'+r.reasons.slice(0,4).map(function(x){return'<li>'+qEsc(x)+'</li>';}).join('')+'</ul></div><button class="au-btn au-btn-primary align-self-center" onclick="AU.Queue.assignRecommended(\''+row.bookingId+'\')"><i class="bi bi-check2-circle me-1"></i>Assign Recommended</button></div>';
       });
       document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){var id=el.id.slice(6);if(!_qRecommendations[id])el.innerHTML='<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>No recommendation available for this booking.</div>';});
-    }).catch(function(){document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){el.innerHTML='<div class="small text-danger">Recommendation could not be loaded.</div>';});});
+    }).catch(function(){if(loadRequest===_qLoadRequest)document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){el.innerHTML='<div class="small text-danger">Recommendation could not be loaded.</div>';});});
   };
 
   AU.Queue.assignRecommended=function(bookingId){

@@ -883,7 +883,7 @@
         return "secondary";
       }
 
-      function serviceName(a) { return (a.service && typeof a.service === "string" && a.service) || (a.service && a.service.name) || (a.serviceId && a.serviceId.name) || (a.serviceId && a.serviceId.title) || (a.serviceModel === 'RepairService' || a.serviceType === 'repair' ? 'Repair Service' : null) || a.serviceType || "Service"; }
+      function serviceName(a) { return (a.service && typeof a.service === "string" && a.service) || (a.service && a.service.name) || (a.services && a.services.map(s => s.name).filter(Boolean).join(", ")) || (a.serviceId && a.serviceId.name) || (a.serviceId && a.serviceId.title) || (a.serviceModel === 'RepairService' || a.serviceType === 'repair' ? 'Repair Service' : null) || a.serviceType || "Service"; }
       function customerName(a) { return a.customerName || (a.customer && a.customer.name) || (a.customer && (a.customer.firstName||"")+" "+(a.customer.lastName||"")).trim() || a.customer || "Customer"; }
       function technicianName(a) { return a.technicianName || (a.technician && a.technician.name) || (a.technicianId && a.technicianId.name) || "Unassigned"; }
       function technicianId(a) { return (a.technicianId && (a.technicianId._id || a.technicianId)) || (a.technician && a.technician._id) || null; }
@@ -1382,17 +1382,17 @@
       };
 
       /* ── Fetch Data ─────────────────────────────────────────────── */
-      async function fetchAppointmentsForRange(start, end) {
+      async function fetchAppointmentsForRange(start, end, signal) {
         const params = new URLSearchParams({ limit: "2000", start, end });
-        const res = await fetch(calendarAppointmentsListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        const res = await fetch(calendarAppointmentsListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store", signal });
         if (!res.ok) throw new Error("appointments fetch failed: " + res.status);
         const json = await res.json();
         return json.items || json.appointments || [];
       }
 
-      async function fetchOrdersForRange(start, end) {
+      async function fetchOrdersForRange(start, end, signal) {
         const params = new URLSearchParams({ limit: "100", page: "1", scheduledFrom: start, scheduledTo: end });
-        const firstResponse = await fetch(calendarOrdersListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store" });
+        const firstResponse = await fetch(calendarOrdersListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store", signal });
         if (!firstResponse.ok) throw new Error("orders fetch failed: " + firstResponse.status);
         const firstPage = await firstResponse.json();
         const orders = [...(firstPage.orders || [])];
@@ -1402,7 +1402,7 @@
           for (let page = 2; page <= pages; page += 1) {
             const nextParams = new URLSearchParams(params);
             nextParams.set("page", String(page));
-            requests.push(fetch(calendarOrdersListApi + "?" + nextParams.toString(), { credentials: "same-origin", cache: "no-store" }).then(response => response.ok ? response.json() : { orders: [] }));
+            requests.push(fetch(calendarOrdersListApi + "?" + nextParams.toString(), { credentials: "same-origin", cache: "no-store", signal }).then(response => response.ok ? response.json() : { orders: [] }));
           }
           const remainingPages = await Promise.all(requests);
           remainingPages.forEach(result => orders.push(...(result.orders || [])));
@@ -1418,6 +1418,18 @@
       }
 
       const initView = window.innerWidth < 600 ? "listWeek" : "dayGridMonth";
+      let calendarRangeController = null;
+      let schedulesLoading = null;
+      function loadSchedulesInBackground() {
+        if (calendarIsTechnician || Object.keys(state.schedules).length || schedulesLoading) return;
+        schedulesLoading = fetchTechnicianSchedules().then(schedules => {
+          state.schedules = schedules;
+          state.workingDaysMap = computeWorkingDaysMap(schedules);
+          buildFilterBar();
+        }).catch(error => {
+          console.error("Failed to prepare technician hours:", error);
+        }).finally(() => { schedulesLoading = null; });
+      }
       const calendar = new FullCalendar.Calendar(dom.calendarEl, {
         initialView: initView,
         headerToolbar: { left: "prev,next today", center: "", right: "" },
@@ -1494,6 +1506,9 @@
 
         async datesSet(arg) {
           if (window._debounceDatesSet) clearTimeout(window._debounceDatesSet);
+          if (calendarRangeController) calendarRangeController.abort();
+          const requestController = new AbortController();
+          calendarRangeController = requestController;
           window._debounceDatesSet = setTimeout(async () => {
             updateRangeLabel(arg.view.title);
             state.currentViewType = arg.view.type;
@@ -1507,25 +1522,47 @@
             const endDate = new Date(arg.end.getTime() - 1);
             const end = toDateKey(endDate);
             if (dom.calendarSpinner) dom.calendarSpinner.style.display = "block";
+            loadSchedulesInBackground();
             try {
-              const [appts, orders, schedules] = await Promise.all([
-                fetchAppointmentsForRange(start, end),
-                fetchOrdersForRange(start, end).catch(() => []),
-                Object.keys(state.schedules).length === 0 ? fetchTechnicianSchedules() : Promise.resolve(state.schedules),
-              ]);
-              state.schedules = schedules;
-              state.workingDaysMap = computeWorkingDaysMap(schedules);
-              state.allAppointments = appts;
-              state.allOrders = orders.filter(o => orderScheduledDate(o));
+              state.allAppointments = [];
+              state.allOrders = [];
               applyFilters();
               buildFilterBar();
-              renderDateList();
+              const showLoadedResults = () => {
+                if (requestController.signal.aborted) return;
+                applyFilters();
+                buildFilterBar();
+              };
+              const results = await Promise.allSettled([
+                fetchAppointmentsForRange(start, end, requestController.signal).then(appts => {
+                  state.allAppointments = appts;
+                  showLoadedResults();
+                }),
+                fetchOrdersForRange(start, end, requestController.signal).then(orders => {
+                  state.allOrders = orders.filter(o => orderScheduledDate(o));
+                  showLoadedResults();
+                }),
+              ]);
+              if (requestController.signal.aborted) return;
+              results.forEach((result, index) => {
+                if (result.status === "rejected") console.error(index === 0 ? "Failed to load calendar bookings:" : "Failed to load calendar orders:", result.reason);
+              });
+              if (results.every(result => result.status === "rejected")) {
+                dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load the operations schedule.</div>';
+                dom.selectedDateCount.textContent = "0";
+              } else if (results.some(result => result.status === "rejected")) {
+                dom.selectedDateSub.textContent = "Some schedule items could not be loaded. Refresh to retry.";
+              }
             } catch (err) {
+              if (err.name === "AbortError" || requestController.signal.aborted) return;
               console.error(err);
               dom.selectedDateList.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i>Failed to load the operations schedule.</div>';
               dom.selectedDateCount.textContent = "0";
             } finally {
-              if (dom.calendarSpinner) dom.calendarSpinner.style.display = "none";
+              if (calendarRangeController === requestController) {
+                calendarRangeController = null;
+                if (dom.calendarSpinner) dom.calendarSpinner.style.display = "none";
+              }
             }
           }, 150);
         },

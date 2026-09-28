@@ -390,14 +390,14 @@
   #quantitySelectionModal .cfg-step.is-active .cfg-step-s { color: #1d4ed8; }
   #quantitySelectionModal .cfg-line { display: none; }
 
-  /* Compact configuration cards: less scrolling without sacrificing tap size. */
+  /* Give configuration copy room to breathe inside each mobile card. */
   #quantitySelectionModal .modal-body { padding: .75rem !important; }
-  #quantitySelectionModal .cfg-service-context { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: .5rem; margin-bottom: .65rem !important; padding: .5rem .6rem; }
+  #quantitySelectionModal .cfg-service-context { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: .6rem; margin-bottom: .75rem !important; padding: .75rem .9rem; }
   #quantitySelectionModal .cfg-context-icon { width: 32px; height: 32px; }
-  #quantitySelectionModal .cfg-context-label { margin: 0; font-size: .55rem; }
-  #quantitySelectionModal .cfg-context-progress { padding: .25rem .4rem; font-size: .55rem; }
+  #quantitySelectionModal .cfg-context-label { margin: 0; font-size: .65rem; }
+  #quantitySelectionModal .cfg-context-progress { padding: .25rem .4rem; font-size: .62rem; }
   #quantitySelectionModal #quantityModalServiceName { min-width: 0; font-size: .9rem !important; line-height: 1.35; }
-  #quantitySelectionModal .cfg-stage-panel { padding: .7rem !important; border-radius: 14px; }
+  #quantitySelectionModal .cfg-stage-panel { padding: .9rem !important; border-radius: 14px; }
   #quantitySelectionModal .cfg-stage-heading { gap: .55rem; margin-bottom: .65rem !important; }
   #quantitySelectionModal .cfg-stage-icon { width: 32px; height: 32px; flex-basis: 32px; border-radius: 9px; font-size: .88rem; }
   #quantitySelectionModal .cfg-stage-heading h6 { font-size: .9rem; }
@@ -406,27 +406,33 @@
   #quantitySelectionModal .cfg-type-grid { display: grid !important; grid-template-columns: 1fr; gap: .5rem !important; margin: 0 !important; }
   #quantitySelectionModal .cfg-type-option { width: auto; padding: 0; }
   #quantitySelectionModal .aircon-type-card { min-height: 102px; padding: 0 !important; border-width: 1px !important; border-radius: 12px !important; }
-  #quantitySelectionModal .cfg-type-card-body { display: grid; grid-template-rows: 1fr auto; height: 100%; padding: .65rem !important; }
+  #quantitySelectionModal .cfg-type-card-body { display: grid; grid-template-rows: 1fr auto; height: 100%; padding: .9rem !important; }
   #quantitySelectionModal .cfg-type-card-top { grid-template-columns: 34px minmax(0, 1fr); gap: .55rem; }
   #quantitySelectionModal .cfg-type-icon-wrap { width: 34px; height: 34px; margin: 0 !important; }
   #quantitySelectionModal .cfg-type-icon { font-size: .95rem !important; }
-  #quantitySelectionModal .cfg-type-card-copy strong { font-size: .76rem; }
-  #quantitySelectionModal .cfg-type-card-copy small { font-size: .62rem; }
+  #quantitySelectionModal .cfg-type-card-copy strong { font-size: .84rem; }
+  #quantitySelectionModal .cfg-type-card-copy small { font-size: .68rem; }
   #quantitySelectionModal .cfg-type-card-bottom { padding-top: .45rem; }
   #quantitySelectionModal .cfg-type-price { max-width: 100%; padding: 0; white-space: nowrap; font-size: .64rem !important; line-height: 1.2; }
   #quantitySelectionModal .cfg-type-count { display: inline-flex; font-size: .58rem; }
   #quantitySelectionModal .aircon-type-card.selected::after { top: 5px; right: 5px; width: 19px; height: 19px; font-size: .66rem; }
 
-  #quantitySelectionModal .cfg-type-summary { margin-bottom: .6rem !important; padding: .55rem .65rem; }
+  #quantitySelectionModal .cfg-type-summary { margin-bottom: .75rem !important; padding: .75rem .9rem; }
   #quantitySelectionModal .cfg-type-summary strong { font-size: .82rem; }
   #quantitySelectionModal .cfg-change-type { min-height: 40px; padding: .45rem .55rem; }
   #quantitySelectionModal .cfg-hp-grid { grid-template-columns: 1fr; gap: .5rem !important; margin: 0 !important; }
   #quantitySelectionModal .cfg-hp-option { padding: 0; }
   #quantitySelectionModal .hp-selection-card { min-height: 158px; padding: 0 !important; border-radius: 12px !important; }
-  #quantitySelectionModal .cfg-hp-card-body { padding: .65rem !important; }
-  #quantitySelectionModal .cfg-hp-title strong { font-size: .8rem; }
-  #quantitySelectionModal .cfg-hp-title small { font-size: .61rem; }
-  #quantitySelectionModal .cfg-hp-price { font-size: .8rem; }
+  #quantitySelectionModal .cfg-hp-quantity-hint { padding: .75rem .9rem; font-size: .72rem; }
+  #quantitySelectionModal .cfg-hp-card-body { gap: .75rem; padding: 1rem !important; }
+  #quantitySelectionModal .cfg-hp-choice-row { gap: .75rem; }
+  #quantitySelectionModal .cfg-hp-title small { font-size: .7rem; overflow-wrap: anywhere; }
+  #quantitySelectionModal .cfg-hp-meta span { font-size: .67rem; }
+  #quantitySelectionModal .cfg-hp-quantity-copy { min-width: 0; }
+  #quantitySelectionModal .cfg-hp-quantity-copy strong { font-size: .72rem; }
+  #quantitySelectionModal .cfg-hp-quantity-copy span { font-size: .68rem; }
+  #quantitySelectionModal .cfg-hp-title strong { font-size: .88rem; }
+  #quantitySelectionModal .cfg-hp-price { font-size: .86rem; }
   #quantitySelectionModal .cfg-hp-stepper { grid-template-columns: 44px 36px 44px; }
   #quantitySelectionModal .cfg-hp-stepper button { width: 44px; height: 44px; }
   #quantitySelectionModal .cfg-hp-stepper input { width: 36px; height: 44px; }
@@ -442,6 +448,13 @@
 }
 
 @media (max-width: 359.98px) {
+  #quantitySelectionModal .cfg-service-context { grid-template-columns: 32px minmax(0, 1fr); }
+  #quantitySelectionModal .cfg-context-progress { grid-column: 2; justify-self: start; }
+  #quantitySelectionModal .cfg-hp-choice-row { flex-wrap: wrap; }
+  #quantitySelectionModal .cfg-hp-choice { flex: 1 1 100%; }
+  #quantitySelectionModal .cfg-hp-price { flex-basis: calc(100% - 20px - .55rem); margin-left: calc(20px + .55rem); }
+  #quantitySelectionModal .hp-quantity-control { flex-wrap: wrap; }
+  #quantitySelectionModal .cfg-hp-stepper { margin-left: auto; }
   .ent-booking-container { padding-inline: .75rem; }
   .ent-step-card { padding: 1rem !important; }
   .ent-tr { gap: .18rem; }
@@ -1720,4 +1733,64 @@ body.booking-sheet-open { overflow: hidden; }
 @media (max-width: 600px) {
   #paymentStep .booking-payment-error { grid-template-columns: 24px minmax(0, 1fr); }
   #paymentStep #paymentErrorFixButton { grid-column: 2; justify-self: start; }
+}
+
+/* Keep review labels and values on one readable baseline. */
+.booking-review-details > div {
+  grid-template-columns: 28px 96px minmax(0, 1fr);
+  align-items: center;
+}
+.booking-review-details > div:has(.booking-edit-link) {
+  grid-template-columns: 28px 96px minmax(0, 1fr) auto;
+}
+.booking-review-details span,
+.booking-review-details strong { align-self: center; padding-top: 0; }
+.booking-review-details strong { text-align: left; }
+.booking-review-details > div .booking-edit-link { align-self: center; }
+.booking-review-details #feeProjectWindowNote {
+  display: block;
+  font-weight: 500;
+  line-height: 1.55;
+}
+.booking-review-details #feeProjectWindowNote > i {
+  display: inline;
+  width: auto;
+  height: auto;
+  background: transparent;
+}
+.booking-review-details #feeProjectWindowNote strong {
+  display: inline;
+  padding: 0;
+  font-size: inherit;
+}
+
+.repair-model-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: .4rem;
+  color: #64748b;
+  font-size: .72rem;
+  line-height: 1.4;
+}
+#unitModel.payment-field-invalid {
+  border-color: #dc2626 !important;
+  background: #fff7f7 !important;
+  box-shadow: 0 0 0 3px rgba(220,38,38,.12) !important;
+}
+#repairModelError { margin-top: .35rem; color: #b91c1c; font-size: .75rem; font-weight: 700; }
+#paymentStep .payment-inline-valid { color: #15803d; }
+
+@media (max-width: 575.98px) {
+  .booking-review-details > div,
+  .booking-review-details > div:has(.booking-edit-link) {
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: start;
+  }
+  .booking-review-details span,
+  .booking-review-details strong { grid-column: 2; text-align: left; }
+  .booking-review-details > div .booking-edit-link { grid-column: 2; justify-self: start; }
+  .booking-review-details #feeProjectWindowNote { display: block; }
+  .repair-model-meta { align-items: flex-start; }
+  #repairModelCount { flex: 0 0 auto; }
 }

@@ -40,7 +40,7 @@ test("mobile booking progress fits without a horizontal scroller", () => {
   assert.match(mobileStyles, /\.ent-tr\s*\{[^}]*grid-template-columns:\s*repeat\(6/);
   assert.match(mobileStyles, /\.ent-n\s*\{[^}]*min-height:\s*44px/);
   assert.match(mobileStyles, /\.ent-step-body \.form-control[\s\S]*?min-height:\s*48px/);
-  assert.match(servicesView, /services-mobile-ux\.css\?v=20260928-project-confirm-v49/);
+  assert.match(servicesView, /services-mobile-ux\.css\?v=20260929-modal-spacing-v51/);
 });
 
 test("mobile service configuration keeps type and HP choices compact", () => {
@@ -51,6 +51,13 @@ test("mobile service configuration keeps type and HP choices compact", () => {
   assert.match(mobileStyles, /\.cfg-hp-grid\s*\{[^}]*grid-template-columns:\s*1fr/);
   assert.match(mobileStyles, /\.cfg-hp-stepper button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/);
   assert.match(mobileStyles, /\.cfg-footer\s*\{[^}]*display:\s*grid !important/);
+});
+
+test("mobile configuration cards keep text inset from their borders", () => {
+  assert.match(mobileStyles, /#quantitySelectionModal \.cfg-stage-panel\s*\{[^}]*padding:\s*\.9rem !important/);
+  assert.match(mobileStyles, /#quantitySelectionModal \.cfg-type-card-body\s*\{[^}]*padding:\s*\.9rem !important/);
+  assert.match(mobileStyles, /#quantitySelectionModal \.cfg-hp-card-body\s*\{[^}]*padding:\s*1rem !important/);
+  assert.match(mobileStyles, /@media \(max-width: 359\.98px\)\s*\{[\s\S]*?#quantitySelectionModal \.cfg-hp-price\s*\{[^}]*flex-basis:\s*calc\(100% - 20px - \.55rem\)/);
 });
 
 test("mobile configuration progress is a slim three-step strip", () => {
@@ -88,4 +95,11 @@ test("mobile final confirmation copy and button use one aligned column", () => {
   assert.match(paymentMobile, /\.payment-confirm-action\.is-visible\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
   assert.match(paymentMobile, /\.payment-confirm-copy\s*\{[^}]*justify-items:\s*center;[^}]*text-align:\s*center/);
   assert.match(paymentMobile, /\.payment-confirm-action #confirmBookingBtn\s*\{[^}]*width:\s*100%/);
+});
+
+test("review detail labels and values stay left aligned on a shared baseline", () => {
+  assert.match(mobileStyles, /\.booking-review-details > div\s*\{[^}]*grid-template-columns:\s*28px 96px minmax\(0, 1fr\);[^}]*align-items:\s*center/);
+  assert.match(mobileStyles, /\.booking-review-details strong\s*\{[^}]*text-align:\s*left/);
+  assert.match(mobileStyles, /@media \(max-width: 575\.98px\)[\s\S]*?\.booking-review-details > div,[\s\S]*?grid-template-columns:\s*32px minmax\(0, 1fr\)/);
+  assert.match(mobileStyles, /\.booking-review-details #feeProjectWindowNote\s*\{[^}]*display:\s*block/);
 });

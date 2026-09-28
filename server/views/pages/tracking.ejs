@@ -91,7 +91,7 @@
     <div class="trk-list-toolbar">
       <div class="trk-list-title">
         <i class="bi bi-calendar2-week"></i> Your Bookings
-        <span class="trk-list-count" id="trkListCount">0</span>
+        <span class="trk-list-count" id="trkListCount">…</span>
       </div>
       <div class="trk-list-filter" id="trkListFilter">
         <button class="trk-filter-chip active" data-filter="all">All</button>
@@ -100,7 +100,7 @@
         <button class="trk-filter-chip" data-filter="completed">Completed</button>
       </div>
     </div>
-    <div id="trkBookingList" class="trk-booking-list"></div>
+    <div id="trkBookingList" class="trk-booking-list"><div class="trk-list-empty" role="status"><span class="spinner-border text-primary mb-3" aria-hidden="true"></span><h6>Loading your schedule…</h6><p>Fetching your bookings and project dates.</p></div></div>
 
     <!-- Booking Calendar (schedule overview) -->
     <div class="trk-card trk-calendar-card mt-4">
@@ -1623,6 +1623,10 @@
 <!-- SCRIPTS                                                                -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!-- Load Leaflet before the page inline script because main layout loads it in the body footer -->
+<script>
+  window.customerSchedulePrefetch = fetch('/tracking/data', { credentials: 'same-origin', cache: 'no-store' });
+  window.customerSchedulePrefetch.catch(() => {});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
 <script src="/js/enterprise-calendar.js"></script>
@@ -1654,9 +1658,8 @@
   socket.on("connect", () => {
     // Join customer room for targeted updates
     try {
-      const userEl = document.getElementById("customerTrackInitialBookings");
-      // Extract customer ID from the first booking's customerId
-      const firstBooking = initialBookings[0];
+      // Join after the schedule feed has identified the customer's bookings.
+      const firstBooking = bookings[0];
       if (firstBooking?.customerId) {
         const cid = typeof firstBooking.customerId === "object" ? firstBooking.customerId._id : firstBooking.customerId;
         if (cid) socket.emit("customer:join", cid);
@@ -1695,6 +1698,7 @@
     if (booking) {
       booking.status = data.status;
       if (data.proofPhoto) booking.proofPhoto = data.proofPhoto;
+      updateScheduleStats();
       renderScheduleList();
       const selected = getSelectedBooking();
       if (selected && String(selected._id || selected.id) === String(data.bookingId)) {
@@ -1717,6 +1721,7 @@
       booking.status = data.status || 'pending_reassignment';
       booking.technicianId = null;
       booking.technician = null;
+      updateScheduleStats();
       renderScheduleList();
       const selected = getSelectedBooking();
       if (selected && String(selected._id || selected.id) === String(data.bookingId)) {
@@ -1931,6 +1936,8 @@
       if (ad !== bd) return ad - bd;
       return Number(a.startTime || 0) - Number(b.startTime || 0);
     });
+  let bookingsLoading = true;
+  let bookingsLoadError = false;
 
   // ── Stats ─────────────────────────────────────────────────────────────
   // Active = technician is en route or working (on-the-way, in-progress, arrived)
@@ -1939,19 +1946,23 @@
   const upcomingStatuses = ['confirmed', 'scheduled'];
   const completedStatuses = ['completed'];
 
-  const activeBookings = bookings.filter(b => activeStatuses.includes(normalizeStatus(b.status)));
-  const upcomingBookings = bookings.filter(b => upcomingStatuses.includes(normalizeStatus(b.status)));
-  const completedBookings = bookings.filter(b => completedStatuses.includes(normalizeStatus(b.status)));
-
-  document.getElementById('trkStatTotal').textContent = bookings.length;
-  document.getElementById('trkStatActive').textContent = activeBookings.length;
-  document.getElementById('trkStatUpcoming').textContent = upcomingBookings.length;
-  document.getElementById('trkStatCompleted').textContent = completedBookings.length;
-  document.getElementById('trkActiveCount').textContent = activeBookings.length;
-  document.getElementById('trkUpcomingCount').textContent = bookings.filter(b => {
-    const s = normalizeStatus(b.status);
-    return s !== 'completed' && s !== 'cancelled';
-  }).length;
+  function updateScheduleStats() {
+    if (bookingsLoading) {
+      ['trkStatTotal', 'trkStatActive', 'trkStatUpcoming', 'trkStatCompleted', 'trkActiveCount', 'trkUpcomingCount']
+        .forEach(id => { document.getElementById(id).textContent = '…'; });
+      return;
+    }
+    document.getElementById('trkStatTotal').textContent = bookings.length;
+    document.getElementById('trkStatActive').textContent = bookings.filter(b => activeStatuses.includes(normalizeStatus(b.status))).length;
+    document.getElementById('trkStatUpcoming').textContent = bookings.filter(b => upcomingStatuses.includes(normalizeStatus(b.status))).length;
+    document.getElementById('trkStatCompleted').textContent = bookings.filter(b => completedStatuses.includes(normalizeStatus(b.status))).length;
+    document.getElementById('trkActiveCount').textContent = bookings.filter(b => activeStatuses.includes(normalizeStatus(b.status))).length;
+    document.getElementById('trkUpcomingCount').textContent = bookings.filter(b => {
+      const status = normalizeStatus(b.status);
+      return status !== 'completed' && status !== 'cancelled';
+    }).length;
+  }
+  updateScheduleStats();
 
   // ── Booking List (master view) ──────────────────────────────────────
   function bookingMatchesFilter(b, filter) {
@@ -1967,6 +1978,16 @@
     const countEl = document.getElementById('trkListCount');
     const visible = bookings.filter(b => bookingMatchesFilter(b, listFilter));
     if (countEl) countEl.textContent = visible.length;
+
+    if (bookingsLoading) {
+      bookingListEl.innerHTML = '<div class="trk-list-empty" role="status"><span class="spinner-border text-primary mb-3" aria-hidden="true"></span><h6>Loading your schedule…</h6><p>Fetching your bookings and project dates.</p></div>';
+      return;
+    }
+    if (bookingsLoadError) {
+      bookingListEl.innerHTML = '<div class="trk-list-empty" role="alert"><div class="trk-list-empty-icon"><i class="bi bi-wifi-off"></i></div><h6>Schedule unavailable</h6><p>We could not load your bookings. Please try again.</p><button type="button" class="btn btn-primary btn-sm" id="trkRetrySchedule">Retry</button></div>';
+      bookingListEl.querySelector('#trkRetrySchedule').onclick = loadScheduleData;
+      return;
+    }
 
     if (!bookings.length) {
       bookingListEl.innerHTML = `
@@ -3734,6 +3755,46 @@
   }
 
   // ── Greeting ──────────────────────────────────────────────────────────
+  let scheduleDataRequest = null;
+  function loadScheduleData() {
+    if (scheduleDataRequest) return scheduleDataRequest;
+    bookingsLoading = true;
+    bookingsLoadError = false;
+    renderScheduleList();
+    const request = window.customerSchedulePrefetch
+      || fetch('/tracking/data', { credentials: 'same-origin', cache: 'no-store' });
+    window.customerSchedulePrefetch = null;
+    scheduleDataRequest = request
+      .then(async response => {
+        if (!response.ok) throw new Error(`Schedule request failed: ${response.status}`);
+        return response.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data.bookings)) throw new Error('Invalid schedule response');
+        bookings.splice(0, bookings.length, ...data.bookings);
+        bookings.sort((a, b) => new Date(a.bookingDate || 0) - new Date(b.bookingDate || 0));
+        const active = bookings.find(booking => ['on-the-way', 'in-progress', 'arrived'].includes(normalizeStatus(booking.status)));
+        currentBookingId = String(active?._id || data.currentBookingId || bookings[0]?._id || '');
+        bookingsLoading = false;
+        bookingsLoadError = false;
+        updateScheduleStats();
+        renderScheduleList();
+        calendar.removeAllEvents();
+        calendar.addEventSource(bookings.map(bookingToEvent).filter(Boolean));
+        const customerId = getBookingCustomerId(bookings[0]);
+        if (socket.connected && customerId) socket.emit('customer:join', customerId);
+      })
+      .catch(error => {
+        console.error('Failed to load customer schedule:', error);
+        bookingsLoading = false;
+        bookingsLoadError = true;
+        renderScheduleList();
+      })
+      .finally(() => { scheduleDataRequest = null; });
+    return scheduleDataRequest;
+  }
+  loadScheduleData();
+
   const hour = new Date().getHours();
   let greeting = 'Good evening';
   if (hour < 12) greeting = 'Good morning';

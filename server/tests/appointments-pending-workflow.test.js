@@ -35,11 +35,22 @@ test('pending sorting and filters run on the whole queue before server-side pagi
   assert.match(view, /<th>Service Date<\/th>/);
 });
 
-test('flow statistics use one faceted aggregation instead of sequential count loops', () => {
+test('flow statistics trim documents before the faceted aggregation', () => {
   const statsRoute = section(route, "router.get('/flow-stats'", "router.get('/list'");
-  assert.match(statsRoute, /BookingService\.aggregate\(\[\{\s*\$facet:/s);
+  assert.match(statsRoute, /BookingService\.aggregate\(\[\{\s*\$project:[\s\S]*?\},\s*\{\s*\$facet:/);
+  assert.match(statsRoute, /pendingReviews:\s*\[\s*\{\s*\$match:\s*\{\s*status:\s*'pending'/);
   assert.doesNotMatch(statsRoute, /await BookingService\.countDocuments/);
   assert.doesNotMatch(statsRoute, /for \(const \[key, stage\]/);
+});
+
+test('overview renders recent bookings independently of statistics and uses compact indexed pages', () => {
+  const overview = section(view, 'AU.Overview.load=function()', 'AU.Overview.renderPipeline=function');
+  assert.doesNotMatch(overview, /Promise\.all/);
+  assert.match(overview, /list\?page=1&limit='\+_ovLimit\+'&compact=true'/);
+  assert.match(overview, /_overviewListRequest/);
+  assert.match(overview, /_overviewStatsRequest/);
+  assert.match(route, /sortPreset === 'newest' \|\| sortPreset === 'oldest'/);
+  assert.match(route, /'customer\.phone', 'technician\.name'/);
 });
 
 test('payment verification completes the assignment-queue transition in one request', () => {
