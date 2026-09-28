@@ -263,7 +263,7 @@ function knowledgeToContext(k) {
         ctx += `  ${type.name} database estimates (not a final quote): ${type.hpPricing.map((row) => `${row.hp}HP=₱${row.price.toLocaleString()}`).join(", ")}\n`;
       }
     }
-    ctx += "\nTo book any core or repair service, direct customers to /core-service. Existing appointments and projects are shown at /tracking.\n\n";
+    ctx += "\nTo book any core or repair service, direct customers to /services. Existing appointments and projects are shown at /tracking.\n\n";
   }
 
   // Pricing info
@@ -313,7 +313,7 @@ function knowledgeToContext(k) {
 
   // Booking
   ctx += "=== HOW TO BOOK ===\n";
-  ctx += "1. Visit /core-service page or click Book Now\n";
+  ctx += "1. Visit /services page or click Book Now\n";
   ctx += "2. Select services, location, date/time\n";
   ctx += "3. Confirm and pay\n";
   ctx += "4. Follow appointment status and project progress at /tracking\n";
@@ -729,7 +729,7 @@ function buildCustomerStatusResponse(customerData) {
     return "Please sign in to your customer account so I can show your booking or project status. After signing in, open [My Schedule](/tracking) for full details.";
   }
   if (!customerData.items.length) {
-    return "You don't have an active booking or project right now. You can start one on the [Core Service page](/core-service).";
+    return "You don't have an active booking or project right now. You can start one on the [Services page](/services).";
   }
   const item = customerData.items[0];
   let text = `**${item.serviceName}**\n\n• Reference: **${item.reference}**\n• Status: **${String(item.status || "pending").replace(/_/g, " ")}**`;
@@ -796,7 +796,7 @@ When discussing air conditioning, you are THE expert:
 
 ## GUIDING CUSTOMERS (Important)
 When a customer asks about a service, product, price, or how to get help, your job is to GUIDE them to the next step — not just inform. Specifically:
-- If they ask about a service or want to book: give only database-backed details, then guide them to **/core-service** or the verified contact in the knowledge base.
+- If they ask about a service or want to book: give only database-backed details, then guide them to the [Services page](/services) or the verified contact in the knowledge base.
 - If they ask about a product: show matching models + prices, then offer to help them choose the right HP for their room size or direct them to book/contact.
 - If they ask to track a booking or check status: tell them to open **My Schedule (/tracking)** to see live technician tracking, and that they'll get real-time updates there.
 - If they have an issue/problem: give a quick self-check, and if it needs a pro, guide them to book a repair or call the hotline.
@@ -847,7 +847,7 @@ Current time: Good ${timeOfDay}!
 5. Never make up RACS-specific information — but you CAN provide general HVAC knowledge
 6. For off-topic questions, politely redirect to customer support rather than inventing an answer
 7. Keep responses natural in length — don't over-explain simple things
-8. When answering about services or bookings, include a clear next-step (book via /core-service or track via /tracking)
+8. When answering about services or bookings, include a clear next-step (book via /services or track via /tracking)
 9. Treat CUSTOMER ACCOUNT CONTEXT as private read-only data. Use it only for the signed-in customer's own status questions. Never reveal internal IDs, raw database fields, or another customer's data.
 10. Never claim that you booked, cancelled, rescheduled, paid, contacted staff, or changed a record. You can explain and link to the correct page, but you cannot perform account actions.
 11. Never promise availability, response times, discounts, free diagnosis, warranties, payment methods, or company policies unless explicitly present in the live knowledge or customer record.
@@ -1491,7 +1491,7 @@ function buildServiceResponse(knowledge, text, session) {
     if (mentioned.kind === "repair") {
       response += "\nThe technician must inspect the appliance before confirming the fault, required parts, labor, and final repair quotation.\n";
     }
-    response += `\nTo request this service, open the [Core Service page](/core-service), or contact **${knowledge.company.phone}**.`;
+    response += `\nTo request this service, open the [Services page](/services), or contact **${knowledge.company.phone}**.`;
     return response;
   }
 
@@ -1520,7 +1520,7 @@ function buildServiceResponse(knowledge, text, session) {
     response += "\nRepair fees shown are initial inspection/service-call fees; the final repair quotation follows diagnosis.\n\n";
   }
 
-  response += `To request any listed service, open the [Core Service page](/core-service), or contact **${knowledge.company.phone}**.`;
+  response += `To request any listed service, open the [Services page](/services), or contact **${knowledge.company.phone}**.`;
   return response;
 }
 
@@ -1531,9 +1531,9 @@ function buildIntroductionResponse(text, session) {
 
 // ─── Booking ───────────────────────────────────────────────────────────────
 function buildBookingResponse(knowledge, session) {
-  return `**Book a service**\n\n1. Open the [Core Service page](/core-service).\n2. Choose the service and enter the actual number of units.\n3. Select your location and preferred schedule.\n4. Review the calculated amount before confirming.\n\nAfter submission, follow assignments, large-project progress, and payments in [My Schedule](/tracking). For help, contact **${knowledge.company.phone}**.`;
+  return `**Book a service**\n\n1. Open the [Services page](/services).\n2. Choose the service and enter the actual number of units.\n3. Select your location and preferred schedule.\n4. Review the calculated amount before confirming.\n\nAfter submission, follow assignments, large-project progress, and payments in [My Schedule](/tracking). For help, contact **${knowledge.company.phone}**.`;
   /* istanbul ignore next -- retained legacy copy below for reference */
-  return `**Booking a service is easy!** Here's how it works:\n\n**Step 1 — Choose your service**\nPick from Installation, Repair, Maintenance, or Cleaning\n\n**Step 2 — Select a schedule**\nPick your preferred date and time — our system finds the best available technician\n\n**Step 3 — Provide your location**\nEnter your address for accurate pricing and routing\n\n**Step 4 — Confirm & track**\nGet instant confirmation and **track your technician live** on service day via **My Schedule (/tracking)**\n\n**Ready to book?**\n• Visit our **Core Service page (/core-service)** and click "Book Now"\n• Or call **+63 917 888 9999** for phone booking\n\nWould you like me to walk you through the booking process, or do you have questions about a specific service?`;
+  return `**Booking a service is easy!** Here's how it works:\n\n**Step 1 — Choose your service**\nPick from Installation, Repair, Maintenance, or Cleaning\n\n**Step 2 — Select a schedule**\nPick your preferred date and time — our system finds the best available technician\n\n**Step 3 — Provide your location**\nEnter your address for accurate pricing and routing\n\n**Step 4 — Confirm & track**\nGet instant confirmation and **track your technician live** on service day via **My Schedule (/tracking)**\n\n**Ready to book?**\n• Visit our **Services page (/services)** and click "Book Now"\n• Or call **+63 917 888 9999** for phone booking\n\nWould you like me to walk you through the booking process, or do you have questions about a specific service?`;
 }
 
 // ─── Warranty ──────────────────────────────────────────────────────────────
@@ -1555,10 +1555,10 @@ function buildTroubleshootingResponse(text, knowledge) {
   const lower = text.toLowerCase();
 
   if (/smell|amoy|burn|usok|smoke|spark|exposed wire|breaker|hissing|refrigerant/i.test(lower)) {
-    return `**Turn the unit off now.** Isolate power only if it is safe. Do not open the unit, touch wiring or capacitors, or handle refrigerant lines. If there is fire or heavy smoke, leave the area and call local emergency services. For RACS assistance, contact **${knowledge.company.phone}** or book through [Core Service](/core-service).`;
+    return `**Turn the unit off now.** Isolate power only if it is safe. Do not open the unit, touch wiring or capacitors, or handle refrigerant lines. If there is fire or heavy smoke, leave the area and call local emergency services. For RACS assistance, contact **${knowledge.company.phone}** or book through the [Services page](/services).`;
   }
   if (/not cool|hilaw|malamig|hindi lumalamig|mainit|hot|warm|leak|tubig|water|drip|tulo|noise|ingay|loud|not turn|ayaw|start|power/i.test(lower)) {
-    return `You can safely check the **remote mode and temperature**, **wash and fully dry the filter**, confirm vents are open, and look for visible outdoor-unit obstructions without opening any covers. If there is leaking near electricity, repeated breaker tripping, unusual noise, or no improvement, turn it off and request an inspection on [Core Service](/core-service). This is preliminary guidance, not a confirmed diagnosis.`;
+    return `You can safely check the **remote mode and temperature**, **wash and fully dry the filter**, confirm vents are open, and look for visible outdoor-unit obstructions without opening any covers. If there is leaking near electricity, repeated breaker tripping, unusual noise, or no improvement, turn it off and request an inspection on the [Services page](/services). This is preliminary guidance, not a confirmed diagnosis.`;
   }
   return `Tell me what the unit is doing, any sound or smell, whether it still powers on, and when the problem started. I can suggest safe checks. Please do not open electrical or refrigerant components.`;
   /* istanbul ignore next -- retained legacy copy below for reference */
@@ -1595,7 +1595,7 @@ function buildEmergencyResponse(knowledge) {
 
 // ─── Contact ───────────────────────────────────────────────────────────────
 function buildContactResponse(knowledge) {
-  return `**${knowledge.company.name}**\n\n• Phone: **${knowledge.company.phone}**\n• Email: **${knowledge.company.email}**\n• Location: **${knowledge.company.address}**\n\nYou can also book through the [Core Service page](/core-service).`;
+  return `**${knowledge.company.name}**\n\n• Phone: **${knowledge.company.phone}**\n• Email: **${knowledge.company.email}**\n• Location: **${knowledge.company.address}**\n\nYou can also book through the [Services page](/services).`;
   /* istanbul ignore next -- retained legacy copy below for reference */
   return `**Contact Information:**\n\n**📞 Phone:**\n• Customer Hotline: +63 2 1234 5678\n• Emergency Hotline: +63 917 888 9999\n\n**📧 Email:** info@racs.com\n\n**📍 Showrooms:**\n• **Makati**: 123 HVAC Street, Makati City\n• **Quezon City**: 456 Cooling Avenue, QC\n• **Alabang**: 789 Aircon Road, Muntinlupa\n• **Cebu**: 321 Breeze Street, Cebu City\n\n**🕐 Hours:** Mon–Sat 8:00 AM – 6:00 PM\n**🌐 Website:** www.racs.com\n\nNeed directions to a specific branch?`;
 }
@@ -1680,7 +1680,7 @@ function buildMaintenanceTipsResponse(session) {
 
 // ─── AMC ───────────────────────────────────────────────────────────────────
 function buildAMCResponse(knowledge) {
-  return `Maintenance plans and inclusions must be confirmed from the current service catalog. I don't have a verified annual-contract package to quote right now. View available maintenance services on [Core Service](/core-service), or contact **${knowledge.company.phone}**.`;
+  return `Maintenance plans and inclusions must be confirmed from the current service catalog. I don't have a verified annual-contract package to quote right now. View available maintenance services on the [Services page](/services), or contact **${knowledge.company.phone}**.`;
   /* istanbul ignore next -- retained legacy copy below for reference */
   return `**Annual Maintenance Contracts (AMC):**\n\n**Basic — ₱1,200/year**\n• 2 maintenance visits\n• Filter cleaning & replacement\n• 10% discount on repairs\n\n**Standard — ₱2,400/year**\n• 4 maintenance visits\n• Complete system cleaning\n• Refrigerant check\n• 15% discount on repairs\n• Priority scheduling\n\n**Premium — ₱4,500/year**\n• 6 maintenance visits\n• Chemical coil cleaning\n• 24/7 emergency support\n• 20% discount on all services\n• Free refrigerant top-up\n\n**Commercial Plans:**\n• Small Business (up to 5 units): ₱8,000/year\n• Medium (6–15 units): ₱15,000/year\n• Large Enterprise: Custom pricing\n\nAMC saves you money and keeps your AC running efficiently! Want to subscribe?`;
 }
@@ -1713,16 +1713,16 @@ function buildIntelligentFallback(text, session, knowledge) {
     if (matchingServices.length > 0) {
       const svc = matchingServices[0];
       const price = svc.initialFee ? `₱${svc.initialFee.toLocaleString()} initial inspection fee` : (svc.price || "Contact for price");
-      return `**${svc.name || applianceName} Repair**\n\nService type: ${svc.kind || "Repair inspection"}\nAppliance: ${svc.applianceName || applianceName}\nPrice: ${price}\n\n${svc.description || "The technician must inspect the appliance before confirming the fault, required parts, labor, and final repair quotation."}\n\nTo request this service, open the Core Service page, or contact **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Core Services | Pricing`;
+      return `**${svc.name || applianceName} Repair**\n\nService type: ${svc.kind || "Repair inspection"}\nAppliance: ${svc.applianceName || applianceName}\nPrice: ${price}\n\n${svc.description || "The technician must inspect the appliance before confirming the fault, required parts, labor, and final repair quotation."}\n\nTo request this service, open the [Services page](/services), or contact **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Core Services | Pricing`;
     }
-    return `We offer **${applianceName}** repair services. The initial inspection fee is **₱${(knowledge.services && knowledge.services[0]) ? (knowledge.services[0].initialFee || 500) : 500}**.\n\nAfter the technician inspects the unit, they'll provide a final quotation for parts and labor.\n\nTo book, visit **/core-service** or call **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Contact`;
+    return `We offer **${applianceName}** repair services. The initial inspection fee is **₱${(knowledge.services && knowledge.services[0]) ? (knowledge.services[0].initialFee || 500) : 500}**.\n\nAfter the technician inspects the unit, they'll provide a final quotation for parts and labor.\n\nTo book, visit the [Services page](/services) or call **${knowledge.company.phone}**.\n\nBook a Service | Appliance Repairs | Contact`;
   }
 
   // Check for Filipino "problem/not working" phrases
   if (/(?:hindi|di)\s+(?:gumagana|gumamit|umiikot|umiilaw|nagrerespond)/i.test(lower) ||
       /(?:ayaw|wala)\s+(?:gumana|gumamit|umiikot)/i.test(lower) ||
       /sira|problema|nadale|nasira|wasak|nabutas/i.test(lower)) {
-    return `I'm sorry to hear that! For appliance troubleshooting:\n\n**Quick checks:**\n- Is the unit plugged in and getting power?\n- Check the circuit breaker\n- Try resetting the unit (unplug for 30 seconds)\n\nIf the problem persists, it's best to have a technician inspect it. Book a repair at **/core-service** or call **${knowledge.company.phone}**.\n\n**Initial inspection fee:** ₱500\nAfter diagnosis, the technician will provide a full quotation.\n\nBook a Service | Emergency | Troubleshooting`;
+    return `I'm sorry to hear that! For appliance troubleshooting:\n\n**Quick checks:**\n- Is the unit plugged in and getting power?\n- Check the circuit breaker\n- Try resetting the unit (unplug for 30 seconds)\n\nIf the problem persists, it's best to have a technician inspect it. Book a repair on the [Services page](/services) or call **${knowledge.company.phone}**.\n\n**Initial inspection fee:** ₱500\nAfter diagnosis, the technician will provide a full quotation.\n\nBook a Service | Emergency | Troubleshooting`;
   }
 
   // Check for Filipino pricing phrases
@@ -1817,6 +1817,16 @@ function syncClientHistory(session, history, currentMessage) {
   session.history = clean;
 }
 
+// Keep customer-facing navigation aligned with the actual application routes,
+// even if an AI provider repeats a legacy link from earlier conversation text.
+function normalizeCustomerFacingLinks(text) {
+  if (typeof text !== "string") return text;
+  return text
+    .replace(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/core-service\b/gi, "/services")
+    .replace(/\/core-service\b/gi, "/services")
+    .replace(/\bCore Service page\b/gi, "Services page");
+}
+
 // ─── API Endpoint ──────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
   try {
@@ -1836,6 +1846,7 @@ router.post("/", async (req, res) => {
     const result = isCustomerAccountQuestion(message)
       ? { text: buildCustomerStatusResponse(customerData), suggests: ["Track full details", "Book a Service", "Contact"], intent: "account_status" }
       : await generateResponse(message, session, knowledge, requestContext);
+    result.text = normalizeCustomerFacingLinks(result.text);
 
     // Save to session history
     session.history.push({ role: "user", content: message, ts: Date.now() });
@@ -1877,7 +1888,10 @@ router.post("/stream", async (req, res) => {
   const sendSse = (payload) => {
     if (res.writableEnded) return;
     startSse();
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    const safePayload = { ...payload };
+    if (typeof safePayload.text === "string") safePayload.text = normalizeCustomerFacingLinks(safePayload.text);
+    if (typeof safePayload.fullText === "string") safePayload.fullText = normalizeCustomerFacingLinks(safePayload.fullText);
+    res.write(`data: ${JSON.stringify(safePayload)}\n\n`);
     if (typeof res.flush === "function") res.flush();
   };
   const finishSse = () => {

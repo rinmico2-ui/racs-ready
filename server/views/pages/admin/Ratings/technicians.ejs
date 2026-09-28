@@ -1,6 +1,7 @@
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
+  <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
@@ -22,91 +23,12 @@
   </div>
 
   <!-- Technician Performance Overview -->
-  <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <h6 class="text-muted mb-2">Total Technicians</h6>
-              <h3 class="mb-0" id="totalTechnicians">0</h3>
-              <small class="text-muted">Active staff</small>
-            </div>
-            <div class="ms-3">
-              <div class="bg-primary bg-opacity-10 rounded-circle p-3">
-                <i class="bi bi-people-fill text-primary fs-4"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <h6 class="text-muted mb-2">Avg Rating</h6>
-              <h3 class="mb-0" id="avgTechnicianRating">0.0</h3>
-              <div class="text-warning">
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-half"></i>
-              </div>
-            </div>
-            <div class="ms-3">
-              <div class="bg-success bg-opacity-10 rounded-circle p-3">
-                <i class="bi bi-trophy text-success fs-4"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <h6 class="text-muted mb-2">Total Reviews</h6>
-              <h3 class="mb-0" id="totalReviews">0</h3>
-              <small class="text-success">
-                <i class="bi bi-arrow-up"></i> 15% this month
-              </small>
-            </div>
-            <div class="ms-3">
-              <div class="bg-info bg-opacity-10 rounded-circle p-3">
-                <i class="bi bi-chat-dots text-info fs-4"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div class="col-lg-3 col-md-6 mb-3">
-      <div class="card border-0 shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center">
-            <div class="flex-grow-1">
-              <h6 class="text-muted mb-2">Top Performers</h6>
-              <h3 class="mb-0" id="topPerformers">0</h3>
-              <small class="text-muted">4.5+ rating</small>
-            </div>
-            <div class="ms-3">
-              <div class="bg-warning bg-opacity-10 rounded-circle p-3">
-                <i class="bi bi-award text-warning fs-4"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <section class="report-kpi-grid" aria-label="Technician rating summary">
+    <article class="kpi-enterprise" data-accent="blue"><div class="kpi-enterprise-top"><span class="kpi-enterprise-icon"><i class="bi bi-people-fill"></i></span><span class="kpi-enterprise-badge">Active staff</span></div><div class="kpi-enterprise-body"><span class="kpi-enterprise-label">Total technicians</span><strong class="kpi-enterprise-value" id="totalTechnicians">0</strong><small>Technicians included in this report</small></div></article>
+    <article class="kpi-enterprise" data-accent="green"><div class="kpi-enterprise-top"><span class="kpi-enterprise-icon"><i class="bi bi-trophy"></i></span><span class="kpi-enterprise-badge">Out of 5.00</span></div><div class="kpi-enterprise-body"><span class="kpi-enterprise-label">Average rating</span><strong class="kpi-enterprise-value" id="avgTechnicianRating">0.0</strong><small>Mean customer score across technician reviews</small></div></article>
+    <article class="kpi-enterprise" data-accent="cyan"><div class="kpi-enterprise-top"><span class="kpi-enterprise-icon"><i class="bi bi-chat-dots"></i></span><span class="kpi-enterprise-badge">Customer feedback</span></div><div class="kpi-enterprise-body"><span class="kpi-enterprise-label">Total reviews</span><strong class="kpi-enterprise-value" id="totalReviews">0</strong><small>Reviews represented in the current dataset</small></div></article>
+    <article class="kpi-enterprise" data-accent="amber"><div class="kpi-enterprise-top"><span class="kpi-enterprise-icon"><i class="bi bi-award"></i></span><span class="kpi-enterprise-badge">4.5+ rating</span></div><div class="kpi-enterprise-body"><span class="kpi-enterprise-label">Top performers</span><strong class="kpi-enterprise-value" id="topPerformers">0</strong><small>Technicians meeting the top-rating threshold</small></div></article>
+  </section>
 
   <!-- Performance Metrics -->
   <div class="row mb-4">

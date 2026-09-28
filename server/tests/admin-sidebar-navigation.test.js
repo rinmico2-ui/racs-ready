@@ -63,6 +63,7 @@ test("admin sidebar scripts and mobile controls remain valid", async () => {
 
   const adminScript = fs.readFileSync(path.join(__dirname, "../public/js/admin.js"), "utf8");
   const adminCss = fs.readFileSync(path.join(__dirname, "../public/css/sidebaradmin.css"), "utf8");
+  const mobileCss = fs.readFileSync(path.join(__dirname, "../public/css/admin-mobile-navigation.css"), "utf8");
   const layout = fs.readFileSync(path.join(__dirname, "../views/layouts/admin.ejs"), "utf8");
   assert.match(adminScript, /querySelector\("\[data-admin-sidebar-close\]"\)/);
   assert.match(adminScript, /event\.key === "Escape"/);
@@ -74,7 +75,15 @@ test("admin sidebar scripts and mobile controls remain valid", async () => {
   assert.match(adminScript, /\["ArrowLeft", "ArrowRight", "Home", "End"\]/);
   assert.match(adminCss, /ADMIN SIDEBAR 2026/);
   assert.match(adminCss, /@media \(max-width: 767px\)[\s\S]*?\.sidebar-mobile-close/);
+  assert.match(adminScript, /function setMobileSidebarOpen\(open, options\)/);
+  assert.match(adminScript, /sidebar\.setAttribute\("inert", ""\)/);
+  assert.match(adminScript, /event\.key !== "Tab"/);
+  assert.match(mobileCss, /\.admin-sidebar\.open[\s\S]*?transform:\s*translateX\(0\)/);
+  assert.match(mobileCss, /body\.admin-layout\.admin-nav-open/);
   assert.match(layout, /\/css\/sidebaradmin\.css\?v=20260927-modern-nav/);
-  assert.match(layout, /\/js\/admin\.js\?v=20260927-shell-components/);
+  assert.match(mobileCss, /#sidebarToggle\.admin-menu-trigger\s*\{\s*display:\s*none\s*!important/);
+  assert.match(layout, /\/css\/admin-mobile-navigation\.css\?v=20260928-2/);
+  assert.match(layout, /id="adminSidebarBackdrop"/);
+  assert.match(layout, /\/js\/admin\.js\?v=20260928-mobile-drawer/);
 });
 

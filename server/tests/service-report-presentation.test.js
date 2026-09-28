@@ -6,10 +6,8 @@ const path = require("node:path");
 const test = require("node:test");
 const ejs = require("ejs");
 
-const template = fs.readFileSync(
-  path.join(__dirname, "..", "views", "pages", "admin", "Reports", "ServiceReport.ejs"),
-  "utf8",
-);
+const templatePath = path.join(__dirname, "..", "views", "pages", "admin", "Reports", "ServiceReport.ejs");
+const template = fs.readFileSync(templatePath, "utf8");
 const pageRoutes = fs.readFileSync(
   path.join(__dirname, "..", "routes", "pages.js"),
   "utf8",
@@ -24,6 +22,20 @@ test("service report renders with an empty analytics result and valid browser Ja
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
   assert.ok(scripts.length > 0);
   for (const script of scripts) assert.doesNotThrow(() => new Function(script));
+});
+
+test("service report opens a lightweight shell and hydrates expensive analytics", () => {
+  const html = ejs.render(template, { analytics: null, reportError: null, deferredAnalytics: true });
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  for (const script of scripts) assert.doesNotThrow(() => new Function(script));
+  assert.match(html, /id="serviceReportDataState"/);
+  assert.match(html, /class="sr-shell is-loading"/);
+  assert.match(html, /fetch\(endpoint/);
+  assert.match(serviceRoute, /"\/admin\/reports\/service\/data"/);
+  assert.match(serviceRoute, /analytics:\s*null,[\s\S]*?deferredAnalytics:\s*true/);
+  assert.match(serviceRoute, /layout:\s*false/);
+  assert.match(serviceRoute, /\.select\("-statusHistory/);
+  assert.match(serviceRoute, /Technician\.find\(\{\}\)\.select\("name userEmail specialization active"\)/);
 });
 
 test("service report presents a focused four-KPI executive summary", () => {
@@ -129,8 +141,34 @@ test("service analytics shows filtered report photos with accessible full-size p
   assert.match(html, /data-evidence-photo/);
   assert.match(html, /id="serviceEvidenceModal"/);
   assert.match(html, /loading="lazy"/);
-  assert.match(serviceRoute, /const photoEvidenceReports = bookings\.map/);
-  assert.match(serviceRoute, /bookingReports\.forEach\(report => addPhotos\(report\.photos/);
-  assert.match(serviceRoute, /addPhotos\(booking\.proofPhoto, "Completion proof"\)/);
-  assert.match(serviceRoute, /serviceCostAnalytics\.sourceRows\?\.reports/);
+  assert.match(serviceRoute, /"\/admin\/reports\/service\/photos"/);
+  assert.match(serviceRoute, /bookingReports\.forEach\(report => addPhotoCandidates\(candidates, report\.photos/);
+  assert.match(serviceRoute, /addPhotoCandidates\(candidates, booking\.proofPhoto, "Completion proof"\)/);
+  assert.match(serviceRoute, /\.select\("bookingId technicianId customerName serviceName status findings actionsTaken submittedAt updatedAt createdAt photos"\)/);
+  assert.match(template, /function loadPhotoEvidence\(\)/);
+  assert.match(template, /data-booking-ids/);
+});
+
+test("service overview excludes image payloads and caches the rendered fragment", () => {
+  assert.match(serviceRoute, /-proofPhoto -afterPhotos -inspection\.photos -unitInfo\.photos/);
+  assert.match(serviceRoute, /readServiceReportFragment\(req\.query\)/);
+  assert.match(serviceRoute, /writeServiceReportFragment\(cachedFragment\.key, html\)/);
+  assert.match(serviceRoute, /photoEvidenceDeferred: photoEvidenceBookingIds\.length > 0/);
+});
+
+test("deferred photo evidence renders a valid on-demand state", () => {
+  const html = ejs.render(template, {
+    analytics: {
+      photoEvidenceDeferred: true,
+      photoEvidenceBookingIds: ["507f1f77bcf86cd799439011"],
+    },
+    reportError: null,
+    deferredAnalytics: false,
+  }, { filename: templatePath });
+
+  assert.match(html, /id="servicePhotoEvidenceContent"/);
+  assert.match(html, /Photos load only when needed/);
+  assert.match(html, /507f1f77bcf86cd799439011/);
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  for (const script of scripts) assert.doesNotThrow(() => new Function(script));
 });

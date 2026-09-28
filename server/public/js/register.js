@@ -13,6 +13,7 @@
   var changeRegistrationBtn = document.getElementById('changeRegistrationEmailBtn');
   var pendingVerificationEmail = '';
   var resendTimer = null;
+  var currentRegisterStep = 1;
 
   function removeFieldError(input) {
     if (!input) return;
@@ -46,6 +47,88 @@
     var termsLabel = document.querySelector('.auth-terms');
     if (termsLabel) termsLabel.classList.remove('auth-check-error');
   }
+
+  function setRegisterStep(step, focusHeading) {
+    var nextStep = Math.max(1, Math.min(3, Number(step) || 1));
+    currentRegisterStep = nextStep;
+    form.querySelectorAll('[data-register-step]').forEach(function (panel) {
+      panel.hidden = Number(panel.getAttribute('data-register-step')) !== nextStep;
+    });
+    form.querySelectorAll('[data-register-progress]').forEach(function (item) {
+      var itemStep = Number(item.getAttribute('data-register-progress'));
+      item.classList.toggle('active', itemStep === nextStep);
+      item.classList.toggle('complete', itemStep < nextStep);
+      if (itemStep === nextStep) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    });
+    var progressFill = document.getElementById('registerProgressFill');
+    if (progressFill) progressFill.style.width = ((nextStep - 1) * 50) + '%';
+    if (focusHeading) {
+      var heading = form.querySelector('[data-register-step="' + nextStep + '"] h2');
+      if (heading) {
+        heading.setAttribute('tabindex', '-1');
+        heading.focus({ preventScroll: true });
+      }
+      form.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }
+  }
+
+  function focusRegisterField(input) {
+    if (!input) return;
+    var panel = input.closest('[data-register-step]');
+    if (panel) setRegisterStep(Number(panel.getAttribute('data-register-step')), false);
+    input.focus({ preventScroll: true });
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function requireRegisterField(id, message) {
+    var input = document.getElementById(id);
+    if (input && String(input.value || '').trim()) return true;
+    showFieldError(input, message);
+    focusRegisterField(input);
+    return false;
+  }
+
+  function validateRegisterStep(step) {
+    if (step === 1) {
+      if (!requireRegisterField('register-firstName', 'Enter your first name.')) return false;
+      if (!/^[A-Za-z\s]{1,20}$/.test(document.getElementById('register-firstName').value)) { showFieldError(document.getElementById('register-firstName'), 'Use letters only, up to 20 characters.'); focusRegisterField(document.getElementById('register-firstName')); return false; }
+      if (!requireRegisterField('register-lastName', 'Enter your last name.')) return false;
+      if (!/^[A-Za-z\s]{1,20}$/.test(document.getElementById('register-lastName').value)) { showFieldError(document.getElementById('register-lastName'), 'Use letters only, up to 20 characters.'); focusRegisterField(document.getElementById('register-lastName')); return false; }
+      if (!requireRegisterField('register-email', 'Enter your email address.')) return false;
+      var email = document.getElementById('register-email');
+      if (!window.authUtils.validateEmail(email.value.trim())) { showFieldError(email, 'Enter a valid email address.'); focusRegisterField(email); return false; }
+      if (!requireRegisterField('register-phone', 'Enter your mobile number.')) return false;
+      var phone = document.getElementById('register-phone');
+      if (!/^(?:0\d{10}|63\d{10}|9\d{9})$/.test(String(phone.value).replace(/\D+/g, ''))) { showFieldError(phone, 'Enter a valid Philippine mobile number.'); focusRegisterField(phone); return false; }
+    }
+    if (step === 2) {
+      if (!requireRegisterField('register-addressProvince', 'Choose your province.')) return false;
+      if (!requireRegisterField('register-addressCity', 'Choose your city or municipality.')) return false;
+      if (!requireRegisterField('register-addressBarangay', 'Choose your barangay.')) return false;
+      if (!requireRegisterField('register-addressPostal', 'Enter your postal code.')) return false;
+      var postal = document.getElementById('register-addressPostal');
+      if (!/^\d{4}$/.test(postal.value)) { showFieldError(postal, 'Enter a valid 4-digit postal code.'); focusRegisterField(postal); return false; }
+    }
+    return true;
+  }
+
+  form.querySelectorAll('[data-register-next]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (!validateRegisterStep(currentRegisterStep)) return;
+      setRegisterStep(Number(button.getAttribute('data-register-next')), true);
+    });
+  });
+  form.querySelectorAll('[data-register-back]').forEach(function (button) {
+    button.addEventListener('click', function () { setRegisterStep(Number(button.getAttribute('data-register-back')), true); });
+  });
+  form.addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' || currentRegisterStep >= 3 || event.target.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    var next = form.querySelector('[data-register-step="' + currentRegisterStep + '"] [data-register-next]');
+    if (next) next.click();
+  });
+  setRegisterStep(1, false);
 
   function startVerificationCooldown(seconds) {
     if (!resendOtpBtn) return;
@@ -102,6 +185,7 @@
       resendTimer = null;
       pendingVerificationEmail = '';
       var emailField = document.getElementById('register-email');
+      setRegisterStep(1, false);
       if (emailField) emailField.focus();
     });
   }
@@ -177,6 +261,7 @@
       this.innerHTML = type === 'password'
         ? '<i class="bi bi-eye"></i>'
         : '<i class="bi bi-eye-slash"></i>';
+      this.setAttribute('aria-label', type === 'password' ? 'Show password' : 'Hide password');
     });
   }
   setupToggle(document.getElementById('togglePasswordReg'));
@@ -365,70 +450,73 @@
       ['register-phone', phone, 'Phone number is required.'],
       ['register-addressProvince', addressProvince, 'Province is required.'],
       ['register-addressCity', addressCity, 'City or municipality is required.'],
+      ['register-addressBarangay', addressBarangay, 'Barangay is required.'],
       ['register-addressPostal', addressPostal, 'Postal code is required.'],
       ['register-password', password, 'Password is required.'],
       ['register-confirm', confirm, 'Please confirm your password.'],
       ['register-math', mathCaptcha, 'Complete the security check.']
     ];
     var firstInvalid = null;
-    requiredFields.forEach(function (item) {
+    requiredFields.some(function (item) {
       if (!String(item[1] || '').trim()) {
         var input = document.getElementById(item[0]);
         showFieldError(input, item[2]);
-        if (!firstInvalid) firstInvalid = input;
+        firstInvalid = input;
+        return true;
       }
+      return false;
     });
-    if (firstInvalid) { firstInvalid.focus(); return; }
+    if (firstInvalid) { focusRegisterField(firstInvalid); return; }
 
     if (!/^\d{1,3}$/.test(mathCaptcha)) {
       showFieldError(document.getElementById('register-math'), 'Enter the answer as a number.');
-      return document.getElementById('register-math').focus();
+      return focusRegisterField(document.getElementById('register-math'));
     }
 
     if (!/^[A-Za-z\s]{1,20}$/.test(firstName)) {
       showFieldError(document.getElementById('register-firstName'), 'Use letters only, up to 20 characters.');
-      return document.getElementById('register-firstName').focus();
+      return focusRegisterField(document.getElementById('register-firstName'));
     }
 
     if (!/^[A-Za-z\s]{1,20}$/.test(lastName)) {
       showFieldError(document.getElementById('register-lastName'), 'Use letters only, up to 20 characters.');
-      return document.getElementById('register-lastName').focus();
+      return focusRegisterField(document.getElementById('register-lastName'));
     }
 
     var phoneDigits = String(phone).replace(/\D+/g, '');
     if (!/^(?:0\d{10}|63\d{10}|9\d{9})$/.test(phoneDigits)) {
       showFieldError(document.getElementById('register-phone'), 'Enter a valid Philippine mobile number.');
-      return document.getElementById('register-phone').focus();
+      return focusRegisterField(document.getElementById('register-phone'));
     }
 
     if (email.length > 254) {
       showFieldError(registerEmailField, 'Email cannot exceed 254 characters.');
-      return registerEmailField.focus();
+      return focusRegisterField(registerEmailField);
     }
 
     if (!window.authUtils.validateEmail(email)) {
       showFieldError(registerEmailField, 'Enter a valid email address.');
-      return registerEmailField.focus();
+      return focusRegisterField(registerEmailField);
     }
 
     if (password.length < 8) {
       showFieldError(passField, 'Use at least 8 characters.');
-      return passField.focus();
+      return focusRegisterField(passField);
     }
 
     if (password.length > 30) {
       showFieldError(passField, 'Password cannot exceed 30 characters.');
-      return passField.focus();
+      return focusRegisterField(passField);
     }
 
     if (!getPasswordState(password).valid) {
       showFieldError(passField, 'Include at least one uppercase letter and at least one number or symbol.');
-      return passField.focus();
+      return focusRegisterField(passField);
     }
 
     if (password !== confirm) {
       showFieldError(confirmField, 'Passwords do not match.');
-      return confirmField.focus();
+      return focusRegisterField(confirmField);
     }
 
     if (!termsAccepted || !termsAccepted.checked) {
@@ -483,7 +571,7 @@
         );
       } else if (res.status === 409) {
         showFieldError(registerEmailField, body && body.error ? body.error : 'An account already uses this email.');
-        registerEmailField.focus();
+        focusRegisterField(registerEmailField);
       } else if (res.status === 429) {
         window.authUtils.swalError('Too many attempts', 'Please wait a short while and try again.', { reload: true });
       } else {

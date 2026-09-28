@@ -1,9 +1,10 @@
 <link rel="stylesheet" href="/css/analytics.css">
-<link rel="stylesheet" href="/css/service-report-focused.css?v=20260915-photo-evidence">
-<link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
+<link rel="stylesheet" href="/css/service-report-focused.css?v=20260928-deferred-report">
+<link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
 
 <%
   const report = analytics || {};
+  const isDeferred = typeof deferredAnalytics !== 'undefined' && deferredAnalytics;
   const filters = report.filterContext || { range:'90', from:'', to:'', segment:'all', status:'all', scale:'all', payment:'all', technician:'all', brand:'all', service:'all', assignment:'all', priority:'all', appliance:'all', area:'all', valueBand:'all', sla:'all', warranty:'all', search:'' };
   const serviceCosts = report.serviceCosts || {};
   const controls = report.serviceControls || {};
@@ -45,7 +46,12 @@
   ];
 %>
 
-<div class="sr-shell" id="serviceReport">
+<div class="sr-data-state" id="serviceReportDataState" role="status" aria-live="polite" <%= isDeferred ? '' : 'hidden' %>>
+  <span class="spinner-border" aria-hidden="true"></span>
+  <span><strong>Opening Service Performance</strong><small>Loading bookings, costs, and workflow controls…</small></span>
+</div>
+
+<div class="sr-shell <%= isDeferred ? 'is-loading' : '' %>" id="serviceReport" <%= isDeferred ? 'aria-busy="true"' : '' %>>
   <header class="sr-hero">
     <div class="sr-hero-copy">
       <span class="sr-eyebrow"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Service intelligence</span>
@@ -147,7 +153,7 @@
       <button class="sr-tab" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance-pane" type="button" role="tab" aria-controls="performance-pane" aria-selected="false">Performance</button>
       <button class="sr-tab" id="cost-tab" data-bs-toggle="tab" data-bs-target="#cost-pane" type="button" role="tab" aria-controls="cost-pane" aria-selected="false">Cost &amp; contribution</button>
       <button class="sr-tab" id="quality-tab" data-bs-toggle="tab" data-bs-target="#quality-pane" type="button" role="tab" aria-controls="quality-pane" aria-selected="false">Quality</button>
-      <button class="sr-tab" id="photos-tab" data-bs-toggle="tab" data-bs-target="#photos-pane" type="button" role="tab" aria-controls="photos-pane" aria-selected="false">Report photos <span class="sr-tab-count"><%= formatNumber(photoEvidenceCount) %></span></button>
+      <button class="sr-tab" id="photos-tab" data-bs-toggle="tab" data-bs-target="#photos-pane" type="button" role="tab" aria-controls="photos-pane" aria-selected="false">Report photos <span class="sr-tab-count" id="servicePhotoTabCount"><%= report.photoEvidenceDeferred ? '—' : formatNumber(photoEvidenceCount) %></span></button>
       <button class="sr-tab" id="records-tab" data-bs-toggle="tab" data-bs-target="#records-pane" type="button" role="tab" aria-controls="records-pane" aria-selected="false">Records</button>
     </div>
   </nav>
@@ -217,6 +223,11 @@
     </div>
 
     <div class="tab-pane fade" id="photos-pane" role="tabpanel" aria-labelledby="photos-tab" tabindex="0">
+      <% if (report.photoEvidenceDeferred) { %>
+        <div id="servicePhotoEvidenceContent" data-booking-ids="<%= (Array.isArray(report.photoEvidenceBookingIds) ? report.photoEvidenceBookingIds : []).join(',') %>">
+          <%- include('_ServicePhotoEvidence', { photoEvidenceReports: [], photoEvidenceDeferred: true }) %>
+        </div>
+      <% } else { %>
       <section class="sr-card sr-evidence-section" aria-labelledby="report-photos-title">
         <header class="sr-card-header">
           <div><span class="sr-card-kicker">Field evidence</span><h2 id="report-photos-title">Service report photos</h2><p>Report attachments, inspection images, customer issue photos, and completion proof for the selected filters.</p></div>
@@ -251,6 +262,7 @@
           <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No service photos in this report period</strong><p>Photos will appear here after a technician attaches report, inspection, or completion evidence. Current report filters also apply to this gallery.</p></div>
         <% } %>
       </section>
+      <% } %>
     </div>
 
     <div class="tab-pane fade" id="records-pane" role="tabpanel" aria-labelledby="records-tab" tabindex="0">
@@ -271,6 +283,64 @@
   </div>
 </div>
 
+<% if (isDeferred) { %>
+<script>
+(function () {
+  'use strict';
+  var state = document.getElementById('serviceReportDataState');
+  var endpoint = '/admin/reports/service/data' + window.location.search;
+
+  function executeScripts(sourceDocument) {
+    return Array.from(sourceDocument.querySelectorAll('script')).reduce(function (chain, source) {
+      return chain.then(function () {
+        if (source.src && (window.Chart || document.querySelector('script[src="' + source.getAttribute('src') + '"]'))) return;
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement('script');
+          if (source.src) {
+            script.src = source.src;
+            script.onload = resolve;
+            script.onerror = function () { reject(new Error('A report dependency could not be loaded.')); };
+          } else {
+            script.textContent = source.textContent;
+          }
+          document.body.appendChild(script);
+          if (!source.src) resolve();
+        });
+      });
+    }, Promise.resolve());
+  }
+
+  fetch(endpoint, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+    .then(function (response) {
+      if (!response.ok) throw new Error('Service analytics could not be loaded.');
+      return response.text();
+    })
+    .then(function (html) {
+      var sourceDocument = new DOMParser().parseFromString(html, 'text/html');
+      var incomingReport = sourceDocument.getElementById('serviceReport');
+      var currentReport = document.getElementById('serviceReport');
+      if (!incomingReport || !currentReport) throw new Error('The service report returned an invalid response.');
+      currentReport.replaceWith(document.importNode(incomingReport, true));
+
+      var incomingModal = sourceDocument.getElementById('serviceEvidenceModal');
+      var currentModal = document.getElementById('serviceEvidenceModal');
+      if (incomingModal && currentModal) currentModal.replaceWith(document.importNode(incomingModal, true));
+      if (state) state.hidden = true;
+      return executeScripts(sourceDocument);
+    })
+    .catch(function (error) {
+      var report = document.getElementById('serviceReport');
+      if (report) report.classList.remove('is-loading');
+      if (state) {
+        state.classList.add('is-error');
+        state.innerHTML = '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span><strong>Unable to load Service Performance</strong><small></small></span><button type="button">Retry</button>';
+        state.querySelector('small').textContent = String(error && error.message ? error.message : 'Please refresh and try again.');
+        state.querySelector('button').addEventListener('click', function () { window.location.reload(); });
+      }
+    });
+})();
+</script>
+<% } else { %>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <%
   const chartPayload = {
@@ -326,18 +396,58 @@
   document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function (tab) { tab.addEventListener('shown.bs.tab', function () { Object.keys(charts).forEach(function (key) { charts[key].resize(); }); }); });
   var evidenceModalElement = document.getElementById('serviceEvidenceModal');
   var evidencePreview = document.getElementById('serviceEvidencePreview');
-  document.querySelectorAll('[data-evidence-photo]').forEach(function (button) {
-    var thumbnail = button.querySelector('img');
-    if (thumbnail) thumbnail.addEventListener('error', function () { button.classList.add('is-broken'); button.disabled = true; });
-    button.addEventListener('click', function () {
-      if (!evidenceModalElement || !evidencePreview || !thumbnail || typeof bootstrap === 'undefined') return;
-      evidencePreview.src = thumbnail.currentSrc || thumbnail.src;
-      evidencePreview.alt = thumbnail.alt;
-      document.getElementById('serviceEvidenceTitle').textContent = button.dataset.evidenceTitle || 'Service photo';
-      document.getElementById('serviceEvidenceMeta').textContent = button.dataset.evidenceMeta || '';
-      bootstrap.Modal.getOrCreateInstance(evidenceModalElement).show();
+  function bindEvidencePhotos(root) {
+    (root || document).querySelectorAll('[data-evidence-photo]').forEach(function (button) {
+      if (button.dataset.evidenceBound === 'true') return;
+      button.dataset.evidenceBound = 'true';
+      var thumbnail = button.querySelector('img');
+      if (thumbnail) thumbnail.addEventListener('error', function () { button.classList.add('is-broken'); button.disabled = true; });
+      button.addEventListener('click', function () {
+        if (!evidenceModalElement || !evidencePreview || !thumbnail || typeof bootstrap === 'undefined') return;
+        evidencePreview.src = thumbnail.currentSrc || thumbnail.src;
+        evidencePreview.alt = thumbnail.alt;
+        document.getElementById('serviceEvidenceTitle').textContent = button.dataset.evidenceTitle || 'Service photo';
+        document.getElementById('serviceEvidenceMeta').textContent = button.dataset.evidenceMeta || '';
+        bootstrap.Modal.getOrCreateInstance(evidenceModalElement).show();
+      });
     });
-  });
+  }
+  bindEvidencePhotos(document);
+
+  var photoEvidenceRequest;
+  function loadPhotoEvidence() {
+    var container = document.getElementById('servicePhotoEvidenceContent');
+    if (!container || container.dataset.loaded === 'true') return Promise.resolve();
+    if (photoEvidenceRequest) return photoEvidenceRequest;
+    var bookingIds = String(container.dataset.bookingIds || '').split(',').filter(Boolean);
+    photoEvidenceRequest = fetch('/admin/reports/service/photos', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/html' },
+      body: JSON.stringify({ bookingIds: bookingIds })
+    }).then(function (response) {
+      if (!response.ok) throw new Error('Service photos could not be loaded.');
+      return response.text();
+    }).then(function (html) {
+      container.innerHTML = html;
+      container.dataset.loaded = 'true';
+      var section = container.querySelector('[data-photo-count]');
+      var tabCount = document.getElementById('servicePhotoTabCount');
+      if (section && tabCount) tabCount.textContent = Number(section.dataset.photoCount || 0).toLocaleString('en-PH');
+      bindEvidencePhotos(container);
+    }).catch(function (error) {
+      photoEvidenceRequest = null;
+      container.innerHTML = '<div class="sr-evidence-empty"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><strong>Unable to load service photos</strong><p></p><button type="button" class="sr-inline-link">Try again</button></div>';
+      container.querySelector('p').textContent = error && error.message ? error.message : 'Please try again.';
+      container.querySelector('button').addEventListener('click', loadPhotoEvidence);
+    });
+    return photoEvidenceRequest;
+  }
+  var photoTab = document.getElementById('photos-tab');
+  if (photoTab) {
+    photoTab.addEventListener('shown.bs.tab', loadPhotoEvidence);
+    photoTab.addEventListener('click', loadPhotoEvidence);
+  }
   if (evidenceModalElement) evidenceModalElement.addEventListener('hidden.bs.modal', function () { if (evidencePreview) evidencePreview.removeAttribute('src'); });
   var range = document.getElementById('reportRange');
   if (range) range.addEventListener('change', function () { document.getElementById('customDateFilters').classList.toggle('is-visible', range.value === 'custom'); });
@@ -365,3 +475,4 @@
   renderSecondaryCharts();
 })();
 </script>
+<% } %>

@@ -37,6 +37,7 @@
 
         <form id="auth-login-form" method="POST" novalidate>
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+          <div class="auth-form-context"><span><i class="bi bi-person-check"></i>Customer portal</span><span><i class="bi bi-lock"></i>Secure sign in</span></div>
           <div class="auth-field">
             <label class="auth-field-label" for="email">Email address</label>
             <div class="auth-field-input-wrap">
@@ -85,6 +86,7 @@
           </div>
 
           <button type="submit" class="auth-submit" id="loginBtn"><span class="btn-text">Log In</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          <p class="auth-submit-note"><i class="bi bi-shield-check"></i>Your password is encrypted and never displayed to staff.</p>
         </form>
 
         <div class="auth-divider" aria-hidden="true"><span>or continue with</span></div>
@@ -114,6 +116,15 @@
 
         <form id="auth-register-form" method="POST" novalidate autocomplete="off">
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+          <div class="auth-register-progress" aria-label="Account creation progress">
+            <div class="auth-register-progress-line" aria-hidden="true"><span id="registerProgressFill"></span></div>
+            <div class="auth-register-progress-item active" data-register-progress="1" aria-current="step"><span>1</span><div><strong>Profile</strong><small>Your contact details</small></div></div>
+            <div class="auth-register-progress-item" data-register-progress="2"><span>2</span><div><strong>Address</strong><small>Service location</small></div></div>
+            <div class="auth-register-progress-item" data-register-progress="3"><span>3</span><div><strong>Security</strong><small>Protect your account</small></div></div>
+          </div>
+
+          <section class="auth-register-step" data-register-step="1" aria-labelledby="registerStepOneTitle">
+            <div class="auth-register-step-heading"><span>Step 1 of 3</span><h2 id="registerStepOneTitle">Tell us about yourself</h2><p>Use details we can use for service updates and confirmations.</p></div>
           <div class="auth-field-row">
             <div class="auth-field">
               <label class="auth-field-label" for="register-firstName">First name</label>
@@ -135,8 +146,14 @@
             </div>
           </div>
 
+            <div class="auth-step-actions auth-step-actions-end"><button type="button" class="auth-step-next" data-register-next="2">Continue to address <i class="bi bi-arrow-right"></i></button></div>
+          </section>
+
+          <section class="auth-register-step" data-register-step="2" aria-labelledby="registerStepTwoTitle" hidden>
+            <div class="auth-register-step-heading"><span>Step 2 of 3</span><h2 id="registerStepTwoTitle">Where do you need service?</h2><p>This helps us check coverage and prepare accurate schedules.</p></div>
+
           <fieldset class="auth-fieldset">
-            <legend>Service address</legend>
+            <legend><i class="bi bi-geo-alt me-1"></i>Service address</legend>
             <div class="auth-field-row">
               <div class="auth-field">
                 <label class="auth-field-label" for="register-addressProvince">Province</label>
@@ -158,6 +175,12 @@
               </div>
             </div>
           </fieldset>
+
+            <div class="auth-step-actions"><button type="button" class="auth-step-back" data-register-back="1"><i class="bi bi-arrow-left"></i>Back</button><button type="button" class="auth-step-next" data-register-next="3">Continue to security <i class="bi bi-arrow-right"></i></button></div>
+          </section>
+
+          <section class="auth-register-step" data-register-step="3" aria-labelledby="registerStepThreeTitle" hidden>
+            <div class="auth-register-step-heading"><span>Step 3 of 3</span><h2 id="registerStepThreeTitle">Secure your account</h2><p>Create a strong password and complete the final security check.</p></div>
 
           <div class="auth-field-row">
             <div class="auth-field">
@@ -183,7 +206,9 @@
           <label class="auth-check auth-terms">
             <input type="checkbox" id="register-terms" name="termsAccepted" required /><span class="auth-check-box" aria-hidden="true"><i class="bi bi-check-lg"></i></span><span>I agree to the <button class="auth-text-button" type="button" data-bs-toggle="modal" data-bs-target="#termsModal">Terms and Conditions</button>.</span>
           </label>
-          <button type="submit" class="auth-submit" id="registerBtn"><span class="btn-text">Create Account</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+            <div class="auth-step-actions"><button type="button" class="auth-step-back" data-register-back="2"><i class="bi bi-arrow-left"></i>Back</button><button type="submit" class="auth-submit auth-submit-inline" id="registerBtn"><span class="btn-text">Create Account</span><i class="bi bi-arrow-right" aria-hidden="true"></i></button></div>
+            <p class="auth-submit-note"><i class="bi bi-shield-check"></i>Your details are used only to manage your account and requested services.</p>
+          </section>
         </form>
 
         <section id="registerVerificationPanel" class="d-none auth-verification" aria-live="polite">

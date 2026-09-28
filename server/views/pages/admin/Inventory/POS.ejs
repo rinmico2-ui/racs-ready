@@ -257,6 +257,7 @@
     .pos-summary-fee { display:none; }
     @media (max-width: 640px) { .pos-aircon-fields { grid-template-columns:1fr; } .pos-aircon-field-wide { grid-column:auto; } }
   </style>
+  <link rel="stylesheet" href="/css/pos-enterprise.css?v=20260928-2">
 
   <div class="pos-layout">
     <!-- Left: Products -->
@@ -269,35 +270,51 @@
             <small>Scan, search, and process merchandise sales.</small>
           </div>
         </div>
+        <div class="pos-header-actions">
+          <span class="pos-register-status"><span aria-hidden="true"></span>Register ready</span>
+          <button type="button" class="pos-mobile-cart-trigger" id="posMobileCartTrigger" onclick="togglePosCart(true)" aria-controls="posCartPanel" aria-expanded="false">
+            <i class="bi bi-bag" aria-hidden="true"></i>
+            <span>Checkout</span>
+            <strong id="mobileCartCount">0</strong>
+          </button>
+        </div>
       </div>
       <div class="pos-search-bar">
         <div class="pos-search-box">
           <i class="bi bi-search"></i>
-          <input type="text" id="posSearch" placeholder="Search parts, tools..." autocomplete="off">
+          <input type="text" id="posSearch" placeholder="Search parts, tools..." autocomplete="off" aria-label="Search catalog">
         </div>
         <div class="pos-barcode-box">
           <i class="bi bi-upc-scan"></i>
-          <input type="text" id="posBarcode" placeholder="Scan barcode or type item name..." autocomplete="off">
+          <input type="text" id="posBarcode" placeholder="Scan barcode" autocomplete="off" aria-label="Scan or enter barcode">
         </div>
-        <button class="pos-history-toggle" onclick="toggleSalesHistory()" title="Sales History">
+        <button type="button" class="pos-history-toggle" onclick="toggleSalesHistory()" title="Open sales history" aria-label="Open sales history">
           <i class="bi bi-clock-history"></i>
         </button>
       </div>
       <div id="barcodeNotice" style="display:none;background:#f59e0b10;border:1px solid #f59e0b40;color:#f59e0b;padding:8px 16px;font-size:0.8rem;border-radius:8px;margin:0 16px 8px 16px;align-items:center;"></div>
-      <div class="pos-tabs">
-        <button class="pos-tab active" onclick="switchTab('tools', this)"><i class="bi bi-box-seam"></i> Parts &amp; Tools</button>
+      <div class="pos-tabs" role="tablist" aria-label="Product catalog">
+        <button type="button" class="pos-tab active" role="tab" aria-selected="true" aria-controls="posGrid" onclick="switchTab('tools', this)"><i class="bi bi-box-seam"></i> Parts &amp; Tools</button>
+        <button type="button" class="pos-tab" role="tab" aria-selected="false" aria-controls="posAirconGrid" onclick="switchTab('aircons', this)"><i class="bi bi-snow"></i> Air Conditioning</button>
+      </div>
+      <div class="pos-catalog-meta">
+        <div>
+          <span class="pos-catalog-kicker">Catalog</span>
+          <strong id="posResultsCount" aria-live="polite">Loading inventory...</strong>
+        </div>
+        <span class="pos-catalog-hint"><i class="bi bi-lightning-charge"></i>Select an item to add it to checkout</span>
       </div>
       <div class="pos-categories" id="posCategories"></div>
-      <div class="pos-grid" id="posGrid">
+      <div class="pos-grid" id="posGrid" role="tabpanel" aria-hidden="false">
         <div class="pos-empty"><i class="bi bi-box-seam"></i><p>Loading parts...</p></div>
       </div>
-      <div class="pos-grid d-none" id="posAirconGrid" style="display:none;" aria-hidden="true">
+      <div class="pos-grid" id="posAirconGrid" role="tabpanel" style="display:none;" aria-hidden="true">
         <div class="pos-empty"><i class="bi bi-snow"></i><p>Loading aircons...</p></div>
       </div>
     </div>
 
     <!-- Right: Cart -->
-    <div class="pos-cart">
+    <aside class="pos-cart" id="posCartPanel" aria-label="Current checkout">
       <div class="pos-cart-header">
         <div class="pos-cart-header-left">
           <div class="pos-cart-header-icon"><i class="bi bi-receipt"></i></div>
@@ -306,21 +323,24 @@
             <small>Review order and payment</small>
           </div>
         </div>
+        <button type="button" class="pos-cart-close" onclick="togglePosCart(false)" aria-label="Close checkout panel">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
       </div>
       <div class="pos-cart-meta">
         <span class="pos-cart-meta-label"><i class="bi bi-bag"></i>Cart Items</span>
         <span class="pos-cart-count" id="cartCount">0</span>
       </div>
-      <div class="pos-customer-bar">
+      <section class="pos-customer-bar" aria-labelledby="posCustomerLabel">
         <div class="pos-customer-label" id="posCustomerLabel"><i class="bi bi-person"></i>Customer (optional for parts)</div>
-        <input type="text" id="customerName" placeholder="Customer name" style="margin-bottom:6px;">
-        <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input type="text" id="customerPhone" placeholder="Phone" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
-          <input type="text" id="customerTin" placeholder="TIN" style="flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
+        <div class="pos-customer-fields">
+          <label class="pos-field pos-field-wide"><span>Customer name</span><input type="text" id="customerName" placeholder="Walk-in customer" autocomplete="name"></label>
+          <label class="pos-field"><span>Phone</span><input type="tel" id="customerPhone" placeholder="09XX XXX XXXX" autocomplete="tel"></label>
+          <label class="pos-field"><span>TIN</span><input type="text" id="customerTin" placeholder="Optional" inputmode="numeric"></label>
+          <label class="pos-field pos-field-wide"><span>Email</span><input type="email" id="customerEmail" placeholder="Required for aircon warranty" autocomplete="email"></label>
+          <label class="pos-field pos-field-wide"><span>Address</span><input type="text" id="customerAddress" placeholder="Customer address" autocomplete="street-address"></label>
         </div>
-        <input type="email" id="customerEmail" placeholder="Email (required for aircon warranty)" style="margin-bottom:6px;">
-        <input type="text" id="customerAddress" placeholder="Address" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid #e2e8f0;font-size:0.82rem;background:#ffffff;outline:none;">
-      </div>
+      </section>
       <div class="pos-aircon-order-options" id="airconOrderOptions" style="display:none;">
         <div class="pos-aircon-order-title"><i class="bi bi-shield-check"></i>Aircon fulfillment and aftercare</div>
         <div class="pos-aircon-fields">
@@ -379,10 +399,10 @@
       <div class="pos-payment" id="posPayment" style="display:none;">
         <div class="pos-payment-title"><i class="bi bi-credit-card"></i>Payment Method</div>
         <div class="pos-payment-methods">
-          <button class="pos-pay-btn active" data-method="cash" onclick="selectPayment('cash')"><i class="bi bi-cash"></i>Cash</button>
-          <button class="pos-pay-btn" data-method="gcash" onclick="selectPayment('gcash')"><i class="bi bi-phone"></i>GCash</button>
-          <button class="pos-pay-btn" data-method="maya" onclick="selectPayment('maya')"><i class="bi bi-phone"></i>Maya</button>
-          <button class="pos-pay-btn" data-method="card" onclick="selectPayment('card')"><i class="bi bi-credit-card"></i>Card</button>
+          <button type="button" class="pos-pay-btn active" data-method="cash" aria-pressed="true" onclick="selectPayment('cash')"><i class="bi bi-cash"></i>Cash</button>
+          <button type="button" class="pos-pay-btn" data-method="gcash" aria-pressed="false" onclick="selectPayment('gcash')"><i class="bi bi-phone"></i>GCash</button>
+          <button type="button" class="pos-pay-btn" data-method="maya" aria-pressed="false" onclick="selectPayment('maya')"><i class="bi bi-phone"></i>Maya</button>
+          <button type="button" class="pos-pay-btn" data-method="card" aria-pressed="false" onclick="selectPayment('card')"><i class="bi bi-credit-card"></i>Card</button>
         </div>
         <div class="pos-amount-input" id="cashInputRow">
           <label>Amount Received</label>
@@ -392,12 +412,18 @@
           <span class="label">Change</span>
           <span class="value" id="changeValue">₱0.00</span>
         </div>
-        <button class="pos-checkout-btn" id="checkoutBtn" onclick="processCheckout()" disabled>
+        <button type="button" class="pos-checkout-btn" id="checkoutBtn" onclick="processCheckout()" disabled>
           <i class="bi bi-check-circle"></i>Complete Transaction
         </button>
       </div>
-    </div>
+    </aside>
   </div>
+
+  <button type="button" class="pos-floating-cart" id="posFloatingCart" onclick="togglePosCart(true)" aria-controls="posCartPanel" aria-expanded="false">
+    <span><i class="bi bi-bag-check" aria-hidden="true"></i>Review checkout</span>
+    <strong id="floatingCartCount">0</strong>
+  </button>
+  <button type="button" class="pos-cart-backdrop" id="posCartBackdrop" onclick="togglePosCart(false)" aria-label="Close checkout panel" tabindex="-1"></button>
 
   <!-- Receipt Overlay -->
   <div class="pos-receipt-overlay" id="receiptOverlay" style="z-index:10000;">
@@ -443,6 +469,42 @@ let historySales = [];
 let posOrderFees = { installationFee: 0, transportationFee: 0, distanceKm: 0, durationMin: 0 };
 let posCheckoutRequestId = createPosCheckoutRequestId();
 let posAddressTimer = null;
+
+function togglePosCart(forceOpen) {
+  const container = document.querySelector(".pos-container");
+  if (!container) return;
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !container.classList.contains("cart-open");
+  container.classList.toggle("cart-open", shouldOpen);
+  document.querySelectorAll("#posMobileCartTrigger, #posFloatingCart").forEach((button) => {
+    button.setAttribute("aria-expanded", String(shouldOpen));
+  });
+  if (shouldOpen && window.matchMedia("(max-width: 1050px)").matches) {
+    window.setTimeout(() => document.querySelector("#posCartPanel .pos-cart-close")?.focus(), 50);
+  }
+}
+
+function updateCatalogCount(count, label) {
+  const result = document.getElementById("posResultsCount");
+  if (result) result.textContent = `${count} ${label}${count === 1 ? "" : "s"} found`;
+}
+
+function makeCatalogCardsAccessible(grid, selector, onActivate) {
+  grid.querySelectorAll(selector).forEach((card) => {
+    const disabled = card.classList.contains("oos");
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", disabled ? "-1" : "0");
+    card.setAttribute("aria-disabled", String(disabled));
+    if (disabled) return;
+    const activate = () => onActivate(card);
+    card.addEventListener("click", activate);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        activate();
+      }
+    });
+  });
+}
 
 function createPosCheckoutRequestId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "");
@@ -503,6 +565,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Focus barcode input on page load
   barcodeInput.focus();
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.querySelector(".pos-container")?.classList.contains("cart-open")) {
+      togglePosCart(false);
+      document.getElementById("posMobileCartTrigger")?.focus();
+    }
+  });
 });
 
 // ── API Calls ─────────────────────────────────────────────────────────────────
@@ -573,27 +642,36 @@ let allAircons = [];
 
 function switchTab(tab, btn) {
   currentTab = tab;
-  document.querySelectorAll(".pos-tab").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".pos-tab").forEach(b => {
+    b.classList.remove("active");
+    b.setAttribute("aria-selected", "false");
+  });
   btn.classList.add("active");
+  btn.setAttribute("aria-selected", "true");
 
   const toolsGrid = document.getElementById("posGrid");
   const airconGrid = document.getElementById("posAirconGrid");
   const catsEl = document.getElementById("posCategories");
   const searchEl = document.getElementById("posSearch");
+  searchEl.value = "";
 
   if (tab === "tools") {
     toolsGrid.style.display = "";
     airconGrid.style.display = "none";
+    toolsGrid.setAttribute("aria-hidden", "false");
+    airconGrid.setAttribute("aria-hidden", "true");
     catsEl.style.display = "";
     searchEl.placeholder = "Search parts, tools...";
+    loadTools();
   } else {
     toolsGrid.style.display = "none";
     airconGrid.style.display = "";
+    toolsGrid.setAttribute("aria-hidden", "true");
+    airconGrid.setAttribute("aria-hidden", "false");
     catsEl.style.display = "none";
     searchEl.placeholder = "Search aircon models...";
     loadAircons();
   }
-  searchEl.value = "";
 }
 
 async function loadAircons() {
@@ -610,6 +688,7 @@ async function loadAircons() {
 
 function renderAircons() {
   const grid = document.getElementById("posAirconGrid");
+  updateCatalogCount(allAircons.length, "aircon model");
   if (!allAircons.length) {
     grid.innerHTML = '<div class="pos-empty"><i class="bi bi-snow"></i><p>No aircons in stock</p></div>';
     return;
@@ -628,14 +707,11 @@ function renderAircons() {
       </div>`;
   });
   grid.innerHTML = html;
-  // Bind click handlers after render
-  grid.querySelectorAll("[data-aircon-idx]").forEach(el => {
-    el.addEventListener("click", () => {
-      const a = allAircons[parseInt(el.dataset.airconIdx)];
-      if (a && a.available > 0) {
-        addToCart({ _id: a._id, itemName: a.itemName, category: a.category, unit: a.unit, barcode: a.barcode, sellingPrice: a.sellingPrice, costPrice: a.costPrice, available: a.available, source: "aircon" });
-      }
-    });
+  makeCatalogCardsAccessible(grid, "[data-aircon-idx]", (el) => {
+    const a = allAircons[parseInt(el.dataset.airconIdx)];
+    if (a && a.available > 0) {
+      addToCart({ _id: a._id, itemName: a.itemName, category: a.category, unit: a.unit, barcode: a.barcode, sellingPrice: a.sellingPrice, costPrice: a.costPrice, available: a.available, source: "aircon" });
+    }
   });
 }
 
@@ -659,6 +735,7 @@ async function lookupBarcode(barcode) {
 // ── Render Products ───────────────────────────────────────────────────────────
 function renderTools() {
   const grid = document.getElementById("posGrid");
+  updateCatalogCount(allTools.length, "inventory item");
   if (!allTools.length) {
     grid.innerHTML = '<div class="pos-empty"><i class="bi bi-box-seam"></i><p>No parts found</p></div>';
     return;
@@ -678,11 +755,9 @@ function renderTools() {
       </div>`;
   });
   grid.innerHTML = html;
-  grid.querySelectorAll("[data-tool-idx]").forEach(el => {
-    el.addEventListener("click", () => {
-      const t = allTools[parseInt(el.dataset.toolIdx)];
-      if (t && t.available > 0) addToCart(t);
-    });
+  makeCatalogCardsAccessible(grid, "[data-tool-idx]", (el) => {
+    const t = allTools[parseInt(el.dataset.toolIdx)];
+    if (t && t.available > 0) addToCart(t);
   });
 }
 
@@ -749,7 +824,10 @@ function renderCart() {
     ? '<i class="bi bi-person-check"></i>Customer identity (required for warranty)'
     : '<i class="bi bi-person"></i>Customer (optional for parts)';
 
-  countEl.textContent = cart.reduce((s, i) => s + i.quantity, 0);
+  const cartUnits = cart.reduce((s, i) => s + i.quantity, 0);
+  countEl.textContent = cartUnits;
+  document.getElementById("mobileCartCount").textContent = cartUnits;
+  document.getElementById("floatingCartCount").textContent = cartUnits;
 
   if (!cart.length) {
     itemsEl.innerHTML = '<div class="pos-cart-empty"><i class="bi bi-cart-x"></i><p>No items in cart</p></div>';
@@ -768,12 +846,12 @@ function renderCart() {
           <div class="pos-cart-item-price">₱${item.unitPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })} / ${item.unit || "pcs"}</div>
         </div>
         <div class="pos-cart-item-qty">
-          <button onclick="updateQty(${idx}, -1)">−</button>
-          <span>${item.quantity}</span>
-          <button onclick="updateQty(${idx}, 1)">+</button>
+          <button type="button" onclick="updateQty(${idx}, -1)" aria-label="Decrease quantity">−</button>
+          <span aria-label="Quantity ${item.quantity}">${item.quantity}</span>
+          <button type="button" onclick="updateQty(${idx}, 1)" aria-label="Increase quantity">+</button>
         </div>
         <div class="pos-cart-item-total">₱${item.totalPrice.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</div>
-        <div class="pos-cart-item-remove" onclick="removeItem(${idx})"><i class="bi bi-trash3"></i></div>
+        <button type="button" class="pos-cart-item-remove" onclick="removeItem(${idx})" aria-label="Remove item"><i class="bi bi-trash3"></i></button>
       </div>`;
   });
   itemsEl.innerHTML = html;
@@ -807,7 +885,11 @@ function recalcCart() {
 
 function selectPayment(method) {
   selectedPayment = method;
-  document.querySelectorAll(".pos-pay-btn").forEach(b => b.classList.toggle("active", b.dataset.method === method));
+  document.querySelectorAll(".pos-pay-btn").forEach(b => {
+    const selected = b.dataset.method === method;
+    b.classList.toggle("active", selected);
+    b.setAttribute("aria-pressed", String(selected));
+  });
   const cashRow = document.getElementById("cashInputRow");
   cashRow.style.display = method === "cash" ? "flex" : "none";
   document.getElementById("posPaymentReferenceGroup").style.display = cartHasAircon() && method !== "cash" ? "block" : "none";
@@ -1015,6 +1097,7 @@ async function processCheckout() {
     document.getElementById("posPaymentReference").value = "";
     posCheckoutRequestId = createPosCheckoutRequestId();
     renderCart();
+    togglePosCart(false);
     if (currentTab === "tools") loadTools(); else loadAircons();
     showToast(isAirconOrder
       ? (data.order?.status === "completed" ? "Aircon handover completed with warranty activated." : "Aircon order created and sent to the Orders workflow.")

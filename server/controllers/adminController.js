@@ -3171,7 +3171,12 @@ exports.createTool = async (req, res, next) => {
       return res.status(400).json({ error: "itemName is required" });
     }
 
-    const normalizedClass = inventoryClass || (["equipment", "tool"].includes(type) ? "operational_asset" : "merchandise");
+    const normalizedType = type || "part";
+    // Equipment is company-owned operational inventory. It must never become
+    // POS merchandise even if a stale or manipulated client submits otherwise.
+    const normalizedClass = ["equipment", "tool"].includes(normalizedType)
+      ? "operational_asset"
+      : (inventoryClass || "merchandise");
     if (!['merchandise', 'operational_asset'].includes(normalizedClass)) {
       return res.status(400).json({ error: "Invalid inventory class" });
     }
@@ -3187,7 +3192,7 @@ exports.createTool = async (req, res, next) => {
       description:   description   || null,
       supplier:      supplier      || null,
       category:      category      || "General",
-      type:          type          || "part",
+      type:          normalizedType,
       inventoryClass: normalizedClass,
       assetCondition: assetCondition || "good",
       assetStatus: assetStatus || "available",
@@ -3270,6 +3275,7 @@ exports.editTool = async (req, res, next) => {
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) tool[key] = req.body[key];
     });
+    if (["equipment", "tool"].includes(tool.type)) tool.inventoryClass = "operational_asset";
     if (!['merchandise', 'operational_asset'].includes(tool.inventoryClass)) {
       return res.status(400).json({ error: "Invalid inventory class" });
     }

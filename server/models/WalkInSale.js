@@ -38,6 +38,16 @@ const walkInSaleItemSchema = new mongoose.Schema(
     // snapshot at time of sale
     itemName: { type: String, required: true },
     category: { type: String, default: "" },
+    itemType: {
+      type: String,
+      enum: ["equipment", "part", "consumable", "tool", "aircon", ""],
+      default: "",
+    },
+    inventoryClass: {
+      type: String,
+      enum: ["merchandise", "operational_asset", ""],
+      default: "",
+    },
     unit: { type: String, default: "pcs" },
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },  // selling price

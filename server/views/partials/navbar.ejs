@@ -222,7 +222,7 @@
   }
 </style>
 
-<nav id="publicNavbar" class="navbar navbar-expand-lg premium-nav fixed-top">
+<nav id="publicNavbar" class="navbar navbar-expand-lg premium-nav fixed-top<%= (typeof user !== 'undefined' && user) ? ' has-customer-drawer' : '' %>">
   <div class="container">
     <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
       <i class="bi bi-snow2 fs-4 me-2"></i>
@@ -297,7 +297,7 @@
           id="racsMenuTrigger"
           class="btn btn-light border racs-menu-trigger"
           type="button"
-          aria-label="Open customer menu"
+          aria-label="Open navigation and account menu"
           aria-controls="authSidebar"
           aria-expanded="false"
         >

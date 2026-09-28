@@ -35,6 +35,7 @@
     <link rel="stylesheet" href="/css/admin.css?v=20260927-fast-modals" />
     <link rel="stylesheet" href="/css/main.css" />
     <link rel="stylesheet" href="/css/sidebaradmin.css?v=20260927-modern-nav" />
+    <link rel="stylesheet" href="/css/admin-mobile-navigation.css?v=20260928-2" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
     <link rel="stylesheet" href="/css/enterprise-alerts.css?v=20260915-semantic-icons-v2" />
     <% if (pageUsesAos) { %>
@@ -120,9 +121,11 @@
     <div class="d-flex admin-root">
       <div class="admin-topbar"><%- include('../partials/admin-navbar') %></div>
 
-      <aside class="admin-sidebar" id="adminSidebar">
+      <aside class="admin-sidebar" id="adminSidebar" aria-label="Administrator navigation">
         <%- include('../partials/admin-sidebar') %>
       </aside>
+
+      <button type="button" id="adminSidebarBackdrop" class="sidebar-backdrop admin-sidebar-backdrop" aria-label="Close navigation menu" tabindex="-1" hidden></button>
 
       <button
         id="sidebarHandle"
@@ -245,7 +248,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/enterprise-alerts.js?v=20260915-semantic-icons-v2"></script>
-    <script src="/js/admin.js?v=20260927-shell-components"></script>
+    <script src="/js/admin.js?v=20260928-mobile-drawer"></script>
     <% if (pageUsesPsgc) { %><script src="/js/psgc-handler.js"></script><% } %>
 
     <!-- Fetch booking policy (minimum advance notice) for calendar components -->

@@ -1,0 +1,46 @@
+<%
+  const evidenceRows = Array.isArray(photoEvidenceReports) ? photoEvidenceReports : [];
+  const isEvidenceDeferred = Boolean(photoEvidenceDeferred);
+  const evidenceCount = evidenceRows.reduce((total, item) => total + (Array.isArray(item.photos) ? item.photos.length : 0), 0);
+  const evidenceDate = value => value ? new Date(value).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' }) : '—';
+%>
+<section class="sr-card sr-evidence-section" aria-labelledby="report-photos-title" data-photo-count="<%= evidenceCount %>">
+  <header class="sr-card-header">
+    <div><span class="sr-card-kicker">Field evidence</span><h2 id="report-photos-title">Service report photos</h2><p>Report attachments, inspection images, customer issue photos, and completion proof for the selected filters.</p></div>
+    <span class="sr-evidence-total"><i class="bi bi-images" aria-hidden="true"></i><strong><%= isEvidenceDeferred ? '—' : evidenceCount.toLocaleString('en-PH') %></strong><small><%= isEvidenceDeferred ? 'on demand' : `photo${evidenceCount === 1 ? '' : 's'}` %></small></span>
+  </header>
+  <% if (isEvidenceDeferred) { %>
+    <div class="sr-evidence-empty sr-evidence-loading" role="status">
+      <span class="spinner-border" aria-hidden="true"></span>
+      <strong>Photos load only when needed</strong>
+      <p>Opening this tab retrieves field evidence without slowing the main performance report.</p>
+    </div>
+  <% } else if (evidenceRows.length) { %>
+    <div class="sr-evidence-grid">
+      <% evidenceRows.forEach(function(item) { const statusLabel = String(item.reportStatus || 'evidence_only').replace(/_/g, ' '); %>
+        <article class="sr-evidence-card">
+          <header>
+            <div><span class="sr-evidence-reference"><%= item.reference %></span><h3><%= item.service %></h3></div>
+            <span class="sr-evidence-status <%= item.reportStatus %>"><%= statusLabel %></span>
+          </header>
+          <div class="sr-evidence-photos">
+            <% item.photos.forEach(function(photo) { %>
+              <button type="button" class="sr-evidence-photo" data-evidence-photo data-evidence-title="<%= item.reference %> · <%= photo.label %>" data-evidence-meta="<%= item.service %> · <%= item.technician %>" aria-label="View <%= photo.label %> for <%= item.reference %>">
+                <img src="<%= photo.url %>" alt="<%= photo.label %> for <%= item.reference %>" loading="lazy" decoding="async">
+                <span><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i><%= photo.label %></span>
+              </button>
+            <% }); %>
+          </div>
+          <div class="sr-evidence-details">
+            <div><i class="bi bi-person" aria-hidden="true"></i><span><strong><%= item.customer %></strong><small>Customer</small></span></div>
+            <div><i class="bi bi-person-gear" aria-hidden="true"></i><span><strong><%= item.technician %></strong><small>Technician</small></span></div>
+            <div><i class="bi bi-calendar3" aria-hidden="true"></i><span><strong><%= evidenceDate(item.date) %></strong><small>Recorded</small></span></div>
+          </div>
+          <% if (item.findings || item.actionsTaken) { %><div class="sr-evidence-notes"><% if (item.findings) { %><p><strong>Findings:</strong> <%= item.findings %></p><% } %><% if (item.actionsTaken) { %><p><strong>Work done:</strong> <%= item.actionsTaken %></p><% } %></div><% } %>
+        </article>
+      <% }); %>
+    </div>
+  <% } else { %>
+    <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No service photos in this report period</strong><p>Photos will appear here after a technician attaches report, inspection, or completion evidence. Current report filters also apply to this gallery.</p></div>
+  <% } %>
+</section>

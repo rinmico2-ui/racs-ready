@@ -128,7 +128,13 @@ router.post("/tools/generate-barcodes", async (req, res) => {
 router.get("/tools", async (req, res) => {
   try {
     const { q, category, page = 1, limit = 50 } = req.query;
-    const filter = { active: true, isStockItem: true, status: { $ne: "discontinued" }, $and: [Tool.merchandiseFilter()] };
+    const filter = {
+      active: true,
+      isStockItem: true,
+      status: { $ne: "discontinued" },
+      type: { $nin: ["equipment", "tool"] },
+      $and: [Tool.merchandiseFilter()],
+    };
 
     if (q && q.trim()) {
       const regex = new RegExp(escapeRegex(q.trim()), "i");
@@ -183,7 +189,13 @@ router.get("/tools/barcode/:barcode", async (req, res) => {
     const barcode = req.params.barcode;
 
     // 1. Try Tool collection first
-    const tool = await Tool.findOne({ barcode, active: true, isStockItem: true, $and: [Tool.merchandiseFilter()] }).lean();
+    const tool = await Tool.findOne({
+      barcode,
+      active: true,
+      isStockItem: true,
+      type: { $nin: ["equipment", "tool"] },
+      $and: [Tool.merchandiseFilter()],
+    }).lean();
     if (tool) {
       const available = Math.max(0, (tool.quantity || 0) - (tool.reservedQuantity || 0));
       if (available <= 0) return res.status(400).json({ error: "Item is out of stock" });
@@ -965,7 +977,7 @@ router.post("/checkout", async (req, res) => {
         throw new Error(`Invalid item: ${JSON.stringify(item)}`);
       }
 
-      let itemName, category, unit, unitPrice, costPrice, available, serialNumber, parentHvacId;
+      let itemName, category, unit, unitPrice, costPrice, available, serialNumber, parentHvacId, itemType, inventoryClass;
       const source = item.source || "tool";
 
       if (source === "aircon" || source === "aircon_legacy") {
@@ -987,6 +999,8 @@ router.post("/checkout", async (req, res) => {
           costPrice = variant.costPrice || 0;
           available = variant.quantity;
           parentHvacId = hvac._id;
+          itemType = "aircon";
+          inventoryClass = "merchandise";
           found = true;
         }
         if (!found) {
@@ -1004,12 +1018,14 @@ router.post("/checkout", async (req, res) => {
           unitPrice = inv.sellingPrice || 0;
           costPrice = inv.costPrice || 0;
           available = inv.quantity;
+          itemType = "aircon";
+          inventoryClass = "merchandise";
         }
       } else {
         // Tool
         const tool = await Tool.findById(item.toolId).session(session);
         if (!tool) throw new Error(`Tool not found: ${item.toolId}`);
-        if (Tool.effectiveInventoryClass(tool) !== 'merchandise') {
+        if (Tool.effectiveInventoryClass(tool) !== 'merchandise' || ["equipment", "tool"].includes(tool.type)) {
           throw new Error(`${tool.itemName} is an operational asset and cannot be sold`);
         }
         if (!tool.active) throw new Error(`${tool.itemName} is no longer available`);
@@ -1026,6 +1042,8 @@ router.post("/checkout", async (req, res) => {
         unitPrice = tool.sellingPrice || 0;
         costPrice = tool.costPrice || 0;
         serialNumber = tool.serialNumber || null;
+        itemType = tool.type || tool.itemType || "part";
+        inventoryClass = Tool.effectiveInventoryClass(tool);
       }
 
       const totalPrice = unitPrice * item.quantity;
@@ -1042,6 +1060,8 @@ router.post("/checkout", async (req, res) => {
         serialNumber,
         source,
         parentHvacId,
+        itemType,
+        inventoryClass,
       });
 
       subtotal += totalPrice;

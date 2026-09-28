@@ -168,7 +168,8 @@
       }
     %>
     <%- include('../../../partials/report-kpi-styles') %>
-    <div class="kpi-grid">
+    <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
+    <div class="kpi-grid report-kpi-grid">
       <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
         <div class="kpi-enterprise-top">
           <div class="kpi-enterprise-icon blue"><i class="bi bi-box-seam"></i></div>
@@ -252,7 +253,7 @@
       </div>
     </div>
 
-    <div class="kpi-grid mb-4">
+    <div class="kpi-grid report-kpi-grid mb-4">
       <% [
         {label:'Stock Cost Capital',value:formatAmount(analytics?.totalCost||0),badge:'Purchase value',icon:'bi-cash-stack',accent:'blue'},
         {label:'Retail Stock Value',value:formatAmount(analytics?.totalValue||0),badge:'Selling value',icon:'bi-tags',accent:'cyan'},

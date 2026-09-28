@@ -1418,6 +1418,9 @@ bookingSchema.index({ 'slaTracking.resolutionTarget': 1, 'slaTracking.resolution
 bookingSchema.index({ 'technicianAssistant.repairComplexity': 1 }); // For complexity-based queries
 bookingSchema.index({ createdAt: -1 }); // For recent repairs listing
 bookingSchema.index({ status: 1, updatedAt: -1 }); // For completion-based revenue reporting
+bookingSchema.index({ status: 1, completedAt: -1 }); // Primary completed-service revenue path
+bookingSchema.index({ status: 1, "repairCompletion.completedAt": -1 }); // Repair completion revenue path
+bookingSchema.index({ status: 1, "slaTracking.resolutionAt": -1 }); // Legacy resolution-based completion path
 bookingSchema.index({ customerRating: 1, updatedAt: -1 }); // For service-rating analytics and legacy review reconciliation
 bookingSchema.index({ technicianId: 1, customerRating: 1, updatedAt: -1 }); // For technician quality reporting
 

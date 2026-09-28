@@ -33,6 +33,12 @@
 .kpi-enterprise[data-accent="amber"] { --kpi-accent: #d97706; --kpi-soft: rgba(217, 119, 6, .11); }
 .kpi-enterprise[data-accent="cyan"] { --kpi-accent: #0891b2; --kpi-soft: rgba(8, 145, 178, .1); }
 .kpi-enterprise[data-accent="red"] { --kpi-accent: #dc2626; --kpi-soft: rgba(220, 38, 38, .09); }
+.kpi-enterprise[data-accent="orange"] { --kpi-accent: #ea580c; --kpi-soft: rgba(234, 88, 12, .1); }
+.kpi-enterprise[data-tone="green"] { --kpi-accent: #059669; --kpi-soft: rgba(5, 150, 105, .1); }
+.kpi-enterprise[data-tone="purple"] { --kpi-accent: #7c3aed; --kpi-soft: rgba(124, 58, 237, .1); }
+.kpi-enterprise[data-tone="amber"] { --kpi-accent: #d97706; --kpi-soft: rgba(217, 119, 6, .11); }
+.kpi-enterprise[data-tone="cyan"] { --kpi-accent: #0891b2; --kpi-soft: rgba(8, 145, 178, .1); }
+.kpi-enterprise[data-tone="red"] { --kpi-accent: #dc2626; --kpi-soft: rgba(220, 38, 38, .09); }
 
 .kpi-enterprise::before {
   content: "";
@@ -41,9 +47,7 @@
   height: 3px;
   opacity: 1;
   background: linear-gradient(90deg, var(--kpi-accent), color-mix(in srgb, var(--kpi-accent) 48%, #fff));
-  transform: scaleX(.34);
-  transform-origin: left;
-  transition: transform .25s ease;
+  transform: scaleX(1);
 }
 
 .kpi-enterprise:hover {
@@ -52,7 +56,6 @@
   box-shadow: 0 17px 38px rgba(23, 43, 77, .105);
 }
 
-.kpi-enterprise:hover::before { transform: scaleX(1); }
 .kpi-enterprise.is-provisional { border-color: rgba(217, 119, 6, .28); }
 
 .kpi-enterprise-top {
@@ -63,7 +66,7 @@
   margin-bottom: 13px;
 }
 
-.kpi-enterprise-icon {
+.kpi-enterprise .kpi-enterprise-icon {
   display: inline-grid;
   width: 40px;
   height: 40px;
@@ -77,9 +80,11 @@
   transition: transform .22s ease;
 }
 
+.kpi-enterprise .kpi-enterprise-icon i { color: inherit !important; }
+
 .kpi-enterprise:hover .kpi-enterprise-icon { transform: scale(1.06) rotate(-2deg); }
 
-.kpi-enterprise-badge {
+.kpi-enterprise .kpi-enterprise-badge {
   display: inline-flex;
   max-width: 68%;
   align-items: center;
@@ -135,6 +140,16 @@
 
 .kpi-enterprise-sparkline canvas { width: 100% !important; height: 100% !important; }
 
+/* Report Center keeps stable legacy hooks for live updates, but uses this component's geometry. */
+.report-kpi-grid > .rc-kpi .kpi-enterprise-icon { margin-bottom: 0; }
+.report-kpi-grid > .rc-kpi .kpi-enterprise-value {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #13213a;
+  font: 750 clamp(1.3rem, 2vw, 1.62rem)/1.18 "Outfit", "Inter", sans-serif;
+  letter-spacing: -.025em;
+}
+
 /* Compatibility layer for the focused service/order report markup. */
 .report-kpi-grid > .sr-kpi {
   --kpi-accent: #2563eb;
@@ -156,15 +171,20 @@
 .report-kpi-grid > .sr-kpi:nth-child(2) { --kpi-accent: #059669; --kpi-soft: rgba(5, 150, 105, .1); animation-delay: .05s; }
 .report-kpi-grid > .sr-kpi:nth-child(3) { --kpi-accent: #7c3aed; --kpi-soft: rgba(124, 58, 237, .1); animation-delay: .1s; }
 .report-kpi-grid > .sr-kpi:nth-child(4) { --kpi-accent: #d97706; --kpi-soft: rgba(217, 119, 6, .11); animation-delay: .15s; }
-.report-kpi-grid > .sr-kpi::before { content: ""; position: absolute; inset: 0 0 auto; width: auto; height: 3px; background: linear-gradient(90deg, var(--kpi-accent), color-mix(in srgb, var(--kpi-accent) 48%, #fff)); transform: scaleX(.34); transform-origin: left; transition: transform .25s ease; }
+.report-kpi-grid > .sr-kpi[data-accent="blue"] { --kpi-accent: #2563eb; --kpi-soft: rgba(37, 99, 235, .1); }
+.report-kpi-grid > .sr-kpi[data-accent="green"] { --kpi-accent: #059669; --kpi-soft: rgba(5, 150, 105, .1); }
+.report-kpi-grid > .sr-kpi[data-accent="purple"] { --kpi-accent: #7c3aed; --kpi-soft: rgba(124, 58, 237, .1); }
+.report-kpi-grid > .sr-kpi[data-accent="amber"] { --kpi-accent: #d97706; --kpi-soft: rgba(217, 119, 6, .11); }
+.report-kpi-grid > .sr-kpi[data-accent="cyan"] { --kpi-accent: #0891b2; --kpi-soft: rgba(8, 145, 178, .1); }
+.report-kpi-grid > .sr-kpi[data-accent="red"] { --kpi-accent: #dc2626; --kpi-soft: rgba(220, 38, 38, .09); }
+.report-kpi-grid > .sr-kpi::before { content: ""; position: absolute; inset: 0 0 auto; width: auto; height: 3px; background: linear-gradient(90deg, var(--kpi-accent), color-mix(in srgb, var(--kpi-accent) 48%, #fff)); transform: scaleX(1); }
 .report-kpi-grid > .sr-kpi:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--kpi-accent) 25%, #dbe4ef); box-shadow: 0 17px 38px rgba(23, 43, 77, .105); }
-.report-kpi-grid > .sr-kpi:hover::before { transform: scaleX(1); }
-.report-kpi-grid .sr-kpi-top { align-items: flex-start; margin-bottom: 13px; }
+.report-kpi-grid .sr-kpi-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 13px; }
 .report-kpi-grid .sr-kpi-icon { display: inline-grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 11px; background: var(--kpi-soft); color: var(--kpi-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kpi-accent) 8%, transparent); transition: transform .22s ease; }
 .report-kpi-grid > .sr-kpi:hover .sr-kpi-icon { transform: scale(1.06) rotate(-2deg); }
-.report-kpi-grid .sr-kpi-context { max-width: 68%; overflow: hidden; padding: 4px 8px; border-radius: 999px; background: var(--kpi-soft); color: var(--kpi-accent); font-size: .61rem; font-weight: 750; letter-spacing: .025em; text-overflow: ellipsis; white-space: nowrap; }
+.report-kpi-grid .sr-kpi-context { display: inline-flex; max-width: 68%; align-items: center; overflow: hidden; padding: 4px 8px; border-radius: 999px; background: var(--kpi-soft); color: var(--kpi-accent); font-size: .61rem; font-weight: 750; letter-spacing: .025em; text-overflow: ellipsis; white-space: nowrap; }
 .report-kpi-grid .sr-kpi-label { margin: 0 0 3px; color: #64748b; font-size: .69rem; font-weight: 700; letter-spacing: .045em; text-transform: uppercase; }
-.report-kpi-grid > .sr-kpi > strong { color: #13213a; font: 750 clamp(1.3rem, 2vw, 1.62rem)/1.18 "Outfit", "Inter", sans-serif; letter-spacing: -.025em; }
+.report-kpi-grid > .sr-kpi > strong { margin: 0; color: #13213a; font: 750 clamp(1.3rem, 2vw, 1.62rem)/1.18 "Outfit", "Inter", sans-serif; letter-spacing: -.025em; }
 .report-kpi-grid > .sr-kpi > small { margin-top: auto; padding-top: 8px; color: #78869b; font-size: .64rem; line-height: 1.45; }
 
 @keyframes report-kpi-enter {

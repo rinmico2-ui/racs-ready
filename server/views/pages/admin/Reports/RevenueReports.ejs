@@ -80,8 +80,8 @@
     .rr-chart:hover::after{opacity:1}
     .rr-data-state{display:flex;align-items:center;gap:12px;padding:13px 16px;margin:-8px 0 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:.78rem;font-weight:600}.rr-data-state[hidden]{display:none}.rr-data-state.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}.rr-data-state .spinner-border{width:1rem;height:1rem;border-width:2px}
   </style>
-  <link rel="stylesheet" href="/css/report-kpis.css?v=20260906-shared-kpis">
-  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260906-decision-view">
+  <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
+  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260928-pos-categories">
   <% const A=analytics||{}; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
   <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Revenue Intelligence</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/admin/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/admin/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="/admin/inventory/pos"><i class="bi bi-shop me-1"></i> POS</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Export</button></div></div></div>
@@ -184,7 +184,7 @@
   </div>
 
   <!-- --- KPI GRID (Enterprise style matching Service Report) --- -->
-  <div class="kpi-grid" id="kpiGrid">
+  <div class="kpi-grid report-kpi-grid" id="kpiGrid">
     <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon blue"><i class="bi bi-cash-stack"></i></div>
@@ -440,12 +440,36 @@
   </div>
 
   <!-- ═══ SECTION 6: POS & PRODUCT PERFORMANCE ═══ -->
-  <div id="section-pos" class="rr-section"><h2><i class="bi bi-shop me-2" style="color:#f59e0b;"></i>POS &amp; Product Performance</h2><span class="text-muted small">Counter sales, cross-channel product performance, and payment mix — completed sales only</span></div>
+  <div id="section-pos" class="rr-section"><h2><i class="bi bi-shop me-2" style="color:#f59e0b;"></i>POS &amp; Product Performance</h2><span class="text-muted small">Repair parts, consumables, and aircon products — completed sales only</span></div>
+  <div class="rr-pos-category-grid" id="posCategoryBreakdown">
+    <% (A.posCategoryBreakdown||[
+      {key:'repair_parts',label:'Repair Parts',transactionCount:0,units:0,revenue:0,cost:0,profit:0,margin:0},
+      {key:'consumables',label:'Consumables',transactionCount:0,units:0,revenue:0,cost:0,profit:0,margin:0},
+      {key:'aircon_products',label:'Aircon Products',transactionCount:0,units:0,revenue:0,cost:0,profit:0,margin:0}
+    ]).forEach(function(category){ %>
+      <article class="rr-card rr-pos-category-card <%= category.key %>">
+        <div class="rr-pos-category-icon"><i class="bi <%= category.key==='aircon_products'?'bi-snow':category.key==='consumables'?'bi-droplet-half':'bi-wrench-adjustable' %>"></i></div>
+        <div class="rr-pos-category-copy">
+          <small><%= category.label %></small>
+          <strong><%= peso(category.revenue) %></strong>
+          <p><%= Number(category.units||0).toLocaleString('en-PH') %> units · <%= Number(category.transactionCount||0).toLocaleString('en-PH') %> completed sales</p>
+        </div>
+        <div class="rr-pos-category-finance"><span>COGS <b><%= peso(category.cost) %></b></span><span>Gross profit <b class="<%= Number(category.profit||0)>=0?'positive':'negative' %>"><%= peso(category.profit) %></b></span><span>Margin <b><%= pct(category.margin) %></b></span></div>
+      </article>
+    <% }); %>
+  </div>
+  <div class="rr-note rr-pos-method-note"><i class="bi bi-info-circle-fill me-2"></i><strong>Category basis:</strong> Only sellable Repair Parts and Consumables from the inventory catalog are included. Company-owned Equipment is an operational asset and is excluded. Aircon Products are completed walk-in aircon orders created through POS; delivery and installation fees are excluded from product revenue.</div>
   <div class="rr-equal">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-trophy me-2 text-warning"></i>Top POS Products</h3><span class="rr-badge" id="posSummaryBadge"><%= A.posTransactions||0 %> sales · <%= peso(A.posRevenue) %> total</span></div>
+      <div class="rr-head rr-pos-products-head"><div><h3><i class="bi bi-trophy me-2 text-warning"></i>Top POS Products by Category</h3><p>Completed merchandise sales ranked by revenue</p></div><span class="rr-badge" id="posSummaryBadge"><%= (A.posCategoryProducts||[]).length %> products</span></div>
+      <div class="rr-pos-tabs" id="posCategoryTabs" role="tablist" aria-label="Filter POS product categories">
+        <button type="button" class="active" role="tab" aria-selected="true" data-pos-category="all">All</button>
+        <button type="button" role="tab" aria-selected="false" data-pos-category="repair_parts"><i class="bi bi-wrench-adjustable"></i> Repair Parts</button>
+        <button type="button" role="tab" aria-selected="false" data-pos-category="consumables"><i class="bi bi-droplet-half"></i> Consumables</button>
+        <button type="button" role="tab" aria-selected="false" data-pos-category="aircon_products"><i class="bi bi-snow"></i> Aircon Products</button>
+      </div>
       <div class="rr-body table-responsive">
-        <table class="rr-table"><thead><tr><th>Product</th><th class="text-center">Qty</th><th class="text-end">Revenue</th><th class="text-end">COGS</th><th class="text-end">Profit</th></tr></thead><tbody id="topPosProductsBody"><% if(!(A.topPosProducts||[]).length){ %><tr><td colspan="5" class="rr-empty">No completed POS sales in this period.</td></tr><% } (A.topPosProducts||[]).slice(0,5).forEach(function(p){ %><tr><td class="fw-bold"><%= p.name %><div class="rr-meta"><%= p.category %></div></td><td class="text-center"><%= p.quantity %></td><td class="text-end"><%= peso(p.revenue) %></td><td class="text-end"><%= peso(p.cost) %></td><td class="text-end fw-bold <%= p.profit>=0?'text-success':'text-danger' %>"><%= peso(p.profit) %></td></tr><% }); %></tbody></table>
+        <table class="rr-table"><thead><tr><th>Product</th><th>Category</th><th class="text-center">Qty</th><th class="text-end">Revenue</th><th class="text-end">COGS</th><th class="text-end">Profit</th></tr></thead><tbody id="topPosProductsBody"><% if(!(A.posCategoryProducts||[]).length){ %><tr><td colspan="6" class="rr-empty">No completed POS product sales in this period.</td></tr><% } (A.posCategoryProducts||[]).slice(0,8).forEach(function(p){ %><tr><td class="fw-bold"><%= p.name %><div class="rr-meta"><%= p.category %></div></td><td><span class="rr-pos-category-tag <%= p.businessCategory %>"><%= p.businessCategoryLabel %></span></td><td class="text-center"><%= p.quantity %></td><td class="text-end"><%= peso(p.revenue) %></td><td class="text-end"><%= peso(p.cost) %></td><td class="text-end fw-bold <%= p.profit>=0?'text-success':'text-danger' %>"><%= peso(p.profit) %></td></tr><% }); %></tbody></table>
       </div>
     </article>
     <article class="rr-card">
@@ -457,7 +481,7 @@
   <!-- Product Intelligence (merged under POS & Product Performance) -->
   <div class="rr-subsection" style="margin:20px 0 12px;"><h2 style="font-size:.78rem;border-left-color:#0891b2;"><i class="bi bi-box-seam me-2" style="color:#0891b2;"></i>Cross-Channel Product Intelligence</h2><span class="text-muted small">Online orders and POS combined analysis</span></div>
   <!-- Product KPIs (enterprise style) -->
-  <div class="kpi-grid" id="productKpiGrid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+  <div class="kpi-grid report-kpi-grid" id="productKpiGrid" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
     <div class="kpi-enterprise" data-accent="cyan" data-aos="fade-up" data-aos-delay="0">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon cyan"><i class="bi bi-box-seam"></i></div>
@@ -696,6 +720,7 @@
   const pct = n => Number(n || 0).toFixed(1) + '%';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   let charts = {};
+  let activePosCategory = 'all';
 
   // ── Populate technician dropdown from initial analytics ──
   const initA = <%- JSON.stringify(analytics || {}).replace(/</g, '\\u003c') %>;
@@ -808,6 +833,34 @@
     if (filters.technician !== 'all') parts.push('Technician filtered');
     text.textContent = parts.length ? 'Active filters: ' + parts.join(' · ') : 'Showing all data (rolling 12 months)';
     badge.style.display = 'block';
+  }
+
+  function renderPosCategorySection(A) {
+    const categories = A.posCategoryBreakdown || [];
+    const categoryGrid = document.getElementById('posCategoryBreakdown');
+    if (categoryGrid) {
+      categoryGrid.innerHTML = categories.map(category => {
+        const icon = category.key === 'aircon_products' ? 'bi-snow' : category.key === 'consumables' ? 'bi-droplet-half' : 'bi-wrench-adjustable';
+        return `<article class="rr-card rr-pos-category-card ${esc(category.key)}">
+          <div class="rr-pos-category-icon"><i class="bi ${icon}"></i></div>
+          <div class="rr-pos-category-copy"><small>${esc(category.label)}</small><strong>${peso(category.revenue)}</strong><p>${Number(category.units||0).toLocaleString('en-PH')} units · ${Number(category.transactionCount||0).toLocaleString('en-PH')} completed sales</p></div>
+          <div class="rr-pos-category-finance"><span>COGS <b>${peso(category.cost)}</b></span><span>Gross profit <b class="${Number(category.profit||0)>=0?'positive':'negative'}">${peso(category.profit)}</b></span><span>Margin <b>${pct(category.margin)}</b></span></div>
+        </article>`;
+      }).join('');
+    }
+
+    const allProducts = A.posCategoryProducts || [];
+    const products = activePosCategory === 'all'
+      ? allProducts
+      : allProducts.filter(product => product.businessCategory === activePosCategory);
+    const posBody = document.getElementById('topPosProductsBody');
+    if (posBody) {
+      posBody.innerHTML = products.length
+        ? products.slice(0, 8).map(product => `<tr><td class="fw-bold">${esc(product.name)}<div class="rr-meta">${esc(product.category)}</div></td><td><span class="rr-pos-category-tag ${esc(product.businessCategory)}">${esc(product.businessCategoryLabel)}</span></td><td class="text-center">${Number(product.quantity||0).toLocaleString('en-PH')}</td><td class="text-end">${peso(product.revenue)}</td><td class="text-end">${peso(product.cost)}</td><td class="text-end fw-bold ${Number(product.profit||0)>=0?'text-success':'text-danger'}">${peso(product.profit)}</td></tr>`).join('')
+        : '<tr><td colspan="6" class="rr-empty">No completed sales in this category for the selected period.</td></tr>';
+    }
+    const posBadge = document.getElementById('posSummaryBadge');
+    if (posBadge) posBadge.textContent = `${products.length} product${products.length===1?'':'s'}`;
   }
 
   // ── Update dashboard with new data ──
@@ -957,16 +1010,7 @@
       if (window.refreshProfitabilityPagination) window.refreshProfitabilityPagination();
     }
 
-    // Update top POS products
-    const posBody = document.getElementById('topPosProductsBody');
-    if (posBody) {
-      const topPosProducts = A.topPosProducts || [];
-      posBody.innerHTML = topPosProducts.length
-        ? topPosProducts.slice(0, 5).map(p => `<tr><td class="fw-bold">${esc(p.name)}<div class="rr-meta">${esc(p.category)}</div></td><td class="text-center">${p.quantity}</td><td class="text-end">${peso(p.revenue)}</td><td class="text-end">${peso(p.cost)}</td><td class="text-end fw-bold ${Number(p.profit||0)>=0?'text-success':'text-danger'}">${peso(p.profit)}</td></tr>`).join('')
-        : '<tr><td colspan="5" class="rr-empty">No completed POS sales in this period.</td></tr>';
-    }
-    const posBadge = document.getElementById('posSummaryBadge');
-    if (posBadge) posBadge.textContent = `${A.posTransactions||0} sales · ${peso(A.posRevenue)} total`;
+    renderPosCategorySection(A);
 
     renderForecastSummary(A);
     renderServicePortfolio(A);
@@ -1296,6 +1340,18 @@
   let cdmChart = null;
   let cdmModal = null;
   let serviceLineModal = null;
+
+  document.getElementById('posCategoryTabs')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-pos-category]');
+    if (!button) return;
+    activePosCategory = button.dataset.posCategory || 'all';
+    document.querySelectorAll('#posCategoryTabs [data-pos-category]').forEach(tab => {
+      const active = tab === button;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    renderPosCategorySection(currentA);
+  });
 
   function openServiceLineDrilldown(index) {
     const row = (currentA.serviceProfitability?.rows || [])[index];

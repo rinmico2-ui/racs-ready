@@ -277,6 +277,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var toggle = document.getElementById("sidebarToggle");
   var sidebar = document.getElementById("adminSidebar");
   var root = document.querySelector(".admin-root");
+  var lastSidebarFocus = null;
 
   function setToggleAria(expanded) {
     if (toggle)
@@ -290,6 +291,73 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!icon) return;
     icon.classList.remove("bi-list", "bi-x-lg", "bi-arrow-left");
     icon.classList.add(open ? "bi-x-lg" : "bi-list");
+    toggle.setAttribute("aria-label", open ? "Close navigation menu" : "Open navigation menu");
+  }
+
+  function isMobileSidebar() {
+    return window.matchMedia("(max-width: 767px)").matches;
+  }
+
+  function setMobileSidebarOpen(open, options) {
+    if (!sidebar || !toggle) return;
+    options = options || {};
+
+    if (open) {
+      lastSidebarFocus = document.activeElement;
+      if (window.AdminDropdowns) window.AdminDropdowns.closeAll();
+      sidebar.classList.add("open");
+      sidebar.removeAttribute("inert");
+      sidebar.setAttribute("role", "dialog");
+      sidebar.setAttribute("aria-modal", "true");
+      sidebar.setAttribute("aria-hidden", "false");
+      document.body.classList.add("admin-nav-open");
+      showBackdrop();
+      window.setTimeout(function () {
+        var firstControl = sidebar.querySelector("[data-admin-sidebar-close], a[href], button:not([disabled])");
+        if (firstControl) firstControl.focus({ preventScroll: true });
+      }, 30);
+    } else {
+      sidebar.classList.remove("open");
+      sidebar.setAttribute("aria-hidden", "true");
+      sidebar.setAttribute("inert", "");
+      sidebar.removeAttribute("aria-modal");
+      document.body.classList.remove("admin-nav-open");
+      hideBackdrop();
+      if (options.restoreFocus !== false) {
+        var returnTarget = toggle || lastSidebarFocus;
+        if (returnTarget && typeof returnTarget.focus === "function") {
+          returnTarget.focus({ preventScroll: true });
+        }
+      }
+    }
+
+    setToggleAria(open);
+    setMobileToggleIcon(open);
+  }
+
+  function applyMobileSidebarMode() {
+    if (!sidebar || !toggle) return;
+    if (isMobileSidebar()) {
+      var open = sidebar.classList.contains("open");
+      sidebar.setAttribute("role", "dialog");
+      sidebar.setAttribute("aria-modal", open ? "true" : "false");
+      sidebar.setAttribute("aria-hidden", open ? "false" : "true");
+      if (open) sidebar.removeAttribute("inert");
+      else sidebar.setAttribute("inert", "");
+      setToggleAria(open);
+      setMobileToggleIcon(open);
+      return;
+    }
+
+    sidebar.classList.remove("open");
+    sidebar.removeAttribute("role");
+    sidebar.removeAttribute("aria-modal");
+    sidebar.removeAttribute("aria-hidden");
+    sidebar.removeAttribute("inert");
+    document.body.classList.remove("admin-nav-open");
+    hideBackdrop();
+    setToggleAria(!(root && root.classList.contains("sidebar-collapsed")));
+    setMobileToggleIcon(false);
   }
 
   // helper to animate nav items when sidebar opens/closes
@@ -321,62 +389,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (toggle && sidebar) {
     toggle.addEventListener("click", function () {
-      // mobile behavior: slide-in + backdrop
-      if (window.innerWidth <= 767) {
-        var isOpen = sidebar.classList.contains("open");
-        if (window.gsap) {
-          // temporarily disable CSS transitions to avoid conflicts
-          const prevTrans = sidebar.style.transition;
-          sidebar.style.transition = "none";
-
-          if (isOpen) {
-            gsap.to(sidebar, {
-              x: "-120%",
-              autoAlpha: 0,
-              duration: 0.5,
-              ease: "expo.in",
-              onComplete() {
-                sidebar.classList.remove("open");
-                sidebar.style.transition = prevTrans;
-              },
-            });
-            hideBackdrop();
-            animateSidebarLinks(sidebar, false);
-            setToggleAria(false);
-            setMobileToggleIcon(false);
-          } else {
-            sidebar.classList.add("open");
-            gsap.fromTo(
-              sidebar,
-              { x: "-120%", autoAlpha: 0 },
-              {
-                x: 0,
-                autoAlpha: 1,
-                duration: 0.5,
-                ease: "expo.out",
-                onComplete() {
-                  sidebar.style.transition = prevTrans;
-                },
-              },
-            );
-            showBackdrop();
-            animateSidebarLinks(sidebar, true);
-            setToggleAria(true);
-            setMobileToggleIcon(true);
-          }
-        } else {
-          // fallback to CSS toggle
-          var toggled = sidebar.classList.toggle("open");
-          setToggleAria(toggled);
-          setMobileToggleIcon(toggled);
-          if (toggled) {
-            showBackdrop();
-            animateSidebarLinks(sidebar, true);
-          } else {
-            hideBackdrop();
-            animateSidebarLinks(sidebar, false);
-          }
-        }
+      if (isMobileSidebar()) {
+        setMobileSidebarOpen(!sidebar.classList.contains("open"));
         return;
       }
 
@@ -393,14 +407,8 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
-    // keep aria in sync on resize
-    window.addEventListener("resize", function () {
-      if (window.innerWidth > 767 && sidebar.classList.contains("open")) {
-        sidebar.classList.remove("open");
-        setToggleAria(true);
-        setMobileToggleIcon(false);
-      }
-    });
+    applyMobileSidebarMode();
+    window.addEventListener("resize", applyMobileSidebarMode);
   }
 
   // sidebar section dropdowns — wire Bootstrap collapse toggles to a parent-expanded state and add keyboard support
@@ -409,23 +417,38 @@ document.addEventListener("DOMContentLoaded", function () {
   var sidebarMobileClose = document.querySelector("[data-admin-sidebar-close]");
   if (sidebarMobileClose && toggle && sidebar) {
     sidebarMobileClose.addEventListener("click", function () {
-      if (window.innerWidth <= 767 && sidebar.classList.contains("open")) {
-        toggle.click();
-        toggle.focus({ preventScroll: true });
-      }
+      if (isMobileSidebar() && sidebar.classList.contains("open")) setMobileSidebarOpen(false);
     });
   }
 
   document.addEventListener("keydown", function (event) {
     if (
       event.key === "Escape" &&
-      window.innerWidth <= 767 &&
+      isMobileSidebar() &&
       toggle &&
       sidebar &&
       sidebar.classList.contains("open")
     ) {
-      toggle.click();
-      toggle.focus({ preventScroll: true });
+      setMobileSidebarOpen(false);
+    }
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Tab" || !isMobileSidebar() || !sidebar || !sidebar.classList.contains("open")) return;
+    var focusable = Array.prototype.slice.call(sidebar.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(function (element) {
+      return element.offsetParent !== null && !element.hasAttribute("inert");
+    });
+    if (!focusable.length) return;
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   });
 
@@ -544,40 +567,41 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
   // mobile sidebar backdrop + outside-click to close
-  var sidebarBackdrop = null;
+  var sidebarBackdrop = document.getElementById("adminSidebarBackdrop");
   function showBackdrop() {
-    if (sidebarBackdrop) return;
-    sidebarBackdrop = document.createElement("div");
-    sidebarBackdrop.id = "sidebarBackdrop";
-    sidebarBackdrop.className = "sidebar-backdrop";
-    document.body.appendChild(sidebarBackdrop);
-    // small delay for transition
+    if (!sidebarBackdrop) {
+      sidebarBackdrop = document.createElement("button");
+      sidebarBackdrop.type = "button";
+      sidebarBackdrop.id = "adminSidebarBackdrop";
+      sidebarBackdrop.className = "sidebar-backdrop admin-sidebar-backdrop";
+      sidebarBackdrop.setAttribute("aria-label", "Close navigation menu");
+      document.body.appendChild(sidebarBackdrop);
+      sidebarBackdrop.addEventListener("click", function () {
+        setMobileSidebarOpen(false);
+      });
+    }
+    sidebarBackdrop.hidden = false;
     requestAnimationFrame(function () {
       sidebarBackdrop.classList.add("visible");
-    });
-    sidebarBackdrop.addEventListener("click", function () {
-      if (sidebar && sidebar.classList.contains("open")) {
-        sidebar.classList.remove("open");
-        setToggleAria(false);
-        setMobileToggleIcon(false);
-      }
-      hideBackdrop();
     });
   }
   function hideBackdrop() {
     if (!sidebarBackdrop) return;
     sidebarBackdrop.classList.remove("visible");
     setTimeout(function () {
-      if (sidebarBackdrop) {
-        sidebarBackdrop.remove();
-        sidebarBackdrop = null;
-      }
-    }, 250);
+      if (sidebarBackdrop && !sidebarBackdrop.classList.contains("visible")) sidebarBackdrop.hidden = true;
+    }, 220);
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener("click", function () {
+      if (sidebar && sidebar.classList.contains("open")) setMobileSidebarOpen(false);
+    });
   }
 
   // ensure backdrop removed on resize > mobile
   window.addEventListener("resize", function () {
-    if (window.innerWidth > 767) hideBackdrop();
+    if (!isMobileSidebar()) hideBackdrop();
   });
 
   // Simple logout hookup
@@ -675,6 +699,9 @@ document.addEventListener("DOMContentLoaded", function () {
           var loc = new URL(href, location.origin);
           if (loc.origin !== location.origin) return;
           e.preventDefault();
+          if (isMobileSidebar() && sidebar && sidebar.classList.contains("open")) {
+            setMobileSidebarOpen(false, { restoreFocus: false });
+          }
           if (window.gsap) {
             gsap.to(content, {
               autoAlpha: 0,

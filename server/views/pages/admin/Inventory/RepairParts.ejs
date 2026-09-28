@@ -1184,6 +1184,11 @@
   document.getElementById('rpSearch').addEventListener('input', () => { currentPage = 1; renderTable(); });
 
   window.updateInventoryClassForm = function() {
+    const equipmentType = ['equipment', 'tool'].includes(document.getElementById('partType')?.value);
+    const merchandiseOption = document.querySelector('input[name="partInventoryClass"][value="merchandise"]');
+    const assetOption = document.querySelector('input[name="partInventoryClass"][value="operational_asset"]');
+    if (merchandiseOption) merchandiseOption.disabled = equipmentType;
+    if (equipmentType && assetOption) assetOption.checked = true;
     const inventoryClass = document.querySelector('input[name="partInventoryClass"]:checked')?.value || 'merchandise';
     const operational = inventoryClass === 'operational_asset';
     document.getElementById('assetFields').hidden = !operational;
@@ -1191,6 +1196,7 @@
     document.getElementById('partMargin').closest('.mb-3').hidden = operational;
     if (operational) document.getElementById('partSellingPrice').value = '0';
   };
+  document.getElementById('partType')?.addEventListener('change', updateInventoryClassForm);
 
   // ── Margin Calculator ─────────────────────────────────────────────────
   ['partCostPrice', 'partSellingPrice'].forEach(id => {

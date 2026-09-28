@@ -165,6 +165,10 @@
   border-top: 1px solid var(--racs-line);
 }
 
+/* The public links stay in the desktop navbar. On smaller screens they move
+   into this same account drawer so the header needs only one menu trigger. */
+.racs-sidebar-site-navigation { display: none; }
+
 .racs-sidebar-group-label {
   margin: 0 0 0.375rem;
   padding: 0 0.625rem;
@@ -500,6 +504,13 @@
 .racs-sidebar-backdrop.is-visible { opacity: 1; }
 
 @media (max-width: 991.98px) {
+  #publicNavbar.has-customer-drawer .navbar-toggler,
+  #publicNavbar.has-customer-drawer #mainNav {
+    display: none !important;
+  }
+
+  .racs-sidebar-site-navigation { display: block; }
+
   .racs-sidebar {
     border-left: 1px solid var(--racs-line);
     box-shadow: 0 0 40px rgba(15, 23, 36, 0.18);

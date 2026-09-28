@@ -35,6 +35,22 @@ test('high-cost revenue and rating analytics use the bounded shared cache', () =
   assert.match(ratings, /options\.paginate === false \|\| options\.now/);
 });
 
+test('revenue analytics keeps evidence blobs off the critical path', () => {
+  const revenue = read('utils/revenueAnalytics.js');
+  const bookingModel = read('models/BookingService.js');
+  const paymentModel = read('models/Payment.js');
+
+  assert.match(revenue, /const BOOKING_EVIDENCE_EXCLUSIONS/);
+  assert.match(revenue, /const ORDER_ANALYTICS_FIELDS/);
+  assert.match(revenue, /const PAYMENT_ANALYTICS_FIELDS/);
+  assert.match(revenue, /const WALK_IN_ANALYTICS_FIELDS/);
+  assert.match(revenue, /BookingService\.find\(bookingsQuery\)[\s\S]*?\.select\(`\$\{BOOKING_EVIDENCE_EXCLUSIONS\} -statusHistory`\)/);
+  assert.match(revenue, /Payment\.find\(paymentsQuery\)\.select\(PAYMENT_ANALYTICS_FIELDS\)/);
+  assert.match(revenue, /completedServiceCosts:[\s\S]*?serviceCategory:/);
+  assert.match(bookingModel, /index\(\{ status: 1, completedAt: -1 \}\)/);
+  assert.match(paymentModel, /index\(\{ submittedAt: -1 \}\)/);
+});
+
 test('report routes batch independent database work', () => {
   const pages = read('routes/pages.js');
   const api = read('routes/adminApi.js');
@@ -63,8 +79,11 @@ test('admin and secretary shells avoid unnecessary remote blocking assets', () =
 
 test('report documents use a short private navigation cache', () => {
   const pages = read('routes/pages.js');
+  const api = read('routes/adminApi.js');
   assert.match(pages, /private, max-age=15, stale-while-revalidate=45/);
   assert.match(pages, /res\.vary\("Cookie"\)/);
+  assert.match(api, /revenue-analytics;dur=/);
+  assert.match(api, /private, max-age=15, stale-while-revalidate=30/);
 });
 
 test('revenue navigation renders a shell before expensive analytics finish', () => {

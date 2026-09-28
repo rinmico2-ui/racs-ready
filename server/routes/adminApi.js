@@ -8538,9 +8538,14 @@ router.get("/attention-queue/:bookingId/suggestions", async (req, res, next) => 
  *   period             — preset: "this_month" | "last_month" | "last_3_months" | "last_6_months" | "ytd" | "custom"
  */
 router.get("/reports/revenue", async (req, res, next) => {
+  const startedAt = process.hrtime.bigint();
   try {
     const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
     const { filters, technicians, analytics } = await buildRevenueAnalytics(req.query);
+    const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    res.set("Server-Timing", `revenue-analytics;dur=${durationMs.toFixed(1)}`);
+    res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
+    res.vary("Cookie");
     return res.json({ success: true, filters, technicians, analytics });
   } catch (err) {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });

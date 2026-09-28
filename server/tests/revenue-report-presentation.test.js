@@ -15,6 +15,10 @@ const revenueCss = fs.readFileSync(path.join(__dirname, "..", "public", "css", "
 const sharedKpiCss = fs.readFileSync(path.join(__dirname, "..", "public", "css", "report-kpis.css"), "utf8");
 const revenueAnalyticsSource = fs.readFileSync(path.join(__dirname, "..", "utils", "revenueAnalytics.js"), "utf8");
 const revenueAuditSource = fs.readFileSync(path.join(__dirname, "..", "scripts", "auditRevenueAnalytics.js"), "utf8");
+const walkInSaleSource = fs.readFileSync(path.join(__dirname, "..", "models", "WalkInSale.js"), "utf8");
+const posRoutesSource = fs.readFileSync(path.join(__dirname, "..", "routes", "posRoutes.js"), "utf8");
+const adminControllerSource = fs.readFileSync(path.join(__dirname, "..", "controllers", "adminController.js"), "utf8");
+const repairPartsTemplate = fs.readFileSync(path.join(__dirname, "..", "views", "pages", "admin", "Inventory", "RepairParts.ejs"), "utf8");
 
 test("revenue report renders with valid browser JavaScript", () => {
   [{ analytics: {} }, { analytics: null, deferredAnalytics: true }].forEach((locals) => {
@@ -72,6 +76,28 @@ test("revenue report provides service portfolio decisions and a disclosed foreca
   assert.match(revenueTemplate, /Allocation policy:/);
   assert.match(revenueTemplate, /not audited job costing/);
   assert.match(revenueTemplate, /planning estimate/);
+});
+
+test("POS analytics includes sellable inventory categories and excludes company equipment", () => {
+  for (const label of ["Repair Parts", "Consumables", "Aircon Products", "Top POS Products by Category"]) {
+    assert.match(revenueTemplate, new RegExp(label));
+  }
+  assert.match(revenueTemplate, /data-pos-category="repair_parts"/);
+  assert.match(revenueTemplate, /data-pos-category="consumables"/);
+  assert.match(revenueTemplate, /data-pos-category="aircon_products"/);
+  assert.match(revenueTemplate, /Company-owned Equipment is an operational asset and is excluded/);
+  assert.match(revenueTemplate, /renderPosCategorySection/);
+  assert.match(revenueAnalyticsSource, /recognizedWalkInOrders/);
+  assert.match(revenueAnalyticsSource, /counterSaleBusinessCategory/);
+  assert.match(revenueAnalyticsSource, /inventoryClass === "operational_asset"/);
+  assert.match(revenueAnalyticsSource, /posCategoryBreakdown/);
+  assert.match(revenueAnalyticsSource, /posCategoryProducts/);
+  assert.match(walkInSaleSource, /inventoryClass/);
+  assert.match(posRoutesSource, /Tool\.effectiveInventoryClass\(tool\)/);
+  assert.match(posRoutesSource, /type:\s*\{ \$nin: \["equipment", "tool"\] \}/);
+  assert.match(adminControllerSource, /\["equipment", "tool"\]\.includes\(normalizedType\)/);
+  assert.match(repairPartsTemplate, /merchandiseOption\.disabled = equipmentType/);
+  assert.match(revenueCss, /\.rr-pos-category-grid/);
 });
 
 test("revenue, service, and order reports share one KPI system", () => {

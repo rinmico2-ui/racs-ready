@@ -22,15 +22,19 @@ test("customer account drawer creates no page gutter or persistent content cover
 });
 
 test("customer sidebar assets are cache-busted together", () => {
-  assert.match(layout, /customer-sidebar\.css\?v=20260926-account-drawer-v4/);
-  assert.match(layout, /navbar-auth\.js\?v=20260926-account-drawer-v4/);
+  assert.match(layout, /customer-sidebar\.css\?v=20260928-unified-mobile-nav-v5/);
+  assert.match(layout, /navbar-auth\.js\?v=20260928-unified-mobile-nav-v5/);
 });
 
-test("desktop and mobile expose one accessible account drawer trigger", () => {
+test("authenticated mobile navigation uses one accessible combined drawer trigger", () => {
   const navbar = read("views/partials/navbar.ejs");
   const sidebar = read("views/partials/sidebar.ejs");
   assert.match(styles, /\.racs-menu-trigger\s*\{[^}]*display:\s*inline-flex/);
   assert.match(navbar, /id="racsMenuTrigger"[\s\S]*?racs-menu-trigger-label">My Account/);
+  assert.match(navbar, /has-customer-drawer/);
+  assert.match(styles, /#publicNavbar\.has-customer-drawer \.navbar-toggler,[\s\S]*?#publicNavbar\.has-customer-drawer #mainNav\s*\{\s*display:\s*none\s*!important/);
+  assert.match(styles, /\.racs-sidebar-site-navigation\s*\{\s*display:\s*block/);
+  assert.match(sidebar, /racs-sidebar-site-navigation[\s\S]*?href="\/"[\s\S]*?href="\/services"[\s\S]*?href="\/products"[\s\S]*?href="\/about"[\s\S]*?href="\/contact"/);
   assert.match(navbar, /<\/div>\s*<% if \(typeof user !== 'undefined' && user\) \{ %>\s*[\s\S]*?class="racs-navbar-account/);
   assert.match(sidebar, /id="authSidebar"[^>]*role="dialog"[^>]*aria-hidden="true"[^>]*inert/);
   assert.match(script, /sidebar\.removeAttribute\("inert"\)/);

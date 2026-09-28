@@ -9,6 +9,7 @@ const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
 const Order = require("../models/Order");
 const WalkInSale = require("../models/WalkInSale");
+const Tool = require("../models/Tool");
 const Technician = require("../models/Technician");
 const Inventory = require("../models/Inventory");
 const HVACProduct = require("../models/HVACProduct");
@@ -36,6 +37,15 @@ const {
   summarizeOrderCosts,
   summarizePaymentLedger,
 } = require("./enterpriseRevenue");
+
+// Revenue analysis never displays binary/image evidence. Keeping those fields
+// out of the reporting queries prevents base64 receipts and completion photos
+// from being transferred repeatedly for bookings, orders, and payments.
+const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
+const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
+const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
+const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod";
+const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.quantity items.totalPrice items.costPrice";
 
 /**
  * Resolve the reporting date range from either a preset `period` or explicit
@@ -158,14 +168,37 @@ async function computeRevenueAnalytics(query = {}) {
   if (ordersQuery.paymentStatus) recognizedOrderQuery.paymentStatus = ordersQuery.paymentStatus;
 
   const [bookings, rawPayments, orders, posSales, recognizedBookingRows, recognizedOrderRows, technicians] = await Promise.all([
-    sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(bookingsQuery).lean(),
-    Payment.find(paymentsQuery).lean(),
-    sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(ordersQuery).lean(),
-    sourceFilter === "service" || sourceFilter === "order" || serviceOnlyScope || !["all", "paid"].includes(psFilter) ? [] : WalkInSale.find(posQuery).lean(),
-    sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(recognizedBookingQuery).lean(),
-    sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(recognizedOrderQuery).lean(),
+    sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(bookingsQuery)
+      .select(`${BOOKING_EVIDENCE_EXCLUSIONS} -statusHistory`).lean(),
+    Payment.find(paymentsQuery).select(PAYMENT_ANALYTICS_FIELDS).lean(),
+    sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(ordersQuery)
+      .select(ORDER_ACTIVITY_FIELDS).lean(),
+    sourceFilter === "service" || sourceFilter === "order" || serviceOnlyScope || !["all", "paid"].includes(psFilter) ? [] : WalkInSale.find(posQuery).select(WALK_IN_ANALYTICS_FIELDS).lean(),
+    sourceFilter === "pos" || sourceFilter === "order" ? [] : BookingService.find(recognizedBookingQuery)
+      .select(BOOKING_EVIDENCE_EXCLUSIONS).lean(),
+    sourceFilter === "service" || sourceFilter === "pos" || serviceOnlyScope ? [] : Order.find(recognizedOrderQuery)
+      .select(ORDER_ANALYTICS_FIELDS).lean(),
     Technician.find({}, "name").sort({ name: 1 }).lean(),
   ]);
+  const counterItemIds = [...new Set(
+    posSales.flatMap((sale) => (sale.items || []).map((item) => String(item.toolId || ""))).filter(Boolean),
+  )];
+  const counterInventoryRows = counterItemIds.length
+    ? await Tool.find({ _id: { $in: counterItemIds } }).select("type itemType inventoryClass").lean()
+    : [];
+  const counterInventoryById = new Map(counterInventoryRows.map((item) => [String(item._id), item]));
+
+  function counterSaleBusinessCategory(item) {
+    const catalogItem = counterInventoryById.get(String(item?.toolId || ""));
+    const inventoryClass = item?.inventoryClass
+      || (catalogItem ? Tool.effectiveInventoryClass(catalogItem) : "");
+    const rawType = String(item?.itemType || catalogItem?.type || catalogItem?.itemType || "").toLowerCase();
+    const rawCategory = String(item?.category || "").trim().toLowerCase();
+    if (inventoryClass === "operational_asset" || ["equipment", "tool"].includes(rawType)
+      || rawCategory === "equipment") return null;
+    if (rawType === "consumable" || rawCategory === "consumable") return "consumables";
+    return "repair_parts";
+  }
   const uniqueBookings = Array.from(new Map(
     [...bookings, ...recognizedBookingRows].map((booking) => [String(booking._id), booking]),
   ).values());
@@ -234,11 +267,15 @@ async function computeRevenueAnalytics(query = {}) {
   );
   filteredBookings = filteredBookings.filter((booking) => !orderLinkedBookingIds.has(String(booking._id)));
   recognizedBookings = recognizedBookings.filter((booking) => !orderLinkedBookingIds.has(String(booking._id)));
+  const recognizedBookingById = new Map(recognizedBookings.map((booking) => [String(booking._id), booking]));
+  const projectToBooking = new Map(Array.from(projectPricingMap.entries())
+    .map(([bookingId, entry]) => [String(entry.projectId), bookingId]));
 
   // ── Core metrics ──
   const serviceRevenue = filteredBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
   const orderRevenue = orders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0);
   const walkInOrders = orders.filter((order) => order.salesChannel === "walk_in");
+  const recognizedWalkInOrders = recognizedOrders.filter((order) => order.salesChannel === "walk_in");
   const walkInOrderRevenue = walkInOrders.reduce((sum, order) => sum + Number(order.total || order.totalAmount || 0), 0);
   const onlineOrderRevenue = Math.max(0, orderRevenue - walkInOrderRevenue);
   const walkInOrderTransactions = walkInOrders.length;
@@ -265,7 +302,7 @@ async function computeRevenueAnalytics(query = {}) {
   if (filteredBookings.length) cohortEntityFilters.push({ bookingId: { $in: filteredBookings.map((booking) => booking._id) } });
   if (orders.length) cohortEntityFilters.push({ orderId: { $in: orders.map((order) => order._id) } });
   const cohortProjectIds = Array.from(projectPricingMap.entries())
-    .filter(([bookingId]) => filteredBookings.some((booking) => String(booking._id) === bookingId))
+    .filter(([bookingId]) => filteredBookingIds.has(bookingId))
     .map(([, entry]) => entry.projectId);
   if (cohortProjectIds.length) cohortEntityFilters.push({ projectId: { $in: cohortProjectIds } });
   const cohortPayments = cohortEntityFilters.length
@@ -277,7 +314,7 @@ async function computeRevenueAnalytics(query = {}) {
           { refundAmount: { $gt: 0 } },
         ] },
       ],
-    }).lean()
+    }).select(PAYMENT_ANALYTICS_FIELDS).lean()
     : [];
   const cohortNetCollections = netPaymentsThrough(cohortPayments, endDate) + posRevenue;
   const outstandingValue = Math.max(0, totalRevenue - cohortNetCollections);
@@ -401,7 +438,7 @@ async function computeRevenueAnalytics(query = {}) {
     recognizedOrders.flatMap((order) => (order.items || []).map((item) => String(item.inventoryId || ""))).filter(Boolean),
   )];
   const recognizedProjectIds = Array.from(projectPricingMap.entries())
-    .filter(([bookingId]) => recognizedBookings.some((booking) => String(booking._id) === bookingId))
+    .filter(([bookingId]) => recognizedBookingById.has(bookingId))
     .map(([, entry]) => entry.projectId);
   const [serviceCostAnalytics, inventoryCosts, hvacCostProducts, expenseRows, payrollRows, projectMaterials] = await Promise.all([
     buildServiceCostAnalytics(recognizedBookings, { revenueResolver: getBookingRevenue }),
@@ -497,8 +534,7 @@ async function computeRevenueAnalytics(query = {}) {
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) monthlyPartsCost[key] += Number(sale.totalCost || 0);
   });
   projectMaterials.forEach((material) => {
-    const projectEntry = Array.from(projectPricingMap.entries()).find(([, entry]) => String(entry.projectId) === String(material.projectId));
-    const booking = projectEntry ? recognizedBookings.find((row) => String(row._id) === projectEntry[0]) : null;
+    const booking = recognizedBookingById.get(String(projectToBooking.get(String(material.projectId)) || ""));
     if (!booking) return;
     const key = new Date(bookingCompletionDate(booking)).toLocaleString("en-PH", { month: "short", year: "numeric" });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) {
@@ -558,8 +594,21 @@ async function computeRevenueAnalytics(query = {}) {
   posSales.forEach((sale) => {
     const factor = Number(sale.subtotal || 0) > 0 ? Number(sale.totalAmount || 0) / Number(sale.subtotal) : 1;
     (sale.items || []).forEach((item) => {
-      const key = item.itemName || "Unnamed";
-      if (!posProductMap[key]) posProductMap[key] = { name: key, category: item.category || "Other", channel: "pos", quantity: 0, revenue: 0, cost: 0, profit: 0 };
+      const businessCategory = counterSaleBusinessCategory(item);
+      if (!businessCategory) return;
+      const name = item.itemName || "Unnamed";
+      const key = `${businessCategory}:${name}`;
+      if (!posProductMap[key]) posProductMap[key] = {
+        name,
+        category: item.category || (businessCategory === "consumables" ? "Consumable" : "Repair Part"),
+        businessCategory,
+        businessCategoryLabel: businessCategory === "consumables" ? "Consumables" : "Repair Parts",
+        channel: "pos",
+        quantity: 0,
+        revenue: 0,
+        cost: 0,
+        profit: 0,
+      };
       const row = posProductMap[key];
       row.quantity += Number(item.quantity || 0);
       row.revenue += Number(item.totalPrice || 0) * factor;
@@ -567,6 +616,74 @@ async function computeRevenueAnalytics(query = {}) {
       row.profit = row.revenue - row.cost;
     });
   });
+
+  // The POS screen uses two persistence paths by design: counter merchandise
+  // is a WalkInSale, while aircon checkout creates a walk-in Order so that
+  // fulfillment, installation, warranty, and serial tracking remain intact.
+  // Reconcile both paths here as one management-facing POS category view.
+  const orderCostByInventoryId = new Map(
+    orderCostCatalog.map((item) => [String(item._id), Number(item.costPrice || 0)]),
+  );
+  const walkInAirconProductMap = {};
+  recognizedWalkInOrders.forEach((order) => {
+    const merchandiseSubtotal = Number(order.subtotal || 0)
+      || (order.items || []).reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+    const netMerchandise = Math.max(0, merchandiseSubtotal - Number(order.discount || 0));
+    const revenueFactor = merchandiseSubtotal > 0 ? netMerchandise / merchandiseSubtotal : 1;
+
+    (order.items || []).forEach((item) => {
+      const name = item.modelLine || item.brand || "Unknown Aircon Unit";
+      const capacity = item.capacity ? `${item.capacity}${item.capacityUnit || "HP"}` : "";
+      const key = [item.brand || "", name, capacity].join(":");
+      if (!walkInAirconProductMap[key]) {
+        walkInAirconProductMap[key] = {
+          name,
+          category: [item.brand, capacity].filter(Boolean).join(" · ") || "Aircon",
+          businessCategory: "aircon_products",
+          businessCategoryLabel: "Aircon Products",
+          channel: "walk_in_order",
+          quantity: 0,
+          revenue: 0,
+          cost: 0,
+          profit: 0,
+        };
+      }
+      const row = walkInAirconProductMap[key];
+      const quantity = Number(item.quantity || 0);
+      row.quantity += quantity;
+      row.revenue += Number(item.totalPrice || 0) * revenueFactor;
+      row.cost += Number(orderCostByInventoryId.get(String(item.inventoryId || "")) || 0) * quantity;
+      row.profit = row.revenue - row.cost;
+    });
+  });
+
+  const repairPartProducts = Object.values(posProductMap).filter((product) => product.businessCategory === "repair_parts");
+  const consumableProducts = Object.values(posProductMap).filter((product) => product.businessCategory === "consumables");
+  const airconProducts = Object.values(walkInAirconProductMap);
+  const posCategoryProducts = [...repairPartProducts, ...consumableProducts, ...airconProducts]
+    .sort((left, right) => right.revenue - left.revenue);
+  const summarizePosCategory = (key, label, products, transactionCount) => {
+    const revenue = products.reduce((sum, product) => sum + Number(product.revenue || 0), 0);
+    const cost = products.reduce((sum, product) => sum + Number(product.cost || 0), 0);
+    const profit = revenue - cost;
+    return {
+      key,
+      label,
+      transactionCount,
+      units: products.reduce((sum, product) => sum + Number(product.quantity || 0), 0),
+      revenue,
+      cost,
+      profit,
+      margin: revenue > 0 ? (profit / revenue) * 100 : 0,
+    };
+  };
+  const posCategoryBreakdown = [
+    summarizePosCategory("repair_parts", "Repair Parts", repairPartProducts,
+      posSales.filter((sale) => (sale.items || []).some((item) => counterSaleBusinessCategory(item) === "repair_parts")).length),
+    summarizePosCategory("consumables", "Consumables", consumableProducts,
+      posSales.filter((sale) => (sale.items || []).some((item) => counterSaleBusinessCategory(item) === "consumables")).length),
+    summarizePosCategory("aircon_products", "Aircon Products", airconProducts, recognizedWalkInOrders.length),
+  ];
 
   // ── Order products (online / pickup HVAC units) ──
   const orderProductMap = {};
@@ -674,7 +791,6 @@ async function computeRevenueAnalytics(query = {}) {
     ? (evidencedRecognizedActivity / recognizedActivityCount) * 100
     : 100;
 
-  const projectToBooking = new Map(Array.from(projectPricingMap.entries()).map(([bookingId, entry]) => [String(entry.projectId), bookingId]));
   const materialCostByBooking = new Map();
   projectMaterials.forEach((material) => {
     const bookingId = projectToBooking.get(String(material.projectId));
@@ -780,13 +896,13 @@ async function computeRevenueAnalytics(query = {}) {
       refundMethods: paymentLedger.refundsByMethod,
       coreRevenue, repairRevenue, mixRevenue,
       corePartsCost: serviceCostAnalytics.services
-        .filter(s => { const b = recognizedBookings.find(fb => String(fb._id) === s.bookingId); return b ? serviceCategory(b) === "core" : false; })
+        .filter(s => { const b = recognizedBookingById.get(String(s.bookingId)); return b ? serviceCategory(b) === "core" : false; })
         .reduce((sum, s) => sum + (s.partsCost || 0), 0),
       repairPartsCost: serviceCostAnalytics.services
-        .filter(s => { const b = recognizedBookings.find(fb => String(fb._id) === s.bookingId); return b ? serviceCategory(b) === "repair" : false; })
+        .filter(s => { const b = recognizedBookingById.get(String(s.bookingId)); return b ? serviceCategory(b) === "repair" : false; })
         .reduce((sum, s) => sum + (s.partsCost || 0), 0),
       mixPartsCost: serviceCostAnalytics.services
-        .filter(s => { const b = recognizedBookings.find(fb => String(fb._id) === s.bookingId); return b ? serviceCategory(b) === "mix" : false; })
+        .filter(s => { const b = recognizedBookingById.get(String(s.bookingId)); return b ? serviceCategory(b) === "mix" : false; })
         .reduce((sum, s) => sum + (s.partsCost || 0), 0),
       monthlyRevenue, dailyRevenue, monthlyPartsCost, totalPartsCost, grossProfit, grossProfitMargin,
       serviceDirectCost, orderCost: orderCostSummary.totalCost, orderCostCoverage: orderCostSummary.coveragePercent,
@@ -796,8 +912,26 @@ async function computeRevenueAnalytics(query = {}) {
       serviceProfitability,
       salesForecast,
       completedServiceCosts: serviceCostAnalytics.services.map(s => {
-        const booking = recognizedBookings.find(b => String(b._id) === s.bookingId);
-        return { ...s, serviceCategory: booking ? serviceCategory(booking) : "core" };
+        const booking = recognizedBookingById.get(String(s.bookingId));
+        return {
+          bookingId: s.bookingId,
+          reference: s.reference,
+          serviceName: s.serviceName,
+          customer: s.customer,
+          technician: s.technician,
+          completedAt: s.completedAt,
+          revenue: s.revenue,
+          partsCost: s.partsCost,
+          consumablesCost: s.consumablesCost,
+          laborCost: s.laborCost,
+          localPurchaseCost: s.localPurchaseCost,
+          grossProfit: s.grossProfit,
+          grossProfitMargin: s.grossProfitMargin,
+          laborHours: s.laborHours,
+          consumables: s.consumables,
+          repairParts: s.repairParts,
+          serviceCategory: booking ? serviceCategory(booking) : "core",
+        };
       }),
       directCostCoverage,
       atRiskServiceBookings, openServiceBookings, openOrders,
@@ -815,6 +949,7 @@ async function computeRevenueAnalytics(query = {}) {
       collectionRate, outstandingValue, serviceShare, orderShare, posShare,
       topTechnicians, recentTransactions, growthRate: growthRate.toFixed(1), posPaymentMethods,
       topPosProducts: Object.values(posProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
+      posCategoryBreakdown, posCategoryProducts,
       topOrderProducts, orderBrandAnalysis, orderCapacityAnalysis, orderFulfillmentMap,
       combinedTopProducts, totalProductUnits, totalProductRevenue,
       onlineOrderProductUnits, onlineOrderProductRevenue, posProductRevenue,

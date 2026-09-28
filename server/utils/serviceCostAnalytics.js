@@ -102,11 +102,23 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     return empty;
   }
 
+  // These collections can contain image/signature payloads and long workflow
+  // histories. Profitability only needs the fields below, so keep the report
+  // query deliberately narrow. This is especially important for hosted MongoDB
+  // connections where transferring base64 evidence can dominate the request.
   const [usages, reports, assignments] = await Promise.all([
-    ServiceToolUsage.find({ bookingId: { $in: ids }, lifecycleStatus: { $ne: "voided" } }).sort({ usedAt: 1 }).lean(),
-    ServiceReport.find({ bookingId: { $in: ids } }).lean(),
+    ServiceToolUsage.find({ bookingId: { $in: ids }, lifecycleStatus: { $ne: "voided" } })
+      .select("bookingId serviceItemId itemName itemType unit quantityUsed unitPrice toolCost usedAt")
+      .sort({ usedAt: 1 })
+      .lean(),
+    ServiceReport.find({ bookingId: { $in: ids } })
+      .select("bookingId serviceItemId technicianId serviceName partsReplaced laborHours actualLaborCost status submittedAt followUpRequired createdAt updatedAt")
+      .lean(),
     EquipmentAssignment.find({ bookingId: { $in: ids }, consumable: { $ne: true } })
-      .populate("technicianId", "name firstName lastName userEmail").sort({ workDate: -1 }).lean(),
+      .select("bookingId technicianId equipmentName quantity status checkedOutAt returnedAt workDate")
+      .populate("technicianId", "name firstName lastName userEmail")
+      .sort({ workDate: -1 })
+      .lean(),
   ]);
   const usageMap = new Map();
   usages.forEach(item => {

@@ -12,6 +12,17 @@
 
 .sr-shell { max-width: 1440px; margin: 0 auto; color: var(--sr-ink); }
 .sr-shell *, .sr-shell *::before, .sr-shell *::after { box-sizing: border-box; }
+.sr-shell.is-loading > :not(.sr-hero) { display: none !important; }
+.sr-shell.is-loading .sr-hero { margin-bottom: 12px; opacity: .88; }
+.sr-data-state { display: flex; max-width: 1440px; align-items: center; gap: 12px; margin: 0 auto 16px; padding: 15px 17px; border: 1px solid #bfdbfe; border-radius: 13px; background: #eff6ff; color: #1e40af; box-shadow: 0 7px 18px rgba(37,99,235,.06); }
+.sr-data-state[hidden] { display: none; }
+.sr-data-state .spinner-border { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; border-width: 2px; }
+.sr-data-state span { display: grid; gap: 2px; }
+.sr-data-state strong { font-size: .76rem; }
+.sr-data-state small { color: #4f6f9f; font-size: .66rem; }
+.sr-data-state.is-error { border-color: #fecaca; background: #fef2f2; color: #b91c1c; }
+.sr-data-state.is-error small { color: #991b1b; }
+.sr-data-state button { margin-left: auto; padding: 7px 11px; border: 1px solid currentColor; border-radius: 8px; background: #fff; color: inherit; font-size: .68rem; font-weight: 750; }
 
 .sr-hero {
   display: flex;
@@ -242,6 +253,8 @@
 .sr-evidence-notes strong { color: #40506a; }
 .sr-evidence-empty { min-height: 310px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; }
 .sr-evidence-empty > i { width: 54px; height: 54px; display: grid; place-items: center; margin-bottom: 12px; border-radius: 15px; background: #eaf1ff; color: var(--sr-blue); font-size: 1.35rem; }
+.sr-evidence-loading .spinner-border { width: 1.35rem; height: 1.35rem; margin-bottom: 12px; border-width: 2px; color: var(--sr-blue); }
+.sr-evidence-empty .sr-inline-link { margin-top: 12px; padding: 8px 12px; border: 1px solid #cbd9ee; border-radius: 8px; background: #fff; color: var(--sr-blue); }
 .sr-evidence-empty strong { color: #334155; font-size: .82rem; }
 .sr-evidence-empty p { max-width: 470px; margin: 5px 0 0; color: var(--sr-muted); font-size: .66rem; line-height: 1.5; }
 .sr-evidence-modal .modal-content { overflow: hidden; border: 0; border-radius: 16px; box-shadow: 0 25px 65px rgba(15,23,42,.28); }

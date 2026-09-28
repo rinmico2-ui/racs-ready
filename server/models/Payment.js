@@ -127,6 +127,14 @@ paymentSchema.index({ status: 1, submittedAt: -1 });
 paymentSchema.index({ status: 1, verifiedAt: -1 });
 paymentSchema.index({ status: 1, completedAt: -1 });
 paymentSchema.index({ status: 1, refundedAt: -1 });
+// Revenue reporting filters by several alternative financial event dates. The
+// sparse date indexes let MongoDB satisfy each $or branch without scanning the
+// complete payment ledger when no status filter is selected.
+paymentSchema.index({ verifiedAt: -1 }, { sparse: true });
+paymentSchema.index({ completedAt: -1 }, { sparse: true });
+paymentSchema.index({ collectedAt: -1 }, { sparse: true });
+paymentSchema.index({ submittedAt: -1 });
+paymentSchema.index({ refundedAt: -1 }, { sparse: true });
 paymentSchema.index({ collectedBy: 1, status: 1, collectedAt: -1 });
 paymentSchema.index({ status: 1, resolvedAt: 1, recoveryFollowUpDate: 1 });
 

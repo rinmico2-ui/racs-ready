@@ -10,6 +10,30 @@ const auth = require("../middleware/authenticate");
 const pageAuth = require("../middleware/pageAuth");
 const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
+const { cacheKey } = require("../utils/reportCache");
+
+const serviceReportFragmentCache = new Map();
+const SERVICE_REPORT_FRAGMENT_TTL_MS = 30000;
+
+function readServiceReportFragment(query) {
+  const key = cacheKey("service-report-fragment", query);
+  const entry = serviceReportFragmentCache.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    if (entry) serviceReportFragmentCache.delete(key);
+    return { key, html: null };
+  }
+  return { key, html: entry.html };
+}
+
+function writeServiceReportFragment(key, html) {
+  serviceReportFragmentCache.set(key, {
+    html,
+    expiresAt: Date.now() + SERVICE_REPORT_FRAGMENT_TTL_MS,
+  });
+  if (serviceReportFragmentCache.size <= 40) return;
+  const oldestKey = serviceReportFragmentCache.keys().next().value;
+  serviceReportFragmentCache.delete(oldestKey);
+}
 
 let farePerKm = 40;
 
@@ -95,6 +119,12 @@ const {
   applyServiceBookingCounts,
   getServiceBookingCounts,
 } = require("../utils/serviceBookingCounts");
+
+// Backward compatibility for links produced by older chatbot responses and
+// previously shared bookmarks. The consolidated booking catalog lives here.
+router.get("/core-service", pageAuth.requireCustomerOrGuest, (req, res) => {
+  res.redirect(301, "/services");
+});
 
 router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
   let initialServices = { coreServices: [], repairs: [] };
@@ -2539,7 +2569,30 @@ router.get(
 router.get(
   "/admin/reports/service",
   pageAuth.requireRole("admin"),
+  (req, res) => {
+    // First paint must not wait for the full service analytics workload. The
+    // report view hydrates itself from the authenticated data fragment below.
+    res.render("pages/admin/Reports/ServiceReport", {
+      title: "Services",
+      layout: "layouts/admin",
+      analytics: null,
+      reportError: null,
+      deferredAnalytics: true,
+    });
+  },
+);
+
+router.get(
+  "/admin/reports/service/data",
+  pageAuth.requireRole("admin"),
   async (req, res) => {
+    const cachedFragment = readServiceReportFragment(req.query);
+    if (cachedFragment.html) {
+      res.set("X-Report-Cache", "hit");
+      return res.send(cachedFragment.html);
+    }
+    res.set("X-Report-Cache", "miss");
+
     try {
       const BookingService = require("../models/BookingService");
       const Technician = require("../models/Technician");
@@ -2587,8 +2640,10 @@ router.get(
       // Load them concurrently and avoid the old order/attendance reads that no
       // longer feed anything rendered by this page.
       const [bookingRows, technicians] = await Promise.all([
-        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd } }).lean(),
-        Technician.find({}).lean(),
+        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd } })
+          .select("-statusHistory -services.statusHistory -services.priceHistory -cancellationHistory -rescheduleHistory -contactAttempts -imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof")
+          .lean(),
+        Technician.find({}).select("name userEmail specialization active").lean(),
       ]);
       let bookings = bookingRows;
 
@@ -3167,69 +3222,15 @@ router.get(
         feedbackCoverage: completedBookingIds.length ? (ratedCompletedIds.size / completedBookingIds.length) * 100 : 0,
       };
 
-      // Photo evidence belongs beside the analytics that it supports. Reuse
-      // the filtered booking cohort and the ServiceReport rows already loaded
-      // for cost analytics so the gallery follows every active report filter
-      // without adding another database read.
-      const reportsByBooking = new Map();
-      completedReports.forEach(report => {
-        const key = String(report.bookingId || "");
-        if (!reportsByBooking.has(key)) reportsByBooking.set(key, []);
-        reportsByBooking.get(key).push(report);
-      });
-      const displayableImageUrl = value => {
-        const url = String(value || "").trim();
-        if (/^\/(?:uploads|images)\//i.test(url)) return url;
-        if (/^https?:\/\//i.test(url)) return url;
-        if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(url)) return url;
-        return "";
-      };
-      const photoEvidenceReports = bookings.map(booking => {
-        const bookingReports = (reportsByBooking.get(String(booking._id)) || [])
-          .slice()
-          .sort((left, right) => new Date(right.submittedAt || right.updatedAt || right.createdAt || 0) - new Date(left.submittedAt || left.updatedAt || left.createdAt || 0));
-        const latestReport = bookingReports[0] || null;
-        const candidates = [];
-        const addPhotos = (values, label) => (Array.isArray(values) ? values : [values]).forEach(value => candidates.push({ url: value, label }));
-        bookingReports.forEach(report => addPhotos(report.photos, "Service report"));
-        addPhotos(booking.proofPhoto, "Completion proof");
-        addPhotos(booking.afterPhotos, "After service");
-        addPhotos(booking.inspection?.photos, "Inspection");
-        addPhotos(booking.unitInfo?.photos, "Customer issue");
-        (booking.services || []).forEach(service => {
-          addPhotos(service.photos, "Service item");
-          addPhotos(service.inspection?.photos, "Inspection");
-          addPhotos(service.diagnosis?.photos, "Diagnosis");
-        });
-        const seen = new Set();
-        const photos = candidates.reduce((items, candidate) => {
-          const url = displayableImageUrl(candidate.url);
-          if (!url || seen.has(url)) return items;
-          seen.add(url);
-          items.push({ url, label: candidate.label });
-          return items;
-        }, []);
-        if (!photos.length) return null;
-        const assignedTechnician = technicianById.get(String(latestReport?.technicianId || booking.technicianId || booking.technician?._id || ""));
-        const serviceNames = serviceNamesFor(booking);
-        return {
-          bookingId: String(booking._id),
-          reference: booking.bookingReference || booking.workOrderNumber || `#${String(booking._id).slice(-6).toUpperCase()}`,
-          customer: latestReport?.customerName || booking.customer?.name || "Customer not recorded",
-          service: latestReport?.serviceName || serviceNames.join(", ") || booking.serviceType || "Service",
-          technician: assignedTechnician?.name || booking.technician?.name || "Unassigned",
-          reportStatus: latestReport?.status || "evidence_only",
-          reportCount: bookingReports.length,
-          findings: latestReport?.findings || "",
-          actionsTaken: latestReport?.actionsTaken || "",
-          date: latestReport?.submittedAt || latestReport?.updatedAt || booking.completedAt || booking.updatedAt || booking.createdAt,
-          photos,
-        };
-      }).filter(Boolean).sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0)).slice(0, 24);
+      // Evidence images are intentionally loaded only when the Photos tab is
+      // opened. A report or booking can contain base64 photos and signatures;
+      // moving those blobs off the critical path keeps the overview responsive.
+      const photoEvidenceReports = [];
+      const photoEvidenceBookingIds = bookings.slice(0, 500).map(booking => String(booking._id));
 
-      res.render("pages/admin/Reports/ServiceReport", {
+      const viewModel = {
         title: "Services",
-        layout: "layouts/admin",
+        layout: false,
         analytics: {
           totalBookings,
           completedBookings,
@@ -3305,20 +3306,144 @@ router.get(
           equipmentUsage: serviceCostAnalytics.equipment,
           serviceControls,
           photoEvidenceReports,
+          photoEvidenceBookingIds,
+          photoEvidenceDeferred: photoEvidenceBookingIds.length > 0,
         },
         reportError: null,
+        deferredAnalytics: false,
+      };
+      const html = await new Promise((resolve, reject) => {
+        res.render("pages/admin/Reports/ServiceReport", viewModel, (renderError, renderedHtml) => {
+          if (renderError) reject(renderError);
+          else resolve(renderedHtml);
+        });
       });
+      writeServiceReportFragment(cachedFragment.key, html);
+      return res.send(html);
     } catch (err) {
       console.error("Service reports error:", err);
       res.render("pages/admin/Reports/ServiceReport", {
         title: "Services",
-        layout: "layouts/admin",
+        layout: false,
         analytics: null,
         reportError: "Service analytics could not be loaded. Please retry or check the server log.",
+        deferredAnalytics: false,
       });
     }
   },
 );
+
+router.post(
+  "/admin/reports/service/photos",
+  pageAuth.requireRole("admin"),
+  async (req, res) => {
+    try {
+      const mongoose = require("mongoose");
+      const BookingService = require("../models/BookingService");
+      const ServiceReport = require("../models/ServiceReport");
+      const Technician = require("../models/Technician");
+      const requestedIds = Array.isArray(req.body?.bookingIds) ? req.body.bookingIds : [];
+      const bookingIds = [...new Set(requestedIds
+        .map(value => String(value || "").trim())
+        .filter(value => mongoose.Types.ObjectId.isValid(value)))]
+        .slice(0, 500);
+
+      if (!bookingIds.length) {
+        return res.render("pages/admin/Reports/_ServicePhotoEvidence", {
+          layout: false,
+          photoEvidenceReports: [],
+          photoEvidenceDeferred: false,
+        });
+      }
+
+      const [bookings, reports] = await Promise.all([
+        BookingService.find({ _id: { $in: bookingIds } })
+          .select("bookingReference workOrderNumber customer.name service.name serviceType services.name services.photos services.inspection.photos services.diagnosis.photos technicianId technician.name proofPhoto afterPhotos inspection.photos unitInfo.photos completedAt updatedAt createdAt")
+          .lean(),
+        ServiceReport.find({ bookingId: { $in: bookingIds } })
+          .select("bookingId technicianId customerName serviceName status findings actionsTaken submittedAt updatedAt createdAt photos")
+          .lean(),
+      ]);
+
+      const technicianIds = [...new Set([
+        ...bookings.map(booking => booking.technicianId),
+        ...reports.map(report => report.technicianId),
+      ].filter(Boolean).map(String))];
+      const technicians = technicianIds.length
+        ? await Technician.find({ _id: { $in: technicianIds } }).select("name").lean()
+        : [];
+      const technicianById = new Map(technicians.map(technician => [String(technician._id), technician]));
+      const reportsByBooking = new Map();
+      reports.forEach(report => {
+        const key = String(report.bookingId || "");
+        if (!reportsByBooking.has(key)) reportsByBooking.set(key, []);
+        reportsByBooking.get(key).push(report);
+      });
+      const displayableImageUrl = value => {
+        const url = String(value || "").trim();
+        if (/^\/(?:uploads|images)\//i.test(url)) return url;
+        if (/^https?:\/\//i.test(url)) return url;
+        if (/^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(url)) return url;
+        return "";
+      };
+      const addPhotoCandidates = (target, values, label) => {
+        (Array.isArray(values) ? values : [values]).forEach(value => target.push({ url: value, label }));
+      };
+
+      const photoEvidenceReports = bookings.map(booking => {
+        const bookingReports = (reportsByBooking.get(String(booking._id)) || [])
+          .slice()
+          .sort((left, right) => new Date(right.submittedAt || right.updatedAt || right.createdAt || 0) - new Date(left.submittedAt || left.updatedAt || left.createdAt || 0));
+        const latestReport = bookingReports[0] || null;
+        const candidates = [];
+        bookingReports.forEach(report => addPhotoCandidates(candidates, report.photos, "Service report"));
+        addPhotoCandidates(candidates, booking.proofPhoto, "Completion proof");
+        addPhotoCandidates(candidates, booking.afterPhotos, "After service");
+        addPhotoCandidates(candidates, booking.inspection?.photos, "Inspection");
+        addPhotoCandidates(candidates, booking.unitInfo?.photos, "Customer issue");
+        (booking.services || []).forEach(service => {
+          addPhotoCandidates(candidates, service.photos, "Service item");
+          addPhotoCandidates(candidates, service.inspection?.photos, "Inspection");
+          addPhotoCandidates(candidates, service.diagnosis?.photos, "Diagnosis");
+        });
+        const seen = new Set();
+        const photos = candidates.reduce((items, candidate) => {
+          const url = displayableImageUrl(candidate.url);
+          if (!url || seen.has(url)) return items;
+          seen.add(url);
+          items.push({ url, label: candidate.label });
+          return items;
+        }, []);
+        if (!photos.length) return null;
+        const technician = technicianById.get(String(latestReport?.technicianId || booking.technicianId || ""));
+        return {
+          bookingId: String(booking._id),
+          reference: booking.bookingReference || booking.workOrderNumber || `#${String(booking._id).slice(-6).toUpperCase()}`,
+          customer: latestReport?.customerName || booking.customer?.name || "Customer not recorded",
+          service: latestReport?.serviceName || (booking.services || []).map(service => service.name).filter(Boolean).join(", ") || booking.service?.name || booking.serviceType || "Service",
+          technician: technician?.name || booking.technician?.name || "Unassigned",
+          reportStatus: latestReport?.status || "evidence_only",
+          findings: latestReport?.findings || "",
+          actionsTaken: latestReport?.actionsTaken || "",
+          date: latestReport?.submittedAt || latestReport?.updatedAt || booking.completedAt || booking.updatedAt || booking.createdAt,
+          photos,
+        };
+      }).filter(Boolean)
+        .sort((left, right) => new Date(right.date || 0) - new Date(left.date || 0))
+        .slice(0, 24);
+
+      return res.render("pages/admin/Reports/_ServicePhotoEvidence", {
+        layout: false,
+        photoEvidenceReports,
+        photoEvidenceDeferred: false,
+      });
+    } catch (error) {
+      console.error("Service report photos error:", error);
+      return res.status(500).send("Service photos could not be loaded.");
+    }
+  },
+);
+
 router.get(
   "/admin/reports/inventory",
   pageAuth.requireRole("admin"),

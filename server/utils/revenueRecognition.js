@@ -30,10 +30,23 @@ async function buildProjectPricingMap(bookings) {
       .select("projectId date completedUnits").lean(),
   ]);
   const bookingMap = new Map(bookings.map((booking) => [String(booking._id), booking]));
+  const workOrdersByProject = new Map();
+  const dailyRowsByProject = new Map();
+  workOrders.forEach((order) => {
+    const key = String(order.projectId);
+    if (!workOrdersByProject.has(key)) workOrdersByProject.set(key, []);
+    workOrdersByProject.get(key).push(order);
+  });
+  dailyRows.forEach((row) => {
+    const key = String(row.projectId);
+    if (!dailyRowsByProject.has(key)) dailyRowsByProject.set(key, []);
+    dailyRowsByProject.get(key).push(row);
+  });
   const result = new Map();
   projects.forEach((project) => {
-    const projectOrders = workOrders.filter((order) => String(order.projectId) === String(project._id));
-    const projectDays = dailyRows.filter((day) => String(day.projectId) === String(project._id));
+    const projectKey = String(project._id);
+    const projectOrders = workOrdersByProject.get(projectKey) || [];
+    const projectDays = dailyRowsByProject.get(projectKey) || [];
     const booking = bookingMap.get(String(project.bookingId));
     result.set(String(project.bookingId), {
       projectId: String(project._id),
