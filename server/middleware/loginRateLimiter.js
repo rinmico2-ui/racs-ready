@@ -26,6 +26,14 @@ function _key(type, identifier) {
   return `${type}:${String(identifier || "").toLowerCase()}`;
 }
 
+// Scope network-based progressive failures to the attempted account. This
+// prevents one customer's mistakes from locking every user behind the same NAT,
+// while the outer IP burst limiter still detects broad credential flooding.
+function scopedIpIdentifier(ip, accountIdentifier) {
+  const account = String(accountIdentifier || "").trim().toLowerCase();
+  return account ? `${String(ip || "unknown")}|${account}` : String(ip || "unknown");
+}
+
 function _now() {
   return Date.now();
 }
@@ -161,4 +169,5 @@ module.exports = {
   recordFailed,
   isBlocked,
   reset,
+  scopedIpIdentifier,
 };

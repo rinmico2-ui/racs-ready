@@ -13,9 +13,10 @@ const cookieParser = require("cookie-parser");
 const attachCurrentUser = require("./middleware/currentUser");
 const User = require("./models/User");
 const dns = require("dns");
-const rateLimit = require("express-rate-limit");
+const { rateLimit } = require("express-rate-limit");
 const {
   shouldSkipAuthAttemptLimit,
+  shouldSkipRegistrationAttemptLimit,
   shouldSkipGeneralApiLimit,
 } = require("./utils/authRateLimitPolicy");
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
@@ -23,6 +24,12 @@ const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
 const { buildMongoConnectionUri, isTlsProtectedMongoUri } = require("./utils/mongoConnection");
+const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
+const {
+  authenticatedOrIpKey,
+  emailOrIpKey,
+  generalApiLimit,
+} = require("./utils/rateLimitIdentity");
 
 // Apply address ordering before any outbound connection is created.
 dns.setDefaultResultOrder("ipv4first");
@@ -44,6 +51,12 @@ const ALLOWED_ORIGINS = [
 ].filter(Boolean);
 
 const app = express();
+let shuttingDown = false;
+
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 // Database connection
 const configuredMongoUri =
@@ -66,8 +79,23 @@ if (mongoConnection.usesDirectHosts) {
 }
 
 const databaseReady = mongoose
-  .connect(MONGODB_URI)
+  .connect(MONGODB_URI, {
+    maxPoolSize: positiveInteger(process.env.MONGODB_MAX_POOL_SIZE, 20),
+    minPoolSize: positiveInteger(
+      process.env.MONGODB_MIN_POOL_SIZE,
+      process.env.NODE_ENV === "production" ? 2 : 1,
+    ),
+    waitQueueTimeoutMS: positiveInteger(process.env.MONGODB_WAIT_QUEUE_TIMEOUT_MS, 5000),
+    serverSelectionTimeoutMS: positiveInteger(
+      process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
+      5000,
+    ),
+    connectTimeoutMS: positiveInteger(process.env.MONGODB_CONNECT_TIMEOUT_MS, 10000),
+    socketTimeoutMS: positiveInteger(process.env.MONGODB_SOCKET_TIMEOUT_MS, 45000),
+    maxIdleTimeMS: positiveInteger(process.env.MONGODB_MAX_IDLE_TIME_MS, 60000),
+  })
   .then(async (mongooseInstance) => {
+    trackMongoPool(mongooseInstance.connection.getClient());
     logger.info("MongoDB connected successfully");
     // Seed default roles (idempotent — only creates roles that don't exist yet)
     try {
@@ -168,22 +196,7 @@ app.use(cors({
 // connections. This also adds the correct Vary header automatically.
 app.use(compression({ threshold: 1024 }));
 
-// request logging middleware (small overhead)
-app.use((req, res, next) => {
-  const start = process.hrtime();
-  res.on("finish", () => {
-    const diff = process.hrtime(start);
-    const ms = diff[0] * 1e3 + diff[1] / 1e6;
-    logger.http(
-      "%s %s %d %dms",
-      req.method,
-      req.path,
-      res.statusCode,
-      ms.toFixed(1),
-    );
-  });
-  next();
-});
+app.use(requestTelemetry);
 // Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
 app.set('trust proxy', 1);
 
@@ -205,19 +218,81 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+// Lightweight platform probes. Liveness never performs a database query;
+// readiness only reports whether the already-established shared connection can
+// accept work, so probes cannot amplify an outage.
+app.get("/health", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  return res.status(200).json({
+    status: "ok",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
+  });
+});
+app.get("/ready", (_req, res) => {
+  const ready = !shuttingDown && mongoose.connection.readyState === 1;
+  res.set("Cache-Control", "no-store");
+  return res.status(ready ? 200 : 503).json({
+    status: ready ? "ready" : "not_ready",
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authAttemptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per window
+  max: Number(process.env.AUTH_ACCOUNT_RATE_LIMIT) || 10,
+  keyGenerator: emailOrIpKey,
   message: { error: "Too many attempts, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: shouldSkipAuthAttemptLimit,
+});
+
+const authBurstLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.AUTH_IP_BURST_RATE_LIMIT) || 300,
+  message: { error: "Authentication traffic is unusually high. Please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
   skip: shouldSkipAuthAttemptLimit,
 });
 
+// Registration traffic must not share the small login-attempt bucket. A
+// per-email limiter isolates abusive/invalid attempts to one account, while a
+// deliberately larger IP ceiling still prevents an unbounded signup flood.
+// The IP ceiling is configurable for deployments that onboard large groups
+// behind one school, office, or carrier-grade NAT address.
+const registrationEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.REGISTRATION_EMAIL_RATE_LIMIT) || 10,
+  keyGenerator: emailOrIpKey,
+  message: {
+    error: "Too many failed registration attempts for this email. Please try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: shouldSkipRegistrationAttemptLimit,
+});
+
+const registrationBurstLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.REGISTRATION_IP_RATE_LIMIT) || 300,
+  message: {
+    error: "Registration traffic is unusually high. Please try again in a few minutes.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkipRegistrationAttemptLimit,
+});
+
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  max: generalApiLimit,
+  keyGenerator: authenticatedOrIpKey,
   message: { error: "Too many requests, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
@@ -244,10 +319,11 @@ app.post(
   paymongoRoutes.webhookHandler,
 );
 
-// Throttle and reject untrusted browser mutations before parsing potentially
-// large request bodies.
-app.use("/api", apiLimiter, requireTrustedOrigin);
-app.use("/appointments", apiLimiter, requireTrustedOrigin);
+// Reject untrusted browser mutations before parsing potentially large bodies.
+// Rate limiting is attached after session/current-user resolution so unrelated
+// authenticated users behind one NAT receive independent budgets.
+app.use("/api", requireTrustedOrigin);
+app.use("/appointments", requireTrustedOrigin);
 
 // Deliver public assets without a session-store read or a user lookup for
 // every stylesheet, script and image. Private uploads are still served below
@@ -293,6 +369,8 @@ app.use(
 
 // Attach the current user to templates/res.locals when possible (non-blocking)
 app.use(attachCurrentUser);
+app.use("/api", apiLimiter);
+app.use("/appointments", apiLimiter);
 app.use((req, res, next) => {
   // Let navigation partials render the active group before client-side scripts
   // run, avoiding a collapsed-state flash on every full-page navigation.
@@ -491,7 +569,14 @@ const userRoutes = require("./routes/userRoutes");
 app.use("/api/users", userRoutes);
 
 const authRoutes = require("./routes/authRoutes");
-app.use("/api/auth", authAttemptLimiter, authRoutes);
+app.use(
+  "/api/auth",
+  registrationBurstLimiter,
+  registrationEmailLimiter,
+  authBurstLimiter,
+  authAttemptLimiter,
+  authRoutes,
+);
 
 const adminApi = require("./routes/adminApi");
 app.use("/api/admin", adminApi);
@@ -580,7 +665,6 @@ const PORT = process.env.PORT || 5000;
 let server;
 
 const shutdownSignals = ["SIGINT", "SIGTERM"];
-let shuttingDown = false;
 
 async function gracefulShutdown(signal) {
   if (shuttingDown) return;
@@ -643,6 +727,7 @@ const { startEquipmentReturnScheduler } = require('./utils/equipmentReturnSchedu
 const { startDelayMonitor } = require('./utils/delayNotifier');
 
 function startBackgroundSchedulers() {
+  require("./utils/emailOutbox").startEmailOutboxWorker();
   startOverdueScheduler();
   startMaintenanceScheduler();
   startEquipmentReturnScheduler();
@@ -651,6 +736,12 @@ function startBackgroundSchedulers() {
 
 const http = require("http");
 server = http.createServer(app);
+server.requestTimeout = positiveInteger(process.env.HTTP_REQUEST_TIMEOUT_MS, 30000);
+server.headersTimeout = Math.max(
+  server.requestTimeout + 1000,
+  positiveInteger(process.env.HTTP_HEADERS_TIMEOUT_MS, 35000),
+);
+server.keepAliveTimeout = positiveInteger(process.env.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
 
 // ── Socket.io Setup for Live Tracking ────────────────────────────────────────
 const { Server } = require("socket.io");

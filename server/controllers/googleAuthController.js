@@ -239,7 +239,10 @@ exports.callback = async (req, res) => {
     // password/OTP failure counters so a prior typo cannot poison the next
     // legitimate sign-in from the same account or device.
     loginRateLimiter.reset("email", email);
-    loginRateLimiter.reset("ip", req.ip || "");
+    loginRateLimiter.reset(
+      "ip_email",
+      loginRateLimiter.scopedIpIdentifier(req.ip || "", email),
+    );
 
     await regenerateSession(req);
     req.session.userId = user._id.toString();

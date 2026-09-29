@@ -8,7 +8,6 @@
  * middleware (see README/integration notes below).
  */
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
 const uaParser = require("ua-parser-js");
 const geoip = require("geoip-lite");
 const { validationResult } = require("express-validator");
@@ -144,7 +143,7 @@ exports.login = async (req, res, next) => {
       const ip = req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
       const email = String(req.body.email || "").trim().toLowerCase();
       if (email) rateLimiter.recordFailed("email", email);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", rateLimiter.scopedIpIdentifier(ip, email));
 
       const msg = "Invalid credentials";
       if (!wantsJson(req))
@@ -164,8 +163,9 @@ exports.login = async (req, res, next) => {
     // Check rate limiter before proceeding
     const ip = req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
     const normalizedEmail = String(email).trim().toLowerCase();
+    const scopedIp = rateLimiter.scopedIpIdentifier(ip, normalizedEmail);
 
-    const blockedIp = rateLimiter.isBlocked("ip", ip);
+    const blockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
     if (blockedIp.blocked) {
       const message = `Too many failed login attempts (cycle ${blockedIp.currentCycle}). Account locked for ${blockedIp.retryAfterLabel || "3 minutes"} for security.`;
       return res.status(429).json({
@@ -195,7 +195,7 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       // Record failed attempt
       rateLimiter.recordFailed("email", normalizedEmail);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
 
       const msg = "Invalid credentials";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
@@ -208,7 +208,7 @@ exports.login = async (req, res, next) => {
     if (!csrfToken || !cookieToken || csrfToken !== cookieToken) {
       // Record failed attempt
       rateLimiter.recordFailed("email", normalizedEmail);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
 
       const msg = "Invalid security token";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
@@ -218,7 +218,7 @@ exports.login = async (req, res, next) => {
     if (String(mathCaptcha).trim() !== String(mathAnswer).trim()) {
       // Record failed attempt
       rateLimiter.recordFailed("email", normalizedEmail);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
 
       const msg = "captcha";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
@@ -231,7 +231,7 @@ exports.login = async (req, res, next) => {
     if (!user) {
       // Record failed attempt with rate limiter
       rateLimiter.recordFailed("email", normalizedEmail);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
       const msg = "Invalid email or password";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
       return res.status(400).json({ error: msg });
@@ -248,7 +248,7 @@ exports.login = async (req, res, next) => {
     if (!match) {
       // Record failed attempt with rate limiter
       rateLimiter.recordFailed("email", normalizedEmail);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
       
       const msg = "Invalid email or password";
       if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
@@ -265,7 +265,7 @@ exports.login = async (req, res, next) => {
 
     // successful password auth -> reset rate limiter
     rateLimiter.reset("email", normalizedEmail);
-    rateLimiter.reset("ip", ip);
+    rateLimiter.reset("ip_email", scopedIp);
 
     // parse device/ip
     const info = parseRequestInfo(req);

@@ -1,7 +1,7 @@
 const { validationResult } = require("express-validator");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
+const { comparePassword, fakeHash, hashPassword } = require("../utils/passwordHashing");
 const User = require("../models/User");
 const { isAccountEnabled } = require("../middleware/accountState");
 const rateLimiter = require("../middleware/loginRateLimiter");
@@ -15,10 +15,8 @@ const {
   isValidRegistrationPassword,
 } = require("../utils/registrationPasswordPolicy");
 
-const FAKE_HASH = bcrypt.hashSync("invalid-password", 12);
+const FAKE_HASH = fakeHash;
 
-// OTP storage (in production, use Redis or DB)
-const otpStore = new Map();
 // In-memory per-email limiter for forgot-password requests
 const forgotStore = new Map();
 const FORGOT_MAX = Number(process.env.FORGOT_MAX_ATTEMPTS) || 3;
@@ -200,17 +198,28 @@ async function sendOTPEmail(email, otp, type = "verification") {
 
 // Helper: generate and store a login OTP for staff step-up authentication.
 exports.generateLoginOTP = async function (email, userId, rememberMe = false) {
-  const emailKey = String(email || "")
-    .replace(/[\$\{\}]/g, "")
-    .toLowerCase();
+  const emailKey = normalizeEmailKey(email);
   const otp = generateOTP();
-  const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
-  otpStore.set(emailKey, { userId, otp, expires, type: "login", rememberMe });
+  const now = new Date();
+  await User.updateOne(
+    { _id: userId, email: emailKey },
+    {
+      $set: {
+        loginOtpHash: hashRegistrationOTP(emailKey, otp),
+        loginOtpExpires: new Date(now.getTime() + 10 * 60 * 1000),
+        loginOtpLastSentAt: now,
+        loginOtpRememberMe: Boolean(rememberMe),
+      },
+    },
+  );
   try {
     const sendResult = await sendOTPEmail(email, otp, "login");
     if (!sendResult) throw new Error("No email transport accepted the message.");
   } catch (e) {
-    otpStore.delete(emailKey);
+    await User.updateOne(
+      { _id: userId, loginOtpHash: hashRegistrationOTP(emailKey, otp) },
+      { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
+    ).catch(() => {});
     console.warn("generateLoginOTP: failed to send email", e && e.message);
     throw e;
   }
@@ -489,7 +498,7 @@ exports.register = async (req, res, next) => {
 
     const otp = requiresEmailVerification ? generateOTP() : null;
     const now = Date.now();
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await hashPassword(password);
 
     // Refresh an existing unverified registration instead of leaving a
     // duplicate account that can never complete verification.
@@ -586,16 +595,9 @@ exports.verifyRegisterOTP = async (req, res, next) => {
       return res.status(400).json({ error: "Missing email or OTP." });
     }
 
-    const ip =
-      req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-
-    // Check rate-limiter before validating OTP
-    const blockedIp = rateLimiter.isBlocked("ip", ip);
-    if (blockedIp.blocked)
-      return res.status(429).json({
-        error: `Too many verification attempts. Please try again in ${blockedIp.retryAfterLabel || "a few minutes"}.`,
-        retryAfter: Math.ceil(blockedIp.retryAfter / 1000),
-      });
+    // Registration failures are isolated by email. Do not use the progressive
+    // login IP lock here: many legitimate customers can share one public IP.
+    // The route-level registration burst limiter still protects the endpoint.
     const blockedEmail = rateLimiter.isBlocked("email", email);
     if (blockedEmail.blocked)
       return res.status(429).json({
@@ -622,7 +624,6 @@ exports.verifyRegisterOTP = async (req, res, next) => {
         Number(user.emailVerificationAttempts || 0) + 1;
       await user.save();
       rateLimiter.recordFailed("email", email);
-      rateLimiter.recordFailed("ip", ip);
 
       if (user.emailVerificationAttempts >= REGISTRATION_OTP_MAX_ATTEMPTS) {
         return res.status(429).json({
@@ -649,7 +650,6 @@ exports.verifyRegisterOTP = async (req, res, next) => {
     await user.save();
 
     rateLimiter.reset("email", email);
-    rateLimiter.reset("ip", ip);
 
     try {
       await audit.logEvent({
@@ -743,17 +743,16 @@ exports.resendLoginOTP = async (req, res, next) => {
     email = email.replace(/[\$\{\}]/g, "");
     const emailKey = email.toLowerCase();
 
-    console.log("resendLoginOTP: emailKey=", emailKey);
-    const stored = otpStore.get(emailKey);
-    console.log("resendLoginOTP: stored=", !!stored);
-    if (!stored || stored.type !== "login") {
+    const user = await User.findOne({ email: emailKey })
+      .select("+loginOtpHash +loginOtpExpires +loginOtpLastSentAt +loginOtpRememberMe");
+    if (!user?.loginOtpHash || !user.loginOtpExpires || user.loginOtpExpires.getTime() <= Date.now()) {
       return res
         .status(400)
         .json({ error: "No pending login for that email." });
     }
 
     const now = Date.now();
-    const lastSent = stored.lastSent || 0;
+    const lastSent = user.loginOtpLastSentAt?.getTime() || 0;
     // Throttle resends to once per 60 seconds
     if (now - lastSent < 60 * 1000) {
       return res
@@ -762,12 +761,19 @@ exports.resendLoginOTP = async (req, res, next) => {
     }
 
     const otp = generateOTP();
-    stored.otp = otp;
-    stored.expires = now + 10 * 60 * 1000;
-    stored.lastSent = now;
-    otpStore.set(emailKey, stored);
-
-    await sendOTPEmail(email, otp, "login");
+    user.loginOtpHash = hashRegistrationOTP(emailKey, otp);
+    user.loginOtpExpires = new Date(now + 10 * 60 * 1000);
+    user.loginOtpLastSentAt = new Date(now);
+    await user.save();
+    try {
+      await sendOTPEmail(email, otp, "login");
+    } catch (error) {
+      await User.updateOne(
+        { _id: user._id, loginOtpHash: user.loginOtpHash },
+        { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
+      ).catch(() => {});
+      throw error;
+    }
 
     res.status(200).json({ message: "OTP resent to your email." });
   } catch (err) {
@@ -788,9 +794,10 @@ exports.verifyLoginOTP = async (req, res, next) => {
     const emailKey = email.replace(/[\$\{\}]/g, "").toLowerCase();
     const ip =
       req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+    const scopedIp = rateLimiter.scopedIpIdentifier(ip, emailKey);
 
-    // Check rate-limiter for IP/email
-    const blockedIp = rateLimiter.isBlocked("ip", ip);
+    // Check rate-limiter for this network/account pair and email.
+    const blockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
     if (blockedIp.blocked)
       return res.status(429).json({
         error: `Too many login attempts. Please try again in ${blockedIp.retryAfterLabel || "a few minutes"}.`,
@@ -803,22 +810,21 @@ exports.verifyLoginOTP = async (req, res, next) => {
         retryAfter: Math.ceil(blockedEmail.retryAfter / 1000),
       });
 
-    const stored = otpStore.get(emailKey);
-    if (
-      !stored ||
-      stored.type !== "login" ||
-      stored.otp !== otp ||
-      Date.now() > stored.expires
-    ) {
+    const pendingUser = await User.findOne({ email: emailKey })
+      .select("+loginOtpHash +loginOtpExpires +loginOtpRememberMe");
+    const otpValid = pendingUser?.loginOtpHash
+      && pendingUser.loginOtpExpires?.getTime() > Date.now()
+      && registrationOTPMatches(pendingUser.loginOtpHash, emailKey, otp);
+    if (!otpValid) {
       // record failed attempt for both email and IP
       try {
         rateLimiter.recordFailed("email", emailKey);
       } catch (e) {}
       try {
-        rateLimiter.recordFailed("ip", ip);
+        rateLimiter.recordFailed("ip_email", scopedIp);
       } catch (e) {}
       const nowBlockedEmail = rateLimiter.isBlocked("email", emailKey);
-      const nowBlockedIp = rateLimiter.isBlocked("ip", ip);
+      const nowBlockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
       if (nowBlockedEmail.blocked || nowBlockedIp.blocked) {
         const retryAfter = Math.ceil(
           (nowBlockedEmail.retryAfter || nowBlockedIp.retryAfter || 0) / 1000,
@@ -831,10 +837,19 @@ exports.verifyLoginOTP = async (req, res, next) => {
       return res.status(400).json({ error: "Invalid or expired OTP." });
     }
 
-    // Get user
-    const user = await User.findById(stored.userId);
+    const rememberMe = Boolean(pendingUser.loginOtpRememberMe);
+    // Consume the exact hash atomically. Two concurrent submissions cannot
+    // both establish sessions with the same one-time code.
+    const user = await User.findOneAndUpdate(
+      {
+        _id: pendingUser._id,
+        loginOtpHash: pendingUser.loginOtpHash,
+        loginOtpExpires: { $gt: new Date() },
+      },
+      { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
+      { new: true },
+    );
     if (!isAccountEnabled(user)) {
-      otpStore.delete(emailKey);
       return res.status(400).json({ error: "User not found." });
     }
 
@@ -860,9 +875,7 @@ exports.verifyLoginOTP = async (req, res, next) => {
       }
     }
 
-    // Clean up
-    otpStore.delete(emailKey);
-    const redirect = await establishJwtLogin(req, res, user, stored.rememberMe);
+    const redirect = await establishJwtLogin(req, res, user, rememberMe);
 
     // If the client expects JSON, return JSON with redirect; otherwise perform server redirect
     const acceptsJson =
@@ -1262,7 +1275,7 @@ exports.login = async (req, res, next) => {
       let email = String(req.body.email || "").trim().toLowerCase();
       email = email.replace(/[\$\{\}]/g, ""); // remove operator chars
       if (email) rateLimiter.recordFailed("email", email);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", rateLimiter.scopedIpIdentifier(ip, email));
       
       if (process.env.NODE_ENV !== "production")
         try {
@@ -1281,7 +1294,7 @@ exports.login = async (req, res, next) => {
       let email = String(req.body.email || "").trim().toLowerCase();
       email = email.replace(/[\$\{\}]/g, "");
       if (email) rateLimiter.recordFailed("email", email);
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", rateLimiter.scopedIpIdentifier(ip, email));
       
       // Bad token - treat as generic auth failure
       if (process.env.NODE_ENV !== "production")
@@ -1310,6 +1323,7 @@ exports.login = async (req, res, next) => {
     email = email.replace(/[\$\{\}]/g, "");
     // normalize email to lowercase to match storage (prevents case mismatch)
     email = email.toLowerCase();
+    const scopedIp = rateLimiter.scopedIpIdentifier(ip, email);
 
     // Debug (dev only): show incoming values that affect auth flow
     if (process.env.NODE_ENV !== "production") {
@@ -1328,7 +1342,7 @@ exports.login = async (req, res, next) => {
     const mathAnswer = String(req.body.mathAnswer || "");
     if (mathCaptcha !== mathAnswer) {
       // Record failed attempt for captcha failure
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
       if (email) rateLimiter.recordFailed("email", email);
       
       // do not reveal details
@@ -1338,7 +1352,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Check block status (by IP and by email)
-    const blockedIp = rateLimiter.isBlocked("ip", ip);
+    const blockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
     if (blockedIp.blocked) {
       const message = `Too many failed login attempts (cycle ${blockedIp.currentCycle}). Account locked for ${blockedIp.retryAfterLabel || "3 minutes"} for security.`;
       return res
@@ -1378,7 +1392,7 @@ exports.login = async (req, res, next) => {
     let match = false;
     if (!user) {
       // compare to fake hash
-      match = await bcrypt.compare(password, FAKE_HASH);
+      match = await comparePassword(password, FAKE_HASH);
       if (process.env.NODE_ENV !== "production")
         try {
           console.debug("login: user not found, fake-compare result=", match);
@@ -1397,7 +1411,7 @@ exports.login = async (req, res, next) => {
         try {
           console.warn("login: authentication failed for", email);
         } catch (e) {}
-      rateLimiter.recordFailed("ip", ip);
+      rateLimiter.recordFailed("ip_email", scopedIp);
       rateLimiter.recordFailed("email", email);
       return sendGenericError(res);
     }
@@ -1415,7 +1429,7 @@ exports.login = async (req, res, next) => {
     }
 
     // Success: reset counters
-    rateLimiter.reset("ip", ip);
+    rateLimiter.reset("ip_email", scopedIp);
     rateLimiter.reset("email", email);
 
     const rememberMe = !!req.body.rememberMe;

@@ -4,9 +4,6 @@
 // strict authentication-attempt bucket. Session reads, logout, OAuth redirects,
 // and operational endpoints must not consume failed-login capacity.
 const AUTH_ATTEMPT_ROUTES = new Set([
-  "POST /register",
-  "POST /verify-register-otp",
-  "POST /resend-register-otp",
   "POST /login",
   "POST /verify-login-otp",
   "POST /resend-login-otp",
@@ -16,10 +13,23 @@ const AUTH_ATTEMPT_ROUTES = new Set([
   "POST /secure/login",
 ]);
 
-const SESSION_LIFECYCLE_ROUTES = new Set([
+// Registration has its own limits. Keeping these routes out of the strict
+// login bucket prevents unrelated customers on the same NAT/public IP from
+// consuming one another's ten-attempt login allowance.
+const REGISTRATION_ATTEMPT_ROUTES = new Set([
+  "POST /register",
+  "POST /verify-register-otp",
+  "POST /resend-register-otp",
+]);
+
+const GENERAL_API_LIMIT_EXEMPT_ROUTES = new Set([
   "GET /api/auth/verify",
   "POST /api/auth/logout",
   "POST /api/auth/secure/logout",
+  // These have dedicated per-email and IP registration limiters downstream.
+  "POST /api/auth/register",
+  "POST /api/auth/verify-register-otp",
+  "POST /api/auth/resend-register-otp",
 ]);
 
 function pathnameOf(req) {
@@ -44,9 +54,20 @@ function shouldSkipAuthAttemptLimit(req) {
   return !shouldLimitAuthAttempt(req);
 }
 
+function shouldLimitRegistrationAttempt(req) {
+  const method = String(req?.method || "GET").toUpperCase();
+  return REGISTRATION_ATTEMPT_ROUTES.has(`${method} ${authRelativePath(req)}`);
+}
+
+function shouldSkipRegistrationAttemptLimit(req) {
+  return !shouldLimitRegistrationAttempt(req);
+}
+
 function shouldSkipGeneralApiLimit(req) {
   const method = String(req?.method || "GET").toUpperCase();
-  return SESSION_LIFECYCLE_ROUTES.has(`${method} ${pathnameOf(req).replace(/\/+$/, "") || "/"}`);
+  return GENERAL_API_LIMIT_EXEMPT_ROUTES.has(
+    `${method} ${pathnameOf(req).replace(/\/+$/, "") || "/"}`,
+  );
 }
 
 module.exports = {
@@ -54,5 +75,7 @@ module.exports = {
   pathnameOf,
   shouldLimitAuthAttempt,
   shouldSkipAuthAttemptLimit,
+  shouldLimitRegistrationAttempt,
+  shouldSkipRegistrationAttemptLimit,
   shouldSkipGeneralApiLimit,
 };

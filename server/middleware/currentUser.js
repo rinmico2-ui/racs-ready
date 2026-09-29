@@ -18,6 +18,7 @@ function parseCookies(header) {
 module.exports = async function (req, res, next) {
   // always define `res.locals.user` so EJS can safely reference `user` (avoid ReferenceError)
   res.locals.user = null;
+  req.authResolved = false;
   try {
     const cookies = parseCookies(req.headers.cookie || "");
     const token = cookies["auth_token"];
@@ -48,6 +49,8 @@ module.exports = async function (req, res, next) {
               } else {
                 res.locals.user = user;
                 req.user = user;
+                req.authPayload = payload;
+                req.authResolved = true;
                 return next();
               }
             } catch (e) {}
@@ -67,6 +70,7 @@ module.exports = async function (req, res, next) {
         if (isAccountEnabled(sidUser)) {
           res.locals.user = sidUser;
           req.user = sidUser;
+          req.authResolved = true;
           return next();
         }
       }
@@ -74,5 +78,6 @@ module.exports = async function (req, res, next) {
   } catch (e) {
     // ignore - don't break anonymous pages
   }
+  req.authResolved = true;
   return next();
 };

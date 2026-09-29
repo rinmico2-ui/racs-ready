@@ -5,7 +5,8 @@ const fs = require("fs");
 const crypto = require("crypto");
 const multer = require("multer");
 const mongoose = require("mongoose");
-const rateLimit = require("express-rate-limit");
+const { rateLimit } = require("express-rate-limit");
+const { authenticatedOrIpKey } = require("../utils/rateLimitIdentity");
 const { authenticate, requireRole } = require("../middleware/authenticate");
 const Order = require("../models/Order");
 const Inventory = require("../models/Inventory");
@@ -480,6 +481,7 @@ const checkoutLimiter = rateLimit({
   max: 12,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: authenticatedOrIpKey,
   message: { error: "Too many checkout attempts. Wait a few minutes and try again.", code: "ORDER_CHECKOUT_RATE_LIMITED" },
 });
 

@@ -7,6 +7,8 @@ const test = require("node:test");
 const {
   shouldLimitAuthAttempt,
   shouldSkipAuthAttemptLimit,
+  shouldLimitRegistrationAttempt,
+  shouldSkipRegistrationAttemptLimit,
   shouldSkipGeneralApiLimit,
 } = require("../utils/authRateLimitPolicy");
 
@@ -17,6 +19,7 @@ test("strict auth throttling applies only to credential attempts", () => {
   assert.equal(shouldLimitAuthAttempt(request("POST", "/api/auth/login")), true);
   assert.equal(shouldLimitAuthAttempt(request("POST", "/api/auth/verify-login-otp")), true);
   assert.equal(shouldLimitAuthAttempt(request("POST", "/api/auth/reset-password")), true);
+  assert.equal(shouldLimitAuthAttempt(request("POST", "/api/auth/register")), false);
   assert.equal(shouldLimitAuthAttempt(request("GET", "/api/auth/verify")), false);
   assert.equal(shouldLimitAuthAttempt(request("GET", "/api/auth/google")), false);
   assert.equal(shouldLimitAuthAttempt(request("GET", "/api/auth/google/callback?code=x")), false);
@@ -25,11 +28,37 @@ test("strict auth throttling applies only to credential attempts", () => {
   assert.equal(shouldSkipAuthAttemptLimit(request("GET", "/api/auth/verify")), true);
 });
 
+test("registration uses an independent throttle from login attempts", () => {
+  assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/register")), true);
+  assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/verify-register-otp")), true);
+  assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/resend-register-otp")), true);
+  assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/login")), false);
+  assert.equal(shouldSkipRegistrationAttemptLimit(request("GET", "/api/auth/verify")), true);
+});
+
 test("session verification and logout bypass the general API budget", () => {
   assert.equal(shouldSkipGeneralApiLimit(request("GET", "/api/auth/verify")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/logout")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/secure/logout")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/bookings/create-new")), false);
+});
+
+test("dedicated registration limits bypass the unrelated general API budget", () => {
+  assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/register")), true);
+  assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/verify-register-otp")), true);
+  assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/resend-register-otp")), true);
+  assert.equal(shouldSkipGeneralApiLimit(request("GET", "/register")), false);
+});
+
+test("registration OTP failures cannot lock every customer on a shared IP", () => {
+  const controller = read("controllers/authController.js");
+  const start = controller.indexOf("exports.verifyRegisterOTP = async");
+  const end = controller.indexOf("exports.resendRegisterOTP = async", start);
+  const verifyRegistration = controller.slice(start, end);
+
+  assert.match(verifyRegistration, /rateLimiter\.isBlocked\("email", email\)/);
+  assert.doesNotMatch(verifyRegistration, /rateLimiter\.isBlocked\("ip"/);
+  assert.doesNotMatch(verifyRegistration, /rateLimiter\.recordFailed\("ip"/);
 });
 
 test("booking UI does not convert transient verification failures into logout", () => {

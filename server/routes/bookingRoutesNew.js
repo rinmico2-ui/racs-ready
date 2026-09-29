@@ -1,5 +1,7 @@
 const express = require('express');
+const { rateLimit } = require('express-rate-limit');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const router = express.Router();
 const BookingService = require('../models/BookingService');
 const auth = require('../middleware/authenticate');
@@ -21,8 +23,17 @@ const {
   MANUAL_PAYMENT_CHANNELS,
 } = require('../utils/paymentPolicy');
 const MaintenanceSchedule = require('../models/MaintenanceSchedule');
+const Payment = require('../models/Payment');
+const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
+const { authenticatedOrIpKey } = require('../utils/rateLimitIdentity');
 const { linkScheduleToBooking } = require('../utils/maintenanceLifecycle');
 const { hasValidImageDataUrl } = require('../utils/uploadSecurity');
+const bookingSubmissionUpload = require('../middleware/bookingSubmissionUpload');
+const {
+  deletePaymentProof,
+  discardTemporaryPaymentProof,
+  storePaymentProof,
+} = require('../utils/paymentProofStorage');
 const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
 const {
   normalizeRepairModel,
@@ -33,12 +44,22 @@ const {
 router.use(auth.authenticate);
 router.use(auth.requireRole("customer"));
 
+const bookingSubmissionLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: Number(process.env.BOOKING_SUBMISSION_RATE_LIMIT) || 10,
+  keyGenerator: authenticatedOrIpKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many booking submissions. Please wait before trying again.' },
+});
+
 /**
  * POST /api/bookings/create-new
  * Simplified booking creation endpoint
  */
-router.post('/create-new', async (req, res) => {
+router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, async (req, res) => {
   let savedBooking = null;
+  let uploadedPaymentProofId = null;
   try {
     console.log('📝 Creating new booking (simplified)...');
     // Extract basic required fields
@@ -65,6 +86,11 @@ router.post('/create-new', async (req, res) => {
       quantity,
       maintenanceScheduleId
     } = req.body;
+    const suppliedSubmissionId = String(req.body.clientSubmissionId || '').trim();
+    if (suppliedSubmissionId && !/^[A-Za-z0-9_-]{16,80}$/.test(suppliedSubmissionId)) {
+      return res.status(400).json({ error: 'This booking submission is invalid or expired. Please try again.' });
+    }
+    const clientSubmissionId = suppliedSubmissionId || crypto.randomUUID();
 
     // Keep legacy `cod` storage compatibility. It represents the reservation
     // plan (GCash downpayment + balance at completion), not the transfer channel.
@@ -141,8 +167,11 @@ router.post('/create-new', async (req, res) => {
     if (normalizedPaymentChannel !== 'gcash' && normalizedPaymentReference.length < 3) {
       return res.status(400).json({ error: 'Enter the transaction or payment reference for the selected payment method.' });
     }
-    if (!hasValidImageDataUrl(proofImageBase64)) {
+    if (!req.file && !hasValidImageDataUrl(proofImageBase64)) {
       return res.status(400).json({ error: 'Upload a valid JPG, PNG, or WEBP payment receipt no larger than 5 MB.' });
+    }
+    if (proofImageBase64 && process.env.NODE_ENV === 'production') {
+      return res.status(400).json({ error: 'Refresh the booking page and upload the payment receipt again.' });
     }
     
     // ========================================
@@ -180,6 +209,44 @@ router.post('/create-new', async (req, res) => {
       });
     }
     
+    const existingBooking = await BookingService.findOne({
+      customerId: userId,
+      clientSubmissionId,
+    }).select('+clientSubmissionId');
+    if (existingBooking) {
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: 'Booking already created',
+        bookingReference: existingBooking.bookingReference,
+        serviceName: existingBooking.service?.name || 'Selected Service',
+        serviceNames: (existingBooking.services || []).map(service => service.name).filter(Boolean),
+        isProject: Boolean(existingBooking.isProject),
+        projectScheduling: existingBooking.projectScheduling || undefined,
+        dateLabel: existingBooking.bookingDate ? new Date(existingBooking.bookingDate).toLocaleDateString('en-PH', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }) : '',
+        timeLabel: existingBooking.startTime,
+        locationAddress: existingBooking.location?.address || '',
+        customerName: existingBooking.customer?.name || '',
+        customerEmail: existingBooking.customer?.email || '',
+        technicianName: existingBooking.technician?.name || 'Pending Assignment',
+        estimatedFee: existingBooking.estimatedFee || existingBooking.totalPrice || 0,
+        paymentMethod: existingBooking.paymentMethod,
+        paymentChannel: existingBooking.paymentChannel,
+        _id: existingBooking._id,
+        booking: {
+          bookingReference: existingBooking.bookingReference,
+          status: existingBooking.status,
+          paymentStatus: existingBooking.paymentStatus,
+          totalPrice: existingBooking.estimatedFee || existingBooking.totalPrice || 0,
+          bookingDate: existingBooking.bookingDate,
+          startTime: existingBooking.startTime,
+          endTime: existingBooking.endTime,
+        },
+      });
+    }
+
     // Log complete user data for debugging
     console.log('✅ Customer found in database:');
     
@@ -334,7 +401,7 @@ router.post('/create-new', async (req, res) => {
     }
 
     // Generate booking reference
-    const bookingReference = `RACS-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const bookingReference = `RACS-${new Date().toISOString().slice(0,10).replace(/-/g, '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     
     // ── Build services array with clean, serializable objects ──────────────
     // Deep-clone via JSON round-trip to strip any prototype methods,
@@ -383,6 +450,7 @@ router.post('/create-new', async (req, res) => {
     // Create comprehensive booking data with REAL user and technician data
     const bookingData = {
       bookingReference,
+      clientSubmissionId,
       customerId: userId,
       technicianId: technician ? technician._id : undefined,
       
@@ -515,13 +583,144 @@ router.post('/create-new', async (req, res) => {
     
     // Create booking instance
     console.log('\nCreating BookingService instance...');
-    const booking = new BookingService(bookingData);
+    let booking = new BookingService(bookingData);
+    if (req.file) {
+      const storedProof = await storePaymentProof(req.file, {
+        bookingId: booking._id,
+        uploadedBy: userId,
+      });
+      uploadedPaymentProofId = storedProof.fileId;
+      booking.paymentProofFileId = storedProof.fileId;
+      booking.paymentProof = `/api/appointments/${booking._id}/payment-proof`;
+    }
     
     // CRITICAL: The pre-save hooks will fetch REAL data from database
     // using customerId and technicianId
-    console.log('\nSaving booking (pre-save hooks will fetch real data)...');
-    await booking.save();
-    savedBooking = booking;
+    console.log('\nSaving booking and payment atomically...');
+    const paymentAmount = bookingPaymentMethod === 'cod'
+      ? paymentBreakdown.downpaymentAmount
+      : authoritativeTotal;
+    const paymentSchemaMethod = paymentRecordMethod(normalizedPaymentChannel);
+    const paymentDoc = new Payment({
+      bookingId: booking._id,
+      amount: paymentAmount,
+      method: paymentSchemaMethod,
+      type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'final',
+      gateway: paymentSchemaMethod,
+      reference: normalizedPaymentReference || normalizedGcashNumber,
+      notes: paymentNotes || `${normalizedPaymentChannel} payment submitted by customer`,
+      status: 'pending',
+      proofUrl: booking.paymentProof || null,
+      clientSubmissionId: `booking:${clientSubmissionId}`,
+    });
+    let duplicateCreatedByConcurrentRequest = false;
+    const capacityLockKey = effectiveIsProject
+      ? 'booking-project-capacity'
+      : bookingCapacityLockKey(bookingDate);
+    await withOperationLock(capacityLockKey, async () => {
+      const concurrentDuplicate = await BookingService.findOne({
+        customerId: userId,
+        clientSubmissionId,
+      }).select('+clientSubmissionId');
+      if (concurrentDuplicate) {
+        duplicateCreatedByConcurrentRequest = true;
+        savedBooking = concurrentDuplicate;
+        booking = concurrentDuplicate;
+        if (uploadedPaymentProofId) {
+          await deletePaymentProof(uploadedPaymentProofId).catch(() => {});
+          uploadedPaymentProofId = null;
+        }
+        return;
+      }
+
+      // Repeat the capacity read inside the distributed critical section. The
+      // earlier check gives fast feedback; this one is the concurrency guard.
+      if (!effectiveIsProject) {
+        await assertCompanyCapacity(new Date(bookingDate), startMin, capacityEndMinutes);
+      } else {
+        const ps = projectScheduling || {};
+        const projStartDate = ps.preferredStartDate || bookingDate;
+        const projEndDate = ps.preferredCompletionDeadline
+          || ps.endDate
+          || (ps.preferences && ps.preferences.completionDeadline)
+          || projStartDate;
+        const sumQty = parsedServices.reduce(
+          (sum, service) => sum + (Number(service.quantity) || 0),
+          0,
+        );
+        const projectCapacity = await schedulingEngine.getProjectWindowAvailability({
+          startDate: projStartDate,
+          endDate: projEndDate,
+          requiredHours: Math.max(
+            1,
+            Math.round((Number(ps.estimatedTotalHours) || (serviceDurationMin / 60)) * 10) / 10,
+          ),
+          totalUnits: Number(quantity) > 0 ? Number(quantity) : Math.max(1, sumQty),
+        });
+        if (!projectCapacity.sufficient) {
+          throw Object.assign(
+            new Error('The selected project window no longer has enough available capacity. Please choose another schedule.'),
+            { status: 409 },
+          );
+        }
+      }
+
+      const creationSession = await mongoose.startSession();
+      try {
+        let committedBooking;
+        await creationSession.withTransaction(async () => {
+          // Construct fresh documents for every transaction callback because
+          // MongoDB may retry the callback after a transient conflict.
+          const bookingAttempt = new BookingService(
+            booking.toObject({ depopulate: true, versionKey: false }),
+          );
+          const paymentAttempt = new Payment(
+            paymentDoc.toObject({ depopulate: true, versionKey: false }),
+          );
+          await bookingAttempt.save({ session: creationSession });
+          await paymentAttempt.save({ session: creationSession });
+          committedBooking = bookingAttempt;
+        });
+        booking = committedBooking;
+        savedBooking = booking;
+      } finally {
+        await creationSession.endSession();
+      }
+    });
+
+    if (duplicateCreatedByConcurrentRequest) {
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: 'Booking already created',
+        bookingReference: booking.bookingReference,
+        serviceName: booking.service?.name || 'Selected Service',
+        serviceNames: (booking.services || []).map(service => service.name).filter(Boolean),
+        isProject: Boolean(booking.isProject),
+        projectScheduling: booking.projectScheduling || undefined,
+        dateLabel: booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString('en-PH', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+        }) : '',
+        timeLabel: booking.startTime,
+        locationAddress: booking.location?.address || '',
+        customerName: booking.customer?.name || '',
+        customerEmail: booking.customer?.email || '',
+        technicianName: booking.technician?.name || 'Pending Assignment',
+        estimatedFee: booking.estimatedFee || booking.totalPrice || 0,
+        paymentMethod: booking.paymentMethod,
+        paymentChannel: booking.paymentChannel,
+        _id: booking._id,
+        booking: {
+          bookingReference: booking.bookingReference,
+          status: booking.status,
+          paymentStatus: booking.paymentStatus,
+          totalPrice: booking.estimatedFee || booking.totalPrice || 0,
+          bookingDate: booking.bookingDate,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        },
+      });
+    }
 
     if (maintenanceContext) {
       try {
@@ -575,33 +774,6 @@ router.post('/create-new', async (req, res) => {
       }
     }
     
-    // BACKEND EXPERT: Save Payment Schema Integration
-    console.log('\nCreating Payment record...');
-    try {
-      const Payment = require('../models/Payment');
-
-      const paymentAmount = bookingPaymentMethod === 'cod' ? paymentBreakdown.downpaymentAmount : authoritativeTotal;
-      const paymentSchemaMethod = paymentRecordMethod(normalizedPaymentChannel);
-
-      const paymentDoc = new Payment({
-        bookingId: booking._id,
-        amount: paymentAmount,
-        method: paymentSchemaMethod,
-        type: bookingPaymentMethod === 'cod' ? 'downpayment' : 'final',
-        gateway: paymentSchemaMethod,
-        reference: normalizedPaymentReference || normalizedGcashNumber,
-        notes: paymentNotes || `${normalizedPaymentChannel} payment submitted by customer`,
-        status: 'pending',
-        proofUrl: proofImageBase64 || null
-      });
-
-      await paymentDoc.save();
-      console.log('✅ Payment record created successfully:', paymentDoc._id);
-    } catch (paymentErr) {
-      console.error('❌ Failed to create Payment record:', paymentErr);
-      // We don't throw to avoid failing the already saved booking, just log it.
-    }
-
     // Verify data after save
     console.log('\n✅ BOOKING SAVED SUCCESSFULLY');
     console.log('========================================');
@@ -734,6 +906,10 @@ router.post('/create-new', async (req, res) => {
     });
     
   } catch (error) {
+    await discardTemporaryPaymentProof(req.file);
+    if (!savedBooking && uploadedPaymentProofId) {
+      await deletePaymentProof(uploadedPaymentProofId).catch(() => {});
+    }
     console.error('❌ Booking creation error:', error);
     console.error('Error stack:', error.stack);
     if (savedBooking?.status === 'cancelled' && savedBooking.cancellationReason === 'Maintenance cycle could not be reserved.') {
@@ -741,6 +917,30 @@ router.post('/create-new', async (req, res) => {
     }
     if (!savedBooking && error.status) {
       return res.status(error.status).json({ error: error.message });
+    }
+    if (!savedBooking && error?.code === 11000 && req.user?._id) {
+      const duplicate = await BookingService.findOne({
+        customerId: req.user._id,
+        clientSubmissionId: String(req.body.clientSubmissionId || '').trim(),
+      }).catch(() => null);
+      if (duplicate) {
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          message: 'Booking already created',
+          bookingReference: duplicate.bookingReference,
+          _id: duplicate._id,
+          booking: {
+            bookingReference: duplicate.bookingReference,
+            status: duplicate.status,
+            paymentStatus: duplicate.paymentStatus,
+            totalPrice: duplicate.estimatedFee || duplicate.totalPrice || 0,
+            bookingDate: duplicate.bookingDate,
+            startTime: duplicate.startTime,
+            endTime: duplicate.endTime,
+          },
+        });
+      }
     }
     // A committed booking is successful even if later notification/payment
     // follow-up fails. Returning 500 here would invite a duplicate retry.

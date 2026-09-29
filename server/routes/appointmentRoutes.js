@@ -22,7 +22,7 @@ const Payment = require("../models/Payment");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
+const { hashPassword } = require("../utils/passwordHashing");
 const multer = require("multer");
 const { getMinAdvanceMinutes, getBufferMinutes, checkAdvanceNotice, assertCompanyCapacity, parseTimeValue, isBookingPast } = require("../utils/bookingPolicy");
 const { BookingStatus } = require("../models/BookingStatus");
@@ -44,6 +44,10 @@ const {
   findCompletionProof,
   openCompletionProofDownload,
 } = require("../utils/completionProofStorage");
+const {
+  findPaymentProof,
+  openPaymentProofDownload,
+} = require("../utils/paymentProofStorage");
 
 function isPathWithin(root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
@@ -290,8 +294,7 @@ async function findOrCreateCustomerAccount({
   const accountEmail = normalizedEmail || await generateUniqueAutoCustomerEmail(normalizedPhone);
   
   const generatedPassword = generateAutoCustomerPassword();
-  const saltRounds = 12;
-  const hashedPassword = await bcrypt.hash(generatedPassword, saltRounds);
+  const hashedPassword = await hashPassword(generatedPassword);
 
   const newUser = new User({
     email: accountEmail,
@@ -505,6 +508,43 @@ router.get("/:id/completion-photo", async (req, res, next) => {
     });
   } catch (error) {
     return next(error);
+  }
+});
+
+// Payment receipts are private financial evidence. Serve them only after the
+// same booking ownership/staff authorization used by appointment details.
+router.get("/:id/payment-proof", auth.authenticate, async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+    const booking = await BookingService.findById(req.params.id)
+      .select("customerId technicianId +paymentProofFileId")
+      .lean();
+    if (!booking) return res.status(404).json({ error: "Appointment not found" });
+    if (!(await canAccessBooking(req.user, booking))) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (!booking.paymentProofFileId) {
+      return res.status(404).json({ error: "Payment proof not found" });
+    }
+
+    const storedFile = await findPaymentProof(booking.paymentProofFileId);
+    if (!storedFile) return res.status(404).json({ error: "Payment proof not found" });
+    res.set({
+      "Cache-Control": "private, no-store",
+      "Content-Type": storedFile.contentType || "application/octet-stream",
+      "Content-Length": String(storedFile.length),
+      "X-Content-Type-Options": "nosniff",
+    });
+    const download = openPaymentProofDownload(booking.paymentProofFileId);
+    download.once("error", error => {
+      if (!res.headersSent) return next(error);
+      return res.destroy(error);
+    });
+    download.pipe(res);
+  } catch (error) {
+    next(error);
   }
 });
 

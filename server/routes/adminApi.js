@@ -9962,6 +9962,7 @@ router.get("/settings/system-health", async (_req, res, next) => {
       try { return fs.statSync(path.join(__dirname, "..", "logs", name)).size; } catch { return 0; }
     };
     const memory = process.memoryUsage();
+    const { runtimeSnapshot } = require("../middleware/requestTelemetry");
     res.set("Cache-Control", "no-store");
     return res.json({
       checkedAt: new Date().toISOString(),
@@ -9981,6 +9982,7 @@ router.get("/settings/system-health", async (_req, res, next) => {
         mongooseVersion: mongoose.version,
         environment: process.env.NODE_ENV || "development",
       },
+      runtime: runtimeSnapshot(),
     });
   } catch (error) {
     next(error);

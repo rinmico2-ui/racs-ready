@@ -123,7 +123,7 @@ async function recordDeliveryAttempt({ to, subject, status, messageId = "", erro
   }
 }
 
-async function sendMail({ to, subject, html, text, source = "application" }) {
+async function deliverMailNow({ to, subject, html, text, source = "application" }) {
   console.log("[MAILER] Sending email to:", to, "subject:", subject);
   try {
     let result;
@@ -153,6 +153,15 @@ async function sendMail({ to, subject, html, text, source = "application" }) {
     await recordDeliveryAttempt({ to, subject, status: "failed", error: error.message, source });
     throw error;
   }
+}
+
+async function sendMail(payload) {
+  const configuredMode = String(process.env.EMAIL_DELIVERY_MODE || "").trim().toLowerCase();
+  const useOutbox = configuredMode === "outbox"
+    || (!configuredMode && process.env.NODE_ENV === "production");
+  if (!useOutbox) return deliverMailNow(payload);
+  const { enqueueEmail } = require("./emailOutbox");
+  return enqueueEmail(payload);
 }
 
 function sendViaBrevo({ to, subject, html, text }) {
@@ -1548,6 +1557,7 @@ async function sendRescheduleNotificationEmail({
 
 module.exports = {
   sendMail,
+  deliverMailNow,
   buildMailerStatus,
   resolveMailProvider,
   verifyMailerConfiguration,

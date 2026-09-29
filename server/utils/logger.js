@@ -2,9 +2,11 @@ const { createLogger, format, transports } = require("winston");
 const path = require("path");
 const fs = require("fs");
 
-// ensure logs directory exists so winston can write files
 const logsDir = path.join(__dirname, "..", "logs");
-if (!fs.existsSync(logsDir)) {
+const useFileLogs = process.env.NODE_ENV !== "production";
+// Hosted production filesystems are often ephemeral. Production logs go to
+// stdout for the platform log drain; local development retains files.
+if (useFileLogs && !fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
@@ -39,19 +41,15 @@ const logFormat = format.printf(
   },
 );
 
-const logger = createLogger({
-  level: level(),
-  levels,
-  format: format.combine(
-    format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    format.errors({ stack: true }),
-    format.splat(),
-    logFormat, // use readable printf output instead of JSON
-  ),
-  transports: [
-    new transports.Console({
-      format: format.combine(format.colorize(), logFormat),
-    }),
+const configuredTransports = [
+  new transports.Console({
+    format: process.env.NODE_ENV === "production"
+      ? format.combine(format.uncolorize(), logFormat)
+      : format.combine(format.colorize(), logFormat),
+  }),
+];
+if (useFileLogs) {
+  configuredTransports.push(
     new transports.File({
       filename: path.join(logsDir, "error.log"),
       level: "error",
@@ -61,7 +59,19 @@ const logger = createLogger({
       filename: path.join(logsDir, "combined.log"),
       format: logFormat,
     }),
-  ],
+  );
+}
+
+const logger = createLogger({
+  level: level(),
+  levels,
+  format: format.combine(
+    format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+    format.errors({ stack: true }),
+    format.splat(),
+    logFormat, // use readable printf output instead of JSON
+  ),
+  transports: configuredTransports,
   exitOnError: false,
 });
 

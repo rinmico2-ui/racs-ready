@@ -840,6 +840,11 @@ const bookingSchema = new mongoose.Schema({
 
   // legacy fields kept for backwards compatibility
   paymentProof: { type: String }, // base64 data URL or URL to uploaded proof image
+  paymentProofFileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
+    select: false,
+  },
   gateway: { type: String, enum: ["gcash", "maya", "bank", "cod", "paymongo", "other"] },
   gatewayId: String,
   gatewayStatus: String,
@@ -874,6 +879,9 @@ const bookingSchema = new mongoose.Schema({
 
   // human-readable unique booking reference (e.g. RACS-20260301-AB3X)
   bookingReference: { type: String, unique: true, sparse: true },
+  // Browser-generated submission key. A repeated POST from the same customer
+  // returns the original booking instead of creating a duplicate.
+  clientSubmissionId: { type: String, trim: true, maxlength: 80, select: false },
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date },
@@ -1408,6 +1416,10 @@ bookingSchema.pre("save", async function () {
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ bookingDate: 1, startTime: 1, _id: 1 }); // Date-bounded operations calendar without a status filter
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
+bookingSchema.index(
+  { customerId: 1, clientSubmissionId: 1 },
+  { unique: true, partialFilterExpression: { clientSubmissionId: { $type: "string" } } },
+);
 bookingSchema.index({ customerId: 1, bookingDate: -1, createdAt: -1 }); // Fast default customer-history page and pagination
 bookingSchema.index({ customerId: 1, status: 1, bookingDate: -1, createdAt: -1 }); // Fast filtered customer history
 bookingSchema.index({ status: 1, bookingDate: 1 }); // For filtering by status and date

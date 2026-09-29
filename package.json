@@ -29,7 +29,9 @@
     "test:maintenance": "node --test server/tests/maintenance.test.js",
     "test:ai-technician": "node --test server/tests/ai-technician-assistant.test.js",
     "audit:revenue": "node server/scripts/auditRevenueAnalytics.js",
-    "test": "node server/tests/run-all.js"
+    "test": "node server/tests/run-all.js",
+    "test:scalability": "node --test server/tests/scalability-foundations.test.js",
+    "load:http": "node server/load/http-concurrency.js"
   },
   "keywords": [],
   "author": "",

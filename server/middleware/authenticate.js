@@ -27,9 +27,13 @@ module.exports = {
       const cookies = parseCookies(req.headers.cookie || "");
       const token = cookies["auth_token"];
 
-      let user = null;
-      let payload = null;
-      if (token) {
+      // The global current-user middleware has already validated the same JWT
+      // or session and loaded the user. Reuse it to avoid a second User query
+      // on every protected request. Direct middleware tests and isolated mounts
+      // still use the fallback path below.
+      let user = req.authResolved && isAccountEnabled(req.user) ? req.user : null;
+      let payload = req.authPayload || null;
+      if (!req.authResolved && token) {
         try {
           payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
           user = await User.findById(payload.id).select("-passwordHash");
@@ -56,7 +60,7 @@ module.exports = {
       }
 
       // if no JWT user, try express-session fallback
-      if (!user && req.session && req.session.userId) {
+      if (!req.authResolved && !user && req.session && req.session.userId) {
         try {
           user = await User.findById(req.session.userId).select(
             "-passwordHash",

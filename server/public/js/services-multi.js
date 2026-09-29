@@ -12702,18 +12702,27 @@ async function handleBookingSubmission() {
 
     // Prepare booking data
     const bookingData = await prepareBookingData();
+    if (!BookingState.clientSubmissionId) {
+      BookingState.clientSubmissionId = window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `booking_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+    }
+    bookingData.clientSubmissionId = BookingState.clientSubmissionId;
     console.log('📋 Booking data prepared:', bookingData);
     console.log('📋 Services type:', typeof bookingData.services);
     console.log('📋 Services is array:', Array.isArray(bookingData.services));
     console.log('📋 First service:', bookingData.services[0]);
 
     // Submit to backend using simplified endpoint
+    const bookingForm = new FormData();
+    bookingForm.append('payload', JSON.stringify(bookingData));
+    const paymentProofFile = BookingState.paymentMethod === 'gcash'
+      ? document.getElementById('gcashProof')?.files?.[0]
+      : document.getElementById('cashProof')?.files?.[0];
+    if (paymentProofFile) bookingForm.append('paymentProof', paymentProofFile);
     const response = await fetch('/api/bookings/create-new', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(bookingData)
+      body: bookingForm
     });
 
     if (response.ok) {
@@ -12780,6 +12789,7 @@ async function handleBookingSubmission() {
 
       // Clear saved progress after successful booking
       clearBookingProgress();
+      BookingState.clientSubmissionId = null;
 
     } else {
       const errorData = await response.json();
@@ -13079,30 +13089,15 @@ async function prepareBookingData() {
     bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
     bookingData.paymentReference = paymentReference;
 
-    // Process file upload dynamically
-    const proofFile = document.getElementById('gcashProof')?.files[0];
-    if (proofFile) {
-      try {
-        bookingData.proofImageBase64 = await toBase64(proofFile);
-      } catch (e) {
-        console.error("Failed to parse proof image:", e);
-      }
-    }
+    // The receipt file is appended as multipart data during submission so it
+    // can be streamed server-side without base64 expansion in browser memory.
   } else if (BookingState.paymentMethod === 'cod') {
     const paymentReference = document.getElementById('cashNumber')?.value;
     bookingData.gcashNumber = BookingState.paymentChannel === 'gcash' ? paymentReference : '';
     bookingData.paymentReference = paymentReference;
     bookingData.paymentNotes = document.getElementById('cashNotes')?.value;
 
-    // Process Cash proof file upload
-    const proofFile = document.getElementById('cashProof')?.files[0];
-    if (proofFile) {
-      try {
-        bookingData.proofImageBase64 = await toBase64(proofFile);
-      } catch (e) {
-        console.error("Failed to parse proof image:", e);
-      }
-    }
+    // The receipt file is appended as multipart data during submission.
   }
 
   const maintenanceScheduleId = new URLSearchParams(window.location.search).get('maintenanceScheduleId');
