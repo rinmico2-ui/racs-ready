@@ -288,19 +288,21 @@
     justify-content: space-between;
     gap: .85rem;
     padding: .85rem 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    background: linear-gradient(180deg,#fff,#f8fafc);
+    border-bottom: 1px solid #bfdbfe;
+    background: linear-gradient(135deg,#eff6ff,#dbeafe);
   }
   .checkout-map-title { margin: 0; color: #0f172a; font-size: .82rem; font-weight: 800; }
-  .checkout-map-subtitle { margin-top: 2px; color: #64748b; font-size: .67rem; line-height: 1.35; }
+  .checkout-map-subtitle { margin-top: 2px; color: #475569; font-size: .67rem; line-height: 1.35; }
   .checkout-map-actions { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
   .checkout-map-action {
     display: inline-flex; align-items: center; justify-content: center; gap: .35rem;
-    min-height: 34px; padding: .35rem .65rem; border: 1px solid #dbe3ee;
-    border-radius: 8px; background: #fff; color: #334155; font-size: .68rem; font-weight: 700;
+    min-height: 34px; padding: .35rem .65rem; border: 1px solid #1d4ed8;
+    border-radius: 8px; background: #1d4ed8; color: #fff; font-size: .68rem; font-weight: 700;
+    cursor: pointer; transition: background-color .15s ease, border-color .15s ease;
   }
-  .checkout-map-action:hover:not(:disabled) { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
-  .checkout-map-action:disabled { cursor: not-allowed; opacity: .45; }
+  .checkout-map-action:hover:not(:disabled) { border-color: #1e40af; background: #1e40af; color: #fff; }
+  .checkout-map-action:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+  .checkout-map-action:disabled { border-color: #cbd5e1; background: #e2e8f0; color: #475569; cursor: not-allowed; opacity: 1; }
   .checkout-map-stage { position: relative; }
   .checkout-map-legend {
     position: absolute; left: 10px; bottom: 24px; z-index: 800;
@@ -1267,7 +1269,7 @@
   </div>
 </div>
 
-<script src="/js/checkout-calendar.js?v=20260925-future-date-v3"></script>
+<script src="/js/checkout-calendar.js?v=20260929-single-payment-action"></script>
 <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
 <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
@@ -1396,7 +1398,7 @@
     function cartCheckoutSignature() {
       return CART_ITEMS.map(item => {
         const inventoryId = item?.inventoryId?._id || item?.inventoryId || '';
-        return `${inventoryId}:${Number(item?.quantity) || 1}`;
+        return `${item?._id || inventoryId}:${inventoryId}:${Number(item?.quantity) || 1}`;
       }).sort().join('|');
     }
 
@@ -1503,6 +1505,9 @@
 
     function scheduleCheckoutAdvance(expectedStep, delay) {
       clearTimeout(_autoAdvanceTimer);
+      // Payment choices and receipt uploads must wait for the main Next
+      // button, including when a previously saved checkout is restored.
+      if (expectedStep === 3) return;
       _autoAdvanceTimer = setTimeout(function() {
         if (currentStep === expectedStep && typeof window.wizardNext === 'function') {
           window.wizardNext();
@@ -1553,8 +1558,9 @@
       4: '<i class="bi bi-receipt me-2"></i>Check your order'
     };
 
-    let CART_ITEMS = cartObj.items || [];
-    let SUB_TOTAL = cartObj.totalAmount || 0;
+    const initialCheckoutCart = window.getSelectedCartForCheckout?.() || cartObj;
+    let CART_ITEMS = initialCheckoutCart.items || [];
+    let SUB_TOTAL = initialCheckoutCart.totalAmount || 0;
     let _storeHoursData = null;
 
     // Fetch store open hours for pickup scheduling
@@ -1639,12 +1645,15 @@
         window.location.replace('/login?returnTo=' + encodeURIComponent('/aircon-cart'));
         return;
       }
-      if (dynamicCart) {
-        CART_ITEMS = dynamicCart.items || [];
-        SUB_TOTAL = dynamicCart.totalAmount || 0;
+      const checkoutCart = dynamicCart || window.getSelectedCartForCheckout?.();
+      if (checkoutCart) {
+        const previousSignature = cartCheckoutSignature();
+        CART_ITEMS = checkoutCart.items || [];
+        SUB_TOTAL = checkoutCart.totalAmount || 0;
+        if (previousSignature !== cartCheckoutSignature()) _checkoutRequestId = '';
       }
       if (CART_ITEMS.length === 0) {
-        Swal.fire('Empty Cart', 'Please add items to your cart before checking out.', 'warning');
+        Swal.fire('No items selected', 'Select at least one available item in your cart before checking out.', 'warning');
         return;
       }
 
@@ -2195,9 +2204,7 @@
       // Update Next button state
       updateNextButtonState();
       scheduleCartCheckoutDraftSave();
-      if (method === 'cash_onsite') {
-        scheduleCheckoutAdvance(3, 450);
-      } else if (showGcashPanel) {
+      if (showGcashPanel) {
         focusCheckoutControl('#wizardGcashSenderNumber', 220);
       }
     };
@@ -2226,8 +2233,6 @@
           if (warning) warning.classList.remove('d-none');
         }
         updateNextButtonState();
-        const senderNumber = document.getElementById('wizardGcashSenderNumber')?.value;
-        if (file && document.getElementById('wizardPaymentChannel')?.value === 'gcash' && window.GcashSenderInput.check(senderNumber, false).valid) scheduleCheckoutAdvance(3, 650);
       }
     });
 
@@ -2236,9 +2241,7 @@
         const senderFeedback = updateCartGcashSenderFeedback();
         if (document.getElementById('wizardPaymentChannel')?.value === 'gcash' && senderFeedback.valid) {
           const proofFile = document.getElementById('gcashProofWizard')?.files[0];
-          if (proofFile && validateReceiptFile(proofFile, false)) {
-            scheduleCheckoutAdvance(3, 550);
-          } else {
+          if (!proofFile || !validateReceiptFile(proofFile, false)) {
             focusCheckoutControl('#gcashProofWizard', 420);
           }
         } else {
@@ -2893,6 +2896,9 @@
       // Use FormData so we can attach the GCash receipt image
       const fd = new FormData();
       fd.append('items', JSON.stringify(orderItems));
+      if (CART_ITEMS.every(item => item._id)) {
+        fd.append('cartItemIds', JSON.stringify(CART_ITEMS.map(item => String(item._id))));
+      }
       fd.append('fulfillmentType', selectedFulfillment);
       fd.append('paymentMethod', payMethod);
       fd.append('checkoutRequestId', _checkoutRequestId || (_checkoutRequestId = createCheckoutRequestId()));
@@ -2933,8 +2939,8 @@
           return;
         }
 
-        // Order success - clear cart
-        await fetch('/api/aircon-cart/clear', { method: 'POST' });
+        // The server removes only the purchased cart lines when the order
+        // transaction commits. Never clear unselected or newly added items.
         clearCartCheckoutDraft();
         // Keep the loader visible long enough to communicate progress even
         // when localhost responds almost immediately.
@@ -2960,7 +2966,8 @@
         </div>
       `;
         document.querySelector('#checkoutOrderModal .modal-footer').innerHTML = `
-        <a href="/my-orders" class="btn btn-success px-4 shadow-sm mx-auto" style="border-radius: 50px;"><i class="bi bi-check-circle me-2"></i>View My Orders</a>
+        <a href="/aircon-cart" class="btn btn-outline-primary px-4">Return to cart</a>
+        <a href="/my-orders" class="btn btn-success px-4 shadow-sm" style="border-radius: 50px;"><i class="bi bi-check-circle me-2"></i>View My Orders</a>
       `;
         // Hide wizard progress on success
         const wizardProgress = document.getElementById('wizardProgress');

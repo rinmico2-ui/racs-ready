@@ -93,7 +93,11 @@ function assertAdminTransition(payment, action, body = {}) {
   if (!allowedFrom[normalizedAction]) {
     throw new RemittancePolicyError("Unsupported remittance action.", 400, "REMITTANCE_ACTION_INVALID");
   }
-  if (!allowedFrom[normalizedAction].includes(current)) {
+  // Manual order receipts are recorded as "paid" by payment verification,
+  // whereas technician remittances transition to "verified". Both are
+  // received order payments, but do not broaden this exception to bookings.
+  const paidOrderRefund = normalizedAction === "refund" && current === "paid" && Boolean(payment?.orderId);
+  if (!allowedFrom[normalizedAction].includes(current) && !paidOrderRefund) {
     throw new RemittancePolicyError(
       `Cannot ${normalizedAction} a remittance that is ${current.replace(/_/g, " ")}. Refresh the queue and review its latest state.`,
       409,

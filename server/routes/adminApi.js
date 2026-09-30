@@ -110,6 +110,16 @@ router.get("/reports/overview", async (req, res, next) => {
   }
 });
 
+// Lightweight informational navigation counts, separate from operational decisions.
+router.get("/navigation-summary", async (req, res, next) => {
+  try {
+    const { buildAdminNavigationSummary } = require("../utils/adminNavigationSummary");
+    res.set("Cache-Control", "private, no-store");
+    const { measureRequest } = require("../utils/requestTiming");
+    return res.json(await measureRequest(req, "navigationSummary", () => buildAdminNavigationSummary()));
+  } catch (error) { return next(error); }
+});
+
 // Authoritative operational control-center snapshot. This intentionally stays
 // separate from long-range analytics: every number represents current work,
 // a review queue, custody exposure, or cash-control responsibility.
@@ -697,9 +707,13 @@ router.get("/remittances", async (req, res, next) => {
     if (requestedStatus && !REMITTANCE_STATUSES.includes(requestedStatus)) {
       return res.status(400).json({ error: "Invalid remittance status filter." });
     }
+    const refundFilter = req.query.refundStatus ? String(req.query.refundStatus) : null;
+    if (refundFilter && !["pending", "processing", "completed", "partial"].includes(refundFilter)) {
+      return res.status(400).json({ error: "Invalid refund status filter." });
+    }
     const normalStatuses = requestedStatus ? [requestedStatus] : REMITTANCE_STATUSES;
     const includeLegacyCollections = !requestedStatus || requestedStatus === "waiting_for_remittance";
-    const filter = includeLegacyCollections
+    const filter = refundFilter ? { refundStatus: refundFilter, ...(requestedStatus ? { status: requestedStatus } : {}) } : includeLegacyCollections
       ? { $or: [{ status: { $in: normalStatuses } }, { status: "paid", collectedBy: { $exists: false }, bookingId: { $ne: null } }, { status: "paid", collectedBy: null, bookingId: { $ne: null } }] }
       : { status: { $in: normalStatuses } };
     const payments = await Payment.find(filter)
@@ -709,12 +723,13 @@ router.get("/remittances", async (req, res, next) => {
       .populate("collectedBy", "name firstName lastName")
       .sort({ collectedAt: -1, submittedAt: -1 }).lean();
     const visiblePayments = payments.filter((payment) => {
+      if (refundFilter) return true;
       if (payment.status !== "paid" || payment.collectedBy) return true;
       const booking = payment.bookingId;
       return Boolean(booking && (booking.balanceCollected || booking.repairPaymentCollected || booking.inspectionFeeCollected));
     });
     visiblePayments.forEach((payment) => {
-      if (payment.status === "paid" && !payment.collectedBy) {
+      if (payment.status === "paid" && !payment.collectedBy && !refundFilter) {
         payment.status = "waiting_for_remittance";
         payment.collectedByName = payment.collectedByName || "Assigned technician (legacy record)";
         payment.collectedAt = payment.collectedAt || payment.completedAt || payment.submittedAt;
@@ -722,9 +737,29 @@ router.get("/remittances", async (req, res, next) => {
       }
     });
 
+    let refundRows = visiblePayments;
+    if (refundFilter === "pending") {
+      const Order = require("../models/Order");
+      const reviewOrders = await Order.find({ status: "cancelled", refundStatus: { $in: ["none", null] },
+        refundReviewRequestedAt: { $ne: null } })
+        .select("_id orderReference customer refundReviewReason refundReviewRequestedAt")
+        .sort({ refundReviewRequestedAt: -1 }).limit(200).lean();
+      const readyPayments = reviewOrders.length ? await Payment.find({
+        orderId: { $in: reviewOrders.map(order => order._id) },
+        status: { $in: ["verified", "paid", "remitted", "partial", "payment_collected", "waiting_for_remittance"] },
+      }).select("orderId amount").lean() : [];
+      const readyIds = new Set(readyPayments.filter(payment => Number(payment.amount) > 0).map(payment => String(payment.orderId)));
+      refundRows = refundRows.concat(reviewOrders.map(order => ({
+        _id: String(order._id), refundReview: true, reviewReady: readyIds.has(String(order._id)),
+        orderId: { _id: order._id, orderReference: order.orderReference, customer: order.customer },
+        status: "pending_confirmation", refundStatus: "none", refundAmount: 0,
+        refundReason: order.refundReviewReason, submittedAt: order.refundReviewRequestedAt,
+      })));
+      refundRows.sort((a, b) => new Date(b.refundRequestedAt || b.submittedAt || 0) - new Date(a.refundRequestedAt || a.submittedAt || 0));
+    }
     const limit = Math.min(Math.max(1, Number(req.query.limit) || 100), 200);
     const page = Math.max(0, Number(req.query.page) || 0);
-    const paged = visiblePayments.slice(page * limit, (page + 1) * limit);
+    const paged = refundRows.slice(page * limit, (page + 1) * limit);
     const summaryRows = await Payment.aggregate([
       { $match: { status: { $in: REMITTANCE_STATUSES } } },
       { $group: { _id: { status: "$status", resolved: { $cond: [{ $ifNull: ["$resolvedAt", false] }, true, false] } }, count: { $sum: 1 }, amount: { $sum: "$amount" } } },
@@ -735,8 +770,32 @@ router.get("/remittances", async (req, res, next) => {
       if (summary[key]) summary[key] = { count: Number(row.count || 0), amount: Number(row.amount || 0) };
     });
 
-    res.json({ payments: paged, total: visiblePayments.length, page, limit, summary });
+    res.json({ payments: paged, total: refundRows.length, page, limit, summary });
   } catch (err) { next(err); }
+});
+
+// Staff queues a review claim only after the payment has actually been confirmed.
+router.post("/order-refund-reviews/:id/queue", requirePermission("payments.manage"), async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid order ID." });
+    const Order = require("../models/Order");
+    const Payment = require("../models/Payment");
+    const ProductRefund = require("../models/ProductRefund");
+    const order = await Order.findById(req.params.id)
+      .select("userId status refundReviewRequestedAt refundReviewReason refundStatus").lean();
+    if (!order || order.status !== "cancelled" || !order.refundReviewRequestedAt) {
+      return res.status(404).json({ error: "Cancelled order payment review not found." });
+    }
+    const { requestOrderRefund } = require("../utils/orderRefundRequest");
+    const result = await requestOrderRefund({
+      orderId: req.params.id, user: { _id: order.userId }, reason: order.refundReviewReason,
+      actor: req.user, promoteReview: true,
+    }, { mongoose, Order, Payment, ProductRefund });
+    return res.json(result);
+  } catch (error) {
+    if (error.status && error.status < 500) return res.status(error.status).json({ error: error.message, code: error.code });
+    return next(error);
+  }
 });
 
 // Unified invoice register: service bookings/projects, ecommerce product
@@ -813,6 +872,12 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     const transition = assertAdminTransition(payment, req.body.action, req.body);
     const action = transition.action;
     if (action === "refund" && payment.orderId) {
+      if (payment.status === "paid") {
+        const relatedOrder = await Order.findById(payment.orderId).select("status").lean();
+        if (relatedOrder?.status !== "cancelled" || !["pending", "processing", "partial"].includes(payment.refundStatus)) {
+          return res.status(409).json({ error: "A paid order payment needs a cancelled order and a pending refund request before it can be recorded as refunded." });
+        }
+      }
       const ProductRefund = require("../models/ProductRefund");
       if (await ProductRefund.exists({ originalPaymentId: payment._id, status: { $in: ["approved", "processing", "completed"] } })) {
         return res.status(409).json({ error: "This payment is linked to an item-level product return. Review Product Returns before refunding the whole payment." });

@@ -58,6 +58,13 @@ async function getUserFromSession(req) {
 }
 
 async function getUserFromRequest(req) {
+  // Reuse this request's validated identity, never a cross-request user cache.
+  // A resolved anonymous/disabled identity must not fall back to stale cookies.
+  if (req && req.authResolved) {
+    return isAccountEnabled(req.user)
+      ? { user: req.user, payload: req.authPayload || null }
+      : null;
+  }
   const cookies = parseCookies(
     (req && req.headers && req.headers.cookie) || "",
   );

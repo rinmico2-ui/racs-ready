@@ -477,7 +477,10 @@
     }
 
     // Load unread count
+    let unreadCountRunning = false;
     async function loadUnreadCount() {
+      if (document.hidden || unreadCountRunning) return;
+      unreadCountRunning = true;
       try {
         const res = await fetch('/api/notifications/unread-count', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Could not load notification count');
@@ -490,7 +493,7 @@
         } else {
           badge.classList.add('d-none');
         }
-      } catch (e) {}
+      } catch (e) {} finally { unreadCountRunning = false; }
     }
 
     // Poll every 30 seconds

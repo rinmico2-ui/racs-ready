@@ -1391,7 +1391,7 @@
       }
 
       async function fetchOrdersForRange(start, end, signal) {
-        const params = new URLSearchParams({ limit: "100", page: "1", scheduledFrom: start, scheduledTo: end });
+        const params = new URLSearchParams({ limit: "100", page: "1", scheduledFrom: start, scheduledTo: end, includeKpi: "false" });
         const firstResponse = await fetch(calendarOrdersListApi + "?" + params.toString(), { credentials: "same-origin", cache: "no-store", signal });
         if (!firstResponse.ok) throw new Error("orders fetch failed: " + firstResponse.status);
         const firstPage = await firstResponse.json();

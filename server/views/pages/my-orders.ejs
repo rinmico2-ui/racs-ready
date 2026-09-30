@@ -412,6 +412,45 @@
     .ord-no-results { display:none; text-align:center; padding:50px 20px; color:#64748b; }
     .ord-no-results i { display:block; margin-bottom:10px; color:#94a3b8; font-size:2rem; }
 
+    /* Rescheduling uses the same calendar-then-time pattern as product checkout. */
+    .ord-rs-picker { border:1px solid #dbe3ee; border-radius:14px; overflow:hidden; background:#fff; }
+    .ord-rs-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#0f172a; border-bottom:1px solid #e2e8f0; }
+    .ord-rs-head strong { color:#fff; font-size:.9rem; }
+    .ord-rs-nav { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid rgba(255,255,255,.25); border-radius:9px; background:rgba(255,255,255,.08); color:#fff; }
+    .ord-rs-nav:hover:not(:disabled) { background:rgba(255,255,255,.2); }
+    .ord-rs-nav:disabled { opacity:.35; cursor:not-allowed; }
+    .ord-rs-hint { margin:0; padding:10px 15px; font-size:.76rem; color:#475569; background:#eff6ff; }
+    .ord-rs-weekdays,.ord-rs-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; padding:5px 13px; }
+    .ord-rs-weekdays { padding-top:13px; }
+    .ord-rs-weekdays span { text-align:center; font-size:.66rem; font-weight:800; color:#64748b; }
+    .ord-rs-grid { padding-bottom:14px; }
+    .ord-rs-day { min-height:58px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; color:#94a3b8; font-size:.84rem; font-weight:700; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; }
+    .ord-rs-day small { font-size:.57rem; line-height:1; }
+    .ord-rs-day.is-open { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; cursor:pointer; }
+    .ord-rs-day.is-open:hover { background:#d1fae5; }
+    .ord-rs-day.is-limited { background:#fffbeb; border-color:#fcd34d; color:#92400e; cursor:pointer; }
+    .ord-rs-day.is-limited:hover { background:#fef3c7; }
+    .ord-rs-day.is-selected { background:#0f172a; border-color:#0f172a; color:#fff; }
+    .ord-rs-day:disabled { cursor:not-allowed; }
+    .ord-rs-day:focus-visible,.ord-rs-time:focus-visible,.ord-rs-nav:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
+    .ord-rs-empty { min-height:46px; }
+    .ord-rs-legend { display:flex; gap:16px; padding:0 16px 15px; color:#64748b; font-size:.71rem; }
+    .ord-rs-legend span::before { content:''; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; background:#d1fae5; border:1px solid #a7f3d0; }
+    .ord-rs-legend span:nth-child(2)::before { background:#fffbeb; border-color:#fcd34d; }
+    .ord-rs-legend span:nth-child(3)::before { background:#f8fafc; border-color:#e2e8f0; }
+    .ord-rs-time-section { padding:15px; border-top:1px solid #e2e8f0; }
+    .ord-rs-time-section[hidden] { display:none; }
+    .ord-rs-time-head { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px; margin-bottom:10px; color:#334155; font-size:.8rem; }
+    .ord-rs-time-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+    .ord-rs-time { min-height:52px; border:1px solid #e2e8f0; border-radius:9px; background:#fafafa; color:#0f172a; font-size:.82rem; font-weight:700; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:3px; padding:8px 12px; }
+    .ord-rs-time small { font-size:.58rem; color:#065f46; text-transform:uppercase; }
+    .ord-rs-time:hover { background:#f1f5f9; }
+    .ord-rs-time.is-selected { background:#0f172a; border-color:#0f172a; color:#fff; }
+    .ord-rs-time.is-selected small { color:#fff; }
+    .ord-rs-selection { margin-top:12px; padding:11px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:.8rem; font-weight:700; }
+    .ord-rs-selection[hidden] { display:none; }
+    @media (max-width:575px) { .ord-rs-weekdays,.ord-rs-grid { gap:3px; padding-left:8px; padding-right:8px; } .ord-rs-day { min-height:44px; } .ord-rs-day small { font-size:.48rem; } .ord-rs-time-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
     /* ═══ Rating Button ═══ */
     .ord-rate-btn {
       display: inline-flex;
@@ -570,7 +609,6 @@
           const progressWidth = Math.round(((currentStage + 1) / 6) * 100);
           const orderSearch = [order.orderReference || order._id].concat((order.items || []).map(function(item){ return [item.brand, item.modelLine, item.capacity].filter(Boolean).join(' '); })).join(' ').toLowerCase();
           const canManage = ['pending_payment', 'preparing_unit', 'technician_assigned'].includes(order.status);
-          const technicianRef = order.technicianId || (order.technician && order.technician._id) || '';
           const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
           const payableTotal = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0)) + Number(order.transportationFee || 0);
           const isDownpaymentPlan = order.paymentMethod === 'cod';
@@ -671,13 +709,23 @@
             <% if (Number(order.downpaymentAmount || 0) > 0) { %>
               <div class="ord-info-row mt-2" style="background:#fffbeb;color:#92400e;">
                 <i class="bi bi-wallet2"></i>
-                <span><strong><%= order.downpaymentPercentage || 10 %>% downpayment:</strong> &#8369;<%= Number(order.downpaymentAmount).toLocaleString() %> &middot; <strong>Remaining:</strong> &#8369;<%= Number(order.balanceAmount || 0).toLocaleString() %></span>
+                <span><strong><%= order.paymentMethod === 'gcash_full' ? 'Full payment' : `${order.downpaymentPercentage || 10}% downpayment` %>:</strong> &#8369;<%= Number(order.downpaymentAmount).toLocaleString() %> &middot; <strong>Remaining:</strong> &#8369;<%= Number(order.balanceAmount || 0).toLocaleString() %></span>
               </div>
             <% } %>
             <% if (order.refundStatus && order.refundStatus !== 'none') { %>
               <div class="ord-info-row mt-2" style="background:<%= order.refundStatus === 'completed' ? '#ecfdf5' : '#fff7ed' %>;color:<%= order.refundStatus === 'completed' ? '#047857' : '#9a3412' %>;">
                 <i class="bi bi-arrow-counterclockwise"></i>
                 <span><strong>Refund <%= order.refundStatus %>:</strong> &#8369;<%= Number(order.refundAmount || 0).toLocaleString() %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></span>
+              </div>
+            <% } else if (order.status === 'cancelled' && order.refundReviewRequestedAt) { %>
+              <div class="ord-info-row mt-2" style="background:#eff6ff;color:#1d4ed8;">
+                <i class="bi bi-hourglass-split"></i>
+                <span><strong>Payment review requested.</strong> Staff must verify the receipt before any refund can be approved. No refund amount is confirmed yet.</span>
+              </div>
+            <% } else if (order.status === 'cancelled' && order.paymentStatus !== 'refunded') { %>
+              <div class="ord-info-row mt-2" style="background:#fff7ed;color:#9a3412;">
+                <i class="bi bi-info-circle"></i>
+                <span>Already paid? Request a refund below. If your receipt is not verified yet, staff will review it first. Requests do not automatically transfer money.</span>
               </div>
             <% } %>
 
@@ -717,8 +765,18 @@
               <% if (order.status === 'completed') { %>
                 <a class="ord-secondary-btn" href="/my-orders/<%= order._id %>#orderProductReturns"><i class="bi bi-arrow-return-left"></i> Return a Product</a>
               <% } %>
-              <% if (canManage && (technicianRef || order.fulfillmentType === 'customer_pickup') && !pendingReschedule) { %>
-                <button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech-id="<%= technicianRef %>" data-fulfillment="<%= order.fulfillmentType %>">
+              <% if (order.status === 'cancelled' && (order.items || []).length) { %>
+                <button class="ord-secondary-btn" type="button" data-order-reorder="<%= order._id %>" aria-label="Reorder products from <%= order.orderReference || order._id %>">
+                  <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reorder
+                </button>
+              <% } %>
+              <% if (order.status === 'cancelled' && (!order.refundStatus || order.refundStatus === 'none') && !order.refundReviewRequestedAt && order.paymentStatus !== 'refunded') { %>
+                <button class="ord-secondary-btn" type="button" data-order-refund="<%= order._id %>" aria-label="Request refund for <%= order.orderReference || order._id %>">
+                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Request Refund
+                </button>
+              <% } %>
+              <% if (canManage && !pendingReschedule) { %>
+                <button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-fulfillment="<%= order.fulfillmentType %>" data-quantity="<%= order.fulfillmentType === 'delivery_installation' ? Math.max(1, (order.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0)) : 1 %>" data-travel-time="<%= Math.max(0, Number(order.routeDurationMin) || 30) %>">
                   <i class="bi bi-calendar-event"></i> Reschedule
                 </button>
               <% } %>
@@ -871,7 +929,7 @@
 
   <!-- Compact reschedule flow -->
   <div class="modal fade" id="orderRescheduleModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content" style="border:0;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.2);">
         <div class="modal-header" style="padding:20px 22px;border-bottom:1px solid #e2e8f0;">
           <div>
@@ -886,20 +944,11 @@
           </div>
           <div id="rescheduleError" class="alert alert-danger d-none mb-0"></div>
           <div id="rescheduleFields" class="d-none">
-            <div class="row g-3">
-              <div class="col-sm-6">
-                <label for="rescheduleDate" class="form-label fw-semibold" style="font-size:.8rem;">Preferred date</label>
-                <select id="rescheduleDate" class="form-select" style="font-size:.85rem;"><option value="">Choose a date</option></select>
-              </div>
-              <div class="col-sm-6">
-                <label for="rescheduleTime" class="form-label fw-semibold" style="font-size:.8rem;">Preferred time</label>
-                <select id="rescheduleTime" class="form-select" style="font-size:.85rem;" disabled><option value="">Choose a date first</option></select>
-              </div>
-              <div class="col-12">
-                <label for="rescheduleReason" class="form-label fw-semibold" style="font-size:.8rem;">Reason</label>
-                <textarea id="rescheduleReason" class="form-control" rows="3" maxlength="500" placeholder="Tell us why you need a new schedule" style="font-size:.85rem;resize:none;"></textarea>
-              </div>
-            </div>
+            <div id="rescheduleCalendar" class="ord-rs-picker" aria-label="Choose an available reschedule date and time"></div>
+            <input type="hidden" id="rescheduleDate">
+            <input type="hidden" id="rescheduleTime">
+            <label for="rescheduleReason" class="form-label fw-semibold mt-3" style="font-size:.8rem;">Reason</label>
+            <textarea id="rescheduleReason" class="form-control" rows="3" maxlength="500" placeholder="Tell us why you need a new schedule" style="font-size:.85rem;resize:none;"></textarea>
             <p class="mb-0 mt-3" style="font-size:.72rem;color:#64748b;"><i class="bi bi-info-circle me-1"></i>Your request will be reviewed before the schedule changes.</p>
           </div>
         </div>
@@ -924,6 +973,9 @@
     .spin-anim { display:inline-block; animation:spin 1s linear infinite; }
   </style>
 
+  <script src="/js/customer-order-reorder.js?v=20260930-reorder-v1" defer></script>
+  <script src="/js/customer-order-refund.js?v=20260930-refund-review-v2" defer></script>
+  <script src="/js/order-reschedule-picker.js?v=20260930-capacity-v2" defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const cards = Array.from(document.querySelectorAll('.ord-card'));
@@ -1041,32 +1093,51 @@
       const reasonInput = document.getElementById('rescheduleReason');
       const submitButton = document.getElementById('submitReschedule');
       let currentOrderId = '';
-      let availableDates = [];
+      let currentScheduleParams = null;
+      let scheduleRequestGeneration = 0;
+      let scheduleRequestController = null;
+      const reschedulePicker = new window.OrderReschedulePicker(
+        document.getElementById('rescheduleCalendar'), dateSelect, timeSelect, updateRescheduleSubmit,
+        async function (date) {
+          if (currentScheduleParams?.fulfillment === 'customer_pickup') return [{ time: 'store_hours', label: 'During store hours' }];
+          if (!currentScheduleParams) throw new Error('Schedule is no longer active.');
+          const params = new URLSearchParams({
+            date: date, duration: '60', quantity: currentScheduleParams.quantity,
+            travelTime: currentScheduleParams.travelTime
+          });
+          const response = await fetch('/api/schedule/time-slots?' + params.toString(), { cache: 'no-store' });
+          const data = await response.json();
+          if (!response.ok || data.blocked) throw new Error(data.message || data.error || 'Unable to load available times.');
+          return Array.isArray(data.timeSlots) ? data.timeSlots : [];
+        }
+      );
 
       function updateRescheduleSubmit() {
         if (submitButton) submitButton.disabled = !(dateSelect.value && timeSelect.value && reasonInput.value.trim());
       }
 
-      if (dateSelect) dateSelect.addEventListener('change', function () {
-        const selected = availableDates.find(function (row) { return row.date === dateSelect.value; });
-        const slots = selected && Array.isArray(selected.timeSlots) ? selected.timeSlots : [];
-        timeSelect.innerHTML = '<option value="">Choose a time</option>' + slots.map(function (slot) {
-          return '<option value="' + slot.time + '">' + (slot.label || slot.time) + '</option>';
-        }).join('');
-        timeSelect.disabled = slots.length === 0;
-        updateRescheduleSubmit();
-      });
-      if (timeSelect) timeSelect.addEventListener('change', updateRescheduleSubmit);
       if (reasonInput) reasonInput.addEventListener('input', updateRescheduleSubmit);
+      if (rescheduleModalElement) rescheduleModalElement.addEventListener('hidden.bs.modal', function () {
+        scheduleRequestGeneration++;
+        if (scheduleRequestController) scheduleRequestController.abort();
+        scheduleRequestController = null;
+        currentScheduleParams = null;
+        reschedulePicker.reset();
+      });
 
       document.querySelectorAll('.ord-reschedule-btn').forEach(function (button) {
         button.addEventListener('click', async function () {
           currentOrderId = button.dataset.id;
-          availableDates = [];
+          currentScheduleParams = {
+            fulfillment: button.dataset.fulfillment,
+            quantity: button.dataset.quantity || '1',
+            travelTime: button.dataset.travelTime || '30'
+          };
+          const requestGeneration = ++scheduleRequestGeneration;
+          if (scheduleRequestController) scheduleRequestController.abort();
+          scheduleRequestController = new AbortController();
           document.getElementById('rescheduleOrderRef').textContent = 'Order ' + button.dataset.ref;
-          dateSelect.innerHTML = '<option value="">Choose a date</option>';
-          timeSelect.innerHTML = '<option value="">Choose a date first</option>';
-          timeSelect.disabled = true;
+          reschedulePicker.reset();
           reasonInput.value = '';
           submitButton.disabled = true;
           loading.classList.remove('d-none');
@@ -1075,8 +1146,9 @@
           rescheduleModal.show();
 
           try {
+            let availableDates;
             if (button.dataset.fulfillment === 'customer_pickup') {
-              const response = await fetch('/api/public/company/store-open-hours');
+              const response = await fetch('/api/public/company/store-open-hours', { cache: 'no-store', signal: scheduleRequestController.signal });
               const data = await response.json();
               if (!response.ok) throw new Error(data.error || 'Unable to load store hours.');
               const hours = Array.isArray(data.hours) ? data.hours : [];
@@ -1090,41 +1162,57 @@
                 availableDates.push({ date:key, available:true, timeSlots:[{ time:'store_hours', label:'During store hours' }] });
               }
             } else {
-              const response = await fetch('/api/schedule/technician/' + encodeURIComponent(button.dataset.techId) + '/available-slots');
+              const params = new URLSearchParams({ duration: '60', quantity: currentScheduleParams.quantity, travelTime: currentScheduleParams.travelTime, mode: 'manual' });
+              const response = await fetch('/api/schedule/available-dates?' + params.toString(), { cache: 'no-store', signal: scheduleRequestController.signal });
               const data = await response.json();
               if (!response.ok) throw new Error(data.error || 'Unable to load available schedules.');
+              if (data.blocked) throw new Error(data.message || 'This order needs project scheduling. Please contact us.');
               availableDates = data.availableDates || [];
             }
-            availableDates = availableDates.filter(function (row) { return row.available && row.timeSlots && row.timeSlots.length; });
-            if (!availableDates.length) throw new Error('No open schedules are available in the next 30 days. Please contact us for help.');
-
-            dateSelect.innerHTML = '<option value="">Choose a date</option>' + availableDates.map(function (row) {
-              const label = new Date(row.date + 'T00:00:00').toLocaleDateString('en-PH', { weekday:'short', month:'short', day:'numeric' });
-              return '<option value="' + row.date + '">' + label + '</option>';
-            }).join('');
+            if (requestGeneration !== scheduleRequestGeneration) return;
+            if (!reschedulePicker.setDates(availableDates)) throw new Error('No open schedules are available. Please contact us for help.');
             loading.classList.add('d-none');
             fields.classList.remove('d-none');
           } catch (error) {
+            if (requestGeneration !== scheduleRequestGeneration || error.name === 'AbortError') return;
             loading.classList.add('d-none');
             errorBox.textContent = error.message;
             errorBox.classList.remove('d-none');
+          } finally {
+            if (requestGeneration === scheduleRequestGeneration) scheduleRequestController = null;
           }
         });
       });
 
       if (submitButton) submitButton.addEventListener('click', async function () {
         if (submitButton.disabled || !currentOrderId) return;
+        const requestedDate = dateSelect.value;
+        const requestedTime = timeSelect.value;
         const originalHtml = submitButton.innerHTML;
         submitButton.disabled = true;
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting';
         try {
+          if (currentScheduleParams?.fulfillment !== 'customer_pickup') {
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking availability';
+            const availableSlots = await reschedulePicker.loadTimeSlots(requestedDate);
+            if (dateSelect.value !== requestedDate || timeSelect.value !== requestedTime) throw new Error('Your schedule selection changed. Please review it and submit again.');
+            const stillAvailable = availableSlots.some(slot => slot.available === true && slot.isPast !== true && String(slot.startTime || slot.time).trim() === requestedTime);
+            if (!stillAvailable) {
+              reschedulePicker.selectDate(requestedDate);
+              throw new Error('That start time is no longer available. Please select another time.');
+            }
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting';
+          }
           const response = await fetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/reschedule-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestedDate: dateSelect.value, requestedTime: timeSelect.value, reason: reasonInput.value.trim() })
+            body: JSON.stringify({ requestedDate: requestedDate, requestedTime: requestedTime, reason: reasonInput.value.trim() })
           });
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || 'Unable to submit the request.');
+          if (!response.ok) {
+            if (data.refreshSlots) reschedulePicker.selectDate(requestedDate);
+            throw new Error(data.error || 'Unable to submit the request.');
+          }
           rescheduleModal.hide();
           await showResult('success', 'Request submitted', 'We will notify you after the new schedule is reviewed.');
           window.location.reload();

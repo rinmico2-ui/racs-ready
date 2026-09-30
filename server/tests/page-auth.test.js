@@ -71,6 +71,26 @@ test.afterEach(() => {
   User.findById = originalFindById;
 });
 
+test("admin page auth reuses only the current request's validated identity", async () => {
+  const user = admin();
+  User.findById = () => { throw new Error('Duplicate user lookup'); };
+  const req = { ...request('unused'), authResolved: true, user };
+  const res = response();
+  let called = false;
+  await pageAuth.requireRole('admin')(req, res, () => { called = true; });
+  assert.equal(called, true);
+});
+
+test("resolved anonymous or disabled identities cannot fall back to a session", async () => {
+  User.findById = () => { throw new Error('Unexpected fallback'); };
+  for (const user of [null, admin({ blocked: true }), admin({ active: false })]) {
+    const req = { ...request('unused'), authResolved: true, user, session: { userId: admin()._id } };
+    const res = response();
+    await pageAuth.requireRole('admin')(req, res, () => { assert.fail('Unauthorized identity'); });
+    assert.match(res.redirectUrl, /^\/login/);
+  }
+});
+
 test("admin page auth accepts a matching bound session", async () => {
   const user = admin();
   mockUserLookup(user);

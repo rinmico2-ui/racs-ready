@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const router = express.Router();
 const BookingService = require('../models/BookingService');
 const Payment = require('../models/Payment');
+const { measureRequest } = require('../utils/requestTiming');
 const Assignment = require('../models/Assignment');
 const Expense = require('../models/Expense');
 const EquipmentAssignment = require('../models/EquipmentAssignment');
@@ -20,6 +21,8 @@ const { bookingReviewState, withBookingReviewState } = require('../utils/booking
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
 const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('../utils/bookingDateTime');
+const { assertCompanyCapacity } = require('../utils/bookingPolicy');
+const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
 const { listSortStages, bookingPendingFilters } = require('../utils/operationsListPolicy');
 const { BOOKING_PHOTO_FIELDS, ASSIGNMENT_PHOTO_FIELDS, PAYMENT_PHOTO_FIELDS,
   exclude, currentAssignment, bookingPhotos } = require('../utils/operationsDetail');
@@ -426,7 +429,7 @@ router.get('/cancellation-log', requireRole(["admin", "secretary"]), async (req,
  */
 router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    const booking = await BookingService.findById(req.params.id);
+    const booking = await measureRequest(req, 'bookingRead', () => BookingService.findById(req.params.id));
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
     const isRepair = booking.serviceModel === "RepairService" ||
@@ -474,13 +477,13 @@ router.post('/:id/verify-payment', requireRole(["admin", "secretary"]), async (r
     booking.paymentVerifiedAt = new Date();
     booking.paymentVerifiedBy = req.user._id;
     if (req.body.notes) booking.notes = req.body.notes;
-    await booking.save();
+    await measureRequest(req, 'bookingSave', () => booking.save());
 
     // Update payment record
     const paymentUpdateData = isCOD
       ? { status: 'partial', verifiedAt: new Date(), verifiedBy: req.user._id, amount: booking.downpaymentAmount || calculatePaymentBreakdown(totalAmount, booking.downpaymentPercentage).downpaymentAmount }
       : { status: 'paid', verifiedAt: new Date(), verifiedBy: req.user._id };
-    await Payment.findOneAndUpdate({ bookingId: booking._id }, paymentUpdateData);
+    await measureRequest(req, 'paymentUpdate', () => Payment.findOneAndUpdate({ bookingId: booking._id }, paymentUpdateData));
 
     console.log(`âœ… Payment verified for booking ${booking.bookingReference} (${isCOD ? 'COD - downpayment only' : 'full'})`);
 
@@ -551,7 +554,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
       return res.status(400).json({ error: 'Confirm that the customer agreed to the replacement schedule.' });
     }
 
-    const booking = await BookingService.findById(req.params.id);
+    let booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (booking.status !== BookingStatus.PENDING) {
       return res.status(409).json({ error: `Only Pending Review bookings can use this reschedule action (current: "${booking.status}").` });
@@ -573,6 +576,13 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
     const replacementEnd = new Date(replacementStart.getTime() + durationMinutes * 60000);
     const pad = value => String(value).padStart(2, '0');
 
+    await withOperationLock(bookingCapacityLockKey(newDate), async () => {
+    booking = await BookingService.findById(req.params.id);
+    if (!booking || booking.status !== BookingStatus.PENDING) {
+      throw Object.assign(new Error('This booking changed while rescheduling. Refresh and try again.'), { status: 409 });
+    }
+    await assertCompanyCapacity(replacementStart, timeParts[0] * 60 + timeParts[1],
+      timeParts[0] * 60 + timeParts[1] + durationMinutes, booking._id);
     booking.bookingDate = replacementStart;
     if (booking.preferredDate) booking.preferredDate = replacementStart;
     booking.startTime = newTime;
@@ -590,6 +600,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
       metadata: { originalDate, originalStartTime, replacementStart },
     });
     await booking.save();
+    });
 
     const io = req.app.get('io');
     const { createNotification } = require('../utils/notify');
@@ -612,7 +623,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
     });
   } catch (error) {
     console.error('Failed to reschedule overdue pending review:', error);
-    res.status(500).json({ error: 'Failed to update the requested schedule' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to update the requested schedule' });
   }
 });
 

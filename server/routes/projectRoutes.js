@@ -493,18 +493,13 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       return res.status(404).json({ error: "Project not found" });
     }
 
-    const workOrders = await WorkOrder.find({ projectId: id })
-      .sort({ sortOrder: 1, scheduledDate: 1 })
-      .lean();
-
-    const materials = await ProjectMaterial.find({ projectId: id }).lean();
-
-    const booking = await BookingService.findById(project.bookingId).lean();
-    const workSubmissions = await ProjectWorkSubmission.find({ projectId: id })
-      .populate("technicianId", "name")
-      .sort({ createdAt: -1 })
-      .lean();
-    const completionReadiness = await getProjectCompletionReadiness(project);
+    const [workOrders, materials, booking, workSubmissions, completionReadiness] = await Promise.all([
+      WorkOrder.find({ projectId: id }).sort({ sortOrder: 1, scheduledDate: 1 }).lean(),
+      ProjectMaterial.find({ projectId: id }).lean(),
+      project.bookingId ? BookingService.findById(project.bookingId).lean() : null,
+      ProjectWorkSubmission.find({ projectId: id }).populate("technicianId", "name").sort({ createdAt: -1 }).lean(),
+      getProjectCompletionReadiness(project),
+    ]);
 
     // Recalculate team-, scope-, work-order-, and date-dependent requirements
     // whenever the Planning Studio reloads.
@@ -512,9 +507,8 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       const evaluated = await evaluateProjectResources(project, project.planningDraft.resources);
       project.planningDraft.resources = evaluated.resources;
       project.planningDraft.readiness = evaluated.readiness;
-      await Project.updateOne({ _id: id, "planningDraft.baselineLocked": { $ne: true } }, {
-        $set: { "planningDraft.resources": evaluated.resources, "planningDraft.readiness": evaluated.readiness, "planningDraft.updatedAt": new Date() },
-      }).catch(() => {});
+      // This is a current preview. Persist planning changes only through the
+      // existing explicit planning write endpoints, not while viewing a record.
     }
 
     res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness });

@@ -19,7 +19,8 @@ const {
   checkAdvanceNotice,
 } = require('../utils/bookingPolicy');
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
-const { manilaDateKey, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
+const { manilaDateKey, manilaDateTime, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
+const { loadActiveOrderCapacityRows } = require('../utils/orderScheduleCapacity');
 const { latestAllowedFinish, overtimeMinutesForWindow } = require('../utils/technicianOvertimePolicy');
 
 // ── Company-wide working hours (internal constants) ───────────────────────────
@@ -160,19 +161,36 @@ router.get('/available-dates', async (req, res) => {
       'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress',
       'repair_requested', 'inspection_scheduled', 'inspection_in_progress',
       'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress',
+      're-scheduled', 'reschedule-required', 'waiting-for-customer', 'no-show-reported',
+      'pending_inspection', 'awaiting_approval', 'waiting_parts', 'parts_reserved',
     ];
 
     const allBookings = await BookingService.find({
       technicianId: { $in: techIds.length > 0 ? techIds : [new mongoose.Types.ObjectId()] },
-      bookingDate: { $gte: today, $lte: windowEnd },
+      bookingDate: { $gte: manilaDateTime(todayKey, 0), $lte: manilaDateTime(windowEnd.toISOString().slice(0, 10), 1440, -1) },
       status: { $in: activeBookingStatuses },
-    }).select('technicianId bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
+    }).select('_id sourceOrderId technicianId bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
+
+    const unassignedBookings = await BookingService.find({
+      $or: [
+        { technicianId: { $exists: false } },
+        { technicianId: null },
+      ],
+      bookingDate: { $gte: manilaDateTime(todayKey, 0), $lte: manilaDateTime(windowEnd.toISOString().slice(0, 10), 1440, -1) },
+      status: { $in: activeBookingStatuses },
+    }).select('_id sourceOrderId bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
+
+    const activeBookings = [...allBookings, ...unassignedBookings];
+    const orderRows = await loadActiveOrderCapacityRows(todayKey, windowEnd.toISOString().slice(0, 10), {
+      activeBookingIds: new Set(activeBookings.map(booking => String(booking._id))),
+      activeLinkedOrderIds: new Set(activeBookings.map(booking => String(booking.sourceOrderId || '')).filter(Boolean)),
+      bufferMinutes: bufferTime,
+    });
 
     // Build lookup: Map<"YYYY-MM-DD", Map<"technicianId", Array<{start,end}>>>
     const bookingMap = new Map();
-    allBookings.forEach(b => {
-      const bd = new Date(b.bookingDate);
-      const dateKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
+    [...allBookings, ...orderRows.filter(row => row.technicianId)].forEach(b => {
+      const dateKey = manilaDateKey(b.bookingDate);
       const techKey = b.technicianId.toString();
       if (!bookingMap.has(dateKey)) bookingMap.set(dateKey, new Map());
       const techBookings = bookingMap.get(dateKey);
@@ -192,20 +210,10 @@ router.get('/available-dates', async (req, res) => {
     });
 
     // Also fetch bookings without a technician — they still consume capacity
-    const unassignedBookings = await BookingService.find({
-      $or: [
-        { technicianId: { $exists: false } },
-        { technicianId: null },
-      ],
-      bookingDate: { $gte: today, $lte: windowEnd },
-      status: { $in: activeBookingStatuses },
-    }).select('bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
-
     // Build per-date lookup for unassigned bookings
     const unassignedBookingMap = new Map();
-    unassignedBookings.forEach(b => {
-      const bd = new Date(b.bookingDate);
-      const dateKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
+    [...unassignedBookings, ...orderRows.filter(row => !row.technicianId)].forEach(b => {
+      const dateKey = manilaDateKey(b.bookingDate);
       if (!unassignedBookingMap.has(dateKey)) unassignedBookingMap.set(dateKey, []);
       const bStart = timeStrToMinutes(b.startTime);
       const bServiceDuration = Number(b.serviceDurationMinutes) || serviceDuration;
@@ -860,17 +868,15 @@ async function handleTimeSlots(req, res) {
       const SLOT_INTERVAL = 30;
 
       // Fetch existing bookings for this technician on this date
-      const dayStart = new Date(selectedDate);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(selectedDate);
-      dayEnd.setHours(23, 59, 59, 999);
-      const activeStatuses = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress'];
+      const dayStart = manilaDateTime(requestedDateKey, 0);
+      const dayEnd = manilaDateTime(requestedDateKey, 1440, -1);
+      const activeStatuses = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress', 're-scheduled', 'reschedule-required', 'waiting-for-customer', 'no-show-reported', 'pending_inspection', 'awaiting_approval', 'waiting_parts', 'parts_reserved'];
 
       const existingBookings = await BookingService.find({
         technicianId,
         bookingDate: { $gte: dayStart, $lte: dayEnd },
         status: { $in: activeStatuses },
-      }).select('startTime endTime serviceDurationMinutes travelTime').lean();
+      }).select('_id sourceOrderId startTime endTime serviceDurationMinutes travelTime').lean();
 
       // Also check Assignment model
       const existingAssignments = await Assignment.find({
@@ -882,6 +888,11 @@ async function handleTimeSlots(req, res) {
       // Build booked intervals
       const bookedIntervals = [];
       const bufferTime = await getBufferMinutes();
+      const orderRows = await loadActiveOrderCapacityRows(requestedDateKey, requestedDateKey, {
+        activeBookingIds: new Set(existingBookings.map(booking => String(booking._id))),
+        activeLinkedOrderIds: new Set(existingBookings.map(booking => String(booking.sourceOrderId || '')).filter(Boolean)),
+        bufferMinutes: bufferTime,
+      });
 
       function parseTimeStr(val) {
         if (val === null || val === undefined) return NaN;
@@ -899,7 +910,7 @@ async function handleTimeSlots(req, res) {
         return NaN;
       }
 
-      for (const b of [...existingBookings, ...existingAssignments]) {
+      for (const b of [...existingBookings, ...existingAssignments, ...orderRows.filter(row => String(row.technicianId || '') === String(technicianId))]) {
         const s = parseTimeStr(b.startTime);
         if (!Number.isFinite(s)) continue;
         const explicitEnd = parseTimeStr(b.endTime);
@@ -1019,16 +1030,24 @@ async function handleTimeSlots(req, res) {
     const DAY_END    = techEnds.length   ? Math.max(...techEnds)   : COMPANY_END_MINUTES;
 
     // ── Existing bookings for the day (assigned + unassigned) ─────────────
-    const dayStartUn = new Date(selectedDate);
-    dayStartUn.setHours(0, 0, 0, 0);
-    const dayEndUn = new Date(selectedDate);
-    dayEndUn.setHours(23, 59, 59, 999);
-    const activeStatues = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress'];
+    const dayStartUn = manilaDateTime(requestedDateKey, 0);
+    const dayEndUn = manilaDateTime(requestedDateKey, 1440, -1);
+    const activeStatues = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress', 're-scheduled', 'reschedule-required', 'waiting-for-customer', 'no-show-reported', 'pending_inspection', 'awaiting_approval', 'waiting_parts', 'parts_reserved'];
 
     const dayBookings = await BookingService.find({
       bookingDate: { $gte: dayStartUn, $lte: dayEndUn },
       status: { $in: activeStatues },
-    }).select('technicianId startTime endTime serviceDurationMinutes travelTime').lean();
+      ...(req._trustedExcludeBookingId ? { _id: { $ne: req._trustedExcludeBookingId } } : {}),
+    }).select('_id sourceOrderId technicianId startTime endTime serviceDurationMinutes travelTime').lean();
+    const excludedBooking = req._trustedExcludeBookingId
+      ? await BookingService.findById(req._trustedExcludeBookingId).select('sourceOrderId').lean()
+      : null;
+    const orderRows = await loadActiveOrderCapacityRows(requestedDateKey, requestedDateKey, {
+      activeBookingIds: new Set(dayBookings.map(booking => String(booking._id))),
+      activeLinkedOrderIds: new Set(dayBookings.map(booking => String(booking.sourceOrderId || '')).filter(Boolean)),
+      excludeOrderId: req._trustedExcludeOrderId || excludedBooking?.sourceOrderId,
+      bufferMinutes: bufferTime,
+    });
 
     // ── Commercial project reservations for this date ───────────────────────
     // Reserved technicians are removed from the pool of techs that can take a
@@ -1062,7 +1081,7 @@ async function handleTimeSlots(req, res) {
     const techBookedIntervals = new Map(); // techId -> [{start, end}]
     const unassignedBookedIntervals = []; // each interval consumes one pooled technician
 
-    for (const b of dayBookings) {
+    for (const b of [...dayBookings, ...orderRows]) {
       const s = timeStrToMinutes(b.startTime);
       const e = bookingCapacityEnd(b);
       if (Number.isNaN(s) || !Number.isFinite(e) || e <= s) {
@@ -1171,7 +1190,7 @@ router.get('/time-slots', handleTimeSlots);
 // Server-side consumers (for example customer reschedule submission) use the
 // exact same capacity engine as /services instead of maintaining a second
 // conflict checker that can drift from the calendar.
-router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query) {
+router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query, trustedExclusions = {}) {
   return new Promise((resolve, reject) => {
     let statusCode = 200;
     const response = {
@@ -1184,7 +1203,11 @@ router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query) {
         return payload;
       },
     };
-    Promise.resolve(handleTimeSlots({ query }, response)).catch(reject);
+    Promise.resolve(handleTimeSlots({
+      query,
+      _trustedExcludeOrderId: trustedExclusions.excludeOrderId || null,
+      _trustedExcludeBookingId: trustedExclusions.excludeBookingId || null,
+    }, response)).catch(reject);
   });
 };
 

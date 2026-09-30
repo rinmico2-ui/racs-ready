@@ -212,18 +212,8 @@
         // The Resolution Center page publishes its own fresh summary; avoid
         // running the same expensive queue query twice during page load.
         const onResolutionCenter = ['/admin/operations/resolution-center', '/admin/appointments/attention'].includes(window.location.pathname);
-        const results = await Promise.allSettled([
-          sidebarJson('/api/notifications/counts'),
-          sidebarJson('/api/admin/warranties/stats'),
-          sidebarJson('/api/maintenance/badge'),
-          sidebarJson('/api/orders/badge'),
-          sidebarJson('/api/projects/dashboard'),
-          sidebarJson('/api/admin/repair-scheduling-queue/stats'),
-          onResolutionCenter ? Promise.resolve(null) : fetch('/api/admin/resolution-center?page=1&perPage=1', { credentials: 'same-origin', cache: 'no-store' }).then(response => response.ok ? response.json() : Promise.reject(new Error('Resolution count unavailable'))),
-          sidebarJson('/api/admin/appointments/equipment-returns/summary'),
-        ]);
-        const value = index => results[index].status === 'fulfilled' ? results[index].value : null;
-        const counts = value(0);
+        const summary = await sidebarJson('/api/admin/navigation-summary');
+        const counts = summary.counts;
         if (counts) {
           setSidebarBadge('pendingReviewCount', counts.pendingBookings);
           setSidebarBadge('appointmentsBadge', Number(counts.pendingBookings || 0) + Number(counts.assignmentQueue || 0) + Number(counts.activeJobs || 0));
@@ -232,26 +222,49 @@
           setSidebarBadge('leavesBadge', counts.pendingLeaveRequests);
           setSidebarBadge('auditTodayBadge', counts.auditToday);
         }
-        const warranty = value(1);
-        if (warranty) setSidebarBadge('warrantyBadge', Number(warranty.activeWarranty || 0) + Number(warranty.warrantyClaims || 0));
-        const maintenance = value(2);
+        const maintenance = summary.maintenance;
         if (maintenance) setSidebarBadge('maintenanceBadge', maintenance.actionable);
-        const orders = value(3);
+        const orders = summary.orders;
         if (orders) setSidebarBadge('ordersBadge', orders.actionable);
-        const projects = value(4);
-        if (projects) setSidebarBadge('projectsBadge', projects.stats?.pendingScheduling);
-        const repairScheduling = value(5);
+        const projects = summary.projects;
+        if (projects) setSidebarBadge('projectsBadge', projects.pendingScheduling);
+        const repairScheduling = summary.repairScheduling;
         if (repairScheduling) setSidebarBadge('repairSchedBadge', repairScheduling.pendingScheduling);
-        const resolution = value(6);
-        if (resolution) setResolutionSidebarCount(resolution.summary);
-        const returns = value(7);
+        const returns = summary.returns;
         if (returns) {
           setSidebarBadge('equipmentReturnsBadge', returns.overdue);
           setSidebarBadge('equipmentReturnsDashboardBadge', returns.overdue);
         }
+        // Keep the exact warranty/case policies, but defer their heavier reads
+        // so they do not compete with the first list/modal response.
+        scheduleExtendedBadges(onResolutionCenter);
+      } catch (error) {
+        console.warn('Navigation summary unavailable:', error.message);
       } finally {
         sidebarBadgeRefreshRunning = false;
       }
+    }
+
+    let extendedBadgeTimer = null;
+    let extendedBadgeRunning = false;
+    function scheduleExtendedBadges(onResolutionCenter) {
+      if (extendedBadgeTimer || extendedBadgeRunning) return;
+      extendedBadgeTimer = window.setTimeout(async function () {
+        extendedBadgeTimer = null;
+        if (document.hidden || extendedBadgeRunning) return;
+        extendedBadgeRunning = true;
+        try {
+          const results = await Promise.allSettled([
+            sidebarJson('/api/admin/warranties/stats'),
+            onResolutionCenter ? Promise.resolve(null) : sidebarJson('/api/admin/resolution-center?page=1&perPage=1'),
+          ]);
+          if (results[0].status === 'fulfilled') {
+            const warranty = results[0].value;
+            setSidebarBadge('warrantyBadge', Number(warranty.activeWarranty || 0) + Number(warranty.warrantyClaims || 0));
+          }
+          if (results[1].status === 'fulfilled' && results[1].value) setResolutionSidebarCount(results[1].value.summary);
+        } finally { extendedBadgeRunning = false; }
+      }, 1500);
     }
 
     document.addEventListener('DOMContentLoaded', function () {

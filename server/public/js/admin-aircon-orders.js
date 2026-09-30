@@ -108,12 +108,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const filterBtn     = document.getElementById("aoFilterBtn");
   const sortFilter = document.getElementById('aoSort');
   let overviewRequest = 0;
+  let overviewController = null;
   let orderDetailRequest = 0;
   let orderDetailController = null;
 
   const fallbackModals = new WeakMap();
   function orderModal(element) {
     if (!element) return null;
+    // Page containers can clip/promote fixed descendants below the body backdrop.
+    if (element.parentElement !== document.body) document.body.appendChild(element);
     if (window.bootstrap && bootstrap.Modal) return bootstrap.Modal.getOrCreateInstance(element);
     if (fallbackModals.has(element)) return fallbackModals.get(element);
 
@@ -162,9 +165,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const modalBody = document.getElementById("aoModalBody");
   const modalFooter = document.getElementById("aoModalFooter");
   const modalSubtitle = document.getElementById("aoModalSubtitle");
+  let viewedOrderId = null;
   modalEl?.addEventListener('hidden.bs.modal', () => {
+    window.closeAoImage?.();
     orderDetailRequest++;
     orderDetailController?.abort();
+    viewedOrderId = null;
   });
 
   const assignTechModalEl = document.getElementById("aoAssignTechModal");
@@ -524,6 +530,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // ═══ OVERVIEW ════════════════════════════════════════════════════════════════
   async function loadOverview(pg) {
+    overviewController?.abort();
+    const controller = new AbortController();
+    overviewController = controller;
     const request = ++overviewRequest;
     currentPage = pg || 1;
     const params = new URLSearchParams({ page: currentPage, limit: LIMIT });
@@ -538,7 +547,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     try {
       if (currentFulfillmentScope === "delivery" && fulfillFilter.value !== "all") params.set("fulfillmentType", fulfillFilter.value);
-      const data = await operationsFetchJson(scopedOrdersUrl(params));
+      const data = await operationsFetchJson(scopedOrdersUrl(params), { signal: controller.signal });
       if (request !== overviewRequest) return;
       const orders = data.orders || [];
 
@@ -579,6 +588,7 @@ document.addEventListener("DOMContentLoaded", function () {
       renderPagination(data, 'window._aoGoPage');
       window._aoGoPage = function(p) { loadOverview(p); };
     } catch(err) {
+      if (err.name === 'AbortError') return;
       if (request !== overviewRequest) return;
       container.innerHTML = '<tr><td colspan="9" class="text-center py-5 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Failed to load orders.</td></tr>';
       setText("aoOverviewPagInfo", "Unable to load orders");
@@ -592,7 +602,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading payment queue...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "pending_payment", limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "pending_payment", limit: 100, includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = data.orders || [];
@@ -807,7 +817,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!confirmation.isConfirmed) return;
     try {
       await submitReviewedOrderAssignment(row, recommended.technicianId);
-      await Swal.fire({ title: 'Technician Assigned', text: `${recommended.name} was notified.`, icon: 'success', timer: 1700, showConfirmButton: false, customClass: { popup: 'rounded-4' } });
+      Swal.fire({ title: 'Technician Assigned', text: `${recommended.name} was notified.`, icon: 'success', timer: 1700, showConfirmButton: false, customClass: { popup: 'rounded-4' } });
       await loadAssignTab();
     } catch (error) {
       Swal.fire({ title: 'Assignment Failed', text: error.message, icon: 'error', customClass: { popup: 'rounded-4' } });
@@ -922,7 +932,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading assignable orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,technician_declined", limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,technician_declined", limit: 100, includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       assignQueueOrders = (data.orders || []).filter(isAssignmentQueueOrder);
@@ -962,7 +972,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading pickup orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,ready_for_pickup", limit: 100, fulfillmentType: "customer_pickup" }));
+      const res = await fetch(scopedOrdersUrl({ status: "preparing_unit,ready_for_pickup", limit: 100, fulfillmentType: "customer_pickup", includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = (data.orders || []);
@@ -1005,7 +1015,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "technician_assigned", limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "technician_assigned", limit: 100, includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = data.orders || [];
@@ -1045,7 +1055,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     try {
       const activeStatuses = ["technician_accepted","out_for_delivery","arrived","installing"];
-      const res = await fetch(scopedOrdersUrl({ status: activeStatuses.join(","), limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: activeStatuses.join(","), limit: 100, includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = data.orders || [];
@@ -1076,7 +1086,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading completed orders...</p></div>';
 
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "completed,cancelled", limit: 100 }));
+      const res = await fetch(scopedOrdersUrl({ status: "completed,cancelled", limit: 100, includeKpi: false }));
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       const orders = data.orders || [];
@@ -1102,12 +1112,21 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ═══ VIEW ORDER DETAILS ══════════════════════════════════════════════════════
-  window._aoLoadPhotos = async function (id, button) {
+  window._aoLoadPhotos = async function (id, button, kind = 'all') {
     const container = button.parentElement;
+    const request = orderDetailRequest;
+    const label = button.textContent;
+    container.querySelector('[role="alert"]')?.remove();
     button.disabled = true; button.textContent = 'Loading photos...';
     try {
       const data = await operationsFetchJson('/api/orders/' + encodeURIComponent(id) + '/photos', { signal: orderDetailController?.signal });
-      if (!container.isConnected) return;
+      if (!container.isConnected || request !== orderDetailRequest || viewedOrderId !== String(id)) return;
+      if (kind === 'receipt') {
+        const receipt = (data.photos || []).find(photo => photo.label === 'Payment receipt');
+        if (!receipt) throw new Error('No payment receipt has been uploaded for this order.');
+        window.openAoImage(receipt.src);
+        return;
+      }
       container.replaceChildren();
       if (!data.photos?.length) { container.textContent = 'No photos have been uploaded.'; return; }
       for (const photo of data.photos) {
@@ -1117,16 +1136,23 @@ document.addEventListener("DOMContentLoaded", function () {
         container.appendChild(view);
       }
     } catch (error) {
-      if (!container.isConnected || error.name === 'AbortError') return;
+      if (!container.isConnected || request !== orderDetailRequest || error.name === 'AbortError') return;
       button.disabled = false; button.textContent = 'Try loading photos again';
       let message = container.querySelector('[role="alert"]');
       if (!message) { message = document.createElement('p'); message.className = 'text-danger small w-100'; message.setAttribute('role', 'alert'); container.appendChild(message); }
       message.textContent = error.message || 'Could not load photos.';
+    } finally {
+      if (kind === 'receipt' && button.isConnected && request === orderDetailRequest) {
+        button.disabled = false;
+        button.textContent = label;
+      }
     }
   };
 
   window._aoViewOrder = async function (id) {
     if (!modal) return;
+    window.closeAoImage?.();
+    viewedOrderId = String(id);
     orderDetailController?.abort();
     orderDetailController = new AbortController();
     const request = ++orderDetailRequest;
@@ -1217,6 +1243,7 @@ document.addEventListener("DOMContentLoaded", function () {
               ${o.downpaymentAmount>0?`<div class="pm-row"><span class="pm-lbl">Downpayment (${Number(o.downpaymentPercentage||10)}%)</span><span class="pm-val">${currency(o.downpaymentAmount)}</span></div>`:''}
               ${o.balanceAmount>0?`<div class="pm-row"><span class="pm-lbl">Remaining Balance</span><span class="pm-val">${currency(o.balanceAmount)}</span></div>`:''}
               ${o.gcashNumber?`<div class="pm-row"><span class="pm-lbl">GCash Number</span><span class="pm-val">${esc(o.gcashNumber)}</span></div>`:''}
+              ${data.photosDeferred ? `<div class="pm-row"><span class="pm-lbl">Payment Receipt</span><span class="pm-val"><button type="button" class="btn btn-sm btn-outline-primary" onclick="window._aoLoadPhotos('${esc(o._id)}',this,'receipt')"><i class="bi bi-image me-1"></i>View Receipt</button></span></div>` : ''}
               ${o.gcashProofUrl?`<div class="pm-row"><span class="pm-lbl">Receipt</span><span class="pm-val"><button type="button" class="btn btn-sm btn-outline-primary" onclick="window.openAoImage('${esc(o.gcashProofUrl).replace(/'/g, "\\'")}')"><i class="bi bi-image me-1"></i>View Receipt</button></span></div>`:''}
             </div>
           </div>
@@ -1374,9 +1401,9 @@ document.addEventListener("DOMContentLoaded", function () {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update the order schedule");
-      await Swal.fire({ title:"Schedule Updated", text:data.message, icon:"success", timer:1700, showConfirmButton:false });
+      Swal.fire({ title:"Schedule Updated", text:data.message, icon:"success", timer:1700, showConfirmButton:false });
       loadTab(currentTab);
-      if (modal && modalEl.classList.contains("show")) window._aoViewOrder(orderId);
+      if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
     } catch (err) {
       Swal.fire({
         title:"Schedule Not Updated",
@@ -1410,7 +1437,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to requeue order");
-      await Swal.fire({ title:"Order Requeued", text:data.message, icon:"success", timer:1500, showConfirmButton:false });
+      Swal.fire({ title:"Order Requeued", text:data.message, icon:"success", timer:1500, showConfirmButton:false });
       loadTab(currentTab);
     } catch (err) {
       Swal.fire({ title:"Order Not Requeued", text:err.message || "The assignment could not be released.", icon:"error", buttonsStyling:false, customClass:{confirmButton:"btn btn-primary px-4 fw-bold",popup:"border-0 shadow-sm"} });
@@ -1437,7 +1464,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!res.ok) throw new Error(data.error||"Failed");
       Swal.fire({title:"Payment Verified!",text:"Order is now being prepared.",icon:"success",timer:1500,showConfirmButton:false,customClass:{popup:"rounded-4"}});
       loadTab(currentTab);
-      if (modal && orderId) window._aoViewOrder(orderId);
+      if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
     } catch(err) {
       Swal.fire({title:"Error",text:err.message||"Network error",icon:"error",buttonsStyling:false,customClass:{confirmButton:"btn btn-primary px-4 py-2 rounded-pill fw-bold",popup:"rounded-4"}});
     }
@@ -1456,9 +1483,9 @@ document.addEventListener("DOMContentLoaded", function () {
       const res=await fetch(`/api/orders/${encodeURIComponent(orderId)}/dispatch-ready`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(result.value)});
       const data=await res.json();
       if(!res.ok) throw new Error(data.error||'Could not confirm unit preparation');
-      await Swal.fire({title:'Unit Prepared',text:'The ordered unit is now cleared for technician departure.',icon:'success',timer:1800,showConfirmButton:false});
+      Swal.fire({title:'Unit Prepared',text:'The ordered unit is now cleared for technician departure.',icon:'success',timer:1800,showConfirmButton:false});
       loadTab(currentTab);
-      if(modal) window._aoViewOrder(orderId);
+      if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
     } catch(error) { Swal.fire({title:'Update Failed',text:error.message,icon:'error'}); }
   };
 
@@ -1483,7 +1510,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!res.ok) throw new Error(data.error || "Failed");
       Swal.fire({ title: "Ready!", text: "Order marked as ready for pickup.", icon: "success", timer: 1500, showConfirmButton: false, customClass: { popup: "rounded-4" } });
       loadTab(currentTab);
-      if (modal && orderId) window._aoViewOrder(orderId);
+      if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
     } catch (err) {
       Swal.fire({ title: "Error", text: err.message || "Network error", icon: "error", buttonsStyling: false, customClass: { confirmButton: "btn btn-primary px-4 py-2 rounded-pill fw-bold", popup: "rounded-4" } });
     }

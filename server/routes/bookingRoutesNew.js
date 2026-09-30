@@ -1151,7 +1151,7 @@ async function validatedServiceItems(inputItems, booking) {
  */
 async function applyProjectScheduling(booking, req, opts = {}) {
   try {
-    const BookingStatus = require('../models/BookingStatus');
+    const { BookingStatus } = require('../models/BookingStatus');
     const Project = require('../models/Project');
     const User = require('../models/User');
 
@@ -1708,7 +1708,14 @@ router.post('/create-repair', (req, res, next) => {
       }],
     });
 
-    await booking.save();
+    if (repairIsProject) {
+      await booking.save();
+    } else {
+      await withOperationLock(bookingCapacityLockKey(inspectionDate), async () => {
+        await assertCompanyCapacity(inspectionDate, preferredTimeMinutes, capacityEndMinutes);
+        await booking.save();
+      });
+    }
     console.log(`  ✅ Repair request created: ${booking.workOrderNumber || booking._id}`);
 
     const submittedProof = bookingPaymentMethod === 'gcash' ? gcashProofUrl : cashProofUrl;
@@ -1948,11 +1955,17 @@ router.post('/:id/service-change-requests', async (req, res) => {
       adminDecision: policy.direct ? { decidedBy: req.user._id, decidedByName: 'System policy', decidedAt: new Date(), reason: policy.reason } : undefined,
     };
 
+    const commitChange = async () => {
     if (policy.direct) {
       const inspectionDuration = await getInspectionDurationMinutes();
       const buffer = await getBufferMinutes();
       const startMinutes = parseTimeToMinutes(booking.startTime);
       const endMinutes = startMinutes + capacityMinutes(proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
+      if (requestedSchedule) {
+        const requestedStart = parseTimeToMinutes(requestedSchedule.startTime);
+        const requestedEnd = parseTimeToMinutes(requestedSchedule.endTime);
+        await assertCompanyCapacity(requestedSchedule.date, requestedStart, requestedEnd, booking._id);
+      }
       if (!requestedSchedule && booking.bookingDate && Number.isFinite(startMinutes)) {
         await assertCompanyCapacity(booking.bookingDate, startMinutes, endMinutes, booking._id);
         booking.endTime = minutesToTimeString(endMinutes);
@@ -1987,6 +2000,12 @@ router.post('/:id/service-change-requests', async (req, res) => {
     }
     booking.serviceChangeRequests.push(requestRecord);
     await booking.save();
+    };
+    if (policy.direct && (requestedSchedule?.date || booking.bookingDate)) {
+      await withOperationLock(bookingCapacityLockKey(requestedSchedule?.date || booking.bookingDate), commitChange);
+    } else {
+      await commitChange();
+    }
 
     await createNotification({
       type: policy.direct ? 'booking_change_approved' : 'booking_change_requested',
@@ -2018,6 +2037,7 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
     const date = new Date(change.proposedSchedule.date);
     const start = parseTimeToMinutes(change.proposedSchedule.startTime);
     const end = parseTimeToMinutes(change.proposedSchedule.endTime);
+    await withOperationLock(bookingCapacityLockKey(date), async () => {
     await assertCompanyCapacity(date, start, end, booking._id);
     booking.bookingDate = date; booking.startTime = change.proposedSchedule.startTime; booking.endTime = change.proposedSchedule.endTime;
     booking.services = change.proposedServices;
@@ -2034,6 +2054,7 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
       booking.rescheduleRequest.processedAt = new Date();
     }
     await booking.save();
+    });
     await Promise.all([
       createNotification({ type: 'booking_change_approved', title: 'Customer accepted proposed schedule', message: `${booking.bookingReference || booking._id} was updated.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: 'normal', io: req.app.get('io') }),
       booking.technicianId ? createNotification({ type: 'booking_update_acknowledgement', title: 'Assigned booking updated', message: `Services and schedule changed for ${booking.bookingReference || booking._id}.`, userId: booking.technicianId, role: 'technician', referenceId: booking._id, referenceModel: 'BookingService', link: '/technician/assignments', priority: 'high', io: req.app.get('io') }) : Promise.resolve(),

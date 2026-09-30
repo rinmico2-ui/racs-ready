@@ -1904,19 +1904,19 @@
 
     /* ── Status Timeline ── */
     #bhDetailModal .bh-timeline {
-      display: flex;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
       align-items: flex-start;
       gap: 0;
       margin-top: 1.2rem;
-      padding-top: 1.2rem;
+      padding: 1.2rem 4px 4px;
       border-top: 1px solid rgba(255,255,255,0.1);
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+      overflow: visible;
       position: relative; z-index: 1;
     }
     #bhDetailModal .bh-timeline-step {
-      flex: 1 1 0;
-      min-width: 68px;
+      min-width: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1938,6 +1938,7 @@
     #bhDetailModal .bh-timeline-dot {
       width: 26px;
       height: 26px;
+      flex-shrink: 0;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -1965,6 +1966,8 @@
       text-align: center;
       font-weight: 700;
       line-height: 1.2;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
     #bhDetailModal .bh-timeline--done .bh-timeline-label,
     #bhDetailModal .bh-timeline--current .bh-timeline-label {
@@ -2315,7 +2318,26 @@
       #bhDetailModal .bh-hero { padding: 1.15rem; }
       #bhDetailModal .bh-hero-ref { font-size: 1.15rem; }
       #bhDetailModal .bh-hero-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      #bhDetailModal .bh-timeline-label { font-size: 0.58rem; }
+      #bhDetailModal .bh-timeline {
+        grid-auto-flow: row;
+        grid-auto-columns: auto;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      #bhDetailModal .bh-timeline-step {
+        flex-direction: row;
+        align-items: center;
+        gap: .75rem;
+        padding-bottom: .85rem;
+      }
+      #bhDetailModal .bh-timeline-step:last-child { padding-bottom: 0; }
+      #bhDetailModal .bh-timeline-step:not(:last-child)::after {
+        top: 13px;
+        left: 13px;
+        width: 2px;
+        height: 100%;
+        transform: translateX(-50%);
+      }
+      #bhDetailModal .bh-timeline-label { min-width: 0; font-size: .72rem; text-align: left; }
       #bhDetailModal .bh-section-card { padding: 1rem; }
       #bhDetailModal .bh-kv-grid { grid-template-columns: 1fr; }
       #bhDetailModal .bh-kv-item { border-bottom: none; padding-bottom: 0; }
@@ -2331,8 +2353,6 @@
       #bhDetailModal .modal-content { border-radius: 0 !important; max-height: 100vh !important; }
       #bhDetailModal .bh-hero-top { flex-direction: column; }
       #bhDetailModal .bh-hero-right { text-align: left; }
-      #bhDetailModal .bh-timeline { gap: 0; }
-      #bhDetailModal .bh-timeline-step { min-width: 58px; }
       #bhDetailModal .bh-actions-bar .bh-btn { flex: 1 1 auto; }
       #bhDetailModal .bh-modal-footer { flex-direction: column; align-items: stretch; }
       #bhDetailModal .bh-modal-footer .bh-btn,
@@ -3043,4 +3063,4 @@
   </style>
 
 <script src="/js/enterprise-calendar.js?v=20260926-scoped-picker-v1"></script>
-<script src="/js/book-history.js?v=20260928-service-picker-v9"></script>
+<script src="/js/book-history.js?v=20260929-service-picker-v9-history-status-v1"></script>

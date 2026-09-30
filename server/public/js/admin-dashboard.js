@@ -1182,11 +1182,14 @@
 
   // ── Main ──
   var _dashData = {};
+  var dashboardRequest = 0;
 
   async function loadDashboard() {
+    var request = ++dashboardRequest;
     try {
       var res = await fetch(dashboardEndpoints.summary || '/api/admin/analytics/summary', { credentials: 'same-origin' });
       var d = res.ok ? await res.json() : {};
+      if (request !== dashboardRequest) return;
       _dashData = d;
     } catch (e) {
       console.warn('Analytics fetch failed', e);
@@ -1418,7 +1421,7 @@
     })();
 
     // ── Technician Status Table ──
-    (function() {
+    (async function() {
       var container = $('techStatusTable');
       var meta = $('techStatusMeta');
       if (!container) return;
@@ -1445,11 +1448,11 @@
           '<span class="status-dot offline"></span> ' + absent + ' Offline</td></tr>';
       } else {
         try {
-          var xhr = new XMLHttpRequest();
-          xhr.open('GET', dashboardEndpoints.attendanceToday, false);
-          xhr.send();
-          if (xhr.status === 200) {
-            var techs = JSON.parse(xhr.responseText) || [];
+          container.innerHTML = techRows + '<tr><td colspan="3" class="text-muted text-center">Loading attendance...</td></tr></tbody></table>';
+          var attendanceResponse = await fetch(dashboardEndpoints.attendanceToday, { credentials: 'same-origin' });
+          if (!attendanceResponse.ok) throw new Error('Attendance unavailable');
+          if (attendanceResponse.status === 200) {
+            var techs = await attendanceResponse.json() || [];
             if (techs.length) {
               techRows += techs.map(function(t) {
                 var st = t.availabilityStatus || 'Offline';
@@ -1474,6 +1477,7 @@
         }
       }
       techRows += '</tbody></table>';
+      if (request !== dashboardRequest) return;
       container.innerHTML = techRows;
     })();
 

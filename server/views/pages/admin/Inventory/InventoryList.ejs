@@ -1661,13 +1661,15 @@
       kpiValue.innerText = Number(totalValue).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       kpiAssigned.innerText = assignedCount;
 
-      await waitForChart();
-      drawSpark('kpiTotalSpark', makeSparkData(totalVariants), '#3b82f6');
-      drawSpark('kpiLowStockSpark', makeSparkData(lowCount), '#ef4444');
-      drawSpark('kpiTotalValueSpark', makeSparkData(Math.round(totalValue / 1000)), '#10b981');
-      drawSpark('kpiAssignedSpark', makeSparkData(assignedCount), '#f59e0b');
-
       applyAirconFilters();
+      // Charts are decorative: render usable rows before waiting on the CDN.
+      waitForChart().then(() => {
+        if (allInventoryData !== items) return;
+        drawSpark('kpiTotalSpark', makeSparkData(totalVariants), '#3b82f6');
+        drawSpark('kpiLowStockSpark', makeSparkData(lowCount), '#ef4444');
+        drawSpark('kpiTotalValueSpark', makeSparkData(Math.round(totalValue / 1000)), '#10b981');
+        drawSpark('kpiAssignedSpark', makeSparkData(assignedCount), '#f59e0b');
+      }).catch(error => console.warn('Inventory charts unavailable:', error.message));
     }
 
     // ── Data Fetch ─────────────────────────────────────────────────────────────

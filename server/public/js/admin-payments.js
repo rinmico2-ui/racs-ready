@@ -123,7 +123,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const customerName = p.customerName || "-";
         const customerEmail = p.customerEmail || "-";
         const method = normalizeMethod(p.method);
-        const proofUrl = p.proofUrl || "";
         const amount = formatCurrency(p.amount || 0);
         let status = p.status || "pending";
         const submittedAtRaw = p.submittedAt || p.createdAt || p.bookingCreatedAt;
@@ -154,31 +153,25 @@ document.addEventListener("DOMContentLoaded", function () {
             : "";
         return `
           <tr id="payment-row-${escapeHtml(transactionId)}" class="${rowClass}">
-            <td class="ps-4 td-truncate-md" title="ID: ${escapeHtml(transactionId)}\nRef: ${escapeHtml(reference)}">
+            <td class="payment-transaction-cell" title="ID: ${escapeHtml(transactionId)}\nRef: ${escapeHtml(reference)}">
               <div class="fw-bold text-dark text-truncate">${escapeHtml(transactionId)}</div>
               <div class="text-muted text-truncate text-micro">Reference: ${escapeHtml(reference)}</div>
             </td>
-            <td class="td-truncate-md" title="${escapeHtml(customerName)}\n${escapeHtml(customerEmail)}">
+            <td class="payment-customer-cell" title="${escapeHtml(customerName)}\n${escapeHtml(customerEmail)}">
               <div class="fw-semibold text-truncate text-dark">${escapeHtml(customerName)}</div>
               <div class="text-muted text-truncate text-micro">${escapeHtml(customerEmail)}</div>
             </td>
-            <td class="text-muted text-micro td-truncate-md" title="Ref: ${escapeHtml(bookingReference)}\nBooked: ${escapeHtml(bookingCreatedText)}">
+            <td class="payment-booking-cell text-muted text-micro" title="Ref: ${escapeHtml(bookingReference)}\nBooked: ${escapeHtml(bookingCreatedText)}">
               <div class="fw-semibold text-dark">${escapeHtml(bookingReference)}</div>
               <div class="text-muted text-micro">Booking date: ${escapeHtml(bookingDateText)}</div>
               <div class="text-muted text-truncate text-micro">Booked: ${escapeHtml(bookingCreatedText)}</div>
               ${bookingBadge}
             </td>
-            <td class="d-none"><span class="badge bg-info-subtle text-info border border-info-subtle">${escapeHtml(method)}</span></td>
-            <td class="text-muted text-micro d-none">${escapeHtml(reference)}</td>
-            <td class="d-none">
-              ${proofUrl
-                ? `<button type="button" class="btn btn-micro btn-outline-primary" onclick="window.openPaymentImage('${escapeHtml(proofUrl).replace(/'/g, "\\'")}')"><i class="bi bi-image me-1"></i>View</button>`
-                : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">No Proof</span>'}
-            </td>
-            <td class="fw-bold text-dark">${escapeHtml(amount)}</td>
+            <td class="fw-bold text-dark text-end text-nowrap">${escapeHtml(amount)}</td>
+            <td class="text-nowrap"><span class="badge bg-info-subtle text-info border border-info-subtle">${escapeHtml(method)}</span></td>
             <td><span class="badge ${badgeClassForStatus(status)}">${escapeHtml(String(status).toUpperCase())}</span></td>
             <td class="text-nowrap">${escapeHtml(date)}<div class="text-muted text-micro">${escapeHtml(time)}</div></td>
-            <td class="text-end pe-4">
+            <td class="text-end">
               <button class="btn btn-micro btn-light border js-view-details" data-payment-id="${escapeHtml(p._id)}" title="View details">
                 <i class="bi bi-receipt"></i>
               </button>
@@ -261,6 +254,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (detailsRequestController) detailsRequestController.abort();
     const requestController = new AbortController();
     detailsRequestController = requestController;
+    // Never leave the previous payment's receipt clickable during a new read.
+    if (detailsProofLink) {
+      detailsProofLink.onclick = null;
+      detailsProofLink.classList.add("d-none");
+    }
+    if (detailsNoProof) detailsNoProof.classList.remove("d-none");
     // configure footer buttons based on booking/ payment status later
     const configureButtons = (paid, method, currentStatus) => {
       if (detailsVerifyBtn) {
@@ -353,7 +352,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       window.AdminModalUX?.settle(detailsModalEl);
     } catch (err) {
-      if (err && err.name === "AbortError") return;
+      if (err?.name === "AbortError" || requestController !== detailsRequestController) return;
       console.warn("admin-payments: failed to load details", err && err.message);
       if (window.AdminModalUX) {
         window.AdminModalUX.fail(detailsModalEl, "Could not load payment details right now.");
@@ -667,7 +666,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     try {
-      const res = await fetch(paymentsApiBase, {
+      const res = await fetch(paymentsApiBase + '?view=list', {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
       });

@@ -18,6 +18,7 @@ const TECHNICIAN_ORDER_EXCLUDE_SELECT = [
   "-paymentReference",
   "-gcashNumber",
   "-gcashProofUrl",
+  "-gcashProofFileId",
   "-customer.email",
   "-customerAccountAccess",
   "-createdBy",
@@ -65,6 +66,7 @@ function presentTechnicianOrder(value) {
   delete order.paymentReference;
   delete order.gcashNumber;
   delete order.gcashProofUrl;
+  delete order.gcashProofFileId;
   delete order.customerAccountAccess;
   delete order.createdBy;
   delete order.checkoutRequestId;
@@ -105,6 +107,7 @@ const TECHNICIAN_RESPONSE_PRIVATE_KEYS = new Set([
   "paymentReference",
   "gcashNumber",
   "gcashProofUrl",
+  "gcashProofFileId",
   "adminNotes",
   "internalNotes",
   "checkoutRequestId",

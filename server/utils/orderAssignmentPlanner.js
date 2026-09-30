@@ -4,6 +4,8 @@ const Technician = require('../models/Technician');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
+const { getBufferMinutesSync } = require('./bookingPolicy');
+const { orderCapacityInterval } = require('./orderScheduleCapacity');
 
 const ACTIVE_BOOKING_STATUSES = [
   'assigned', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'ongoing',
@@ -39,14 +41,10 @@ function dateKey(value) {
 }
 
 function orderWindow(order) {
-  const start = minuteValue(order.timeSlot);
+  const { startTime: start, endTime: capacityEnd } = orderCapacityInterval(order, getBufferMinutesSync());
   const rangeEnd = explicitRangeEnd(order.timeSlot);
-  const units = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
-  const duration = order.fulfillmentType === 'delivery_installation'
-    ? Math.max(120, units * 60)
-    : Math.max(60, 60 + Math.max(0, units - 1) * 30);
-  const end = Number.isFinite(rangeEnd) && rangeEnd > start ? rangeEnd : start + duration;
-  return { start, end, duration: Math.max(duration, end - start) };
+  const end = Number.isFinite(rangeEnd) && rangeEnd > start ? Math.max(rangeEnd, capacityEnd) : capacityEnd;
+  return { start, end, duration: end - start };
 }
 
 function bookingWindow(booking) {
@@ -111,7 +109,7 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     Order.find({
       technicianId: { $in: technicianIds }, 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_ORDER_STATUSES },
-    }).select('_id technicianId delivery.preferredDate timeSlot fulfillmentType items').lean(),
+    }).select('_id technicianId delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
     Assignment.find({ technicianId: { $in: technicianIds }, status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] } })
       .select('technicianId').lean(),
   ]);
@@ -184,7 +182,7 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
       scheduledDate,
       timeSlot: order.timeSlot,
       recommended,
-      candidates: candidates.slice(0, 5),
+      candidates: options.includeAllCandidates ? candidates : candidates.slice(0, 5),
     });
   }
   return plan;

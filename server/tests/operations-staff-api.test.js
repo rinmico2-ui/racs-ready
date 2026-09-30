@@ -101,6 +101,54 @@ test('order API sorts before pagination and retains ObjectId technician filters 
   }
 });
 
+test('order list skips summary reads for queue tabs and preserves overview counts', async () => {
+  const originals = { aggregate: Order.aggregate, count: Order.countDocuments, find: Order.find, populate: Order.populate };
+  let aggregateCalls = 0;
+  let countCalls = 0;
+  let findCalls = 0;
+  Order.aggregate = async pipeline => {
+    aggregateCalls += 1;
+    const group = pipeline.find(stage => stage.$group)?.$group;
+    if (group?._id === '$status') return [
+      { _id: 'pending_payment', count: 2 },
+      { _id: 'preparing_unit', count: 3 },
+      { _id: 'technician_accepted', count: 1 },
+      { _id: 'completed', count: 4 },
+      { _id: 'cancelled', count: 1 },
+    ];
+    return [];
+  };
+  Order.countDocuments = async () => { countCalls += 1; return 2; };
+  Order.find = () => { findCalls += 1; return chain([]); };
+  Order.populate = async rows => rows;
+  try {
+    const handler = endpoint(orders, '/all');
+    const queueRes = response();
+    await handler({ query: { status: 'pending_payment', includeKpi: 'false' } }, queueRes);
+    assert.equal(queueRes.statusCode, 200);
+    assert.equal(queueRes.body.total, 2);
+    assert.equal(queueRes.body.kpi, undefined);
+    assert.equal(aggregateCalls, 1);
+    assert.equal(countCalls, 1);
+    assert.equal(findCalls, 0);
+
+    const overviewRes = response();
+    await handler({ query: {} }, overviewRes);
+    assert.equal(overviewRes.statusCode, 200);
+    assert.equal(overviewRes.body.kpi.totalOrders, 11);
+    assert.equal(overviewRes.body.kpi.pending, 2);
+    assert.equal(overviewRes.body.kpi.inProgress, 4);
+    assert.equal(overviewRes.body.kpi.completed, 4);
+    assert.equal(overviewRes.body.kpi.cancelled, 1);
+    assert.equal(aggregateCalls, 4);
+    assert.equal(countCalls, 2);
+    assert.equal(findCalls, 1);
+  } finally {
+    Order.aggregate = originals.aggregate; Order.countDocuments = originals.count;
+    Order.find = originals.find; Order.populate = originals.populate;
+  }
+});
+
 test('completed booking modal projects out photos, skips cost analytics, and retains authoritative payment totals', async () => {
   const originals = { booking: BookingService.findById, assignment: Assignment.findOne,
     payment: Payment.find, stock: StockReservation.find, analytics: costAnalytics.buildServiceCostAnalytics };
@@ -177,6 +225,33 @@ test('staff order modal excludes inline evidence without changing order totals',
     assert.equal(res.body.order.total, 1000);
     for (const field of ORDER_PHOTO_FIELDS) assert.ok(selection.split(' ').includes('-' + field));
   } finally { Order.findById = original; }
+});
+
+test('staff can view legacy orders without a linked account but customers cannot', async t => {
+  const fixture = { _id: '507f1f77bcf86cd799439011', userId: null, salesChannel: 'walk_in', status: 'pending_payment', items: [], subtotal: 25515, total: 25515 };
+  t.mock.method(Order, 'findById', () => chain({ ...fixture }));
+  for (const role of ['admin', 'secretary', 'customer']) {
+    const res = response();
+    await endpoint(orders, '/:id')({ params: { id: fixture._id }, query: { view: 'modal' }, user: { _id: '507f1f77bcf86cd799439012', role } }, res);
+    assert.equal(res.statusCode, role === 'customer' ? 403 : 200);
+    if (role !== 'customer') assert.equal(res.body.order.total, 25515);
+  }
+});
+
+test('deferred order photo endpoint returns receipt and evidence with private caching', async t => {
+  const id = '507f1f77bcf86cd799439011';
+  let selected;
+  t.mock.method(Order, 'findById', () => ({ select(fields) { selected = fields; return this; },
+    maxTimeMS() { return this; }, lean: async () => ({ gcashProofUrl: 'receipt', arrivalProofUrl: 'arrival', startProofUrl: 'start', proofPhoto: 'completion' }) }));
+  const res = response();
+  let cacheHeader;
+  res.set = (name, value) => { if (name === 'Cache-Control') cacheHeader = value; return res; };
+  await endpoint(orders, '/:id/photos')({ params: { id } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.photos, [{ src: 'receipt', label: 'Payment receipt' }, { src: 'arrival', label: 'Arrival' },
+    { src: 'start', label: 'Start work' }, { src: 'completion', label: 'Completion' }]);
+  assert.equal(selected, ORDER_PHOTO_FIELDS.join(' '));
+  assert.equal(cacheHeader, 'private, no-store');
 });
 
 test('booking photo endpoint fetches only evidence fields and rejects invalid IDs before database reads', async () => {

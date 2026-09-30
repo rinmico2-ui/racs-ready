@@ -2,6 +2,7 @@
   const resolvedPaymentsApiBase = typeof paymentsApiBase === "string" ? paymentsApiBase : "/api/admin/payments";
   const resolvedPaymentsCanManage = typeof paymentsCanManage === "boolean" ? paymentsCanManage : true;
 %>
+<link rel="stylesheet" href="/css/admin-payments.css?v=20260929-receipt-table">
 <div class="admin-dashboard container-fluid py-4 payments-page">
   <%- include('../../../partials/dashboard-styles') %>
 
@@ -380,13 +381,13 @@
     </div>
     <div class="dash-card-body" style="padding:0;">
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" style="font-size:0.85rem;">
+        <table class="table table-hover align-middle mb-0 payment-transactions-table">
           <thead style="background:#f8fafc;border-bottom:1px solid #f1f5f9;">
             <tr>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Transaction ID</th>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Customer</th>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Booking Ref</th>
-              <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Amount</th>
+              <th class="text-end" style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Amount</th>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Method</th>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Status</th>
               <th style="padding:12px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Date</th>
@@ -420,17 +421,7 @@
   </div>
 </div>
 
-<!-- Image Viewer Modal (on top of all modals) -->
-<div class="modal fade" id="paymentImageModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:90vw;">
-    <div class="modal-content" style="background:transparent;border:none;box-shadow:none;">
-      <div class="text-center">
-        <button type="button" class="btn-close btn-close-white mb-2" data-bs-dismiss="modal" aria-label="Close" style="position:absolute;top:-8px;right:-8px;background:#1e293b;border-radius:50%;opacity:1;padding:0.75rem;"></button>
-        <img id="paymentImageModalImg" src="" style="max-width:90vw;max-height:85vh;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4);" />
-      </div>
-    </div>
-  </div>
-</div>
+<%- include('../../../partials/payment-receipt-modal') %>
 
 <div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -488,24 +479,7 @@
   </div>
 </div>
 
-<script>
-  // Image viewer modal helper - ensure it appears on top of all modals
-  document.addEventListener("DOMContentLoaded", () => {
-    const css = document.createElement("style");
-    css.textContent = "#paymentImageModal { z-index: 9999 !important; } #paymentImageModal ~ .modal-backdrop { z-index: 9990 !important; }";
-    document.head.appendChild(css);
-    
-    window.openPaymentImage = function(src) {
-      const img = document.getElementById('paymentImageModalImg');
-      if (img) img.src = src;
-      const modalEl = document.getElementById('paymentImageModal');
-      if (modalEl) {
-        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        bsModal.show();
-      }
-    };
-  });
-</script>
+<script src="/js/payment-receipt-viewer.js?v=20260929-receipt-table"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>window.RACSPaymentsConfig = { apiBase: <%- JSON.stringify(resolvedPaymentsApiBase).replace(/</g, "\\u003c") %>, canManage: <%- JSON.stringify(resolvedPaymentsCanManage) %> };</script>
-<script src="/js/admin-payments.js"></script>
+<script src="/js/admin-payments.js?v=20260929-receipt-table"></script>

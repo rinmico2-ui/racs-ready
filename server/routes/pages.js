@@ -642,13 +642,21 @@ async function getCompanyLocation() {
       SiteSetting.findOne({ key: "companyLocationLng" }).lean(),
       SiteSetting.findOne({ key: "companyLocationAddress" }).lean(),
     ]);
-    const latVal = lat && lat.value != null ? parseFloat(lat.value) : NaN;
-    const lngVal = lng && lng.value != null ? parseFloat(lng.value) : NaN;
-    if (Number.isFinite(latVal) && Number.isFinite(lngVal)) {
-      return { lat: latVal, lng: lngVal, address: addr?.value || "Company Office" };
+    const coordinate = (setting) => {
+      const value = setting?.value;
+      return (typeof value === "number" || typeof value === "string") && String(value).trim()
+        ? Number(value) : NaN;
+    };
+    const latVal = coordinate(lat);
+    const lngVal = coordinate(lng);
+    if (Number.isFinite(latVal) && Math.abs(latVal) <= 90
+      && Number.isFinite(lngVal) && Math.abs(lngVal) <= 180) {
+      return { lat: latVal, lng: lngVal, address: addr?.value || "Company Office", configured: true };
     }
   } catch { /* ignore */ }
-  return { lat: 14.676049, lng: 121.043731, address: "Quezon City" };
+  // Other scheduling pages retain their legacy map center, but public pages
+  // must not advertise these fallback coordinates as the business location.
+  return { lat: 14.676049, lng: 121.043731, address: "Quezon City", configured: false };
 }
 
 async function getBusinessHours() {
@@ -2361,6 +2369,14 @@ router.get(
 router.get(
   "/admin/reports/orders",
   pageAuth.requireRole("admin"),
+  (req, res) => res.render("pages/admin/Reports/DeferredOrderReport", {
+    title: "Order Analytics", layout: "layouts/admin",
+  }),
+);
+
+router.get(
+  "/admin/reports/orders/data",
+  pageAuth.requireRole("admin"),
   async (req, res) => {
     const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, medianCycleHours: 0, p90CycleHours: 0, onTimeRate: 0, onTimeSampleSize: 0, openOrders: 0, overdueOrders: 0, unassignedOrders: 0, pendingPaymentOrders: 0, actionRequiredOrders: 0, backlogAging: { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 }, cancellationReasons: [], orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
     const { parseOrderReportFilters, serializableOrderFilters } = require("../utils/orderReportFilters");
@@ -2540,11 +2556,11 @@ router.get(
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: false, analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
       empty.appliedFilters = serializableOrderFilters(reportFilters);
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: "layouts/admin", analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: false, analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
     }
   }
 );

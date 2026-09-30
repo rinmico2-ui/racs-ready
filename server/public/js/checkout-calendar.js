@@ -161,9 +161,7 @@ class CheckoutCalendar {
             .co-schedule-next[hidden] { display: none !important; }
             .co-schedule-next strong { display: block; color: #1e3a8a; font-size: .85rem; }
             .co-schedule-next span { display: block; color: #475569; font-size: .72rem; }
-            .co-schedule-next button { border: 0; border-radius: 8px; background: #1d4ed8; color: #fff; padding: 10px 16px; font-size: .8rem; font-weight: 700; min-height: 42px; }
-            .co-schedule-next button:hover { background: #1e40af; }
-            .co-cal-cell:focus-visible, .co-time-slot:focus-visible, .co-schedule-next button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+            .co-cal-cell:focus-visible, .co-time-slot:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
             .co-cal-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; color: #64748b; gap: 8px; font-size: 0.8rem; font-weight: 500; }
             .co-cal-loading .spinner-border { width: 1.2rem; height: 1.2rem; color: #0f172a; }
             .co-no-slots { text-align: center; padding: 24px 16px; color: #64748b; font-size: 0.82rem; font-weight: 500; }
@@ -187,7 +185,6 @@ class CheckoutCalendar {
                 .co-time-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 8px; }
                 .co-time-slot { padding: 8px 10px; }
                 .co-time-header { padding: 8px 12px; align-items:flex-start; flex-direction:column; gap:5px; }
-                .co-schedule-next button { width: 100%; }
                 .co-cal-tooltip { display:none; }
             }
             @media (max-width: 380px) {
@@ -232,7 +229,6 @@ class CheckoutCalendar {
                 </div>
                 <div class="co-schedule-next" id="coScheduleNext" role="status" aria-live="polite" hidden>
                     <div><strong id="coScheduleNextTitle">Time selected</strong><span>Your delivery time is a request until we confirm your order.</span></div>
-                    <button type="button" id="coScheduleNextButton">Continue to payment <i class="bi bi-arrow-right ms-1"></i></button>
                 </div>
             </div>
         `;
@@ -248,8 +244,6 @@ class CheckoutCalendar {
             nextAction: document.getElementById('coScheduleNext'),
             nextTitle: document.getElementById('coScheduleNextTitle')
         };
-
-        document.getElementById('coScheduleNextButton').addEventListener('click', () => window.wizardNext?.());
 
         this.dom.prevBtn.addEventListener('click', () => {
             if (this.dom.prevBtn.disabled) return;

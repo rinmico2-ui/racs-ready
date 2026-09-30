@@ -27,7 +27,8 @@ test("admin and secretary sidebar badges use the unified queue totals", () => {
   const secretary = read("../views/partials/secretary-sidebar.ejs");
   ejs.compile(admin);
   ejs.compile(secretary);
-  assert.match(admin, /fetch\('\/api\/admin\/resolution-center\?page=1&perPage=1'/);
+  assert.match(admin, /sidebarJson\('\/api\/admin\/resolution-center\?page=1&perPage=1'/);
+  assert.match(admin, /scheduleExtendedBadges\(onResolutionCenter\)/);
   assert.match(secretary, /fetch\('\/api\/secretary\/operations\/resolution-center\?page=1&perPage=1'/);
   for (const source of [admin, secretary]) {
     assert.match(source, /const total = bookingCases \+ orderCases|setSecretaryBadge\('attentionBadge', bookingCases \+ orderCases\)/);
@@ -48,7 +49,7 @@ test("booking, order, and Resolution Center pages publish fresh queue counts", (
 test("Resolution Center page reuses its queue summary instead of requesting the sidebar count again", () => {
   const admin = read("../views/partials/admin-sidebar.ejs");
   const secretary = read("../views/partials/secretary-sidebar.ejs");
-  assert.match(admin, /onResolutionCenter \? Promise\.resolve\(null\) : fetch\('\/api\/admin\/resolution-center/);
+  assert.match(admin, /onResolutionCenter \? Promise\.resolve\(null\) : sidebarJson\('\/api\/admin\/resolution-center/);
   assert.match(secretary, /onResolutionCenter \? Promise\.resolve\(null\) : fetch\('\/api\/secretary\/operations\/resolution-center/);
 });
 

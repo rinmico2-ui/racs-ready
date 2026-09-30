@@ -25,6 +25,9 @@ const crypto = require("crypto");
 const { hashPassword } = require("../utils/passwordHashing");
 const multer = require("multer");
 const { getMinAdvanceMinutes, getBufferMinutes, checkAdvanceNotice, assertCompanyCapacity, parseTimeValue, isBookingPast } = require("../utils/bookingPolicy");
+const { bookingCapacityLockKey, withOperationLock } = require("../utils/operationLock");
+const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
+const { loadActiveOrderCapacityRows } = require("../utils/orderScheduleCapacity");
 const { BookingStatus } = require("../models/BookingStatus");
 const { capacityMinutes, aggregateBookingType, mutationPolicy, summarizeChanges } = require("../utils/bookingServiceItems");
 const { createNotification } = require("../utils/notify");
@@ -35,7 +38,9 @@ const { parseOperationsCalendarRange } = require("../utils/operationsCalendarRan
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const {
+  attachMissingCustomerProjectStatuses,
   enrichCustomerBooking,
+  hasRecordedBookingStatus,
   presentCustomerBooking,
 } = require("../utils/customerBookingPresentation");
 const { presentTechnicianBooking } = require("../utils/technicianDataPresentation");
@@ -152,7 +157,7 @@ async function assertCustomerRescheduleAvailable(booking, dateValue, timeValue, 
     duration: String(Math.max(1, Number(booking.serviceDurationMinutes) || 60)),
     travelTime: String(Math.max(0, Number(booking.travelTime) || 30)),
   };
-  const slotCheck = await scheduleRoutes.getTimeSlotsForQuery(query);
+  const slotCheck = await scheduleRoutes.getTimeSlotsForQuery(query, { excludeBookingId: booking._id });
   const available = slotCheck.statusCode < 400
     && Array.isArray(slotCheck.payload?.timeSlots)
     && slotCheck.payload.timeSlots.some((slot) => (
@@ -571,10 +576,9 @@ async function assertNoTechnicianOverlap({
 
   const bufferMinutes = await getBufferMinutes();
 
-  const dayStart = new Date(bookingDate);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(bookingDate);
-  dayEnd.setHours(23, 59, 59, 999);
+  const dateKey = manilaDateKey(bookingDate);
+  const dayStart = manilaDateTime(dateKey, 0);
+  const dayEnd = manilaDateTime(dateKey, 1440, -1);
   const technicianIds = await getTechnicianIdsToMatch(technicianId);
 
   const query = {
@@ -592,6 +596,10 @@ async function assertNoTechnicianOverlap({
         "arrived",
         "in-progress",
         "ongoing",
+        "repair_requested", "inspection_scheduled", "inspection_in_progress",
+        "repair_approved", "ready_for_repair", "repair_scheduled", "repair_in_progress",
+        "re-scheduled", "reschedule-required", "waiting-for-customer", "no-show-reported",
+        "pending_inspection", "awaiting_approval", "waiting_parts", "parts_reserved",
       ],
     },
     technicianId: technicianIds.length ? { $in: technicianIds } : technicianId,
@@ -601,7 +609,17 @@ async function assertNoTechnicianOverlap({
   }
 
   const existing = await BookingService.find(query).lean();
-  for (const b of existing) {
+  const excludedBooking = excludeAppointmentId
+    ? await BookingService.findById(excludeAppointmentId).select("sourceOrderId").lean()
+    : null;
+  const orderRows = await loadActiveOrderCapacityRows(dateKey, dateKey, {
+    activeBookingIds: new Set(existing.map(booking => String(booking._id))),
+    activeLinkedOrderIds: new Set(existing.map(booking => String(booking.sourceOrderId || "")).filter(Boolean)),
+    excludeOrderId: excludedBooking?.sourceOrderId,
+    bufferMinutes,
+  });
+  const matchingTechnicianIds = new Set([String(technicianId), ...technicianIds.map(String)]);
+  for (const b of [...existing, ...orderRows.filter(row => matchingTechnicianIds.has(String(row.technicianId || "")))]) {
     const bStart = parseMinuteValue(b.startTime);
     if (!Number.isFinite(bStart)) continue;
     const bEnd = deriveBookingEndMinutes(b, 60, bufferMinutes);
@@ -777,7 +795,16 @@ router.get("/", auth.authenticate, async (req, res) => {
       : req.user.role === "technician"
         ? presentTechnicianBooking
         : enrichCustomerBooking;
-    const items = bookingItems.map(presenter);
+    let customerItems = bookingItems;
+    if (req.user.role === "customer") {
+      try {
+        customerItems = await attachMissingCustomerProjectStatuses(bookingItems);
+      } catch (_statusError) {
+        // A failed optional status lookup must not prevent history from loading.
+        console.warn("Customer booking project-status lookup unavailable");
+      }
+    }
+    const items = customerItems.map(presenter);
     return res.json({
       items,
       count: items.length,
@@ -1128,7 +1155,15 @@ router.post("/create", auth.authenticate, auth.requireRole("customer"), async (r
 
     // ── 5. Save ───────────────────────────────────────────────────────────
     const appointment = new BookingService(appointmentData);
-    await appointment.save();
+    try {
+      await withOperationLock(bookingCapacityLockKey(date), async () => {
+        await assertCompanyCapacity(bookingDate, startMin, capacityEnd);
+        if (technicianId) await assertNoTechnicianOverlap({ technicianId, bookingDate, startMin, endMin: capacityEnd });
+        await appointment.save();
+      });
+    } catch (capacityErr) {
+      return res.status(409).json({ error: capacityErr.message || "That schedule is no longer available." });
+    }
 
     // ── 5a. Large Project Detection ──────────────────────────────────────
     try {
@@ -2061,7 +2096,19 @@ router.post(
         estimatedFee: computedEstimatedFee,
       });
 
-      await appointment.save();
+      if (isLargeScale) {
+        await appointment.save();
+      } else {
+        try {
+          await withOperationLock(bookingCapacityLockKey(date), async () => {
+            await assertCompanyCapacity(bookingDate, startMin, endMin);
+            await assertNoTechnicianOverlap({ technicianId: technicianRefId, bookingDate, startMin, endMin });
+            await appointment.save();
+          });
+        } catch (capacityErr) {
+          return res.status(409).json({ error: capacityErr.message || "That schedule is no longer available." });
+        }
+      }
 
       // Standard walk-ins follow the same acceptance pipeline as customer
       // bookings: create the technician assignment, show the booking in the
@@ -2444,7 +2491,13 @@ router.get("/:id", auth.authenticate, async (req, res) => {
             })),
             pricing,
           };
-          appt.status = projectStatusMap[project.status] || appt.status;
+          if (hasRecordedBookingStatus(appt.status)) {
+            appt.status = projectStatusMap[project.status] || appt.status;
+          } else {
+            // Same display-only fallback as the history list. Do not enable
+            // booking actions by inventing a persisted lifecycle status.
+            appt.customerProjectStatus = project.status;
+          }
           if (scheduleStart) appt.bookingDate = scheduleStart;
           appt.projectEndDate = scheduleEnd;
           if (project.customer && project.customer.name) appt.customer = project.customer;
@@ -2933,7 +2986,14 @@ router.post(
         ? "Operations scheduling"
         : requestedSchedule.time;
 
-      await appt.save();
+      if (applyDirectly) {
+        await withOperationLock(bookingCapacityLockKey(requestedSchedule.date), async () => {
+          await assertCustomerRescheduleAvailable(appt, requestedSchedule.date, requestedSchedule.time, { isProject: false });
+          await appt.save();
+        });
+      } else {
+        await appt.save();
+      }
 
       // -- Socket notification to admin room -------------------------------------
       try {
@@ -3032,7 +3092,7 @@ router.post(
   async (req, res) => {
     try {
       const id = req.params.id;
-      const appt = await BookingService.findById(id);
+      let appt = await BookingService.findById(id);
       if (!appt)
         return res.status(404).json({ error: "Appointment not found" });
 
@@ -3050,6 +3110,13 @@ router.post(
 
       // Availability may change while a request is awaiting review. Re-run
       // the authoritative slot check immediately before committing it.
+      await withOperationLock(bookingCapacityLockKey(newDate), async () => {
+      appt = await BookingService.findById(id);
+      if (!appt || appt.rescheduleRequest?.status !== "pending"
+        || String(appt.rescheduleRequest.requestedDate) !== String(newDate)
+        || String(appt.rescheduleRequest.requestedTime) !== String(newTime)) {
+        throw Object.assign(new Error("This reschedule request has changed. Refresh and try again."), { status: 409 });
+      }
       const approvedSchedule = await assertCustomerRescheduleAvailable(
         appt,
         newDate,
@@ -3110,6 +3177,7 @@ router.post(
       });
 
       await appt.save();
+      });
 
       // -- Update linked Assignment(s) -------------------------------------------
       const Assignment = require("../models/Assignment");
@@ -3847,7 +3915,23 @@ router.post("/", auth.authenticate, auth.requireRole(["admin", "secretary", "cus
       paymentProof: paymentProof || undefined,
     });
 
-    await doc.save();
+    if (date && time) {
+      const capacityStart = parseMinuteValue(time);
+      const capacityDate = new Date(`${date}T00:00:00.000Z`);
+      if (!Number.isFinite(capacityStart) || Number.isNaN(capacityDate.getTime())) {
+        return res.status(400).json({ error: "Choose a valid booking date and time." });
+      }
+      try {
+        await withOperationLock(bookingCapacityLockKey(date), async () => {
+          await assertCompanyCapacity(capacityDate, capacityStart, capacityStart + 60 + await getBufferMinutes());
+          await doc.save();
+        });
+      } catch (capacityErr) {
+        return res.status(409).json({ error: capacityErr.message || "That schedule is no longer available." });
+      }
+    } else {
+      await doc.save();
+    }
 
     // after saving, record payment transaction(s)
     try {
@@ -4180,25 +4264,20 @@ router.put("/:id", auth.authenticate, async (req, res) => {
     appt.endTime = String(nextEnd);
 
     try {
-      await assertNoTechnicianOverlap({
-        technicianId: appt.technicianId,
-        bookingDate: appt.bookingDate,
-        startMin: nextStart,
-        endMin: nextEnd,
-        excludeAppointmentId: appt._id,
+      await withOperationLock(bookingCapacityLockKey(appt.bookingDate), async () => {
+        await assertNoTechnicianOverlap({
+          technicianId: appt.technicianId,
+          bookingDate: appt.bookingDate,
+          startMin: nextStart,
+          endMin: nextEnd,
+          excludeAppointmentId: appt._id,
+        });
+        await assertCompanyCapacity(appt.bookingDate, nextStart, nextEnd, appt._id);
+        await appt.save();
       });
-    } catch (overlapErr) {
-      return res.status(409).json({ error: overlapErr.message });
-    }
-
-    // Company-wide capacity check for rescheduled time slot
-    try {
-      await assertCompanyCapacity(appt.bookingDate, nextStart, nextEnd, appt._id);
     } catch (capacityErr) {
-      return res.status(409).json({ error: capacityErr.message });
+      return res.status(capacityErr.status || 409).json({ error: capacityErr.message });
     }
-
-    await appt.save();
 
     // Send arrival notification if status changed to "arrived"
     if (up.status === "arrived" && appt.customer && appt.customer.email) {
@@ -4715,7 +4794,11 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
     const approvedStartTime = customerRequestedSchedule?.startTime || booking.startTime;
     const start = parseTimeValue(approvedStartTime);
     const end = start + capacityMinutes(change.proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
-    if (approvedDate && Number.isFinite(start)) await assertCompanyCapacity(approvedDate, start, end, booking._id);
+    if (!approvedDate || Number.isNaN(new Date(approvedDate).getTime()) || !Number.isFinite(start)) {
+      return res.status(400).json({ error: "A valid booking date and time are required." });
+    }
+    await withOperationLock(bookingCapacityLockKey(approvedDate), async () => {
+    await assertCompanyCapacity(approvedDate, start, end, booking._id);
     booking.services = change.proposedServices;
     booking.isMultiService = booking.services.length > 1;
     booking.serviceType = aggregateBookingType(booking.services);
@@ -4744,6 +4827,7 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
       booking.rescheduleRequest.processedAt = new Date();
     }
     await booking.save();
+    });
     await Promise.all([
       createNotification({ type: "booking_change_approved", title: "Service change approved", message: `${booking.bookingReference || booking._id} has been updated.`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "normal", io: req.app.get("io") }),
       booking.technicianId ? createNotification({ type: "booking_update_acknowledgement", title: "Assigned booking updated", message: `Services changed for ${booking.bookingReference || booking._id}. Please review and acknowledge.`, userId: booking.technicianId, role: "technician", referenceId: booking._id, referenceModel: "BookingService", link: "/technician/assignments", priority: "high", io: req.app.get("io") }) : Promise.resolve(),
@@ -5454,8 +5538,24 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       if (Number.isNaN(proposalDate.getTime()) || !Number.isFinite(proposalStart)) {
         return res.status(400).json({ error: 'The proposed schedule is invalid. Please request another schedule.' });
       }
-      const proposalEnd = proposalStart + Math.max(1, Number(booking.serviceDurationMinutes) || 60);
-      await assertCompanyCapacity(proposalDate, proposalStart, proposalEnd, booking._id);
+      const proposalEnd = proposalStart + Math.max(1, Number(booking.serviceDurationMinutes) || 60)
+        + Math.max(0, Number(booking.travelTime) || 0) + await getBufferMinutes();
+      await withOperationLock(bookingCapacityLockKey(proposalDate), async () => {
+      try {
+        await assertCompanyCapacity(proposalDate, proposalStart, proposalEnd, booking._id);
+      } catch (capacityError) {
+        capacityError.status = 409;
+        throw capacityError;
+      }
+      if (proposal.technicianId) {
+        await assertNoTechnicianOverlap({
+          technicianId: proposal.technicianId,
+          bookingDate: proposalDate,
+          startMin: proposalStart,
+          endMin: proposalEnd,
+          excludeAppointmentId: booking._id,
+        });
+      }
       proposal.status = 'accepted';
       booking.proposedReschedule = proposal;
 
@@ -5464,6 +5564,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       // it early), so once accepted the booking reflects the proposed slot.
       if (proposal.date) booking.bookingDate = new Date(proposal.date);
       booking.startTime = proposal.time || proposal.timeLabel || booking.startTime;
+      booking.endTime = String(proposalEnd);
       booking.selectedTimeLabel = booking.startTime;
       booking.autoReschedulePending = false;
 
@@ -5518,6 +5619,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       }
 
       await booking.save();
+      });
 
       // ── Cleanup: Release reserved equipment from old assignment ──────
       try {
@@ -5579,11 +5681,14 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       if (!Number.isFinite(reqStartMin)) {
         return res.status(400).json({ error: 'Invalid requested time format' });
       }
-      const reqEndMin = reqStartMin + (Number(booking.serviceDurationMinutes) || 90);
+      const reqEndMin = reqStartMin + (Number(booking.serviceDurationMinutes) || 90)
+        + Math.max(0, Number(booking.travelTime) || 0) + await getBufferMinutes();
+      await withOperationLock(bookingCapacityLockKey(requestedDate), async () => {
       try {
         await assertCompanyCapacity(new Date(requestedDate), reqStartMin, reqEndMin, booking._id);
       } catch (capErr) {
-        return res.status(409).json({ error: capErr.message });
+        capErr.status = 409;
+        throw capErr;
       }
       if (proposal) {
         proposal.status = 'new_requested';
@@ -5602,6 +5707,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       // assignment planner checks eligibility against the correct date
       booking.bookingDate = new Date(requestedDate);
       booking.startTime = requestedTime;
+      booking.endTime = String(reqEndMin);
       const previousStatus = booking.status;
       booking.status = BookingStatus.PENDING_REASSIGNMENT;
       booking.recordStatusHistory({
@@ -5613,6 +5719,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
         reason: `Customer requested a different schedule: ${requestedDate} at ${requestedTime}`,
       });
       await booking.save();
+      });
 
       await createNotification({
         type: 'booking_reschedule_request',
@@ -5706,7 +5813,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
     }
   } catch (error) {
     console.error('Reschedule action error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process reschedule action' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to process reschedule action' });
   }
 });
 

@@ -34,6 +34,22 @@ test("customer order history derives payment guidance inside each order scope", 
   assert.match(html, /Pay by credit or debit card at the RACS store/);
 });
 
+test("customer order history names full payment correctly without relabeling actual downpayments", async () => {
+  const base = {
+    createdAt: new Date("2026-09-19T00:00:00.000Z"), status: "pending_payment",
+    paymentStatus: "pending", fulfillmentType: "delivery_installation", items: [], total: 27747,
+  };
+  const html = await ejs.renderFile(historyTemplate, { orders: [
+    { ...base, _id: "full-order", orderReference: "ORD-FULL", paymentMethod: "gcash_full",
+      downpaymentPercentage: 100, downpaymentAmount: 27747, balanceAmount: 0 },
+    { ...base, _id: "partial-order", orderReference: "ORD-PARTIAL", paymentMethod: "cod",
+      downpaymentPercentage: 10, downpaymentAmount: 2774.7, balanceAmount: 24972.3 },
+  ] });
+  assert.match(html, /<strong>Full payment:<\/strong>\s*&#8369;27,747\s*&middot;\s*<strong>Remaining:<\/strong>\s*&#8369;0/);
+  assert.match(html, /<strong>10% downpayment:<\/strong>/);
+  assert.doesNotMatch(html, /100% downpayment:/);
+});
+
 test("customer order detail excludes installation from the payable total", async () => {
   const html = await ejs.renderFile(detailTemplate, {
     order: {

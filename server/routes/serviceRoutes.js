@@ -12,6 +12,7 @@ const { getMinAdvanceMinutes, earliestAllowedDateTime } = require("../utils/book
 const { getPaymentPolicy } = require("../utils/paymentPolicy");
 const { overtimeMinutesForWindow } = require("../utils/technicianOvertimePolicy");
 const { getDefaultRepairInspectionFee } = require("../utils/repairInspectionPricing");
+const { buildLandingServicePrices } = require("../utils/landingServicePricing");
 
 async function fetchJsonWithTimeout(url, timeoutMs = 7000) {
   const controller = new AbortController();
@@ -57,6 +58,26 @@ router.get("/", async (req, res) => {
   } catch (err) {
     console.error("GET /api/services failed", err && err.message);
     return res.status(500).json({ error: "Failed to load services" });
+  }
+});
+
+// Compact, read-only prices loaded only when a home-page service dialog opens.
+router.get("/landing-prices", async (_req, res) => {
+  try {
+    const ServiceCategory = require("../models/ServiceCategory");
+    const [core, categories, defaultFee] = await Promise.all([
+      CoreService.find({ active: true })
+        .select("name slug active basePrice priceRange isAirconService hpPricing.hp hpPricing.price airconTypes.type airconTypes.name airconTypes.hpPricing.hp airconTypes.hpPricing.price")
+        .limit(100).maxTimeMS(3000).lean(),
+      ServiceCategory.find({ active: true }).select("slug active unitTypes isCustom")
+        .limit(100).maxTimeMS(3000).lean(),
+      getDefaultRepairInspectionFee(),
+    ]);
+    res.set("Cache-Control", "no-store");
+    return res.json({ prices: buildLandingServicePrices(core, categories, defaultFee) });
+  } catch (_error) {
+    res.set("Cache-Control", "no-store");
+    return res.status(503).json({ error: "Service pricing is temporarily unavailable. Please try again." });
   }
 });
 

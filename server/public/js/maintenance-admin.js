@@ -58,12 +58,19 @@
     $("maintenanceEmpty").classList.toggle("d-none", rows.length !== 0);
   }
 
+  let listController = null;
+  let listRequest = 0;
   async function load() {
+    listController?.abort();
+    const controller = new AbortController();
+    listController = controller;
+    const request = ++listRequest;
     $("maintenancePageInfo").textContent = "Loading maintenance schedules...";
     const params = new URLSearchParams({ status: state.status, search: state.search, page: state.page, limit: 25 });
     try {
-      const response = await fetch(`/api/maintenance/admin/overview?${params}`, { credentials: "same-origin", cache: "no-store" });
+      const response = await fetch(`/api/maintenance/admin/overview?${params}`, { credentials: "same-origin", cache: "no-store", signal: controller.signal });
       const data = await response.json();
+      if (request !== listRequest) return;
       if (!response.ok) throw new Error(data.error || "Unable to load maintenance schedules.");
       setSummary(data.summary || {});
       state.pages = Math.max(1, data.pages || 1);
@@ -74,6 +81,7 @@
       $("maintenancePrev").disabled = state.page <= 1;
       $("maintenanceNext").disabled = state.page >= state.pages;
     } catch (error) {
+      if (error.name === 'AbortError' || request !== listRequest) return;
       renderRows([]);
       $("maintenancePageInfo").textContent = error.message;
     }

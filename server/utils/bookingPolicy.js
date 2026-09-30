@@ -12,7 +12,7 @@
  */
 
 const SiteSetting = require("../models/SiteSetting");
-const { manilaSlotTiming } = require("./bookingDateTime");
+const { manilaDateKey, manilaDateTime, manilaSlotTiming } = require("./bookingDateTime");
 
 const DEFAULT_MIN_ADVANCE_MINUTES = 2 * 60; // 2 hours
 // Operational buffer padding applied to a booking's capacity end so that a
@@ -235,10 +235,9 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
   }
 
   // ── 2. Build query for overlapping bookings ──────────────────────────────
-  const dayStart = new Date(bookingDate);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(bookingDate);
-  dayEnd.setHours(23, 59, 59, 999);
+  const dateKey = manilaDateKey(bookingDate);
+  const dayStart = manilaDateTime(dateKey, 0);
+  const dayEnd = manilaDateTime(dateKey, 1440, -1);
 
   const activeStatuses = [
     "pending",
@@ -258,6 +257,14 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
     "ready_for_repair",
     "repair_scheduled",
     "repair_in_progress",
+    "re-scheduled",
+    "reschedule-required",
+    "waiting-for-customer",
+    "no-show-reported",
+    "pending_inspection",
+    "awaiting_approval",
+    "waiting_parts",
+    "parts_reserved",
   ];
 
   const query = {
@@ -269,8 +276,18 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
   }
 
   const existingBookings = await BookingService.find(query)
-    .select("technicianId startTime endTime serviceDurationMinutes travelTime")
+    .select("_id sourceOrderId technicianId startTime endTime serviceDurationMinutes travelTime")
     .lean();
+  const { loadActiveOrderCapacityRows } = require("./orderScheduleCapacity");
+  const excludedBooking = excludeBookingId
+    ? await BookingService.findById(excludeBookingId).select("sourceOrderId").lean()
+    : null;
+  const orderRows = await loadActiveOrderCapacityRows(dateKey, dateKey, {
+    activeBookingIds: new Set(existingBookings.map(booking => String(booking._id))),
+    activeLinkedOrderIds: new Set(existingBookings.map(booking => String(booking.sourceOrderId || "")).filter(Boolean)),
+    excludeOrderId: excludedBooking?.sourceOrderId,
+    bufferMinutes: await getBufferMinutes(),
+  });
 
   // ── 3. Per-technician overlap ──────────────────────────────────────────────
   // Both assigned AND unassigned bookings are added to each technician's busy
@@ -280,7 +297,7 @@ async function assertCompanyCapacity(bookingDate, startMin, endMin, excludeBooki
   const techBusy = new Map(); // techId -> array of [startMin, endMin]
   const unassignedIntervals = []; // time ranges for unassigned bookings
 
-  for (const b of existingBookings) {
+  for (const b of [...existingBookings, ...orderRows]) {
     const bStart = parseTimeValue(b.startTime);
     if (!Number.isFinite(bStart)) continue;
     const bEnd = deriveCapacityEnd(b, 60);

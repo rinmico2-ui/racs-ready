@@ -114,7 +114,8 @@
     <div class="rp-filter-group">
       <label class="rp-filter-label">View</label>
       <div class="d-flex gap-2">
-        <button class="btn btn-light rp-filter-btn active" data-tab="verified" onclick="refundTab('verified',this)"><i class="bi bi-check2-circle me-1"></i>Eligible Payments</button>
+        <button class="btn btn-light rp-filter-btn active" data-tab="requests" onclick="refundTab('requests',this)"><i class="bi bi-hourglass-split me-1"></i>Refund Requests</button>
+        <button class="btn btn-light rp-filter-btn" data-tab="verified" onclick="refundTab('verified',this)"><i class="bi bi-check2-circle me-1"></i>Eligible Payments</button>
         <button class="btn btn-light rp-filter-btn" data-tab="refunded" onclick="refundTab('refunded',this)"><i class="bi bi-clock-history me-1"></i>Refund History</button>
       </div>
     </div>
@@ -123,7 +124,7 @@
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white" style="border-bottom: 1px solid #f1f5f9;">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0 fw-bold" id="tableTitle">Eligible Payments</h5>
+        <h5 class="mb-0 fw-bold" id="tableTitle">Refund Requests</h5>
         <span class="badge bg-primary-subtle text-primary" id="tableCount">0 records</span>
       </div>
       <div class="d-flex align-items-start gap-2 p-2 rounded-2" style="background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b;">
@@ -151,7 +152,7 @@
   </div>
 </div>
 <script>
-let refundStatus='verified';
+let refundStatus='requests';
 let currentPage=1;
 const pageSize=10;
 let refundData=[];
@@ -162,11 +163,12 @@ function refundTab(s,b){
   refundStatus=s;
   document.querySelectorAll('.rp-filter-btn').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  document.getElementById('tableTitle').textContent = s==='verified'?'Eligible Payments':'Refund History';
+  document.getElementById('tableTitle').textContent = s==='requests'?'Refund Requests':s==='verified'?'Eligible Payments':'Refund History';
   loadRefunds();
 }
 async function loadRefunds(){
-  const r=await fetch('/api/admin/remittances?status='+refundStatus), d=await r.json();
+  const filterUrl=refundStatus==='requests'?'/api/admin/remittances?refundStatus=pending':refundStatus==='refunded'?'/api/admin/remittances?refundStatus=completed':'/api/admin/remittances?status=verified';
+  const r=await fetch(filterUrl), d=await r.json();
   const rows=(d.payments||[]);
   refundData=rows;
   refundFiltered=rows;
@@ -188,11 +190,11 @@ function renderPage(page, items){
   document.getElementById('refundRows').innerHTML=slice.map(p=>`<tr>
     <td class="fw-semibold">${re(p.bookingId?.bookingReference||p.orderId?.orderReference||String(p._id).slice(-8))}</td>
     <td>${re(p.bookingId?.customer?.name||p.orderId?.customer?.name||p.projectId?.customer?.name)}</td>
-    <td>₱${Number(p.amount||0).toLocaleString()}</td>
-    <td>${re(p.method).toUpperCase()}</td>
-    <td>${new Date(p.refundedAt||p.verifiedAt||p.collectedAt).toLocaleString('en-PH')}</td>
+    <td>${p.refundReview?'Awaiting confirmation':'₱'+Number(refundStatus==='verified'?p.amount:p.refundAmount||0).toLocaleString()}</td>
+    <td>${p.refundReview?'Receipt review':re(p.method).toUpperCase()}</td>
+    <td>${new Date(p.refundedAt||p.verifiedAt||p.collectedAt||p.submittedAt).toLocaleString('en-PH')}</td>
     <td>${re(p.refundReason)}</td>
-    <td>${refundStatus==='verified'?`<button class="btn btn-sm btn-outline-danger" onclick="issueRefund('${p._id}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Record Refund</button>`:'<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-check2 me-1"></i>Refunded</span>'}</td>
+    <td>${p.refundReview?(p.reviewReady?`<button class="btn btn-sm btn-outline-primary" onclick="queueVerifiedRefund('${p._id}')">Queue verified refund</button>`:'<a class="small" href="/admin/payments">Verify payment first</a>'):refundStatus==='refunded'?'<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-check2 me-1"></i>Refunded</span>':(p.status==='verified'||(p.status==='paid'&&p.orderId))?`<button class="btn btn-sm btn-outline-danger" onclick="issueRefund('${p._id}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Record Refund</button>`:'<a class="small" href="/admin/payments">Payment verification required</a>'}</td>
   </tr>`).join('');
   renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);
 }
@@ -231,6 +233,13 @@ async function issueRefund(id){
   if(!confirm('Record this payment as refunded? This does not transfer funds.'))return;
   const r=await fetch(`/api/admin/remittances/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refund',reason})}), d=await r.json();
   if(!r.ok)return alert(d.error||'Refund failed');
+  loadRefunds();
+}
+async function queueVerifiedRefund(id){
+  if(!confirm('Queue only the confirmed payment for refund review? This does not transfer money.'))return;
+  const response=await fetch(`/api/admin/order-refund-reviews/${encodeURIComponent(id)}/queue`,{method:'POST',headers:{Accept:'application/json'}});
+  const data=await response.json();
+  if(!response.ok)return alert(data.error||'Unable to queue this refund.');
   loadRefunds();
 }
 function createSparkline(canvas,data,color){

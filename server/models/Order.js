@@ -316,6 +316,10 @@ const orderSchema = new mongoose.Schema(
     productRefundAmount: { type: Number, min: 0, default: 0 },
     refundReason: { type: String, trim: true, maxlength: 1000, default: "" },
     refundRequestedAt: { type: Date, default: null },
+    // A customer may ask staff to verify an uploaded receipt before any money
+    // is confirmed. This is a review claim, not a payable refund.
+    refundReviewRequestedAt: { type: Date, default: null, index: true },
+    refundReviewReason: { type: String, trim: true, maxlength: 500, default: "" },
     // Snapshot the policy used when the order was placed. This must not
     // change when an admin updates the global percentage later.
     downpaymentPercentage: { type: Number, min: 1, max: 100, default: null },
@@ -323,6 +327,8 @@ const orderSchema = new mongoose.Schema(
     balanceAmount: { type: Number, min: 0, default: 0 },
     gcashNumber: { type: String, trim: true, default: null },
     gcashProofUrl: { type: String, trim: true, default: null },
+    // Keep the receipt bytes independent of a deployment's local filesystem.
+    gcashProofFileId: { type: mongoose.Schema.Types.ObjectId, default: null, select: false },
 
     // warranty (set when order is completed with installation)
     warranty: {
@@ -351,6 +357,7 @@ orderSchema.index({ pickupDate: 1 }); // Date-bounded customer-pickup calendar
 orderSchema.index({ status: 1, "delivery.preferredDate": 1 }); // Due delivery exceptions
 orderSchema.index({ status: 1, pickupDate: 1 }); // Due pickup exceptions
 orderSchema.index({ userId: 1, createdAt: -1 });
+orderSchema.index({ status: 1, refundStatus: 1, refundReviewRequestedAt: -1 });
 orderSchema.index(
   { userId: 1, checkoutRequestId: 1 },
   { unique: true, partialFilterExpression: { checkoutRequestId: { $type: "string" } } },

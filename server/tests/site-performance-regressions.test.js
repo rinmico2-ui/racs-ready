@@ -124,7 +124,7 @@ test('route effects stop in hidden tabs and respect reduced-motion and low-power
 test('staff polling skips hidden tabs and prevents overlapping refresh batches', () => {
   for (const name of ['admin', 'secretary', 'technician']) {
     const source = read('../views/partials/' + name + '-sidebar.ejs');
-    assert.match(source, /if\(document\.hidden\|\|\w+\)return/);
+    assert.match(source, /if\s*\(document\.hidden\s*\|\|\s*\w+\)\s*return/);
     assert.doesNotThrow(() => ejs.compile(source));
     for (const match of source.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
       if (!match[1].includes('<%')) assert.doesNotThrow(() => new vm.Script(match[1]));

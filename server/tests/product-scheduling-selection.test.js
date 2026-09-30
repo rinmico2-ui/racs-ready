@@ -16,14 +16,14 @@ test("product scheduling uses simple date and time labels in both checkouts", ()
   assert.match(calendar, /Choose a start time/);
   assert.match(calendar, /statusLabel = selected \? 'Selected' : 'Available'/);
   assert.doesNotMatch(calendar, /Teams Available|Past Date|\$\{availInfo\.availableSlots\} slots/);
-  assert.match(cart, /future-date-v3/);
-  assert.match(direct, /future-date-v3/);
+  assert.match(cart, /single-payment-action/);
+  assert.match(direct, /single-payment-action/);
 });
 
-test("choosing a product delivery time reveals an explicit next action", () => {
+test("choosing a product delivery time retains the summary without duplicating the footer action", () => {
   assert.match(calendar, /id="coScheduleNext" role="status" aria-live="polite" hidden/);
-  assert.match(calendar, /Continue to payment/);
-  assert.match(calendar, /window\.wizardNext\?\.\(\)/);
+  assert.doesNotMatch(calendar, /coScheduleNextButton|Continue to payment|window\.wizardNext/);
+  for (const wizard of [cart, direct]) assert.equal((wizard.match(/id="wizardNextBtn"/g) || []).length, 1);
   assert.match(calendar, /this\._syncNextAction\(date\)/);
   assert.match(cart, /checkoutCalendar\?\.restoreSelection\(draft\.preferredDate, draft\.timeSlot\)/);
   assert.match(direct, /checkoutCalendar\?\.restoreSelection\(draft\.preferredDate, draft\.timeSlot\)/);

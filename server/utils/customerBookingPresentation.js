@@ -6,6 +6,33 @@ function text(value) {
   return value === null || value === undefined ? "" : String(value).trim();
 }
 
+function hasRecordedBookingStatus(value) {
+  const status = text(value).toLowerCase();
+  return Boolean(status) && !["unknown", "undefined", "null"].includes(status);
+}
+
+// Old project conversions could save an undefined booking status. Look up
+// only those bookings in one indexed, bounded read. Do not write back a guess
+// or replace status: customer actions must still use the persisted workflow.
+async function attachMissingCustomerProjectStatuses(bookings, projectModel) {
+  const missing = bookings.filter(booking => booking._id && !hasRecordedBookingStatus(booking.status));
+  if (!missing.length) return bookings;
+  const Project = projectModel || require("../models/Project");
+  const projects = await Project.find({ bookingId: { $in: missing.map(booking => booking._id) } })
+    .select("bookingId status")
+    .maxTimeMS(3000)
+    .lean();
+  const statusByBooking = new Map(projects
+    .filter(project => project.bookingId && hasRecordedBookingStatus(project.status))
+    .map(project => [String(project.bookingId), text(project.status)]));
+  return bookings.map(booking => {
+    const status = statusByBooking.get(String(booking._id));
+    return !hasRecordedBookingStatus(booking.status) && status
+      ? { ...booking, customerProjectStatus: status }
+      : booking;
+  });
+}
+
 function positiveQuantity(value, fallback = 1) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
@@ -166,9 +193,11 @@ function presentCustomerBooking(booking = {}) {
 }
 
 module.exports = {
+  attachMissingCustomerProjectStatuses,
   customerRepairDetails,
   enrichCustomerBooking,
   isRepairBooking,
   isUnpaidAftercareMaintenance,
+  hasRecordedBookingStatus,
   presentCustomerBooking,
 };

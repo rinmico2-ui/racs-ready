@@ -3,6 +3,7 @@ const router = express.Router();
 const BookingService = require('../models/BookingService');
 const auth = require('../middleware/authenticate');
 const { assertCompanyCapacity } = require('../utils/bookingPolicy');
+const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 
 // Protect all booking routes with authentication
@@ -126,9 +127,10 @@ router.post('/create', async (req, res) => {
     try {
       const startMins = parseTimeToMinutes2(startTime);
       const endMins = parseTimeToMinutes2(endTime);
-      if (Number.isFinite(startMins) && Number.isFinite(endMins) && endMins > startMins) {
-        await assertCompanyCapacity(new Date(bookingDate), startMins, endMins);
+      if (!Number.isFinite(startMins) || !Number.isFinite(endMins) || endMins <= startMins) {
+        return res.status(400).json({ error: 'Choose a valid booking start and end time.' });
       }
+      await assertCompanyCapacity(new Date(bookingDate), startMins, endMins);
     } catch (capacityErr) {
       return res.status(409).json({ error: capacityErr.message });
     }
@@ -236,7 +238,14 @@ router.post('/create', async (req, res) => {
     console.log('🔨 Creating BookingService model...');
     const booking = new BookingService(bookingData);
     console.log('✓ Model created, now saving...');
-    await booking.save();
+    try {
+      await withOperationLock(bookingCapacityLockKey(bookingDate), async () => {
+        await assertCompanyCapacity(new Date(bookingDate), parseTimeToMinutes2(startTime), parseTimeToMinutes2(endTime));
+        await booking.save();
+      });
+    } catch (capacityErr) {
+      return res.status(409).json({ error: capacityErr.message || 'That schedule is no longer available.' });
+    }
     
     console.log('✅ Booking created successfully:', booking.bookingReference);
     

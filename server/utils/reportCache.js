@@ -34,14 +34,17 @@ async function remember(namespace, input, producer, options = {}) {
   if (current && (current.pending || current.expiresAt > now)) return current.value;
 
   const pending = Promise.resolve().then(producer);
-  entries.set(key, { value: pending, pending: true, createdAt: now, expiresAt: now + ttlMs });
+  const entry = { value: pending, pending: true, createdAt: now, expiresAt: now + ttlMs };
+  entries.set(key, entry);
   try {
     const value = await pending;
-    entries.set(key, { value, pending: false, createdAt: now, expiresAt: Date.now() + ttlMs });
+    if (entries.get(key) === entry) {
+      entries.set(key, { value, pending: false, createdAt: now, expiresAt: Date.now() + ttlMs });
+    }
     prune(maxEntries);
     return value;
   } catch (error) {
-    entries.delete(key);
+    if (entries.get(key) === entry) entries.delete(key);
     throw error;
   }
 }
@@ -53,4 +56,6 @@ function clear(namespace) {
   }
 }
 
-module.exports = { cacheKey, clear, remember };
+function clearAll() { entries.clear(); }
+
+module.exports = { cacheKey, clear, clearAll, remember };

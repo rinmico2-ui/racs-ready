@@ -87,11 +87,14 @@
   async function verifyAndQueue(id) {
     if (!confirm('Verify payment and move to assignment queue?')) return;
     try {
-      await fetch(`/api/admin/appointments/${id}/verify-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Verified' }) });
-      await fetch(`/api/admin/appointments/${id}/move-to-queue`, { method: 'POST' });
+      const response = await fetch(`/api/admin/appointments/${id}/verify-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Verified' }) });
+      const data = await response.json();
+      if (!response.ok || !data.success || data.destination !== 'assignment_queue') {
+        throw new Error(data.error || 'Payment verification failed');
+      }
       showToast('Payment verified and moved to queue');
       loadList();
-    } catch (e) { showToast('Error', 'error'); }
+    } catch (e) { showToast(e.message || 'Payment verification failed', 'error'); }
   }
 
   async function rejectBooking(id) {
@@ -107,7 +110,8 @@
   function showToast(msg, type = 'success') {
     const t = document.createElement('div');
     t.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : 'success'} border-0`;
-    t.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+    t.innerHTML = '<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+    t.querySelector('.toast-body').textContent = msg;
     document.body.appendChild(t); new bootstrap.Toast(t).show(); setTimeout(() => t.remove(), 4000);
   }
 

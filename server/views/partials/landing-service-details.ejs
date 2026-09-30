@@ -1,0 +1,38 @@
+<% services.forEach((svc, idx) => { %>
+  <div class="modal fade landing-service-detail" id="landingServiceDetail<%= idx %>" tabindex="-1"
+    aria-labelledby="landingServiceDetailTitle<%= idx %>" aria-describedby="landingServiceDetailDescription<%= idx %>" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <p class="landing-service-detail-type"><%= svc.type %></p>
+            <h2 class="modal-title fs-5" id="landingServiceDetailTitle<%= idx %>"><%= svc.name %></h2>
+          </div>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close service details"></button>
+        </div>
+        <div class="modal-body">
+          <h3 class="landing-service-detail-heading">About this service</h3>
+          <p id="landingServiceDetailDescription<%= idx %>"><%= svc.description %></p>
+          <section class="landing-service-pricing" data-price-service="<%= svc.name %>" aria-label="Service pricing" aria-live="polite" aria-busy="false">
+            <h3 class="landing-service-detail-heading">Prices</h3>
+            <div data-service-price-content>Prices load when you open these details.</div>
+          </section>
+          <h3 class="landing-service-detail-heading">What to tell us when booking</h3>
+          <ul>
+            <% svc.preparation.forEach(detail => { %><li><%= detail %></li><% }); %>
+          </ul>
+          <div class="landing-service-detail-note">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <p><%= svc.type === 'Repair'
+              ? 'Repair requests begin with an inspection. Repair work and final pricing depend on the diagnosis and quotation. Check the booking page for current inspection fees and available options.'
+              : 'Check the booking page for current service options and pricing. The amount depends on your selected appliance details, number of units, and location.' %></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <a href="/services" class="btn btn-primary">Book Now <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        </div>
+      </div>
+    </div>
+  </div>
+<% }); %>

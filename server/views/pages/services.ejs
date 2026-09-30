@@ -1695,13 +1695,14 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 .location-hint{color:#64748b;font-size:.7rem}
 .service-checkout-map-card{overflow:hidden;border:1px solid #dbe3ee;border-radius:16px;background:#fff;box-shadow:0 8px 26px rgba(15,23,42,.07);transition:border-color .2s,box-shadow .2s}
 .service-checkout-map-card:hover,.service-checkout-map-card:focus-within{border-color:#93c5fd;box-shadow:0 10px 30px rgba(37,99,235,.1)}
-.service-map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid #e2e8f0;background:linear-gradient(180deg,#fff,#f8fafc)}
+.service-map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#dbeafe)}
 .service-map-toolbar h6{margin:0;color:#0f172a;font-size:.82rem;font-weight:800}
-.service-map-toolbar p{margin:2px 0 0;color:#64748b;font-size:.67rem}
+.service-map-toolbar p{margin:2px 0 0;color:#475569;font-size:.67rem}
 .service-map-actions{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;justify-content:flex-end}
-.service-map-action{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:34px;padding:.35rem .6rem;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#334155;font-size:.67rem;font-weight:700;white-space:nowrap}
-.service-map-action:hover:not(:disabled){border-color:#93c5fd;background:#eff6ff;color:#1d4ed8}
-.service-map-action:disabled{cursor:not-allowed;opacity:.42}
+.service-map-action{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:34px;padding:.35rem .6rem;border:1px solid #1d4ed8;border-radius:8px;background:#1d4ed8;color:#fff;font-size:.67rem;font-weight:700;white-space:nowrap;cursor:pointer;transition:background-color .15s ease,border-color .15s ease}
+.service-map-action:hover:not(:disabled){border-color:#1e40af;background:#1e40af;color:#fff}
+.service-map-action:focus-visible{outline:3px solid #1d4ed8;outline-offset:3px}
+.service-map-action:disabled{border-color:#cbd5e1;background:#e2e8f0;color:#475569;cursor:not-allowed;opacity:1}
 .service-map-stage{position:relative;background:#e8eef7}
 .service-checkout-map-card .technician-map{height:410px;width:100%;border-radius:0;background:#e8eef7;transition:height .25s ease}
 .service-checkout-map-card.map-expanded .technician-map{height:560px}

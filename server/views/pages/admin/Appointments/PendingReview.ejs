@@ -770,8 +770,7 @@
     try {
       const res = await fetch(`/api/admin/appointments/${id}/verify-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: 'Payment verified by admin' }) });
       const data = await res.json();
-      if (data.success) {
-        await fetch(`/api/admin/appointments/${id}/move-to-queue`, { method: 'POST' });
+      if (res.ok && data.success && data.destination === 'assignment_queue') {
         showNotification({ type: 'success', title: 'Payment Verified', message: 'Booking has been verified and moved to assignment queue.', duration: 4000 });
         loadPendingBookings(currentPage);
       } else {

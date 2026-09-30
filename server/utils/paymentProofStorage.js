@@ -22,6 +22,7 @@ async function storePaymentProof(file, metadata = {}) {
     contentType: String(file.mimetype).toLowerCase(),
     metadata: {
       bookingId: metadata.bookingId ? String(metadata.bookingId) : null,
+      orderId: metadata.orderId ? String(metadata.orderId) : null,
       uploadedBy: metadata.uploadedBy ? String(metadata.uploadedBy) : null,
       originalName: String(file.originalname || "payment-proof").slice(0, 255),
     },

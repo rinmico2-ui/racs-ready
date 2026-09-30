@@ -871,6 +871,38 @@
   font-weight: 600;
 }
 
+.ent-service-details-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 44px;
+  padding: .35rem 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.ent-service-details-button:hover { color: #1e40af; text-decoration: underline; }
+.ent-service-details-button:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+.ent-service-card:focus-within .ent-service-overlay { opacity: 1; }
+.landing-service-detail .modal-content { border: 0; border-radius: 16px; overflow: hidden; }
+.landing-service-detail .modal-header { gap: 1rem; padding: 1.25rem; background: linear-gradient(135deg, #0f172a, #1e3a5f); color: #fff; }
+.landing-service-detail .modal-title { color: #fff; font-weight: 700; }
+.landing-service-detail-type { margin: 0 0 .35rem; color: #bfdbfe; font-size: .75rem; font-weight: 600; }
+.landing-service-detail .modal-body { padding: 1.25rem; color: #334155; line-height: 1.6; }
+.landing-service-detail-heading { margin: 0 0 .65rem; color: #0f172a; font-size: .95rem; font-weight: 700; }
+.landing-service-detail .modal-body li { margin-bottom: .4rem; }
+.landing-service-detail-note { display: flex; gap: .65rem; padding: .9rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e3a8a; font-size: .85rem; }
+.landing-service-detail-note p { margin: 0; }
+.landing-service-detail .modal-footer { gap: .5rem; padding: 1rem 1.25rem; }
+.landing-service-pricing { margin: 1rem 0; padding: 1rem; border: 1px solid #dbeafe; border-radius: 10px; background: #f8fafc; }
+.landing-service-price-summary { display: block; margin-bottom: .5rem; color: #1d4ed8; font-size: 1.05rem; }
+.landing-service-pricing table { width: 100%; margin: .75rem 0; border-collapse: collapse; font-size: .85rem; }
+.landing-service-pricing th, .landing-service-pricing td { padding: .5rem .25rem; border-bottom: 1px solid #e2e8f0; text-align: left; overflow-wrap: anywhere; }
+.landing-service-pricing th:last-child, .landing-service-pricing td:last-child { text-align: right; white-space: nowrap; }
+.landing-service-price-note { margin: .5rem 0 0; font-size: .8rem; }
+
 @media (max-width: 1199px) {
   .ent-services-grid { grid-template-columns: repeat(3, 1fr); }
 }

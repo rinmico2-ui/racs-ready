@@ -298,6 +298,11 @@
               <div class="od-cost-line"><span>Remaining balance</span><strong>&#8369;<%= peso(plannedBalanceAmount) %></strong></div>
               <div class="od-fact wide mt-3"><span class="od-label">Payment</span><div class="od-value"><%= orderPaymentLabel(order) %><br><strong><%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></strong></div></div>
               <% if (order.refundStatus && order.refundStatus !== 'none') { %><div class="od-notice refund mt-3"><strong>Refund <%= order.refundStatus %></strong><br>&#8369;<%= peso(order.refundAmount) %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></div><% } %>
+              <% if (order.status === 'cancelled' && order.refundReviewRequestedAt && (!order.refundStatus || order.refundStatus === 'none')) { %><div class="od-notice refund mt-3"><strong>Payment review requested</strong><br>Staff must verify your receipt before any refund can be approved. No refund amount is confirmed yet.</div><% } %>
+              <% if (order.status === 'cancelled' && (!order.refundStatus || order.refundStatus === 'none') && !order.refundReviewRequestedAt && order.paymentStatus !== 'refunded') { %>
+                <button class="od-secondary-action w-100" type="button" data-order-refund="<%= order._id %>"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Request Refund</button>
+                <p class="small text-muted mt-2 mb-0">Unverified receipts become payment review requests first. Staff must confirm payment before any refund is queued. Requests do not transfer money.</p>
+              <% } %>
               <% if (Number(order.productRefundAmount || 0) > 0) { %><div class="od-notice refund mt-3"><strong>Product refund sent</strong><br>&#8369;<%= peso(order.productRefundAmount) %><div class="small">Only the approved returned product was refunded. The original payment remains on record.</div></div><% } %>
             </div>
           </section>
@@ -340,7 +345,13 @@
             </section>
           <% } %>
 
-          <section class="od-card"><div class="od-card-body"><a class="od-primary-action" href="/my-orders"><i class="bi bi-list-ul"></i> Return to My Orders</a><a class="od-secondary-action" href="/products"><i class="bi bi-snow"></i> Browse Air Conditioners</a></div></section>
+          <section class="od-card"><div class="od-card-body">
+            <% if (order.status === 'cancelled' && (order.items || []).length) { %>
+              <button class="od-primary-action border-0 w-100 mb-2" type="button" data-order-reorder="<%= order._id %>"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reorder</button>
+              <p class="small text-muted">Review current prices and availability in your cart before placing a new order. Previous payments are not reused.</p>
+            <% } %>
+            <a class="od-primary-action" href="/my-orders"><i class="bi bi-list-ul"></i> Return to My Orders</a><a class="od-secondary-action" href="/products"><i class="bi bi-snow"></i> Browse Air Conditioners</a>
+          </div></section>
         </aside>
       </div>
     </div>
@@ -376,6 +387,8 @@
 </div>
 
 <script src="/js/product-returns-customer.js" defer></script>
+<script src="/js/customer-order-reorder.js?v=20260930-reorder-v1" defer></script>
+<script src="/js/customer-order-refund.js?v=20260930-refund-review-v2" defer></script>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>

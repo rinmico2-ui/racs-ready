@@ -1,12 +1,14 @@
 <%
   const cartItems = cart && Array.isArray(cart.items) ? cart.items : [];
   const unitCount = cartItems.reduce(function (sum, item) { return sum + (Number(item.quantity) || 0); }, 0);
-  const subtotal = Number(cart && cart.totalAmount) || 0;
-  const hasStockIssues = cartItems.some(function (item) {
+  const purchasableItems = cartItems.filter(function (item) {
     const product = item.inventoryId || {};
     const available = Number(product.quantity);
-    return Number.isFinite(available) && ((Number(item.quantity) || 0) > available || available < 1);
+    return product.active !== false && !['out_of_stock', 'discontinued', 'coming_soon'].includes(product.status)
+      && (!Number.isFinite(available) || (Number(item.quantity) <= available && available > 0));
   });
+  const selectedUnitCount = purchasableItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+  const subtotal = purchasableItems.reduce((sum, item) => sum + (Number(item.inventoryId.sellingPrice) || 0) * Number(item.quantity), 0);
   const formatCurrency = function (value) { return '₱' + (Number(value) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 %>
 
@@ -42,8 +44,15 @@
   .cart-panel-head h2 { margin:0; font-size:1rem; font-weight:800; }
   .cart-panel-head span { color:var(--cart-muted); font-size:.76rem; }
   .cart-item { padding:1.25rem; }
+  .cart-item.is-selected { background:#f8fbff; }
+  .cart-selection-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; padding:.85rem 1.25rem; border-bottom:1px solid var(--cart-line); }
+  .cart-select-label { display:inline-flex; align-items:center; gap:.65rem; min-height:32px; font-weight:700; font-size:.85rem; cursor:pointer; }
+  .cart-item-select, #cartSelectAll { width:20px; height:20px; accent-color:#2563eb; cursor:pointer; flex-shrink:0; }
+  .cart-item-select:disabled { cursor:not-allowed; }
+  .cart-item-select:focus-visible, #cartSelectAll:focus-visible { outline:3px solid #93c5fd; outline-offset:3px; }
+  .cart-selection-count { color:var(--cart-muted); font-size:.75rem; }
   .cart-item + .cart-item { border-top:1px solid var(--cart-line); }
-  .cart-item-grid { display:grid; grid-template-columns:104px minmax(0,1fr) 155px; gap:1.15rem; align-items:center; }
+  .cart-item-grid { display:grid; grid-template-columns:24px 104px minmax(0,1fr) 155px; gap:1.15rem; align-items:center; }
   .cart-item-image { display:flex; align-items:center; justify-content:center; width:104px; height:104px; padding:.5rem; overflow:hidden; border:1px solid #e8edf5; border-radius:12px; background:#f8fafc; }
   .cart-item-image img { max-width:100%; max-height:100%; object-fit:contain; }
   .cart-item-name { margin:0 0 .35rem; font-size:1rem; font-weight:800; color:var(--cart-ink); }
@@ -94,9 +103,9 @@
     .cart-hero-actions .btn { flex:1 1 auto; justify-content:center; }
     .cart-step { min-height:58px; padding:.7rem; }
     .cart-step small { display:none; }
-    .cart-item-grid { grid-template-columns:76px minmax(0,1fr); align-items:start; }
+    .cart-item-grid { grid-template-columns:24px 76px minmax(0,1fr); gap:.65rem; align-items:start; }
     .cart-item-image { width:76px; height:76px; }
-    .cart-item-pricing { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.7rem; padding-top:.9rem; border-top:1px solid #f1f5f9; text-align:left; }
+    .cart-item-pricing { grid-column:2/-1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.7rem; padding-top:.9rem; border-top:1px solid #f1f5f9; text-align:left; }
     .cart-unit-price { width:100%; margin:-.45rem 0 0; }
     .qty-row { justify-content:flex-start; }
   }
@@ -142,8 +151,12 @@
         <div class="col-lg-8">
           <section class="cart-panel" aria-labelledby="selectedProductsTitle">
             <div class="cart-panel-head">
-              <div><h2 id="selectedProductsTitle">Selected Products</h2><span>Verify the exact capacity before checkout.</span></div>
+              <div><h2 id="selectedProductsTitle">Your Cart</h2><span>Select the items you want to buy now. Others stay in your cart.</span></div>
               <span><strong><%= unitCount %></strong> <%= unitCount === 1 ? 'unit' : 'units' %></span>
+            </div>
+            <div class="cart-selection-toolbar">
+              <label class="cart-select-label" for="cartSelectAll"><input type="checkbox" id="cartSelectAll">Select all available items</label>
+              <span class="cart-selection-count" id="cartSelectionCount" role="status" aria-live="polite"></span>
             </div>
             <% cartItems.forEach(function (item) { %>
               <%
@@ -158,6 +171,7 @@
               %>
               <article class="cart-item" id="item-<%= item._id %>">
                 <div class="cart-item-grid">
+                  <input type="checkbox" class="cart-item-select" data-cart-item-id="<%= item._id %>" aria-label="Buy <%= [brandName, product.modelLine, product.capacity, product.capacityUnit || 'HP'].filter(Boolean).join(' ') %>" <%= purchasableItems.includes(item) ? 'checked' : 'disabled' %>>
                   <div class="cart-item-image"><img src="<%= product.imageUrl || '/images/products/default.png' %>" alt="<%= [brandName, product.modelLine].filter(Boolean).join(' ') || 'Air conditioner' %>"></div>
                   <div>
                     <h3 class="cart-item-name"><%= product.modelLine || 'Air conditioner' %></h3>
@@ -193,12 +207,12 @@
         <aside class="col-lg-4" aria-labelledby="orderSummaryTitle">
           <div class="summary-card">
             <h2 id="orderSummaryTitle">Order Summary</h2>
-            <div class="summary-row"><span>Selected units</span><strong><%= unitCount %></strong></div>
-            <div class="summary-row"><span>Merchandise subtotal</span><strong><%= formatCurrency(subtotal) %></strong></div>
+            <div class="summary-row"><span>Selected units</span><strong id="cartSelectedUnits"><%= selectedUnitCount %></strong></div>
+            <div class="summary-row"><span>Selected merchandise subtotal</span><strong id="cartSelectedSubtotal"><%= formatCurrency(subtotal) %></strong></div>
             <div class="summary-row"><span>Delivery / installation</span><strong>Calculated next</strong></div>
-            <div class="summary-total"><span>Current total</span><strong><%= formatCurrency(subtotal) %></strong></div>
-            <p class="summary-note"><%= hasStockIssues ? 'Update or remove unavailable products before continuing.' : 'The final payable amount, required downpayment, and any fulfillment fees are shown before you confirm the order.' %></p>
-            <button class="btn-checkout" type="button" <%= hasStockIssues ? 'disabled' : '' %> onclick="openCheckoutWizard()">Continue to Fulfillment <i class="bi bi-arrow-right ms-2"></i></button>
+            <div class="summary-total"><span>Selected total</span><strong id="cartSelectedTotal"><%= formatCurrency(subtotal) %></strong></div>
+            <p class="summary-note">Only selected items will be ordered. Unselected items stay in your cart. Adjust quantities for unavailable items before selecting them.</p>
+            <button class="btn-checkout" id="cartCheckoutSelected" type="button" <%= purchasableItems.length ? '' : 'disabled' %> onclick="openCheckoutWizard()"><span id="cartCheckoutSelectedLabel">Checkout selected (<%= purchasableItems.length %>)</span> <i class="bi bi-arrow-right ms-2"></i></button>
             <a class="summary-link" href="/my-orders"><i class="bi bi-receipt"></i>View existing orders</a>
             <div class="assurance-list">
               <div class="assurance-item"><i class="bi bi-shield-check"></i><span>Payment instructions and GCash receipt requirements are reviewed before submission.</span></div>
@@ -213,6 +227,13 @@
 </section>
 
 <script>window.adminGcashNumber = "<%= typeof adminGcashNumber !== 'undefined' ? adminGcashNumber : '' %>";</script>
+<script src="/js/cart-selection.js?v=20260929-selected-checkout"></script>
+<script>
+  window.CartSelection.init({
+    customerId: <%- JSON.stringify(String(locals.user && user._id || '')).replace(/</g, '\\u003c') %>,
+    cart: <%- JSON.stringify(cart || { items: [] }).replace(/</g, '\\u003c') %>
+  });
+</script>
 <%- include('../partials/cart-wizard', { cart: cart }) %>
 
 <script>

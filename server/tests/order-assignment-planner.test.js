@@ -17,18 +17,18 @@ test('explicit checkout ranges remain the authoritative assignment window', () =
   }), { start: 540, end: 720, duration: 180 });
 });
 
-test('installation planning scales duration by ordered unit quantity', () => {
+test('installation planning includes each unit, travel and the operational buffer', () => {
   assert.deepEqual(orderWindow({
     fulfillmentType: 'delivery_installation',
     timeSlot: '13:00',
     items: [{ quantity: 3 }],
-  }), { start: 780, end: 960, duration: 180 });
+  }), { start: 780, end: 1035, duration: 255 });
 });
 
-test('delivery-only planning reserves delivery time without installation work', () => {
+test('delivery-only planning reserves delivery, travel and buffer without installation work', () => {
   assert.deepEqual(orderWindow({
     fulfillmentType: 'delivery_only',
     timeSlot: '10:00',
     items: [{ quantity: 2 }],
-  }), { start: 600, end: 690, duration: 90 });
+  }), { start: 600, end: 735, duration: 135 });
 });

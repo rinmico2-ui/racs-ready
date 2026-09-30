@@ -65,6 +65,14 @@ test('payment verification completes the assignment-queue transition in one requ
   assert.match(verifyClient, /_pdAll=_pdAll\.filter/);
   assert.match(verifyClient, /AU\.Pending\.load\(\)/);
   assert.doesNotMatch(verifyClient, /bootstrap\.Tab\.getOrCreateInstance/);
+
+  for (const legacyView of [
+    read('views/pages/admin/Appointments/PaymentVerification.ejs'),
+    read('views/pages/admin/Appointments/PendingReview.ejs'),
+  ]) {
+    assert.doesNotMatch(legacyView, /move-to-queue/);
+    assert.match(legacyView, /data\.destination\s*(?:===|!==)\s*'assignment_queue'/);
+  }
 });
 
 test('deep-linked appointment tabs do not perform a duplicate initial load', () => {

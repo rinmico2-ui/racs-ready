@@ -117,6 +117,7 @@ const paymentSchema = new mongoose.Schema({
 paymentSchema.index({ bookingId: 1 });
 paymentSchema.index({ bookingId: 1, submittedAt: 1, collectedAt: 1 });
 paymentSchema.index({ orderId: 1 });
+paymentSchema.index({ refundStatus: 1, submittedAt: -1 });
 paymentSchema.index({ projectId: 1 });
 paymentSchema.index(
   { projectId: 1, clientSubmissionId: 1 },

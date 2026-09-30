@@ -15,6 +15,10 @@ const TechnicianSchedule = require("../models/TechnicianSchedule");
 const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
 const User = require("../models/User");
+const AirconCart = require("../models/AirconCart");
+const { parseCartItemIds, assertCartSelection } = require("../utils/cartCheckoutSelection");
+const { reorderCancelledOrder } = require("../utils/orderReorder");
+const { requestOrderRefund } = require("../utils/orderRefundRequest");
 const {
   recordOrderConsumableUsage,
   syncDailyKit,
@@ -30,9 +34,13 @@ const {
   MANUAL_PAYMENT_CHANNELS,
 } = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
+const paymentProofStorage = require("../utils/paymentProofStorage");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
+const { bookingCapacityLockKey, withOperationLock } = require("../utils/operationLock");
+const { getBufferMinutesSync } = require("../utils/bookingPolicy");
+const { orderCapacityEndTime } = require("../utils/orderScheduleCapacity");
 const { buildOrderAssignmentPlan } = require("../utils/orderAssignmentPlanner");
 const { orderFulfillmentScopeFilter } = require("../utils/orderFulfillmentScope");
 const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
@@ -447,13 +455,16 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
       total = result[1];
     }
 
+    const pageResult = {
+      orders,
+      total,
+      page: pageNumber,
+      pages: Math.ceil(total / pageLimit),
+    };
+    if (req.query.includeKpi === "false") return res.json(pageResult);
+
     // Also return summary counts for KPI cards
-    const [totalOrders, pending, inProgress, completed, cancelled, attentionCandidates, statusRows, fulfillmentRows] = await Promise.all([
-      Order.countDocuments(scopeFilter),
-      Order.countDocuments({ ...scopeFilter, status: "pending_payment" }),
-      Order.countDocuments({ ...scopeFilter, status: { $in: ["preparing_unit", "ready_for_pickup", "technician_assigned", "technician_accepted", "out_for_delivery", "arrived", "installing"] } }),
-      Order.countDocuments({ ...scopeFilter, status: "completed" }),
-      Order.countDocuments({ ...scopeFilter, status: "cancelled" }),
+    const [attentionCandidates, statusRows, fulfillmentRows] = await Promise.all([
       Order.find({ ...scopeFilter, status: { $in: [...REVIEWABLE_ORDER_STATUSES] } })
         .select("status fulfillmentType delivery.preferredDate pickupDate timeSlot")
         .lean(),
@@ -463,12 +474,15 @@ router.get("/all", authenticate, requireRole(["admin", "secretary"]), async (req
     const pastDateAttention = attentionCandidates.filter((order) => orderAttentionState(order).isPastDate).length;
     const statusBreakdown = Object.fromEntries(statusRows.map((row) => [row._id, row.count]));
     const fulfillmentBreakdown = Object.fromEntries(fulfillmentRows.map((row) => [row._id || "unknown", row.count]));
+    const totalOrders = statusRows.reduce((sum, row) => sum + row.count, 0);
+    const pending = statusBreakdown.pending_payment || 0;
+    const inProgress = ["preparing_unit", "ready_for_pickup", "technician_assigned", "technician_accepted", "out_for_delivery", "arrived", "installing"]
+      .reduce((sum, status) => sum + (statusBreakdown[status] || 0), 0);
+    const completed = statusBreakdown.completed || 0;
+    const cancelled = statusBreakdown.cancelled || 0;
 
     res.json({
-      orders,
-      total,
-      page: pageNumber,
-      pages: Math.ceil(total / pageLimit),
+      ...pageResult,
       kpi: { totalOrders, pending, inProgress, completed, cancelled, pastDateAttention, statusBreakdown, fulfillmentBreakdown },
     });
   } catch (err) {
@@ -526,6 +540,8 @@ router.post("/delivery-quote", authenticate, requireRole("customer"), async (req
  */
 router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receiveGcashProof, async (req, res) => {
   let checkoutRequestId = "";
+  let storedReceiptId = null;
+  let orderCommitted = false;
   try {
     // When submitted as FormData some fields arrive as JSON strings â€“ parse them
     let body = req.body;
@@ -572,6 +588,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       throw new OrderCheckoutError("That payment method is currently unavailable. Choose another method or contact the store.", 503, "ORDER_PAYMENT_CHANNEL_UNAVAILABLE");
     }
     const requestedItems = validateCheckoutItems(items);
+    const cartItemIds = parseCartItemIds(body.cartItemIds);
 
     const [settings, downpaymentPercentage, gcashRecipientNumber] = await Promise.all([
       getOrderCheckoutSettings(),
@@ -730,7 +747,15 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       } : { pickupDate: selection.pickupDate }),
     };
     if (normalizedGcashNumber) orderData.gcashNumber = normalizedGcashNumber;
-    if (req.file) orderData.gcashProofUrl = `/uploads/gcash-receipts/${req.file.filename}`;
+    if (req.file) {
+      orderData._id = new mongoose.Types.ObjectId();
+      const stored = await paymentProofStorage.storePaymentProof(req.file, {
+        orderId: orderData._id, uploadedBy: req.user._id,
+      });
+      storedReceiptId = stored.fileId;
+      orderData.gcashProofFileId = stored.fileId;
+      orderData.gcashProofUrl = `/api/orders/${orderData._id}/payment-proof`;
+    }
 
     const calculatedOrderTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0)
       + orderData.transportationFee;
@@ -745,10 +770,23 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       orderData.balanceAmount = 0;
     }
 
-    const session = await mongoose.startSession();
     let order;
-    try {
+    const commitOrder = async () => {
+      const session = await mongoose.startSession();
+      try {
       session.startTransaction();
+      if (cartItemIds) {
+        const cart = await AirconCart.findOne({ userId: req.user._id }).select('items').session(session).lean();
+        assertCartSelection(cart, cartItemIds, requestedItems);
+        // Removing selected lines and creating the order must commit together.
+        // A failed checkout keeps all items, and unselected lines are untouched.
+        const result = await AirconCart.updateOne({ _id: cart._id, userId: req.user._id }, {
+          $pull: { items: { _id: { $in: cartItemIds.map(id => new mongoose.Types.ObjectId(id)) } } },
+        }, { session });
+        if (result.modifiedCount !== 1) {
+          throw new OrderCheckoutError("Your cart changed. Refresh it before checking out.", 409, "ORDER_CART_SELECTION_CHANGED");
+        }
+      }
       for (const item of enrichedItems) {
         let reserved;
         if (item.isHvac) {
@@ -806,11 +844,37 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         await order.save({ session });
       }
       await session.commitTransaction();
-    } catch (transactionError) {
-      await session.abortTransaction().catch(() => {});
-      throw transactionError;
-    } finally {
-      await session.endSession();
+      orderCommitted = true;
+      } catch (transactionError) {
+        await session.abortTransaction().catch(() => {});
+        throw transactionError;
+      } finally {
+        await session.endSession();
+      }
+    };
+
+    if (selection.delivery) {
+      await withOperationLock(bookingCapacityLockKey(selection.delivery.preferredDate), async () => {
+        // The earlier check is for fast feedback. This read and the order
+        // commit share the same date lock as service-booking creation.
+        const freshSlots = await require("./scheduleRoutes").getTimeSlotsForQuery({
+          date: String(delivery.preferredDate).slice(0, 10),
+          duration: "60",
+          quantity: selection.fulfillmentType === "delivery_installation" ? String(totalUnits) : "1",
+          travelTime: String(deliveryQuote.durationMin),
+        });
+        const selected = selection.timeSlot.toLowerCase();
+        const stillAvailable = freshSlots.statusCode < 400
+          && Array.isArray(freshSlots.payload?.timeSlots)
+          && freshSlots.payload.timeSlots.some(slot => String(slot.startTime || "").trim().toLowerCase() === selected);
+        if (!stillAvailable) throw new OrderCheckoutError(
+          freshSlots.payload?.message || "This delivery time was just taken. Choose another schedule.",
+          409, "ORDER_SLOT_UNAVAILABLE",
+        );
+        await commitOrder();
+      });
+    } else {
+      await commitOrder();
     }
 
     return res.status(201).json({
@@ -820,6 +884,11 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     });
   } catch (err) {
     console.error("POST /api/orders error:", err);
+    // A lost commit acknowledgement is not proof of rollback. Preserve the
+    // receipt if MongoDB cannot tell us whether the transaction committed.
+    if (storedReceiptId && !orderCommitted && !err?.hasErrorLabel?.('UnknownTransactionCommitResult')) {
+      await paymentProofStorage.deletePaymentProof(storedReceiptId).catch(() => {});
+    }
     if (err?.code === 11000 && checkoutRequestId) {
       const existingOrder = await Order.findOne({ userId: req.user._id, checkoutRequestId }).catch(() => null);
       if (existingOrder) {
@@ -1012,7 +1081,44 @@ router.get("/assignment-plan", authenticate, requireRole(["admin", "secretary"])
   }
 });
 
-// Every order-id endpoint inherits the same record-level access policy.
+// Reordering has its own owner-scoped lookup and does not revive the old order.
+const reorderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 12,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authenticatedOrIpKey,
+  message: { error: "Too many reorder attempts. Wait a few minutes and try again.", code: "ORDER_REORDER_RATE_LIMITED" },
+});
+router.post("/:id/reorder", authenticate, requireRole("customer"), reorderLimiter, async (req, res) => {
+  try {
+    const result = await reorderCancelledOrder({ orderId: req.params.id, userId: req.user._id }, {
+      Order, Inventory, HVACProduct: require("../models/HVACProduct"), AirconCart,
+    });
+    return res.json(result);
+  } catch (error) {
+    return checkoutErrorResponse(res, error);
+  }
+});
+
+const refundRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  keyGenerator: authenticatedOrIpKey,
+  message: { error: "Too many refund request attempts. Please try again later." },
+});
+router.post("/:id/refund-request", authenticate, requireRole("customer"), refundRequestLimiter, async (req, res) => {
+  try {
+    const result = await requestOrderRefund({ orderId: req.params.id, user: req.user, reason: req.body?.reason }, {
+      mongoose, Order, Payment, ProductRefund: require("../models/ProductRefund"),
+    });
+    if (!result.alreadyRequested) emitOrderStatus(req, { _id: req.params.id, userId: req.user._id, status: "cancelled", ...result });
+    return res.json(result);
+  } catch (error) {
+    return checkoutErrorResponse(res, error);
+  }
+});
+
+// Every other order-id endpoint inherits the same record-level access policy.
 router.use("/:id", authenticate, async (req, res, next) => {
   if (!require("mongoose").Types.ObjectId.isValid(req.params.id)) return next();
   try {
@@ -1122,7 +1228,10 @@ async function syncLinkedInstallationBooking(order, technician, io) {
     booking.technician = {};
   }
   if (order.delivery?.preferredDate) booking.bookingDate = order.delivery.preferredDate;
-  if (order.timeSlot) booking.startTime = order.timeSlot;
+  if (order.timeSlot) {
+    booking.startTime = order.timeSlot;
+    booking.endTime = orderCapacityEndTime(order, getBufferMinutesSync());
+  }
   for (const item of booking.services || []) {
     const changed = Boolean(itemStatus && item.status !== itemStatus);
     if (itemStatus) item.status = itemStatus;
@@ -1300,6 +1409,30 @@ router.get("/check-availability", async (req, res) => {
 /**
  * GET /api/orders/:id â€” Get single order
  */
+// Receipts are private financial evidence. Use an order-scoped URL rather
+// than depending on an upload directory surviving a restart/redeployment.
+router.get('/:id/payment-proof', authenticate, requireRole(['admin', 'secretary']), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order reference.' });
+    const order = await Order.findById(req.params.id).select('_id gcashProofFileId').maxTimeMS(8000).lean();
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (!order.gcashProofFileId) return res.status(404).json({ error: 'Receipt file not found.' });
+    const file = await paymentProofStorage.findPaymentProof(order.gcashProofFileId);
+    if (!file) return res.status(404).json({ error: 'Receipt file not found.' });
+    res.set({
+      'Cache-Control': 'private, no-store',
+      'Content-Type': file.contentType || 'application/octet-stream',
+      'Content-Length': String(file.length),
+      'X-Content-Type-Options': 'nosniff',
+    });
+    const download = paymentProofStorage.openPaymentProofDownload(order.gcashProofFileId);
+    download.once('error', error => res.headersSent ? res.destroy(error) : next(error));
+    download.pipe(res);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:id/photos', authenticate, requireRole(['admin', 'secretary']), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order reference.' });
@@ -1324,7 +1457,7 @@ router.get("/:id", authenticate, async (req, res) => {
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // Only the owner, operational staff, or the assigned technician may view.
-    const isOwner = order.userId.toString() === req.user._id.toString();
+    const isOwner = Boolean(order.userId && String(order.userId) === String(req.user._id));
     const isStaff = ["admin", "secretary"].includes(req.user.role);
     let isAssignedTechnician = false;
     if (req.user.role === "technician") {
@@ -1338,7 +1471,7 @@ router.get("/:id", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    if (isStaff && order.salesChannel === "walk_in") {
+    if (isStaff && order.salesChannel === "walk_in" && order.userId) {
       const account = await User.findById(order.userId)
         .select("email emailVerified accountStatus invitationLastSentAt invitationActivatedAt +invitationExpiresAt")
         .lean();
@@ -2097,6 +2230,21 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
 /**
  * POST /api/orders/:id/reschedule-request â€” Submit reschedule request (customer for own pending orders)
  */
+async function checkOrderRescheduleSlot(order, requestedDate, requestedTime) {
+  const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+  const slotCheck = await require("./scheduleRoutes").getTimeSlotsForQuery({
+    date: String(requestedDate).slice(0, 10),
+    duration: "60",
+    quantity: order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
+    travelTime: String(Number(order.routeDurationMin) || 30),
+  }, { excludeOrderId: order._id, excludeBookingId: order.bookingId });
+  const requested = String(requestedTime || "").trim().toLowerCase();
+  const available = slotCheck.statusCode < 400 && Array.isArray(slotCheck.payload?.timeSlots)
+    && slotCheck.payload.timeSlots.some(slot => slot.available === true && slot.isPast !== true
+      && String(slot.startTime || "").trim().toLowerCase() === requested);
+  return { available, message: slotCheck.payload?.message };
+}
+
 router.post("/:id/reschedule-request", authenticate, async (req, res) => {
   try {
     const { requestedDate, requestedTime, reason } = req.body;
@@ -2141,6 +2289,14 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
       return res.status(400).json({ error: "Choose a reschedule date and time that is still in the future." });
     }
 
+    if (!pickupRequest) {
+      const slotCheck = await checkOrderRescheduleSlot(order, requestedDate, requestedTime);
+      if (!slotCheck.available) return res.status(409).json({
+        error: slotCheck.message || "That delivery time is no longer available. Choose another date or time.",
+        code: "ORDER_SLOT_UNAVAILABLE", refreshSlots: true,
+      });
+    }
+
     // Store reschedule request
     order.rescheduleRequest = {
       requested: true,
@@ -2170,12 +2326,22 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
  */
 router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // Check if there's a pending reschedule request
     if (!order.rescheduleRequest || order.rescheduleRequest.status !== "pending") {
       return res.status(400).json({ error: "No pending reschedule request found" });
+    }
+    const lockedRequestedDate = String(order.rescheduleRequest.requestedDate);
+
+    const applyApproval = async () => {
+    // Re-read inside the date lock: another admin may have processed this
+    // request while the current request was waiting to acquire it.
+    order = await Order.findById(req.params.id);
+    if (!order || order.rescheduleRequest?.status !== "pending"
+      || String(order.rescheduleRequest.requestedDate) !== lockedRequestedDate) {
+      return res.status(409).json({ error: "This reschedule request was already processed." });
     }
 
     const proposedSchedule = order.toObject();
@@ -2188,6 +2354,13 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
     const requestedCutoff = requestedOrderCutoff(proposedSchedule);
     if (!requestedCutoff || requestedCutoff.getTime() <= Date.now()) {
       return res.status(409).json({ error: "The customer's proposed schedule has already passed. Request a new future date and time." });
+    }
+    if (order.fulfillmentType !== "customer_pickup") {
+      const slotCheck = await checkOrderRescheduleSlot(order, order.rescheduleRequest.requestedDate, order.rescheduleRequest.requestedTime);
+      if (!slotCheck.available) return res.status(409).json({
+        error: slotCheck.message || "That delivery time is no longer available. Ask the customer for another schedule.",
+        code: "ORDER_SLOT_UNAVAILABLE", refreshSlots: true,
+      });
     }
     const previousKitTarget = orderKitTarget(order);
 
@@ -2210,7 +2383,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
 
     await order.save();
     const assignedTech = order.technicianId ? await Technician.findById(order.technicianId).lean() : null;
-    await syncLinkedInstallationBooking(order, assignedTech, req.app.get("io")).catch(() => {});
+    await syncLinkedInstallationBooking(order, assignedTech, req.app.get("io"));
     await syncAffectedOrderKits(previousKitTarget, orderKitTarget(order));
     emitOrderStatus(req, order, { rescheduleRequestStatus: "approved" });
 
@@ -2218,8 +2391,11 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
       message: "Reschedule request approved",
       order: presentOrderForRequest(req, order)
     });
+    };
+    if (order.fulfillmentType === "customer_pickup") return await applyApproval();
+    return await withOperationLock(bookingCapacityLockKey(lockedRequestedDate), applyApproval);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(Number(err?.status) || 500).json({ error: err.message });
   }
 });
 
@@ -2265,7 +2441,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     const { scheduledDate, timeSlot, reason } = req.body || {};
     if (!scheduledDate) return res.status(400).json({ error: "A new date is required." });
 
-    const order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: `Order status "${order.status}" cannot be rescheduled from the attention queue.` });
@@ -2277,6 +2453,11 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     const parsedDate = parsedDateValue ? manilaDateTime(parsedDateValue, 0) : null;
     if (!parsedDate) return res.status(400).json({ error: "The replacement date is invalid." });
 
+    const applyAdminReschedule = async () => {
+    order = await Order.findById(req.params.id);
+    if (!order || !REVIEWABLE_ORDER_STATUSES.has(order.status)) {
+      return res.status(409).json({ error: "This order is no longer available for rescheduling." });
+    }
     const proposed = order.toObject();
     proposed.timeSlot = isPickup ? null : timeSlot;
     if (isPickup) proposed.pickupDate = parsedDate;
@@ -2297,21 +2478,10 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
         throw error;
       }
     } else {
-      // Use the same capacity and advance-notice rules as customer checkout.
-      const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
-      const slotCheck = await require("./scheduleRoutes").getTimeSlotsForQuery({
-        date: String(scheduledDate).slice(0, 10),
-        duration: "60",
-        quantity: order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
-        travelTime: String(Number(order.routeDurationMin) || 30),
-      });
-      const requestedSlot = String(timeSlot).trim().toLowerCase();
-      const available = slotCheck.statusCode < 400
-        && Array.isArray(slotCheck.payload?.timeSlots)
-        && slotCheck.payload.timeSlots.some((slot) => String(slot.startTime || "").trim().toLowerCase() === requestedSlot);
-      if (!available) {
+      const slotCheck = await checkOrderRescheduleSlot(order, scheduledDate, timeSlot);
+      if (!slotCheck.available) {
         return res.status(409).json({
-          error: slotCheck.payload?.message || "This delivery time is no longer available. Choose another date or time.",
+          error: slotCheck.message || "This delivery time is no longer available. Choose another date or time.",
           code: "ORDER_SLOT_UNAVAILABLE",
           refreshSlots: true,
         });
@@ -2349,10 +2519,10 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
       await BookingService.findByIdAndUpdate(order.bookingId, {
         bookingDate: parsedDate,
         startTime: isPickup ? "" : timeSlot,
-      }).catch(() => {});
+      });
     }
     const assignedTech = order.technicianId ? await Technician.findById(order.technicianId).lean() : null;
-    await syncLinkedInstallationBooking(order, assignedTech, req.app.get("io")).catch(() => {});
+    await syncLinkedInstallationBooking(order, assignedTech, req.app.get("io"));
     await syncAffectedOrderKits(previousKitTarget, orderKitTarget(order));
 
     try {
@@ -2375,8 +2545,11 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
       message: "Order schedule updated. The order remains active in its current workflow stage.",
       order: presentOrderForRequest(req, order),
     });
+    };
+    if (isPickup) return await applyAdminReschedule();
+    return await withOperationLock(bookingCapacityLockKey(scheduledDate), applyAdminReschedule);
   } catch (err) {
-    res.status(500).json({ error: err.message || "Failed to reschedule order" });
+    res.status(Number(err?.status) || 500).json({ error: err.message || "Failed to reschedule order" });
   }
 });
 
@@ -2467,7 +2640,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     if (!technicianId) return res.status(400).json({ error: "Technician ID is required" });
 
-    const order = await Order.findById(id);
+    let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // Use the scheduledDate if given, otherwise fall back to order's existing preferredDate
@@ -2521,6 +2694,28 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
       }
     }
 
+    await withOperationLock(bookingCapacityLockKey(finalScheduledDate), async () => {
+    order = await Order.findById(id);
+    if (!order || !assignableStatuses.includes(order.status) || order.technicianId && order.status !== "technician_declined") {
+      throw new OrderCheckoutError("This order was changed while you were assigning it. Refresh and try again.", 409, "ORDER_ASSIGNMENT_STALE");
+    }
+    if (!scheduledDate && manilaDateKey(order.delivery?.preferredDate) !== finalScheduledDate) {
+      throw new OrderCheckoutError("The delivery date changed. Refresh the order before assigning a technician.", 409, "ORDER_ASSIGNMENT_STALE");
+    }
+    const latestSchedule = {
+      ...order.toObject(),
+      delivery: { ...(order.delivery?.toObject?.() || order.delivery || {}), preferredDate: new Date(finalScheduledDate) },
+      timeSlot: timeSlot || order.timeSlot,
+    };
+    const latestPlan = (await buildOrderAssignmentPlan([latestSchedule], { reservePlan: false, includeAllCandidates: true }))[0];
+    if (!latestPlan?.candidates?.some(candidate => candidate.technicianId === String(technicianId))) {
+      throw new OrderCheckoutError("This technician already has conflicting work or is unavailable. Refresh the assignment plan.", 409, "ORDER_TECHNICIAN_UNAVAILABLE");
+    }
+    const slotCheck = await checkOrderRescheduleSlot(order, finalScheduledDate, latestSchedule.timeSlot);
+    if (!slotCheck.available) {
+      throw new OrderCheckoutError(slotCheck.message || "This delivery time is no longer available.", 409, "ORDER_SLOT_UNAVAILABLE");
+    }
+
     // Set technician
     order.technicianId = technicianId;
     order.technician = {
@@ -2568,7 +2763,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
           },
           bookingDate: new Date(finalScheduledDate),
           startTime: timeSlot || "09:00",
-          endTime: timeSlot ? (parseInt(timeSlot.split(':')[0]) + 2).toString().padStart(2, '0') + ':00' : "11:00",
+          endTime: orderCapacityEndTime(order, getBufferMinutesSync()),
           status: "scheduled",
           serviceType: "core",
           service: {
@@ -2604,6 +2799,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
         console.error("Failed to create or update installation booking:", e.message);
       }
     }
+    });
 
     // WebSocket notification
     if (global.io) {
@@ -2666,7 +2862,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
       order: presentOrderForRequest(req, order)
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(Number(err?.status) || 500).json({ error: err.message, code: err?.code });
   }
 });
 

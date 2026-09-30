@@ -54,7 +54,7 @@ function requestTelemetry(req, res, next) {
     if (elapsedMs >= 2000) state.latency.over2000Ms += 1;
 
     logger.http(
-      "requestId=%s method=%s path=%s status=%d durationMs=%d active=%d userId=%s",
+      "requestId=%s method=%s path=%s status=%d durationMs=%d active=%d userId=%s stages=%s",
       requestId,
       req.method,
       String(req.path || "/").slice(0, 500),
@@ -62,6 +62,7 @@ function requestTelemetry(req, res, next) {
       Math.round(elapsedMs),
       state.activeRequests,
       req.user?._id ? String(req.user._id) : "anonymous",
+      JSON.stringify(req.performanceTimings || {}),
     );
   };
   res.once("finish", record);

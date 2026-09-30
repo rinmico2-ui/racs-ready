@@ -232,9 +232,9 @@
   .pm-section-title{font-size:.85rem;font-weight:700;color:#1e293b}
 
   .ao-lightbox-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.85); z-index: 999999; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .ao-lightbox-content { position: relative; max-width: 90vw; max-height: 90vh; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-  .ao-lightbox-content img { max-width: 90vw; max-height: 86vh; object-fit: contain; display: block; }
-  .ao-lightbox-close { position: absolute; top: -40px; right: 0; background: #fff; border: none; color: #1e293b; width: 32px; height: 32px; border-radius: 50%; font-size: 1.4rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .ao-lightbox-content { position: relative; min-width: min(320px, 90vw); max-width: 90vw; max-height: 90vh; padding: 52px 16px 16px; background: #0f172a; border-radius: 12px; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .ao-lightbox-content img { max-width: calc(90vw - 32px); max-height: 75vh; object-fit: contain; display: block; }
+  .ao-lightbox-close { position: absolute; top: 12px; right: 12px; background: #fff; border: none; color: #1e293b; width: 32px; height: 32px; border-radius: 50%; font-size: 1.4rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
 </style>
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
@@ -395,18 +395,18 @@
 </div>
 
 <!-- ═══ Order Detail Modal ═══ -->
-<div class="modal fade" id="aoDetailsModal" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade" id="aoDetailsModal" tabindex="-1" aria-hidden="true" aria-labelledby="aoDetailsTitle" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered modal-lg">
     <div class="modal-content ent-modal">
       <div class="modal-header ent-modal-header">
         <div class="d-flex align-items-center gap-3">
           <div class="ent-modal-icon" style="background:rgba(255,255,255,0.2);"><i class="bi bi-receipt"></i></div>
           <div>
-            <h6 class="modal-title fw-bold mb-0">Order Details</h6>
+            <h6 class="modal-title fw-bold mb-0" id="aoDetailsTitle">Order Details</h6>
             <small style="opacity:0.85;font-size:0.8rem;" id="aoModalSubtitle">Loading...</small>
           </div>
         </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close order details"></button>
       </div>
       <div class="modal-body ent-modal-body" id="aoModalBody">
         <div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Loading order details...</p></div>
@@ -534,27 +534,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  // Receipt image lightbox - always appears on top of modals
-  window.openAoImage = function(src) {
-    const existing = document.getElementById('aoImageOverlay');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'aoImageOverlay';
-    overlay.className = 'ao-lightbox-overlay';
-    overlay.innerHTML = '<div class="ao-lightbox-content"><button class="ao-lightbox-close" aria-label="Close">&times;</button><img src="' + src + '" alt="Receipt" onerror="this.parentElement.innerHTML=\'<div style=padding:40px;color:#fff;text-align:center;>Image unavailable</div>\'"></div>';
-
-    const closeOverlay = function() { overlay.remove(); };
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeOverlay(); });
-    overlay.querySelector('.ao-lightbox-close').addEventListener('click', closeOverlay);
-    document.addEventListener('keydown', function onEsc(e) {
-      if (e.key === 'Escape') { closeOverlay(); document.removeEventListener('keydown', onEsc); }
-    });
-
-    document.body.appendChild(overlay);
-  };
-</script>
+<script src="/js/order-evidence-viewer.js?v=20260929-image-storage"></script>
 <script>window.RACSOrdersWorkspace = {
   role: <%- JSON.stringify(typeof ordersWorkspaceRole === 'string' ? ordersWorkspaceRole : 'admin').replace(/</g, '\\u003c') %>,
   canResolve: <%- JSON.stringify(ordersResolutionEnabled) %>,
@@ -562,4 +542,4 @@
   resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
 };</script>
 <script src="/js/operations-request.js?v=20260926"></script>
-<script src="/js/admin-aircon-orders.js?v=20260927-pickup-workspace"></script>
+<script src="/js/admin-aircon-orders.js?v=20260929-order-modal-receipt"></script>

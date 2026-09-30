@@ -3,9 +3,23 @@
     Modern, animated, professional design
     ══════════════════════════════════════════════════════════════════════════════ %>
 
-<link rel="stylesheet" href="/css/landing-enterprise.css">
+<link rel="stylesheet" href="/css/landing-enterprise.css?v=20260929-service-details-prices-v2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <% const landingStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, yearsExperience:0 }; %>
+<%
+  const landingLocation = locals.companyLocation || {};
+  const landingCoordinate = value => (typeof value === 'number' || typeof value === 'string') && String(value).trim() ? Number(value) : NaN;
+  const landingLat = landingCoordinate(landingLocation.lat);
+  const landingLng = landingCoordinate(landingLocation.lng);
+  const landingLocationConfigured = landingLocation.configured !== false
+    && Number.isFinite(landingLat) && Math.abs(landingLat) <= 90
+    && Number.isFinite(landingLng) && Math.abs(landingLng) <= 180;
+  const landingLocationQuery = landingLocationConfigured ? encodeURIComponent(`${landingLat},${landingLng}`) : '';
+  const landingMapUrl = landingLocationConfigured ? `https://www.google.com/maps/search/?api=1&query=${landingLocationQuery}` : '';
+  const landingCompanyAddress = landingLocationConfigured
+    ? (landingLocation.address || locals.companyAddress || 'Company office')
+    : 'Company location not configured yet';
+%>
 
 <%# ══════════════════════════════════════════════════════════════════════════════
     SECTION 1: HERO — Immersive Dark Theme with 3D Elements
@@ -294,14 +308,46 @@
     <div class="ent-services-grid">
       <% 
       const services = [
-        { name: 'Aircon Installation', img: '/images/technicianWork/optimized/tech2-1280.jpg', srcset: '/images/technicianWork/optimized/tech2-640.jpg 640w, /images/technicianWork/optimized/tech2-1280.jpg 1280w', type: 'Core Service' },
-        { name: 'Aircon Cleaning', img: '/images/technicianWork/optimized/tech1-1280.jpg', srcset: '/images/technicianWork/optimized/tech1-640.jpg 640w, /images/technicianWork/optimized/tech1-1280.jpg 1280w', type: 'Core Service' },
-        { name: 'Freon Recharging', img: '/images/technicianWork/optimized/tech3-1280.jpg', srcset: '/images/technicianWork/optimized/tech3-640.jpg 640w, /images/technicianWork/optimized/tech3-1280.jpg 1280w', type: 'Core Service' },
-        { name: 'Aircon Relocation', img: '/images/technicianWork/tech4.jpg', type: 'Core Service' },
-        { name: 'Refrigerator Repair', img: '/images/bgphotos/ref.jpg', type: 'Repair' },
-        { name: 'Washing Machine', img: '/images/bgphotos/washing machine.jpg', type: 'Repair' },
-        { name: 'Microwave Oven', img: '/images/bgphotos/microwave.jpg', type: 'Repair' },
-        { name: 'Water Dispenser', img: '/images/bgphotos/waterdispenser.jpg', type: 'Repair' }
+        {
+          name: 'Aircon Installation', img: '/images/technicianWork/optimized/tech2-1280.jpg', srcset: '/images/technicianWork/optimized/tech2-640.jpg 640w, /images/technicianWork/optimized/tech2-1280.jpg 1280w', type: 'Core Service',
+          description: 'Installation of an air conditioning unit at your home or business. Share the unit details and intended location so the team can assess the installation requirements.',
+          preparation: ['Aircon brand, type, and horsepower (HP)', 'Number of units and intended installation location', 'Any existing piping, brackets, or electrical connection']
+        },
+        {
+          name: 'Aircon Cleaning', img: '/images/technicianWork/optimized/tech1-1280.jpg', srcset: '/images/technicianWork/optimized/tech1-640.jpg 640w, /images/technicianWork/optimized/tech1-1280.jpg 1280w', type: 'Core Service',
+          description: 'Cleaning service for air conditioning units with dust and dirt buildup. Provide the unit information and any cooling, airflow, or odor concerns when booking.',
+          preparation: ['Aircon brand, type, HP, and number of units', 'When the unit was last cleaned, if known', 'Any unusual noise, odor, leaks, or weak airflow']
+        },
+        {
+          name: 'Freon Recharging', img: '/images/technicianWork/optimized/tech3-1280.jpg', srcset: '/images/technicianWork/optimized/tech3-640.jpg 640w, /images/technicianWork/optimized/tech3-1280.jpg 1280w', type: 'Core Service',
+          description: 'Refrigerant service for air conditioning units. The technician needs to assess the unit and its refrigerant requirements; weak cooling alone does not confirm that recharging is needed.',
+          preparation: ['Aircon brand, model, type, and HP', 'Refrigerant type from the unit label, if known', 'Describe the cooling issue and any previous refrigerant service']
+        },
+        {
+          name: 'Aircon Relocation', img: '/images/technicianWork/tech4.jpg', type: 'Core Service',
+          description: 'Removal and reinstallation of an air conditioning unit at a different location. Tell the team about both locations so access and installation requirements can be reviewed.',
+          preparation: ['Aircon brand, type, HP, and number of units', 'Current location and intended new location', 'Any access restrictions at either location']
+        },
+        {
+          name: 'Refrigerator Repair', img: '/images/bgphotos/ref.jpg', type: 'Repair',
+          description: 'Inspection and repair assessment for refrigerator problems such as poor cooling, unusual noise, or leaks. Repair work and any required parts are determined after diagnosis.',
+          preparation: ['Refrigerator brand and model, if known', 'Describe the issue and when it started', 'Photos of the appliance or visible issue, if available']
+        },
+        {
+          name: 'Washing Machine', img: '/images/bgphotos/washing machine.jpg', type: 'Repair',
+          description: 'Inspection and repair assessment for washing machines with washing, spinning, filling, or draining problems. Tell the technician about any error message or unusual behavior.',
+          preparation: ['Brand, model, and whether it is top-load or front-load', 'Describe the issue or displayed error code', 'Photos of the appliance or visible issue, if available']
+        },
+        {
+          name: 'Microwave Oven', img: '/images/bgphotos/microwave.jpg', type: 'Repair',
+          description: 'Inspection and repair assessment for microwave ovens that are not heating or are showing operational problems. The technician will assess the fault before recommending repair work.',
+          preparation: ['Microwave brand and model, if known', 'Describe the issue or displayed error message', 'Photos of the appliance or visible issue, if available']
+        },
+        {
+          name: 'Water Dispenser', img: '/images/bgphotos/waterdispenser.jpg', type: 'Repair',
+          description: 'Inspection and repair assessment for water dispensers with cooling, heating, leaking, or dispensing problems. Describe the affected function when submitting your request.',
+          preparation: ['Water dispenser brand and model, if known', 'Which function is affected: heating, cooling, or dispensing', 'Photos of the appliance or visible issue, if available']
+        }
       ];
       services.forEach((svc, idx) => { %>
         <div class="ent-service-card ent-reveal ent-delay-<%= idx % 4 %>">
@@ -322,7 +368,10 @@
           </div>
           <div class="ent-service-body">
             <h5 class="ent-service-title"><%= svc.name %></h5>
-            <span class="ent-service-price">View Details →</span>
+            <button type="button" class="ent-service-price ent-service-details-button"
+              data-bs-toggle="modal" data-bs-target="#landingServiceDetail<%= idx %>"
+              aria-controls="landingServiceDetail<%= idx %>" aria-haspopup="dialog"
+              aria-label="View details for <%= svc.name %>">View Details <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
           </div>
         </div>
       <% }); %>
@@ -335,6 +384,10 @@
     </div>
   </div>
 </section>
+
+<%# Keep dialogs outside animated service cards/sections so backdrops do not cover them. %>
+<%- include('../partials/landing-service-details', { services }) %>
+<script src="/js/landing-service-prices.js?v=20260929-catalog-prices-v1" defer></script>
 
 <%# ══════════════════════════════════════════════════════════════════════════════
     SECTION 6: TESTIMONIALS
@@ -441,7 +494,7 @@
       </span>
       <h2 class="ent-section-title ent-section-title-dark">Find <span class="ent-gradient-text">Us</span></h2>
       <p class="ent-section-subtitle ent-section-subtitle-dark">
-        Visit our location in <%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %>
+        <%= landingLocationConfigured ? 'Visit our location: ' + landingCompanyAddress : 'Contact us to confirm our location before visiting.' %>
       </p>
     </div>
 
@@ -463,7 +516,7 @@
               </div>
               <div>
                 <h6 class="fw-bold mb-0 text-white" style="font-size: 0.9rem;">Address</h6>
-                <span style="color: rgba(203,213,225,0.6); font-size: 0.82rem;"><%= locals.companyAddress || 'San Leonardo, Nueva Ecija' %></span>
+                <span style="color: rgba(203,213,225,0.6); font-size: 0.82rem;"><%= landingCompanyAddress %></span>
               </div>
             </div>
 
@@ -508,16 +561,31 @@
 
       <!-- Map -->
       <div class="col-lg-7 ent-reveal ent-delay-1">
-        <div class="h-100 rounded-4 overflow-hidden" style="min-height: 450px; border: 1px solid rgba(255,255,255,0.06);">
+        <div class="h-100 rounded-4 overflow-hidden d-flex flex-column" style="min-height: 450px; border: 1px solid rgba(255,255,255,0.06);">
+          <% if (landingLocationConfigured) { %>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3" style="background: #0f172a;">
+            <span class="text-white fw-semibold"><i class="bi bi-geo-alt-fill me-2" aria-hidden="true"></i><%= locals.companyName || 'CALIDRO RACS' %></span>
+            <a id="landingOpenMap" href="<%= landingMapUrl %>" target="_blank" rel="noopener noreferrer"
+              class="ent-btn-primary" style="min-height: 44px; padding: .6rem 1rem; font-size: .85rem;"
+              aria-label="Open company location in Google Maps (new tab)">Open Map <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+          </div>
           <iframe
-            src="https://www.google.com/maps?q=<%= (locals.companyLocation && companyLocation.lat) || 15.123456 %>,<%= (locals.companyLocation && companyLocation.lng) || 120.123456 %>&z=15&output=embed"
+            id="landingCompanyMap" title="Company location map"
+            src="https://www.google.com/maps?q=<%= landingLocationQuery %>&z=15&output=embed"
             width="100%"
-            height="100%"
-            style="border:0; min-height: 450px; display: block; filter: brightness(0.85) contrast(1.1) saturate(1.2);"
+            height="380"
+            style="border:0; flex: 1 1 auto; min-height: 320px; display: block; filter: brightness(0.85) contrast(1.1) saturate(1.2);"
             allowfullscreen=""
             loading="lazy"
             referrerpolicy="no-referrer-when-downgrade">
           </iframe>
+          <% } else { %>
+          <div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height: 450px; color: #cbd5e1;" role="status">
+            <i class="bi bi-geo-alt fs-1 mb-3" aria-hidden="true"></i>
+            <p class="fw-semibold mb-2">Company location is not available yet.</p>
+            <p class="mb-0">Please contact us to confirm the address before visiting.</p>
+          </div>
+          <% } %>
         </div>
       </div>
     </div>

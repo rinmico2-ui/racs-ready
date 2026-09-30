@@ -20,7 +20,7 @@ const calendarScript = fs.readFileSync(
 
 test("cart checkout has one clear hierarchy and accessible choices", () => {
   assert.match(wizard, /cart-checkout-ux\.css\?v=20260925-field-focus-v4/);
-  assert.match(wizard, /checkout-calendar\.js\?v=20260925-future-date-v3/);
+  assert.match(wizard, /checkout-calendar\.js\?v=20260929-single-payment-action/);
   assert.match(wizard, /aria-labelledby="wizardModalTitle"/);
   assert.match(wizard, /modal-fullscreen-sm-down/);
   assert.match(wizard, /role="navigation" aria-label="Checkout steps"/);
@@ -93,6 +93,6 @@ test("completed checkout fields guide customers to the next required action", ()
   assert.match(wizard, /if \(dateStr\) focusCheckoutControl\('#coTimeSection', 240\)/);
   assert.match(wizard, /onTimeSelect: \(timeStr\) => \{[\s\S]*?scheduleCartCheckoutDraftSave\(\)/);
   assert.match(wizard, /scheduleCheckoutAdvance\(1, 420\)/);
-  assert.match(wizard, /scheduleCheckoutAdvance\(3, 450\)/);
-  assert.match(wizard, /if \(file && document\.getElementById\('wizardPaymentChannel'\)\?\.value === 'gcash' && window\.GcashSenderInput\.check\(senderNumber, false\)\.valid\) scheduleCheckoutAdvance\(3, 650\)/);
+  assert.doesNotMatch(wizard, /scheduleCheckoutAdvance\(3,/);
+  assert.match(wizard, /if \(expectedStep === 3\) return/);
 });

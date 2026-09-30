@@ -18,6 +18,7 @@ const SiteSetting = require("../models/SiteSetting");
 const { authoritativeDeliveryQuote } = require("../utils/orderCheckoutPolicy");
 const { linkScheduleToBooking } = require("../utils/maintenanceLifecycle");
 const { manilaDateKey, firstMaintenanceSlot } = require("../utils/maintenanceBooking");
+const { maintenanceSummary: summaryFor } = require("../utils/maintenanceSummary");
 
 router.use(auth.authenticate);
 
@@ -123,47 +124,8 @@ async function refreshDueStates(now = new Date()) {
   ]);
 }
 
-async function summaryFor(filter) {
-  const now = new Date();
-  const policy = await getAftercarePolicy();
-  const dueSoonCutoff = new Date(now.getTime() + policy.reminders.firstReminderDays * 24 * 60 * 60 * 1000);
-  const responseFilter = {
-    ...filter,
-    status: { $in: ACTIVE_DUE_STATUSES },
-    "customerResponse.status": { $in: ["booking_started", "callback_requested"] },
-    "customerResponse.acknowledgedAt": null,
-  };
-  const [upcoming, due, overdue, scheduled, completed, paused, dueSoon, responses, actionable] = await Promise.all([
-    MaintenanceSchedule.countDocuments({ ...filter, status: "upcoming" }),
-    MaintenanceSchedule.countDocuments({ ...filter, status: "due" }),
-    MaintenanceSchedule.countDocuments({ ...filter, status: "overdue" }),
-    MaintenanceSchedule.countDocuments({ ...filter, status: "scheduled" }),
-    MaintenanceSchedule.countDocuments({ ...filter, status: "completed" }),
-    MaintenanceSchedule.countDocuments({ ...filter, status: "paused" }),
-    MaintenanceSchedule.countDocuments({
-      ...filter,
-      status: "upcoming",
-      dueDate: { $gte: now, $lte: dueSoonCutoff },
-    }),
-    MaintenanceSchedule.countDocuments(responseFilter),
-    MaintenanceSchedule.countDocuments({
-      ...filter,
-      $or: [
-        { status: { $in: ["due", "overdue"] } },
-        {
-          status: { $in: ACTIVE_DUE_STATUSES },
-          "customerResponse.status": { $in: ["booking_started", "callback_requested"] },
-          "customerResponse.acknowledgedAt": null,
-        },
-      ],
-    }),
-  ]);
-  return { upcoming, due, overdue, scheduled, completed, paused, dueSoon, responses, actionable };
-}
-
 router.get("/badge", async (req, res, next) => {
   try {
-    await refreshDueStates();
     const filter = req.user.role === "customer" ? { customerId: customerId(req) } : {};
     if (!["admin", "customer"].includes(req.user.role)) return res.status(403).json({ error: "Forbidden" });
     res.json(await summaryFor(filter));

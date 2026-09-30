@@ -625,8 +625,8 @@
       if (currentPage < pages) { currentPage++; loadTable(); }
     }
 
-    function fetchJson(url) {
-      return fetch(url, { headers: { Accept: 'application/json' } }).then(function (response) {
+    function fetchJson(url, options = {}) {
+      return fetch(url, { ...options, headers: { Accept: 'application/json' } }).then(function (response) {
         if (!response.ok) {
           return response.json().catch(function () { return {}; }).then(function (payload) {
             throw new Error(payload.error || 'Request failed with status ' + response.status);
@@ -659,16 +659,23 @@
       el.innerHTML = bars;
     }
 
+    let auditTableController = null;
     function loadTable() {
+      auditTableController?.abort();
+      const controller = new AbortController();
+      auditTableController = controller;
       var url = '/api/admin/audit?page=' + currentPage + '&limit=' + PAGE_SIZE + '&' + queryString();
       var body = document.getElementById('at-body');
       body.setAttribute('aria-busy', 'true');
-      fetchJson(url).then(function (data) {
+      fetchJson(url, { signal: controller.signal }).then(function (data) {
+        if (auditTableController !== controller) return;
         renderTable(data);
       }).catch(function (error) {
+        if (error.name === 'AbortError' || auditTableController !== controller) return;
         body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#e11d48;"><i class="bi bi-exclamation-triangle" style="font-size:1.2rem;display:block;margin-bottom:0.5rem;"></i>Failed to load audit trail.</td></tr>';
         console.error('[audit-trail]', error);
       }).finally(function () {
+        if (auditTableController !== controller) return;
         body.removeAttribute('aria-busy');
       });
     }
@@ -680,7 +687,7 @@
     var liveTimer = null;
     function startLive() {
       stopLive();
-      liveTimer = setInterval(function () { loadTable(); }, 20000);
+      liveTimer = setInterval(function () { if (!document.hidden) loadTable(); }, 20000);
     }
     function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
 

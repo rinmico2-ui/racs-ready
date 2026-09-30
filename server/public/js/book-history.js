@@ -170,17 +170,21 @@
     return bookingEditorCatalogRequest;
   }
 
-  function statusBadge(status) {
+  function statusBadge(status, projectStatus) {
     const map = {
       pending: "warning",
       confirmed: "success",
       completed: "secondary",
       cancelled: "danger",
+      rejected: "danger",
+      expired: "secondary",
       "re-scheduled": "info",
       awaiting_confirmation: "warning",
       payment_verified: "success",
       awaiting_assignment: "warning",
       assigned: "primary",
+      pending_reassignment: "warning",
+      pending_project_scheduling: "warning",
       scheduled: "primary",
       "on-the-way": "info",
       arrived: "info",
@@ -208,9 +212,31 @@
       under_warranty: "success",
       warranty_claim: "warning",
       closed: "secondary",
+      accepted: "success",
+      planning: "info",
+      ready: "primary",
+      in_progress: "primary",
+      on_hold: "warning",
+      paid: "success",
+      partial: "warning",
+      failed: "danger",
+      refunded: "secondary",
     };
-    const cls = map[String(status || "").toLowerCase()] || "secondary";
-    const label = String(status || "unknown").replace(/_/g, " ");
+    const normalized = String(status ?? "").trim().toLowerCase();
+    const missing = !normalized || ["unknown", "undefined", "null"].includes(normalized);
+    const project = String(projectStatus ?? "").trim().toLowerCase();
+    const hasProjectStatus = project && !["unknown", "undefined", "null"].includes(project);
+    const resolved = missing ? (hasProjectStatus ? project : "") : normalized;
+    const labels = {
+      pending_project_scheduling: "Awaiting project scheduling",
+      pending_reassignment: "Awaiting new technician",
+      "re-scheduled": "Rescheduled",
+    };
+    const readable = labels[resolved] || resolved.replace(/[_-]/g, " ");
+    const cls = map[resolved] || "secondary";
+    const label = resolved
+      ? (missing && hasProjectStatus ? `Project: ${readable}` : readable)
+      : "Status not recorded";
     return `<span class="badge bg-${cls} text-capitalize">${escapeHtml(label)}</span>`;
   }
 
@@ -525,7 +551,7 @@
             <div class="bh-cell-meta">${escapeHtml(timeText)}</div>
             ${rescheduleIndicator}
           </td>
-          <td data-label="Status" class="bh-status-cell">${statusBadge(displayStatus)}${missedIndicator}</td>
+          <td data-label="Status" class="bh-status-cell">${statusBadge(displayStatus, b.customerProjectStatus)}${missedIndicator}</td>
           <td data-label="Location" class="bh-location" title="${escapeHtml(location)}">${escapeHtml(location)}</td>
           <td data-label="Rating" class="text-center">${ratingCell}</td>
           <td data-label="Actions" class="bh-actions-cell text-end">
@@ -726,7 +752,7 @@
       <div class="bh-hero">
         <div class="bh-hero-top">
           <div class="bh-hero-left">
-            <div class="bh-hero-status">${statusBadge(b.status)}</div>
+            <div class="bh-hero-status">${statusBadge(b.status, b.customerProjectStatus)}</div>
             <h4 class="bh-hero-ref">${escapeHtml(String(bookingRef))}</h4>
             <div class="bh-hero-type"><i class="bi ${isRepair ? 'bi-wrench-adjustable' : 'bi-gear'}"></i> ${escapeHtml(serviceTypeLabel)}${serviceName !== 'Service' ? ` · ${escapeHtml(serviceName)}` : ''}</div>
           </div>

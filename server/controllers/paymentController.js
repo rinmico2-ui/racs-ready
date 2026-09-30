@@ -95,10 +95,10 @@ exports.listPayments = async (req, res, next) => {
   try {
     const q = {};
     if (req.query.bookingId && isValidId(req.query.bookingId)) {
-      q.bookingId = req.query.bookingId;
+      q.bookingId = new mongoose.Types.ObjectId(req.query.bookingId);
     }
     if (req.query.orderId && isValidId(req.query.orderId)) {
-      q.orderId = req.query.orderId;
+      q.orderId = new mongoose.Types.ObjectId(req.query.orderId);
     }
     if (req.query.status) q.status = req.query.status;
     if (req.query.method) q.method = req.query.method;
@@ -111,11 +111,17 @@ exports.listPayments = async (req, res, next) => {
       if (req.query.endDate) q.submittedAt.$lte = new Date(req.query.endDate);
     }
 
-    const docs = await Payment.find(q)
-      .sort({ submittedAt: -1 })
-      .limit(1000);
+    // Lists need proof availability, not inline image/signature blobs. Details
+    // remain uncached; other consumers retain the existing response contract.
+    const docs = req.query.view === "list"
+      ? await Payment.aggregate([
+        { $match: q }, { $sort: { submittedAt: -1 } }, { $limit: 1000 },
+        { $set: { hasProof: { $ne: [{ $ifNull: ["$proofUrl", ""] }, ""] } } },
+        { $project: { proofUrl: 0, customerPhotoUrl: 0, remittanceProofUrl: 0, refundProofUrl: 0, customerSignature: 0, webhookEvents: 0, events: 0, gatewayCheckoutUrl: 0 } },
+      ])
+      : await Payment.find(q).sort({ submittedAt: -1 }).limit(1000).lean();
 
-    let payments = docs.map((d) => d.toObject());
+    let payments = docs;
     // normalize legacy statuses
     payments = payments.map((p) => {
       if (String(p.status || "").toLowerCase() === "completed") {
@@ -127,26 +133,21 @@ exports.listPayments = async (req, res, next) => {
     const bookingIds = payments.map((p) => p.bookingId).filter(Boolean);
     const orderIds = payments.map((p) => p.orderId).filter(Boolean);
 
-    let bookingMap = new Map();
-    if (bookingIds.length) {
-      const bookings = await BookingService.find({ _id: { $in: bookingIds } })
+    const Order = require("../models/Order");
+    const [bookings, orders] = await Promise.all([
+      bookingIds.length ? BookingService.find({ _id: { $in: bookingIds } })
         .select(
           "_id bookingReference customer customerId paymentMethod paymentStatus status bookingDate createdAt service",
         )
-        .lean();
-      bookingMap = new Map(bookings.map((b) => [String(b._id), b]));
-    }
-
-    let orderMap = new Map();
-    if (orderIds.length) {
-      const Order = require("../models/Order");
-      const orders = await Order.find({ _id: { $in: orderIds } })
+        .lean() : [],
+      orderIds.length ? Order.find({ _id: { $in: orderIds } })
         .select(
           "_id orderReference customer userId paymentMethod paymentStatus status createdAt items",
         )
-        .lean();
-      orderMap = new Map(orders.map((o) => [String(o._id), o]));
-    }
+        .lean() : [],
+    ]);
+    const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
+    const orderMap = new Map(orders.map(o => [String(o._id), o]));
 
     const enriched = payments.map((p) => {
       const booking = p.bookingId ? (bookingMap.get(String(p.bookingId)) || null) : null;
