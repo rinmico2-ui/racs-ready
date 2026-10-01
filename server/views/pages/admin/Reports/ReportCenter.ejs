@@ -1,7 +1,9 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
+<% const reportLinks = { pos: reportRole === "secretary" ? "/secretary/pointofsale" : "/admin/inventory/pos" }; %>
 <link rel="stylesheet" href="/css/admin-report-center.css?v=20260927-report-center">
 <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
 
-<div class="report-center" data-report-center>
+<div class="report-center" data-report-center data-report-role="<%= reportRole %>">
   <section class="rc-hero" aria-labelledby="reportCenterTitle">
     <div class="rc-hero-copy">
       <span class="rc-eyebrow"><i class="bi bi-shield-check" aria-hidden="true"></i> Management reporting</span>
@@ -62,22 +64,22 @@
     <div class="rc-library-group">
       <div class="rc-library-label"><i class="bi bi-currency-exchange"></i><span><strong>Financial</strong><small>Revenue, cash movement, cost, and profitability</small></span></div>
       <div class="rc-report-grid rc-report-grid-financial">
-        <a class="rc-report-card" href="/admin/reports/revenue"><span class="rc-report-icon blue"><i class="bi bi-graph-up-arrow"></i></span><span class="rc-report-content"><strong>Revenue Intelligence</strong><small>Revenue sources, collections, refunds, profit, costs, and forecasts.</small><span>Open financial report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/revenue"><span class="rc-report-icon blue"><i class="bi bi-graph-up-arrow"></i></span><span class="rc-report-content"><strong>Revenue Intelligence</strong><small>Revenue sources, collections, refunds, profit, costs, and forecasts.</small><span>Open financial report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
     <div class="rc-library-group">
       <div class="rc-library-label"><i class="bi bi-kanban"></i><span><strong>Operations</strong><small>Delivery, fulfillment, stock, and operating controls</small></span></div>
       <div class="rc-report-grid rc-report-grid-three">
-        <a class="rc-report-card" href="/admin/reports/service"><span class="rc-report-icon purple"><i class="bi bi-wrench-adjustable"></i></span><span class="rc-report-content"><strong>Service Performance</strong><small>Bookings, completion, profitability, technician delivery, and evidence.</small><span>Open service report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/admin/reports/orders"><span class="rc-report-icon green"><i class="bi bi-bag-check"></i></span><span class="rc-report-content"><strong>Order Analytics</strong><small>Order value, fulfillment, collections, contribution, and product demand.</small><span>Open order report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/admin/reports/inventory"><span class="rc-report-icon amber"><i class="bi bi-boxes"></i></span><span class="rc-report-content"><strong>Inventory Controls</strong><small>Stock exposure, valuation, movement, consumption, and replenishment risk.</small><span>Open inventory report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/service"><span class="rc-report-icon purple"><i class="bi bi-wrench-adjustable"></i></span><span class="rc-report-content"><strong>Service Performance</strong><small>Bookings, completion, profitability, technician delivery, and evidence.</small><span>Open service report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/orders"><span class="rc-report-icon green"><i class="bi bi-bag-check"></i></span><span class="rc-report-content"><strong>Order Analytics</strong><small>Order value, fulfillment, collections, contribution, and product demand.</small><span>Open order report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/inventory"><span class="rc-report-icon amber"><i class="bi bi-boxes"></i></span><span class="rc-report-content"><strong>Inventory Controls</strong><small>Stock exposure, valuation, movement, consumption, and replenishment risk.</small><span>Open inventory report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
     <div class="rc-library-group">
       <div class="rc-library-label"><i class="bi bi-people"></i><span><strong>People &amp; customer experience</strong><small>Quality, satisfaction, and individual performance</small></span></div>
       <div class="rc-report-grid">
-        <a class="rc-report-card" href="/admin/ratings/service"><span class="rc-report-icon cyan"><i class="bi bi-star-half"></i></span><span class="rc-report-content"><strong>Customer Ratings</strong><small>Customer sentiment, service quality patterns, and rating exceptions.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/admin/ratings/technicians"><span class="rc-report-icon red"><i class="bi bi-award"></i></span><span class="rc-report-content"><strong>Technician Ratings</strong><small>Individual performance, customer feedback, and coaching opportunities.</small><span>Open technician report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/ratings/service"><span class="rc-report-icon cyan"><i class="bi bi-star-half"></i></span><span class="rc-report-content"><strong>Customer Ratings</strong><small>Customer sentiment, service quality patterns, and rating exceptions.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/ratings/technicians"><span class="rc-report-icon red"><i class="bi bi-award"></i></span><span class="rc-report-content"><strong>Technician Ratings</strong><small>Individual performance, customer feedback, and coaching opportunities.</small><span>Open technician report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
   </section>
@@ -100,10 +102,10 @@
   <section class="rc-quick-links" aria-label="Reporting controls">
     <div><strong>Review the records behind the numbers</strong><span>Move from analysis to the source workflow without losing context.</span></div>
     <nav>
-      <a href="/admin/payments"><i class="bi bi-credit-card"></i> Payments</a>
-      <a href="/admin/refunds"><i class="bi bi-arrow-counterclockwise"></i> Refunds</a>
-      <a href="/admin/inventory/pos"><i class="bi bi-shop"></i> Walk-in sales</a>
-      <a href="/admin/audit-trail"><i class="bi bi-shield-lock"></i> Audit trail</a>
+      <a href="/<%= reportRole %>/payments"><i class="bi bi-credit-card"></i> Payments</a>
+      <% if (reportRole === "admin") { %><a href="/admin/refunds"><i class="bi bi-arrow-counterclockwise"></i> Refunds</a><% } %>
+      <a href="<%= reportLinks.pos %>"><i class="bi bi-shop"></i> Walk-in sales</a>
+      <% if (reportRole === "admin") { %><a href="/admin/audit-trail"><i class="bi bi-shield-lock"></i> Audit trail</a><% } %>
     </nav>
   </section>
 </div>

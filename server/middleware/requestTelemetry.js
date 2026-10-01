@@ -53,7 +53,11 @@ function requestTelemetry(req, res, next) {
     if (elapsedMs >= 500) state.latency.over500Ms += 1;
     if (elapsedMs >= 2000) state.latency.over2000Ms += 1;
 
-    logger.http(
+    const authFlow = /^\/api\/auth\/(?:register|verify-register-otp|resend-register-otp|google\/complete-signup|login|secure\/login|verify-login-otp|resend-login-otp)$/.test(req.path);
+    // Production normally suppresses HTTP-level logs. Keep auth outcomes at
+    // info level so a cohort failure can be diagnosed without logging inputs.
+    const logRequest = authFlow ? logger.info.bind(logger) : logger.http.bind(logger);
+    logRequest(
       "requestId=%s method=%s path=%s status=%d durationMs=%d active=%d userId=%s stages=%s",
       requestId,
       req.method,

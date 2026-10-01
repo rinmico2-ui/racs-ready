@@ -1,0 +1,9 @@
+<main class="container-fluid py-4 px-3 px-lg-5" style="min-height:70vh">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div><h1 class="h3 mb-1">Unit identification queue</h1><p class="text-muted mb-0">Confirm the aircon type and HP, then send the catalog price for customer approval.</p></div>
+    <a class="btn btn-outline-secondary" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>">Back to appointments</a>
+  </div>
+  <div id="unitStaffMessage" class="alert alert-danger d-none" role="alert"></div>
+  <div id="unitStaffRequests" class="row g-3" aria-live="polite"><p>Loading requests...</p></div>
+</main>
+<script src="/js/unit-assistance-staff.js?v=1" defer></script>

@@ -14,9 +14,9 @@
         </div>
         <p class="mb-3 footer-description"><%= locals.companyTagline || 'Premium air conditioning & appliance care powered by transparent service and certified technicians.' %></p>
         <div class="d-flex gap-2">
-          <a href="#" class="footer-pill" aria-label="Facebook"><i class="bi bi-facebook"></i></a>
-          <a href="#" class="footer-pill" aria-label="Instagram"><i class="bi bi-instagram"></i></a>
-          <a href="#" class="footer-pill" aria-label="Youtube"><i class="bi bi-youtube"></i></a>
+          <a href="tel:<%= (locals.companyPhone || '09656056495').replace(/\D/g, '') %>" class="footer-pill" aria-label="Call us"><i class="bi bi-telephone"></i></a>
+          <a href="mailto:<%= locals.companyEmail || 'calidroracs@gmail.com' %>" class="footer-pill" aria-label="Email us"><i class="bi bi-envelope"></i></a>
+          <a href="/contact" class="footer-pill" aria-label="Contact page"><i class="bi bi-geo-alt"></i></a>
         </div>
       </div>
       <div class="col-md-4">

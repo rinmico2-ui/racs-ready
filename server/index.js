@@ -17,6 +17,7 @@ const { rateLimit } = require("express-rate-limit");
 const {
   shouldSkipAuthAttemptLimit,
   shouldSkipRegistrationAttemptLimit,
+  shouldSkipRegistrationBurstLimit,
   shouldSkipGeneralApiLimit,
 } = require("./utils/authRateLimitPolicy");
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
@@ -68,6 +69,20 @@ const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
   authSource: process.env.MONGODB_AUTH_SOURCE,
 });
 const MONGODB_URI = mongoConnection.uri;
+const redactMongoError = (value) => {
+  let message = String(value || "");
+  try {
+    const parsed = new URL(configuredMongoUri);
+    for (const part of [configuredMongoUri, parsed.username, parsed.password]) {
+      if (part) message = message.split(part).join("[redacted]");
+      if (part && part !== configuredMongoUri) {
+        const decoded = decodeURIComponent(part);
+        if (decoded) message = message.split(decoded).join("[redacted]");
+      }
+    }
+  } catch { /* Keep the original error if the configured URI is malformed. */ }
+  return message.replace(/mongodb(?:\+srv)?:\/\/[^\s@]+@/gi, "mongodb://[redacted]@");
+};
 if (process.env.NODE_ENV === "production" && !isTlsProtectedMongoUri(MONGODB_URI)) {
   throw new Error("Production MongoDB connections must enable TLS");
 }
@@ -78,8 +93,9 @@ if (mongoConnection.usesDirectHosts) {
   logger.info("Using direct Atlas hosts because local SRV DNS is unavailable");
 }
 
-const databaseReady = mongoose
-  .connect(MONGODB_URI, {
+// Finish synchronous app setup before starting MongoDB's server-selection timer.
+const databaseReady = new Promise((resolve) => setImmediate(resolve))
+  .then(() => mongoose.connect(MONGODB_URI, {
     maxPoolSize: positiveInteger(process.env.MONGODB_MAX_POOL_SIZE, 20),
     minPoolSize: positiveInteger(
       process.env.MONGODB_MIN_POOL_SIZE,
@@ -93,7 +109,7 @@ const databaseReady = mongoose
     connectTimeoutMS: positiveInteger(process.env.MONGODB_CONNECT_TIMEOUT_MS, 10000),
     socketTimeoutMS: positiveInteger(process.env.MONGODB_SOCKET_TIMEOUT_MS, 45000),
     maxIdleTimeMS: positiveInteger(process.env.MONGODB_MAX_IDLE_TIME_MS, 60000),
-  })
+  }))
   .then(async (mongooseInstance) => {
     trackMongoPool(mongooseInstance.connection.getClient());
     logger.info("MongoDB connected successfully");
@@ -139,7 +155,11 @@ const databaseReady = mongoose
     return mongooseInstance.connection.getClient();
   })
   .catch((err) => {
-    logger.error("MongoDB connection error: %s", err.message);
+    logger.error("MongoDB connection error (%s): %s", mongoConnection.usesDirectHosts ? "direct hosts" : "SRV", redactMongoError(err.message));
+    for (const [host, description] of err.reason?.servers || []) {
+      const cause = description.error;
+      logger.error("MongoDB host %s: %s%s: %s", host, cause?.name || description.type, cause?.code ? ` (${cause.code})` : "", redactMongoError(cause?.message || "no server response"));
+    }
     throw err;
   });
 
@@ -257,6 +277,8 @@ const authBurstLimiter = rateLimit({
   message: { error: "Authentication traffic is unusually high. Please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  // Students on one school network can legitimately sign in together.
+  skipSuccessfulRequests: true,
   skip: shouldSkipAuthAttemptLimit,
 });
 
@@ -286,7 +308,7 @@ const registrationBurstLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: shouldSkipRegistrationAttemptLimit,
+  skip: shouldSkipRegistrationBurstLimit,
 });
 
 const apiLimiter = rateLimit({
@@ -549,6 +571,7 @@ app.use("/api/bookings", bookingRoutes);
 
 const bookingRoutesNew = require("./routes/bookingRoutesNew");
 app.use("/api/bookings", bookingRoutesNew);
+app.use("/api/unit-assistance", require("./routes/unitAssistanceRoutes"));
 
 app.use("/api/paymongo", paymongoRoutes);
 
@@ -582,6 +605,10 @@ app.use(
 const adminApi = require("./routes/adminApi");
 app.use("/api/admin", adminApi);
 app.use("/api/secretary/operations", adminApi);
+const { isSecretaryReportRequest } = require("./utils/secretaryReportAccess");
+app.use("/api/secretary", (req, res, next) => {
+  return isSecretaryReportRequest(req) ? adminApi(req, res, next) : next();
+});
 
 // Public company/base location used for booking distance/fare calculations
 const publicCompanyRoutes = require("./routes/publicCompanyRoutes");

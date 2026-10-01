@@ -611,7 +611,7 @@
     </div>
 
     <!-- Enterprise KPI Row -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-4 technician-booking-kpis">
       <div class="col-6 col-md-4 col-xl" style="animation: mwFadeInUp 0.5s ease-out 0.1s both;">
         <div class="kpi-enterprise" data-accent="blue">
           <div class="kpi-enterprise-top">
@@ -6485,18 +6485,18 @@
     border: 1px solid #dbe7f1; border-radius: 11px; background: #fff;
     box-shadow: 0 2px 8px rgba(15,23,42,.04);
   }
-  .compact-work-progress .trk-card-header { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: linear-gradient(135deg,#f0f9ff,#e0f2fe); border-bottom: 1px solid #e0f2fe; }
-  .compact-work-progress .trk-card-title { display: flex; align-items: center; gap: 6px; margin: 0; color: #0f172a; font-size: .62rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
-  .compact-work-progress .trk-card-body { padding: 8px 10px 9px; }
-  .compact-work-progress .trk-live-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 999px; color: #15803d; background: #dcfce7; font-size: .55rem; font-weight: 850; letter-spacing: .08em; }
+  .compact-work-progress .trk-card-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: linear-gradient(135deg,#f0f9ff,#e0f2fe); border-bottom: 1px solid #e0f2fe; }
+  .compact-work-progress .trk-card-title { display: flex; align-items: center; gap: 6px; margin: 0; color: #0f172a; font-size: .74rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .compact-work-progress .trk-card-body { padding: 12px 14px; }
+  .compact-work-progress .trk-live-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; color: #15803d; background: #dcfce7; font-size: .65rem; font-weight: 850; letter-spacing: .08em; }
   .compact-work-progress .trk-pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; animation: compactProgressPulse 2s ease-in-out infinite; }
-  .compact-work-progress .trk-current-action { display: flex; align-items: center; gap: 8px; padding: 7px 9px; margin-bottom: 8px; border: 1px solid #bfdbfe; border-radius: 10px; background: linear-gradient(135deg,#eff6ff,#f0fdf4); }
+  .compact-work-progress .trk-current-action { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #bfdbfe; border-radius: 10px; background: linear-gradient(135deg,#eff6ff,#f0fdf4); }
   .compact-work-progress .trk-current-action.live { border-color: #86efac; background: linear-gradient(135deg,#ecfdf5,#f0fdf4); }
   .compact-work-progress .trk-current-action-icon { width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border-radius: 8px; color: #fff; background: #2563eb; font-size: .76rem; }
   .compact-work-progress .trk-current-action.live .trk-current-action-icon { background: #16a34a; }
   .compact-work-progress .trk-current-action.live .trk-current-action-icon i { animation: compactProgressSpin 1.4s linear infinite; }
-  .compact-work-progress .trk-current-action-title { color: #0f172a; font-size: .72rem; font-weight: 800; line-height: 1.2; }
-  .compact-work-progress .trk-current-action-sub { margin-top: 1px; color: #64748b; font-size: .59rem; line-height: 1.25; }
+  .compact-work-progress .trk-current-action-title { color: #0f172a; font-size: .8rem; font-weight: 800; line-height: 1.4; }
+  .compact-work-progress .trk-current-action-sub { margin-top: 4px; color: #64748b; font-size: .7rem; line-height: 1.45; }
   .compact-work-progress .trk-task-list { display: flex; flex-direction: row; gap: 0; padding: 1px 0 2px; overflow-x: auto; }
   .compact-work-progress .trk-task { position: relative; display: flex; flex: 1; min-width: 74px; flex-direction: column; align-items: center; padding: 0 3px; text-align: center; }
   .compact-work-progress .trk-task::before { content: ''; position: absolute; z-index: 0; top: 13px; left: -50%; width: 100%; height: 2px; background: #e2e8f0; }
@@ -6505,59 +6505,121 @@
   .compact-work-progress .trk-task-dot { position: relative; z-index: 1; width: 28px; height: 28px; min-width: 28px; display: grid; place-items: center; border: 2px solid #e2e8f0; border-radius: 50%; color: #94a3b8; background: #f8fafc; font-size: .7rem; }
   .compact-work-progress .trk-task.done .trk-task-dot { color: #fff; background: #2563eb; border-color: #2563eb; }
   .compact-work-progress .trk-task.active .trk-task-dot { color: #fff; background: #16a34a; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.13); }
-  .compact-work-progress .trk-task-body { padding-top: 5px; }
-  .compact-work-progress .trk-task-label { color: #64748b; font-size: .58rem; font-weight: 750; line-height: 1.15; }
+  .compact-work-progress .trk-task-body { padding-top: 8px; }
+  .compact-work-progress .trk-task-label { color: #64748b; font-size: .67rem; font-weight: 750; line-height: 1.35; }
   .compact-work-progress .trk-task.done .trk-task-label, .compact-work-progress .trk-task.active .trk-task-label { color: #0f172a; }
   .compact-work-progress .trk-task-desc { display: none; }
   @keyframes compactProgressPulse { 50% { opacity: .45; transform: scale(.8); } }
   @keyframes compactProgressSpin { to { transform: rotate(360deg); } }
 
   #detailPanelContent.booking-order-detail-content > .mw-detail-tabs { max-width: 1040px; margin-top: 9px; padding: 5px; border-radius: 10px; }
-  .booking-order-overview { max-width: 1040px; padding: 9px 16px 18px; }
-  .booking-detail-overview { gap: 12px; padding: 12px 15px; margin-bottom: 9px; border-radius: 12px; box-shadow: 0 7px 20px rgba(15,23,42,.12); }
+  .booking-order-overview { max-width: 1180px; padding: 18px 20px 28px; }
+  .booking-detail-overview { gap: 18px; padding: 18px 20px; margin-bottom: 16px; border-radius: 14px; box-shadow: 0 7px 20px rgba(15,23,42,.12); }
   .booking-detail-overview-icon { width: 38px; height: 38px; border-radius: 10px; font-size: .94rem; }
-  .booking-detail-overview h4 { font-size: .9rem; }
-  .booking-detail-overview p { font-size: .64rem; }
-  .booking-detail-total strong { font-size: 1rem; }
-  .booking-detail-summary { gap: 7px; margin-bottom: 9px; }
-  .booking-summary-cell { padding: 8px 10px; border-radius: 10px; }
-  .booking-summary-cell span { margin-bottom: 2px; font-size: .53rem; }
-  .booking-summary-cell strong { font-size: .7rem; }
-  .booking-detail-grid, .booking-detail-column { gap: 9px; }
-  .booking-detail-grid { grid-template-columns: minmax(0,1.4fr) minmax(250px,.72fr); }
-  .booking-detail-card { border-radius: 11px; }
-  .booking-detail-card-head { padding: 9px 12px; }
-  .booking-detail-card-title { font-size: .7rem; }
-  .booking-detail-card-body { padding: 10px 12px; }
-  .booking-info-row { grid-template-columns: 29px minmax(0,1fr); gap: 8px; padding: 7px 0; }
-  .booking-info-icon { width: 28px; height: 28px; border-radius: 8px; font-size: .68rem; }
-  .booking-info-value { font-size: .7rem; }
-  .booking-contact-actions { margin-top: 9px; }
-  .booking-contact-action { padding: 6px 9px; font-size: .63rem; }
-  .booking-service-row { grid-template-columns: 32px minmax(0,1fr) auto; gap: 9px; padding: 8px 0; }
-  .booking-service-icon { width: 32px; height: 32px; border-radius: 8px; }
-  .booking-service-name { font-size: .7rem; }
-  .booking-service-meta, .booking-service-amount { font-size: .62rem; }
-  .booking-money-row { padding: 5px 0; font-size: .65rem; }
-  .booking-legacy-card.trk-card { border-radius: 11px; }
-  .booking-legacy-card.trk-card .trk-card-header { padding: 9px 12px; }
-  .booking-legacy-card.trk-card .trk-card-title { font-size: .7rem; }
-  .booking-legacy-card.trk-card .trk-card-body { padding: 10px 12px; }
+  .booking-detail-overview h4 { font-size: 1rem; line-height: 1.4; }
+  .booking-detail-overview-main > div:last-child { min-width: 0; }
+  .booking-detail-overview h4, .booking-detail-overview p { overflow-wrap: anywhere; }
+  .booking-detail-overview p { font-size: .74rem; line-height: 1.5; }
+  .booking-detail-total strong { font-size: 1.15rem; }
+  .booking-detail-summary { gap: 12px; margin-bottom: 16px; }
+  .booking-summary-cell { padding: 13px 14px; border-radius: 11px; }
+  .booking-summary-cell span { margin-bottom: 6px; font-size: .66rem; line-height: 1.4; }
+  .booking-summary-cell strong { font-size: .83rem; line-height: 1.5; }
+  .booking-detail-grid, .booking-detail-column { gap: 16px; }
+  .booking-detail-grid { grid-template-columns: minmax(0,1.4fr) minmax(300px,.72fr); }
+  .booking-detail-card { border-radius: 12px; }
+  .booking-detail-card-head { padding: 14px 17px; }
+  .booking-detail-card-title { font-size: .85rem; line-height: 1.4; }
+  .booking-detail-card-body { padding: 15px 17px; }
+  .booking-info-row { grid-template-columns: 34px minmax(0,1fr); gap: 12px; padding: 12px 0; }
+  .booking-info-icon { width: 34px; height: 34px; border-radius: 9px; font-size: .76rem; }
+  .booking-info-label { font-size: .66rem; line-height: 1.4; }
+  .booking-info-value { margin-top: 5px; font-size: .83rem; line-height: 1.5; }
+  .booking-contact-actions { gap: 9px; margin-top: 16px; }
+  .booking-contact-action { padding: 8px 11px; font-size: .73rem; }
+  .booking-service-row { grid-template-columns: 38px minmax(0,1fr) auto; gap: 12px; padding: 13px 0; }
+  .booking-service-icon { width: 38px; height: 38px; border-radius: 9px; }
+  .booking-service-name { font-size: .84rem; line-height: 1.45; }
+  .booking-service-meta { margin-top: 5px; font-size: .74rem; line-height: 1.5; }
+  .booking-service-amount { font-size: .82rem; line-height: 1.4; }
+  .booking-money-row { padding: 10px 0; font-size: .8rem; line-height: 1.45; }
+  .booking-money-row strong { min-width: 0; overflow-wrap: anywhere; }
+  .booking-payment-status { font-size: .68rem; }
+  .booking-legacy-card.trk-card { border-radius: 12px; }
+  .booking-legacy-card.trk-card .trk-card-header { padding: 14px 17px; }
+  .booking-legacy-card.trk-card .trk-card-title { font-size: .85rem; }
+  .booking-legacy-card.trk-card .trk-card-body { padding: 15px 17px; }
   .detail-panel-actions { padding: 8px 14px; justify-content: flex-start; }
   .detail-panel-actions > .d-flex { width: 100%; justify-content: flex-start; }
   .detail-panel-actions .btn { min-height: 35px; padding: 7px 13px; border-radius: 9px; font-size: .72rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 
-  @media (max-width: 850px) { .booking-detail-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 850px) {
+    .booking-detail-grid { grid-template-columns: 1fr; }
+    .booking-detail-overview { flex-wrap: wrap; }
+  }
   @media (max-width: 575px) {
     #detailPanelHeader.booking-order-detail-header { padding: 9px 10px; }
     .compact-work-progress.trk-card { margin-top: 8px; }
     .compact-work-progress .trk-current-action-sub, .compact-work-progress .trk-live-tag { display: none; }
     .compact-work-progress .trk-task { min-width: 62px; }
     #detailPanelContent.booking-order-detail-content > .mw-detail-tabs { margin: 7px 8px 0; }
-    .booking-order-overview { padding: 8px 8px 16px; }
-    .booking-detail-overview { padding: 10px 11px; }
-    .booking-detail-summary { gap: 6px; }
+    .booking-order-overview { padding: 14px 12px 24px; }
+    .booking-detail-overview { padding: 15px; flex-wrap: wrap; }
+    .booking-detail-total { text-align: left; }
+    .booking-detail-summary { gap: 10px; }
+    .booking-summary-cell { padding: 11px 12px; }
+    .booking-detail-card-head, .booking-detail-card-body { padding-left: 14px; padding-right: 14px; }
+    .booking-service-row { grid-template-columns: 38px minmax(0,1fr); }
+    .booking-service-amount { grid-column: 2; text-align: left; }
     .detail-panel-actions .btn { flex: 1 1 130px; }
+  }
+  @media (max-width: 360px) { .booking-detail-summary { grid-template-columns: 1fr; } }
+
+  /* Keep booking KPIs wide enough for currency amounts and full labels. */
+  .technician-booking-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: 16px;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .technician-booking-kpis > div {
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    margin-top: 0;
+  }
+  .technician-booking-kpis .kpi-enterprise {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  .technician-booking-kpis .kpi-enterprise-top { gap: 8px; min-width: 0; }
+  .technician-booking-kpis .kpi-enterprise-icon { flex: 0 0 auto; }
+  .technician-booking-kpis .kpi-enterprise-badge {
+    max-width: calc(100% - 48px);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: right;
+    line-height: 1.35;
+  }
+  .technician-booking-kpis .kpi-enterprise-label { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+  .technician-booking-kpis .kpi-enterprise-value { max-width: 100%; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .technician-booking-kpis .kpi-enterprise-sparkline { margin-top: auto; }
+
+  .mw-hero-content { flex-wrap: wrap; }
+  .mw-hero-left, .mw-hero-left > div:last-child { min-width: 0; }
+  .mw-hero-right { max-width: 100%; flex-wrap: wrap; flex-shrink: 1; }
+  .mw-hero-stats { max-width: 100%; flex-wrap: wrap; }
+  .mw-hero-stat { min-width: 0; flex: 1 1 72px; }
+  .mw-hero-stat-value { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .mw-hero-stat-label { line-height: 1.35; overflow-wrap: anywhere; }
+  @media (max-width: 575px) {
+    .mw-hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+    .mw-hero-stat { min-width: 0; }
+    .mw-hero-stat-value { font-size: 1.15rem; }
   }
 </style>
 
@@ -7728,7 +7790,7 @@ if (a.status === 'accepted') {
         totalPrice: total,
         status: a.status
       }];
-      h += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-list-check"></i>Booked Services</h6><span class="text-muted" style="font-size:.64rem;font-weight:700;">${displayServices.length} service${displayServices.length === 1 ? '' : 's'}</span></div><div class="booking-detail-card-body">`;
+      h += `<section class="booking-detail-card"><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-list-check"></i>Booked Services</h6><span class="text-muted" style="font-size:.72rem;font-weight:700;line-height:1.4;">${displayServices.length} service${displayServices.length === 1 ? '' : 's'}</span></div><div class="booking-detail-card-body">`;
       displayServices.forEach(item => {
         const itemName = item.name || item.serviceName || (item.type === 'repair' ? 'Repair Service' : 'Core Service');
         const details = [

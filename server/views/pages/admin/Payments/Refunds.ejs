@@ -59,6 +59,18 @@
     .inv-pagination .page-item .page-link { padding: 8px 14px; border-radius: 10px; border: 1.5px solid rgba(148,163,184,0.3); background: rgba(255,255,255,0.8); color: #475569; font-weight: 600; font-size: 0.85rem; transition: all 0.3s ease; }
     .inv-pagination .page-item:not(.disabled) .page-link:hover { background: #fff; border-color: #2563eb; color: #2563eb; }
     .inv-pagination .page-item.disabled .page-link { opacity: 0.5; }
+    .refund-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+    .refund-detail-field { min-width: 0; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .refund-detail-field dt { margin-bottom: 5px; color: #64748b; font-size: .72rem; font-weight: 700; }
+    .refund-detail-field dd { margin: 0; color: #0f172a; font-size: .88rem; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+    .refund-detail-section { margin-top: 20px; }
+    .refund-detail-section h6 { margin-bottom: 10px; color: #334155; font-size: .82rem; font-weight: 750; }
+    .refund-detail-event { padding: 10px 0 10px 14px; border-left: 2px solid #cbd5e1; }
+    .refund-detail-event + .refund-detail-event { margin-top: 4px; }
+    .refund-detail-event strong { display: block; font-size: .8rem; }
+    .refund-detail-event small { color: #64748b; }
+    .refund-detail-event p { margin: 5px 0 0; color: #475569; font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    @media (max-width: 575px) { .refund-detail-grid { grid-template-columns: 1fr; } }
   </style>
 
   <div class="au-hero mb-4">
@@ -67,24 +79,24 @@
         <div class="au-hero-icon"><i class="bi bi-cash-stack"></i></div>
         <div>
           <h1>Refunds</h1>
-          <p>Issue and audit refunds against verified manual payment records.</p>
+          <p>Review payment records and track refunds in one place.</p>
         </div>
       </div>
     </div>
   </div>
+  <div class="alert d-none" id="refundPageMessage" role="status"></div>
 
   <div class="row g-3 mb-4">
     <div class="col-lg-3 col-md-6">
       <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Eligible Payments</div>
+            <div class="kpi-title">Verified Payments</div>
             <div class="d-flex align-items-center gap-2">
-              <span class="inv-kpi-value mb-0" id="kpiEligible">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
+              <span class="inv-kpi-value mb-0" id="kpiEligible">—</span>
               <span class="badge inv-kpi-pill bg-success-subtle text-success">Ready</span>
             </div>
-            <span class="inv-kpi-sub">Awaiting refund decision</span>
+            <span class="inv-kpi-sub">Review before recording a refund</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-check-circle"></i></div>
         </div>
@@ -97,8 +109,7 @@
           <div>
             <div class="kpi-title">Refund History</div>
             <div class="d-flex align-items-center gap-2">
-              <span class="inv-kpi-value mb-0" id="kpiRefunded">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
+              <span class="inv-kpi-value mb-0" id="kpiRefunded">—</span>
               <span class="badge inv-kpi-pill bg-dark-subtle text-dark">Processed</span>
             </div>
             <span class="inv-kpi-sub">Completed refund records</span>
@@ -115,7 +126,7 @@
       <label class="rp-filter-label">View</label>
       <div class="d-flex gap-2">
         <button class="btn btn-light rp-filter-btn active" data-tab="requests" onclick="refundTab('requests',this)"><i class="bi bi-hourglass-split me-1"></i>Refund Requests</button>
-        <button class="btn btn-light rp-filter-btn" data-tab="verified" onclick="refundTab('verified',this)"><i class="bi bi-check2-circle me-1"></i>Eligible Payments</button>
+        <button class="btn btn-light rp-filter-btn" data-tab="verified" onclick="refundTab('verified',this)"><i class="bi bi-check2-circle me-1"></i>Verified Payments</button>
         <button class="btn btn-light rp-filter-btn" data-tab="refunded" onclick="refundTab('refunded',this)"><i class="bi bi-clock-history me-1"></i>Refund History</button>
       </div>
     </div>
@@ -129,7 +140,7 @@
       </div>
       <div class="d-flex align-items-start gap-2 p-2 rounded-2" style="background: rgba(245,158,11,0.08); border-left: 3px solid #f59e0b;">
         <i class="bi bi-info-circle text-warning mt-1" style="font-size: 0.85rem;"></i>
-        <span class="small" style="color: #92400e;">This records a refund decision only. The system does not transfer funds through GCash, banks, or payment gateways.</span>
+        <span class="small" style="color: #92400e;">This page records refund requests and completed refunds. The system does not transfer funds through GCash, banks, or payment gateways.</span>
       </div>
     </div>
     <div class="table-responsive">
@@ -151,37 +162,99 @@
     <div class="card-footer bg-white py-3 border-top" id="refundFooter"></div>
   </div>
 </div>
+<div class="modal fade" id="refundDetailModal" tabindex="-1" aria-labelledby="refundDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title fw-bold" id="refundDetailTitle">Payment details</h5>
+          <small class="text-muted" id="refundDetailReference"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger d-none" id="refundDetailError" role="alert"></div>
+        <div id="refundDetailContent" aria-live="polite"></div>
+        <form id="refundRecordForm" class="refund-detail-section d-none">
+          <h6 id="refundRecordHeading">Record a completed refund</h6>
+          <p class="small text-muted mb-3">Record this only after the money has been returned to the customer. This system does not send money.</p>
+          <div class="alert alert-light border fw-semibold" id="refundRecordAmount"></div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold" for="refundRecordReason"><span id="refundRecordReasonLabel">Reason</span> <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="refundRecordReason" rows="3" minlength="10" maxlength="1000" required placeholder="Explain why this payment was refunded"></textarea>
+            <div class="form-text">At least 10 characters are required for the audit record.</div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="refundMoneyReturned" required>
+            <label class="form-check-label" for="refundMoneyReturned">I confirm the money has already been returned to the customer.</label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer" id="refundDetailActions">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 let refundStatus='requests';
 let currentPage=1;
 const pageSize=10;
 let refundData=[];
-let refundFiltered=[];
+let refundListRequest=0;
 const refundFooter=document.getElementById('refundFooter');
 const re=v=>String(v??'—').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function refundTab(s,b){
   refundStatus=s;
+  document.getElementById('refundPageMessage').className='alert d-none';
   document.querySelectorAll('.rp-filter-btn').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  document.getElementById('tableTitle').textContent = s==='requests'?'Refund Requests':s==='verified'?'Eligible Payments':'Refund History';
-  loadRefunds();
+  document.getElementById('tableTitle').textContent = s==='requests'?'Refund Requests':s==='verified'?'Verified Payments':'Refund History';
+  loadRefunds(1);
 }
-async function loadRefunds(){
-  const filterUrl=refundStatus==='requests'?'/api/admin/remittances?refundStatus=pending':refundStatus==='refunded'?'/api/admin/remittances?refundStatus=completed':'/api/admin/remittances?status=verified';
-  const r=await fetch(filterUrl), d=await r.json();
-  const rows=(d.payments||[]);
-  refundData=rows;
-  refundFiltered=rows;
-  document.getElementById('tableCount').textContent = rows.length + ' records';
-  if(refundStatus==='verified') document.getElementById('kpiEligible').textContent = rows.length;
-  if(refundStatus==='refunded') document.getElementById('kpiRefunded').textContent = rows.length;
-  currentPage=1;
-  renderPage(1, rows);
+async function loadRefunds(page=currentPage){
+  const request=++refundListRequest;
+  const filterUrl=refundStatus==='requests'?'/api/admin/remittances?refundStatus=open':refundStatus==='refunded'?'/api/admin/remittances?refundStatus=completed':'/api/admin/remittances?status=verified';
+  try {
+    const r=await fetch(filterUrl+'&limit='+pageSize+'&page='+(page-1));
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Unable to load refunds.');
+    if(request!==refundListRequest) return false;
+    const rows=d.payments||[];
+    const total=Number(d.total??rows.length);
+    if(!rows.length&&page>1&&total>0) return loadRefunds(Math.ceil(total/pageSize));
+    refundData=rows;
+    document.getElementById('tableCount').textContent = total + ' records';
+    if(refundStatus==='verified') document.getElementById('kpiEligible').textContent = total;
+    if(refundStatus==='refunded') document.getElementById('kpiRefunded').textContent = total;
+    currentPage=page;
+    renderPage(page,rows,total);
+    const message=document.getElementById('refundPageMessage');
+    if(String(message.className||'').includes('alert-danger')) message.className='alert d-none';
+    return true;
+  } catch(error) {
+    if(request!==refundListRequest) return false;
+    showRefundPageMessage(error.message||'Unable to load refunds.', 'danger');
+    document.getElementById('refundRows').innerHTML='<tr><td colspan="7" class="text-center text-muted py-5">Refund records could not be loaded. Please try again.</td></tr>';
+    return false;
+  }
+}
+async function refreshRefundKpis(){
+  const filters=[
+    ['kpiEligible','/api/admin/remittances?status=verified&limit=1'],
+    ['kpiRefunded','/api/admin/remittances?refundStatus=completed&limit=1'],
+  ];
+  await Promise.all(filters.map(async ([id,url])=>{
+    try {
+      const response=await fetch(url,{headers:{Accept:'application/json'}});
+      const data=await response.json();
+      if(response.ok) document.getElementById(id).textContent=Number(data.total||0);
+    } catch(_error) { /* The table shows its own load error if the API is unavailable. */ }
+  }));
 }
 
-function renderPage(page, items){
-  const start=(page-1)*pageSize;
-  const slice=items.slice(start, start+pageSize);
+function renderPage(page, items, total){
+  const slice=items;
   if(!slice.length){
     document.getElementById('refundRows').innerHTML='<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-inbox fs-4 d-block mb-2"></i>No records found.</td></tr>';
     refundFooter.innerHTML='<nav aria-label="Refund pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
@@ -192,11 +265,11 @@ function renderPage(page, items){
     <td>${re(p.bookingId?.customer?.name||p.orderId?.customer?.name||p.projectId?.customer?.name)}</td>
     <td>${p.refundReview?'Awaiting confirmation':'₱'+Number(refundStatus==='verified'?p.amount:p.refundAmount||0).toLocaleString()}</td>
     <td>${p.refundReview?'Receipt review':re(p.method).toUpperCase()}</td>
-    <td>${new Date(p.refundedAt||p.verifiedAt||p.collectedAt||p.submittedAt).toLocaleString('en-PH')}</td>
+    <td>${refundDate(refundStatus==='refunded'?p.refundedAt||p.submittedAt:p.refundRequestedAt||p.verifiedAt||p.collectedAt||p.submittedAt)}</td>
     <td>${re(p.refundReason)}</td>
-    <td>${p.refundReview?(p.reviewReady?`<button class="btn btn-sm btn-outline-primary" onclick="queueVerifiedRefund('${p._id}')">Queue verified refund</button>`:'<a class="small" href="/admin/payments">Verify payment first</a>'):refundStatus==='refunded'?'<span class="badge bg-secondary-subtle text-secondary"><i class="bi bi-check2 me-1"></i>Refunded</span>':(p.status==='verified'||(p.status==='paid'&&p.orderId))?`<button class="btn btn-sm btn-outline-danger" onclick="issueRefund('${p._id}')"><i class="bi bi-arrow-counterclockwise me-1"></i>Record Refund</button>`:'<a class="small" href="/admin/payments">Payment verification required</a>'}</td>
+    <td><button type="button" class="btn btn-sm btn-outline-primary" data-refund-detail="${re(p._id)}"><i class="bi bi-eye me-1"></i>View Payment</button></td>
   </tr>`).join('');
-  renderPagination(page, Math.ceil(items.length/pageSize)||1, items.length);
+  renderPagination(page, Math.ceil(total/pageSize)||1, total);
 }
 
 function renderPagination(page, pages, total){
@@ -221,26 +294,207 @@ function renderPagination(page, pages, total){
       const target=e.target.closest('.page-link');
       const newPage=parseInt(target?.dataset.page);
       if(!target?.closest('.page-item.disabled') && newPage>=1 && newPage<=pages){
-        currentPage=newPage;
-        renderPage(currentPage, refundFiltered);
+        loadRefunds(newPage);
       }
     });
   });
 }
-async function issueRefund(id){
-  const reason=prompt('Refund reason:')||'';
-  if(!reason)return;
-  if(!confirm('Record this payment as refunded? This does not transfer funds.'))return;
-  const r=await fetch(`/api/admin/remittances/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'refund',reason})}), d=await r.json();
-  if(!r.ok)return alert(d.error||'Refund failed');
-  loadRefunds();
+let refundSelected=null;
+let refundDetailRequest=0;
+const refundMoney=value=>'₱'+Number(value||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const refundDate=value=>{
+  if(!value) return '—';
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?'—':date.toLocaleString('en-PH');
+};
+const refundLabel=value=>String(value||'Unknown').replace(/_/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+const refundField=(label,value)=>'<div class="refund-detail-field"><dt>'+re(label)+'</dt><dd>'+re(value)+'</dd></div>';
+function showRefundPageMessage(message,tone){
+  const element=document.getElementById('refundPageMessage');
+  element.className='alert alert-'+tone;
+  element.textContent=message;
 }
-async function queueVerifiedRefund(id){
-  if(!confirm('Queue only the confirmed payment for refund review? This does not transfer money.'))return;
-  const response=await fetch(`/api/admin/order-refund-reviews/${encodeURIComponent(id)}/queue`,{method:'POST',headers:{Accept:'application/json'}});
-  const data=await response.json();
-  if(!response.ok)return alert(data.error||'Unable to queue this refund.');
-  loadRefunds();
+function showRefundDetailError(message){
+  const element=document.getElementById('refundDetailError');
+  element.textContent=message;
+  element.classList.toggle('d-none',!message);
+}
+function safeRefundProof(value){
+  const path=String(value||'');
+  return /^\/uploads\/[A-Za-z0-9_./-]+$/.test(path)&&!path.includes('..')?path:'';
+}
+function renderRefundDetail(row,p,reviewPayments){
+  const review=Boolean(row.refundReview);
+  const subject=row.bookingId||row.orderId||row.projectId||{};
+  const reference=(p.bookingReference&&p.bookingReference!=='-'?p.bookingReference:null)
+    ||subject.bookingReference||subject.orderReference||subject.projectReference||String(row._id).slice(-8);
+  const customer=(p.customerName&&p.customerName!=='-'?p.customerName:null)||subject.customer?.name||'—';
+  const receivedStatuses=['verified','paid','remitted','partial','payment_collected','waiting_for_remittance'];
+  const received=reviewPayments.filter(payment=>receivedStatuses.includes(payment.status)&&Number(payment.amount)>0);
+  const reviewReady=review&&received.length>0;
+  document.getElementById('refundDetailTitle').textContent=review?'Order payment review':'Payment details';
+  document.getElementById('refundDetailReference').textContent=reference;
+  const details=[
+    ['Customer',customer],
+    ['Customer email',p.customerEmail&&p.customerEmail!=='-'?p.customerEmail:subject.customer?.email],
+    ['Customer phone',p.customerPhone&&p.customerPhone!=='-'?p.customerPhone:subject.customer?.phone],
+    ['Booking or order status',!review&&p.bookingStatus&&p.bookingStatus!=='-'?refundLabel(p.bookingStatus):null],
+    ['Payment amount',review?(reviewReady?refundMoney(received.reduce((sum,payment)=>sum+Number(payment.amount),0)):'Awaiting confirmation'):refundMoney(p.amount)],
+    ['Payment status',review?(reviewReady?'Confirmed payment found':'Payment verification needed'):refundLabel(p.status)],
+    ['Refund status',review?'Not queued':refundLabel(p.refundStatus||'none')],
+    ['Payment method',!review&&p.method?refundLabel(p.method):null],
+    ['Payment type',!review&&p.type?refundLabel(p.type):null],
+    ['Transaction reference',!review?p.reference:null],
+    [review?'Review requested':'Payment submitted',refundDate(p.submittedAt)],
+    ['Collected at',!review&&p.collectedAt?refundDate(p.collectedAt):null],
+    ['Payment verified',!review&&p.verifiedAt?refundDate(p.verifiedAt):null],
+    ['Refund requested',!review&&p.refundRequestedAt?refundDate(p.refundRequestedAt):null],
+    ['Requested refund',!review&&Number(p.refundAmount)>0?refundMoney(p.refundAmount):null],
+    ['Refunded at',!review&&p.refundedAt?refundDate(p.refundedAt):null],
+    ['Refund method',!review&&p.refundMethod?refundLabel(p.refundMethod):null],
+    ['Refund reason',p.refundReason||null],
+    ['Refund notes',!review?p.refundNotes:null],
+  ].filter(field=>field[1]!=null&&field[1]!=='');
+  let html='<dl class="refund-detail-grid">'+details.map(field=>refundField(field[0],field[1])).join('')+'</dl>';
+  if(review){
+    html+='<section class="refund-detail-section"><h6>Payments on this order</h6>';
+    html+=reviewPayments.length?reviewPayments.map(payment=>'<div class="refund-detail-field mb-2"><div class="d-flex flex-wrap justify-content-between gap-2"><strong>'+re(refundMoney(payment.amount))+'</strong><span class="badge bg-light text-dark">'+re(refundLabel(payment.status))+'</span></div><div class="small text-muted mt-1">'+re(refundLabel(payment.method))+(payment.reference?' · '+re(payment.reference):'')+(payment.hasProof?' · Receipt attached':'')+'</div></div>').join('')
+      :'<p class="small text-muted mb-0">No payment record was found. Review the receipt in Payments before queuing a refund.</p>';
+    html+='</section>';
+  } else {
+    const proof=safeRefundProof(p.proofUrl);
+    if(proof||p.proofUrl){
+      html+='<section class="refund-detail-section"><h6>Payment evidence</h6>'+(proof?'<a class="btn btn-sm btn-outline-primary" href="'+re(proof)+'" target="_blank" rel="noopener noreferrer"><i class="bi bi-receipt me-1"></i>View receipt</a>':'<span class="small text-muted">Receipt is attached to the payment record.</span>')+'</section>';
+    }
+    const events=(Array.isArray(p.events)?p.events:[]).slice(-8).reverse();
+    if(events.length){
+      html+='<section class="refund-detail-section"><h6>Activity</h6>'+events.map(event=>'<div class="refund-detail-event"><strong>'+re(refundLabel(event.status))+'</strong><small>'+re(refundDate(event.at))+(event.actorName?' · '+re(event.actorName):'')+'</small>'+(event.note?'<p>'+re(event.note)+'</p>':'')+'</div>').join('')+'</section>';
+    }
+  }
+  document.getElementById('refundDetailContent').innerHTML=html;
+  const form=document.getElementById('refundRecordForm');
+  form.reset();
+  form.classList.add('d-none');
+  let action='<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+  if(review){
+    action+=reviewReady?'<button type="button" class="btn btn-primary" id="refundQueueSubmit" onclick="queueVerifiedRefund()">Queue verified refund</button>'
+      :'<a class="btn btn-outline-primary" href="/admin/payments">Verify payment first</a>';
+  } else if(p.refundStatus==='completed'||(p.status==='refunded'&&!['pending','processing','partial'].includes(p.refundStatus))){
+    action+='<span class="badge bg-success-subtle text-success">Refund recorded</span>';
+  } else if(p.refundStatus==='partial'){
+    action+='<span class="small text-muted">This partial refund needs a payment review before another amount can be recorded.</span>';
+  } else if(['pending','processing'].includes(p.refundStatus)&&!(Number(p.refundAmount)>0&&Number(p.refundAmount)<=Number(p.amount))){
+    action+='<span class="small text-danger">The requested amount needs review before this refund can be completed.</span>';
+  } else if(['pending','processing'].includes(p.refundStatus)||(p.status==='verified'&&!p.orderId)){
+    const requested=['pending','processing'].includes(p.refundStatus);
+    form.classList.remove('d-none');
+    document.getElementById('refundRecordHeading').textContent=requested?'Complete requested refund':'Record a completed refund';
+    document.getElementById('refundRecordReasonLabel').textContent=requested?'Completion note':'Reason';
+    document.getElementById('refundRecordReason').value=requested?'':(p.refundReason||'');
+    document.getElementById('refundRecordAmount').textContent='Amount to record: '+refundMoney(Number(p.refundAmount)>0?p.refundAmount:p.amount);
+    action+='<button type="submit" form="refundRecordForm" class="btn btn-danger" id="refundRecordSubmit">'+(requested?'Complete refund':'Record refund')+'</button>';
+  } else if(p.orderId&&p.status==='verified'){
+    action+='<span class="small text-muted">A cancelled order needs a refund request before a refund can be recorded.</span>';
+  } else {
+    action+='<a class="btn btn-outline-primary" href="/admin/payments">Payment verification required</a>';
+  }
+  document.getElementById('refundDetailActions').innerHTML=action;
+}
+async function openRefundDetail(id){
+  const row=refundData.find(payment=>String(payment._id)===String(id));
+  if(!row) return;
+  const request=++refundDetailRequest;
+  refundSelected=null;
+  showRefundDetailError('');
+  document.getElementById('refundDetailTitle').textContent='Payment details';
+  document.getElementById('refundDetailReference').textContent='';
+  document.getElementById('refundDetailContent').textContent='Loading payment details…';
+  document.getElementById('refundRecordForm').classList.add('d-none');
+  document.getElementById('refundDetailActions').innerHTML='<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('refundDetailModal')).show();
+  try {
+    const url=row.refundReview
+      ?'/api/admin/payments?orderId='+encodeURIComponent(row.orderId?._id||row._id)+'&view=list'
+      :'/api/admin/payments/'+encodeURIComponent(row._id);
+    const response=await fetch(url,{headers:{Accept:'application/json'}});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||'Unable to load payment details.');
+    if(request!==refundDetailRequest) return;
+    const payment=row.refundReview?row:data.payment;
+    if(!payment) throw new Error('Payment details were not found.');
+    const reviewPayments=row.refundReview?(data.payments||[]):[];
+    refundSelected={row,payment,reviewPayments};
+    renderRefundDetail(row,payment,reviewPayments);
+  } catch(error){
+    if(request!==refundDetailRequest) return;
+    document.getElementById('refundDetailContent').textContent='Payment details could not be loaded.';
+    showRefundDetailError(error.message||'Unable to load payment details.');
+  }
+}
+document.getElementById('refundRows').addEventListener('click',event=>{
+  const button=event.target.closest('[data-refund-detail]');
+  if(button) openRefundDetail(button.dataset.refundDetail);
+});
+document.getElementById('refundRecordForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  issueRefund();
+});
+document.getElementById('refundDetailModal').addEventListener('hidden.bs.modal',()=>{
+  refundDetailRequest++;
+  refundSelected=null;
+});
+async function issueRefund(){
+  const selected=refundSelected;
+  if(!selected || selected.row.refundReview) return;
+  const form=document.getElementById('refundRecordForm');
+  const reason=document.getElementById('refundRecordReason').value.trim();
+  const requested=['pending','processing'].includes(selected.payment.refundStatus);
+  if(!form.reportValidity() || reason.length<10){
+    showRefundDetailError('Enter a specific reason of at least 10 characters and confirm the money was returned.');
+    return;
+  }
+  const button=document.getElementById('refundRecordSubmit');
+  button.disabled=true;
+  showRefundDetailError('');
+  try {
+    const response=await fetch(requested?'/api/admin/payments/'+encodeURIComponent(selected.payment._id)+'/complete-refund'
+      :'/api/admin/remittances/'+encodeURIComponent(selected.payment._id)+'/status',{
+      method:requested?'POST':'PATCH',headers:{'Content-Type':'application/json',Accept:'application/json'},
+      body:JSON.stringify(requested?{notes:reason}:{action:'refund',reason}),
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||'Unable to record this refund.');
+    bootstrap.Modal.getInstance(document.getElementById('refundDetailModal')).hide();
+    showRefundPageMessage('Refund recorded. Check Refund History for the audit record.', 'success');
+    await loadRefunds(currentPage);
+    refreshRefundKpis();
+  } catch(error) {
+    showRefundDetailError(error.message||'Unable to record this refund.');
+  } finally {
+    button.disabled=false;
+  }
+}
+async function queueVerifiedRefund(){
+  const selected=refundSelected;
+  if(!selected?.row.refundReview) return;
+  const button=document.getElementById('refundQueueSubmit');
+  button.disabled=true;
+  showRefundDetailError('');
+  try {
+    const response=await fetch('/api/admin/order-refund-reviews/'+encodeURIComponent(selected.row._id)+'/queue',{
+      method:'POST',headers:{Accept:'application/json'},
+    });
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||'Unable to queue this refund.');
+    bootstrap.Modal.getInstance(document.getElementById('refundDetailModal')).hide();
+    showRefundPageMessage('Verified payment queued for refund review.', 'success');
+    await loadRefunds(currentPage);
+    refreshRefundKpis();
+  } catch(error) {
+    showRefundDetailError(error.message||'Unable to queue this refund.');
+  } finally {
+    button.disabled=false;
+  }
 }
 function createSparkline(canvas,data,color){
   if(!canvas||!data||data.length<2)return;
@@ -263,6 +517,7 @@ function createSparkline(canvas,data,color){
   ctx.stroke();
 }
 loadRefunds();
+refreshRefundKpis();
 createSparkline(document.getElementById('refundSpark1'),[2,4,3,6,5,7,6,8],'#10b981');
 createSparkline(document.getElementById('refundSpark2'),[5,3,6,4,7,5,8,6],'#475569');
 </script>

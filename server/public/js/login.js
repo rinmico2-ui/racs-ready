@@ -372,6 +372,9 @@
       invalid_request: 'The Google sign-in request expired or was invalid. Please try again.',
       invalid_account: 'Google could not verify that account. Please choose a verified Google account.',
       account_not_found: 'No existing account uses that Google email. Create your account first, then sign in with Google.',
+      registration_disabled: 'New account creation is temporarily unavailable.',
+      email_verification_required: 'Use the email signup form for this address so you can verify it with a code.',
+      signup_expired: 'Your Google signup expired. Please start again.',
       account_unavailable: 'That account is not available. Please contact support if you need help.',
       failed: 'Google sign-in could not be completed. Please try again.',
     };

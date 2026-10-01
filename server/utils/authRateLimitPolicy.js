@@ -21,15 +21,26 @@ const REGISTRATION_ATTEMPT_ROUTES = new Set([
   "POST /verify-register-otp",
   "POST /resend-register-otp",
 ]);
+const REGISTRATION_BURST_ROUTES = new Set([
+  "POST /register",
+  "POST /google/complete-signup",
+]);
 
 const GENERAL_API_LIMIT_EXEMPT_ROUTES = new Set([
   "GET /api/auth/verify",
   "POST /api/auth/logout",
   "POST /api/auth/secure/logout",
-  // These have dedicated per-email and IP registration limiters downstream.
+  // Login has dedicated per-account and IP limits downstream. The general
+  // anonymous API bucket is shared by students behind one school NAT.
+  "POST /api/auth/login",
+  "POST /api/auth/secure/login",
+  "POST /api/auth/verify-login-otp",
+  "POST /api/auth/resend-login-otp",
+  // Registration has dedicated per-email and signup IP limits downstream.
   "POST /api/auth/register",
   "POST /api/auth/verify-register-otp",
   "POST /api/auth/resend-register-otp",
+  "POST /api/auth/google/complete-signup",
 ]);
 
 function pathnameOf(req) {
@@ -63,6 +74,13 @@ function shouldSkipRegistrationAttemptLimit(req) {
   return !shouldLimitRegistrationAttempt(req);
 }
 
+function shouldSkipRegistrationBurstLimit(req) {
+  // A student should not consume the school-wide signup allowance again when
+  // verifying or resending the code for an account already created.
+  const method = String(req?.method || "GET").toUpperCase();
+  return !REGISTRATION_BURST_ROUTES.has(`${method} ${authRelativePath(req)}`);
+}
+
 function shouldSkipGeneralApiLimit(req) {
   const method = String(req?.method || "GET").toUpperCase();
   return GENERAL_API_LIMIT_EXEMPT_ROUTES.has(
@@ -77,5 +95,6 @@ module.exports = {
   shouldSkipAuthAttemptLimit,
   shouldLimitRegistrationAttempt,
   shouldSkipRegistrationAttemptLimit,
+  shouldSkipRegistrationBurstLimit,
   shouldSkipGeneralApiLimit,
 };

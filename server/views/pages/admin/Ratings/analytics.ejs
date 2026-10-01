@@ -1,3 +1,4 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
 <div class="container-fluid py-4">
   <div class="au-hero mb-4">
     <div class="au-hero-inner">
@@ -994,7 +995,7 @@
   // Load analytics data
   async function loadAnalyticsData() {
     try {
-      const response = await fetch('/api/admin/ratings/analytics');
+      const response = await fetch('/api/<%= reportRole %>/ratings/analytics');
       if (response.ok) {
         const data = await response.json();
         analyticsData = data;

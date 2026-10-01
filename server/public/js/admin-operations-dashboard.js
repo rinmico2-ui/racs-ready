@@ -9,10 +9,11 @@
   function permittedHref(href) {
     if (dashboardConfig.role !== "secretary") return href;
     var value = String(href || "");
-    if (value.indexOf("remittance") >= 0 || value.indexOf("payment") >= 0) return dashboardLinks.payments || "/secretary/payments";
-    if (value.indexOf("equipment") >= 0 || value.indexOf("inventory") >= 0) return dashboardLinks.inventory || "/secretary/inventory";
-    if (value.indexOf("technician") >= 0) return dashboardLinks.technicians || "/secretary/technicians";
-    return dashboardLinks.appointments || "/secretary/appointments";
+    if (value.startsWith("/admin/operations/resolution-center")) {
+      return (dashboardLinks.review || "/secretary/operations/resolution-center") + (value.split("?")[1] ? "?" + value.split("?")[1] : "");
+    }
+    if (value.startsWith("/admin/inventory/aircon-orders")) return dashboardLinks.orders || "/secretary/inventory/ordered-products";
+    return null;
   }
 
   function el(id) { return document.getElementById(id); }
@@ -41,7 +42,11 @@
     }
     target.innerHTML = rows.map(function (row) {
       var dangerous = row.tone === "danger";
-      return '<a class="ops-priority ' + (dangerous ? "danger" : "") + '" href="' + esc(permittedHref(row.href)) + '"><i class="bi ' + (dangerous ? "bi-exclamation-octagon" : "bi-exclamation-triangle") + '"></i><span>' + esc(row.label) + '</span><i class="bi bi-chevron-right ms-auto"></i></a>';
+      var href = permittedHref(row.href);
+      var inner = '<i class="bi ' + (dangerous ? "bi-exclamation-octagon" : "bi-exclamation-triangle") + '"></i><span>' + esc(row.label) + '</span>';
+      return href
+        ? '<a class="ops-priority ' + (dangerous ? "danger" : "") + '" href="' + esc(href) + '">' + inner + '<i class="bi bi-chevron-right ms-auto"></i></a>'
+        : '<div class="ops-priority ' + (dangerous ? "danger" : "") + '">' + inner + '</div>';
     }).join("");
   }
 

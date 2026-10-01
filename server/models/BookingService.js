@@ -90,6 +90,7 @@ const bookingSchema = new mongoose.Schema({
   isMultiService: { type: Boolean, default: false },
   services: [{
     serviceId: { type: mongoose.Schema.Types.ObjectId },
+    assistanceRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'UnitAssistanceRequest', default: null },
     name: String,
     // `type` is a reserved schema-definition key in Mongoose. It must be
     // wrapped or Mongoose interprets the entire services array as [String].
@@ -256,7 +257,7 @@ const bookingSchema = new mongoose.Schema({
     },
     // Schedule selected by the customer as part of this same change request.
     // This is distinct from proposedSchedule, which is an admin counterproposal.
-    requestedSchedule: { date: Date, startTime: String, endTime: String, notes: String },
+    requestedSchedule: { date: Date, endDate: Date, startTime: String, endTime: String, notes: String },
     proposedSchedule: { date: Date, startTime: String, endTime: String, notes: String },
     adminDecision: { decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, decidedByName: String, decidedAt: Date, reason: String },
     technicianAcknowledgedAt: Date,

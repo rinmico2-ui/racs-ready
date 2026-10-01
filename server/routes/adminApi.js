@@ -10,6 +10,7 @@ const { hasPermission, requirePermission } = require("../middleware/requirePermi
 const { assertAdminTransition, assertResolution, REMITTANCE_STATUSES } = require("../utils/remittancePolicy");
 const { normalizeLifecycleReason, archiveRecord, restoreRecord } = require("../utils/dataLifecycle");
 const archiveController = require("../controllers/archiveController");
+const { isSecretaryReportRequest } = require("../utils/secretaryReportAccess");
 const {
   listToolUsage,
   summarizeToolUsage,
@@ -24,6 +25,10 @@ const {
 router.use(auth.authenticate);
 router.use((req, res, next) => {
   if (req.user.role === "admin") return next();
+  if (req.user.role === "secretary" && req.baseUrl === "/api/secretary"
+      && isSecretaryReportRequest(req)) {
+    return requirePermission("reports.view")(req, res, next);
+  }
   const isSecretaryOperationsMount = req.user.role === "secretary"
     && req.baseUrl === "/api/secretary/operations";
   const isRepairWorkflowPath = req.path === "/repair-scheduling-queue"
@@ -708,12 +713,12 @@ router.get("/remittances", async (req, res, next) => {
       return res.status(400).json({ error: "Invalid remittance status filter." });
     }
     const refundFilter = req.query.refundStatus ? String(req.query.refundStatus) : null;
-    if (refundFilter && !["pending", "processing", "completed", "partial"].includes(refundFilter)) {
+    if (refundFilter && !["open", "pending", "processing", "completed", "partial"].includes(refundFilter)) {
       return res.status(400).json({ error: "Invalid refund status filter." });
     }
     const normalStatuses = requestedStatus ? [requestedStatus] : REMITTANCE_STATUSES;
     const includeLegacyCollections = !requestedStatus || requestedStatus === "waiting_for_remittance";
-    const filter = refundFilter ? { refundStatus: refundFilter, ...(requestedStatus ? { status: requestedStatus } : {}) } : includeLegacyCollections
+    const filter = refundFilter ? { refundStatus: refundFilter === "open" ? { $in: ["pending", "processing", "partial"] } : refundFilter, ...(requestedStatus ? { status: requestedStatus } : {}) } : includeLegacyCollections
       ? { $or: [{ status: { $in: normalStatuses } }, { status: "paid", collectedBy: { $exists: false }, bookingId: { $ne: null } }, { status: "paid", collectedBy: null, bookingId: { $ne: null } }] }
       : { status: { $in: normalStatuses } };
     const payments = await Payment.find(filter)
@@ -738,7 +743,7 @@ router.get("/remittances", async (req, res, next) => {
     });
 
     let refundRows = visiblePayments;
-    if (refundFilter === "pending") {
+    if (["pending", "open"].includes(refundFilter)) {
       const Order = require("../models/Order");
       const reviewOrders = await Order.find({ status: "cancelled", refundStatus: { $in: ["none", null] },
         refundReviewRequestedAt: { $ne: null } })
@@ -872,15 +877,22 @@ router.patch("/remittances/:id/status", async (req, res, next) => {
     const transition = assertAdminTransition(payment, req.body.action, req.body);
     const action = transition.action;
     if (action === "refund" && payment.orderId) {
-      if (payment.status === "paid") {
-        const relatedOrder = await Order.findById(payment.orderId).select("status").lean();
-        if (relatedOrder?.status !== "cancelled" || !["pending", "processing", "partial"].includes(payment.refundStatus)) {
-          return res.status(409).json({ error: "A paid order payment needs a cancelled order and a pending refund request before it can be recorded as refunded." });
-        }
+      const relatedOrder = await Order.findById(payment.orderId).select("status").lean();
+      if (relatedOrder?.status !== "cancelled" || !["pending", "processing", "partial"].includes(payment.refundStatus)) {
+        return res.status(409).json({ error: "An order payment needs a cancelled order and a pending refund request before it can be recorded as refunded." });
       }
       const ProductRefund = require("../models/ProductRefund");
       if (await ProductRefund.exists({ originalPaymentId: payment._id, status: { $in: ["approved", "processing", "completed"] } })) {
         return res.status(409).json({ error: "This payment is linked to an item-level product return. Review Product Returns before refunding the whole payment." });
+      }
+    }
+    if (action === "refund") {
+      const amount = Number(payment.amount);
+      const requested = Number(payment.refundAmount || 0);
+      const hasRequest = ["pending", "processing", "partial"].includes(payment.refundStatus);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(requested)
+          || requested < 0 || requested > amount || (hasRequest && requested <= 0)) {
+        return res.status(409).json({ error: "The refund amount is invalid. Review the payment before recording a refund." });
       }
     }
     const allowed = { verify: "verified", reject: "rejected", refund: "refunded", override: "verified", flag: "unaccounted", reopen: "waiting_for_remittance" };
@@ -1062,9 +1074,9 @@ router.patch("/remittances/:id/resolve", async (req, res, next) => {
 /**
  * POST /api/admin/payments/:id/complete-refund
  * Admin marks a pending refund as completed after processing it externally.
- * Uploads proof and finalizes the refund status.
+ * Stores optional proof and completion notes, then finalizes the refund status.
  *
- * Body: { proofUrl: string }
+ * Body: { proofUrl?: string, notes?: string }
  */
 router.post("/payments/:id/complete-refund", async (req, res, next) => {
   try {
@@ -1072,6 +1084,7 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const { id } = req.params;
     const { proofUrl } = req.body;
+    const notes = String(req.body.notes || "").trim();
 
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid payment ID" });
 
@@ -1080,7 +1093,19 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
     if (!["pending", "processing"].includes(payment.refundStatus)) {
       return res.status(409).json({ error: `Refund is not pending (current: ${payment.refundStatus}).` });
     }
+    const refundAmount = Number(payment.refundAmount);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > Number(payment.amount)) {
+      return res.status(409).json({ error: "The requested refund amount is invalid. Review the payment before completing it." });
+    }
+    if (notes && (notes.length < 10 || notes.length > 1000)) {
+      return res.status(400).json({ error: "Completion notes must be between 10 and 1000 characters." });
+    }
     if (payment.orderId) {
+      const Order = require("../models/Order");
+      const order = await Order.findById(payment.orderId).select("status").lean();
+      if (order?.status !== "cancelled") {
+        return res.status(409).json({ error: "Only a cancelled order can have its whole-payment refund completed." });
+      }
       const ProductRefund = require("../models/ProductRefund");
       if (await ProductRefund.exists({ originalPaymentId: payment._id, status: { $in: ["approved", "processing", "completed"] } })) {
         return res.status(409).json({ error: "This payment is linked to an item-level return. Check Product Returns before completing a whole-payment refund." });
@@ -1093,12 +1118,13 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
     payment.refundedAt = now;
     payment.refundedBy = req.user?._id;
     if (proofUrl) payment.refundProofUrl = proofUrl;
+    if (notes) payment.refundNotes = notes;
     payment.events.push({
       status: "refunded",
       actor: req.user?._id,
       actorName: req.user?.name || req.user?.email || "Admin",
       actorRole: "admin",
-      note: `Refund completed. Amount: ₱${payment.refundAmount || 0}${proofUrl ? " (proof uploaded)" : ""}`,
+      note: `Refund completed. Amount: ₱${payment.refundAmount || 0}${proofUrl ? " (proof uploaded)" : ""}${notes ? `. ${notes}` : ""}`,
       at: now,
     });
     await payment.save();
@@ -1121,7 +1147,7 @@ router.post("/payments/:id/complete-refund", async (req, res, next) => {
       action: "payment.refund_completed",
       module: "payment",
       req,
-      details: { refundAmount: payment.refundAmount, proofUrl: !!proofUrl },
+      details: { refundAmount: payment.refundAmount, proofUrl: !!proofUrl, notes },
     }).catch(() => {});
 
     return res.json({ success: true, message: "Refund marked as completed.", payment });
@@ -9765,19 +9791,31 @@ router.get("/settings/email-status", async (_req, res, next) => {
   try {
     const mailer = require("../utils/mailer");
     const EmailDeliveryLog = require("../models/EmailDeliveryLog");
+    const EmailOutbox = require("../models/EmailOutbox");
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [summary, latest] = await Promise.all([
+    const [summary, latest, outboxSummary] = await Promise.all([
       EmailDeliveryLog.aggregate([
         { $match: { createdAt: { $gte: since } } },
         { $group: { _id: "$status", count: { $sum: 1 } } },
       ]),
       EmailDeliveryLog.findOne().sort({ createdAt: -1 }).lean(),
+      EmailOutbox.aggregate([
+        { $match: { status: { $in: ["pending", "processing", "failed"] } } },
+        { $group: { _id: "$status", count: { $sum: 1 }, oldest: { $min: "$createdAt" } } },
+      ]),
     ]);
     const counts = Object.fromEntries(summary.map((row) => [row._id, row.count]));
+    const outbox = Object.fromEntries(outboxSummary.map((row) => [row._id, row]));
     res.set("Cache-Control", "no-store");
     return res.json({
       configuration: mailer.buildMailerStatus(process.env),
       last24Hours: { accepted: counts.accepted || 0, failed: counts.failed || 0 },
+      outbox: {
+        pending: outbox.pending?.count || 0,
+        processing: outbox.processing?.count || 0,
+        failed: outbox.failed?.count || 0,
+        oldestPendingAt: outbox.pending?.oldest || null,
+      },
       latestAttempt: latest ? {
         status: latest.status,
         provider: latest.provider,
@@ -9832,13 +9870,15 @@ router.post("/settings/email-test", async (req, res, next) => {
     await audit.logEvent({
       actor: req.user?._id,
       target: req.user?._id,
-      action: "settings.email_test.accepted",
+      action: result.queued ? "settings.email_test.queued" : "settings.email_test.accepted",
       module: "settings",
       req,
       details: { provider: result.provider || "unknown", recipient },
     });
     return res.json({
-      message: "The provider accepted the test email. Check the recipient inbox and spam folder.",
+      message: result.queued
+        ? "The test email was queued. Refresh this page to see when the provider accepts it, then check the inbox and spam folder."
+        : "The provider accepted the test email. Check the recipient inbox and spam folder.",
       provider: result.provider || null,
       messageId: result.messageId || null,
     });

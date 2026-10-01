@@ -152,6 +152,10 @@
   function showRegistrationVerification(email, startCooldown) {
     pendingVerificationEmail = String(email || '').trim().toLowerCase();
     if (!pendingVerificationEmail || !verificationPanel) return;
+    var passwordInput = document.getElementById('register-password');
+    var confirmInput = document.getElementById('register-confirm');
+    if (passwordInput) passwordInput.value = '';
+    if (confirmInput) confirmInput.value = '';
     if (typeof window.openSignUp === 'function') window.openSignUp();
     form.classList.add('d-none');
     verificationPanel.classList.remove('d-none');
@@ -536,6 +540,7 @@
     try {
       var res = await fetch('/api/auth/register', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email,

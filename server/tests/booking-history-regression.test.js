@@ -37,7 +37,7 @@ test("booking-history rows expose only View Details and keep operations in the m
   assert.match(script, /Book Again/);
   assert.match(script, /View Maintenance/);
   assert.match(view, /id="bh-download-json"/);
-  assert.match(view, /service-picker-v9/);
+  assert.match(view, /project-date-guide-v12/);
 });
 
 test("booking-history keeps status, location, filters, and schedule actions readable", () => {
@@ -86,6 +86,11 @@ test("edit booking quantity controls are item-scoped and have no duplicate HP id
   assert.match(script, /bh-item-qty-plus/);
   assert.doesNotMatch(script, /id="bhHpQty(?:Minus|Plus|Input)"/);
   assert.match(script, /Math\.max\(1, Math\.min\(40,/);
+  assert.match(script, /const maxQuantityFor = index => maxBookingUnits - selectedUnits\(\)/);
+  assert.match(script, /otherInput\.max = String\(maxQuantityFor\(otherIndex\)\)/);
+  assert.match(script, /const maxHpQuantityFor = index => remainingUnits\(\) - selectedHpUnits\(\)/);
+  assert.match(script, /type="checkbox" aria-label="Select/);
+  assert.doesNotMatch(script, /type="radio" name="bhHpOption"/);
   assert.match(script, /class="bh-editor-workspace"/);
   assert.match(script, /class="bh-editor-cart"/);
   assert.match(script, /id="bhEditorCartTotalValue"/);
@@ -130,7 +135,7 @@ test("edit-booking repair fields guide focus to the next completed step", () => 
   assert.match(script, /function selectedRepairPricing\(\)/);
   assert.match(script, /serviceId: null, name: `\$\{unitLabel\} Repair`/);
   assert.match(view, /bh-repair-step-current/);
-  assert.match(view, /service-picker-v9/);
+  assert.match(view, /project-date-guide-v12/);
 });
 
 test("edit booking mirrors the booking-page service picker", () => {

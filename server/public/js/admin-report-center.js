@@ -3,6 +3,7 @@
 
   var root = document.querySelector("[data-report-center]");
   if (!root) return;
+  var reportRole = root.getAttribute("data-report-role") === "secretary" ? "secretary" : "admin";
 
   var refreshButton = document.getElementById("refreshReportCenter");
   var state = document.getElementById("reportCenterState");
@@ -42,7 +43,9 @@
     (insights || []).forEach(function (insight) {
       var item = document.createElement("a");
       item.className = "rc-insight " + (insight.tone || "info");
-      item.href = insight.href || "/admin/reports";
+      var destination = insight.href || "/admin/reports";
+      if (reportRole === "secretary") destination = destination.replace(/^\/admin\//, "/secretary/");
+      item.href = destination;
       var icon = document.createElement("span");
       icon.className = "rc-insight-icon";
       icon.innerHTML = '<i class="bi bi-' + (insight.tone === "danger" ? "exclamation-octagon" : insight.tone === "warning" ? "exclamation-triangle" : insight.tone === "success" ? "check2-circle" : "lightbulb") + '"></i>';
@@ -102,7 +105,7 @@
     refreshButton.disabled = true;
     refreshButton.querySelector("i").classList.add("rc-spin");
     try {
-      var response = await fetch("/api/admin/reports/overview", {
+      var response = await fetch("/api/" + reportRole + "/reports/overview", {
         credentials: "same-origin",
         cache: "no-store",
         headers: { Accept: "application/json" },

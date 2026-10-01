@@ -151,7 +151,7 @@ test("service analytics shows filtered report photos with accessible full-size p
 
 test("service overview excludes image payloads and caches the rendered fragment", () => {
   assert.match(serviceRoute, /-proofPhoto -afterPhotos -inspection\.photos -unitInfo\.photos/);
-  assert.match(serviceRoute, /readServiceReportFragment\(req\.query\)/);
+  assert.match(serviceRoute, /readServiceReportFragment\(\{ \.\.\.req\.query, reportRole: req\.user\.role \}\)/);
   assert.match(serviceRoute, /writeServiceReportFragment\(cachedFragment\.key, html\)/);
   assert.match(serviceRoute, /photoEvidenceDeferred: photoEvidenceBookingIds\.length > 0/);
 });

@@ -9,9 +9,13 @@ const { getBufferMinutes, assertCompanyCapacity, getInspectionDurationMinutes } 
 const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
 const { sendRepairRequestSubmittedEmail } = require('../utils/mailer');
 const CoreService = require('../models/CoreService');
+const UnitAssistanceRequest = require('../models/UnitAssistanceRequest');
+const { resolveCoreServicePricing } = require('../utils/coreServicePricing');
 const RepairService = require('../models/RepairService');
 const { createNotification } = require('../utils/notify');
 const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
+const { validateBookingUnitLimit } = require('../utils/bookingUnitLimit');
+const { parseProjectWindow, saveProjectServiceChange } = require('../utils/projectServiceChange');
 const audit = require('../utils/audit');
 const {
   getDownpaymentPercentage,
@@ -326,6 +330,52 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       };
     });
 
+    // Core service prices and durations always come from the active catalog.
+    // Unknown type/HP requests cannot be smuggled into a paid booking with a
+    // client supplied base price.
+    const coreIds = parsedServices.filter(item => item.type !== 'repair').map(item => item.serviceId);
+    if (coreIds.some(id => !mongoose.isValidObjectId(id))) {
+      return res.status(400).json({ error: 'Choose a valid Core service.' });
+    }
+    const coreCatalog = await CoreService.find({ _id: { $in: coreIds }, active: true }).lean();
+    const coreById = new Map(coreCatalog.map(item => [String(item._id), item]));
+    const assistanceIds = parsedServices.map(item => item.assistanceRequestId).filter(Boolean);
+    if (assistanceIds.some(id => !mongoose.isValidObjectId(id))) return res.status(400).json({ error: 'Invalid unit identification request.' });
+    const assistanceRequests = assistanceIds.length
+      ? await UnitAssistanceRequest.find({ _id: { $in: assistanceIds }, customerId: userId, status: 'accepted' }).lean()
+      : [];
+    const assistanceById = new Map(assistanceRequests.map(item => [String(item._id), item]));
+    for (let index = 0; index < parsedServices.length; index += 1) {
+      const item = parsedServices[index];
+      if (item.type === 'repair') continue;
+      const catalog = coreById.get(String(item.serviceId));
+      if (!catalog) return res.status(400).json({ error: `Core service ${index + 1} is unavailable.` });
+      let pricing;
+      try { pricing = resolveCoreServicePricing(catalog, item); }
+      catch (error) { return res.status(400).json({ error: `Core service ${index + 1}: ${error.message}` }); }
+      if (Number(item.unitPrice) !== pricing.unitPrice) {
+        return res.status(409).json({ error: `The price for ${catalog.name} changed. Refresh the page and review the price before paying.` });
+      }
+      if (item.assistanceRequestId) {
+        const request = assistanceById.get(String(item.assistanceRequestId));
+        if (!request || request.existingBookingId || String(request.serviceId) !== String(item.serviceId) ||
+            request.quantity !== Number(item.quantity) ||
+            String(request.quote?.airconType || '') !== String(pricing.airconType || '') ||
+            Number(request.quote?.hp) !== pricing.hp ||
+            request.quote?.brand !== String(item.brand || '').trim() ||
+            request.quote?.unitPrice !== pricing.unitPrice ||
+            request.quote?.expiresAt <= new Date()) {
+          return res.status(409).json({ error: 'The unit quote is unavailable or has changed. Review your request before booking.' });
+        }
+      }
+      parsedServices[index] = {
+        ...item, name: catalog.name, unitPrice: pricing.unitPrice,
+        totalPrice: pricing.totalPrice, duration: pricing.duration,
+        airconType: pricing.airconType, airconTypeName: pricing.airconTypeName,
+        hp: pricing.hp, isAirconService: catalog.isAirconService,
+      };
+    }
+
     // ── Compute capacity end point ──────────────────────────────────────
     // The customer's startTime is their requested service start time.
     // The endTime stored is the capacity end point (for overlap checks on
@@ -408,6 +458,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // getters, or non-serializable values that could confuse Mongoose.
     const cleanServices = JSON.parse(JSON.stringify(parsedServices.map(svc => ({
       serviceId: svc.serviceId || null,
+      assistanceRequestId: svc.assistanceRequestId || null,
       name: svc.name || '',
       type: svc.type || 'core',
       quantity: Number(svc.quantity) || 1,
@@ -679,6 +730,20 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
           );
           await bookingAttempt.save({ session: creationSession });
           await paymentAttempt.save({ session: creationSession });
+          for (const service of cleanServices.filter(item => item.assistanceRequestId)) {
+            const accepted = await UnitAssistanceRequest.findOneAndUpdate({
+              _id: service.assistanceRequestId, customerId: userId,
+              status: 'accepted', bookingId: null, existingBookingId: null,
+              'quote.unitPrice': service.unitPrice,
+              'quote.brand': service.brand,
+              'quote.hp': service.hp,
+              'quote.airconType': service.airconType,
+              'quote.expiresAt': { $gt: new Date() },
+            }, { $set: { status: 'converted', bookingId: bookingAttempt._id },
+              $push: { events: { action: 'converted', actorId: userId, unitPrice: service.unitPrice } } },
+            { session: creationSession, new: true });
+            if (!accepted) throw Object.assign(new Error('The unit quote was already used or changed. Review your request.'), { status: 409 });
+          }
           committedBooking = bookingAttempt;
         });
         booking = committedBooking;
@@ -1025,12 +1090,17 @@ async function validatedServiceItems(inputItems, booking) {
     error.status = 400;
     throw error;
   }
+  validateBookingUnitLimit(inputItems);
   const existingServices = bookingServices(booking);
   const existing = new Map(existingServices.map(item => [String(item._id || ""), item]));
-  const existingByServiceId = new Map(existingServices.filter(item => item.serviceId).map(item => [String(item.serviceId), item]));
+  const unmatchedLegacyServices = existingServices.filter(item => !item._id && item.serviceId);
   const contexts = inputItems.map(input => {
     const type = input.type === "repair" ? "repair" : "core";
-    const prior = (input._id ? existing.get(String(input._id)) : null) || existingByServiceId.get(String(input.serviceId || ""));
+    let prior = input._id ? existing.get(String(input._id)) : null;
+    if (!prior && !input._id && input.serviceId) {
+      const legacyIndex = unmatchedLegacyServices.findIndex(item => String(item.serviceId) === String(input.serviceId));
+      if (legacyIndex >= 0) prior = unmatchedLegacyServices.splice(legacyIndex, 1)[0];
+    }
     return { input, type, prior };
   });
   const categoryRepairContexts = contexts.filter(({ input, type, prior }) => type === "repair" && !prior && !input.serviceId);
@@ -1084,9 +1154,10 @@ async function validatedServiceItems(inputItems, booking) {
         schedule: { date: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime, durationMinutes: duration, kind: "inspection" },
       };
     }
-    const catalog = prior
+    const catalogDoc = prior
       ? await Catalog.findOne({ _id: input.serviceId }).lean()
       : await Catalog.findOne({ _id: input.serviceId, active: { $ne: false } }).lean();
+    const catalog = prior && catalogDoc?.active === false ? null : catalogDoc;
     if (!catalog && prior) {
       const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Math.trunc(Number(input.quantity)) || Number(prior.quantity) || 1));
       return {
@@ -1110,12 +1181,27 @@ async function validatedServiceItems(inputItems, booking) {
     const airconType = input.airconType || input.applianceType || "";
     const typeTier = (catalog.airconTypes || []).find(row => row.type === airconType);
     const hpTier = (typeTier?.hpPricing || catalog.hpPricing || []).find(row => Number(row.hp) === hp);
+    let corePricing = null;
+    if (type === 'core') {
+      try {
+        corePricing = resolveCoreServicePricing(catalog, { ...input, quantity, airconType, hp });
+      } catch (error) {
+        // Existing bookings keep their accepted price if a catalog tier was
+        // retired after purchase. A newly added or reconfigured unit must use
+        // a currently valid type/HP tier.
+        const sameTier = prior && String(prior.serviceId) === String(input.serviceId)
+          && Number(prior.hp || 0) === Number(hp || 0)
+          && String(prior.airconType || '') === String(airconType || '');
+        if (!sameTier || !Number.isFinite(Number(prior.unitPrice))) throw error;
+        corePricing = { unitPrice: Number(prior.unitPrice), duration: Number(prior.duration) || 60 };
+      }
+    }
     const unitPrice = type === "repair"
       ? Number(hpTier?.price || catalog.initialPrice || catalog.basePrice || 0)
-      : Number(hpTier?.price || catalog.basePrice || 0);
+      : corePricing.unitPrice;
     const duration = type === "repair"
       ? await getInspectionDurationMinutes()
-      : Number(hpTier?.durationMinutes || catalog.durationMinutes || catalog.durationRange?.max || 60);
+      : corePricing.duration;
     return {
       ...(prior || {}),
       _id: prior?._id,
@@ -1862,11 +1948,17 @@ router.get('/:id/service-items', async (req, res) => {
           notes: booking.rescheduleRequest.reason || '',
         }
       : null;
+    const [projectThresholdHours, inspectionDurationMinutes] = await Promise.all([
+      schedulingEngine.getProjectThresholdHours(), getInspectionDurationMinutes(),
+    ]);
     return res.json({
       bookingId: booking._id,
       bookingReference: booking.bookingReference,
       status: booking.status,
       policy: mutationPolicy(booking),
+      isProject: Boolean(booking.isProject),
+      projectThresholdMinutes: projectThresholdHours * 60,
+      inspectionDurationMinutes,
       services: bookingServices(booking),
       changeRequests: (booking.serviceChangeRequests || []).map(row => ({
         _id: row._id, status: row.status, requestedAt: row.requestedAt,
@@ -1903,8 +1995,16 @@ router.post('/:id/service-change-requests', async (req, res) => {
     const beforeServices = bookingServices(booking);
     const proposedServices = await validatedServiceItems(req.body.services, booking);
     const summary = summarizeChanges(beforeServices, proposedServices);
+    const inspectionDuration = await getInspectionDurationMinutes();
+    const totalUnits = proposedServices.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const serviceMinutes = capacityMinutes(proposedServices, inspectionDuration);
+    const projectRequired = Boolean(booking.isProject) || await schedulingEngine.isLargeProject({
+      totalUnits, totalEstimatedMinutes: serviceMinutes,
+    });
     const scheduleInput = req.body.requestedSchedule || null;
-    const hasRequestedSchedule = Boolean(scheduleInput?.date && scheduleInput?.startTime);
+    const hasRequestedSchedule = projectRequired
+      ? Boolean(scheduleInput?.date && scheduleInput?.endDate)
+      : Boolean(scheduleInput?.date && scheduleInput?.startTime);
     const scheduleNotes = String(scheduleInput?.notes || changeReason).trim();
     if (scheduleNotes.length > 500) {
       return res.status(400).json({ error: 'Reschedule reason must be 500 characters or fewer.' });
@@ -1913,7 +2013,23 @@ router.post('/:id/service-change-requests', async (req, res) => {
       return res.status(400).json({ error: 'No service or schedule changes were detected.' });
     }
     let requestedSchedule;
-    if (hasRequestedSchedule) {
+    let projectCompletionDate;
+    if (projectRequired) {
+      const window = parseProjectWindow(scheduleInput);
+      const availability = await schedulingEngine.getProjectWindowAvailability({
+        startDate: window.startKey,
+        endDate: window.endKey,
+        requiredHours: Math.max(1, Math.round(serviceMinutes / 6) / 10),
+        totalUnits,
+      });
+      if (!availability.sufficient) {
+        return res.status(409).json({ error: 'These dates do not have enough time for the project. Choose a longer date range.' });
+      }
+      projectCompletionDate = availability.estimatedCompletionDate
+        ? new Date(`${availability.estimatedCompletionDate}T00:00:00`)
+        : window.endDate;
+      requestedSchedule = { date: window.startDate, endDate: window.endDate, notes: scheduleNotes };
+    } else if (hasRequestedSchedule) {
       const dateKey = String(scheduleInput.date).slice(0, 10);
       const timeValue = String(scheduleInput.startTime).trim();
       const date = new Date(`${dateKey}T00:00:00`);
@@ -1927,7 +2043,6 @@ router.post('/:id/service-change-requests', async (req, res) => {
       if (requestedAt <= new Date()) {
         return res.status(400).json({ error: 'The requested schedule must be in the future.' });
       }
-      const inspectionDuration = await getInspectionDurationMinutes();
       const buffer = await getBufferMinutes();
       const endMinutes = startMinutes
         + capacityMinutes(proposedServices, inspectionDuration)
@@ -1957,18 +2072,19 @@ router.post('/:id/service-change-requests', async (req, res) => {
 
     const commitChange = async () => {
     if (policy.direct) {
-      const inspectionDuration = await getInspectionDurationMinutes();
-      const buffer = await getBufferMinutes();
-      const startMinutes = parseTimeToMinutes(booking.startTime);
-      const endMinutes = startMinutes + capacityMinutes(proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
-      if (requestedSchedule) {
-        const requestedStart = parseTimeToMinutes(requestedSchedule.startTime);
-        const requestedEnd = parseTimeToMinutes(requestedSchedule.endTime);
-        await assertCompanyCapacity(requestedSchedule.date, requestedStart, requestedEnd, booking._id);
-      }
-      if (!requestedSchedule && booking.bookingDate && Number.isFinite(startMinutes)) {
-        await assertCompanyCapacity(booking.bookingDate, startMinutes, endMinutes, booking._id);
-        booking.endTime = minutesToTimeString(endMinutes);
+      if (!projectRequired) {
+        const buffer = await getBufferMinutes();
+        const startMinutes = parseTimeToMinutes(booking.startTime);
+        const endMinutes = startMinutes + serviceMinutes + Number(booking.travelTime || 0) + buffer;
+        if (requestedSchedule) {
+          const requestedStart = parseTimeToMinutes(requestedSchedule.startTime);
+          const requestedEnd = parseTimeToMinutes(requestedSchedule.endTime);
+          await assertCompanyCapacity(requestedSchedule.date, requestedStart, requestedEnd, booking._id);
+        }
+        if (!requestedSchedule && booking.bookingDate && Number.isFinite(startMinutes)) {
+          await assertCompanyCapacity(booking.bookingDate, startMinutes, endMinutes, booking._id);
+          booking.endTime = minutesToTimeString(endMinutes);
+        }
       }
       booking.services = proposedServices;
       booking.isMultiService = proposedServices.length > 1;
@@ -1982,7 +2098,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
         booking.balanceAmount = Math.max(0, booking.totalPrice - dp);
         booking.amountPaid = dp;
       }
-      if (requestedSchedule) {
+      if (requestedSchedule && !projectRequired) {
         booking.bookingDate = requestedSchedule.date;
         booking.startTime = requestedSchedule.startTime;
         booking.selectedTimeLabel = requestedSchedule.startTime;
@@ -1997,9 +2113,23 @@ router.post('/:id/service-change-requests', async (req, res) => {
           };
         });
       }
+      if (projectRequired && booking.rescheduleRequest?.status === 'pending') {
+        booking.rescheduleRequest.status = 'superseded';
+        booking.rescheduleRequest.processedBy = req.user._id;
+        booking.rescheduleRequest.processedAt = new Date();
+      }
     }
     booking.serviceChangeRequests.push(requestRecord);
-    await booking.save();
+    if (policy.direct && projectRequired) {
+      await saveProjectServiceChange(booking, {
+        startDate: requestedSchedule.date,
+        endDate: requestedSchedule.endDate,
+        plannedCompletionDate: projectCompletionDate,
+        inspectionDurationMinutes: inspectionDuration,
+      });
+    } else {
+      await booking.save();
+    }
     };
     if (policy.direct && (requestedSchedule?.date || booking.bookingDate)) {
       await withOperationLock(bookingCapacityLockKey(requestedSchedule?.date || booking.bookingDate), commitChange);
@@ -2010,11 +2140,17 @@ router.post('/:id/service-change-requests', async (req, res) => {
     await createNotification({
       type: policy.direct ? 'booking_change_approved' : 'booking_change_requested',
       title: policy.direct ? 'Booking services updated' : 'Booking service change requested',
-      message: `${booking.bookingReference || booking._id}: ${summary.added} added, ${summary.edited} edited, ${summary.removed} removed${requestedSchedule ? `; schedule requested for ${requestedSchedule.date.toLocaleDateString('en-PH')} at ${requestedSchedule.startTime}` : ''}.`,
+      message: `${booking.bookingReference || booking._id}: ${summary.added} added, ${summary.edited} edited, ${summary.removed} removed${requestedSchedule ? projectRequired ? '; project date range requested' : `; schedule requested for ${requestedSchedule.date.toLocaleDateString('en-PH')} at ${requestedSchedule.startTime}` : ''}.`,
       role: 'admin', referenceId: booking._id, referenceModel: 'BookingService',
       link: `/admin/appointments?booking=${booking._id}`, priority: policy.direct ? 'normal' : 'high', io: req.app.get('io'),
     });
-    return res.status(policy.direct ? 200 : 202).json({ success: true, applied: policy.direct, policy, changeRequest: booking.serviceChangeRequests.at(-1) });
+    return res.status(policy.direct ? 200 : 202).json({
+      success: true, applied: policy.direct, policy, projectRequired,
+      message: projectRequired
+        ? policy.direct ? 'Your booking is now a large-scale project. The team will confirm the schedule.' : 'Your project change was sent for review. Your current booking stays in place until it is approved.'
+        : undefined,
+      changeRequest: booking.serviceChangeRequests.at(-1),
+    });
   } catch (error) {
     return res.status(error.status || 400).json({ error: error.message || 'Unable to change booking services' });
   }

@@ -576,9 +576,53 @@ function initMultiServiceBooking() {
       updateStepperIndicators(2);
     }
 
-    Promise.resolve(catalogReady).then(() => openAftercareMaintenanceService());
+    Promise.resolve(catalogReady).then(() => {
+      openAftercareMaintenanceService();
+      openAcceptedUnitAssistance();
+    });
 
   }, 500); // 500ms delay to ensure everything is loaded
+}
+
+async function openAcceptedUnitAssistance() {
+  const requestId = new URLSearchParams(window.location.search).get('assistanceId');
+  if (!requestId) return;
+  try {
+    const response = await fetch(`/api/unit-assistance/mine/${encodeURIComponent(requestId)}`, { credentials: 'same-origin' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not load your unit quote.');
+    const request = result.request;
+    if (request.status !== 'accepted' || !request.quote || new Date(request.quote.expiresAt) <= new Date()) {
+      throw new Error('This unit quote is no longer available. Review your request.');
+    }
+    const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(request.serviceId));
+    if (!service) throw new Error('This service is no longer available.');
+    if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
+    if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) {
+      throw new Error(`A booking can contain at most ${MAX_BOOKING_UNITS} units. Remove another service before continuing.`);
+    }
+    BookingState.selectedBrand = request.quote.brand;
+    BookingState.applianceType = request.quote.airconType;
+    BookingState.applianceTypeName = request.quote.airconTypeName;
+    addServiceToBooking(service, request.quantity, {
+      hp: request.quote.hp, price: request.quote.unitPrice,
+      durationMinutes: request.quote.durationMinutes,
+      airconType: request.quote.airconType,
+      airconTypeName: request.quote.airconTypeName,
+    });
+    const item = BookingState.selectedServices[BookingState.selectedServices.length - 1];
+    if (item && String(item.serviceId) === String(service._id)) {
+      item.assistanceRequestId = request._id;
+      saveBookingProgress();
+    }
+    const banner = document.createElement('div');
+    banner.className = 'alert alert-info mb-3';
+    banner.textContent = `${service.name} was added with the approved unit details. Choose your location and schedule; the final amount includes any travel fare.`;
+    document.getElementById('bookingContainer')?.prepend(banner);
+    history.replaceState({}, '', '/services');
+  } catch (error) {
+    showError(error.message);
+  }
 }
 
 /**
@@ -5576,7 +5620,7 @@ function loadServiceCatalog() {
     renderRepairServices();
   } else {
     // Fallback: fetch from API
-    fetchServicesFromAPI();
+    return fetchServicesFromAPI();
   }
 }
 
@@ -6521,6 +6565,26 @@ function showCombinedQuantityHpModal(service) {
   BookingState.applianceType = '';
   BookingState.applianceTypeName = '';
   BookingState.selectedBrand = '';
+  BookingState.unitAssistanceMode = false;
+  document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+  const assistanceNotes = document.getElementById('unitAssistanceNotes');
+  if (assistanceNotes) assistanceNotes.value = '';
+  const continueKnownType = document.getElementById('cfgContinueKnownType');
+  if (continueKnownType && !continueKnownType.dataset.wired) {
+    continueKnownType.dataset.wired = '1';
+    continueKnownType.addEventListener('click', () => {
+      BookingState.unitAssistanceMode = false;
+      document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+      const quantityRow = document.getElementById('quantityModalInput')?.closest('.cfg-qty-row');
+      if (quantityRow) quantityRow.style.display = 'none';
+      if (usesAirconTypeWizard()) showAirconTypeStep(activeAirconConfigurationContainer());
+      else {
+        document.getElementById('hpSelectionSection').style.display = 'block';
+        document.getElementById('brandSection').style.display = 'none';
+        updateCombinedPrice();
+      }
+    });
+  }
   hideBrandSection();
 
   // Get modal elements
@@ -6695,6 +6759,12 @@ function showCombinedQuantityHpModal(service) {
             const hpCard = createProfessionalHpCard(hpOption, index);
             hpContainer.appendChild(hpCard);
           });
+          const unknownHp = document.createElement('button');
+          unknownHp.type = 'button';
+          unknownHp.className = 'btn btn-outline-primary mt-3';
+          unknownHp.textContent = "I don't know the HP";
+          unknownHp.addEventListener('click', () => showUnitAssistancePanel(3));
+          hpContainer.appendChild(unknownHp);
           // No appliance-type cards in legacy mode — show brand directly.
           showBrandSection(service);
         }
@@ -6871,6 +6941,12 @@ function renderAirconTypeSelection(airconTypes, container) {
   });
 
   typeSection.appendChild(typesContainer);
+  const unknownTypeButton = document.createElement('button');
+  unknownTypeButton.type = 'button';
+  unknownTypeButton.className = 'btn btn-outline-primary';
+  unknownTypeButton.textContent = "I don't know the aircon type";
+  unknownTypeButton.addEventListener('click', () => showUnitAssistancePanel(2));
+  typeSection.appendChild(unknownTypeButton);
   container.appendChild(typeSection);
 
   // Create HP selection section (initially hidden)
@@ -6891,12 +6967,27 @@ function renderAirconTypeSelection(airconTypes, container) {
       <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
     </div>
     <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
+    <button type="button" class="btn btn-outline-primary mt-3" id="cfgUnknownHpBtn">I don't know the HP</button>
   `;
   container.appendChild(hpSectionDiv);
 
   const backButton = document.getElementById('cfgBackToType');
   const changeButton = hpSectionDiv.querySelector('#cfgChangeTypeBtn');
   const goBack = () => {
+    if (BookingState.unitAssistanceMode) {
+      const stage = BookingState.unitAssistanceReturnStep || 1;
+      BookingState.unitAssistanceMode = false;
+      document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+      const quantityRow = document.getElementById('quantityModalInput')?.closest('.cfg-qty-row');
+      if (quantityRow) quantityRow.style.display = 'none';
+      document.getElementById('priceLabel').textContent = 'Estimated price';
+      document.getElementById('cfgPriceSub').textContent = 'Updates as you choose';
+      if (stage === 3 && BookingState.selectedAirconType) renderHpOptionsForType(BookingState.selectedAirconType, container);
+      else if (stage === 2) showAirconTypeStep(container);
+      else showBrandConfigurationStep(container);
+      syncConfigurationPrimaryAction();
+      return;
+    }
     if (BookingState.configurationStep === 3) showAirconTypeStep(container);
     else showBrandConfigurationStep(container);
   };
@@ -6905,6 +6996,17 @@ function renderAirconTypeSelection(airconTypes, container) {
     backButton.addEventListener('click', goBack);
   }
   if (changeButton) changeButton.addEventListener('click', () => showAirconTypeStep(container));
+  hpSectionDiv.querySelector('#cfgUnknownHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3));
+  const unknownBrandButton = document.getElementById('cfgUnknownBrandBtn');
+  if (unknownBrandButton && !unknownBrandButton.dataset.wired) {
+    unknownBrandButton.dataset.wired = '1';
+    unknownBrandButton.addEventListener('click', () => {
+      BookingState.selectedBrand = "I don't know";
+      const brandInput = document.getElementById('brandInput');
+      if (brandInput) brandInput.value = "I don't know";
+      showUnitAssistancePanel(1);
+    });
+  }
 
 }
 
@@ -6915,6 +7017,80 @@ function notifyServiceConfigurationStep(step, complete = false) {
   if (modal) modal.dispatchEvent(new CustomEvent('service-config-step-change', {
     detail: { step, complete }
   }));
+}
+
+function showUnitAssistancePanel(returnStep) {
+  BookingState.unitAssistanceMode = true;
+  BookingState.unitAssistanceReturnStep = returnStep;
+  document.getElementById('brandSection').style.display = 'none';
+  document.getElementById('airconTypeSection')?.classList.add('d-none');
+  document.getElementById('hpSelectionForType')?.classList.add('d-none');
+  document.getElementById('unitAssistancePanel')?.classList.remove('d-none');
+  const quantityRow = document.getElementById('quantityModalInput')?.closest('.cfg-qty-row');
+  if (quantityRow) quantityRow.style.display = 'flex';
+  const backButton = document.getElementById('cfgBackToType');
+  if (backButton) {
+    backButton.classList.remove('d-none');
+    backButton.style.setProperty('display', 'inline-flex', 'important');
+    const label = backButton.querySelector('span');
+    if (label) label.textContent = 'Back';
+    if (backButton.dataset.configStepBound !== 'true') {
+      backButton.onclick = () => {
+        BookingState.unitAssistanceMode = false;
+        document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+        const quantityRow = document.getElementById('quantityModalInput')?.closest('.cfg-qty-row');
+        if (quantityRow) quantityRow.style.display = 'none';
+        document.getElementById('brandSection').style.display = 'block';
+        document.getElementById('priceLabel').textContent = 'Estimated price';
+        document.getElementById('cfgPriceSub').textContent = 'Updates as you choose';
+        backButton.classList.add('d-none');
+        updateCombinedPrice();
+      };
+    }
+  }
+  document.getElementById('cfgCurrentStepLabel').textContent = 'Staff review';
+  document.getElementById('priceLabel').textContent = 'Price';
+  document.getElementById('quantityModalEstimatedPrice').textContent = 'After review';
+  document.getElementById('cfgPriceSub').textContent = 'No payment now';
+  document.getElementById('unitAssistanceQuantity').textContent = document.getElementById('quantityModalInput')?.value || '1';
+  if (!BookingState.unitAssistanceQuantityWired) {
+    BookingState.unitAssistanceQuantityWired = true;
+    for (const id of ['quantityModalIncrease', 'quantityModalDecrease']) {
+      document.getElementById(id)?.addEventListener('click', () => setTimeout(() => {
+        const label = document.getElementById('unitAssistanceQuantity');
+        if (label) label.textContent = document.getElementById('quantityModalInput')?.value || '1';
+      }, 0));
+    }
+  }
+  const continueButton = document.getElementById('cfgContinueKnownType');
+  if (continueButton) continueButton.classList.toggle('d-none', returnStep !== 1);
+  syncConfigurationPrimaryAction();
+  document.getElementById('unitAssistanceNotes')?.focus({ preventScroll: true });
+}
+
+async function submitUnitAssistanceRequest(service, done) {
+  const button = document.getElementById('confirmQuantitySelection');
+  if (button) button.disabled = true;
+  try {
+    const quantity = Number(document.getElementById('quantityModalInput')?.value || 1);
+    const payload = {
+      serviceId: service._id, brand: BookingState.selectedBrand || "I don't know",
+      airconType: BookingState.selectedAirconType?.type || '',
+      hp: null, quantity,
+      notes: document.getElementById('unitAssistanceNotes')?.value || '',
+    };
+    const response = await fetch('/api/unit-assistance', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not send the request.');
+    window.location.assign('/unit-assistance');
+  } catch (error) {
+    showModalError(error.message);
+    if (button) button.disabled = false;
+    done();
+  }
 }
 
 function isAirconConfigurationComplete() {
@@ -6938,6 +7114,12 @@ function advanceFromBrandSelection() {
 }
 
 function showBrandConfigurationStep(container = activeAirconConfigurationContainer()) {
+  BookingState.unitAssistanceMode = false;
+  document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+  const priceLabel = document.getElementById('priceLabel');
+  const priceSub = document.getElementById('cfgPriceSub');
+  if (priceLabel) priceLabel.textContent = 'Estimated price';
+  if (priceSub) priceSub.textContent = 'Updates as you choose';
   const typeSection = container?.querySelector('#airconTypeSection');
   const hpSection = container?.querySelector('#hpSelectionForType');
   const brandSection = document.getElementById('brandSection');
@@ -6974,6 +7156,13 @@ function syncConfigurationPrimaryAction() {
   const button = document.getElementById('confirmQuantitySelection');
   const service = BookingState.currentService;
   if (!button || !service) return;
+  if (BookingState.unitAssistanceMode) {
+    button.disabled = false;
+    button.innerHTML = '<i class="bi bi-send me-2"></i>Request unit identification';
+    button.style.setProperty('opacity', '1', 'important');
+    button.style.setProperty('cursor', 'pointer', 'important');
+    return;
+  }
   const isAirconService = service.isAirconService
     && ((Array.isArray(service.airconTypes) && service.airconTypes.length > 0)
       || (Array.isArray(service.hpPricing) && service.hpPricing.length > 0));
@@ -7004,6 +7193,12 @@ function syncConfigurationPrimaryAction() {
 }
 
 function showAirconTypeStep(container) {
+  BookingState.unitAssistanceMode = false;
+  document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+  const priceLabel = document.getElementById('priceLabel');
+  const priceSub = document.getElementById('cfgPriceSub');
+  if (priceLabel) priceLabel.textContent = 'Estimated price';
+  if (priceSub) priceSub.textContent = 'Updates as you choose';
   const typeSection = container?.querySelector('#airconTypeSection');
   const hpSection = container?.querySelector('#hpSelectionForType');
   const brandSection = document.getElementById('brandSection');
@@ -7043,6 +7238,15 @@ function showBrandSection(service) {
   const select = document.getElementById('brandInput');
   const custom = document.getElementById('brandInputCustom');
   if (!section || !select) return;
+  const unknownBrandButton = document.getElementById('cfgUnknownBrandBtn');
+  if (unknownBrandButton && !unknownBrandButton.dataset.wired) {
+    unknownBrandButton.dataset.wired = '1';
+    unknownBrandButton.addEventListener('click', () => {
+      BookingState.selectedBrand = "I don't know";
+      select.value = "I don't know";
+      showUnitAssistancePanel(1);
+    });
+  }
 
   // Preserve any brand the user already chose (e.g. selected before picking an aircon type)
   const prevBrand = BookingState.selectedBrand || select.value || (custom && !custom.classList.contains('d-none') ? custom.value : '');
@@ -7105,6 +7309,7 @@ function showBrandSection(service) {
         BookingState.selectedBrand = select.value;
       }
       syncConfigurationPrimaryAction();
+      if (select.value === "I don't know") { showUnitAssistancePanel(1); return; }
       if (select.value && select.value !== '__other__' && advanceFromBrandSelection()) return;
       notifyServiceConfigurationStep(1, false);
     });
@@ -7143,6 +7348,8 @@ function hideBrandSection() {
  * Render HP options for selected aircon type
  */
 function renderHpOptionsForType(airconType, container) {
+  BookingState.unitAssistanceMode = false;
+  document.getElementById('unitAssistancePanel')?.classList.add('d-none');
 
   // Show HP section
   const hpSectionDiv = container.querySelector('#hpSelectionForType');
@@ -9233,6 +9440,11 @@ function confirmQuantitySelection() {
       }
     }
   }
+  if (BookingState.unitAssistanceMode) {
+    if (!service) { showModalError('Choose a service first.'); resetProcessingFlag(); return; }
+    submitUnitAssistanceRequest(service, resetProcessingFlag);
+    return;
+  }
 
   if (!service) {
     showError('Service not found. Please close the modal and try again.');
@@ -9541,6 +9753,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
   const serviceItem = {
     id: generateUniqueId(),
     serviceId: service._id,
+    assistanceRequestId: hpData?.assistanceRequestId || null,
     name: service.name,
     type: isRepairBookingService(service) ? 'repair' : 'core',
     quantity: quantity,
@@ -12972,6 +13185,7 @@ async function prepareBookingData() {
     services: await Promise.all(BookingState.selectedServices.map(async service => {
       const svc = {
         serviceId: service.serviceId || service._id || null,
+        assistanceRequestId: service.assistanceRequestId || null,
         name: service.name,
         type: isRepairBookingService(service) ? 'repair' : 'core',
         quantity: service.quantity || 1,

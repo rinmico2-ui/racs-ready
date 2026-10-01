@@ -222,13 +222,14 @@ function requiredPermissionForRequest(user, req) {
     if (path.startsWith("/secretary/staff")) return "staff.view";
     if (path.startsWith("/secretary/customers")) return "customers.view";
     if (path.startsWith("/secretary/technicians")) return "technicians.view";
-    if (path.startsWith("/secretary/reports")) return "reports.view";
+    if (path.startsWith("/secretary/reports") || path.startsWith("/secretary/ratings")) return "reports.view";
     if (path.startsWith("/secretary/payments")) return "payments.view";
     if (path.startsWith("/secretary/inventory/ordered-products")) return "orders.view";
     if (path.startsWith("/secretary/inventory")) return "inventory.view";
     if (path.startsWith("/secretary/services")) return "services.view";
     if (path.startsWith("/secretary/service-tracking")) return "appointments.view";
     if (path.startsWith("/secretary/appointments/booking-requests")) return "booking_requests.view";
+    if (path.startsWith('/secretary/unit-assistance')) return 'booking_requests.view';
     if (path.startsWith("/secretary/pointofsale")) return "orders.manage";
     if (path.startsWith("/secretary/operations/resolution-center")) return "appointments.view";
     if (path.startsWith("/secretary/operations/calendar")) return "appointments.view";
@@ -238,7 +239,7 @@ function requiredPermissionForRequest(user, req) {
 
     if (path.startsWith("/api/secretary/attendance")) return "attendance.self.manage";
     if (path.startsWith("/api/secretary/analytics") || path.startsWith("/api/secretary/dashboard")) return "dashboard.view";
-    if (path.startsWith("/api/secretary/reports")) return "reports.view";
+    if (path.startsWith("/api/secretary/reports") || path.startsWith("/api/secretary/ratings")) return "reports.view";
     if (path.startsWith("/api/secretary/payments")) return read ? "payments.view" : "payments.manage";
     if (path.startsWith("/api/secretary/customers")) {
       if (read) return "customers.view";
@@ -255,6 +256,7 @@ function requiredPermissionForRequest(user, req) {
     if (path.startsWith("/api/secretary/service-types")) return "services.view";
     if (path.startsWith("/api/secretary/service-tracking")) return "appointments.view";
     if (path.startsWith("/api/secretary/appointments") || path.startsWith("/api/secretary/operations")) return read ? "appointments.view" : "appointments.manage";
+    if (path.startsWith('/api/unit-assistance/staff')) return read ? 'booking_requests.view' : 'booking_requests.manage';
     if (path.startsWith("/api/secretary/inventory") || path.startsWith("/api/secretary/hvac") || path.startsWith("/api/secretary/tools") || path.startsWith("/api/secretary/tool-usage") || path.startsWith("/api/secretary/stock-adjustments")) return read ? "inventory.view" : "inventory.manage";
     if (path.startsWith("/api/secretary/purchases")) return "orders.view";
 

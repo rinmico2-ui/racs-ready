@@ -1,3 +1,4 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
@@ -29,8 +30,8 @@
 
   <!-- Customer Ratings Tabs -->
   <ul class="nav nav-pills mb-4">
-    <li class="nav-item"><a class="nav-link" href="/admin/ratings/service"><i class="bi bi-wrench-adjustable me-2"></i>Services</a></li>
-    <li class="nav-item"><a class="nav-link active" href="/admin/ratings/aircons"><i class="bi bi-snow2 me-2"></i>Aircon Products</a></li>
+    <li class="nav-item"><a class="nav-link" href="/<%= reportRole %>/ratings/service"><i class="bi bi-wrench-adjustable me-2"></i>Services</a></li>
+    <li class="nav-item"><a class="nav-link active" href="/<%= reportRole %>/ratings/aircons"><i class="bi bi-snow2 me-2"></i>Aircon Products</a></li>
   </ul>
 
   <!-- Product Rating Overview -->
@@ -317,8 +318,8 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-warning" onclick="flagReview()">Flag Review</button>
-        <button type="button" class="btn btn-danger" onclick="deleteReview()"><i class="bi bi-eye-slash me-1"></i>Hide Review</button>
+        <% if (reportRole === "admin") { %><button type="button" class="btn btn-warning" onclick="flagReview()">Flag Review</button>
+        <button type="button" class="btn btn-danger" onclick="deleteReview()"><i class="bi bi-eye-slash me-1"></i>Hide Review</button><% } %>
       </div>
     </div>
   </div>
@@ -355,6 +356,7 @@
     white-space: nowrap;
   }
 </style>
+<% if (reportRole === "secretary") { %><style>.ratings-admin-only{display:none!important}</style><% } %>
 
 <!-- JavaScript -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -380,7 +382,7 @@
   async function loadAirconRatings() {
     try {
       showLoadingState();
-      const response = await fetch('/api/admin/ratings/aircons');
+      const response = await fetch('/api/<%= reportRole %>/ratings/aircons');
       if (response.ok) {
         const data = await response.json();
         productReviews = data.reviews || [];
@@ -399,7 +401,7 @@
 
   async function loadTopProducts() {
     try {
-      const response = await fetch('/api/admin/ratings/top-products');
+      const response = await fetch('/api/<%= reportRole %>/ratings/top-products');
       if (response.ok) {
         const data = await response.json();
         topProducts = data.products || [];
@@ -632,7 +634,7 @@
         </td>
         <td>
           <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-primary" onclick="viewProduct('${product.id}')" title="View Product">
+            <button class="btn btn-outline-primary ratings-admin-only" onclick="viewProduct('${product.id}')" title="View Product">
               <i class="bi bi-eye"></i>
             </button>
             <button class="btn btn-outline-info" onclick="viewProductReviews('${product.id}')" title="View Reviews">
@@ -708,10 +710,10 @@
             <button class="btn btn-outline-primary" onclick="viewReviewDetails('${review.id}')" title="View Details">
               <i class="bi bi-eye"></i>
             </button>
-            <button class="btn btn-outline-success" onclick="approveReview('${review.id}')" title="Approve">
+            <button class="btn btn-outline-success ratings-admin-only" onclick="approveReview('${review.id}')" title="Approve">
               <i class="bi bi-check"></i>
             </button>
-            <button class="btn btn-outline-danger" onclick="deleteReview('${review.id}')" title="Hide and retain">
+            <button class="btn btn-outline-danger ratings-admin-only" onclick="deleteReview('${review.id}')" title="Hide and retain">
               <i class="bi bi-eye-slash"></i>
             </button>
           </div>
@@ -790,7 +792,7 @@
 
   function viewProduct(productId) {
     console.log('View product:', productId);
-    window.open(`/admin/inventory/product/${productId}`, '_blank');
+    window.open(`/<%= reportRole %>/inventory/product/${productId}`, '_blank');
   }
 
   function viewProductReviews(productId) {
@@ -858,7 +860,7 @@
   async function moderateReview(reviewId, status, reason) {
     reviewId = reviewId || document.getElementById('reviewModal')?.dataset.reviewId;
     if (!reviewId) throw new Error('Select a review first');
-    const response = await fetch(`/api/admin/ratings/${encodeURIComponent(reviewId)}/moderation`, {
+    const response = await fetch(`/api/<%= reportRole %>/ratings/${encodeURIComponent(reviewId)}/moderation`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',

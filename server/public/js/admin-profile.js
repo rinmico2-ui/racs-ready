@@ -102,6 +102,8 @@
           byId("profileFirstNameValue").textContent = result.user.firstName;
           byId("profileLastNameValue").textContent = result.user.lastName;
           byId("profilePhoneValue").textContent = result.user.phone;
+          var avatar = byId("profileAvatar");
+          if (avatar) avatar.textContent = result.user.firstName.charAt(0).toUpperCase() + result.user.lastName.charAt(0).toUpperCase();
           editForm.classList.remove("was-validated");
           if (window.bootstrap && editModalElement) {
             window.bootstrap.Modal.getOrCreateInstance(editModalElement).hide();

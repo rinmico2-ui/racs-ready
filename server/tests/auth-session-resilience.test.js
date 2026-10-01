@@ -9,6 +9,7 @@ const {
   shouldSkipAuthAttemptLimit,
   shouldLimitRegistrationAttempt,
   shouldSkipRegistrationAttemptLimit,
+  shouldSkipRegistrationBurstLimit,
   shouldSkipGeneralApiLimit,
 } = require("../utils/authRateLimitPolicy");
 
@@ -34,6 +35,10 @@ test("registration uses an independent throttle from login attempts", () => {
   assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/resend-register-otp")), true);
   assert.equal(shouldLimitRegistrationAttempt(request("POST", "/api/auth/login")), false);
   assert.equal(shouldSkipRegistrationAttemptLimit(request("GET", "/api/auth/verify")), true);
+  assert.equal(shouldSkipRegistrationBurstLimit(request("POST", "/api/auth/register")), false);
+  assert.equal(shouldSkipRegistrationBurstLimit(request("POST", "/api/auth/google/complete-signup")), false);
+  assert.equal(shouldSkipRegistrationBurstLimit(request("POST", "/api/auth/verify-register-otp")), true);
+  assert.equal(shouldSkipRegistrationBurstLimit(request("POST", "/api/auth/resend-register-otp")), true);
 });
 
 test("session verification and logout bypass the general API budget", () => {
@@ -47,7 +52,16 @@ test("dedicated registration limits bypass the unrelated general API budget", ()
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/register")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/verify-register-otp")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/resend-register-otp")), true);
+  assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/auth/google/complete-signup")), true);
   assert.equal(shouldSkipGeneralApiLimit(request("GET", "/register")), false);
+});
+
+test("group login bypasses the general API bucket while retaining auth limits", () => {
+  for (const route of ["/api/auth/login", "/api/auth/secure/login", "/api/auth/verify-login-otp", "/api/auth/resend-login-otp"]) {
+    assert.equal(shouldSkipGeneralApiLimit(request("POST", route)), true);
+  }
+  assert.equal(shouldLimitAuthAttempt(request("POST", "/api/auth/secure/login")), true);
+  assert.equal(shouldSkipGeneralApiLimit(request("POST", "/api/bookings/create-new")), false);
 });
 
 test("registration OTP failures cannot lock every customer on a shared IP", () => {

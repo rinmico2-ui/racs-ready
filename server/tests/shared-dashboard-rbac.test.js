@@ -30,8 +30,35 @@ test("secretary dashboard renders role-safe endpoints and links", async () => {
   assert.match(html, /\/api\/secretary\/analytics\/summary/);
   assert.match(html, /href="\/secretary\/staff"/);
   assert.match(html, /href="\/secretary\/operations\/resolution-center"/);
+  assert.match(html, /<a class="ops-kpi" href="\/secretary\/inventory\/ordered-products"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today/);
+  assert.match(html, /<div class="ops-kpi danger"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue/);
+  assert.match(html, /<div class="ops-kpi warn"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action/);
+  assert.doesNotMatch(html, /href="null"/);
   assert.doesNotMatch(html, /<div class="dash-card" id="prepIssuesCard"/);
   assert.doesNotMatch(html, /href="\/admin\//);
+});
+
+test("admin dashboard keeps the equipment and remittance queues linked", async () => {
+  const html = await ejs.renderFile(path.join(viewsRoot, "admin-dashboard.ejs"), {
+    dashboardRole: "admin",
+    user: { role: "admin" },
+  });
+  assert.match(html, /href="\/admin\/inventory\/equipment-returns\?state=overdue"/);
+  assert.match(html, /href="\/admin\/payments\/remittance"/);
+  assert.match(html, /href="\/admin\/staff\/attendance"/);
+});
+
+test("secretary profile exposes working edit and password forms", async () => {
+  const html = await ejs.renderFile(path.join(__dirname, "../views/pages/secretary/secretary-profile.ejs"), {
+    user: { firstName: "Test", lastName: "Secretary", email: "secretary@example.com", phone: "09171234567" },
+  });
+  assert.match(html, /id="editProfileForm"/);
+  assert.match(html, /id="changePasswordForm"/);
+  assert.match(html, /id="profileFirstNameValue"/);
+  assert.match(html, /id="profileAvatar"/);
+  assert.match(html, /src="\/js\/admin-profile\.js"/);
+  assert.match(html, /href="\/secretary\/attendance"/);
+  assert.doesNotMatch(html, /href="#"|\/secretary\/logs/);
 });
 
 test("shared staff directory is read-only for secretary", async () => {

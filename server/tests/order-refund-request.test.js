@@ -227,18 +227,70 @@ test("customer refund API is customer-only and validates IDs without a database 
   assert.equal(res.statusCode, 400);
 });
 
-test("admin refund page opens on pending requests and keeps manual-refund disclosure", () => {
+test("admin refund page opens requests in a payment modal and keeps manual-refund disclosure", () => {
   const admin = fs.readFileSync(path.join(__dirname, "../views/pages/admin/Payments/Refunds.ejs"), "utf8");
   assert.match(admin, /data-tab="requests"/);
-  assert.match(admin, /refundStatus=pending/);
+  assert.match(admin, /refundStatus=open/);
   assert.match(admin, /refundStatus=completed/);
   assert.match(admin, /href="\/admin\/payments"/);
   assert.match(admin, /does not transfer funds/);
+  assert.match(admin, /id="refundDetailModal"/);
+  assert.match(admin, /data-refund-detail=/);
+  assert.match(admin, /complete-refund/);
   assert.match(admin, /queueVerifiedRefund/);
   assert.match(admin, /Payment verification required|Verify payment first/);
   for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
   const adminRoute = fs.readFileSync(path.join(__dirname, "../routes/adminApi.js"), "utf8");
   assert.match(adminRoute, /refundStatus: refundFilter/);
+});
+
+test("refund details keep actions in the modal and complete pending requests through the refund endpoint", async () => {
+  const html = fs.readFileSync(path.join(__dirname, "../views/pages/admin/Payments/Refunds.ejs"), "utf8");
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const elements = new Map();
+  const requests = [];
+  const element = name => {
+    if (name.startsWith("refundSpark")) return null;
+    if (!elements.has(name)) elements.set(name, {
+      innerHTML: "", textContent: "", value: "", disabled: false, dataset: {},
+      classList: { add() {}, remove() {}, toggle() {} },
+      addEventListener() {}, querySelectorAll() { return []; }, reset() {}, reportValidity() { return true; },
+    });
+    return elements.get(name);
+  };
+  const context = vm.createContext({
+    document: { getElementById: element, querySelectorAll: () => [] },
+    fetch: async (url, options) => { requests.push({ url, options });
+      return { ok: true, json: async () => ({ payments: [], total: 0, success: true }) }; },
+    bootstrap: { Modal: { getInstance: () => ({ hide() {} }), getOrCreateInstance: () => ({ show() {} }) } },
+    window: { devicePixelRatio: 1 },
+  });
+  vm.runInContext(script, context);
+  const payment = { _id: paymentId, orderId: id, status: "paid", refundStatus: "pending", amount: 300,
+    refundAmount: 300, refundReason: reason, submittedAt: new Date().toISOString(), events: [] };
+  const row = { ...payment, orderId: { _id: id, orderReference: "ORD-TEST", customer: { name: "A Customer" } } };
+  context.renderRefundDetail(row, payment, []);
+  assert.match(element("refundDetailActions").innerHTML, /Complete refund/);
+  assert.doesNotMatch(element("refundDetailActions").innerHTML, /href="\/admin\/payments"/);
+  element("refundRecordReason").value = "Refund sent to the customer's bank account.";
+  vm.runInContext("refundSelected={row:globalRow,payment:globalPayment}", Object.assign(context, { globalRow: row, globalPayment: payment }));
+  await context.issueRefund();
+  const action = requests.find(request => request.url.endsWith("/complete-refund"));
+  assert.ok(action);
+  assert.equal(action.options.method, "POST");
+  assert.equal(JSON.parse(action.options.body).notes, element("refundRecordReason").value);
+  const reviewRow = { _id: id, refundReview: true, refundReason: reason, submittedAt: new Date().toISOString(),
+    orderId: { _id: id, orderReference: "ORD-TEST", customer: { name: "A Customer" } } };
+  const reviewPayments = [{ _id: paymentId, amount: 300, status: "paid", method: "gcash" }];
+  context.renderRefundDetail(reviewRow, reviewRow, reviewPayments);
+  assert.match(element("refundDetailActions").innerHTML, /Queue verified refund/);
+  vm.runInContext("refundSelected={row:globalReview,payment:globalReview,reviewPayments:globalReviewPayments}",
+    Object.assign(context, { globalReview: reviewRow, globalReviewPayments: reviewPayments }));
+  await context.queueVerifiedRefund();
+  assert.ok(requests.some(request => request.url.endsWith("/order-refund-reviews/" + id + "/queue") && request.options.method === "POST"));
+  context.renderRefundDetail(row, { ...payment, status: "verified", refundStatus: "none" }, []);
+  assert.match(element("refundDetailActions").innerHTML, /refund request before a refund/);
+  assert.doesNotMatch(element("refundDetailActions").innerHTML, /Record refund/);
 });
 
 test("administrators can record verified manual order payments marked paid without broadening booking refunds", () => {
@@ -249,17 +301,22 @@ test("administrators can record verified manual order payments marked paid witho
   assert.throws(() => assertAdminTransition({ status: "pending", orderId: id }, "refund", body), error => error.code === "REMITTANCE_STATE_CONFLICT");
 });
 
-test("admin paid-order refunds require a cancelled order and an outstanding request", async t => {
+test("admin order refunds require a cancelled order and an outstanding request", async t => {
   const Payment = require("../models/Payment");
   const Order = require("../models/Order");
+  const ProductRefund = require("../models/ProductRefund");
   const api = require("../routes/adminApi");
   const handler = api.stack.find(layer => layer.route?.path === "/remittances/:id/status" && layer.route.methods.patch).route.stack.at(-1).handle;
   let orderStatus = "preparing_unit";
   let refundStatus = "pending";
+  let paymentStatus = "paid";
+  let requestedAmount = 0;
   let paymentSaved = false;
-  t.mock.method(Payment, "findById", async () => ({ _id: paymentId, orderId: id, status: "paid", refundStatus,
+  t.mock.method(Payment, "findById", async () => ({ _id: paymentId, orderId: id, status: paymentStatus, refundStatus,
+    amount: 300, refundAmount: requestedAmount,
     async save() { paymentSaved = true; } }));
   t.mock.method(Order, "findById", () => ({ select() { return this; }, lean: async () => ({ status: orderStatus }) }));
+  t.mock.method(ProductRefund, "exists", async () => false);
   const response = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
   const req = { params: { id: paymentId }, body: { action: "refund", reason }, user: { _id: userId, role: "admin" } };
   let res = response();
@@ -272,6 +329,71 @@ test("admin paid-order refunds require a cancelled order and an outstanding requ
   await handler(req, res, error => { throw error; });
   assert.equal(res.statusCode, 409);
   assert.equal(paymentSaved, false);
+  paymentStatus = "verified";
+  orderStatus = "preparing_unit";
+  refundStatus = "pending";
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(paymentSaved, false);
+  orderStatus = "cancelled";
+  refundStatus = "none";
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(paymentSaved, false);
+  refundStatus = "pending";
+  requestedAmount = 400;
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(paymentSaved, false);
+});
+
+test("completing a requested refund validates the amount and order before recording it once", async t => {
+  const Payment = require("../models/Payment");
+  const Order = require("../models/Order");
+  const ProductRefund = require("../models/ProductRefund");
+  const audit = require("../utils/audit");
+  const api = require("../routes/adminApi");
+  const handler = api.stack.find(layer => layer.route?.path === "/payments/:id/complete-refund" && layer.route.methods.post).route.stack.at(-1).handle;
+  let orderStatus = "cancelled";
+  let saves = 0;
+  let orderUpdate;
+  const payment = { _id: paymentId, orderId: id, amount: 300, refundAmount: 400,
+    status: "paid", refundStatus: "pending", events: [], async save() { saves++; } };
+  t.mock.method(Payment, "findById", async () => payment);
+  t.mock.method(Order, "findById", () => ({ select() { return this; }, lean: async () => ({ status: orderStatus }) }));
+  t.mock.method(ProductRefund, "exists", async () => false);
+  t.mock.method(Payment, "find", () => ({ select() { return this; }, lean: async () => [payment] }));
+  t.mock.method(Order, "findByIdAndUpdate", async (_id, update) => { orderUpdate = update; });
+  t.mock.method(audit, "logEvent", async () => {});
+  const response = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
+  const req = { params: { id: paymentId }, body: { notes: "Refund sent to the customer's bank account." }, user: { _id: userId, role: "admin" } };
+  let res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(saves, 0);
+  payment.refundAmount = 300;
+  orderStatus = "preparing_unit";
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(saves, 0);
+  orderStatus = "cancelled";
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 200);
+  assert.equal(saves, 1);
+  assert.equal(payment.status, "refunded");
+  assert.equal(payment.refundStatus, "completed");
+  assert.equal(payment.refundNotes, req.body.notes);
+  assert.match(payment.events[0].note, /Refund sent to the customer's bank account/);
+  assert.equal(orderUpdate.refundStatus, "completed");
+  res = response();
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 409);
+  assert.equal(saves, 1);
 });
 
 test("admin refund API includes pending requests even when the payment is not in remittance status", async t => {
@@ -294,6 +416,8 @@ test("admin refund API includes pending requests even when the payment is not in
   assert.deepEqual(filters[0], { refundStatus: "pending" });
   assert.equal(res.body.total, 1);
   assert.equal(res.body.payments[0].status, "paid");
+  await handler({ query: { refundStatus: "open" } }, response(), error => { throw error; });
+  assert.deepEqual(filters[1], { refundStatus: { $in: ["pending", "processing", "partial"] } });
   const invalid = response();
   await handler({ query: { refundStatus: "unknown" } }, invalid, error => { throw error; });
   assert.equal(invalid.statusCode, 400);

@@ -631,6 +631,7 @@
         </div>
       </div>
       <div class="au-hero-actions">
+        <a class="btn btn-light fw-bold" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-search me-1"></i> Unit Identification</a>
         <a class="btn btn-light fw-bold" href="<%= appointmentsOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
         <% if (appointmentsResolutionEnabled) { %>
           <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
@@ -4606,9 +4607,15 @@ window.AU = window.AU || {};
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const itemRows=items=>(items||[]).map((item,index)=>`<div class="border rounded-3 p-2 mb-2"><strong>${index+1}. ${esc(item.name||item.type||'Service')}</strong><div class="small text-muted">${esc([item.type,item.brand,item.model,item.applianceTypeName].filter(Boolean).join(' · '))} · Qty ${Number(item.quantity||1)}</div>${item.problemDescription||item.repairIssue?`<div class="small mt-1">${esc(item.problemDescription||item.repairIssue)}</div>`:''}</div>`).join('')||'<div class="text-muted small">No service items</div>';
   const formatChangeSchedule=schedule=>{
-    if(!schedule?.date||!schedule?.startTime)return'';
+    if(!schedule?.date)return'';
     const date=new Date(schedule.date);
     const dateLabel=Number.isNaN(date.getTime())?String(schedule.date):date.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    if(schedule.endDate){
+      const endDate=new Date(schedule.endDate);
+      const endLabel=Number.isNaN(endDate.getTime())?String(schedule.endDate):endDate.toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      return `${esc(dateLabel)} to ${esc(endLabel)}`;
+    }
+    if(!schedule.startTime)return'';
     return `${esc(dateLabel)} at ${esc(schedule.startTime)}${schedule.endTime?` - ${esc(schedule.endTime)}`:''}`;
   };
 
@@ -4633,10 +4640,11 @@ window.AU = window.AU || {};
       body.innerHTML=rows.length?rows.map(row=>{
         const added=Number(row.summary?.added||0),edited=Number(row.summary?.edited||0),removed=Number(row.summary?.removed||0);
         const serviceSummary=added||edited||removed?`${added} added, ${edited} edited, ${removed} removed`:'No service-item changes';
+        const projectDates=Boolean(row.requestedSchedule?.endDate);
         return `<article class="card border mb-3" data-booking="${row.bookingId}" data-request="${row._id}">
           <div class="card-header bg-white d-flex justify-content-between"><div><strong>${esc(row.bookingReference||row.bookingId)}</strong><div class="small text-muted">${esc(row.customer?.name||'Customer')} · ${new Date(row.requestedAt).toLocaleString()}</div></div><span class="badge bg-warning text-dark">${esc(row.status)}</span></div>
           <div class="card-body"><div class="row g-3"><div class="col-md-6"><div class="small fw-bold text-uppercase text-muted mb-2">Before</div>${itemRows(row.beforeServices)}</div><div class="col-md-6"><div class="small fw-bold text-uppercase text-primary mb-2">Proposed Services</div>${itemRows(row.proposedServices)}</div></div>${changeSchedulePanel(row)}<div class="small mt-3"><strong>Change:</strong> ${serviceSummary}${row.reason?' · '+esc(row.reason):''}</div></div>
-          <div class="card-footer bg-white d-flex flex-wrap justify-content-end gap-2"><button class="btn btn-sm btn-outline-warning sc-schedule">Propose Different Schedule</button><button class="btn btn-sm btn-outline-danger sc-reject">Reject</button><button class="btn btn-sm btn-success sc-approve">Approve Requested Changes</button></div>
+          <div class="card-footer bg-white d-flex flex-wrap justify-content-end gap-2">${projectDates?'':'<button class="btn btn-sm btn-outline-warning sc-schedule">Propose Different Schedule</button>'}<button class="btn btn-sm btn-outline-danger sc-reject">Reject</button><button class="btn btn-sm btn-success sc-approve">Approve Requested Changes</button></div>
         </article>`;
       }).join(''):'<div class="text-center text-muted py-5"><i class="bi bi-check2-circle fs-2 d-block mb-2"></i>No pending service changes.</div>';
       attach();
@@ -4644,7 +4652,7 @@ window.AU = window.AU || {};
       body.innerHTML=`<div class="alert alert-danger">${esc(error.message)}</div>`;
     }
   }
-  function attach(){body.querySelectorAll('article[data-request]').forEach(card=>{const decide=async(action,payload={})=>{const reason=payload.reason??prompt(action==='reject'?'Reason for rejection:':'Decision note (optional):','');if(reason===null)return;const response=await fetch(`/api/appointments/${card.dataset.booking}/service-change-requests/${card.dataset.request}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({action,reason,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Decision failed');await load();};card.querySelector('.sc-approve').onclick=()=>decide('approve').catch(e=>alert(e.message));card.querySelector('.sc-reject').onclick=()=>decide('reject').catch(e=>alert(e.message));card.querySelector('.sc-schedule').onclick=()=>{const date=prompt('Proposed date (YYYY-MM-DD):');if(!date)return;const startTime=prompt('Proposed start time (HH:MM):');if(!startTime)return;decide('propose_schedule',{date,startTime}).catch(e=>alert(e.message));};});}
+  function attach(){body.querySelectorAll('article[data-request]').forEach(card=>{const decide=async(action,payload={})=>{const reason=payload.reason??prompt(action==='reject'?'Reason for rejection:':'Decision note (optional):','');if(reason===null)return;const response=await fetch(`/api/appointments/${card.dataset.booking}/service-change-requests/${card.dataset.request}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({action,reason,...payload})});const data=await response.json();if(!response.ok)throw new Error(data.error||'Decision failed');await load();};card.querySelector('.sc-approve').onclick=()=>decide('approve').catch(e=>alert(e.message));card.querySelector('.sc-reject').onclick=()=>decide('reject').catch(e=>alert(e.message));const scheduleButton=card.querySelector('.sc-schedule');if(scheduleButton)scheduleButton.onclick=()=>{const date=prompt('Proposed date (YYYY-MM-DD):');if(!date)return;const startTime=prompt('Proposed start time (HH:MM):');if(!startTime)return;decide('propose_schedule',{date,startTime}).catch(e=>alert(e.message));};});}
   button.onclick=()=>{bootstrap.Modal.getOrCreateInstance(modal).show();load();};load();
 })();
 </script>

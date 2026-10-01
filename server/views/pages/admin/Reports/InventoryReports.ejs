@@ -1,3 +1,4 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
 <div class="admin-dashboard container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
@@ -217,7 +218,7 @@
     </div>
 
     <% const f = analytics && analytics.filterContext ? analytics.filterContext : {range:'30',kind:'all',inventoryClass:'all',status:'all',type:'all',supplier:'all',margin:'all',stock:'all',search:''}; %>
-    <form class="card border-0 shadow-sm mb-4" method="get" action="/admin/reports/inventory">
+    <form class="card border-0 shadow-sm mb-4" method="get" action="/<%= reportRole %>/reports/inventory">
       <div class="card-body row g-3 align-items-end">
         <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Usage Period</label><select class="form-select" name="range"><% [['7','7 days'],['30','30 days'],['90','90 days'],['365','12 months']].forEach(function(x){ %><option value="<%= x[0] %>" <%= f.range===x[0]?'selected':'' %>><%= x[1] %></option><% }); %></select></div>
         <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Catalog</label><select class="form-select" name="kind"><option value="all">All inventory</option><option value="product" <%= f.kind==='product'?'selected':'' %>>HVAC products</option><option value="tool" <%= f.kind==='tool'?'selected':'' %>>Parts & assets</option><option value="part" <%= f.kind==='part'?'selected':'' %>>Parts</option><option value="consumable" <%= f.kind==='consumable'?'selected':'' %>>Consumables</option><option value="equipment" <%= f.kind==='equipment'?'selected':'' %>>Equipment</option></select></div>
@@ -228,7 +229,7 @@
         <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Margin</label><select class="form-select" name="margin"><option value="all">All margins</option><option value="negative" <%= f.margin==='negative'?'selected':'' %>>Loss / zero</option><option value="low" <%= f.margin==='low'?'selected':'' %>>Below 20%</option><option value="healthy" <%= f.margin==='healthy'?'selected':'' %>>20% and above</option></select></div>
         <div class="col-lg-2 col-md-4"><label class="form-label small text-uppercase text-muted fw-bold">Stock Risk</label><select class="form-select" name="stock"><option value="all">All stock levels</option><option value="below_min" <%= f.stock==='below_min'?'selected':'' %>>At/below minimum</option><option value="overstock" <%= f.stock==='overstock'?'selected':'' %>>Potential overstock</option></select></div>
         <div class="col-lg-5 col-md-8"><label class="form-label small text-uppercase text-muted fw-bold">Search</label><input class="form-control" type="search" name="search" value="<%= f.search %>" placeholder="Item, SKU, barcode, brand, supplier…"></div>
-        <div class="col-lg-3 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-funnel me-2"></i>Apply</button><a class="btn btn-light border" href="/admin/reports/inventory">Reset</a></div>
+        <div class="col-lg-3 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-funnel me-2"></i>Apply</button><a class="btn btn-light border" href="/<%= reportRole %>/reports/inventory">Reset</a></div>
       </div>
     </form>
 

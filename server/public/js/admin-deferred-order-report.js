@@ -2,10 +2,11 @@
   "use strict";
   const target = document.getElementById("deferredOrderReport");
   if (!target) return;
+  const reportRole = target.dataset && target.dataset.reportRole === "secretary" ? "secretary" : "admin";
   async function load() {
     target.setAttribute("aria-busy", "true");
     try {
-      const response = await fetch("/admin/reports/orders/data" + window.location.search, {
+      const response = await fetch("/" + reportRole + "/reports/orders/data" + window.location.search, {
         credentials: "same-origin", headers: { Accept: "text/html" },
       });
       if (!response.ok || response.redirected) throw new Error("Report unavailable. Check your session and try again.");

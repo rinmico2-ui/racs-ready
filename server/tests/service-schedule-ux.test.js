@@ -24,7 +24,7 @@ test("appointment time choices do not expose technician counts", () => {
   assert.doesNotMatch(times, /technician|slot\.availableCount/);
   assert.match(times, /statusLabel = isSelected \? 'Selected' : 'Available'/);
   assert.match(times, /statusLabel = 'Fully booked'/);
-  assert.match(view, /enterprise-calendar\.js\?v=20260928-project-scheduling-v7/);
+  assert.match(view, /enterprise-calendar\.js\?v=20261001-project-date-guide-v1/);
 });
 
 test("calendar cells show only the day number; counts appear after choosing a date", () => {
@@ -34,7 +34,7 @@ test("calendar cells show only the day number; counts appear after choosing a da
   assert.doesNotMatch(appointment, /<span class="ent-cal-slots">|slotsText =/);
   assert.match(calendar, /const availableTimes = slots\.filter/);
   assert.match(calendar, /class="ent-time-count"/);
-  assert.match(view, /enterprise-calendar\.css\?v=20260928-project-scheduling-v7/);
+  assert.match(view, /enterprise-calendar\.css\?v=20261001-project-date-guide-v1/);
 });
 
 test("the schedule guides users from date to time with accessible choices", () => {
@@ -59,9 +59,10 @@ test("changing the date clears the previous time before a new one is chosen", ()
 });
 
 test("large-project range and arrival preferences are clear and persistent", () => {
-  assert.match(calendar, /First choose a preferred date range, then an optional site-arrival window/);
+  assert.match(calendar, /Choose when work can start, then choose the latest date you want it finished/);
   assert.match(calendar, /id="projectRangeResetBtn"/);
-  assert.match(calendar, /Tap a date to set the <strong>start date<\/strong>/);
+  assert.match(calendar, /First, choose the date the work can <strong>start<\/strong>/);
+  assert.match(calendar, /latest date you want the service finished/);
   assert.match(calendar, /Preferred Daily Site Arrival/);
   assert.match(calendar, /8:00 AM–12:00 PM/);
   assert.match(calendar, /aria-pressed=/);

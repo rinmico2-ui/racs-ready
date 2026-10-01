@@ -10,10 +10,12 @@ const {
 // secure (session) auth - optional new implementation
 const secureAuthRoutes = require("./secureAuth");
 
-// Google OAuth is sign-in only: the callback accepts existing accounts and
-// never creates a user record.
+// Google OAuth signs in existing accounts and offers profile completion to
+// first-time customers after Google verifies their identity.
 router.get("/google", googleAuthController.start);
 router.get("/google/callback", googleAuthController.callback);
+router.get("/google/signup", googleAuthController.signupPage);
+router.post("/google/complete-signup", googleAuthController.completeSignup);
 
 // Register - basic customer registration
 router.post(

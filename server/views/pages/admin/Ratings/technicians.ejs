@@ -1,3 +1,4 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
 <div class="container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
   <link rel="stylesheet" href="/css/analytics.css">
@@ -264,7 +265,7 @@
   async function loadTechnicianRatings() {
     try {
       showLoadingState();
-      const response = await fetch('/api/admin/ratings/technicians');
+      const response = await fetch('/api/<%= reportRole %>/ratings/technicians');
       if (response.ok) {
         const data = await response.json();
         technicianRatings = data.technicians || [];

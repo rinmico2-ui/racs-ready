@@ -97,7 +97,7 @@ test('revenue navigation renders a shell before expensive analytics finish', () 
   assert.match(route, /analytics:\s*null/);
   assert.match(route, /deferredAnalytics:\s*true/);
   assert.doesNotMatch(route, /await buildRevenueAnalytics/);
-  assert.match(template, /window\.__revenueInitialRequest\s*=\s*fetch\('\/api\/admin\/reports\/revenue'/);
+  assert.match(template, /window\.__revenueInitialRequest\s*=\s*fetch\('\/api\/<%= reportRole %>\/reports\/revenue'/);
   assert.match(template, /requestAnimationFrame\(\(\)\s*=>\s*applyFilters\(\{ initialLoad: true \}\)\)/);
   assert.match(template, /id="revenueDataState"/);
 });

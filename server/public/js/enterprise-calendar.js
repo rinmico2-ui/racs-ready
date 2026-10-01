@@ -4,9 +4,8 @@
  *
  * Supports two scheduling modes:
  *  - "appointment" (default): date + time-slot selection for standard jobs.
- *  - "project": large-scale / multi-day work. Only a start date is chosen
- *    (no time slots); the operations team builds the multi-day schedule.
- *    The customer may optionally provide scheduling preferences.
+ *  - "project": large-scale work. The customer chooses a start date and
+ *    latest acceptable finish date; operations confirms the work schedule.
  */
 
 "use strict";
@@ -44,6 +43,11 @@ const EnterpriseCalendar = (() => {
   let _availabilityMeta = null;     // { totalActiveTechnicians, dailyHours, horizonStart, horizonEnd }
   let _windowResult = null;         // last preferred-window verdict for the selected range
   let _windowError = null;          // transport/API failure message (distinct from "insufficient")
+  let _availabilityError = null;
+  let _availabilityExtendPromise = null;
+  let _availabilityRequestId = 0;
+  let _endDatePromptShown = false;
+  let _minProjectStartKey = null;
   let _projectPreferences = {
     workingDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
     preferredWorkingHours: 'morning',
@@ -69,6 +73,65 @@ const EnterpriseCalendar = (() => {
     return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   }
 
+  function projectRequiredHours() {
+    return Math.max(1, Math.round(_totalEstimatedMinutes / 6) / 10);
+  }
+
+  function earliestFeasibleProjectEndDate(startKey, dailyAvailability, requiredHours) {
+    if (!startKey || typeof dailyAvailability?.entries !== 'function') return null;
+    let availableHours = 0;
+    for (const [date, day] of [...dailyAvailability.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      if (date < startKey) continue;
+      availableHours += day?.isWorkingDay === false ? 0 : Math.max(0, Number(day?.capacityHours) || 0);
+      if (date > startKey && day?.isWorkingDay !== false && Number(day?.capacityHours) > 0 &&
+          availableHours + 1e-9 >= requiredHours) return date;
+    }
+    return null;
+  }
+
+  async function ensureProjectAvailabilityThrough(targetDate) {
+    if (_mode !== 'project' || !_availabilityMeta || !_projectAvailability) return false;
+    const targetKey = formatDateKey(targetDate);
+    if (targetKey <= _availabilityMeta.horizonEnd) return true;
+    if (_availabilityExtendPromise) {
+      const loaded = await _availabilityExtendPromise;
+      return loaded ? ensureProjectAvailabilityThrough(targetDate) : false;
+    }
+    const requestId = _availabilityRequestId;
+    const nextDay = new Date(`${_availabilityMeta.horizonEnd}T00:00:00`);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const extensionEnd = new Date(nextDay);
+    extensionEnd.setDate(extensionEnd.getDate() + 74);
+    const endKey = targetKey > formatDateKey(extensionEnd) ? targetKey : formatDateKey(extensionEnd);
+    _availabilityError = null;
+    _availabilityExtendPromise = (async () => {
+      try {
+        const response = await fetch('/api/projects/window-availability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startDate: formatDateKey(nextDay), endDate: endKey }),
+        });
+        if (!response.ok) throw new Error('Could not load project dates');
+        const data = await response.json();
+        if (requestId !== _availabilityRequestId) return false;
+        (data.days || []).forEach(day => _projectAvailability.set(day.date, day));
+        _availabilityMeta.horizonEnd = endKey;
+        _availabilityError = null;
+        return true;
+      } catch (error) {
+        if (requestId === _availabilityRequestId) _availabilityError = 'Could not load more available dates. Try again.';
+        return false;
+      }
+    })();
+    render();
+    const loaded = await _availabilityExtendPromise;
+    if (requestId === _availabilityRequestId) {
+      _availabilityExtendPromise = null;
+      render();
+    }
+    return loaded;
+  }
+
   function escapeHtml(str) {
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;')
@@ -90,7 +153,7 @@ const EnterpriseCalendar = (() => {
     if (document.getElementById('ent-calendar-styles')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/css/enterprise-calendar.css';
+    link.href = '/css/enterprise-calendar.css?v=20261001-project-date-guide-v1';
     link.id = 'ent-calendar-styles';
     document.head.appendChild(link);
   }
@@ -103,6 +166,13 @@ const EnterpriseCalendar = (() => {
   }
 
   async function init(opts = {}) {
+    _availabilityRequestId++;
+    _availabilityExtendPromise = null;
+    _availabilityError = null;
+    _endDatePromptShown = false;
+    _minProjectStartKey = opts.minProjectStartDate ? formatDateKey(opts.minProjectStartDate) : null;
+    _projectAvailability = null;
+    _availabilityMeta = null;
     _root = typeof opts.root === 'string'
       ? (document.querySelector(opts.root) || document)
       : (opts.root || document);
@@ -159,6 +229,9 @@ const EnterpriseCalendar = (() => {
 
     injectStyles();
     await loadData();
+    if (_mode === 'project') {
+      await ensureProjectAvailabilityThrough(new Date(_currentMonth.getFullYear(), _currentMonth.getMonth() + 1, 0));
+    }
     render();
     if (_mode === 'appointment' && _selectedDate) await loadTimeSlots(_selectedDate);
   }
@@ -223,6 +296,7 @@ const EnterpriseCalendar = (() => {
       _projectAvailability = null;
       _availabilityMeta = null;
       _projectCapacityData = null; // legacy fallback only
+      _availabilityError = null;
       if (_mode === 'project' || _scheduleData.blocked) {
         const todayKey = formatDateKey(new Date());
         const horizon = new Date();
@@ -242,13 +316,16 @@ const EnterpriseCalendar = (() => {
               horizonStart: todayKey,
               horizonEnd: formatDateKey(horizon),
             };
+          } else {
+            _availabilityError = 'Could not load available project dates. Try again.';
           }
         } catch (avErr) {
           console.warn('EnterpriseCalendar: window-availability load error', avErr);
+          _availabilityError = 'Could not load available project dates. Try again.';
         }
 
         // Legacy fallback so a failed availability fetch cannot brick the UI.
-        if (!_projectAvailability) {
+        if (!_projectAvailability && _mode !== 'project') {
           try {
             const capParams = new URLSearchParams({
               duration: '60',
@@ -853,9 +930,7 @@ const EnterpriseCalendar = (() => {
     const totalHours = Math.round((_totalEstimatedMinutes / 60) * 10) / 10;
     const techCount = _availabilityMeta?.totalActiveTechnicians || null;
     const bannerTechNote = techCount ? ` Our team currently has <strong>${techCount} technician${techCount !== 1 ? 's' : ''}</strong> available.` : '';
-    const bannerSub = _scheduleData.blocked
-      ? `This service requires multiple working days (est. ${totalHours}h of work). First choose your <strong>start and end dates</strong>, then choose a preferred morning or afternoon site-arrival window. Unavailable dates inside the range are skipped.${bannerTechNote}`
-      : `This service requires multiple working days (est. ${totalHours}h of work). First choose a preferred date range, then an optional site-arrival window. This is not an exact appointment time.${bannerTechNote}`;
+    const bannerSub = `Choose when work can start, then choose the latest date you want it finished. Dates that cannot fit the work are unavailable. The team will confirm the final schedule. Estimated work: ${totalHours} hours.${bannerTechNote}`;
     html += `
       <div class="ent-project-banner">
         <i class="bi bi-kanban"></i>
@@ -868,6 +943,9 @@ const EnterpriseCalendar = (() => {
     // Step indicators
     const startSelected = !!_selectedDate;
     const endSelected = !!_selectedEndDate;
+    const earliestEndKey = startSelected
+      ? earliestFeasibleProjectEndDate(formatDateKey(_selectedDate), _projectAvailability, projectRequiredHours())
+      : null;
     const step1Class = startSelected ? 'completed' : 'active';
     const step2Class = endSelected ? 'completed' : (startSelected ? 'active' : 'pending');
     html += `
@@ -879,16 +957,23 @@ const EnterpriseCalendar = (() => {
         <div class="ent-range-step-arrow"><i class="bi bi-arrow-right"></i></div>
         <div class="ent-range-step ${step2Class}">
           <span class="ent-range-step-num">${endSelected ? '<i class="bi bi-check-lg"></i>' : '2'}</span>
-          <span class="ent-range-step-label">End Date${_selectedEndDate ? ': ' + formatDateDisplay(_selectedEndDate) : (startSelected ? ' — select below' : '')}</span>
+          <span class="ent-range-step-label">Finish By${_selectedEndDate ? ': ' + formatDateDisplay(_selectedEndDate) : (startSelected ? ' — select below' : '')}</span>
         </div>
         ${startSelected ? '<button type="button" class="ent-range-reset" id="projectRangeResetBtn"><i class="bi bi-arrow-counterclockwise"></i> Change dates</button>' : ''}
       </div>`;
 
     // Prompt text
     if (!startSelected) {
-      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-hand-index-thumb me-1"></i>Tap a date to set the <strong>start date</strong></div>`;
+      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-hand-index-thumb me-1"></i>First, choose the date the work can <strong>start</strong>.</div>`;
     } else if (!_selectedEndDate) {
-      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-hand-index-thumb me-1"></i>Now tap a later date to set the <strong>end date</strong></div>`;
+      const endGuidance = earliestEndKey
+        ? `The earliest available finish date is <strong>${formatDateDisplay(earliestEndKey)}</strong>. Choose that date or a later available date.`
+        : _availabilityExtendPromise ? 'Checking which finish dates have enough time for the work...'
+          : 'No finish date is available in the loaded calendar. Try another start date or view a later month.';
+      html += `<div class="ent-range-prompt" role="status"><i class="bi bi-calendar-check me-1"></i>Now choose the <strong>latest date you want the service finished</strong>. ${endGuidance}</div>`;
+    }
+    if (_availabilityError || !_projectAvailability) {
+      html += `<div class="ent-range-prompt ent-range-prompt-error" role="alert">${escapeHtml(_availabilityError || 'Available project dates could not be loaded.')} <button type="button" id="projectAvailabilityRetryBtn">Try again</button></div>`;
     }
 
     // Calendar header
@@ -905,6 +990,7 @@ const EnterpriseCalendar = (() => {
       <div class="ent-cal-legend">
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Limited Capacity</div>
+        ${startSelected && !endSelected ? '<div class="ent-cal-legend-item"><span class="ent-cal-legend-dot too-soon"></span>Too soon to finish</div>' : ''}
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>No Project Capacity</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot selected"></span>Selected</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot in-range"></span>In Preferred Window</div>
@@ -923,7 +1009,7 @@ const EnterpriseCalendar = (() => {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateObj = new Date(year, month, day);
       const key = formatDateKey(dateObj);
-      const isPast = key < formatDateKey(today);
+      const isPast = key < (_minProjectStartKey || formatDateKey(today));
       const isToday = key === formatDateKey(today);
       const holInfo = holMap[key];
       const availSlots = capacityMap[key];
@@ -973,7 +1059,11 @@ const EnterpriseCalendar = (() => {
           reasonText = 'Fully Available';
           tooltipText = `${A} technicians available · full daily capacity (~${hrs}h)`;
         }
-      } else if (availSlots !== undefined) {
+      } else if (!_projectAvailability) {
+        cellClass += ' unchecked';
+        reasonText = 'Unavailable';
+        tooltipText = 'Project availability could not be checked';
+      } else if (availSlots !== undefined && _mode !== 'project') {
         // Legacy fallback: slot counts from /api/schedule/available-dates.
         // These are WORK SLOTS, never technicians.
         if (availSlots <= 0) {
@@ -1001,11 +1091,30 @@ const EnterpriseCalendar = (() => {
         reasonText = 'Non-Working Day';
         tooltipText = 'Not a working day';
       } else {
-        // Beyond the loaded horizon or no data — permissive fallback so far-
-        // future windows stay selectable; server-side validation decides.
-        cellClass += ' available';
-        clickable = true;
-        tooltipText = projReserved > 0 ? `${projReserved} technician(s) reserved by projects` : 'Working day — select to set date';
+        // Dates outside the checked horizon stay unavailable until loaded.
+        cellClass += ' unchecked';
+        reasonText = _availabilityExtendPromise ? 'Checking...' : 'Not checked';
+        tooltipText = 'Project availability is being checked';
+      }
+
+      if (clickable && startSelected && _selectingEndDate) {
+        if (key <= formatDateKey(_selectedDate)) {
+          clickable = false;
+          if (key < formatDateKey(_selectedDate)) {
+            cellClass += ' too-soon';
+            reasonText = 'Before start';
+            slotsText = '';
+          }
+          tooltipText = 'Choose a finish date after the start date';
+        } else if (!earliestEndKey || key < earliestEndKey) {
+          clickable = false;
+          cellClass += ' too-soon';
+          reasonText = earliestEndKey ? 'Too soon' : 'Not enough time';
+          slotsText = '';
+          tooltipText = earliestEndKey
+            ? `The work cannot fit by this date. Earliest available finish: ${formatDateDisplay(earliestEndKey)}`
+            : 'The work cannot fit by this date';
+        }
       }
 
       // Range highlighting
@@ -1110,12 +1219,14 @@ const EnterpriseCalendar = (() => {
       prevMonth.setMonth(prevMonth.getMonth() - 1);
       _currentMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1);
       render();
+      ensureProjectAvailabilityThrough(new Date(_currentMonth.getFullYear(), _currentMonth.getMonth() + 1, 0));
     });
     getElement('entCalNext')?.addEventListener('click', () => {
       const nextMonth = new Date(_currentMonth);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       _currentMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
       render();
+      ensureProjectAvailabilityThrough(new Date(_currentMonth.getFullYear(), _currentMonth.getMonth() + 1, 0));
     });
     getElement('projectRangeResetBtn')?.addEventListener('click', () => {
       resetRange();
@@ -1123,11 +1234,17 @@ const EnterpriseCalendar = (() => {
     });
 
     // Day clicks → range selection (both available and limited-capacity days)
-    container.querySelectorAll('.ent-cal-cell.available, .ent-cal-cell.limited').forEach(cell => {
+    container.querySelectorAll('.ent-cal-cell[role="button"]').forEach(cell => {
       cell.addEventListener('click', () => handleProjectDateSelect(cell.dataset.date));
       cell.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleProjectDateSelect(cell.dataset.date); }
       });
+    });
+
+    getElement('projectAvailabilityRetryBtn')?.addEventListener('click', async () => {
+      await loadData();
+      await ensureProjectAvailabilityThrough(new Date(_currentMonth.getFullYear(), _currentMonth.getMonth() + 1, 0));
+      render();
     });
 
     // Insufficient-window actions
@@ -1157,10 +1274,12 @@ const EnterpriseCalendar = (() => {
   async function handleProjectDateSelect(dateStr) {
     const parts = dateStr.split('-');
     const clickedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    let pickedStart = false;
 
     if (!_selectedDate || _selectingEndDate) {
       if (!_selectedDate) {
         _selectedDate = clickedDate;
+        pickedStart = true;
         _selectedEndDate = null;
         _selectingEndDate = true;
         _lastValidationResult = null;
@@ -1171,6 +1290,7 @@ const EnterpriseCalendar = (() => {
 
         if (clickedKey <= startKey) {
           _selectedDate = clickedDate;
+          pickedStart = true;
           _selectedEndDate = null;
           _selectingEndDate = true;
           _lastValidationResult = null;
@@ -1184,6 +1304,7 @@ const EnterpriseCalendar = (() => {
       }
     } else {
       _selectedDate = clickedDate;
+      pickedStart = true;
       _selectedEndDate = null;
       _selectingEndDate = true;
       _lastValidationResult = null;
@@ -1193,6 +1314,25 @@ const EnterpriseCalendar = (() => {
     _selectedSlot = null;
     render();
     syncProjectSelection();
+
+    if (pickedStart) {
+      if (!_endDatePromptShown) {
+        _endDatePromptShown = true;
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'info',
+            title: 'Start date selected',
+            text: 'Now choose the latest date you want the service finished. Dates that do not allow enough time are unavailable.',
+            confirmButtonText: 'Choose finish date',
+          });
+        }
+      }
+      if (!earliestFeasibleProjectEndDate(formatDateKey(_selectedDate), _projectAvailability, projectRequiredHours())) {
+        const laterDate = new Date(_selectedDate);
+        laterDate.setDate(laterDate.getDate() + 75);
+        ensureProjectAvailabilityThrough(laterDate);
+      }
+    }
 
     if (_selectedDate && _selectedEndDate && !_selectingEndDate) {
       const isValid = await validateProjectRange();
@@ -1543,6 +1683,7 @@ const EnterpriseCalendar = (() => {
   // Sum of the per-service quantities the customer entered in the booking UI.
   // Used to pre-fill the "Total Units" field so the project reflects reality.
   function getCustomerUnitTotal() {
+    if (!_syncGlobalState) return _quantity;
     const sel = (window.BookingState && window.BookingState.selectedServices) ||
                 (window.RepairState && window.RepairState.selectedServices) || [];
     const total = Array.isArray(sel) ? sel.reduce((t, s) => t + (Number(s.quantity) || 1), 0) : 0;
@@ -1606,6 +1747,7 @@ const EnterpriseCalendar = (() => {
     isProjectMode,
     getMode,
     getWindowVerdict,
+    earliestFeasibleProjectEndDate,
     getCustomerUnitTotal,
     formatDateKey,
     minutesToTime,

@@ -1331,6 +1331,7 @@
                 </select>
                 <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Enter the brand" maxlength="80" required>
                 <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
+                <button type="button" class="btn btn-outline-primary mt-3" id="cfgUnknownBrandBtn">I don't know the unit details</button>
               </div>
 
               <div id="issueDescriptionSection" class="mb-3 d-none">
@@ -1352,6 +1353,14 @@
 
               <div class="mb-2" id="hpSelectionSection" style="display:none;">
                 <div id="hpOptionsContainer"></div>
+              </div>
+              <div id="unitAssistancePanel" class="cfg-stage-panel mb-3 d-none">
+                <h6 class="fw-bold">Let us identify your aircon</h6>
+                <p class="small text-muted mb-3">Tell us anything you know. Staff will check the type and HP, then send the exact service price for your approval. No payment or appointment is made now.</p>
+                <label class="cfg-fl" for="unitAssistanceNotes">Details you know (optional)</label>
+                <textarea class="cfg-f" id="unitAssistanceNotes" maxlength="1000" rows="3" placeholder="For example: wall-mounted, one indoor unit, or a model on the label"></textarea>
+                <p class="small text-muted mt-2 mb-0">Units: <strong id="unitAssistanceQuantity">1</strong>. Change the quantity above if needed.</p>
+                <button type="button" class="btn btn-link px-0 mt-2 d-none" id="cfgContinueKnownType">I know the type and HP; continue choosing</button>
               </div>
 
             </div>
@@ -2709,7 +2718,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 </style>
 
-<link id="ent-calendar-styles" rel="stylesheet" href="/css/enterprise-calendar.css?v=20260928-project-scheduling-v7">
+<link id="ent-calendar-styles" rel="stylesheet" href="/css/enterprise-calendar.css?v=20261001-project-date-guide-v1">
 <script>
   // Leaflet is already loaded by the main layout (main.ejs).
   // Only mark it as ready if the L global exists; never reload from CDN to avoid conflicts.
@@ -2734,7 +2743,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20260928-project-scheduling-v7';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261001-project-date-guide-v1';document.head.appendChild(e)})();
   (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260928-input-security-v9':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 

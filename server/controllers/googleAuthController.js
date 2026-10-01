@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const { google } = require("googleapis");
 const User = require("../models/User");
 const AuthSession = require("../models/AuthSession");
+const audit = require("../utils/audit");
+const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { isAccountEnabled } = require("../middleware/accountState");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
 const authController = require("./authController");
@@ -10,6 +12,8 @@ const authController = require("./authController");
 const OAUTH_COOKIE = "google_oauth_state";
 const OAUTH_COOKIE_PATH = "/api/auth/google/callback";
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
+const GOOGLE_SIGNUP_COOKIE = "google_signup_state";
+const GOOGLE_SIGNUP_TTL_SECONDS = 30 * 60;
 
 function googleOAuthConfig() {
   const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || "").trim();
@@ -92,6 +96,76 @@ function canonicalStartUrl(req, config) {
 
 function callbackError(res, code) {
   return res.redirect(303, `/login?google_error=${encodeURIComponent(code)}`);
+}
+
+function signupCookieOptions(config = googleOAuthConfig()) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production" || isHttpsUrl(config.redirectUri),
+    sameSite: "lax",
+    maxAge: GOOGLE_SIGNUP_TTL_SECONDS * 1000,
+    path: "/api/auth/google",
+  };
+}
+
+function signupState(req) {
+  const token = req.cookies && req.cookies[GOOGLE_SIGNUP_COOKIE];
+  if (!token) return null;
+  try {
+    const state = jwt.verify(token, oauthSigningSecret(), { algorithms: ["HS256"] });
+    return state.purpose === "google_customer_signup" && state.sub && state.email
+      ? state
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function cleanName(value) {
+  const name = String(value || "").trim();
+  return /^[A-Za-z\s]{1,20}$/.test(name) ? name : "";
+}
+
+function signupDetails(body) {
+  const firstName = cleanName(body?.firstName);
+  const lastName = cleanName(body?.lastName);
+  const phone = String(body?.phone || "").replace(/\D/g, "");
+  const province = String(body?.addressProvince || "").trim();
+  const city = String(body?.addressCity || "").trim();
+  const barangay = String(body?.addressBarangay || "").trim();
+  const postalCode = String(body?.addressPostal || "").trim();
+  if (!firstName || !lastName || !/^(?:0\d{10}|63\d{10}|9\d{9})$/.test(phone)
+    || !province || province.length > 100 || !city || city.length > 100
+    || !barangay || barangay.length > 100 || !/^\d{1,4}$/.test(postalCode)
+    || body?.termsAccepted !== true) return null;
+  return { firstName, lastName, phone, address: { province, city, barangay, postalCode } };
+}
+
+async function finishGoogleLogin(req, res, user, returnTo) {
+  await regenerateSession(req);
+  req.session.userId = user._id.toString();
+  req.session.role = user.role;
+  req.session.createdAt = Date.now();
+  req.session.lastActivity = Date.now();
+
+  const redirect = await authController.establishJwtLogin(req, res, user, false, {
+    method: "google",
+    returnTo: safeReturnTo(returnTo),
+    sameSite: "lax",
+  });
+
+  try {
+    await AuthSession.create({
+      sessionId: req.sessionID,
+      userId: user._id,
+      ip: req.ip || "",
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 512),
+    });
+  } catch (error) {
+    console.warn("googleAuth: AuthSession create failed", error && error.message);
+  }
+  await saveSession(req);
+  return redirect;
 }
 
 function createOAuthClient(config) {
@@ -224,16 +298,58 @@ exports.callback = async (req, res) => {
       profile.email_verified !== true ||
       !email ||
       email.length > 254 ||
+      !profile.sub ||
+      String(profile.sub).length > 255 ||
       profile.nonce !== oauthState.nonce
     ) {
       return callbackError(res, "invalid_account");
     }
 
-    // Google login intentionally never provisions users. The email must already
-    // belong to an active, verified account created through the normal workflow.
-    const user = await User.findOne({ email });
-    if (!user) return callbackError(res, "account_not_found");
-    if (!isAccountEnabled(user)) return callbackError(res, "account_unavailable");
+    const sub = String(profile.sub);
+    const authoritativeEmail = email.endsWith("@gmail.com") || Boolean(profile.hd);
+    const bySubject = await User.findOne({ googleSubject: sub }).select("+googleSubject");
+    let user = bySubject;
+    if (!user) user = await User.findOne({ email }).select("+googleSubject");
+    if (user?.googleSubject && user.googleSubject !== sub) {
+      return callbackError(res, "account_unavailable");
+    }
+    if (!bySubject && user && !authoritativeEmail) {
+      return callbackError(res, "email_verification_required");
+    }
+    if (!user || user.emailVerified === false) {
+      if (user && (user.role !== "customer" || user.accountOrigin !== "self_registration")) {
+        return callbackError(res, "account_unavailable");
+      }
+      const policy = await getSystemConfiguration();
+      if (!policy.application.allowCustomerRegistrations) {
+        return callbackError(res, "registration_disabled");
+      }
+      // Google is not necessarily the current owner of a third-party email.
+      // Gmail and Google Workspace identities can complete signup without
+      // another email challenge; others use the existing email OTP workflow.
+      if (!authoritativeEmail) {
+        return callbackError(res, "email_verification_required");
+      }
+      const signupToken = jwt.sign({
+        purpose: "google_customer_signup",
+        sub,
+        email,
+        firstName: cleanName(profile.given_name),
+        lastName: cleanName(profile.family_name),
+        returnTo: safeReturnTo(oauthState.returnTo),
+      }, oauthSigningSecret(), { algorithm: "HS256", expiresIn: GOOGLE_SIGNUP_TTL_SECONDS });
+      res.cookie(GOOGLE_SIGNUP_COOKIE, signupToken, signupCookieOptions(config));
+      return res.redirect(303, "/api/auth/google/signup");
+    }
+    if (!isAccountEnabled(user) || user.accountStatus === "invited") {
+      return callbackError(res, "account_unavailable");
+    }
+    if (!user.googleSubject && user.role === "customer") {
+      const linked = await User.updateOne({ _id: user._id, googleSubject: { $exists: false } }, {
+        $set: { googleSubject: sub },
+      });
+      if (linked.matchedCount !== 1) return callbackError(res, "account_unavailable");
+    }
 
     // A verified Google identity is a successful authentication. Clear stale
     // password/OTP failure counters so a prior typo cannot poison the next
@@ -244,34 +360,108 @@ exports.callback = async (req, res) => {
       loginRateLimiter.scopedIpIdentifier(req.ip || "", email),
     );
 
-    await regenerateSession(req);
-    req.session.userId = user._id.toString();
-    req.session.role = user.role;
-    req.session.createdAt = Date.now();
-    req.session.lastActivity = Date.now();
-
-    const redirect = await authController.establishJwtLogin(req, res, user, false, {
-      method: "google",
-      returnTo: safeReturnTo(oauthState.returnTo),
-      sameSite: "lax",
-    });
-
-    try {
-      await AuthSession.create({
-        sessionId: req.sessionID,
-        userId: user._id,
-        ip: req.ip || "",
-        userAgent: String(req.headers["user-agent"] || "").slice(0, 512),
-      });
-    } catch (error) {
-      console.warn("googleAuth.callback: AuthSession create failed", error && error.message);
-    }
-
-    await saveSession(req);
+    const redirect = await finishGoogleLogin(req, res, user, oauthState.returnTo);
     return res.redirect(303, redirect);
   } catch (error) {
     console.warn("Google sign-in failed", error && error.message);
     return callbackError(res, "failed");
+  }
+};
+
+exports.signupPage = async (req, res) => {
+  const state = signupState(req);
+  if (!state) return callbackError(res, "signup_expired");
+  res.set("Cache-Control", "no-store");
+  return res.render("pages/googleSignup", {
+    title: "Finish Google Sign Up | CALIDRO RACS",
+    layout: "layouts/auth",
+    email: state.email,
+    firstName: state.firstName || "",
+    lastName: state.lastName || "",
+    extraScripts: ["/js/psgc-handler.js", "/js/google-signup.js"],
+  });
+};
+
+exports.completeSignup = async (req, res, next) => {
+  try {
+    const state = signupState(req);
+    if (!state) return res.status(401).json({ error: "Google signup expired. Please start again." });
+    const policy = await getSystemConfiguration();
+    if (!policy.application.allowCustomerRegistrations) {
+      return res.status(403).json({ error: "New customer registration is temporarily unavailable." });
+    }
+    const details = signupDetails(req.body);
+    if (!details) {
+      return res.status(400).json({ error: "Complete your name, phone, address, and agreement." });
+    }
+
+    const bySubject = await User.findOne({ googleSubject: state.sub }).select("+googleSubject");
+    const byEmail = await User.findOne({ email: state.email }).select("+googleSubject");
+    if (bySubject && byEmail && String(bySubject._id) !== String(byEmail._id)) {
+      return res.status(409).json({ error: "This Google account cannot be linked to that email." });
+    }
+    const user = bySubject || byEmail || new User({
+      email: state.email,
+      role: "customer",
+      accountOrigin: "self_registration",
+    });
+    if (user.googleSubject && user.googleSubject !== state.sub) {
+      return res.status(409).json({ error: "This email is linked to another Google account." });
+    }
+    if (user.role !== "customer" || user.accountStatus === "invited"
+      || user.active === false || user.blocked === true) {
+      return res.status(403).json({ error: "This account cannot use Google signup." });
+    }
+    if (user.emailVerified !== false && !user.isNew) {
+      return res.status(409).json({ error: "This account already exists. Sign in with Google instead." });
+    }
+    if (!user.isNew && user.accountOrigin !== "self_registration") {
+      return res.status(403).json({ error: "This account cannot use Google signup." });
+    }
+
+    user.googleSubject = state.sub;
+    user.firstName = details.firstName;
+    user.lastName = details.lastName;
+    user.phone = details.phone;
+    user.address = details.address;
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date();
+    user.emailVerificationOtpHash = undefined;
+    user.emailVerificationExpires = undefined;
+    user.emailVerificationLastSentAt = undefined;
+    user.emailVerificationAttempts = undefined;
+    // A pending email signup may contain a password chosen by someone who did
+    // not control the address. Replace it when Google proves the identity.
+    await user.setPassword(crypto.randomBytes(32).toString("hex"));
+    await user.save();
+    const cookieOptions = signupCookieOptions();
+    res.clearCookie(GOOGLE_SIGNUP_COOKIE, {
+      httpOnly: cookieOptions.httpOnly,
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite,
+      path: cookieOptions.path,
+    });
+
+    try {
+      await audit.logEvent({
+        actor: user._id,
+        target: user._id,
+        action: "USER_REGISTER",
+        module: "auth",
+        req,
+        details: { method: "google", role: "customer" },
+      });
+    } catch (error) {
+      console.warn("googleAuth.completeSignup: audit log failed", error && error.message);
+    }
+
+    const redirect = await finishGoogleLogin(req, res, user, state.returnTo);
+    return res.status(201).json({ message: "Account created with Google.", redirect });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ error: "This account was already created. Sign in with Google." });
+    }
+    return next(error);
   }
 };
 
@@ -284,4 +474,7 @@ exports._test = {
   safeReturnTo,
   canonicalStartUrl,
   stateCookieOptions,
+  signupCookieOptions,
+  signupDetails,
+  signupState,
 };

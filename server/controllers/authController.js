@@ -98,6 +98,29 @@ function generateOTP() {
 const REGISTRATION_OTP_TTL_MS = 10 * 60 * 1000;
 const REGISTRATION_OTP_RESEND_MS = 60 * 1000;
 const REGISTRATION_OTP_MAX_ATTEMPTS = 5;
+const REGISTRATION_FLOW_COOKIE = "registration_flow";
+
+function registrationFlowCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/auth",
+  };
+}
+
+function registrationFlowToken(req) {
+  if (req.cookies) return req.cookies[REGISTRATION_FLOW_COOKIE];
+  try { return parseCookies(req)[REGISTRATION_FLOW_COOKIE]; } catch { return undefined; }
+}
+
+function registrationFlowMatches(req, user) {
+  const token = registrationFlowToken(req);
+  if (!user.registrationFlowHash || !/^[a-f0-9]{64}$/.test(String(token || ""))) return false;
+  const actual = crypto.createHash("sha256").update(token).digest();
+  const expected = Buffer.from(user.registrationFlowHash, "hex");
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
 
 function normalizeEmailKey(email) {
   return String(email || "")
@@ -129,6 +152,7 @@ function clearRegistrationVerification(user) {
   user.emailVerificationExpires = undefined;
   user.emailVerificationLastSentAt = undefined;
   user.emailVerificationAttempts = undefined;
+  user.registrationFlowHash = undefined;
 }
 
 async function sendOTPEmail(email, otp, type = "verification") {
@@ -179,7 +203,13 @@ async function sendOTPEmail(email, otp, type = "verification") {
   `;
   const text = `${type === "login" ? "Your login OTP is:" : "Your verification OTP is:"} ${otp}. This code expires in 10 minutes.`;
   try {
-    const res = await mailer.sendMail({ to: email, subject, html, text });
+    const res = await mailer.sendMail({
+      to: email,
+      subject,
+      html,
+      text,
+      source: type === "login" ? "login_otp" : "registration_otp",
+    });
     console.log(
       "sendOTPEmail: mailer.sendMail result for",
       email,
@@ -482,6 +512,13 @@ exports.register = async (req, res, next) => {
     if (existingUser && existingUser.emailVerified !== false) {
       return res.status(409).json({ error: "Email is already registered." });
     }
+    if (existingUser && (existingUser.role !== "customer"
+      || existingUser.accountOrigin !== "self_registration"
+      || existingUser.accountStatus === "invited"
+      || existingUser.active === false
+      || existingUser.blocked === true)) {
+      return res.status(409).json({ error: "This email cannot be used for signup. Please contact support." });
+    }
 
     if (requiresEmailVerification && existingUser && existingUser.emailVerificationLastSentAt) {
       const elapsed =
@@ -497,6 +534,9 @@ exports.register = async (req, res, next) => {
     }
 
     const otp = requiresEmailVerification ? generateOTP() : null;
+    const registrationFlowToken = requiresEmailVerification
+      ? crypto.randomBytes(32).toString("hex")
+      : null;
     const now = Date.now();
     const hashedPassword = await hashPassword(password);
 
@@ -504,11 +544,6 @@ exports.register = async (req, res, next) => {
     // duplicate account that can never complete verification.
     const user = existingUser || new User({ email, role: "customer" });
     if (!existingUser) user.accountOrigin = "self_registration";
-    if (user.accountStatus === "invited") {
-      user.accountStatus = "active";
-      user.invitationActivatedAt = new Date(now);
-      user.clearAccountInvitation();
-    }
     user.passwordHash = hashedPassword;
     user.firstName = firstName;
     user.lastName = lastName;
@@ -521,11 +556,21 @@ exports.register = async (req, res, next) => {
       user.emailVerificationExpires = new Date(now + REGISTRATION_OTP_TTL_MS);
       user.emailVerificationLastSentAt = new Date(now);
       user.emailVerificationAttempts = 0;
+      user.registrationFlowHash = crypto.createHash("sha256")
+        .update(registrationFlowToken).digest("hex");
     } else {
       clearRegistrationVerification(user);
     }
 
     await user.save();
+    if (requiresEmailVerification) {
+      res.cookie(REGISTRATION_FLOW_COOKIE, registrationFlowToken, {
+        ...registrationFlowCookieOptions(),
+        maxAge: REGISTRATION_OTP_TTL_MS,
+      });
+    } else {
+      res.clearCookie(REGISTRATION_FLOW_COOKIE, registrationFlowCookieOptions());
+    }
 
     // Audit log: record who created the account (actor and target set to the new user id)
     try {
@@ -542,10 +587,12 @@ exports.register = async (req, res, next) => {
     }
 
     if (!requiresEmailVerification) {
+      const redirect = await establishJwtLogin(req, res, user, false, { method: "registration" });
       return res.status(201).json({
-        message: "Account created. You can now sign in.",
+        message: "Account created. You are signed in.",
         requiresVerification: false,
-        redirect: "/login?registered=1",
+        signedIn: true,
+        redirect,
       });
     }
 
@@ -606,10 +653,15 @@ exports.verifyRegisterOTP = async (req, res, next) => {
       });
 
     const user = await User.findOne({ email }).select(
-      "+emailVerificationOtpHash +emailVerificationExpires +emailVerificationAttempts",
+      "+emailVerificationOtpHash +emailVerificationExpires +emailVerificationAttempts +registrationFlowHash",
     );
     if (!user || user.emailVerified !== false) {
       return res.status(400).json({ error: "Invalid or expired OTP." });
+    }
+    if (Number(user.emailVerificationAttempts || 0) >= REGISTRATION_OTP_MAX_ATTEMPTS) {
+      return res.status(429).json({
+        error: "Too many verification attempts. Please request a new code.",
+      });
     }
 
     const expired =
@@ -639,6 +691,13 @@ exports.verifyRegisterOTP = async (req, res, next) => {
       });
     }
 
+    const signedUpInThisBrowser = registrationFlowMatches(req, user);
+    if (user.registrationFlowHash && !signedUpInThisBrowser) {
+      return res.status(403).json({
+        error: "Please verify in the browser where you started signup, or start signup again.",
+      });
+    }
+
     user.emailVerified = true;
     user.emailVerifiedAt = new Date();
     if (user.accountStatus === "invited") {
@@ -648,6 +707,7 @@ exports.verifyRegisterOTP = async (req, res, next) => {
     }
     clearRegistrationVerification(user);
     await user.save();
+    res.clearCookie(REGISTRATION_FLOW_COOKIE, registrationFlowCookieOptions());
 
     rateLimiter.reset("email", email);
 
@@ -664,9 +724,15 @@ exports.verifyRegisterOTP = async (req, res, next) => {
       console.warn("audit.logEvent failed", e && e.message);
     }
 
+    const redirect = signedUpInThisBrowser
+      ? await establishJwtLogin(req, res, user, false, { method: "registration" })
+      : "/login?verified=1";
     return res.status(200).json({
-      message: "Email verified. You can now sign in.",
-      redirect: "/login?verified=1",
+      message: signedUpInThisBrowser
+        ? "Email verified. You are signed in."
+        : "Email verified. You can now sign in.",
+      signedIn: signedUpInThisBrowser,
+      redirect,
     });
   } catch (err) {
     next(err);
@@ -688,12 +754,17 @@ exports.resendRegisterOTP = async (req, res, next) => {
     }
 
     const user = await User.findOne({ email }).select(
-      "+emailVerificationLastSentAt",
+      "+emailVerificationLastSentAt +registrationFlowHash",
     );
     if (!user || user.emailVerified !== false) {
       return res
         .status(400)
         .json({ error: "No pending registration for that email." });
+    }
+    if (user.registrationFlowHash && !registrationFlowMatches(req, user)) {
+      return res.status(403).json({
+        error: "Please resend the code from the browser where you started signup, or start signup again.",
+      });
     }
 
     const now = Date.now();
@@ -716,6 +787,12 @@ exports.resendRegisterOTP = async (req, res, next) => {
     user.emailVerificationLastSentAt = new Date(now);
     user.emailVerificationAttempts = 0;
     await user.save();
+    if (user.registrationFlowHash) {
+      res.cookie(REGISTRATION_FLOW_COOKIE, registrationFlowToken(req), {
+        ...registrationFlowCookieOptions(),
+        maxAge: REGISTRATION_OTP_TTL_MS,
+      });
+    }
 
     const sendResult = await sendOTPEmail(email, otp, "register");
     if (!sendResult) {

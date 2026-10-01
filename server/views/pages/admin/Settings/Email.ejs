@@ -99,7 +99,7 @@
             <input type="email" class="form-control mb-3" id="testRecipient" maxlength="254" required placeholder="recipient@gmail.com" value="<%= locals.user && user.email ? user.email : '' %>">
             <button type="submit" class="em-btn em-btn-success w-100" id="sendTestBtn"><i class="bi bi-send"></i> Send Real Test Message</button>
           </form>
-          <div class="em-note mt-3">A successful result means SMTP/Brevo accepted the message. It does not guarantee inbox placement; also check spam and the provider’s transactional log.</div>
+          <div class="em-note mt-3">A successful result can mean the message was queued. Check the queue and provider attempt before checking the inbox. It does not guarantee inbox placement; also check spam and the provider’s transactional log.</div>
           <div id="testResult" class="alert d-none mt-3 mb-0 small"></div>
         </div>
       </section>
@@ -110,6 +110,13 @@
     <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Accepted · Last 24 Hours</div><div class="em-metric-value text-success" id="acceptedCount">0</div></div></div>
     <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Failed · Last 24 Hours</div><div class="em-metric-value text-danger" id="failedCount">0</div></div></div>
     <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Latest Provider Attempt</div><div class="em-metric-value" style="font-size:1rem" id="latestAttempt">No attempts recorded</div></div></div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Waiting in Email Queue</div><div class="em-metric-value" id="outboxPending">0</div></div></div>
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Email Jobs Processing</div><div class="em-metric-value" id="outboxProcessing">0</div></div></div>
+    <div class="col-md-4"><div class="em-metric"><div class="em-metric-label">Failed Email Jobs</div><div class="em-metric-value text-danger" id="outboxFailed">0</div></div></div>
+    <div class="col-12"><div class="em-note" id="outboxAge">No email jobs are waiting.</div></div>
   </div>
 
   <section class="em-card mb-3">
@@ -180,6 +187,13 @@
     document.getElementById('brevoKeyStatus').innerHTML = secretStatus(config.brevo.apiKeyConfigured);
     document.getElementById('acceptedCount').textContent = data.last24Hours.accepted;
     document.getElementById('failedCount').textContent = data.last24Hours.failed;
+    var outbox = data.outbox || {};
+    document.getElementById('outboxPending').textContent = outbox.pending || 0;
+    document.getElementById('outboxProcessing').textContent = outbox.processing || 0;
+    document.getElementById('outboxFailed').textContent = outbox.failed || 0;
+    document.getElementById('outboxAge').textContent = outbox.oldestPendingAt
+      ? 'Oldest queued email has waited ' + Math.max(0, Math.floor((Date.now() - new Date(outbox.oldestPendingAt).getTime()) / 1000)) + ' seconds. OTP codes expire 10 minutes after the request.'
+      : 'No email jobs are waiting.';
     document.getElementById('latestAttempt').textContent = data.latestAttempt ? data.latestAttempt.status.toUpperCase() + ' · ' + new Date(data.latestAttempt.createdAt).toLocaleString('en-PH') : 'No attempts recorded';
 
     var checklist = [];

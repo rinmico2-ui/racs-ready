@@ -1,3 +1,4 @@
+<% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
 <link rel="stylesheet" href="/css/analytics.css">
 <link rel="stylesheet" href="/css/service-report-focused.css?v=20260928-deferred-report">
 <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
@@ -29,10 +30,10 @@
   const formatDate = value => value ? new Date(value).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' }) : '—';
   const activeAdvancedFilters = [filters.status, filters.scale, filters.payment, filters.technician, filters.brand, filters.service, filters.assignment, filters.priority, filters.appliance, filters.area, filters.valueBand, filters.sla, filters.warranty].filter(value => value && value !== 'all').length + (filters.search ? 1 : 0);
   const attentionItems = [];
-  if (Number(report.pendingBookings || 0) > 0) attentionItems.push({ tone:'warning', icon:'bi-hourglass-split', title: formatNumber(report.pendingBookings) + ' pending job' + (Number(report.pendingBookings) === 1 ? '' : 's'), text:'Review requests waiting for the next workflow action.', href:'/admin/appointments', action:'Open bookings' });
-  if (cancellationRate >= 10) attentionItems.push({ tone:'danger', icon:'bi-x-octagon', title:cancellationRate.toFixed(1) + '% cancellation rate', text:'Review the recorded reasons before changing schedules or service offers.', href:'/admin/appointments/cancellation-log', action:'Review cancellations' });
-  if (completedBookings > 0 && reportCoverage < 100) attentionItems.push({ tone:'info', icon:'bi-file-earmark-text', title:reportCoverage.toFixed(1) + '% report coverage', text:'Some completed jobs do not yet have a service report.', href:'/admin/appointments/repair-scheduling', action:'Review workflow' });
-  if (completedBookings > 0 && laborCoverage < 100) attentionItems.push({ tone:'neutral', icon:'bi-calculator', title:laborCoverage.toFixed(1) + '% labor-cost coverage', text:'Contribution remains provisional until direct labor is fully recorded.', href:'/admin/appointments/expenses', action:'Review costs' });
+  if (Number(report.pendingBookings || 0) > 0) attentionItems.push({ tone:'warning', icon:'bi-hourglass-split', title: formatNumber(report.pendingBookings) + ' pending job' + (Number(report.pendingBookings) === 1 ? '' : 's'), text:'Review requests waiting for the next workflow action.', href:`/${reportRole}/appointments`, action:'Open bookings' });
+  if (cancellationRate >= 10) attentionItems.push({ tone:'danger', icon:'bi-x-octagon', title:cancellationRate.toFixed(1) + '% cancellation rate', text:'Review the recorded reasons before changing schedules or service offers.', href:`/${reportRole}/appointments/cancellation-log`, action:'Review cancellations' });
+  if (completedBookings > 0 && reportCoverage < 100) attentionItems.push({ tone:'info', icon:'bi-file-earmark-text', title:reportCoverage.toFixed(1) + '% report coverage', text:'Some completed jobs do not yet have a service report.', href:`/${reportRole}/appointments/repair-scheduling`, action:'Review workflow' });
+  if (completedBookings > 0 && laborCoverage < 100) attentionItems.push({ tone:'neutral', icon:'bi-calculator', title:laborCoverage.toFixed(1) + '% labor-cost coverage', text:'Contribution remains provisional until direct labor is fully recorded.', href:`/${reportRole}/appointments/expenses`, action:'Review costs' });
   const visibleAttentionItems = attentionItems.slice(0, 3);
   const qualityControls = [
     { label:'Service report coverage', value:Number(controls.reportCoverage || 0).toFixed(1) + '%', context:(completedBookings || 0) + ' completed jobs in scope' },
@@ -71,7 +72,7 @@
     </div>
   <% } %>
 
-  <form class="sr-filter-panel" method="get" action="/admin/reports/service" id="serviceReportFilters">
+  <form class="sr-filter-panel" method="get" action="/<%= reportRole %>/reports/service" id="serviceReportFilters">
     <div class="sr-filter-primary">
       <label class="sr-field" for="reportRange"><span>Booking created</span><select name="range" id="reportRange">
         <option value="7" <%= filters.range === '7' ? 'selected' : '' %>>Last 7 days</option>
@@ -119,7 +120,7 @@
           <label class="sr-field"><span>Booked value</span><select name="valueBand"><option value="all">All booked values</option><option value="under_1000" <%= filters.valueBand === 'under_1000' ? 'selected' : '' %>>Below &#8369;1,000</option><option value="1000_5000" <%= filters.valueBand === '1000_5000' ? 'selected' : '' %>>&#8369;1,000–4,999</option><option value="5000_10000" <%= filters.valueBand === '5000_10000' ? 'selected' : '' %>>&#8369;5,000–9,999</option><option value="10000_plus" <%= filters.valueBand === '10000_plus' ? 'selected' : '' %>>&#8369;10,000 and above</option></select></label>
           <label class="sr-field sr-field-search"><span>Search records</span><input type="search" name="search" value="<%= filters.search %>" placeholder="Reference, customer, issue…"></label>
         </div></fieldset>
-        <div class="sr-filter-footer"><span>Filters apply to every KPI, chart, table, and export.</span><a class="sr-reset" href="/admin/reports/service"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset all filters</a></div>
+        <div class="sr-filter-footer"><span>Filters apply to every KPI, chart, table, and export.</span><a class="sr-reset" href="/<%= reportRole %>/reports/service"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset all filters</a></div>
       </div>
     </details>
   </form>
@@ -195,7 +196,7 @@
           <div class="sr-reason-list"><% if (report.cancellationReasonsArray && report.cancellationReasonsArray.length) { report.cancellationReasonsArray.slice(0, 5).forEach(function(reason) { const share = Number(report.cancelledBookings) ? (Number(reason.count) / Number(report.cancelledBookings)) * 100 : 0; %><div><span><strong><%= reason.reason %></strong><small><%= reason.count %> booking<%= Number(reason.count) === 1 ? '' : 's' %></small></span><span class="sr-bar"><i style="width:<%= Math.min(share, 100) %>%"></i></span><b><%= share.toFixed(0) %>%</b></div><% }); } else { %><div class="sr-clear-inline"><i class="bi bi-check-circle" aria-hidden="true"></i> No cancellation reasons recorded.</div><% } %></div>
         </section>
       </div>
-      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Continue the investigation</h2></div></header><div class="sr-related-grid"><a href="/admin/appointments"><i class="bi bi-calendar-check"></i><span><strong>Bookings</strong><small>Review individual workflow status</small></span></a><a href="/admin/appointments/cancellation-log"><i class="bi bi-x-circle"></i><span><strong>Cancellation log</strong><small>Inspect reasons and customer history</small></span></a><a href="/admin/operations/resolution-center"><i class="bi bi-life-preserver"></i><span><strong>Resolution center</strong><small>Handle active service exceptions</small></span></a></div></section>
+      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Continue the investigation</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/appointments"><i class="bi bi-calendar-check"></i><span><strong>Bookings</strong><small>Review individual workflow status</small></span></a><a href="/<%= reportRole %>/appointments/cancellation-log"><i class="bi bi-x-circle"></i><span><strong>Cancellation log</strong><small>Inspect reasons and customer history</small></span></a><a href="/<%= reportRole %>/operations/resolution-center"><i class="bi bi-life-preserver"></i><span><strong>Resolution center</strong><small>Handle active service exceptions</small></span></a></div></section>
     </div>
 
     <div class="tab-pane fade" id="cost-pane" role="tabpanel" aria-labelledby="cost-tab" tabindex="0">
@@ -209,7 +210,7 @@
         ].forEach(function(item) { %><article><i class="bi <%= item.icon %>" aria-hidden="true"></i><span><small><%= item.label %></small><strong>&#8369;<%= formatMoney(item.value) %></strong></span></article><% }); %>
       </div>
       <% if (completedBookings && (laborCoverage < 100 || reportCoverage < 100)) { %><div class="sr-data-warning"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Contribution is provisional</strong><p>Labor-cost coverage is <%= laborCoverage.toFixed(1) %>%, and service-report coverage is <%= reportCoverage.toFixed(1) %>%. Missing records can overstate contribution.</p></div></div><% } %>
-      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Completed work</span><h2>Direct cost by service</h2><p>Reusable equipment is intentionally excluded from service expense.</p></div><a class="sr-inline-link" href="/admin/appointments/expenses">Manage expenses <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Reference</th><th class="text-end">Completed value</th><th class="text-end">Direct cost</th><th class="text-end">Contribution</th><th class="text-end">Margin</th></tr></thead><tbody>
+      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Completed work</span><h2>Direct cost by service</h2><p>Reusable equipment is intentionally excluded from service expense.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments/expenses">Manage expenses <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Reference</th><th class="text-end">Completed value</th><th class="text-end">Direct cost</th><th class="text-end">Contribution</th><th class="text-end">Margin</th></tr></thead><tbody>
         <% if (costRows.length) { costRows.slice(0, 20).forEach(function(row) { const rowCost = Number(row.laborCost || 0) + Number(row.partsCost || 0) + Number(row.consumablesCost || 0) + Number(row.localPurchaseCost || 0); %><tr><td><strong><%= row.serviceName %></strong><small class="sr-cell-sub"><%= row.technician %></small></td><td><%= row.reference %></td><td class="text-end">&#8369;<%= formatMoney(row.revenue) %></td><td class="text-end">&#8369;<%= formatMoney(rowCost) %></td><td class="text-end"><strong class="<%= Number(row.grossProfit) < 0 ? 'sr-negative' : 'sr-positive' %>">&#8369;<%= formatMoney(row.grossProfit) %></strong></td><td class="text-end"><%= Number(row.grossProfitMargin || 0).toFixed(1) %>%</td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No completed service cost records in this period.</td></tr><% } %>
       </tbody></table></div></section>
     </div>
@@ -219,7 +220,7 @@
         <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Customer signal</span><h2>Satisfaction trend</h2><p>Average rating from submitted customer feedback.</p></div><span class="sr-rating"><i class="bi bi-star-fill"></i> <%= report.avgRating || '0.0' %></span></header><div class="sr-chart sr-chart-medium"><canvas id="serviceQualityChart" aria-label="Customer satisfaction trend"></canvas></div></section>
         <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Data quality</span><h2>Control coverage</h2><p>Compact controls for interpreting the report responsibly.</p></div></header><div class="sr-control-list"><% qualityControls.forEach(function(control) { %><div><span><strong><%= control.label %></strong><small><%= control.context %></small></span><b><%= control.value %></b></div><% }); %></div></section>
       </div>
-      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Quality follow-up</h2></div></header><div class="sr-related-grid"><a href="/admin/ratings/service"><i class="bi bi-star"></i><span><strong>Customer ratings</strong><small>Read feedback and rating detail</small></span></a><a href="/admin/ratings/technicians"><i class="bi bi-person-check"></i><span><strong>Technician ratings</strong><small>Review individual service quality</small></span></a><a href="/admin/warranty"><i class="bi bi-shield-check"></i><span><strong>Warranty</strong><small>Track coverage and claims</small></span></a></div></section>
+      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Quality follow-up</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/ratings/service"><i class="bi bi-star"></i><span><strong>Customer ratings</strong><small>Read feedback and rating detail</small></span></a><a href="/<%= reportRole %>/ratings/technicians"><i class="bi bi-person-check"></i><span><strong>Technician ratings</strong><small>Review individual service quality</small></span></a><% if (reportRole === "admin") { %><a href="/admin/warranty"><i class="bi bi-shield-check"></i><span><strong>Warranty</strong><small>Track coverage and claims</small></span></a><% } %></div></section>
     </div>
 
     <div class="tab-pane fade" id="photos-pane" role="tabpanel" aria-labelledby="photos-tab" tabindex="0">
@@ -266,7 +267,7 @@
     </div>
 
     <div class="tab-pane fade" id="records-pane" role="tabpanel" aria-labelledby="records-tab" tabindex="0">
-      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit trail</span><h2>Recent booking records</h2><p>The latest matching service records. Use Bookings for full workflow management.</p></div><a class="sr-inline-link" href="/admin/appointments">Open all bookings <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th class="text-end">Booked value</th><th>Status</th></tr></thead><tbody>
+      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit trail</span><h2>Recent booking records</h2><p>The latest matching service records. Use Bookings for full workflow management.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments">Open all bookings <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th class="text-end">Booked value</th><th>Status</th></tr></thead><tbody>
         <% if (recentBookings.length) { recentBookings.forEach(function(booking) { %><tr><td><strong><%= booking.reference || '—' %></strong></td><td><%= booking.customer %></td><td><%= booking.service %></td><td><%= booking.technician %></td><td class="text-end">&#8369;<%= formatMoney(booking.amount) %></td><td><span class="sr-badge"><%= String(booking.status || 'pending').replace(/[-_]/g, ' ') %></span></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No recent booking records match the selected filters.</td></tr><% } %>
       </tbody></table></div></section>
       <section class="sr-card sr-definitions"><header class="sr-card-header"><div><span class="sr-card-kicker">Definitions</span><h2>How to read this report</h2></div></header><dl><div><dt>Booked value</dt><dd>Value attached to non-cancelled bookings, whether or not the service has been completed.</dd></div><div><dt>Completed-service value</dt><dd>Value from services whose lifecycle is recognized as completed.</dd></div><div><dt>Direct service cost</dt><dd>Recorded internal labor, consumables, repair parts, and local purchases used for completed work.</dd></div><div><dt>Service contribution</dt><dd>Completed-service value less recorded direct service costs. It is provisional when cost coverage is incomplete.</dd></div></dl></section>
@@ -288,7 +289,7 @@
 (function () {
   'use strict';
   var state = document.getElementById('serviceReportDataState');
-  var endpoint = '/admin/reports/service/data' + window.location.search;
+  var endpoint = '/<%= reportRole %>/reports/service/data' + window.location.search;
 
   function executeScripts(sourceDocument) {
     return Array.from(sourceDocument.querySelectorAll('script')).reduce(function (chain, source) {
@@ -420,7 +421,7 @@
     if (!container || container.dataset.loaded === 'true') return Promise.resolve();
     if (photoEvidenceRequest) return photoEvidenceRequest;
     var bookingIds = String(container.dataset.bookingIds || '').split(',').filter(Boolean);
-    photoEvidenceRequest = fetch('/admin/reports/service/photos', {
+    photoEvidenceRequest = fetch('/<%= reportRole %>/reports/service/photos', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'text/html' },

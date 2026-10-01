@@ -1196,8 +1196,31 @@
         ? configuredRepairInspectionFee : 500;
       const rows = (state.services || []).map(item => ({ ...item }));
       const initialServicesSnapshot = JSON.stringify(rows);
+      const maxBookingUnits = 40;
+      const selectedUnits = () => rows.reduce((sum, row) => sum + (Number(row.quantity) || 1), 0);
+      const remainingUnits = () => Math.max(0, maxBookingUnits - selectedUnits());
+      const maxQuantityFor = index => maxBookingUnits - selectedUnits() + (Number(rows[index]?.quantity) || 0);
+      const unitLimitMessage = `A booking can contain at most ${maxBookingUnits} units across all services.`;
+      const canAddUnits = quantity => {
+        if (Number.isInteger(quantity) && quantity > 0 && selectedUnits() + quantity <= maxBookingUnits) return true;
+        alert(unitLimitMessage);
+        return false;
+      };
       let selectedDate = null;
       let selectedTime = null;
+      let selectedEndDate = null;
+      let editorCalendarMode = null;
+      let editorCalendarWorkload = null;
+      let editorCalendarRequest = 0;
+      let projectPopupShown = false;
+      const projectThresholdMinutes = Number(state.projectThresholdMinutes) || 480;
+      const serviceMinutes = () => rows.reduce((sum, row) => {
+        const perUnit = row.type === 'repair'
+          ? Number(state.inspectionDurationMinutes) || 90
+          : Number(row.duration || row.schedule?.durationMinutes) || 60;
+        return sum + perUnit * (Number(row.quantity) || 1);
+      }, 0);
+      const needsProjectSchedule = () => Boolean(state.isProject) || selectedUnits() >= 8 || serviceMinutes() > projectThresholdMinutes;
 
       const activeTab = focusTab === "schedule" ? "schedule" : "services";
 
@@ -1237,6 +1260,7 @@
             <div class="tab-content p-4" id="bhEditorTabContent">
               <div class="tab-pane fade ${activeTab === 'services' ? 'show active' : ''}" id="bh-pane-services" role="tabpanel">
                 <div id="bhScheduleProposal"></div>
+                <div class="alert alert-info d-none" id="bhProjectEditNotice" role="status">This booking needs a project schedule. Choose a new start and end date before saving. The team will confirm the final work plan.</div>
                 <div class="bh-editor-workspace">
                   <main class="bh-editor-catalog">
                     <div class="bh-editor-section-heading">
@@ -1306,7 +1330,7 @@
                       <div><span class="bh-editor-kicker">Current selection</span><h6 id="bhEditorCartTitle"><i class="bi bi-bag-check me-2"></i>Your Booking</h6></div>
                       <span class="bh-editor-cart-count" id="bhEditorCartCount">${rows.length}</span>
                     </div>
-                    <p class="bh-editor-cart-copy" id="bhEditorCartCopy">Review quantities or remove a service.</p>
+                    <p class="bh-editor-cart-copy" id="bhEditorCartCopy">Up to ${maxBookingUnits} units across all services.</p>
                     <div class="bh-editor-cart-items" id="bhCurrentItems"></div>
                     <div class="bh-editor-cart-total" id="bhEditorCartTotal"><span>Estimated total</span><strong id="bhEditorCartTotalValue">₱0</strong></div>
                     <div class="bh-editor-reason"><label for="bhServiceChangeReason"><i class="bi bi-chat-square-text me-1"></i>Reason for change</label><textarea id="bhServiceChangeReason" rows="3" maxlength="1000" placeholder="Explain why these services need to change"></textarea></div>
@@ -1314,21 +1338,23 @@
                 </div>
               </div>
               <div class="tab-pane fade ${activeTab === 'schedule' ? 'show active' : ''}" id="bh-pane-schedule" role="tabpanel">
+                <div class="alert alert-info d-none" id="bhProjectScheduleNotice">This booking needs a large-scale project schedule. Choose a start and end date. The team will confirm the final schedule.</div>
                 <div class="d-flex align-items-start gap-3 p-3 rounded-4 mb-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
                   <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff;flex-shrink:0"><i class="bi bi-calendar-event fs-4 text-primary"></i></div>
-                  <div><h6 class="fw-bold mb-1" style="color:#1e293b">Reschedule this booking</h6><p class="small text-muted mb-0">Choose a new available date and time slot. Your request will be sent for confirmation.</p></div>
+                  <div><h6 class="fw-bold mb-1" style="color:#1e293b">Choose a new schedule</h6><p class="small text-muted mb-0">Choose an available time for a regular booking, or a start and end date for a project.</p></div>
                 </div>
                 ${booking ? `<div class="row g-3 mb-4">
                   <div class="col-md-6"><div class="p-3 rounded-4 border"><div class="small text-muted text-uppercase fw-semibold mb-1" style="font-size:.65rem">Current Date</div><div class="fw-bold" style="color:#1e293b">${booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString('en-PH',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : 'Not set'}</div></div></div>
                   <div class="col-md-6"><div class="p-3 rounded-4 border"><div class="small text-muted text-uppercase fw-semibold mb-1" style="font-size:.65rem">Current Time</div><div class="fw-bold" style="color:#1e293b">${escapeHtml(booking.startTime || booking.selectedTimeLabel || 'Not set')}</div></div></div>
                 </div>` : ''}
                 <div class="p-3 rounded-4 border mb-3" style="background:#f8fafc">
-                  <div class="fw-semibold mb-2" style="font-size:.85rem"><i class="bi bi-calendar3 me-2 text-primary"></i>Select New Date & Time</div>
+                  <div class="fw-semibold mb-2" style="font-size:.85rem"><i class="bi bi-calendar3 me-2 text-primary"></i>Select New Dates or Time</div>
                   <div id="bhEditorCalendarLoading" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div><p class="small text-muted mt-1 mb-0">Loading available dates...</p></div>
                   <div id="bhEditorCalendarError" class="alert alert-danger d-none small mb-0"></div>
                   <div id="bhEditorCalendarContent" class="d-none">
                     <div id="calendarGrid"></div>
                     <div id="timeSelection" class="d-none mt-3"><div id="timeSlots"></div></div>
+                    <div id="projectPrefs" class="mt-3 d-none"></div>
                   </div>
                 </div>
                 <div id="bhEditorSelection" class="alert alert-success d-none">
@@ -1437,30 +1463,71 @@
         return Boolean(event?.relatedTarget?.closest("button, a, select, input, textarea, [role='button']"));
       }
 
+      let editorCalendarQueue = Promise.resolve();
+      function refreshEditorScheduleMode() {
+        const project = needsProjectSchedule();
+        host.querySelector('#bhProjectEditNotice')?.classList.toggle('d-none', !project);
+        host.querySelector('#bhProjectScheduleNotice')?.classList.toggle('d-none', !project);
+        const workload = `${project}:${selectedUnits()}:${serviceMinutes()}`;
+        if (editorCalendarWorkload === workload) return;
+        const crossedToProject = editorCalendarMode === false && project && !projectPopupShown;
+        editorCalendarMode = project;
+        editorCalendarWorkload = workload;
+        selectedDate = null;
+        selectedTime = null;
+        selectedEndDate = null;
+        host.querySelector('#bhEditorSelection')?.classList.add('d-none');
+        const request = ++editorCalendarRequest;
+        editorCalendarQueue = editorCalendarQueue.catch(() => {}).then(async () => {
+          if (request === editorCalendarRequest) await initializeEditorCalendar(request);
+        });
+        if (crossedToProject) {
+          projectPopupShown = true;
+          const openSchedule = () => bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
+          const explain = () => {
+            if (typeof Swal === 'undefined') {
+              alert('This booking needs a project schedule. Choose a start and end date. The team will confirm the final work plan.');
+              openSchedule();
+              return;
+            }
+            Swal.fire({
+              icon: 'info',
+              title: 'Your booking is now a large-scale project',
+              text: 'The updated work may take more than one day. Choose a start and end date. Our team will confirm the final schedule.',
+              confirmButtonText: 'Choose dates',
+            }).then(openSchedule);
+          };
+          if (host.classList.contains('show')) explain();
+          else host.addEventListener('shown.bs.modal', explain, { once: true });
+        }
+      }
+
       function updateServiceCount() {
         const badge = host.querySelector("#bhServiceCount");
         if (badge) badge.textContent = rows.length;
         const cartCount = host.querySelector("#bhEditorCartCount");
         const cartCopy = host.querySelector("#bhEditorCartCopy");
         const cartTotal = host.querySelector("#bhEditorCartTotalValue");
-        const unitCount = rows.reduce((sum, row) => sum + Math.max(1, Number(row.quantity) || 1), 0);
+        const unitCount = selectedUnits();
         const total = rows.reduce((sum, row) => sum + (Number(row.totalPrice) || ((Number(row.unitPrice) || 0) * Math.max(1, Number(row.quantity) || 1))), 0);
         if (cartCount) cartCount.textContent = rows.length;
         if (cartCopy) cartCopy.textContent = rows.length
-          ? `${rows.length} service${rows.length === 1 ? '' : 's'} · ${unitCount} unit${unitCount === 1 ? '' : 's'}`
+          ? `${rows.length} service${rows.length === 1 ? '' : 's'} · ${unitCount} of ${maxBookingUnits} units`
           : "No service selected";
         if (cartTotal) cartTotal.textContent = `₱${total.toLocaleString()}`;
+        refreshEditorScheduleMode();
       }
 
       function renderCurrentItems() {
         const itemsHost = bodyHost.querySelector("#bhCurrentItems");
-        if (!rows.length) { itemsHost.innerHTML = '<div class="bh-editor-cart-empty"><i class="bi bi-tools"></i><strong>No service selected</strong><span>Choose a service from the catalog.</span></div>'; updateServiceCount(); return; }
+        if (!rows.length) { itemsHost.innerHTML = '<div class="bh-editor-cart-empty"><i class="bi bi-tools"></i><strong>No service selected</strong><span>Choose a service from the catalog.</span></div>'; updateServiceCount(); syncRepairQuantity(true); return; }
         itemsHost.innerHTML = rows.map((row, index) => {
           const svc = (row.type === "repair" ? repair : core).find(s => String(s._id) === String(row.serviceId));
           const svcName = svc?.name || row.name || "Service";
           const details = [row.brand, row.model, row.applianceTypeName || row.airconTypeName, row.hp ? row.hp + " HP" : ""].filter(Boolean).join(" · ");
           const problem = row.problemDescription || row.repairIssue || "";
           const quantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
+          const itemMax = maxQuantityFor(index);
           const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / quantity) || 0;
           const lineTotal = unitPrice * quantity;
           return `<div class="bh-editor-cart-item" data-item-index="${index}">
@@ -1478,8 +1545,8 @@
               <div class="bh-editor-item-price"><span>Estimated price</span><strong>${lineTotal ? `₱${lineTotal.toLocaleString()}` : 'Price on quote'}</strong></div>
               <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}">
                 <button type="button" class="bh-item-qty-minus" data-index="${index}" aria-label="Decrease ${escapeHtml(svcName)} quantity" ${quantity <= 1 ? 'disabled' : ''}><i class="bi bi-dash"></i></button>
-                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="40" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity">
-                <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= 40 ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
+                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="${itemMax}" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity">
+                <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= itemMax ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
               </div>
             </div>
           </div>`;
@@ -1492,7 +1559,7 @@
             const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
             const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
             const delta = button.classList.contains('bh-item-qty-plus') ? 1 : -1;
-            row.quantity = Math.max(1, Math.min(40, previousQuantity + delta));
+            row.quantity = Math.max(1, Math.min(maxQuantityFor(index), previousQuantity + delta));
             if (unitPrice) {
               row.unitPrice = unitPrice;
               row.totalPrice = unitPrice * row.quantity;
@@ -1508,7 +1575,7 @@
             const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
             const raw = String(input.value || '').trim();
             if (!raw && !normalize) return;
-            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || previousQuantity));
+            const quantity = Math.max(1, Math.min(maxQuantityFor(index), Math.trunc(Number(raw)) || previousQuantity));
             const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
             row.quantity = quantity;
             if (unitPrice) {
@@ -1520,10 +1587,17 @@
             const minus = stepper?.querySelector('.bh-item-qty-minus');
             const plus = stepper?.querySelector('.bh-item-qty-plus');
             if (minus) minus.disabled = quantity <= 1;
-            if (plus) plus.disabled = quantity >= 40;
+            if (plus) plus.disabled = quantity >= maxQuantityFor(index);
             const price = input.closest('.bh-editor-cart-item')?.querySelector('.bh-editor-item-price strong');
             if (price) price.textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : 'Price on quote';
+            itemsHost.querySelectorAll('.bh-item-qty-input').forEach(otherInput => {
+              const otherIndex = Number(otherInput.dataset.index);
+              otherInput.max = String(maxQuantityFor(otherIndex));
+              const otherPlus = otherInput.closest('.bh-editor-stepper')?.querySelector('.bh-item-qty-plus');
+              if (otherPlus) otherPlus.disabled = Number(rows[otherIndex]?.quantity) >= maxQuantityFor(otherIndex);
+            });
             updateServiceCount();
+            syncRepairQuantity(true);
           };
           input.addEventListener('input', () => commitTypedQuantity(false));
           input.addEventListener('focus', () => input.select());
@@ -1545,6 +1619,7 @@
           });
         });
         updateServiceCount();
+        syncRepairQuantity(true);
       }
 
       function formatDuration(svc, hp) {
@@ -1555,6 +1630,7 @@
       }
 
       function showCoreConfigureModal(svc) {
+        if (!remainingUnits()) { alert(unitLimitMessage); return; }
         const hasAirconTypes = svc.isAirconService && svc.airconTypes && svc.airconTypes.length > 0;
         const hasLegacyHp = svc.isAirconService && svc.hpPricing && svc.hpPricing.length > 0;
         if (!hasAirconTypes && !hasLegacyHp) {
@@ -1567,7 +1643,7 @@
             <div class="bh-cfg-header"><div class="d-flex align-items-center gap-3"><span class="bh-cfg-icon"><i class="bi bi-sliders2"></i></span><div><h5>Set Up Your Service</h5><p>Enter how many units need service.</p></div></div><button type="button" class="bh-cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button></div>
             <div class="modal-body bh-cfg-body">
               <div class="bh-cfg-context"><span><i class="bi bi-tools"></i></span><div><small>Service being set up</small><strong>${escapeHtml(svc.name)}</strong></div><b>Quantity</b></div>
-              <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>Type a number or use the buttons.</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Service quantity"><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
+              <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>Up to ${remainingUnits()} more units in this booking.</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="${remainingUnits()}" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Service quantity"><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
             </div>
             <div class="modal-footer bh-cfg-footer"><div class="bh-cfg-price"><span><strong>Estimated price</strong><small>Updates with quantity</small></span><b id="bhHpEstimatedPrice">${unitPrice ? `₱${unitPrice.toLocaleString()}` : 'Price on quote'}</b></div><button class="bh-cfg-primary" id="bhHpAddToBooking"><i class="bi bi-check-lg"></i>Add to Booking</button></div>
           </div></div>`;
@@ -1578,14 +1654,14 @@
           const syncQuantity = normalize => {
             const raw = String(quantityInput.value || '').trim();
             if (!raw && !normalize) return;
-            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || 1));
+            const quantity = Math.max(1, Math.min(remainingUnits(), Math.trunc(Number(raw)) || 1));
             if (normalize || String(quantity) !== raw) quantityInput.value = String(quantity);
-            minus.disabled = quantity <= 1; plus.disabled = quantity >= 40;
+            minus.disabled = quantity <= 1; plus.disabled = quantity >= remainingUnits();
             quantityModal.querySelector("#bhHpEstimatedPrice").textContent = unitPrice ? `₱${(unitPrice * quantity).toLocaleString()}` : "Price on quote";
             return quantity;
           };
           const updateQuantity = delta => {
-            quantityInput.value = String(Math.max(1, Math.min(40, (Number(quantityInput.value) || 1) + delta)));
+            quantityInput.value = String(Math.max(1, Math.min(remainingUnits(), (Number(quantityInput.value) || 1) + delta)));
             syncQuantity(true);
           };
           minus.onclick = () => updateQuantity(-1); plus.onclick = () => updateQuantity(1);
@@ -1600,8 +1676,9 @@
             quantityInput.blur();
           });
           quantityModal.querySelector("#bhHpAddToBooking").onclick = () => {
-            const quantity = Math.max(1, Math.min(40, Math.trunc(Number(quantityInput.value)) || 1));
-            rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model: "", unitPrice, totalPrice: unitPrice * quantity });
+            const quantity = Math.max(1, Math.min(remainingUnits(), Math.trunc(Number(quantityInput.value)) || 1));
+            if (!canAddUnits(quantity)) return;
+            rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model: "", duration: Number(svc.durationMinutes || svc.estimatedDurationMinutes) || 60, unitPrice, totalPrice: unitPrice * quantity });
             bootstrap.Modal.getOrCreateInstance(quantityModal).hide(); renderCurrentItems();
           };
           const childModal = bootstrap.Modal.getOrCreateInstance(quantityModal);
@@ -1647,7 +1724,7 @@
                 </section>
                 <section class="bh-cfg-panel d-none" id="bhHpOptionsSection">
                   <div class="bh-cfg-selected-type"><span><small>Selected aircon type</small><strong id="bhCfgSelectedType">—</strong></span><button type="button" id="bhCfgChangeType"><i class="bi bi-arrow-left"></i> Change</button></div>
-                  <div class="bh-cfg-panel-heading"><span><i class="bi bi-speedometer2"></i></span><div><small>Last</small><h6>What is the aircon HP?</h6><p>Choose the HP and enter the number of units.</p></div></div>
+                  <div class="bh-cfg-panel-heading"><span><i class="bi bi-speedometer2"></i></span><div><small>Last</small><h6>What is the aircon HP?</h6><p>Select one or more HP options. The combined booking limit is ${maxBookingUnits} units.</p></div></div>
                   <div class="d-flex flex-column gap-2" id="bhHpOptionsList"></div>
                 </section>
               </div>
@@ -1665,10 +1742,41 @@
         const brandSection = hpModal.querySelector("#bhCfgBrandSection");
         const typeSection = hpModal.querySelector("#bhCfgTypeSection");
         const hpSection = hpModal.querySelector("#bhHpOptionsSection");
+        const helpSection = document.createElement('section');
+        helpSection.id = 'bhCfgHelpSection';
+        helpSection.className = 'bh-cfg-panel d-none';
+        helpSection.innerHTML = `
+          <h6>Let us identify your aircon</h6>
+          <p class="small text-muted">Staff will verify the details and send a price for your approval. Your current booking stays in place; no payment is collected now.</p>
+          <label for="bhHelpQuantity">Number of units</label><input id="bhHelpQuantity" class="form-control mb-2" type="number" min="1" max="${remainingUnits()}" value="1" required>
+          <label for="bhHelpNotes">What do you know about the unit?</label><textarea id="bhHelpNotes" class="form-control" rows="3" maxlength="1000" placeholder="Model label, location, or other clues"></textarea>
+          <button type="button" class="btn btn-link px-0 mt-2 d-none" id="bhContinueKnown">I know the type and HP; continue choosing</button>`;
+        hpSection.after(helpSection);
+        const addHelpButton = (section, label, step) => {
+          const button = document.createElement('button');
+          button.type = 'button'; button.className = 'btn btn-outline-primary mt-3'; button.textContent = label;
+          button.addEventListener('click', () => showHelpStep(step));
+          section.appendChild(button);
+        };
+        addHelpButton(brandSection, "I don't know the unit details", 1);
+        addHelpButton(typeSection, "I don't know the type", 2);
+        addHelpButton(hpSection, "I don't know the HP", 3);
         const backButton = hpModal.querySelector("#bhCfgBack");
         const addButton = hpModal.querySelector("#bhHpAddToBooking");
         let selectedAirconIndex = null;
-        let selectedHp = null;
+        let selectedHps = new Map();
+        let helpReturnStep = 1;
+
+        function showHelpStep(step) {
+          helpReturnStep = step;
+          brandSection.classList.add('d-none'); typeSection.classList.add('d-none'); hpSection.classList.add('d-none');
+          helpSection.classList.remove('d-none'); backButton.classList.remove('d-none');
+          backButton.querySelector('span').textContent = 'Back';
+          addButton.disabled = false; addButton.textContent = 'Request unit identification';
+          hpModal.querySelector('#bhHpEstimatedPrice').textContent = 'After staff review';
+          helpSection.querySelector('#bhContinueKnown').classList.toggle('d-none', step !== 1);
+          hpModal.querySelector('#bhCfgCurrentStep').textContent = 'Staff review';
+        }
 
         function setConfigurationStep(step) {
           hpModal.querySelectorAll("[data-bh-cfg-step]").forEach(element => {
@@ -1678,10 +1786,11 @@
             const icon = element.querySelector(".bi");
             if (icon) icon.className = number < step ? "bi bi-check-lg" : `bi bi-${number}-circle${number === step ? '-fill' : ''}`;
           });
-          hpModal.querySelector("#bhCfgCurrentStep").textContent = step === 3 && selectedHp ? "Ready to add" : `Step ${step} of 3`;
+          hpModal.querySelector("#bhCfgCurrentStep").textContent = step === 3 && selectedHps.size ? "Ready to add" : `Step ${step} of 3`;
         }
 
         function showBrandStep() {
+          helpSection.classList.add('d-none');
           brandSection.classList.remove("d-none"); typeSection.classList.add("d-none"); hpSection.classList.add("d-none");
           backButton.classList.add("d-none"); addButton.disabled = true; addButton.innerHTML = '<i class="bi bi-upc-scan"></i>Choose a brand'; setConfigurationStep(1);
         }
@@ -1689,33 +1798,74 @@
         function showTypeStep() {
           const brand = brandSelect.value === "__other__" ? brandOther.value.trim() : brandSelect.value;
           if (!brand) return;
-          brandSection.classList.add("d-none"); typeSection.classList.remove("d-none"); hpSection.classList.add("d-none");
+          helpSection.classList.add('d-none'); brandSection.classList.add("d-none"); typeSection.classList.remove("d-none"); hpSection.classList.add("d-none");
           backButton.classList.remove("d-none"); backButton.querySelector("span").textContent = "Back to Brand"; addButton.disabled = true; addButton.innerHTML = '<i class="bi bi-arrow-right"></i>Choose aircon type'; setConfigurationStep(2);
         }
 
         function showHpStep() {
           if (selectedAirconIndex === null) return;
-          brandSection.classList.add("d-none"); typeSection.classList.add("d-none"); hpSection.classList.remove("d-none");
+          helpSection.classList.add('d-none'); brandSection.classList.add("d-none"); typeSection.classList.add("d-none"); hpSection.classList.remove("d-none");
           backButton.classList.remove("d-none"); backButton.querySelector("span").textContent = "Back to Aircon Type"; setConfigurationStep(3);
+          syncHpOptions();
         }
 
         brandSelect.onchange = () => {
           if (brandSelect.value === "__other__") { brandOther.classList.remove("d-none"); brandOther.focus(); return; }
           brandOther.classList.add("d-none"); brandOther.value = "";
+          if (brandSelect.value === "I don't know") { showHelpStep(1); return; }
           if (brandSelect.value) showTypeStep();
         };
+        helpSection.querySelector('#bhContinueKnown').onclick = showTypeStep;
         const finishCustomBrand = () => { if (brandOther.value.trim()) showTypeStep(); };
         brandOther.addEventListener("blur", finishCustomBrand);
         brandOther.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); finishCustomBrand(); } });
-        backButton.onclick = () => { if (!hpSection.classList.contains("d-none")) showTypeStep(); else showBrandStep(); };
+        backButton.onclick = () => {
+          if (!helpSection.classList.contains('d-none')) {
+            if (helpReturnStep === 3) showHpStep(); else if (helpReturnStep === 2) showTypeStep(); else showBrandStep();
+          } else if (!hpSection.classList.contains("d-none")) showTypeStep(); else showBrandStep();
+        };
         hpModal.querySelector("#bhCfgChangeType").onclick = showTypeStep;
 
-        function updateEstimatedPrice() {
-          if (!selectedHp) { hpModal.querySelector("#bhHpEstimatedPrice").textContent = "₱0"; return; }
-          const qtyInput = hpModal.querySelector(`[data-hp-qty-input="${selectedHp.index}"]`);
-          const qty = Math.max(1, Math.min(40, Math.trunc(Number(qtyInput?.value)) || 1));
-          selectedHp.quantity = qty;
-          hpModal.querySelector("#bhHpEstimatedPrice").textContent = `₱${(selectedHp.price * qty).toLocaleString()}`;
+        const selectedHpUnits = () => [...selectedHps.values()].reduce((sum, hp) => sum + hp.quantity, 0);
+        const maxHpQuantityFor = index => remainingUnits() - selectedHpUnits() + (selectedHps.get(index)?.quantity || 0);
+
+        function syncHpOptions() {
+          const list = hpModal.querySelector("#bhHpOptionsList");
+          list.querySelectorAll('[data-hp-index]').forEach(card => {
+            const index = Number(card.dataset.hpIndex);
+            const quantity = selectedHps.get(index)?.quantity || 0;
+            const max = maxHpQuantityFor(index);
+            card.classList.toggle('selected', quantity > 0);
+            card.querySelector('input[type="checkbox"]').checked = quantity > 0;
+            const input = card.querySelector('[data-hp-qty-input]');
+            input.value = String(quantity);
+            input.max = String(max);
+            card.querySelector('[data-hp-qty-minus]').disabled = quantity === 0;
+            card.querySelector('[data-hp-qty-plus]').disabled = quantity >= max;
+          });
+          const price = [...selectedHps.values()].reduce((sum, hp) => sum + hp.price * hp.quantity, 0);
+          hpModal.querySelector("#bhHpEstimatedPrice").textContent = `₱${price.toLocaleString()}`;
+          addButton.disabled = selectedHps.size === 0;
+          addButton.innerHTML = selectedHps.size
+            ? `<i class="bi bi-check-lg"></i>Add ${selectedHpUnits()} unit${selectedHpUnits() === 1 ? '' : 's'} to Booking`
+            : '<i class="bi bi-speedometer2"></i>Choose HP';
+          setConfigurationStep(3);
+        }
+
+        function setHpQuantity(card, requested) {
+          const index = Number(card.dataset.hpIndex);
+          const max = maxHpQuantityFor(index);
+          const quantity = Math.max(0, Math.min(max, Math.trunc(Number(requested)) || 0));
+          if (Number(requested) > max) alert(unitLimitMessage);
+          if (quantity) {
+            selectedHps.set(index, {
+              hp: Number(card.dataset.hp), price: Number(card.dataset.price),
+              durationMinutes: Number(card.dataset.duration) || null, quantity,
+            });
+          } else {
+            selectedHps.delete(index);
+          }
+          syncHpOptions();
         }
 
         function renderHpOptions(type) {
@@ -1725,39 +1875,26 @@
             return `<div class="card bh-hp-card" data-hp-index="${i}" data-hp="${hp.hp}" data-price="${hp.price}" data-duration="${hp.durationMinutes || ''}">
               <div class="card-body d-flex justify-content-between align-items-center gap-3 py-3">
                 <div class="d-flex align-items-center gap-3">
-                  <input class="form-check-input" type="radio" name="bhHpOption" value="${i}">
+                  <input class="form-check-input" type="checkbox" aria-label="Select ${escapeHtml(String(hp.hp))} HP" value="${i}">
                   <div><span class="badge bg-primary rounded-pill mb-1">${hp.hp} HP</span><div class="fw-bold fs-5 text-primary">₱${Number(hp.price).toLocaleString()}</div></div>
                 </div>
                 <div class="bh-hp-meta text-center" style="min-width:120px"><div class="small text-muted"><i class="bi bi-clock me-1"></i>${duration}</div><div class="small text-muted">${escapeHtml(hp.description || '')}</div></div>
                 <div class="bh-qty-group d-flex align-items-center gap-2">
                   <span class="small text-muted d-none d-md-inline">Quantity:</span>
-                  <div class="bh-editor-stepper"><button type="button" data-hp-qty-minus="${i}" aria-label="Decrease ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-dash"></i></button><input data-hp-qty-input="${i}" type="number" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(String(hp.hp))} HP quantity"><button type="button" data-hp-qty-plus="${i}" aria-label="Increase ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-plus"></i></button></div>
+                  <div class="bh-editor-stepper"><button type="button" data-hp-qty-minus="${i}" disabled aria-label="Decrease ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-dash"></i></button><input data-hp-qty-input="${i}" type="number" min="0" max="${remainingUnits()}" step="1" value="0" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(String(hp.hp))} HP quantity"><button type="button" data-hp-qty-plus="${i}" aria-label="Increase ${escapeHtml(String(hp.hp))} HP quantity"><i class="bi bi-plus"></i></button></div>
                 </div>
               </div>
             </div>`;
           }).join("") || '<div class="alert alert-warning mb-0">No HP pricing is available for this aircon type. Please choose another type.</div>';
-          const selectHpCard = card => {
-            list.querySelectorAll("[data-hp-index]").forEach(c => c.classList.remove("selected"));
-            list.querySelectorAll("[data-hp-index] input[type='radio']").forEach(c => { c.checked = false; });
-            card.classList.add("selected");
-            card.querySelector("input[type='radio']").checked = true;
-            const index = Number(card.dataset.hpIndex);
-            selectedHp = {
-              index,
-              hp: parseFloat(card.dataset.hp),
-              price: parseFloat(card.dataset.price),
-              durationMinutes: parseFloat(card.dataset.duration) || null,
-              quantity: Math.max(1, Number(card.querySelector(`[data-hp-qty-input="${index}"]`)?.value) || 1),
-            };
-            addButton.disabled = false;
-            addButton.innerHTML = '<i class="bi bi-check-lg"></i>Add to Booking';
-            setConfigurationStep(3);
-            updateEstimatedPrice();
-          };
           list.querySelectorAll("[data-hp-index]").forEach(card => {
             card.onclick = (e) => {
-              if (e.target.closest('button') || e.target.matches('[data-hp-qty-input]')) return;
-              selectHpCard(card);
+              if (e.target.closest('button, input')) return;
+              const index = Number(card.dataset.hpIndex);
+              setHpQuantity(card, selectedHps.has(index) ? 0 : 1);
+            };
+            card.querySelector('input[type="checkbox"]').onchange = event => {
+              const index = Number(card.dataset.hpIndex);
+              setHpQuantity(card, event.target.checked ? (selectedHps.get(index)?.quantity || 1) : 0);
             };
           });
           list.querySelectorAll('[data-hp-qty-minus], [data-hp-qty-plus]').forEach(button => {
@@ -1766,12 +1903,9 @@
               event.stopPropagation();
               const index = Number(button.dataset.hpQtyMinus ?? button.dataset.hpQtyPlus);
               const card = list.querySelector(`[data-hp-index="${index}"]`);
-              const input = list.querySelector(`[data-hp-qty-input="${index}"]`);
-              if (!card || !input) return;
-              selectHpCard(card);
+              if (!card) return;
               const delta = button.hasAttribute('data-hp-qty-plus') ? 1 : -1;
-              input.value = String(Math.max(1, Math.min(40, Number(input.value) + delta)));
-              updateEstimatedPrice();
+              setHpQuantity(card, (selectedHps.get(index)?.quantity || 0) + delta);
             });
           });
           list.querySelectorAll('[data-hp-qty-input]').forEach(input => {
@@ -1779,19 +1913,11 @@
               const index = Number(input.dataset.hpQtyInput);
               const card = list.querySelector(`[data-hp-index="${index}"]`);
               if (!card) return;
-              const raw = String(input.value || '').trim();
+              const raw = String(input.value).trim();
               if (!raw && !normalize) return;
-              const quantity = Math.max(1, Math.min(40, Math.trunc(Number(raw)) || 1));
-              if (normalize || String(quantity) !== raw) input.value = String(quantity);
-              if (!selectedHp || selectedHp.index !== index) selectHpCard(card);
-              selectedHp.quantity = quantity;
-              updateEstimatedPrice();
+              setHpQuantity(card, raw ? Number(raw) : 0);
             };
-            input.addEventListener('focus', () => {
-              input.select();
-              const card = input.closest('[data-hp-index]');
-              if (card && (!selectedHp || selectedHp.index !== Number(input.dataset.hpQtyInput))) selectHpCard(card);
-            });
+            input.addEventListener('focus', () => input.select());
             input.addEventListener('input', () => syncTypedHpQuantity(false));
             input.addEventListener('change', () => syncTypedHpQuantity(true));
             input.addEventListener('blur', () => syncTypedHpQuantity(true));
@@ -1802,6 +1928,7 @@
               input.blur();
             });
           });
+          syncHpOptions();
         }
 
         hpModal.querySelectorAll("#bhAirconTypeGrid [data-aircon-index]").forEach(card => card.onclick = () => {
@@ -1810,30 +1937,48 @@
           card.setAttribute("aria-pressed", "true");
           selectedAirconIndex = parseInt(card.dataset.airconIndex);
           hpModal.querySelector("#bhCfgSelectedType").textContent = allTypes[selectedAirconIndex].name || "Aircon type";
+          selectedHps = new Map();
           renderHpOptions(allTypes[selectedAirconIndex]);
-          selectedHp = null;
-          addButton.disabled = true;
-          addButton.innerHTML = '<i class="bi bi-speedometer2"></i>Choose HP';
-          hpModal.querySelector("#bhHpEstimatedPrice").textContent = "₱0";
           showHpStep();
         });
 
-        hpModal.querySelector("#bhHpAddToBooking").onclick = () => {
+        hpModal.querySelector("#bhHpAddToBooking").onclick = async () => {
+          if (!helpSection.classList.contains('d-none')) {
+            const quantity = Number(helpSection.querySelector('#bhHelpQuantity').value);
+            if (!Number.isInteger(quantity) || quantity < 1 || quantity > remainingUnits()) { alert(`Choose 1 to ${remainingUnits()} more units for this booking.`); return; }
+            addButton.disabled = true;
+            try {
+              const brand = brandSelect.value === '__other__' ? brandOther.value.trim() : brandSelect.value;
+              const response = await fetch('/api/unit-assistance', {
+                method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serviceId: svc._id, existingBookingId: bookingId,
+                  brand: brand || "I don't know", airconType: selectedAirconIndex == null ? '' : allTypes[selectedAirconIndex].type,
+                  quantity, notes: helpSection.querySelector('#bhHelpNotes').value }),
+              });
+              const result = await response.json();
+              if (!response.ok) throw new Error(result.error || 'Could not send request.');
+              location.assign('/unit-assistance');
+            } catch (error) { alert(error.message); addButton.disabled = false; }
+            return;
+          }
           let brand = brandSelect.value;
           if (brand === "__other__") brand = brandOther.value.trim();
           if (!brand) { alert("Please select or enter a brand name."); brandSelect.focus(); return; }
           if (!selectedAirconIndex && selectedAirconIndex !== 0) { alert("Please select an aircon type."); return; }
-          if (!selectedHp) { alert("Please select an HP rating."); return; }
-          const qty = Math.max(1, Math.min(40, Number(selectedHp.quantity) || 1));
+          if (!selectedHps.size) { alert("Please select at least one HP rating."); return; }
+          if (!canAddUnits(selectedHpUnits())) return;
           const airconType = allTypes[selectedAirconIndex];
-          rows.push({
-            type: "core", serviceId: svc._id, name: svc.name, quantity: qty,
-            brand, model: "",
-            airconType: airconType.type || "", airconTypeName: airconType.name || "",
-            applianceType: airconType.type || "", applianceTypeName: airconType.name || "",
-            hp: selectedHp.hp, hpDescription: `${selectedHp.hp} HP`,
-            unitPrice: selectedHp.price, totalPrice: selectedHp.price * qty,
-          });
+          for (const selectedHp of selectedHps.values()) {
+            rows.push({
+              type: "core", serviceId: svc._id, name: svc.name, quantity: selectedHp.quantity,
+              brand, model: "",
+              airconType: airconType.type || "", airconTypeName: airconType.name || "",
+              applianceType: airconType.type || "", applianceTypeName: airconType.name || "",
+              hp: selectedHp.hp, hpDescription: `${selectedHp.hp} HP`,
+              duration: selectedHp.durationMinutes || Number(airconType.durationMinutes || svc.durationMinutes) || 60,
+              unitPrice: selectedHp.price, totalPrice: selectedHp.price * selectedHp.quantity,
+            });
+          }
           bootstrap.Modal.getOrCreateInstance(hpModal).hide();
           renderCurrentItems();
         };
@@ -1989,6 +2134,21 @@
         return { fee, unit };
       }
 
+      function syncRepairQuantity(normalize) {
+        const input = bodyHost.querySelector('#bhRepairQty');
+        if (!input) return;
+        const max = remainingUnits();
+        input.max = String(max);
+        const raw = String(input.value).trim();
+        if (!raw && !normalize) return;
+        const quantity = max ? Math.max(1, Math.min(max, Math.trunc(Number(raw)) || 1)) : 0;
+        if (normalize || String(quantity) !== raw) input.value = String(quantity);
+        bodyHost.querySelector('#bhRepairQtyMinus').disabled = quantity <= 1;
+        bodyHost.querySelector('#bhRepairQtyPlus').disabled = quantity >= max;
+        updateRepairSummary();
+        updateAddRepairButton();
+      }
+
       function updateRepairSummary() {
         const summary = bodyHost.querySelector('#bhRepairAddSummary');
         if (!summary) return;
@@ -1998,7 +2158,7 @@
         }
         const { fee } = selectedRepairPricing();
         const label = selectedUnitType?.label || selectedCategory.name;
-        const quantity = Math.max(1, Math.min(40, Math.trunc(Number(bodyHost.querySelector('#bhRepairQty')?.value)) || 1));
+        const quantity = Math.max(0, Math.min(remainingUnits(), Math.trunc(Number(bodyHost.querySelector('#bhRepairQty')?.value)) || 0));
         summary.innerHTML = `<span><i class="bi bi-check-circle-fill"></i>${escapeHtml(label)}</span><strong>₱${(fee * quantity).toLocaleString()} inspection fee</strong>`;
       }
 
@@ -2031,7 +2191,7 @@
         bodyHost.querySelector('#bhRepairModel').classList.toggle('is-invalid', !modelValid);
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
         const typeReady = Boolean(selectedCategory && selectedUnitType);
-        bodyHost.querySelector("#bhAddRepair").disabled = !(typeReady && brand && modelValid && problem.length >= 10);
+        bodyHost.querySelector("#bhAddRepair").disabled = !(typeReady && brand && modelValid && problem.length >= 10 && remainingUnits() > 0);
         const detailsNext = bodyHost.querySelector('#bhRepairDetailsNext');
         const detailsHint = bodyHost.querySelector('#bhRepairDetailsHint');
         if (detailsNext) detailsNext.disabled = !(typeReady && brand && modelValid);
@@ -2064,13 +2224,10 @@
       repairProblemInput.addEventListener("blur", event => {
         if (repairProblemInput.value.trim() && !shouldKeepUserFocus(event)) advanceRepairEditor(4, "#bhAddRepair");
       });
-      bodyHost.querySelector("#bhRepairQtyMinus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.max(1, Number(inp.value) - 1); updateRepairSummary(); };
-      bodyHost.querySelector("#bhRepairQtyPlus").onclick = () => { const inp = bodyHost.querySelector("#bhRepairQty"); inp.value = Math.min(40, Number(inp.value) + 1); updateRepairSummary(); };
-      repairQuantityInput.addEventListener('input', updateRepairSummary);
-      repairQuantityInput.onchange = event => {
-        event.currentTarget.value = String(Math.max(1, Math.min(40, Math.trunc(Number(event.currentTarget.value)) || 1)));
-        updateRepairSummary();
-      };
+      bodyHost.querySelector("#bhRepairQtyMinus").onclick = () => { repairQuantityInput.value = String(Math.max(1, Number(repairQuantityInput.value) - 1)); syncRepairQuantity(true); };
+      bodyHost.querySelector("#bhRepairQtyPlus").onclick = () => { repairQuantityInput.value = String(Math.min(remainingUnits(), Number(repairQuantityInput.value) + 1)); syncRepairQuantity(true); };
+      repairQuantityInput.addEventListener('input', () => syncRepairQuantity(false));
+      repairQuantityInput.addEventListener('change', () => syncRepairQuantity(true));
       repairQuantityInput.addEventListener('focus', () => repairQuantityInput.select());
       repairQuantityInput.addEventListener("blur", event => {
         if (!shouldKeepUserFocus(event)) updateAddRepairButton();
@@ -2094,7 +2251,9 @@
         if (model && !/^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model)) { alert("Model number may use letters, numbers, spaces, and . - _ / # ( ) + only."); bodyHost.querySelector("#bhRepairModel").focus(); return; }
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
         if (problem.length < 10) { alert("Please describe the problem using at least 10 characters."); bodyHost.querySelector("#bhRepairProblem").focus(); return; }
-        const qty = Math.max(1, Math.min(40, Math.trunc(Number(bodyHost.querySelector("#bhRepairQty").value)) || 1));
+        syncRepairQuantity(true);
+        const qty = Number(repairQuantityInput.value);
+        if (!canAddUnits(qty)) return;
         const unitType = selectedUnitType?.value || selectedCategory.slug;
         const unitLabel = selectedUnitType?.label || selectedCategory.name;
         const { fee } = selectedRepairPricing();
@@ -2105,6 +2264,7 @@
           applianceType: unitType, applianceTypeName: unitLabel,
           airconType: selectedCategory.slug === 'aircon' ? unitType : "", airconTypeName: selectedCategory.slug === 'aircon' ? unitLabel : "",
           problemDescription: problem, repairIssue: problem,
+          duration: Number(state.inspectionDurationMinutes) || 90,
           unitPrice: fee, totalPrice: fee * qty,
         });
         bodyHost.querySelector("#bhRepairBrand").value = "";
@@ -2136,11 +2296,26 @@
             const reasonEl = host.querySelector("#bhServiceChangeReason");
             const reason = reasonEl ? reasonEl.value.trim() : "";
             const servicesChanged = JSON.stringify(rows) !== initialServicesSnapshot;
-            const scheduleChanged = Boolean(selectedDate && selectedTime);
+            const project = needsProjectSchedule();
+            const scheduleChanged = Boolean(selectedDate && (project ? selectedEndDate : selectedTime));
 
             if (!rows.length) {
               alert("A booking must keep at least one service item.");
               button.disabled = false;
+              return;
+            }
+            if (selectedUnits() > maxBookingUnits) {
+              alert(unitLimitMessage);
+              return;
+            }
+            if (project && !scheduleChanged) {
+              alert('Choose a start and end date for the project before saving.');
+              bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
+              return;
+            }
+            if (project && EnterpriseCalendar.getWindowVerdict()?.sufficient !== true) {
+              alert('These dates do not have enough time for the project. Choose a longer date range.');
+              bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
               return;
             }
 
@@ -2162,8 +2337,10 @@
                   body: JSON.stringify({
                     services,
                     reason: reason || rescheduleReason,
-                    requestedSchedule: selectedDate && selectedTime
-                      ? { date: selectedDate, startTime: selectedTime, notes: rescheduleReason }
+                    requestedSchedule: scheduleChanged
+                      ? project
+                        ? { date: selectedDate, endDate: selectedEndDate, notes: rescheduleReason }
+                        : { date: selectedDate, startTime: selectedTime, notes: rescheduleReason }
                       : undefined,
                   })
                 }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Unable to save service changes"); return d; })
@@ -2181,7 +2358,7 @@
             if (errors.length) {
               alert("Some changes failed:\n" + errors.join("\n"));
             } else {
-              const msgs = results.map(r => r.value?.applied ? "Services updated" : r.value?.message || "Changes saved").filter(Boolean);
+              const msgs = results.map(r => r.value?.message || (r.value?.applied ? "Services updated" : "Changes saved")).filter(Boolean);
               alert(msgs.length ? msgs.join(". ") + "." : "Changes saved successfully.");
               bootstrap.Modal.getOrCreateInstance(host).hide();
               await fetchBookings();
@@ -2190,38 +2367,58 @@
         };
       }
 
-      (async () => {
+      async function initializeEditorCalendar(request) {
         try {
           if (typeof EnterpriseCalendar === 'undefined') throw new Error('Calendar module not loaded');
+          host.querySelector('#bhEditorCalendarLoading')?.classList.remove('d-none');
+          host.querySelector('#bhEditorCalendarContent')?.classList.add('d-none');
+          host.querySelector('#bhEditorCalendarError')?.classList.add('d-none');
           const serviceId = booking ? ((booking.serviceId && (booking.serviceId._id || booking.serviceId)) || (booking.service && booking.service._id) || null) : null;
           await EnterpriseCalendar.init({
             root: host,
             syncGlobalState: false,
             resetSelection: true,
             serviceId,
-            duration: booking ? (Number(booking.serviceDurationMinutes) || 90) : 90,
-            quantity: booking ? (Number(booking.quantity) || 1) : 1,
-            onSelect: ({ date, slot }) => {
-              if (!date || !slot) return;
-              selectedDate = EnterpriseCalendar.formatDateKey(date);
-              selectedTime = slot.startTime || slot.label;
+            duration: Math.max(1, Math.ceil(serviceMinutes() / Math.max(1, selectedUnits()))),
+            quantity: Math.max(1, selectedUnits()),
+            totalEstimatedMinutes: serviceMinutes(),
+            mode: editorCalendarMode ? 'project' : 'appointment',
+            minProjectStartDate: new Date(Date.now() + 86400000),
+            showCommercialProjects: false,
+            onSelect: selection => {
+              if (request !== editorCalendarRequest) return;
+              if (editorCalendarMode) {
+                if (!selection.preferredStartDate || !selection.endDate) return;
+                selectedDate = EnterpriseCalendar.formatDateKey(selection.preferredStartDate);
+                selectedEndDate = EnterpriseCalendar.formatDateKey(selection.endDate);
+                selectedTime = null;
+              } else {
+                if (!selection.date || !selection.slot) return;
+                selectedDate = EnterpriseCalendar.formatDateKey(selection.date);
+                selectedTime = selection.slot.startTime || selection.slot.label;
+                selectedEndDate = null;
+              }
               const selBox = host.querySelector('#bhEditorSelection');
               const selText = host.querySelector('#bhEditorSelectionText');
               selBox.classList.remove('d-none');
               const dObj = new Date(selectedDate + 'T00:00:00');
-              selText.innerHTML = `<strong>Date:</strong> ${dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}<br><strong>Time:</strong> ${selectedTime}`;
+              selText.textContent = editorCalendarMode
+                ? `Preferred project dates: ${selectedDate} to ${selectedEndDate}. The team will confirm the final work plan.`
+                : `Date: ${dObj.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · Time: ${selectedTime}`;
               updateServiceCount();
             }
           });
+          if (request !== editorCalendarRequest) return;
           host.querySelector('#bhEditorCalendarLoading')?.classList.add('d-none');
           host.querySelector('#bhEditorCalendarContent')?.classList.remove('d-none');
         } catch (err) {
           console.error(err);
+          if (request !== editorCalendarRequest) return;
           host.querySelector('#bhEditorCalendarLoading')?.classList.add('d-none');
           const calErr = host.querySelector('#bhEditorCalendarError');
-          if (calErr) { calErr.textContent = 'Could not load available dates. You can still edit services.'; calErr.classList.remove('d-none'); }
+          if (calErr) { calErr.textContent = 'Could not load available dates. Reload the page and try again before saving.'; calErr.classList.remove('d-none'); }
         }
-      })();
+      }
 
       attachSaveHandler();
       renderCurrentItems();

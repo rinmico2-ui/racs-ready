@@ -114,6 +114,9 @@
           <p class="auth-form-card-subtitle">Set up your profile to book and manage services.</p>
         </header>
 
+        <a class="auth-google-button mb-3" href="/api/auth/google"><i class="bi bi-google" aria-hidden="true"></i><span>Sign up with Google</span></a>
+        <div class="auth-divider" aria-hidden="true"><span>or use email</span></div>
+
         <form id="auth-register-form" method="POST" novalidate autocomplete="off">
           <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
           <div class="auth-register-progress" aria-label="Account creation progress">
@@ -213,7 +216,7 @@
 
         <section id="registerVerificationPanel" class="d-none auth-verification" aria-live="polite">
           <div class="auth-verification-icon"><i class="bi bi-envelope-check" aria-hidden="true"></i></div>
-          <h2>Verify your email</h2><p>Enter the 6-digit code sent to <strong id="registerVerificationEmail"></strong>.</p>
+          <h2>Verify your email</h2><p>Enter the 6-digit code sent to <strong id="registerVerificationEmail"></strong> in this browser to finish signup and sign in.</p>
           <div class="auth-field"><label class="auth-field-label" for="register-otp">Verification code</label><input id="register-otp" type="text" class="auth-field-input auth-otp-input auth-otp-centered" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" /></div>
           <button type="button" class="auth-submit" id="verifyRegisterOtpBtn"><span class="btn-text">Verify Email</span></button>
           <p class="auth-toggle-text">Didn’t receive it? <button type="button" class="auth-text-button" id="resendRegisterOtpBtn">Resend code</button></p>

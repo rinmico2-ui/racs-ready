@@ -992,6 +992,16 @@ router.get("/book-history", pageAuth.requireRole("customer"), (req, res) => {
   res.render("pages/book-history", { title: "Booking History" });
 });
 
+router.get('/unit-assistance', pageAuth.requireRole('customer'), (req, res) => {
+  res.render('pages/unit-assistance', { title: 'Unit identification requests' });
+});
+router.get('/admin/unit-assistance', pageAuth.requireRole('admin'), (req, res) => {
+  res.render('pages/unit-assistance-staff', { title: 'Unit identification requests', layout: 'layouts/admin' });
+});
+router.get('/secretary/unit-assistance', pageAuth.requireRole('secretary'), (req, res) => {
+  res.render('pages/unit-assistance-staff', { title: 'Unit identification requests', layout: 'layouts/secretary' });
+});
+
 // Render the schedule shell immediately; its owned, bounded data feed follows.
 router.get("/tracking", pageAuth.requireRole("customer"), (req, res) => {
   res.render("pages/tracking", {
@@ -1903,31 +1913,31 @@ router.get("/admin/technicians/:id/edit", pageAuth.requireRole("admin"), async (
 });
 
 // Admin - Ratings Management
-router.get("/admin/ratings/service", pageAuth.requireRole("admin"), (req, res) => {
+router.get(["/admin/ratings/service", "/secretary/ratings/service"], pageAuth.requireRole(["admin", "secretary"]), (req, res) => {
   res.render("pages/admin/Ratings/service", {
     title: "Customer Ratings",
-    layout: "layouts/admin",
+    layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   });
 });
 
-router.get("/admin/ratings/aircons", pageAuth.requireRole("admin"), (req, res) => {
+router.get(["/admin/ratings/aircons", "/secretary/ratings/aircons"], pageAuth.requireRole(["admin", "secretary"]), (req, res) => {
   res.render("pages/admin/Ratings/aircons", {
     title: "Aircon Ratings",
-    layout: "layouts/admin",
+    layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   });
 });
 
-router.get("/admin/ratings/technicians", pageAuth.requireRole("admin"), (req, res) => {
+router.get(["/admin/ratings/technicians", "/secretary/ratings/technicians"], pageAuth.requireRole(["admin", "secretary"]), (req, res) => {
   res.render("pages/admin/Ratings/technicians", {
     title: "Technician Ratings",
-    layout: "layouts/admin",
+    layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   });
 });
 
-router.get("/admin/ratings/analytics", pageAuth.requireRole("admin"), (req, res) => {
+router.get(["/admin/ratings/analytics", "/secretary/ratings/analytics"], pageAuth.requireRole(["admin", "secretary"]), (req, res) => {
   res.render("pages/admin/Ratings/analytics", {
     title: "Rating Analytics",
-    layout: "layouts/admin",
+    layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   });
 });
 
@@ -2356,27 +2366,27 @@ router.get("/admin/roles", pageAuth.requireRole("admin"), async (req, res) => {
 
 // Admin - Reports
 router.get(
-  "/admin/reports",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports", "/secretary/reports"],
+  pageAuth.requireRole(["admin", "secretary"]),
   (req, res) => {
     res.render("pages/admin/Reports/ReportCenter", {
       title: "Report Center",
-      layout: "layouts/admin",
+      layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
     });
   },
 );
 
 router.get(
-  "/admin/reports/orders",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/orders", "/secretary/reports/orders"],
+  pageAuth.requireRole(["admin", "secretary"]),
   (req, res) => res.render("pages/admin/Reports/DeferredOrderReport", {
-    title: "Order Analytics", layout: "layouts/admin",
+    title: "Order Analytics", layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   }),
 );
 
 router.get(
-  "/admin/reports/orders/data",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/orders/data", "/secretary/reports/orders/data"],
+  pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, medianCycleHours: 0, p90CycleHours: 0, onTimeRate: 0, onTimeSampleSize: 0, openOrders: 0, overdueOrders: 0, unassignedOrders: 0, pendingPaymentOrders: 0, actionRequiredOrders: 0, backlogAging: { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 }, cancellationReasons: [], orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
     const { parseOrderReportFilters, serializableOrderFilters } = require("../utils/orderReportFilters");
@@ -2582,14 +2592,14 @@ router.get(
 );
 
 router.get(
-  "/admin/reports/service",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/service", "/secretary/reports/service"],
+  pageAuth.requireRole(["admin", "secretary"]),
   (req, res) => {
     // First paint must not wait for the full service analytics workload. The
     // report view hydrates itself from the authenticated data fragment below.
     res.render("pages/admin/Reports/ServiceReport", {
       title: "Services",
-      layout: "layouts/admin",
+      layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
       analytics: null,
       reportError: null,
       deferredAnalytics: true,
@@ -2598,10 +2608,10 @@ router.get(
 );
 
 router.get(
-  "/admin/reports/service/data",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/service/data", "/secretary/reports/service/data"],
+  pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
-    const cachedFragment = readServiceReportFragment(req.query);
+    const cachedFragment = readServiceReportFragment({ ...req.query, reportRole: req.user.role });
     if (cachedFragment.html) {
       res.set("X-Report-Cache", "hit");
       return res.send(cachedFragment.html);
@@ -3349,8 +3359,8 @@ router.get(
 );
 
 router.post(
-  "/admin/reports/service/photos",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/service/photos", "/secretary/reports/service/photos"],
+  pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     try {
       const mongoose = require("mongoose");
@@ -3460,8 +3470,8 @@ router.post(
 );
 
 router.get(
-  "/admin/reports/inventory",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/inventory", "/secretary/reports/inventory"],
+  pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     try {
       const Inventory = require("../models/Inventory");
@@ -3714,7 +3724,7 @@ router.get(
       
       res.render("pages/admin/Reports/InventoryReports", {
         title: "Inventory",
-        layout: "layouts/admin",
+        layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
         analytics: {
           totalProducts,
           inStock,
@@ -3766,21 +3776,21 @@ router.get(
       console.error("Inventory reports error:", err);
       res.render("pages/admin/Reports/InventoryReports", {
         title: "Inventory",
-        layout: "layouts/admin",
+        layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
         analytics: null
       });
     }
   },
 );
 router.get(
-  "/admin/reports/revenue",
-  pageAuth.requireRole("admin"),
+  ["/admin/reports/revenue", "/secretary/reports/revenue"],
+  pageAuth.requireRole(["admin", "secretary"]),
   (req, res) => {
     // Render the report shell immediately. The page already has a filtered API
     // updater, so expensive financial analytics must not block navigation.
     res.render("pages/admin/Reports/RevenueReports", {
       title: "Revenue",
-      layout: "layouts/admin",
+      layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
       analytics: null,
       deferredAnalytics: true,
     });
@@ -4254,169 +4264,7 @@ router.get(
   },
 );
 
-// Secretary reports routes
-
-router.get(
-  "/secretary/reports/revenue",
-  pageAuth.requireRole("secretary"),
-  async (req, res, next) => {
-    try {
-      const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
-      const { analytics } = await buildRevenueAnalytics(req.query);
-      return res.render("pages/secretary/Reports/RevenueReports", {
-        title: "Revenue Reports",
-        layout: "layouts/secretary",
-        analytics,
-      });
-    } catch (error) {
-      return next(error);
-    }
-  },
-);
-
-
-router.get(
-  "/secretary/reports/revenue", pageAuth.requireRole("secretary"), async (req, res) => { try { const BookingService = require("../models/BookingService"); const Payment = require("../models/Payment"); const Order = require("../models/Order"); const Technician = require("../models/Technician"); const now = new Date(); const twelveMonthsAgo = new Date(now); twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12); const bookings = await BookingService.find({ createdAt: { $gte: twelveMonthsAgo } }).lean(); const payments = await Payment.find({ submittedAt: { $gte: twelveMonthsAgo }, status: { $in: ["paid", "partial"] } }).lean(); const orders = await Order.find({ createdAt: { $gte: twelveMonthsAgo } }).lean(); function getBookingRev(b) { const isRepair = b.serviceType === "repair" || (b.services && b.services.some(s => s.type === "repair")); if (isRepair) { return (b.inspectionFeeTotalCollected || b.initialCost || 0) + ((b.quotation && b.quotation.totalCost) || 0); } return b.totalPrice || b.estimatedFee || 0; } const serviceRevenue = bookings.reduce((sum, b) => sum + getBookingRev(b), 0); const orderRevenue = orders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0); const totalRevenue = serviceRevenue + orderRevenue; const totalTransactions = bookings.length; const avgTransactionValue = totalTransactions > 0 ? totalRevenue / totalTransactions : 0; const paidBookings = payments.length; const pendingPayments = bookings.filter(b => b.status === "pending" || b.status === "confirmed").length; const gcashRevenue = payments.filter(p => p.paymentMethod === "gcash").reduce((sum, p) => sum + (p.amount || 0), 0); const codRevenue = payments.filter(p => p.paymentMethod === "cod" || p.paymentMethod === "cash").reduce((sum, p) => sum + (p.amount || 0), 0); const coreRevenue = bookings.filter(b => b.serviceType === "core" || (b.services && b.services.some(s => s.type === "core"))).reduce((sum, b) => sum + getBookingRev(b), 0); const repairRevenue = bookings.filter(b => b.serviceType === "repair" || (b.services && b.services.some(s => s.type === "repair"))).reduce((sum, b) => sum + getBookingRev(b), 0); const technicians = await Technician.find({}).lean(); const technicianRevenue = {}; bookings.forEach(b => { if (b.technicianId && b.status === "completed") { technicianRevenue[b.technicianId] = (technicianRevenue[b.technicianId] || 0) + (b.totalPrice || b.estimatedFee || 0); } }); const topTechnicians = Object.entries(technicianRevenue).map(([techId, revenue]) => { const tech = technicians.find(t => t._id.toString() === techId); const techBookings = bookings.filter(b => b.technicianId && b.technicianId.toString() === techId && b.status === "completed"); return { _id: techId, name: tech ? tech.name : "Unknown", revenue, bookings: techBookings.length }; }).sort((a, b) => b.revenue - a.revenue).slice(0, 5); const dailyRevenue = []; for (let i = 0; i < 30; i++) { const date = new Date(now); date.setDate(date.getDate() - i); const dateStr = date.toISOString().split("T")[0]; const dayBookings = bookings.filter(b => new Date(b.createdAt).toISOString().split("T")[0] === dateStr); const dayPayments = payments.filter(p => new Date(p.submittedAt).toISOString().split("T")[0] === dateStr); dailyRevenue.push({ date: dateStr, gross: dayBookings.reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0), net: dayPayments.reduce((sum, p) => sum + (p.amount || 0), 0) }); } dailyRevenue.reverse(); const monthlyRevenue = {}; for (let i = 0; i < 12; i++) { const monthDate = new Date(now); monthDate.setMonth(monthDate.getMonth() - i); const monthKey = monthDate.toLocaleString("en-US", { month: "short", year: "numeric" }); const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1); const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0); const monthBookings = bookings.filter(b => { const bookingDate = new Date(b.createdAt); return bookingDate >= monthStart && bookingDate <= monthEnd; }); const monthOrders = orders.filter(o => { const orderDate = new Date(o.createdAt); return orderDate >= monthStart && orderDate <= monthEnd; }); const monthServiceRevenue = monthBookings.reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0); const monthOrderRevenue = monthOrders.reduce((sum, o) => sum + (o.total || o.totalAmount || 0), 0); monthlyRevenue[monthKey] = { service: monthServiceRevenue, orders: monthOrderRevenue, total: monthServiceRevenue + monthOrderRevenue }; } const monthlyRevenueArray = Object.entries(monthlyRevenue).map(([month, data]) => ({ month, service: data.service, orders: data.orders, total: data.total })).reverse(); const paymentMethods = {}; payments.forEach(p => { const method = p.paymentMethod || "other"; paymentMethods[method] = (paymentMethods[method] || 0) + (p.amount || 0); }); res.render("pages/secretary/Reports/RevenueReports", { title: "Revenue Reports", layout: "layouts/secretary", analytics: { totalRevenue, totalTransactions, serviceRevenue, orderRevenue, avgTransactionValue, paidBookings, pendingPayments, gcashRevenue, codRevenue, coreRevenue, repairRevenue, topTechnicians, dailyRevenue, paymentMethods, monthlyRevenue: monthlyRevenueArray, deliveryRevenue: 0, installationRevenue: 0, bankRevenue: 0, paymentRevenue: gcashRevenue + codRevenue, partialPayments: payments.filter(p => p.status === "partial").length, failedPayments: payments.filter(p => p.status === "failed").length, growthRate: 0 } }); } catch (err) { console.error("Revenue reports error:", err); res.render("pages/secretary/Reports/RevenueReports", { title: "Revenue Reports", layout: "layouts/secretary", analytics: null }); } },
-);
-
-router.get(
-  "/secretary/reports/service", pageAuth.requireRole("secretary"), async (req, res) => { try { const BookingService = require("../models/BookingService"); const Technician = require("../models/Technician"); const now = new Date(); const ninetyDaysAgo = new Date(now); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90); const bookings = await BookingService.find({ createdAt: { $gte: ninetyDaysAgo } }).lean(); const technicians = await Technician.find({}).lean(); const totalBookings = bookings.length; const completedBookings = bookings.filter(b => b.status === "completed").length; const pendingBookings = bookings.filter(b => ["pending", "confirmed", "scheduled"].includes(b.status)).length; const cancelledBookings = bookings.filter(b => b.status === "cancelled").length; const inProgressBookings = bookings.filter(b => ["on-the-way", "in-progress", "arrived"].includes(b.status)).length; const statusBreakdown = {}; bookings.forEach(b => { statusBreakdown[b.status] = (statusBreakdown[b.status] || 0) + 1; }); const gcashBookings = bookings.filter(b => b.paymentMethod === "gcash").length; const codBookings = bookings.filter(b => b.paymentMethod === "cod").length; const otherPaymentBookings = totalBookings - gcashBookings - codBookings; const coreServiceBookings = bookings.filter(b => b.serviceType === "core" || (b.services && b.services.some(s => s.type === "core"))).length; const repairBookings = bookings.filter(b => b.serviceType === "repair" || (b.services && b.services.some(s => s.type === "repair"))).length; const multiServiceBookings = bookings.filter(b => b.isMultiService).length; const totalRevenue = bookings.reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0); const completedRevenue = bookings.filter(b => b.status === "completed").reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0); const pendingRevenue = bookings.filter(b => ["pending", "confirmed", "scheduled"].includes(b.status)).reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0); const avgBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0; const technicianStats = {}; bookings.forEach(b => { if (b.technicianId) { const techId = b.technicianId.toString(); if (!technicianStats[techId]) { technicianStats[techId] = { id: techId, name: b.technician?.name || "Unknown", totalBookings: 0, completedBookings: 0, cancelledBookings: 0, revenue: 0, ratings: [] }; } technicianStats[techId].totalBookings++; technicianStats[techId].revenue += (b.totalPrice || b.estimatedFee || 0); if (b.status === "completed") technicianStats[techId].completedBookings++; if (b.status === "cancelled") technicianStats[techId].cancelledBookings++; if (b.customerRating) technicianStats[techId].ratings.push(b.customerRating); } }); Object.values(technicianStats).forEach(stats => { stats.completionRate = stats.totalBookings > 0 ? (stats.completedBookings / stats.totalBookings) : 0; stats.avgRating = stats.ratings.length > 0 ? (stats.ratings.reduce((a, b) => a + b, 0) / stats.ratings.length) : 0; }); const topTechnicians = Object.values(technicianStats).sort((a, b) => b.revenue - a.revenue).slice(0, 5); const ratedBookings = bookings.filter(b => b.customerRating); const avgRating = ratedBookings.length > 0 ? ratedBookings.reduce((sum, b) => sum + b.customerRating, 0) / ratedBookings.length : 0; const ratingDistribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }; ratedBookings.forEach(b => { if (b.customerRating >= 1 && b.customerRating <= 5) { ratingDistribution[b.customerRating]++; } }); const weeklyData = {}; for (let i = 0; i < 12; i++) { const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - (i * 7)); weekStart.setHours(0, 0, 0, 0); const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7); const weekBookings = bookings.filter(b => { const date = new Date(b.createdAt); return date >= weekStart && date < weekEnd; }); const weekKey = `W${12-i}`; weeklyData[weekKey] = { bookings: weekBookings.length, revenue: weekBookings.reduce((sum, b) => sum + (b.totalPrice || b.estimatedFee || 0), 0), completed: weekBookings.filter(b => b.status === "completed").length }; } const recentBookings = bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10).map(b => ({ id: b._id, reference: b.bookingReference, customer: b.customer?.name || "Unknown", service: b.service?.name || b.serviceType || "Unknown", status: b.status, amount: b.totalPrice || b.estimatedFee || 0, date: b.createdAt, technician: b.technician?.name || "Unassigned" })); const dailyTrend = []; for (let i = 6; i >= 0; i--) { const dayStart = new Date(now); dayStart.setDate(dayStart.getDate() - i); dayStart.setHours(0, 0, 0, 0); const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1); const dayBookings = bookings.filter(b => { const d = new Date(b.createdAt); return d >= dayStart && d < dayEnd; }); dailyTrend.push({ day: dayStart.toLocaleDateString("en-US", { weekday: "short" }), date: dayStart.toISOString().slice(0, 10), bookings: dayBookings.length, completed: dayBookings.filter(b => b.status === "completed").length }); } const serviceAggMap = {}; bookings.forEach(b => { const sName = b.service?.name || b.serviceType || "Unknown"; if (!serviceAggMap[sName]) { serviceAggMap[sName] = { name: sName, bookings: 0, completed: 0, revenue: 0, ratings: [] }; } serviceAggMap[sName].bookings++; serviceAggMap[sName].revenue += (b.totalPrice || b.estimatedFee || 0); if (b.status === "completed") serviceAggMap[sName].completed++; if (b.customerRating) serviceAggMap[sName].ratings.push(b.customerRating); }); const topServices = Object.values(serviceAggMap).map(s => ({ ...s, completionRate: s.bookings > 0 ? (s.completed / s.bookings) * 100 : 0, avgRating: s.ratings.length > 0 ? (s.ratings.reduce((a, b) => a + b, 0) / s.ratings.length) : 0, avgRevenue: s.bookings > 0 ? s.revenue / s.bookings : 0 })).sort((a, b) => b.bookings - a.bookings).slice(0, 5); const techUtilization = Object.values(technicianStats).map(t => ({ name: t.name, completed: t.completedBookings, total: t.totalBookings, utilization: t.totalBookings > 0 ? Math.round((t.completedBookings / t.totalBookings) * 100) : 0 })).sort((a, b) => b.utilization - a.utilization).slice(0, 10); const weeklyCsat = []; for (let i = 5; i >= 0; i--) { const weekStart = new Date(now); weekStart.setDate(weekStart.getDate() - (i * 7)); weekStart.setHours(0, 0, 0, 0); const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7); const weekRated = bookings.filter(b => { const d = new Date(b.createdAt); return d >= weekStart && d < weekEnd && b.customerRating; }); const avg = weekRated.length > 0 ? weekRated.reduce((s, b) => s + b.customerRating, 0) / weekRated.length : 0; weeklyCsat.push({ week: `W${i + 1}`, avg }); } res.render("pages/secretary/Reports/ServiceReport", { title: "Service Reports", layout: "layouts/secretary", analytics: { totalBookings, completedBookings, pendingBookings, cancelledBookings, inProgressBookings, gcashBookings, codBookings, otherPaymentBookings, coreServiceBookings, repairBookings, multiServiceBookings, totalRevenue, completedRevenue, pendingRevenue, avgBookingValue, avgRating: avgRating.toFixed(1), ratingDistribution, statusBreakdown, technicianStats, topTechnicians, weeklyData, dailyTrend, topServices, techUtilization, weeklyCsat, recentBookings, technicians: technicians.map(t => ({ _id: t._id, name: t.name, email: t.userEmail, specialization: t.specialization, active: t.active })) } }); } catch (err) { console.error("Service reports error:", err); res.render("pages/secretary/Reports/ServiceReport", { title: "Service Reports", layout: "layouts/secretary", analytics: null }); } },
-);
-
-router.get(
-  "/secretary/reports/inventory",
-  pageAuth.requireRole("secretary"),
-  async (req, res) => {
-    try {
-      const Inventory = require("../models/Inventory");
-      const Tool = require("../models/Tool");
-      const ServiceToolUsage = require("../models/ServiceToolUsage");
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const [inventoryItems, tools, toolUsage] = await Promise.all([
-        Inventory.find({ active: { $ne: false } }).lean(),
-        Tool.find({ active: { $ne: false } }).lean(),
-        ServiceToolUsage.find({ usedAt: { $gte: thirtyDaysAgo }, lifecycleStatus: { $ne: "voided" } }).lean(),
-      ]);
-      const totalProducts = inventoryItems.length;
-      const inStock = inventoryItems.filter(i => i.status === "in_stock").length;
-      const lowStock = inventoryItems.filter(i => i.status === "low_stock").length;
-      const outOfStock = inventoryItems.filter(i => i.status === "out_of_stock").length;
-      const discontinued = inventoryItems.filter(i => i.status === "discontinued").length;
-      const totalTools = tools.length;
-      const toolsInStock = tools.filter(t => t.status === "in_stock").length;
-      const toolsLowStock = tools.filter(t => t.status === "low_stock").length;
-      const toolsOutOfStock = tools.filter(t => t.status === "out_of_stock").length;
-      const inventoryValue = inventoryItems.reduce((sum, i) => sum + (i.sellingPrice * i.quantity || 0), 0);
-      const inventoryCost = inventoryItems.reduce((sum, i) => sum + (i.costPrice * i.quantity || 0), 0);
-      const toolsValue = tools.reduce((sum, t) => sum + (t.sellingPrice * t.quantity || 0), 0);
-      const toolsCost = tools.reduce((sum, t) => sum + (t.costPrice * t.quantity || 0), 0);
-      const typeCounts = {};
-      const typeValues = {};
-      inventoryItems.forEach(i => {
-        typeCounts[i.type] = (typeCounts[i.type] || 0) + 1;
-        typeValues[i.type] = (typeValues[i.type] || 0) + (i.sellingPrice * i.quantity || 0);
-      });
-      const stockLevels = inventoryItems.map(i => ({
-        name: i.modelLine || i.displayLabel || "Unknown",
-        quantity: i.quantity,
-        minStock: i.minStockLevel,
-        status: i.status,
-        value: (i.sellingPrice * i.quantity) || 0,
-        cost: (i.costPrice * i.quantity) || 0,
-        margin: ((i.sellingPrice - i.costPrice) * i.quantity) || 0,
-        type: i.type
-      })).sort((a, b) => b.value - a.value).slice(0, 15);
-      const lowStockAlerts = [
-        ...inventoryItems.filter(i => i.status === "low_stock").map(i => ({
-          id: i._id,
-          name: i.modelLine || i.displayLabel,
-          quantity: i.quantity,
-          minStock: i.minStockLevel,
-          type: "product",
-          priority: i.quantity === 0 ? "critical" : (i.quantity <= i.minStockLevel * 0.5 ? "high" : "medium"),
-          value: (i.sellingPrice * i.quantity) || 0,
-          daysOfStock: Math.round(i.quantity / Math.max(i.minStockLevel / 7, 1))
-        })),
-        ...tools.filter(t => t.status === "low_stock").map(t => ({
-          id: t._id,
-          name: t.itemName,
-          quantity: t.quantity,
-          minStock: t.minStockLevel,
-          type: "tool",
-          priority: t.quantity === 0 ? "critical" : (t.quantity <= t.minStockLevel * 0.5 ? "high" : "medium"),
-          value: (t.sellingPrice * t.quantity) || 0,
-          daysOfStock: Math.round(t.quantity / Math.max(t.minStockLevel / 7, 1))
-        }))
-      ].sort((a, b) => {
-        const priorityOrder = { critical: 0, high: 1, medium: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority] || a.quantity - b.quantity;
-      });
-      const totalItems = totalProducts + totalTools;
-      const healthyItems = inStock + toolsInStock;
-      const inventoryHealthScore = totalItems > 0 ? Math.round((healthyItems / totalItems) * 100) : 0;
-      const profitPotential = (inventoryValue - inventoryCost) + (toolsValue - toolsCost);
-      const totalToolUsage = toolUsage.reduce((sum, u) => sum + (u.quantityUsed || 0), 0);
-      const toolUsageValue = toolUsage.reduce((sum, u) => sum + ((u.quantityUsed || 0) * (u.unitPrice || 0)), 0);
-      const toolUsageMap = {};
-      toolUsage.forEach(u => {
-        const name = u.itemName || "Unknown";
-        toolUsageMap[name] = (toolUsageMap[name] || 0) + (u.quantityUsed || 0);
-      });
-      const topUsedTools = Object.entries(toolUsageMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, quantity]) => ({ name, quantity }));
-      const stockTurnover = tools.map(t => {
-        const usage = toolUsageMap[t.itemName] || 0;
-        return {
-          name: t.itemName,
-          stock: t.quantity,
-          usage30d: usage,
-          turnoverRate: t.quantity > 0 ? (usage / t.quantity) : 0,
-          status: t.status
-        };
-      }).sort((a, b) => b.turnoverRate - a.turnoverRate).slice(0, 10);
-      res.render("pages/secretary/Reports/InventoryReports", {
-        title: "Inventory Reports",
-        layout: "layouts/secretary",
-        analytics: {
-          totalProducts,
-          inStock,
-          lowStock,
-          outOfStock,
-          discontinued,
-          totalTools,
-          toolsInStock,
-          toolsLowStock,
-          toolsOutOfStock,
-          inventoryValue,
-          inventoryCost,
-          toolsValue,
-          toolsCost,
-          totalValue: inventoryValue + toolsValue,
-          totalCost: inventoryCost + toolsCost,
-          typeCounts,
-          typeValues,
-          stockLevels,
-          lowStockAlerts: lowStockAlerts.slice(0, 15),
-          profitPotential,
-          inventoryHealthScore,
-          totalToolUsage,
-          toolUsageValue,
-          topUsedTools,
-          stockTurnover
-        }
-      });
-    } catch (err) {
-      console.error("Inventory reports error:", err);
-      res.render("pages/secretary/Reports/InventoryReports", {
-        title: "Inventory Reports",
-        layout: "layouts/secretary",
-        analytics: null
-      });
-    }
-  },
-);
-
-
+// Secretary reports use the shared admin-grade report handlers above.
 
 // Secretary payments routes
 router.get(

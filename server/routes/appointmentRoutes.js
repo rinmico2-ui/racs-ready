@@ -30,6 +30,7 @@ const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
 const { loadActiveOrderCapacityRows } = require("../utils/orderScheduleCapacity");
 const { BookingStatus } = require("../models/BookingStatus");
 const { capacityMinutes, aggregateBookingType, mutationPolicy, summarizeChanges } = require("../utils/bookingServiceItems");
+const { parseProjectWindow, saveProjectServiceChange } = require("../utils/projectServiceChange");
 const { createNotification } = require("../utils/notify");
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
@@ -4739,6 +4740,13 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
 
     const action = String(req.body.action || "");
     const reason = String(req.body.reason || "").trim();
+    const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
+    const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
+    const proposedUnits = (change.proposedServices || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const proposedMinutes = capacityMinutes(change.proposedServices, inspectionDuration);
+    const projectRequired = Boolean(booking.isProject) || await schedulingEngine.isLargeProject({
+      totalUnits: proposedUnits, totalEstimatedMinutes: proposedMinutes,
+    });
     const customerRequestedSchedule = change.requestedSchedule?.date
       ? change.requestedSchedule
       : (booking.rescheduleRequest?.requested
@@ -4752,10 +4760,10 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
           }
         : null);
     if (action === "propose_schedule") {
+      if (projectRequired) return res.status(400).json({ error: "This project needs a start and end date, not a single appointment time." });
       const date = req.body.date ? new Date(`${req.body.date}T00:00:00`) : null;
       const start = parseTimeValue(req.body.startTime);
       if (!date || Number.isNaN(date.getTime()) || !Number.isFinite(start)) return res.status(400).json({ error: "A valid proposed date and start time are required." });
-      const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
       const buffer = await getBufferMinutes();
       const end = start + capacityMinutes(change.proposedServices, inspectionDuration) + Number(booking.travelTime || 0) + buffer;
       await assertCompanyCapacity(date, start, end, booking._id);
@@ -4786,7 +4794,48 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
     }
 
     if (action !== "approve") return res.status(400).json({ error: "Action must be approve, reject, or propose_schedule." });
-    const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
+    if (projectRequired) {
+      const workStarted = ["on-the-way", "arrived", "in-progress", "inspection_in_progress", "repair_in_progress", "completed", "cancelled"].includes(booking.status)
+        || (booking.services || []).some(item => ["en_route", "arrived", "in_progress", "inspection_in_progress", "repair_in_progress", "completed", "cancelled"].includes(item.status));
+      if (workStarted) return res.status(409).json({ error: "Work has already started on this booking. The operations team must review the project change." });
+      if (booking.technicianId || booking.assignmentId || (booking.services || []).some(item => item.assignmentId)) {
+        return res.status(409).json({ error: "This booking has an assigned technician. Remove the assignment before turning it into a project." });
+      }
+      const window = parseProjectWindow(customerRequestedSchedule);
+      const availability = await schedulingEngine.getProjectWindowAvailability({
+        startDate: window.startKey,
+        endDate: window.endKey,
+        requiredHours: Math.max(1, Math.round(proposedMinutes / 6) / 10),
+        totalUnits: proposedUnits,
+      });
+      if (!availability.sufficient) return res.status(409).json({ error: "These project dates no longer have enough time. Ask the customer to choose a longer date range." });
+      await withOperationLock(bookingCapacityLockKey(window.startDate), async () => {
+        booking.services = change.proposedServices;
+        booking.isMultiService = booking.services.length > 1;
+        booking.serviceType = aggregateBookingType(booking.services);
+        const totals = booking.calculateTotalCosts();
+        booking.totalInitialCost = totals.totalInitialCost;
+        booking.totalFinalCost = totals.totalFinalCost;
+        booking.totalPrice = totals.totalPrice;
+        change.status = "approved";
+        change.adminDecision = { decidedBy: req.user._id, decidedByName: req.user.fullName || req.user.email, decidedAt: new Date(), reason: reason || "Approved for project scheduling." };
+        if (customerRequestedSchedule && booking.rescheduleRequest?.status === "pending") {
+          booking.rescheduleRequest.status = "superseded";
+          booking.rescheduleRequest.processedBy = req.user._id;
+          booking.rescheduleRequest.processedAt = new Date();
+        }
+        await saveProjectServiceChange(booking, {
+          startDate: window.startDate,
+          endDate: window.endDate,
+          plannedCompletionDate: availability.estimatedCompletionDate
+            ? new Date(`${availability.estimatedCompletionDate}T00:00:00`)
+            : window.endDate,
+          inspectionDurationMinutes: inspectionDuration,
+        });
+      });
+      await createNotification({ type: "booking_change_approved", title: "Booking moved to project scheduling", message: `${booking.bookingReference || booking._id} is now a large-scale project. The team will confirm the final schedule.`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "high", io: req.app.get("io") });
+      return res.json({ success: true, booking, changeRequest: change, projectRequired: true });
+    }
     const buffer = await getBufferMinutes();
     const approvedDate = customerRequestedSchedule?.date
       ? new Date(customerRequestedSchedule.date)

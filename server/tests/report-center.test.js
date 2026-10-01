@@ -72,10 +72,10 @@ test("admin report center is wired as a lightweight protected shell", async () =
   const client = fs.readFileSync(path.join(serverRoot, "public/js/admin-report-center.js"), "utf8");
   const html = await ejs.renderFile(path.join(serverRoot, "views/pages/admin/Reports/ReportCenter.ejs"), {});
 
-  assert.match(pages, /"\/admin\/reports"[\s\S]*pageAuth\.requireRole\("admin"\)[\s\S]*ReportCenter/);
+  assert.match(pages, /\["\/admin\/reports", "\/secretary\/reports"\][\s\S]*pageAuth\.requireRole\(\["admin", "secretary"\]\)[\s\S]*ReportCenter/);
   assert.match(api, /router\.get\("\/reports\/overview"/);
   assert.match(sidebar, /href="\/admin\/reports"[^>]*>[\s\S]*Report Center/);
-  assert.match(client, /fetch\("\/api\/admin\/reports\/overview"/);
+  assert.match(client, /fetch\("\/api\/" \+ reportRole \+ "\/reports\/overview"/);
   assert.match(html, /id="reportCenterTitle">Report Center/);
   assert.match(html, /Revenue Intelligence/);
   assert.match(html, /Service Performance/);
