@@ -24,7 +24,7 @@ const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
-const { buildMongoConnectionUri, isTlsProtectedMongoUri } = require("./utils/mongoConnection");
+const { buildMongoConnectionUri, isTlsProtectedMongoUri, isSingleLabelMongoUri } = require("./utils/mongoConnection");
 const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
 const { createHttpAdmission } = require("./middleware/httpAdmission");
 const {
@@ -85,8 +85,9 @@ const redactMongoError = (value) => {
   } catch { /* Keep the original error if the configured URI is malformed. */ }
   return message.replace(/mongodb(?:\+srv)?:\/\/[^\s@]+@/gi, "mongodb://[redacted]@");
 };
-if (process.env.NODE_ENV === "production" && !isTlsProtectedMongoUri(MONGODB_URI)) {
-  throw new Error("Production MongoDB connections must enable TLS");
+if (process.env.NODE_ENV === "production" && !isTlsProtectedMongoUri(MONGODB_URI)
+  && !(process.env.MONGODB_ALLOW_PLAINTEXT_INTERNAL === "true" && isSingleLabelMongoUri(MONGODB_URI))) {
+  throw new Error("Production MongoDB connections must enable TLS. For a trusted private Docker network, use its internal hostname and set MONGODB_ALLOW_PLAINTEXT_INTERNAL=true.");
 }
 
 // Never write database credentials from the connection URI to application logs.
@@ -157,7 +158,7 @@ const databaseReady = new Promise((resolve) => setImmediate(resolve))
     return mongooseInstance.connection.getClient();
   })
   .catch((err) => {
-    logger.error("MongoDB connection error (%s): %s", mongoConnection.usesDirectHosts ? "direct hosts" : "SRV", redactMongoError(err.message));
+    logger.error("MongoDB connection error (%s): %s", MONGODB_URI.startsWith("mongodb+srv://") ? "SRV" : "direct", redactMongoError(err.message));
     for (const [host, description] of err.reason?.servers || []) {
       const cause = description.error;
       logger.error("MongoDB host %s: %s%s: %s", host, cause?.name || description.type, cause?.code ? ` (${cause.code})` : "", redactMongoError(cause?.message || "no server response"));

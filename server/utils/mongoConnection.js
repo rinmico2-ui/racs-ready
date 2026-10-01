@@ -24,6 +24,16 @@ function isTlsProtectedMongoUri(value) {
   return params.get("tls") === "true" || params.get("ssl") === "true";
 }
 
+// Dokploy's internal MongoDB host is a Docker service name, not a public IP or DNS name.
+// This check is only used with an explicit production opt-in for a private network.
+function isSingleLabelMongoUri(value) {
+  const uri = String(value || "");
+  if (!uri.startsWith("mongodb://")) return false;
+  const authority = uri.slice("mongodb://".length).split(/[/?]/, 1)[0];
+  const host = authority.slice(authority.lastIndexOf("@") + 1);
+  return /^[a-z](?:[a-z0-9-]*[a-z0-9])?(?::\d{1,5})?$/i.test(host);
+}
+
 function buildMongoConnectionUri(srvUri, options = {}) {
   const directHosts = parseDirectHosts(options.directHosts);
   if (!directHosts.length || !String(srvUri || "").startsWith("mongodb+srv://")) {
@@ -50,4 +60,4 @@ function buildMongoConnectionUri(srvUri, options = {}) {
   };
 }
 
-module.exports = { buildMongoConnectionUri, isTlsProtectedMongoUri, parseDirectHosts };
+module.exports = { buildMongoConnectionUri, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts };

@@ -2,13 +2,22 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildMongoConnectionUri, isTlsProtectedMongoUri, parseDirectHosts } = require("../utils/mongoConnection");
+const { buildMongoConnectionUri, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts } = require("../utils/mongoConnection");
 
 test("requires TLS on production MongoDB URIs", () => {
   assert.equal(isTlsProtectedMongoUri("mongodb+srv://cluster.example/app"), true);
   assert.equal(isTlsProtectedMongoUri("mongodb+srv://cluster.example/app?tls=false"), false);
   assert.equal(isTlsProtectedMongoUri("mongodb://db.example:27017/app?tls=true"), true);
   assert.equal(isTlsProtectedMongoUri("mongodb://db.example:27017/app"), false);
+});
+
+test("limits the plaintext opt-in to a single Docker-style hostname", () => {
+  assert.equal(isSingleLabelMongoUri("mongodb://user:pass@mongo-service:27017/app?authSource=admin"), true);
+  assert.equal(isSingleLabelMongoUri("mongodb://user:pass@45.85.146.21:12131/?directConnection=true"), false);
+  assert.equal(isSingleLabelMongoUri("mongodb://2130706433:27017/app"), false);
+  assert.equal(isSingleLabelMongoUri("mongodb://user:pass@db.example.com:27017/app"), false);
+  assert.equal(isSingleLabelMongoUri("mongodb://user:pass@mongo-a:27017,mongo-b:27017/app"), false);
+  assert.equal(isSingleLabelMongoUri("mongodb+srv://cluster.example/app"), false);
 });
 
 test("keeps the configured MongoDB URI when no direct hosts are supplied", () => {
