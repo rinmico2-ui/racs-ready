@@ -1,5 +1,5 @@
 const express = require('express');
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit } = require('../utils/boundedRateLimit');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const router = express.Router();
@@ -741,7 +741,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
               'quote.expiresAt': { $gt: new Date() },
             }, { $set: { status: 'converted', bookingId: bookingAttempt._id },
               $push: { events: { action: 'converted', actorId: userId, unitPrice: service.unitPrice } } },
-            { session: creationSession, new: true });
+            { session: creationSession, returnDocument: "after" });
             if (!accepted) throw Object.assign(new Error('The unit quote was already used or changed. Review your request.'), { status: 409 });
           }
           committedBooking = bookingAttempt;

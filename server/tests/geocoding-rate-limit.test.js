@@ -111,3 +111,53 @@ test("search results and map reverse lookups reject locations outside the Philip
   const reverse = await fetch(`${base}/reverse?lat=5.9&lon=116.1`);
   assert.equal(reverse.status, 422);
 });
+
+test("a full geocoding queue returns backpressure without calling the provider", async t => {
+  const routePath = require.resolve("../routes/geocodingRoutes");
+  const originalGet = axios.get;
+  const originalLimit = process.env.GEOCODING_MAX_PENDING_REQUESTS;
+  process.env.GEOCODING_MAX_PENDING_REQUESTS = "2";
+  let releaseProvider;
+  let markStarted;
+  let markSecond;
+  let calls = 0;
+  let incoming = 0;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const secondArrived = new Promise(resolve => { markSecond = resolve; });
+  const providerHold = new Promise(resolve => { releaseProvider = resolve; });
+  axios.get = async (_url, options) => {
+    calls += 1;
+    markStarted();
+    await providerHold;
+    return { data: { display_name: "Philippines", lat: options.params.lat, lon: options.params.lon, address: { country_code: "ph" } } };
+  };
+  delete require.cache[routePath];
+  const app = express();
+  app.use("/api/geocoding", (_req, _res, next) => { if (++incoming === 2) markSecond(); next(); });
+  app.use("/api/geocoding", require(routePath));
+  const server = await new Promise(resolve => {
+    const listener = app.listen(0, "127.0.0.1", () => resolve(listener));
+  });
+  t.after(() => {
+    releaseProvider();
+    axios.get = originalGet;
+    if (originalLimit === undefined) delete process.env.GEOCODING_MAX_PENDING_REQUESTS;
+    else process.env.GEOCODING_MAX_PENDING_REQUESTS = originalLimit;
+    delete require.cache[routePath];
+    server.closeAllConnections();
+    server.close();
+  });
+  const base = `http://127.0.0.1:${server.address().port}/api/geocoding/reverse`;
+  const first = fetch(`${base}?lat=15.1&lon=121.1`);
+  await started;
+  const second = fetch(`${base}?lat=15.2&lon=121.2`);
+  await secondArrived;
+  const excess = await fetch(`${base}?lat=15.3&lon=121.3`);
+  assert.equal(excess.status, 503);
+  assert.equal(excess.headers.get("retry-after"), "3");
+  assert.equal(calls, 1, "rejected traffic must not call the provider or enter its queue");
+  releaseProvider();
+  const completed = await Promise.all([first, second]);
+  assert.deepEqual(completed.map(response => response.status), [200, 200]);
+  assert.equal(calls, 2);
+});

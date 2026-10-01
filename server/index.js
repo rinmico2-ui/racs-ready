@@ -13,7 +13,7 @@ const cookieParser = require("cookie-parser");
 const attachCurrentUser = require("./middleware/currentUser");
 const User = require("./models/User");
 const dns = require("dns");
-const { rateLimit } = require("express-rate-limit");
+const { rateLimit } = require("./utils/boundedRateLimit");
 const {
   shouldSkipAuthAttemptLimit,
   shouldSkipRegistrationAttemptLimit,
@@ -26,6 +26,7 @@ const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAcce
 const { isAccountEnabled } = require("./middleware/accountState");
 const { buildMongoConnectionUri, isTlsProtectedMongoUri } = require("./utils/mongoConnection");
 const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
+const { createHttpAdmission } = require("./middleware/httpAdmission");
 const {
   authenticatedOrIpKey,
   emailOrIpKey,
@@ -60,15 +61,16 @@ function positiveInteger(value, fallback) {
 }
 
 // Database connection
-const configuredMongoUri =
-  process.env.MONGODB_URI ||
-  "mongodb://localhost:27017/appointment_scheduler";
+const configuredMongoUri = String(process.env.MONGODB_URI || "").trim();
+if (process.env.NODE_ENV === "production" && !configuredMongoUri) {
+  throw new Error("MONGODB_URI is required in production");
+}
 const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
   directHosts: process.env.MONGODB_DIRECT_HOSTS,
   replicaSet: process.env.MONGODB_REPLICA_SET,
   authSource: process.env.MONGODB_AUTH_SOURCE,
 });
-const MONGODB_URI = mongoConnection.uri;
+const MONGODB_URI = mongoConnection.uri || "mongodb://localhost:27017/appointment_scheduler";
 const redactMongoError = (value) => {
   let message = String(value || "");
   try {
@@ -217,8 +219,12 @@ app.use(cors({
 app.use(compression({ threshold: 1024 }));
 
 app.use(requestTelemetry);
-// Trust first proxy (required on Render/reverse-proxy hosts for rate-limiting)
-app.set('trust proxy', 1);
+// Hosted traffic passes through a reverse proxy. Direct local requests must
+// not be able to replace their IP by sending a forged forwarding header.
+const configuredProxyHops = Number(process.env.TRUST_PROXY_HOPS);
+app.set('trust proxy', process.env.TRUST_PROXY_HOPS !== undefined
+  && Number.isSafeInteger(configuredProxyHops) && configuredProxyHops >= 0 && configuredProxyHops <= 10
+  ? configuredProxyHops : process.env.NODE_ENV === "production" ? 1 : false);
 
 // Customer contact, location, and payment metadata must never cross the public
 // network over plaintext HTTP. The reverse proxy supplies req.secure through
@@ -258,6 +264,14 @@ app.get("/ready", (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Public assets and platform probes do not read sessions or query MongoDB.
+app.use(require('./middleware/publicAssets')(path.join(__dirname, 'public')));
+// Reject floods before parsing bodies, opening sessions, or resolving users.
+// Account-specific API/auth limits below remain an additional layer.
+const httpAdmission = createHttpAdmission();
+app.locals.httpAdmission = httpAdmission;
+app.use(httpAdmission);
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authAttemptLimiter = rateLimit({
@@ -347,11 +361,9 @@ app.post(
 app.use("/api", requireTrustedOrigin);
 app.use("/appointments", requireTrustedOrigin);
 
-// Deliver public assets without a session-store read or a user lookup for
-// every stylesheet, script and image. Private uploads are still served below
-// their authentication and evidence-access middleware.
-app.use(require('./middleware/publicAssets')(path.join(__dirname, 'public')));
-
+// Authentication and chat never need the large legacy payment-proof budget.
+app.use("/api/auth", express.json({ limit: "64kb" }), express.urlencoded({ extended: true, limit: "64kb", parameterLimit: 100 }));
+app.use("/api/chat", express.json({ limit: "256kb" }), express.urlencoded({ extended: true, limit: "256kb", parameterLimit: 100 }));
 // Some payment proofs still arrive as base64 payloads.
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -677,9 +689,10 @@ app.use("/api/holidays", holidayRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(`[ERROR] ${err.stack}`);
   if (res.headersSent) return next(err);
   const status = err.status || err.statusCode || 500;
+  // Invalid client payloads should not amplify a flood into stacks of logs.
+  if (status >= 500) console.error(`[ERROR] ${err.stack}`);
   const isProd = process.env.NODE_ENV === "production";
   res.status(status).json({
     error: isProd && status >= 500 ? "Internal server error" : err.message,
@@ -763,17 +776,23 @@ function startBackgroundSchedulers() {
 }
 
 const http = require("http");
-server = http.createServer(app);
+server = http.createServer({ connectionsCheckingInterval: 1000 }, app);
 server.requestTimeout = positiveInteger(process.env.HTTP_REQUEST_TIMEOUT_MS, 30000);
-server.headersTimeout = Math.max(
-  server.requestTimeout + 1000,
-  positiveInteger(process.env.HTTP_HEADERS_TIMEOUT_MS, 35000),
+server.headersTimeout = Math.min(
+  server.requestTimeout,
+  positiveInteger(process.env.HTTP_HEADERS_TIMEOUT_MS, 10000),
 );
 server.keepAliveTimeout = positiveInteger(process.env.HTTP_KEEP_ALIVE_TIMEOUT_MS, 5000);
+server.maxConnections = positiveInteger(process.env.HTTP_MAX_CONNECTIONS, 1024);
+server.maxRequestsPerSocket = positiveInteger(process.env.HTTP_MAX_REQUESTS_PER_SOCKET, 1000);
+server.setTimeout(positiveInteger(process.env.HTTP_SOCKET_TIMEOUT_MS, 120000));
 
 // ── Socket.io Setup for Live Tracking ────────────────────────────────────────
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
+const { createSocketTrafficProtection } = require("./utils/socketTrafficProtection");
+const socketTraffic = createSocketTrafficProtection({ secret: process.env.JWT_SECRET, allowedOrigins: ALLOWED_ORIGINS });
+app.locals.socketTraffic = socketTraffic;
 
 function parseCookies(header) {
   const h = header || "";
@@ -791,11 +810,17 @@ function parseCookies(header) {
 const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS, methods: ["GET", "POST"] },
   path: "/socket.io",
+  maxHttpBufferSize: 16 * 1024,
+  connectTimeout: 10000,
+  allowRequest: (req, callback) => socketTraffic.allowRequest(req, callback, io.engine.clientsCount),
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: false,
   },
 });
+// Reserve transport slots before namespace auth; release them even when a
+// client never joins a namespace or fails the database account checks.
+io.engine.on("connection", connection => socketTraffic.trackConnection(connection));
 
 // ── Socket Auth Middleware ─────────────────────────────────────────────────
 io.use(async (socket, next) => {
@@ -806,7 +831,7 @@ io.use(async (socket, next) => {
       return next(new Error("Authentication required"));
     }
     const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
-    const user = await User.findById(payload.id).select("-passwordHash");
+    const user = await User.findById(payload.id).select("-passwordHash").maxTimeMS(5000);
     if (!isAccountEnabled(user)) {
       return next(new Error("User not found"));
     }
@@ -831,6 +856,7 @@ io.use(async (socket, next) => {
 });
 
 io.on("connection", async (socket) => {
+  socketTraffic.protectPackets(socket);
   console.log("[socket] client connected:", socket.id, "user:", socket.user._id);
 
   socket.join("user:" + socket.user._id);
@@ -868,7 +894,7 @@ io.on("connection", async (socket) => {
   });
 
   // ── GPS Update from technician tracker ──────────────────────────────────
-  socket.on("gps:update", async (data) => {
+  socket.on("gps:update", socketTraffic.wrapGpsHandler(socket, async (data) => {
     try {
       if (socket.user.role !== "technician" && socket.user.role !== "admin") return;
       const { bookingId } = data || {};
@@ -914,17 +940,18 @@ io.on("connection", async (socket) => {
     } catch (err) {
       console.error("[socket] gps:update error", err.message);
     }
-  });
+  }));
 
   // Admin sends assignment notification
   socket.on("admin:assignment", (data) => {
     if (socket.user.role !== "admin" && socket.user.role !== "secretary") return;
+    if (!data || typeof data !== "object" || !mongoose.Types.ObjectId.isValid(data.techId)) return;
     io.to("tech:" + data.techId).emit("assignment:new", data);
   });
 
   // Technician joins their room for targeted notifications
   socket.on("tech:join", (techId) => {
-    const id = typeof techId === 'object' ? (techId.techId || techId.id || '') : techId;
+    const id = techId && typeof techId === 'object' ? (techId.techId || techId.id || '') : techId;
     if (!id) return;
     if (socket.user.role === "technician" && String(socket.technicianId) === String(id)) {
       socket.join("tech:" + socket.technicianId);

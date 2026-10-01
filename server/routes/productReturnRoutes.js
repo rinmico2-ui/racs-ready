@@ -4,7 +4,7 @@ const multer = require("multer");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const rateLimit = require("express-rate-limit");
+const rateLimit = require("../utils/boundedRateLimit");
 const { authenticate, requireRole } = require("../middleware/authenticate");
 const { requirePermission } = require("../middleware/requirePermission");
 const { imageExtensionFor, isAllowedImage, hasValidStoredImageSignature } = require("../utils/uploadSecurity");
@@ -244,7 +244,7 @@ router.patch("/policy", requireRole("admin"), async (req, res) => {
   try {
     const returnDays = Number(req.body.returnDays);
     if (!Number.isInteger(returnDays) || returnDays < 1 || returnDays > 3650) throw error("Return period must be 1 to 3650 days.");
-    await SiteSetting.findOneAndUpdate({ key: "productReturnPolicy" }, { $set: { value: { returnDays } } }, { upsert: true, new: true });
+    await SiteSetting.findOneAndUpdate({ key: "productReturnPolicy" }, { $set: { value: { returnDays } } }, { upsert: true, returnDocument: "after" });
     await audit.logEvent({ actor: req.user._id, actorRole: req.user.role, actorName: actorName(req), action: "settings.product_return_policy", module: "ProductReturn", category: "settings", details: { returnDays }, req });
     return res.json({ returnDays });
   } catch (err) { return sendError(res, err); }

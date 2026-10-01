@@ -306,10 +306,13 @@
           <span class="racs-menu-trigger-badge" id="racsTriggerCartBadge" hidden></span>
         </button>
       </div>
-      <%- include('../partials/sidebar') %>
     <% } %>
   </div>
 </nav>
+
+<% if (typeof user !== 'undefined' && user) { %>
+  <%- include('../partials/sidebar') %>
+<% } %>
 
 <script>
   (function () {

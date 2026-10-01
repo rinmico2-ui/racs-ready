@@ -1,7 +1,10 @@
 const express = require('express');
 const axios = require('axios');
-const rateLimit = require('express-rate-limit');
+const rateLimit = require('../utils/boundedRateLimit');
 const router = express.Router();
+const { positiveLimit } = require('../utils/boundedWindow');
+const { busyError, createWorkLimiter } = require('../utils/workLimiter');
+const autocompleteWork = createWorkLimiter({ limit: 8 });
 
 /**
  * Backend proxy for the OpenStreetMap Nominatim API.
@@ -21,6 +24,9 @@ const NOMINATIM_BASE_URL = String(
 let nextProviderRequestAt = 0;
 let providerBlockedUntil = 0;
 let providerQueue = Promise.resolve();
+let queuedProviderRequests = 0;
+const MAX_PROVIDER_QUEUE = positiveLimit(process.env.GEOCODING_MAX_PENDING_REQUESTS, 8);
+const MAX_PROVIDER_WAIT_MS = positiveLimit(process.env.GEOCODING_MAX_QUEUE_WAIT_MS, 5000);
 const autocompleteLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 30,
@@ -43,10 +49,10 @@ router.get('/autocomplete', autocompleteLimiter, async (req, res) => {
   }
 
   try {
-    const response = await axios.get('https://api.geoapify.com/v1/geocode/autocomplete', {
+    const response = await autocompleteWork.run('geoapify', () => axios.get('https://api.geoapify.com/v1/geocode/autocomplete', {
       params: { text: query, format: 'json', filter: 'countrycode:ph', limit: 5, lang: 'en', apiKey },
       timeout: 7000
-    });
+    }));
     const suggestions = (Array.isArray(response.data?.results) ? response.data.results : [])
       .filter(place => String(place.country_code || '').toLowerCase() === 'ph')
       .filter(place => Number(place.lat) >= 4.5 && Number(place.lat) <= 21.5 &&
@@ -63,6 +69,7 @@ router.get('/autocomplete', autocompleteLimiter, async (req, res) => {
       .filter(place => place.display_name);
     return res.json({ suggestions });
   } catch (error) {
+    if (error.code === 'WORK_CAPACITY_EXCEEDED') return sendGeocodingError(res, error, 'Address suggestions');
     const status = error.response?.status === 429 ? 429 : 502;
     console.error('Address autocomplete provider unavailable:', status);
     return res.status(status).json({ error: status === 429
@@ -88,12 +95,17 @@ function retryDelay(error) {
 }
 
 function enqueueProviderRequest(task) {
+  if (queuedProviderRequests >= MAX_PROVIDER_QUEUE) return Promise.reject(busyError());
+  queuedProviderRequests += 1;
+  const deadline = Date.now() + MAX_PROVIDER_WAIT_MS;
   const queued = providerQueue.then(async () => {
+    if (Date.now() >= deadline) throw busyError();
     const waitTime = Math.max(
       0,
       nextProviderRequestAt - Date.now(),
       providerBlockedUntil - Date.now()
     );
+    if (Date.now() + waitTime > deadline) throw busyError();
     if (waitTime > 0) {
       console.log(`Geocoding queue: waiting ${waitTime}ms`);
       await wait(waitTime);
@@ -101,7 +113,7 @@ function enqueueProviderRequest(task) {
 
     nextProviderRequestAt = Date.now() + MIN_REQUEST_INTERVAL;
     return task();
-  });
+  }).finally(() => { queuedProviderRequests -= 1; });
 
   // A failed request must not leave the queue permanently rejected.
   providerQueue = queued.catch(() => undefined);
@@ -135,7 +147,9 @@ async function requestNominatim(path, params) {
 
         const delay = retryDelay(error);
         providerBlockedUntil = Math.max(providerBlockedUntil, Date.now() + delay);
-        if (attempt === 1) throw error;
+        // Honor a long provider cooldown without holding this HTTP request
+        // asleep for minutes. New queued work also checks the cooldown.
+        if (attempt === 1 || delay > MAX_PROVIDER_WAIT_MS) throw error;
         console.warn(`Geocoding provider throttled the request; retrying in ${delay}ms`);
       }
     }
@@ -178,6 +192,10 @@ function cachedProviderRequest(cacheKey, path, params) {
 }
 
 function sendGeocodingError(res, error, action) {
+  if (error.code === 'WORK_CAPACITY_EXCEEDED') {
+    res.set('Retry-After', '3');
+    return res.status(503).json({ error: 'Address search is busy. Please try again in a few seconds.' });
+  }
   console.error(`${action} error:`, error.message);
 
   if (error.response?.status === 429) {

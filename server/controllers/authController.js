@@ -924,7 +924,7 @@ exports.verifyLoginOTP = async (req, res, next) => {
         loginOtpExpires: { $gt: new Date() },
       },
       { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
-      { new: true },
+      { returnDocument: "after" },
     );
     if (!isAccountEnabled(user)) {
       return res.status(400).json({ error: "User not found." });

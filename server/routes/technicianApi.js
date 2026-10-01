@@ -4,7 +4,7 @@
  * All routes require: authenticated + role === "technician"
  */
 const express = require("express");
-const rateLimit = require("express-rate-limit");
+const rateLimit = require("../utils/boundedRateLimit");
 const mongoose = require("mongoose");
 const path = require("path");
 const fs = require("fs");

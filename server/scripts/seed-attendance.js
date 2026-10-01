@@ -75,7 +75,7 @@ async function seed() {
               remarks: "Seeded attendance record",
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: "after" }
         );
         created++;
       } catch (err) {

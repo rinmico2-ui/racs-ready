@@ -11,6 +11,8 @@ module.exports = function publicAssets(publicDirectory) {
       lastModified: true,
       dotfiles: 'deny',
       index: false,
+      // Missing assets fail here instead of triggering session/user lookups.
+      fallthrough: false,
       setHeaders(res, filePath) {
         if (process.env.NODE_ENV !== 'production') return;
         const media = /\.(?:avif|gif|ico|jpe?g|png|svg|webp|woff2?)$/i.test(filePath);

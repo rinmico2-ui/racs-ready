@@ -29,10 +29,12 @@ test('public JavaScript and CSS bypass session work, but uploads do not', async 
     assert.ok(script.headers.etag);
     assert.equal((await request('/css/performance.css')).status, 200);
     assert.equal(sessionReads, 0);
-    for (const resource of ['/uploads/gcash-receipts/example.jpg', '/uploads/repairs/example.jpg', '/js/%2e%2e/uploads/example.jpg']) {
+    for (const resource of ['/uploads/gcash-receipts/example.jpg', '/uploads/repairs/example.jpg']) {
       assert.equal((await request(resource)).status, 401);
     }
-    assert.equal(sessionReads, 3);
+    assert.equal((await request('/js/%2e%2e/uploads/example.jpg')).status, 403);
+    assert.equal((await request('/js/missing-asset.js')).status, 404);
+    assert.equal(sessionReads, 2, 'missing and invalid public asset requests never reach the session store');
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 

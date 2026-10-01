@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const rateLimit = require("express-rate-limit");
+const rateLimit = require("../utils/boundedRateLimit");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
 const User = require("../models/User");

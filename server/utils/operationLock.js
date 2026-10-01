@@ -39,7 +39,7 @@ async function withOperationLock(key, work, options = {}) {
             expiresAt: new Date(now.getTime() + leaseMs),
           },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
+        { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
       ).lean();
 
       if (lock?.owner === owner) break;

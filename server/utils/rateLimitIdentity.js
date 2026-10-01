@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const { isIP } = require("node:net");
 const { ipKeyGenerator } = require("express-rate-limit");
 
 function userIdOf(req) {
@@ -9,7 +10,11 @@ function userIdOf(req) {
 }
 
 function normalizedIpKey(req) {
-  return `ip:${ipKeyGenerator(String(req?.ip || ""))}`;
+  const candidate = String(req?.ip || "");
+  const remote = String(req?.socket?.remoteAddress || "");
+  // Invalid forwarding values must not create long or arbitrary counter keys.
+  const ip = isIP(candidate) ? candidate : isIP(remote) ? remote : "unknown";
+  return `ip:${ipKeyGenerator(ip)}`;
 }
 
 function authenticatedOrIpKey(req) {

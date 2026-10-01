@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const { rateLimit } = require('express-rate-limit');
+const { rateLimit } = require('../utils/boundedRateLimit');
 const auth = require('../middleware/authenticate');
 const { authenticatedOrIpKey } = require('../utils/rateLimitIdentity');
 const CoreService = require('../models/CoreService');
@@ -91,7 +91,7 @@ router.post('/mine/:id/decision', customer, async (req, res) => {
     'quote.quotedAt': request.quote.quotedAt, 'quote.expiresAt': { $gt: new Date() } }, {
     $set: { status, ...(status === 'accepted' ? { acceptedAt: new Date() } : {}) },
     $push: { events: { action: status, actorId: req.user._id, unitPrice: request.quote.unitPrice } },
-  }, { new: true });
+  }, { returnDocument: "after" });
   if (!updated) return res.status(409).json({ error: 'This quote has already been decided.' });
   if (status === 'accepted' && updated.existingBookingId) {
     for (const role of ['admin', 'secretary']) {
@@ -134,7 +134,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     };
     const updated = await UnitAssistanceRequest.findOneAndUpdate({ _id: request._id, status: request.status, bookingId: null },
       { $set: { quote, status: 'quoted', acceptedAt: null },
-        $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { new: true });
+        $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { returnDocument: "after" });
     if (!updated) return res.status(409).json({ error: 'This request was updated. Reload the queue.' });
     createNotification({ type: 'system', userId: updated.customerId,
       title: 'Your aircon service quote is ready',
@@ -155,7 +155,7 @@ router.post('/staff/:id/resolve', staff, async (req, res) => {
   const updated = await UnitAssistanceRequest.findOneAndUpdate({
     _id: req.params.id, status: 'accepted', existingBookingId: { $ne: null },
   }, { $set: { status: 'resolved', resolvedBy: req.user._id, resolvedAt: new Date(), resolutionNotes: notes },
-    $push: { events: { action: 'resolved', actorId: req.user._id, notes } } }, { new: true });
+    $push: { events: { action: 'resolved', actorId: req.user._id, notes } } }, { returnDocument: "after" });
   if (!updated) return res.status(409).json({ error: 'This request is no longer awaiting resolution.' });
   createNotification({ type: 'system', userId: updated.customerId,
     title: 'Your unit request was handled', message: `Staff updated the request for ${updated.existingBookingReference}. Review your booking history.`,

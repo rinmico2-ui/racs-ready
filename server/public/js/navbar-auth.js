@@ -141,7 +141,8 @@
       sidebar.classList.add("open");
       if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "true");
       showBackdrop(true);
-      document.body.style.overflow = "hidden";
+      document.documentElement.classList.add("racs-drawer-open");
+      document.body.classList.add("racs-drawer-open");
 
       var firstLink = sidebar.querySelector(".racs-sidebar-link");
       if (firstLink) firstLink.focus();
@@ -154,7 +155,8 @@
       sidebar.setAttribute("inert", "");
       if (menuTrigger) menuTrigger.setAttribute("aria-expanded", "false");
       showBackdrop(false);
-      document.body.style.overflow = "";
+      document.documentElement.classList.remove("racs-drawer-open");
+      document.body.classList.remove("racs-drawer-open");
 
       window.setTimeout(function () {
         if (!sidebar.classList.contains("open")) sidebar.classList.remove("is-open");
@@ -212,7 +214,8 @@
     // control reopens it with the correct responsive width.
     function applyMode() {
       setMenuOpen(false);
-      document.body.style.overflow = "";
+      document.documentElement.classList.remove("racs-drawer-open");
+      document.body.classList.remove("racs-drawer-open");
       sidebar.classList.remove("open", "is-open");
       sidebar.setAttribute("aria-hidden", "true");
       sidebar.setAttribute("inert", "");

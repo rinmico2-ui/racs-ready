@@ -477,7 +477,7 @@ router.put("/technicians/:id", async (req, res) => {
     if (userEmail !== undefined) update.userEmail = userEmail ? userEmail.trim().toLowerCase() : null;
     if (phone !== undefined) update.phone = phone ? phone.trim() : null;
     if (locationText !== undefined) update.locationText = locationText ? locationText.trim() : null;
-    const tech = await Technician.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    const tech = await Technician.findByIdAndUpdate(req.params.id, update, { returnDocument: "after", runValidators: true });
     res.json({ success: true, technician: tech });
   } catch (err) {
     console.error("PUT /api/admin/technicians/:id error:", err);
@@ -10048,7 +10048,7 @@ router.put("/settings/maintenance-mode", async (req, res, next) => {
   }
 });
 
-router.get("/settings/system-health", async (_req, res, next) => {
+router.get("/settings/system-health", async (req, res, next) => {
   try {
     const fs = require("fs");
     const path = require("path");
@@ -10088,6 +10088,10 @@ router.get("/settings/system-health", async (_req, res, next) => {
         environment: process.env.NODE_ENV || "development",
       },
       runtime: runtimeSnapshot(),
+      trafficProtection: {
+        http: req.app.locals.httpAdmission?.snapshot() || null,
+        socket: req.app.locals.socketTraffic?.snapshot() || null,
+      },
     });
   } catch (error) {
     next(error);

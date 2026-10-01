@@ -2,7 +2,14 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildMongoConnectionUri, parseDirectHosts } = require("../utils/mongoConnection");
+const { buildMongoConnectionUri, isTlsProtectedMongoUri, parseDirectHosts } = require("../utils/mongoConnection");
+
+test("requires TLS on production MongoDB URIs", () => {
+  assert.equal(isTlsProtectedMongoUri("mongodb+srv://cluster.example/app"), true);
+  assert.equal(isTlsProtectedMongoUri("mongodb+srv://cluster.example/app?tls=false"), false);
+  assert.equal(isTlsProtectedMongoUri("mongodb://db.example:27017/app?tls=true"), true);
+  assert.equal(isTlsProtectedMongoUri("mongodb://db.example:27017/app"), false);
+});
 
 test("keeps the configured MongoDB URI when no direct hosts are supplied", () => {
   const original = "mongodb+srv://user:secret@cluster.example/app";

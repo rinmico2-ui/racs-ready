@@ -1,5 +1,17 @@
 const express = require("express");
 const router = express.Router();
+const { createWorkLimiter } = require("../utils/workLimiter");
+const { positiveLimit } = require("../utils/boundedWindow");
+const { authenticatedOrIpKey } = require("../utils/rateLimitIdentity");
+const chatWork = createWorkLimiter({ limit: positiveLimit(process.env.CHAT_MAX_CONCURRENT_REQUESTS, 8), perKeyLimit: 2 });
+
+function limitChatWork(handler) {
+  return (req, res, next) => chatWork.run(authenticatedOrIpKey(req), () => handler(req, res, next)).catch(error => {
+    if (error.code !== "WORK_CAPACITY_EXCEEDED") return next(error);
+    res.set("Retry-After", "3");
+    res.status(503).json({ error: "Chat is busy. Please try again in a few seconds." });
+  });
+}
 const HVACProduct = require("../models/HVACProduct");
 const CoreService = require("../models/CoreService");
 const RepairService = require("../models/RepairService");
@@ -1032,11 +1044,13 @@ function detectSentiment(text) {
 // ─── Context Tracker ───────────────────────────────────────────────────────
 const sessions = new Map();
 const SESSION_TTL = 30 * 60 * 1000;
+const MAX_CHAT_SESSIONS = positiveLimit(process.env.CHAT_MAX_SESSIONS, 200, 10000);
 
 function getSession(id) {
   if (!id) return null;
   let s = sessions.get(id);
   if (!s || Date.now() - s.lastActive > SESSION_TTL) {
+    if (!s && sessions.size >= MAX_CHAT_SESSIONS) sessions.delete(sessions.keys().next().value);
     s = {
       history: [],
       lastIntent: null,
@@ -1052,6 +1066,8 @@ function getSession(id) {
     sessions.set(id, s);
   }
   s.lastActive = Date.now();
+  sessions.delete(id);
+  sessions.set(id, s);
   return s;
 }
 
@@ -1828,7 +1844,7 @@ function normalizeCustomerFacingLinks(text) {
 }
 
 // ─── API Endpoint ──────────────────────────────────────────────────────────
-router.post("/", async (req, res) => {
+router.post("/", limitChatWork(async (req, res) => {
   try {
     const { message, history = [], sessionId } = req.body;
 
@@ -1870,10 +1886,10 @@ router.post("/", async (req, res) => {
       fallback: true,
     });
   }
-});
+}));
 
 // ─── Streaming Endpoint ────────────────────────────────────────────────────
-router.post("/stream", async (req, res) => {
+router.post("/stream", limitChatWork(async (req, res) => {
   let sseStarted = false;
   const startSse = () => {
     if (sseStarted || res.headersSent) return;
@@ -2101,7 +2117,7 @@ router.post("/stream", async (req, res) => {
     sendSse({ text: "I'm having trouble responding right now. Please try again or use the Contact page for assistance.", done: true });
     finishSse();
   }
-});
+}));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
 router.get("/health", async (req, res) => {
