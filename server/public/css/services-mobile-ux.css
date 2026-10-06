@@ -1031,6 +1031,11 @@ body.booking-sheet-open { overflow: hidden; }
 }
 
 /* Step 2 pagination and compact 2x2 chooser ------------------------------ */
+/* The shared body overflow rule creates a non-scrolling ancestor that stops
+   position:sticky from following the page. Clip horizontally without creating
+   that ancestor on the booking page. */
+body:has(#serviceSelection) { overflow-x: clip; }
+body:has(#serviceSelection:not(.d-none)) .ent-stepper { position: static !important; }
 #coreServiceCards {
   min-height: 0;
   transition: opacity .12s ease, transform .12s ease;
@@ -1057,7 +1062,16 @@ body.booking-sheet-open { overflow: hidden; }
   border-radius: 13px;
   background: #f8fafc;
 }
-.service-list-guide { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; padding: .55rem .65rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e40af; font-size: .7rem; font-weight: 800; line-height: 1.4; }
+#coreServicePagination {
+  position: sticky;
+  top: 160px;
+  z-index: 25;
+  border-color: #cbd9eb;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, .09);
+}
+.service-list-guide { grid-column: 1 / -1; display: flex; align-items: center; gap: .5rem; margin: -.35rem 0 .85rem; padding: .55rem .65rem; border: 1px solid #bfdbfe; border-radius: 10px; background: #eff6ff; color: #1e40af; font-size: .7rem; font-weight: 800; line-height: 1.4; }
+#coreServiceListTarget { scroll-margin-top: 230px; }
 .service-list-guide i { flex: 0 0 auto; color: #2563eb; font-size: .95rem; }
 .service-pagination-status { display: grid; gap: .12rem; }
 .service-pagination-status strong { color: #1e293b; font-size: .8rem; }
@@ -1127,6 +1141,10 @@ body.booking-sheet-open { overflow: hidden; }
   .sub-unit-chip { min-height: 80px; grid-template-columns: 34px minmax(0, 1fr); padding: .6rem !important; }
   .sub-unit-chip > i { width: 34px; height: 34px; }
   .sub-unit-chip > span { font-size: .7rem; }
+}
+@media (max-width: 991.98px) {
+  #coreServicePagination { top: 12px; }
+  #coreServiceListTarget { scroll-margin-top: 145px; }
 }
 
 /* Guided navigation for service selection and repair --------------------- */

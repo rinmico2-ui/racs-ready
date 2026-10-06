@@ -952,6 +952,27 @@
     return data;
   }
 
+  // Show an "unsaved changes" message when the admin edits a field in any settings card.
+  [['appConfigAlert', ['cfgAllowRegistrations', 'cfgRequireVerification']],
+   ['notificationAlert', ['notificationEmail', 'notificationEmailEnabled', 'notificationPriority']],
+   ['bpAlert', ['bpName', 'bpEmail', 'bpPhone', 'bpTagline', 'bpAddress', 'bpFoundedYear']],
+   ['paymentPolicyAlert', ['downpaymentPercentage', 'gcashRecipientNumber', 'gcashInstructions', 'paymentGcashEnabled', 'paymentMayaEnabled', 'paymentBankEnabled', 'paymentCardEnabled', 'paymentOtherEnabled', 'gcashAccountName', 'mayaAccountName', 'mayaAccountNumber', 'bankName', 'bankAccountName', 'bankAccountNumber', 'bankInstructions', 'otherPaymentLabel', 'otherAccountName', 'otherAccountNumber', 'otherInstructions', 'mayaInstructions']]
+  ].forEach(function(pair) {
+    pair[1].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      ['input', 'change'].forEach(function(evt) {
+        el.addEventListener(evt, function() {
+          var box = document.getElementById(pair[0]);
+          if (!box) return;
+          box.className = 'alert alert-warning py-2 small';
+          box.textContent = 'You have unsaved changes. Click Save to apply them.';
+          box.classList.remove('d-none');
+        });
+      });
+    });
+  });
+
   function applyConfiguration(configuration) {
     state.configuration = configuration;
     document.getElementById('cfgAllowRegistrations').checked = configuration.application.allowCustomerRegistrations;
