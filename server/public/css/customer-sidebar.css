@@ -435,12 +435,22 @@ body.racs-drawer-open {
 .racs-sidebar-menu-item-danger,
 .racs-sidebar-menu-item-danger i { color: #b42318; }
 
-.racs-sidebar-menu-item-danger:hover {
-  background: #fef3f2;
-  color: #b42318;
+.racs-sidebar-menu-item-danger {
+  background: #fff1f0;
+  font-weight: 600;
 }
 
-.racs-sidebar-menu-item-danger:hover i { color: #b42318; }
+.racs-sidebar-menu-item-danger:hover {
+  background: #fee4e2;
+  color: #912018;
+}
+
+.racs-sidebar-menu-item-danger:hover i { color: #912018; }
+
+.racs-sidebar-menu-item-danger:focus-visible {
+  background: #fee4e2;
+  outline-color: #b42318;
+}
 
 .racs-sidebar-menu-sep {
   display: block;

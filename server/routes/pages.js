@@ -619,6 +619,7 @@ router.get("/contact", pageAuth.requireCustomerOrGuest, async (req, res) => {
   const businessHours = await getBusinessHours();
   res.render("pages/contact", {
     title: "Contact Us",
+    relocationQuote: req.query.topic === "relocation",
     companyAddress,
     companyLocation,
     businessHours,

@@ -374,6 +374,19 @@
     #adminAppointmentsCalendar .fc-daygrid-event { border-radius: 6px !important; font-size: 0.76rem !important; font-weight: 600 !important; padding: 3px 8px !important; margin: 2px 4px !important; overflow: hidden !important; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease !important; min-height: auto !important; line-height: 1.4 !important; }
     #adminAppointmentsCalendar .fc-daygrid-event:hover { transform: translateY(-1px) !important; box-shadow: 0 3px 10px rgba(0,0,0,0.1) !important; }
     #adminAppointmentsCalendar .fc-daygrid-day-events { padding: 0 2px 4px 2px !important; }
+    #adminAppointmentsCalendar .cal-day-summary {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+      padding: 2px 8px 8px; font-size: 0.72rem; font-weight: 600;
+      color: var(--slate-600);
+    }
+    #adminAppointmentsCalendar .cal-day-more {
+      border: 0; background: none; padding: 0; color: var(--blue-600);
+      font: inherit; cursor: pointer; text-align: left;
+    }
+    #adminAppointmentsCalendar .cal-day-more:hover { text-decoration: underline; }
+    #adminAppointmentsCalendar .cal-day-more:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; border-radius: 2px; }
+    #adminAppointmentsCalendar .cal-day-summary[hidden],
+    #adminAppointmentsCalendar .cal-day-more[hidden] { display: none !important; }
 
     /* ── Timegrid (Week/Day) ───────────────────────────────────── */
     #adminAppointmentsCalendar .fc-timegrid-slot { height: 72px !important; min-height: 72px !important; position: relative !important; background: transparent !important; }
@@ -1175,6 +1188,21 @@
         if (clearBtn) clearBtn.addEventListener('click', resetCalendarFilters);
       }
 
+      let dayCounts = new Map();
+      function refreshDaySummaries() {
+        dom.calendarEl.querySelectorAll(".fc-daygrid-day[data-date]").forEach(day => {
+          const summary = day.querySelector(".cal-day-summary");
+          if (!summary) return;
+          const count = dayCounts.get(day.dataset.date) || 0;
+          const countLabel = summary.querySelector(".cal-day-count");
+          const moreButton = summary.querySelector(".cal-day-more");
+          countLabel.textContent = count ? `${count} job${count === 1 ? "" : "s"}` : "";
+          moreButton.textContent = count > 3 ? `+${count - 3} more` : "";
+          moreButton.hidden = count <= 3;
+          summary.hidden = count === 0;
+        });
+      }
+
       function applyFilters() {
         let filtered = state.allAppointments.filter(appointmentMatchesQuery);
         let filteredOrders = state.allOrders.filter(orderMatchesQuery);
@@ -1200,11 +1228,11 @@
 
         state.appointments = state.showBookings ? filtered : [];
         state.orders = filteredOrders;
-        calendar.removeAllEvents();
+        const calendarEvents = [];
 
         // Add appointment events
         if (state.showBookings && filtered.length > 0) {
-          calendar.addEventSource(filtered.map(a => {
+          calendarEvents.push(...filtered.map(a => {
             const id = appointmentWorkspaceId(a);
             const detailId = appointmentDetailId(a);
             const s = String(a.status || "pending").toLowerCase();
@@ -1225,7 +1253,7 @@
 
         // Add order/delivery events
         if (state.showOrders && filteredOrders.length > 0) {
-          calendar.addEventSource(filteredOrders.map(o => {
+          calendarEvents.push(...filteredOrders.map(o => {
             const id = String(o._id || "");
             const s = "order-" + (o.status || "pending_payment");
             const prefDate = orderScheduledDate(o);
@@ -1245,6 +1273,27 @@
             };
           }).filter(Boolean));
         }
+
+        dayCounts = new Map();
+        calendarEvents.forEach(event => {
+          const key = toDateKey(event.start);
+          dayCounts.set(key, (dayCounts.get(key) || 0) + 1);
+        });
+        const visibleEvents = calendar.view && calendar.view.type === "dayGridMonth"
+          ? (() => {
+              const shownPerDay = new Map();
+              return calendarEvents.sort((a, b) => Number(b.allDay) - Number(a.allDay) || new Date(a.start) - new Date(b.start)).filter(event => {
+                const key = toDateKey(event.start);
+                const shown = shownPerDay.get(key) || 0;
+                if (shown >= 3) return false;
+                shownPerDay.set(key, shown + 1);
+                return true;
+              });
+            })()
+          : calendarEvents;
+        calendar.removeAllEvents();
+        if (visibleEvents.length) calendar.addEventSource(visibleEvents);
+        refreshDaySummaries();
 
         updateSummary();
         renderDateList();
@@ -1443,11 +1492,35 @@
         eventMinHeight: 70,
         allDaySlot: true,
         allDayText: "Unscheduled",
-        dayMaxEvents: 4,
-        moreLinkContent: args => "+" + args.num + " more",
+        dayMaxEvents: false,
         eventTimeFormat: { hour: "2-digit", minute: "2-digit", hour12: true },
 
         dayCellClassNames(info) { return toDateKey(info.date) === state.selectedDateKey ? ["cal-selected-day"] : []; },
+        dayCellDidMount(info) {
+          if (!info.el.classList.contains("fc-daygrid-day")) return;
+          const frame = info.el.querySelector(".fc-daygrid-day-frame");
+          if (!frame) return;
+          const summary = document.createElement("div");
+          summary.className = "cal-day-summary";
+          summary.hidden = true;
+          const count = document.createElement("span");
+          count.className = "cal-day-count";
+          const more = document.createElement("button");
+          more.type = "button";
+          more.className = "cal-day-more";
+          more.hidden = true;
+          more.setAttribute("aria-label", "Show all jobs for " + toPrettyDate(toDateKey(info.date)));
+          more.addEventListener("click", event => {
+            event.stopPropagation();
+            state.selectedDateKey = toDateKey(info.date);
+            markSelectedDay(state.selectedDateKey, info.el);
+            renderDateList();
+            if (window.innerWidth < 1200) dom.selectedDateList.closest(".list-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+          summary.append(count, more);
+          frame.append(summary);
+          refreshDaySummaries();
+        },
         dateClick(info) {
           state.selectedDateKey = toDateKey(info.date);
           markSelectedDay(state.selectedDateKey, info.dayEl);

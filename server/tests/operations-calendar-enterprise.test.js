@@ -50,8 +50,8 @@ test("calendar controls and agenda records are keyboard and screen-reader friend
   assert.doesNotMatch(calendarSource, /console\.log\("\[Calendar\]/);
 });
 
-test("shared admin and technician calendar templates keep valid inline scripts", async () => {
-  for (const role of ["admin", "technician"]) {
+test("shared admin, secretary, and technician calendar templates keep valid inline scripts", async () => {
+  for (const role of ["admin", "secretary", "technician"]) {
     const html = await renderCalendar(role);
     for (const match of html.matchAll(/<script(?![^>]+src=)[^>]*>([\s\S]*?)<\/script>/gi)) {
       if (match[1].trim()) assert.doesNotThrow(() => new vm.Script(match[1]), role);

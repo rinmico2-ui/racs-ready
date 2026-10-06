@@ -26,6 +26,6 @@ test("HP plus selects from zero and minus at one removes the selection", () => {
 });
 
 test("HP quantity assets are cache-busted", () => {
-  assert.match(view, /services-multi\.js\?v=20260928-input-security-v9/);
-  assert.match(view, /services-mobile-ux\.css\?v=20260929-modal-spacing-v51/);
+  assert.match(view, /services-multi\.js\?v=20261005-service-specific-icons/);
+  assert.match(view, /services-mobile-ux\.css\?v=20261005-service-icons/);
 });

@@ -5802,6 +5802,48 @@ function renderRepairServices() {
 /**
  * Create a service card element
  */
+function bookingServiceIcon(service, fallback = 'bi-gear-wide-connected') {
+  const label = [service.slug, service.unitType, service.applianceType, service.name, service.value, service.label]
+    .filter(Boolean).join(' ').toLowerCase();
+  const matches = [
+    [/cctv|surveillance|camera/, 'bi-camera-video'],
+    [/compressor/, 'bi-gear-wide-connected'],
+    [/freon|refrigerant|recharg|regas|gas charging/, 'bi-speedometer2'],
+    [/leak/, 'bi-droplet'],
+    [/pump[\s-]*down/, 'bi-arrow-down-circle'],
+    [/reprocess/, 'bi-arrow-clockwise'],
+    [/relocat|transfer/, 'bi-arrow-left-right'],
+    [/dismant|reinstall/, 'bi-arrow-repeat'],
+    [/clean|wash|sanit/, 'bi-droplet-half'],
+    [/inspect|diagnos|check[\s-]*up/, 'bi-clipboard2-pulse'],
+    [/mainten|tune[\s-]*up/, 'bi-fan'],
+    [/split type/, 'bi-snow2'],
+    [/window type/, 'bi-window'],
+    [/floor mounted|floor standing/, 'bi-arrows-expand'],
+    [/cassette type/, 'bi-grid-3x3'],
+    [/central aircon/, 'bi-buildings'],
+    [/refrigerator|fridge/, 'bi-snow2'],
+    [/freezer/, 'bi-snow'],
+    [/washing machine|washer/, 'bi-droplet-half'],
+    [/dryer/, 'bi-wind'],
+    [/microwave|oven/, 'bi-lightning-charge'],
+    [/electric fan/, 'bi-fan'],
+    [/rice cooker/, 'bi-fire'],
+    [/water dispenser/, 'bi-cup-straw'],
+    [/electric kettle/, 'bi-cup-hot'],
+    [/install|mount/, 'bi-wrench-adjustable-circle'],
+    [/repair|fix/, 'bi-tools'],
+  ];
+  const match = matches.find(([pattern]) => pattern.test(label));
+  if (match) return match[1];
+  return String(service.icon || '').split(/\s+/)
+    .find(icon => /^bi-[a-z0-9-]+$/i.test(icon)) || fallback;
+}
+
+function isAirconRelocationService(service) {
+  return service?.slug === 'aircon-relocation' || /^aircon relocation$/i.test(String(service?.name || '').trim());
+}
+
 function createServiceCard(service, type) {
 
   const escapeCardText = value => String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
@@ -5844,7 +5886,9 @@ function createServiceCard(service, type) {
       ? `${service.estimatedDuration} min`
       : '';
 
-  const serviceTypeBadge = isAirconService
+  const serviceTypeBadge = isAirconRelocationService(service)
+    ? '<span class="badge bg-info text-dark service-card-chip">Nearby, same-property price</span>'
+    : isAirconService
     ? '<span class="badge bg-info text-dark service-card-chip">Presyo depende sa HP at unit type</span>'
     : type === 'repair'
       ? '<span class="badge bg-secondary text-white service-card-chip">Inspection first</span>'
@@ -5852,23 +5896,18 @@ function createServiceCard(service, type) {
 
   const serviceName = escapeCardText(service.name || 'Service');
   const serviceDescription = escapeCardText(
-    service.description || service.summary ||
+    (isAirconRelocationService(service)
+      ? 'Move an aircon to a nearby position on the same property. Distant moves or another address need a custom quote.'
+      : service.description || service.summary) ||
     (type === 'repair'
       ? 'Tell us what is wrong so the technician can prepare.'
       : 'Choose this service to see the needed details and price.')
   );
 
-  // Use image if available, otherwise use icon
-  const hasImage = service.images && service.images.length > 0;
-  const mediaSection = hasImage
-    ? `<div class="service-card-media">
-        <img src="${escapeCardText(service.images[0])}" alt="${serviceName}" class="service-card-img" loading="lazy" />
-       </div>`
-    : `<div class="service-icon-wrap mb-2">
-        <div class="service-icon">
-          <i class="${service.icon || (type === 'repair' ? 'bi bi-tools' : 'bi bi-gear-fill')} fs-4 text-primary"></i>
-        </div>
-       </div>`;
+  const iconClass = bookingServiceIcon(service, type === 'repair' ? 'bi-tools' : 'bi-gear-wide-connected');
+  const mediaSection = `<div class="service-card-visual" aria-hidden="true">
+    <span class="service-card-icon"><i class="bi ${iconClass}"></i></span>
+  </div>`;
 
   card.innerHTML = `
     <div class="card-body service-card-body d-flex flex-column">
@@ -6695,8 +6734,39 @@ function showCombinedQuantityHpModal(service) {
     }
 
   } else {
-    // Hide repair-specific elements for non-repair services
-    if (pricingNoteEl) pricingNoteEl.classList.add('d-none');
+    // Relocation between properties needs a separate route and transport quote.
+    if (pricingNoteEl) {
+      if (isAirconRelocationService(service)) {
+        pricingNoteEl.innerHTML = `
+          <div class="d-flex align-items-start">
+            <i class="bi bi-geo-alt-fill text-primary me-2 mt-1" aria-hidden="true"></i>
+            <div class="w-100">
+              <strong class="d-block mb-1">Where are you moving the aircon?</strong>
+              <small class="text-muted d-block mb-2">The displayed price covers dismantling and reinstalling the unit at a nearby position on the same property.</small>
+              <fieldset id="relocationScopeChoice">
+                <legend class="small fw-semibold mb-1">Choose the move location</legend>
+                <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small mb-2"><input type="radio" name="relocationScope" value="same_property"> Nearby position on the same property</label>
+                <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small"><input type="radio" name="relocationScope" value="custom_quote"> Distant position or another address</label>
+              </fieldset>
+              <div id="relocationCustomQuote" class="small mt-2 d-none" role="status">
+                This move needs a custom quote for transport, piping, and travel if needed. <a href="/contact?topic=relocation">Contact us</a> with the current and destination locations before booking.
+              </div>
+            </div>
+          </div>`;
+        pricingNoteEl.querySelectorAll('input[name="relocationScope"]').forEach(input => {
+          input.addEventListener('change', () => {
+            const needsCustomQuote = input.checked && input.value === 'custom_quote';
+            document.getElementById('relocationCustomQuote')?.classList.toggle('d-none', !needsCustomQuote);
+            updateCombinedPrice();
+            syncConfigurationPrimaryAction();
+            clearModalError();
+          });
+        });
+        pricingNoteEl.classList.remove('d-none');
+      } else {
+        pricingNoteEl.classList.add('d-none');
+      }
+    }
     if (issueDescriptionEl) issueDescriptionEl.classList.add('d-none');
   }
 
@@ -7156,6 +7226,24 @@ function syncConfigurationPrimaryAction() {
   const button = document.getElementById('confirmQuantitySelection');
   const service = BookingState.currentService;
   if (!button || !service) return;
+  if (isAirconRelocationService(service)) {
+    const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
+    const priceLabel = document.getElementById('priceLabel');
+    const priceValue = document.getElementById('quantityModalEstimatedPrice');
+    const priceSub = document.getElementById('cfgPriceSub');
+    if (priceLabel) priceLabel.textContent = scope === 'custom_quote' ? 'Custom quote' : 'Same-property estimate';
+    if (priceSub) priceSub.textContent = scope === 'custom_quote' ? 'Contact us with both locations' : 'Updates as you choose';
+    if (scope === 'custom_quote' && priceValue) priceValue.textContent = 'After review';
+    if (scope !== 'same_property') {
+      button.disabled = scope !== 'custom_quote';
+      button.innerHTML = scope === 'custom_quote'
+        ? '<i class="bi bi-envelope me-2"></i>Contact us for a quote'
+        : '<i class="bi bi-geo-alt me-2"></i>Choose the move location';
+      button.style.setProperty('opacity', scope === 'custom_quote' ? '1' : '0.58', 'important');
+      button.style.setProperty('cursor', scope === 'custom_quote' ? 'pointer' : 'not-allowed', 'important');
+      return;
+    }
+  }
   if (BookingState.unitAssistanceMode) {
     button.disabled = false;
     button.innerHTML = '<i class="bi bi-send me-2"></i>Request unit identification';
@@ -9440,6 +9528,19 @@ function confirmQuantitySelection() {
       }
     }
   }
+  if (service && isAirconRelocationService(service)) {
+    const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
+    if (scope === 'custom_quote') {
+      resetProcessingFlag();
+      window.location.assign('/contact?topic=relocation');
+      return;
+    }
+    if (scope !== 'same_property') {
+      showModalError('Choose where the aircon is moving before continuing.');
+      resetProcessingFlag();
+      return;
+    }
+  }
   if (BookingState.unitAssistanceMode) {
     if (!service) { showModalError('Choose a service first.'); resetProcessingFlag(); return; }
     submitUnitAssistanceRequest(service, resetProcessingFlag);
@@ -9451,7 +9552,6 @@ function confirmQuantitySelection() {
     resetProcessingFlag();
     return;
   }
-
 
   // Check if service has aircon types (new structure) or legacy HP pricing
   const hasAirconTypes = service.isAirconService && service.airconTypes && service.airconTypes.length > 0;
@@ -9768,7 +9868,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     brand: BookingState.selectedBrand || null,
     repairIssue: hpData && hpData.repairIssue ? hpData.repairIssue : null, // Handle individual repair issues
     duration: Number(hpData?.durationMinutes) || service.durationMinutes || service.duration || 60,
-    icon: service.icon || (isRepairBookingService(service) ? 'bi-tools' : 'bi-gear-fill'),
+    icon: bookingServiceIcon(service, isRepairBookingService(service) ? 'bi-tools' : 'bi-gear-wide-connected'),
     isAirconService: service.isAirconService || false,
     // Initial cost for repair services (technician will update to final cost after diagnosis)
     initialCost: isRepairBookingService(service) ?
@@ -10463,6 +10563,9 @@ function updateSelectedServicesDisplay() {
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
 
   DOM.selectedServiceCount.textContent = BookingState.selectedServices.length;
+  document.getElementById('relocationLocationHint')?.classList.toggle(
+    'd-none', !BookingState.selectedServices.some(isAirconRelocationService)
+  );
 
   if (BookingState.selectedServices.length === 0) {
     DOM.selectedServicesList.innerHTML = `
@@ -10475,7 +10578,7 @@ function updateSelectedServicesDisplay() {
     const esc = v => String(v || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const servicesHtml = BookingState.selectedServices.map((service, idx) => {
       const isRepair = isRepairBookingService(service);
-      const iconClass = isRepair ? 'bi-tools' : (service.icon || 'bi-gear-wide-connected');
+      const iconClass = bookingServiceIcon(service, isRepair ? 'bi-tools' : 'bi-gear-wide-connected');
       const details = [];
       if (isRepair) {
         if (service.brand) details.push(esc(service.brand));
@@ -10490,7 +10593,7 @@ function updateSelectedServicesDisplay() {
       return `
       <article class="selected-service-item" aria-label="${esc(service.name)}">
         <div class="selected-service-main">
-          <div class="selected-service-icon"><i class="${iconClass}" aria-hidden="true"></i></div>
+          <div class="selected-service-icon"><i class="bi ${iconClass}" aria-hidden="true"></i></div>
           <div class="selected-service-copy">
             <div class="selected-service-name">${esc(service.name)}</div>
             <div class="selected-service-details">${details.join(' <span aria-hidden="true">•</span> ')}</div>
@@ -13693,7 +13796,7 @@ function renderRepairUnitPage(category) {
     chip.type = 'button';
     chip.className = 'sub-unit-chip';
     const icon = document.createElement('i');
-    icon.className = `bi ${String(type.icon || 'bi-circle').replace(/[^a-zA-Z0-9 _-]/g, '')}`;
+    icon.className = `bi ${bookingServiceIcon(type, 'bi-circle')}`;
     const label = document.createElement('span');
     label.textContent = type.label;
     const action = document.createElement('small');
@@ -14160,7 +14263,7 @@ function addCurrentRepairItem() {
     model: item.model,
     repairIssue: item.problemDescription,
     duration: 90,
-    icon: 'bi-tools',
+    icon: bookingServiceIcon({ name: item.unitType }, 'bi-tools'),
     isAirconService: false,
     initialCost: diagnosticFee,
     finalCost: null,

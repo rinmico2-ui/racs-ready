@@ -70,7 +70,7 @@ test("staff layouts cache-bust the shared modern sidebar assets", () => {
   for (const layoutName of ["secretary.ejs", "technician.ejs"]) {
     const layout = fs.readFileSync(path.join(views, "layouts", layoutName), "utf8");
     assert.match(layout, /\/css\/sidebaradmin\.css\?v=20260927-modern-nav/);
-    assert.match(layout, /\/js\/admin\.js\?v=20260927-shell-components/);
+    assert.match(layout, /\/js\/admin\.js\?v=(?:20260928-mobile-drawer|20260927-shell-components)/);
   }
 });
 

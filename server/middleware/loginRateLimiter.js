@@ -11,6 +11,9 @@
 // A successful login resets everything immediately.
 // Records auto-expire after 24 hours of inactivity (memory hygiene).
 
+const crypto = require("node:crypto");
+const { positiveLimit } = require("../utils/boundedWindow");
+
 const MAX_ATTEMPTS_PER_CYCLE = 5;
 const CYCLE_LOCKOUTS = [
   3 * 60 * 1000,    // Cycle 1: 3 minutes
@@ -20,10 +23,15 @@ const CYCLE_LOCKOUTS = [
 ];
 const RECORD_TTL_MS = 24 * 60 * 60 * 1000;  // 24 hours
 
+// Invalid login attempts can use a different email on every request. Bound this
+// separate progressive store just like the HTTP rate-limit stores.
+const MAX_RECORDS = positiveLimit(process.env.LOGIN_PROGRESSIVE_MAX_KEYS ?? process.env.RATE_LIMIT_MAX_KEYS, 10000);
 const store = new Map();
+let lastSweep = -Infinity;
 
 function _key(type, identifier) {
-  return `${type}:${String(identifier || "").toLowerCase()}`;
+  const normalized = String(identifier || "").trim().toLowerCase();
+  return `${type}:${crypto.createHash("sha256").update(normalized).digest("hex")}`;
 }
 
 // Scope network-based progressive failures to the attempted account. This
@@ -48,6 +56,9 @@ function _getLockoutDuration(cycle) {
 function _getOrCreate(key) {
   let rec = store.get(key);
   if (!rec || (_now() - (rec.lastActivity || 0) > RECORD_TTL_MS)) {
+    if (rec) store.delete(key);
+    if (store.size >= MAX_RECORDS) _sweep();
+    if (store.size >= MAX_RECORDS) return null;
     rec = {
       currentCycleAttempts: 0,  // attempts in current cycle
       currentCycle: 1,          // current cycle number (1, 2, 3, 4+)
@@ -66,6 +77,7 @@ function _getOrCreate(key) {
 function recordFailed(type, identifier) {
   const key = _key(type, identifier);
   const rec = _getOrCreate(key);
+  if (!rec) return { blocked: true, retryAfter: RECORD_TTL_MS };
   const now = _now();
   rec.lastActivity = now;
 
@@ -104,8 +116,18 @@ function recordFailed(type, identifier) {
  */
 function isBlocked(type, identifier) {
   const key = _key(type, identifier);
-  const rec = store.get(key);
+  let rec = store.get(key);
+  if (rec && _now() - (rec.lastActivity || 0) > RECORD_TTL_MS) {
+    store.delete(key);
+    rec = null;
+  }
   if (!rec) {
+    if (store.size >= MAX_RECORDS) _sweep();
+    // When the table is full, reject unknown identities rather than allowing
+    // them to bypass progressive lockout or evict an existing user's counter.
+    if (store.size >= MAX_RECORDS) {
+      return { blocked: true, retryAfter: RECORD_TTL_MS, retryAfterSeconds: Math.ceil(RECORD_TTL_MS / 1000), retryAfterLabel: "later", currentCycle: 1 };
+    }
     return { blocked: false, attemptsRemaining: MAX_ATTEMPTS_PER_CYCLE, currentCycle: 1 };
   }
 
@@ -155,15 +177,19 @@ function _formatDuration(ms) {
     : `${hr} hour${hr !== 1 ? "s" : ""}`;
 }
 
-// Periodic cleanup of stale records (every 15 minutes)
-setInterval(() => {
+function _sweep() {
   const now = _now();
+  if (now - lastSweep < 1000) return;
+  lastSweep = now;
   for (const [key, rec] of store) {
     if (now - (rec.lastActivity || 0) > RECORD_TTL_MS) {
       store.delete(key);
     }
   }
-}, 15 * 60 * 1000).unref();
+}
+
+// Periodic cleanup of stale records (every 15 minutes)
+setInterval(_sweep, 15 * 60 * 1000).unref();
 
 module.exports = {
   recordFailed,

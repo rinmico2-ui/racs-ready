@@ -300,10 +300,10 @@ const coreDefaults = [
     name: 'Aircon Relocation',
     slug: 'aircon-relocation',
     category: 'service',
-    description: 'Relocate an existing split-type unit to a new position within the same property. Includes dismantle, transport and reinstallation.',
-    features: ['Dismantle & transport', 'Re-route piping', 'Re-install & test'],
+    description: 'Move an aircon to a nearby position within the same property, including dismantling and reinstallation. Distant moves or a different address need a custom quote before booking.',
+    features: ['Dismantle & move within property', 'Re-route piping', 'Re-install & test'],
     includedItems: ['Standard piping reroute', 'Basic mounting hardware'],
-    exclusions: ['Long-distance transport', 'Additional piping > 5m'],
+    exclusions: ['Long-distance transport or moves to another address', 'Additional piping > 5m'],
     images: [],
     // Aircon types with per-type HP pricing
     isAirconService: true,
@@ -371,7 +371,7 @@ const coreDefaults = [
     supportedHpRange: { min: 0.5, max: 3.0 },
     tags: ['relocation', 'installation'],
     active: true,
-    meta: { title: 'Aircon Relocation', description: 'Move your aircon unit safely and re-commission at the new location.' }
+    meta: { title: 'Aircon Relocation', description: 'Move and re-commission your aircon nearby on the same property. Ask for a quote for distant moves.' }
   },
   {
     name: 'Dismantling & Reinstall',

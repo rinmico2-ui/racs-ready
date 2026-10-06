@@ -9,6 +9,7 @@ const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
+const { positiveLimit } = require("../utils/boundedWindow");
 const { hashInvitationToken } = require("../utils/customerAccountInvitation");
 const {
   REGISTRATION_PASSWORD_MESSAGE,
@@ -21,12 +22,30 @@ const FAKE_HASH = fakeHash;
 const forgotStore = new Map();
 const FORGOT_MAX = Number(process.env.FORGOT_MAX_ATTEMPTS) || 3;
 const FORGOT_LOCK_MS = Number(process.env.FORGOT_LOCK_MS) || 5 * 60 * 1000; // default 5 minutes
+const FORGOT_MAX_KEYS = positiveLimit(process.env.FORGOT_MAX_KEYS ?? process.env.RATE_LIMIT_MAX_KEYS, 10000);
+let forgotLastSweep = -Infinity;
+
+function forgotKey(email) {
+  return crypto.createHash("sha256")
+    .update(String(email || "").replace(/[\$\{\}]/g, "").trim().toLowerCase())
+    .digest("hex");
+}
+
+function sweepForgotStore(now) {
+  if (now - forgotLastSweep < 1000) return;
+  forgotLastSweep = now;
+  for (const [key, rec] of forgotStore) {
+    if (now - rec.firstAt > FORGOT_LOCK_MS && now >= rec.lockedUntil) forgotStore.delete(key);
+  }
+}
 
 function recordForgotAttempt(email) {
   const now = Date.now();
-  const key = String(email || "")
-    .replace(/[\$\{\}]/g, "")
-    .toLowerCase();
+  const key = forgotKey(email);
+  if (!forgotStore.has(key) && forgotStore.size >= FORGOT_MAX_KEYS) sweepForgotStore(now);
+  if (!forgotStore.has(key) && forgotStore.size >= FORGOT_MAX_KEYS) {
+    return { count: FORGOT_MAX, lockedUntil: now + FORGOT_LOCK_MS };
+  }
   const rec = forgotStore.get(key) || {
     count: 0,
     firstAt: now,
@@ -47,11 +66,19 @@ function recordForgotAttempt(email) {
 }
 
 function isForgotBlocked(email) {
-  const key = String(email || "")
-    .replace(/[\$\{\}]/g, "")
-    .toLowerCase();
+  const key = forgotKey(email);
   const rec = forgotStore.get(key);
-  if (!rec) return { blocked: false };
+  if (!rec) {
+    if (forgotStore.size >= FORGOT_MAX_KEYS) sweepForgotStore(Date.now());
+    if (forgotStore.size >= FORGOT_MAX_KEYS) {
+      return { blocked: true, retryAfter: Math.ceil(FORGOT_LOCK_MS / 1000) };
+    }
+    return { blocked: false };
+  }
+  if (Date.now() - rec.firstAt > FORGOT_LOCK_MS && Date.now() >= rec.lockedUntil) {
+    forgotStore.delete(key);
+    return { blocked: false };
+  }
   if (rec.lockedUntil && Date.now() < rec.lockedUntil)
     return {
       blocked: true,

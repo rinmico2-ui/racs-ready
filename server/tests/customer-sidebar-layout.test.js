@@ -22,7 +22,7 @@ test("customer account drawer creates no page gutter or persistent content cover
 });
 
 test("customer sidebar assets are cache-busted together", () => {
-  assert.match(layout, /customer-sidebar\.css\?v=20261001-scroll-lock-v8/);
+  assert.match(layout, /customer-sidebar\.css\?v=20261005-logout-color/);
   assert.match(layout, /navbar-auth\.js\?v=20261001-scroll-lock-v8/);
 });
 

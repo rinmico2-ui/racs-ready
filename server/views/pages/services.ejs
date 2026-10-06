@@ -625,6 +625,10 @@
               </div>
             </div>
             <div class="ent-step-body">
+              <div class="alert alert-info d-none" id="relocationLocationHint" role="note">
+                <i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i>
+                For aircon relocation, pin the unit's current address. The standard booking price applies only when the new position is nearby on the same property.
+              </div>
               <% if (accountAddress) { %>
                 <div class="saved-address-card mb-3">
                   <div class="saved-address-copy">
@@ -2744,7 +2748,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261001-project-date-guide-v1';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20260928-input-security-v9':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261005-service-specific-icons':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3345,5 +3349,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20260929-modal-spacing-v51">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261005-service-icons">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

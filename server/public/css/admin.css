@@ -1254,6 +1254,23 @@ body.admin-layout strong {
   color: #1d4ed8;
 }
 
+.profile-dropdown-menu .premium-item-danger {
+  background: #fff1f0;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.profile-dropdown-menu .premium-item-danger:hover,
+.profile-dropdown-menu .premium-item-danger:focus-visible {
+  background: #fee4e2;
+  color: #912018;
+}
+
+.profile-dropdown-menu .premium-item-danger:focus-visible {
+  outline: 2px solid #b42318;
+  outline-offset: -2px;
+}
+
 /* ── Profile dropdown responsive ── */
 @media (max-width: 767px) {
   .profile-dropdown-toggle {

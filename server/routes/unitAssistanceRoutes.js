@@ -115,7 +115,16 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
   try {
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid request.' });
     const request = await UnitAssistanceRequest.findOne({ _id: req.params.id, status: { $in: ['pending', 'quoted', 'accepted'] } });
-    if (!request) return res.status(409).json({ error: 'This request is no longer open.' });
+    if (!request) return res.status(409).json({ error: 'This request can no longer be quoted. Refresh the queue.' });
+    const renewingExpiredAcceptance = request.status === 'accepted'
+      && !request.existingBookingId && !request.bookingId
+      && request.quote?.expiresAt && request.quote.expiresAt <= new Date();
+    if (request.status === 'accepted' && !renewingExpiredAcceptance) {
+      return res.status(409).json({ error: 'The customer already accepted this quote. Refresh the queue.' });
+    }
+    if (request.status !== 'pending' && (!request.quote?.quotedAt || String(req.body.expectedQuotedAt || '') !== request.quote.quotedAt.toISOString())) {
+      return res.status(409).json({ error: 'This quote changed while you were editing. Refresh the queue before updating it.' });
+    }
     const catalog = await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
     const verificationMethod = String(req.body.verificationMethod || '');
     if (!['customer_contact', 'model_label', 'site_visit'].includes(verificationMethod)) {
@@ -132,7 +141,11 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
       quotedBy: req.user._id, quotedAt: new Date(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     };
-    const updated = await UnitAssistanceRequest.findOneAndUpdate({ _id: request._id, status: request.status, bookingId: null },
+    const updated = await UnitAssistanceRequest.findOneAndUpdate({
+      _id: request._id, status: request.status, bookingId: null,
+      ...(request.status !== 'pending' ? { 'quote.quotedAt': request.quote.quotedAt } : {}),
+      ...(renewingExpiredAcceptance ? { existingBookingId: null, 'quote.expiresAt': { $lte: new Date() } } : {}),
+    },
       { $set: { quote, status: 'quoted', acceptedAt: null },
         $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { returnDocument: "after" });
     if (!updated) return res.status(409).json({ error: 'This request was updated. Reload the queue.' });

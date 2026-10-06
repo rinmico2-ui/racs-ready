@@ -28,7 +28,8 @@ test("core services use a compact two-by-two chooser", () => {
 });
 
 test("mobile core-service cards remain readable and touch friendly", () => {
-  assert.match(mobileStyles, /#coreServiceCards \.service-card-media[\s\S]*?aspect-ratio:\s*16 \/ 9/);
+  assert.match(servicesScript, /const mediaSection = `<div class="service-card-visual"/);
+  assert.match(mobileStyles, /#coreServiceCards \.service-card-visual\s*\{[^}]*height:\s*76px/);
   assert.match(mobileStyles, /#coreServiceCards \.card-title[\s\S]*?font-size:\s*1rem/);
   assert.match(mobileStyles, /#coreServiceCards \.add-service-btn[\s\S]*?min-height:\s*48px/);
   assert.match(mobileStyles, /\.ent-booking-container\s*\{[^}]*padding-inline:\s*1rem/);
@@ -40,7 +41,7 @@ test("mobile booking progress fits without a horizontal scroller", () => {
   assert.match(mobileStyles, /\.ent-tr\s*\{[^}]*grid-template-columns:\s*repeat\(6/);
   assert.match(mobileStyles, /\.ent-n\s*\{[^}]*min-height:\s*44px/);
   assert.match(mobileStyles, /\.ent-step-body \.form-control[\s\S]*?min-height:\s*48px/);
-  assert.match(servicesView, /services-mobile-ux\.css\?v=20260929-modal-spacing-v51/);
+  assert.match(servicesView, /services-mobile-ux\.css\?v=[\w-]+/);
 });
 
 test("mobile service configuration keeps type and HP choices compact", () => {

@@ -33,7 +33,7 @@ test("admin modal shell is reusable, fast, accessible, and cache-busted", () => 
   assert.match(script, /state\.setAttribute\("role", failed \? "alert" : "status"\)/);
   assert.match(styles, /\.modal\.fade\s*\{[\s\S]*transition:\s*opacity 0\.1s linear/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
-  assert.match(layout, /admin\.css\?v=20260927-fast-modals/);
+  assert.match(layout, /admin\.css\?v=20261005-logout-color/);
   assert.match(layout, /admin\.js\?v=\d{8}-[a-z-]+/);
 });
 

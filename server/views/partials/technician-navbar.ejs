@@ -24,6 +24,20 @@
   .dropdown-item-custom:hover {
     background: #f8fafc; color: #2563eb !important;
   }
+  .dropdown-item-custom.logout-item {
+    background: #fff1f0;
+    color: #b42318;
+    font-weight: 600;
+  }
+  .dropdown-item-custom.logout-item:hover,
+  .dropdown-item-custom.logout-item:focus-visible {
+    background: #fee4e2;
+    color: #912018 !important;
+  }
+  .dropdown-item-custom.logout-item:focus-visible {
+    outline: 2px solid #b42318;
+    outline-offset: -2px;
+  }
   #sidebarToggleMobile {
     display: none;
   }
@@ -201,8 +215,8 @@
           </li>
           <li><hr class="dropdown-divider" style="border-color: #f1f5f9; margin: 0.25rem 0.5rem;"></li>
           <li>
-            <a class="dropdown-item dropdown-item-custom py-2" href="#" onclick="event.preventDefault(); fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href='/login');" style="color: #dc2626; font-size: 0.88rem; padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.15s;">
-              <i class="bi bi-box-arrow-right me-2"></i>Logout
+            <a class="dropdown-item dropdown-item-custom logout-item py-2" href="#" onclick="event.preventDefault(); fetch('/api/auth/logout', {method: 'POST'}).then(() => window.location.href='/login');" style="font-size: 0.88rem; padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.15s;">
+              <i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Log Out
             </a>
           </li>
         </ul>

@@ -1794,3 +1794,135 @@ body.booking-sheet-open { overflow: hidden; }
   .repair-model-meta { align-items: flex-start; }
   #repairModelCount { flex: 0 0 auto; }
 }
+
+
+/* Icon-led service choices in the booking catalog. */
+#coreServiceCards .service-card {
+  border-color: #d7e4f3 !important;
+  background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+  box-shadow: 0 8px 24px rgba(15, 46, 91, .07);
+}
+#coreServiceCards .service-card:hover {
+  border-color: #93baf2 !important;
+  box-shadow: 0 16px 34px rgba(30, 64, 175, .13);
+}
+#coreServiceCards .service-card-visual {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 96px;
+  margin-bottom: .85rem;
+  padding: .8rem 1rem;
+  overflow: hidden;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #eaf3ff 0%, #f5faff 68%, #fff 100%);
+}
+#coreServiceCards .service-card-visual::after {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -18px;
+  width: 136px;
+  height: 136px;
+  border: 1px solid rgba(37, 99, 235, .13);
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px rgba(37, 99, 235, .045);
+  pointer-events: none;
+}
+#coreServiceCards .service-card-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid #c9dfff;
+  border-radius: 17px;
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .11);
+}
+#coreServiceCards .service-card-icon i { font-size: 1.65rem; line-height: 1; }
+#coreServiceCards .service-card-kicker { color: #1d4ed8; }
+#coreServiceCards .service-card-price { border-top-color: #e3ecf7; }
+#coreServiceCards .service-card.is-selected .service-card-visual {
+  border-color: #bbf7d0;
+  background: linear-gradient(120deg, #ecfdf5, #f8fffb);
+}
+#coreServiceCards .service-card.is-selected .service-card-icon {
+  border-color: #bbf7d0;
+  color: #15803d;
+  box-shadow: 0 8px 18px rgba(21, 128, 61, .1);
+}
+
+/* Repair appliance and type choices use the same clear icon hierarchy. */
+#unitCategoryGrid .unit-category-card {
+  min-height: 154px;
+  border: 1px solid #d7e4f3;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #fff, #f8fbff);
+  box-shadow: 0 7px 20px rgba(15, 46, 91, .06);
+}
+#unitCategoryGrid .unit-category-card:hover {
+  border-color: #93baf2;
+  box-shadow: 0 14px 28px rgba(30, 64, 175, .12);
+}
+#unitCategoryGrid .unit-category-card:focus-visible,
+#subUnitChips .sub-unit-chip:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, .35);
+  outline-offset: 3px;
+}
+#unitCategoryGrid .unit-category-card.active {
+  border-color: #2563eb;
+  background: linear-gradient(145deg, #eff6ff, #fff);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .11), 0 12px 26px rgba(30, 64, 175, .1);
+}
+#unitCategoryGrid .unit-category-card.active::after { content: none; }
+#unitCategoryGrid .unit-category-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 17px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6);
+}
+#unitCategoryGrid .unit-category-icon i { font-size: 1.55rem; line-height: 1; }
+#unitCategoryGrid .unit-category-label { font-size: 1rem; }
+#unitCategoryGrid .unit-category-count { margin-top: .22rem; line-height: 1.35; }
+#unitCategoryGrid .unit-category-card.active .unit-category-check {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1rem;
+}
+#subUnitChips .sub-unit-chip {
+  border-color: #d7e4f3;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 46, 91, .045);
+}
+#subUnitChips .sub-unit-chip:hover {
+  border-color: #93baf2;
+  box-shadow: 0 9px 20px rgba(30, 64, 175, .1);
+}
+#subUnitChips .sub-unit-chip.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .1);
+}
+
+@media (max-width: 767.98px) {
+  #coreServiceCards .service-card-visual { height: 76px; margin-bottom: .6rem; padding: .65rem; border-radius: 11px; }
+  #coreServiceCards .service-card-icon { width: 48px; height: 48px; border-radius: 13px; }
+  #coreServiceCards .service-card-icon i { font-size: 1.35rem; }
+  #unitCategoryGrid .unit-category-card { min-height: 92px; padding: .85rem 1rem; }
+  #unitCategoryGrid .unit-category-icon { width: 48px; height: 48px; margin-bottom: 0; border-radius: 13px; }
+  #unitCategoryGrid .unit-category-icon i { font-size: 1.3rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #unitCategoryGrid .unit-category-card,
+  #subUnitChips .sub-unit-chip { transition: none; }
+}

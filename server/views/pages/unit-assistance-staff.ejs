@@ -1,9 +1,52 @@
-<main class="container-fluid py-4 px-3 px-lg-5" style="min-height:70vh">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <div><h1 class="h3 mb-1">Unit identification queue</h1><p class="text-muted mb-0">Confirm the aircon type and HP, then send the catalog price for customer approval.</p></div>
-    <a class="btn btn-outline-secondary" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>">Back to appointments</a>
+<link rel="stylesheet" href="/css/unit-assistance-staff.css?v=20261006-success-v2">
+
+<div class="ua-page" data-appointments-url="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>">
+  <header class="ua-header">
+    <div>
+      <p class="ua-eyebrow">Customer service operations</p>
+      <h1>Unit identification</h1>
+      <p class="ua-subtitle">Verify the aircon details, send a catalog price, and track what happens next.</p>
+    </div>
+    <div class="ua-header-actions">
+      <button class="ua-button ua-button-light" id="unitStaffRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh queue</button>
+      <a class="ua-button ua-button-light" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>"><i class="bi bi-calendar3" aria-hidden="true"></i> Appointments</a>
+    </div>
+  </header>
+
+  <div class="ua-process" aria-label="How identification requests work">
+    <div><span>1</span><p><strong>Verify the unit</strong><small>Confirm the type, HP, and how you checked.</small></p></div>
+    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    <div><span>2</span><p><strong>Send a price</strong><small>Use the catalog price for customer approval.</small></p></div>
+    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    <div><span>3</span><p><strong>Follow through</strong><small>The customer accepts, then books or updates their booking.</small></p></div>
   </div>
-  <div id="unitStaffMessage" class="alert alert-danger d-none" role="alert"></div>
-  <div id="unitStaffRequests" class="row g-3" aria-live="polite"><p>Loading requests...</p></div>
-</main>
-<script src="/js/unit-assistance-staff.js?v=1" defer></script>
+
+  <div id="unitStaffMessage" class="ua-message" role="alert" hidden></div>
+  <div id="unitStaffNotice" class="ua-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+  <section class="ua-overview" aria-label="Queue overview">
+    <div class="ua-stat"><span>Needs verification</span><strong id="uaPendingCount">—</strong><small>Ready for staff review</small></div>
+    <div class="ua-stat"><span>Waiting for customer</span><strong id="uaQuotedCount">—</strong><small>Quote sent</small></div>
+    <div class="ua-stat"><span>Customer accepted</span><strong id="uaAcceptedCount">—</strong><small>Booking or follow-up pending</small></div>
+  </section>
+
+  <div class="ua-workspace">
+    <section class="ua-queue" aria-labelledby="uaQueueTitle">
+      <div class="ua-queue-head"><div><h2 id="uaQueueTitle">Request queue</h2><p id="uaResultCount">Loading requests…</p></div></div>
+      <div class="ua-toolbar">
+        <label class="ua-search"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search requests</span><input id="unitStaffSearch" type="search" placeholder="Search customer, service, or booking" autocomplete="off"></label>
+        <label class="ua-filter-label" for="unitStaffFilter">Show</label>
+        <select id="unitStaffFilter" class="ua-filter" aria-label="Filter requests">
+          <option value="action">Needs action</option>
+          <option value="all">All open</option>
+          <option value="pending">Needs verification</option>
+          <option value="quoted">Waiting for customer</option>
+          <option value="accepted">Customer accepted</option>
+        </select>
+      </div>
+      <div id="unitStaffRequests" class="ua-list" aria-label="Identification requests" aria-live="polite"><div class="ua-empty">Loading requests…</div></div>
+    </section>
+    <section class="ua-detail" id="unitStaffDetail" aria-labelledby="uaDetailTitle"><div class="ua-empty ua-empty-detail"><i class="bi bi-card-checklist" aria-hidden="true"></i><h2 id="uaDetailTitle">Select a request</h2><p>Customer details, verification, and the next action appear here.</p></div></section>
+  </div>
+</div>
+<script src="/js/unit-assistance-staff.js?v=20261006-success-v2" defer></script>

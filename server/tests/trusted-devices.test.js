@@ -245,6 +245,17 @@ test("the production login endpoint skips OTP for a trusted technician device", 
 test("the production login endpoint requires OTP for an untrusted technician device", async (t) => {
   mockSuccessfulPasswordLogin(t);
   t.mock.method(trustedDevices, "validateAndRotate", async () => false);
+  let savedOtp;
+  t.mock.method(User, "updateOne", async (_filter, update) => {
+    savedOtp = update.$set;
+    return { modifiedCount: 1 };
+  });
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "trusted-device-test-secret-that-is-long-enough";
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  });
   let emailSent = false;
   t.mock.method(mailer, "sendMail", async () => {
     emailSent = true;
@@ -258,5 +269,6 @@ test("the production login endpoint requires OTP for an untrusted technician dev
   assert.equal(res.body.requiresOTP, true);
   assert.equal(res.body.canTrustDevice, true);
   assert.equal(emailSent, true);
+  assert.match(savedOtp.loginOtpHash, /^[a-f0-9]{64}$/);
   assert.equal(res.cookies.some((cookie) => cookie.name === "auth_token"), false);
 });
