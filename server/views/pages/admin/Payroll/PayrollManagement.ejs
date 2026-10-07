@@ -507,9 +507,9 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start">
           <div style="flex:1;">
-            <div class="kpi-title">Net Payroll Value</div>
+            <div class="kpi-title">Payroll Value in View</div>
             <div class="kpi-value" id="kpiNetTotal">--</div>
-            <div class="kpi-sub">Current filters · excluding voided</div>
+            <div class="kpi-sub" id="kpiNetHint">Includes draft, approved, and paid runs; not the paid total</div>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);"><i class="bi bi-cash-stack"></i></div>
         </div>
@@ -831,7 +831,7 @@
                 <div class="pw-section-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-cash-coin"></i></div>
                 <div>
                   <h6 class="pw-section-title">System-calculated compensation</h6>
-                  <p class="pw-section-desc">Basic and overtime pay are calculated by the backend from the effective rate and attendance</p>
+                  <p class="pw-section-desc">Pay follows the effective daily, hourly, or monthly rate. Attendance is reviewed before approval.</p>
                 </div>
               </div>
               <div class="row g-3">
@@ -1512,9 +1512,41 @@
 
   function renderStats(s) {
     document.getElementById('kpiNetTotal').textContent = fmt(s.netTotal);
+    const status = document.getElementById('filterStatus').value;
+    document.getElementById('kpiNetHint').textContent = status === 'paid'
+      ? 'Recorded paid runs in current filters'
+      : status === 'approved'
+        ? 'Approved runs; payment has not been recorded'
+        : status === 'draft'
+          ? 'Draft estimates; not approved or paid'
+          : status === 'voided'
+            ? 'Voided runs are excluded from this value'
+            : 'Includes draft, approved, and paid runs; not the paid total';
     document.getElementById('kpiDraft').textContent = s.draft || 0;
     document.getElementById('kpiApproved').textContent = s.approved || 0;
     document.getElementById('kpiPaid').textContent = s.paid || 0;
+  }
+
+  function attendanceNeedsApprovalReview(record) {
+    const att = record.attendanceSummary || {};
+    const missingWork = record.payType === 'monthly'
+      ? Number(att.hoursWorked || 0) <= 0
+      : Number(att.present || 0) + Number(att.late || 0) === 0;
+    return missingWork || Number(att.incompleteShifts || 0) > 0 || Number(att.unverifiedEntries || 0) > 0;
+  }
+
+  function payrollWarnings(record) {
+    const warnings = Array.isArray(record.calculationWarnings)
+      ? record.calculationWarnings.filter(item => typeof item === 'string' && item.trim())
+      : [];
+    const att = record.attendanceSummary || {};
+    if (record.payType === 'monthly' && Number(att.hoursWorked || 0) <= 0
+        && !warnings.some(item => item.includes('No worked hours'))) {
+      warnings.unshift(record.status === 'draft'
+        ? 'No worked hours were recorded for this monthly period. Review attendance and any paid leave before approval; the monthly salary is not reduced automatically.'
+        : 'No worked hours were recorded for this monthly period. Review the approval history; the monthly salary was not reduced automatically.');
+    }
+    return warnings;
   }
 
   function renderRecords(records) {
@@ -1529,8 +1561,10 @@
       const role = emp.role || r.employeeRole || '';
       const statusCls = 'status-' + r.status;
       const actions = getRecordActions(r);
-      const warningIcon = (r.calculationWarnings || []).length
-        ? `<i class="bi bi-exclamation-triangle-fill ms-1" style="color:#d97706;" title="${esc((r.calculationWarnings || []).join(' '))}"></i>`
+      const warnings = payrollWarnings(r);
+      const needsReview = r.status === 'draft' && attendanceNeedsApprovalReview(r);
+      const warningIcon = warnings.length
+        ? `<i class="bi bi-exclamation-triangle-fill ms-1" style="color:#d97706;" title="${esc(warnings.join(' '))}" aria-label="Attendance warning"></i>`
         : '';
       return `<tr>
         <td>
@@ -1543,7 +1577,7 @@
         <td class="text-end">${fmt((r.allowances||[]).reduce((s,i)=>s+i.amount,0))}</td>
         <td class="text-end">${fmt(r.totalDeductions)}</td>
         <td class="text-end" style="font-weight:700;color:#0f172a;">${fmt(r.netPay)}</td>
-        <td><span class="status-badge ${statusCls}">${r.status}</span>${warningIcon}</td>
+        <td><span class="status-badge ${statusCls}">${r.status}</span>${warningIcon}${needsReview ? '<div class="pw-muted-note" style="color:#b45309;">Review attendance</div>' : ''}</td>
         <td class="text-center">${actions}</td>
       </tr>`;
     }).join('');
@@ -1781,7 +1815,7 @@
     const attWrap = document.getElementById('calcAttendanceWrap');
     if (attWrap.style.display !== 'none') {
       document.getElementById('reviewAtt').textContent = currentCalculation?.compensation?.payType === 'monthly'
-        ? 'Not used for monthly salary'
+        ? document.getElementById('attHours').textContent + ' recorded hours; monthly salary is calendar-based'
         : document.getElementById('attPresent').textContent + ' present, ' +
           document.getElementById('attLate').textContent + ' late, ' +
           document.getElementById('attAbsent').textContent + ' absent';
@@ -1854,8 +1888,8 @@
 
       document.getElementById('calcAttendanceWrap').style.display = 'block';
       document.getElementById('calcAttendanceDesc').textContent = r.payType === 'monthly'
-        ? 'Monthly salary is prorated by covered calendar days; attendance does not change basic pay.'
-        : 'Verified attendance used by the server calculation.';
+        ? 'Monthly base pay follows calendar days. Attendance still needs review before approval.'
+        : 'Attendance records used by the server calculation; review any warnings.';
       const att = r.attendanceSummary || {};
       document.getElementById('attPresent').textContent = att.present || 0;
       document.getElementById('attLate').textContent = att.late || 0;
@@ -1863,7 +1897,7 @@
       document.getElementById('attLeave').textContent = att.onLeave || 0;
       document.getElementById('attSick').textContent = att.sickLeave || 0;
       document.getElementById('attHours').textContent = att.hoursWorked || 0;
-      renderCalculationWarnings(r.calculationWarnings || []);
+      renderCalculationWarnings(payrollWarnings(r));
       calculationReady = true;
       currentCalculation = { compensation: { payType: r.payType, baseRate: r.baseRate, overtimeRate: r.overtimeRate } };
       document.getElementById('pfCalculationBasis').innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${esc(r.payType)} policy:</strong> ${fmt(r.baseRate)}/${payUnit(r.payType)}${Number(r.overtimeRate||0)>0?` · OT ${fmt(r.overtimeRate)}/hour`:''}. Saved draft inputs will be recalculated by the server.`;
@@ -1941,18 +1975,21 @@
       document.getElementById('attSick').textContent = att.sickLeave || 0;
       document.getElementById('attHours').textContent = att.hoursWorked || 0;
       document.getElementById('calcAttendanceWrap').style.display = 'block';
+      document.getElementById('calcAttendanceDesc').textContent = data.compensation.payType === 'monthly'
+        ? 'Monthly base pay follows calendar days. Attendance still needs review before approval.'
+        : 'Attendance records used by the server calculation; review any warnings.';
       renderCalculationWarnings(data.calculationWarnings || []);
       calculationReady = true;
       currentCalculation = data;
       const basis = document.getElementById('pfCalculationBasis');
-      basis.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${esc(data.compensation.payType)} policy:</strong> ${fmt(data.compensation.baseRate)}/${payUnit(data.compensation.payType)}${Number(data.compensation.overtimeRate||0)>0?` · OT ${fmt(data.compensation.overtimeRate)}/hour`:''}. Attendance and rate inputs were verified by the server.`;
+      basis.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${esc(data.compensation.payType)} policy:</strong> ${fmt(data.compensation.baseRate)}/${payUnit(data.compensation.payType)}${Number(data.compensation.overtimeRate||0)>0?` · OT ${fmt(data.compensation.overtimeRate)}/hour`:''}. ${data.compensation.payType === 'monthly' ? 'Base pay is calendar-based; review attendance before approval.' : 'The server used the recorded attendance and effective rate.'}`;
       syncOvertimeControls();
 
       updateSummary();
       const calculationMessage = data.compensation.payType === 'monthly'
         ? `Calculated ${fmt(data.basicPay)} from the monthly salary and covered calendar days.`
         : data.compensation.payType === 'hourly'
-          ? `Calculated ${fmt(data.basicPay)} from ${Number(att.hoursWorked||0)} verified hours.`
+          ? `Calculated ${fmt(data.basicPay)} from ${Number(att.hoursWorked||0)} recorded hours.`
           : `Calculated ${fmt(data.basicPay)} from ${Number(att.present||0)+Number(att.late||0)} payable attendance days.`;
       showCalcMsg(calculationMessage, 'success');
       succeeded = true;
@@ -2157,6 +2194,7 @@
       statusEl.innerHTML = '<i class="bi bi-circle-fill"></i>' + (r.status || 'draft');
 
       const att = r.attendanceSummary || {};
+      const attendanceWarnings = payrollWarnings(r);
       const attColors = { present: '#10b981', late: '#f59e0b', absent: '#ef4444', leave: '#8b5cf6', sick: '#f97316', hours: '#3b82f6' };
 
       let allowHtml = (r.allowances || []).map(a => `<div class="pw-ent-calc-row"><span class="pw-ent-calc-label">${esc(a.name)}</span><span>${fmt(a.amount)}</span></div>`).join('');
@@ -2224,6 +2262,7 @@
                   <div class="pw-ent-att-item"><div class="pw-ent-att-dot" style="background:${attColors.sick};"></div><span class="pw-ent-att-num">${att.sickLeave || 0}</span><span class="pw-ent-att-lbl">Sick</span></div>
                   <div class="pw-ent-att-item"><div class="pw-ent-att-dot" style="background:${attColors.hours};"></div><span class="pw-ent-att-num">${att.hoursWorked || 0}</span><span class="pw-ent-att-lbl">Hours</span></div>
                 </div>
+                ${attendanceWarnings.length ? `<div class="pw-ent-warning" style="margin-top:12px;background:#fef3c7;border-color:#fde68a;color:#92400e;"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Attendance notes</strong><ul class="mb-0 mt-1">${attendanceWarnings.map(item => `<li>${esc(item)}</li>`).join('')}</ul></div></div>` : ''}
               </div>
             </div>
 
@@ -2277,12 +2316,8 @@
     document.getElementById('approveModal').dataset.id = id;
     const emp = r.employee || {};
     const att = r.attendanceSummary || {};
-    const hasBlockingAttendance = r.payType !== 'monthly' && (
-      Number(att.present || 0) + Number(att.late || 0) === 0 ||
-      Number(att.incompleteShifts || 0) > 0 ||
-      Number(att.unverifiedEntries || 0) > 0
-    );
-    const warnings = (r.calculationWarnings || []).map(item => `<li>${esc(item)}</li>`).join('');
+    const hasBlockingAttendance = attendanceNeedsApprovalReview(r);
+    const warnings = payrollWarnings(r).map(item => `<li>${esc(item)}</li>`).join('');
     document.getElementById('approveSummary').innerHTML = `
       <div class="pw-ent-summary">
         <div style="margin-bottom:10px;">
@@ -2290,6 +2325,7 @@
           <div style="font-size:0.78rem;color:#047857;margin-top:2px;">${fmtDate(r.periodStart)} – ${fmtDate(r.periodEnd)}</div>
         </div>
         <div class="pw-ent-summary-divider"></div>
+        ${r.payType === 'monthly' ? `<div class="pw-ent-summary-row"><span class="pw-ent-summary-label">Recorded hours</span><span class="pw-ent-summary-value">${Number(att.hoursWorked || 0)} hrs</span></div>` : ''}
         <div class="pw-ent-summary-row"><span class="pw-ent-summary-label">Gross Pay</span><span class="pw-ent-summary-value">${fmt(r.grossPay)}</span></div>
         <div class="pw-ent-summary-row"><span class="pw-ent-summary-label">Deductions</span><span class="pw-ent-summary-value" style="color:#dc2626;">-${fmt(r.totalDeductions)}</span></div>
         <div class="pw-ent-summary-divider"></div>
@@ -2299,6 +2335,7 @@
       ${warnings ? `<div class="pw-ent-warning" style="background:#fef3c7;border-color:#fde68a;color:#92400e;"><i class="bi bi-exclamation-triangle-fill"></i><div><strong>Warnings</strong><ul class="mb-0 mt-1">${warnings}</ul></div></div>` : ''}
       ${hasBlockingAttendance ? `
         <div id="attendanceOverridePanel" class="pw-ent-field" style="border:1px solid #fecaca;background:#fff7f7;border-radius:10px;padding:12px 14px;">
+          ${r.payType === 'monthly' ? `<p style="font-size:.78rem;color:#991b1b;margin:0 0 10px;">Monthly basic pay is based on calendar days. Review the ${Number(att.hoursWorked || 0)} recorded hours and any leave or missing shifts before approving.</p>` : ''}
           <div style="display:flex;align-items:flex-start;gap:9px;">
             <input id="attendanceOverrideConfirm" type="checkbox" style="margin-top:3px;" />
             <label for="attendanceOverrideConfirm" style="font-size:.78rem;font-weight:700;color:#991b1b;line-height:1.4;cursor:pointer;">I reviewed the source attendance records and authorize this documented exception.</label>

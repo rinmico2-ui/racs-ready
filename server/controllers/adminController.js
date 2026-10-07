@@ -391,10 +391,10 @@ exports.createStaff = async (req, res, next) => {
         .status(400)
         .json({ error: "Password must be 8-12 characters" });
     }
-    if (!/^[A-Za-z0-9]+$/.test(password)) {
+    if (/\s/.test(password)) {
       return res
         .status(400)
-        .json({ error: "Password must contain only letters and numbers" });
+        .json({ error: "Password must not contain spaces" });
     }
     const exists = await User.findOne({ email });
     if (exists) return res.status(409).json({ error: "User already exists" });
@@ -585,7 +585,7 @@ exports.resetStaffPassword = async (req, res, next) => {
       return res.status(400).json({ error: "Invalid id" });
     if (!newPassword || newPassword.length < 8 || newPassword.length > 20)
       return res.status(400).json({ error: "Invalid password" });
-    if (!/^[A-Za-z0-9]+$/.test(newPassword))
+    if (/\s/.test(newPassword))
       return res.status(400).json({ error: "Invalid password" });
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -1957,6 +1957,9 @@ exports.editCoreService = async (req, res, next) => {
     const CoreService = require("../models/CoreService");
     const existingService = await CoreService.findById(id).lean();
     if (!existingService) return res.status(404).json({ error: "not found" });
+    if (existingService.archivedAt && updates.active === true) {
+      return res.status(409).json({ error: "Restore this archived service before making it available for booking." });
+    }
     if (Object.prototype.hasOwnProperty.call(updates, "warrantyPolicy")) {
       const previousPolicy = normalizeServiceWarrantyPolicy(existingService.warrantyPolicy, existingService, "core");
       const nextPolicy = normalizeServiceWarrantyPolicy(
@@ -1990,6 +1993,44 @@ exports.editCoreService = async (req, res, next) => {
     });
     return res.json({ coreService: svc });
   } catch (err) {
+    next(err);
+  }
+};
+
+exports.archiveCoreService = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid service." });
+    const CoreService = require("../models/CoreService");
+    const service = await CoreService.findById(req.params.id);
+    if (!service) return res.status(404).json({ error: "Service not found." });
+    if (service.archivedAt) return res.json({ message: "Service is already archived.", coreService: service });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Archive");
+    archiveRecord(service, req.user._id, reason);
+    await service.save();
+    await logAction(req.user._id, service._id, "coreService.archive", req, { reason });
+    return res.json({ message: "Service archived.", coreService: service });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+};
+
+exports.restoreCoreService = async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid service." });
+    const CoreService = require("../models/CoreService");
+    const service = await CoreService.findById(req.params.id);
+    if (!service) return res.status(404).json({ error: "Service not found." });
+    if (!service.archivedAt) return res.status(409).json({ error: "Only archived services can be restored." });
+    const reason = normalizeLifecycleReason(req.body?.reason, "Restore", {
+      fallback: "Restored to the core service catalogue by an administrator",
+    });
+    restoreRecord(service, req.user._id, reason);
+    await service.save();
+    await logAction(req.user._id, service._id, "coreService.restore", req, { reason });
+    return res.json({ message: "Service restored and available for booking.", coreService: service });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 };

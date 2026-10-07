@@ -250,6 +250,8 @@ router.get("/core-services", admin.listCoreServices);
 router.get("/core-services/:id", admin.getCoreService);
 router.post("/core-services", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.createCoreService);
 router.patch("/core-services/:id", (req, res, next) => secretaryServiceImageUpload(req, res, next), admin.editCoreService);
+router.post("/core-services/:id/archive", admin.archiveCoreService);
+router.post("/core-services/:id/restore", admin.restoreCoreService);
 
 // Repair service administration
 router.get("/repair-services", admin.listRepairServices);
@@ -265,6 +267,7 @@ router.get("/service-categories/inspection-pricing", serviceCategories.getInspec
 router.patch("/service-categories/inspection-pricing", serviceCategories.updateInspectionPricing);
 router.patch("/service-categories/:id", serviceCategories.update);
 router.delete("/service-categories/:id", serviceCategories.deactivate);
+router.post("/service-categories/:id/restore", serviceCategories.restore);
 router.patch("/service-categories/:id/reorder", serviceCategories.reorder);
 
 // Service Tracking

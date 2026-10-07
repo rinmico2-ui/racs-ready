@@ -919,7 +919,8 @@ router.post("/create", auth.authenticate, auth.requireRole("customer"), async (r
         try {
           let svc;
           if (serviceItem.type === 'core') {
-            svc = await CoreService.findById(serviceItem.serviceId).lean();
+            svc = await CoreService.findOne({ _id: serviceItem.serviceId, active: true }).lean();
+            if (!svc) return res.status(409).json({ error: "A selected core service is no longer available. Please refresh your booking." });
             serviceModelName = "CoreService";
           } else {
             svc = await RepairService.findById(serviceItem.serviceId).lean();
@@ -972,6 +973,7 @@ router.post("/create", auth.authenticate, auth.requireRole("customer"), async (r
       try {
         let svc = await CoreService.findById(serviceId).lean();
         if (svc) {
+          if (!svc.active) return res.status(409).json({ error: "This core service is no longer available. Please choose another service." });
           serviceModelName = "CoreService";
           serviceDuration = svc.durationMinutes || svc.duration || 60;
           serviceName = svc.name || "";

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const CustomerAsset = require("../models/CustomerAsset");
+const RelocationRequest = require("../models/RelocationRequest");
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
 const { getAftercarePolicy } = require("./aftercarePolicy");
 
@@ -67,12 +68,13 @@ function bookingAssetSeeds(booking) {
           applianceType: item.applianceType || item.airconType || booking.applianceType || "",
           applianceTypeName: item.applianceTypeName || item.airconTypeName || booking.applianceTypeName || "",
           brand: item.brand || booking.brand || booking.unitInfo?.brand || "",
-          model: item.model || booking.unitInfo?.model || "",
+          model: item.relocation?.model || item.model || booking.unitInfo?.model || "",
+          serialNumber: item.relocation?.serialNumber || "",
           capacity: String(item.hp || booking.hp || booking.unitInfo?.hp || ""),
           capacityUnit: "HP",
           unitLabel: item.units?.[unitIndex - 1]?.label || `Unit ${unitIndex}`,
         },
-        serviceAddress: booking.location?.address || booking.customer?.address || "",
+        serviceAddress: item.relocation?.to?.address || booking.location?.address || booking.customer?.address || "",
       });
     }
   });
@@ -192,6 +194,41 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
     recommendedByName: String(options.recommendedByName || "").slice(0, 200),
   };
 
+  const relocationItems = (booking.services || []).filter(item => item.relocation?.scope);
+  if (relocationItems.length) {
+    for (const item of relocationItems) {
+      if (!item.relocation?.requestId) continue;
+      await RelocationRequest.updateOne({ _id: item.relocation.requestId, bookingId: booking._id, status: 'converted' }, {
+        $set: { status: 'completed' },
+        $push: { events: { action: 'completed', at: completedAt } },
+      });
+    }
+    const linkedAssets = [];
+    for (const item of relocationItems) {
+      const move = item.relocation;
+      if (!move.assetId) continue;
+      const event = {
+        serviceType: "aircon-relocation", bookingId: booking._id,
+        fromAddress: move.from?.address || "", toAddress: move.to?.address || "", completedAt,
+      };
+      const updated = await CustomerAsset.findOneAndUpdate({
+        _id: move.assetId, customerId: customerIdOf(booking),
+        "serviceHistory.bookingId": { $ne: booking._id },
+      }, {
+        $set: { serviceAddress: move.to?.address || "", lastServiceDate: completedAt, status: "active" },
+        $push: { serviceHistory: event },
+      }, { returnDocument: "after" });
+      const asset = updated || await CustomerAsset.findOne({ _id: move.assetId, customerId: customerIdOf(booking) });
+      if (asset) {
+        if (move.model) await CustomerAsset.updateOne({ _id: asset._id, "equipment.model": { $in: ["", null] } }, { $set: { "equipment.model": move.model } });
+        if (move.serialNumber) await CustomerAsset.updateOne({ _id: asset._id, "equipment.serialNumber": { $in: ["", null] } }, { $set: { "equipment.serialNumber": move.serialNumber } });
+        if (maintenanceRule.bookingsEnabled) await ensureSchedule(asset, { baseDate: completedAt, intervalDays, sourceType: "booking", sourceId: booking._id, recommendation });
+        linkedAssets.push(asset);
+      }
+    }
+    if (relocationItems.every(item => item.relocation?.assetId)) return linkedAssets;
+  }
+
   if (booking.maintenance?.assetId && booking.maintenance?.scheduleId) {
     const schedule = await MaintenanceSchedule.findOneAndUpdate(
       { _id: booking.maintenance.scheduleId, bookingId: booking._id, status: { $ne: "completed" } },
@@ -212,17 +249,23 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
     return asset ? [asset] : [];
   }
 
-  if (!maintenanceRule.bookingsEnabled) return [];
+  if (!maintenanceRule.bookingsEnabled && !relocationItems.length) return [];
 
   const assets = [];
-  for (const seed of bookingAssetSeeds(booking)) {
+  for (const seed of bookingAssetSeeds(booking).filter(seed => !(booking.services || []).some(item =>
+    item.relocation?.assetId && seed.originItemKey.startsWith(`service-${String(item._id || item.serviceId)}-`)))) {
+    const move = (booking.services || []).find(item => item.relocation?.scope && seed.originItemKey.startsWith(`service-${String(item._id || item.serviceId)}-`))?.relocation;
+    if (!maintenanceRule.bookingsEnabled && !move) continue;
     const asset = await upsertAsset(seed, {
       lastServiceDate: completedAt,
       installationDate: null,
       intervalDays,
       status: "active",
     });
-    await ensureSchedule(asset, { baseDate: completedAt, intervalDays, sourceType: "booking", sourceId: booking._id, recommendation });
+    if (maintenanceRule.bookingsEnabled) await ensureSchedule(asset, { baseDate: completedAt, intervalDays, sourceType: "booking", sourceId: booking._id, recommendation });
+    if (move) await CustomerAsset.updateOne({ _id: asset._id, "serviceHistory.bookingId": { $ne: booking._id } }, {
+      $push: { serviceHistory: { serviceType: "aircon-relocation", bookingId: booking._id, fromAddress: move.from?.address || "", toAddress: move.to?.address || "", completedAt } },
+    });
     assets.push(asset);
   }
   return assets;

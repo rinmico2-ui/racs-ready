@@ -10,6 +10,14 @@ const schema = new mongoose.Schema({
   airconType: { type: String, trim: true, maxlength: 40, default: '' },
   hp: { type: Number, default: null },
   quantity: { type: Number, required: true, min: 1, max: 40 },
+  relocation: {
+    scope: { type: String, enum: ['same_property'] },
+    fromPosition: { type: String, trim: true, maxlength: 500 },
+    toPosition: { type: String, trim: true, maxlength: 500 },
+    assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomerAsset', default: null },
+    model: { type: String, trim: true, maxlength: 80 },
+    serialNumber: { type: String, trim: true, maxlength: 100 },
+  },
   notes: { type: String, trim: true, maxlength: 1000, default: '' },
   status: { type: String, enum: ['pending', 'quoted', 'accepted', 'declined', 'converted', 'resolved'], default: 'pending', index: true },
   quote: {

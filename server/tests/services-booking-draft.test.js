@@ -89,7 +89,7 @@ test("large uploads and payment evidence are not written to localStorage", () =>
 test("successful submission disables re-saving and refreshed assets bypass stale browser caches", () => {
   assert.match(servicesScript, /if \(BookingState\.draftPersistenceDisabled \|\| !BOOKING_CUSTOMER_ID\) return false/);
   assert.match(servicesScript, /BookingState\.draftPersistenceDisabled = true;\s*localStorage\.removeItem/);
-  assert.match(servicesView, /enterprise-calendar\.js\?v=20261001-project-date-guide-v1/);
+  assert.match(servicesView, /enterprise-calendar\.js\?v=[^'"\s]+/);
   assert.match(servicesView, /services-multi\.js\?v=[^'"\s]+/);
   assert.match(servicesView, /if\(typeof window\.saveBookingProgress==='function'\) window\.saveBookingProgress\(\)/);
   assert.doesNotMatch(servicesScript, /event\.returnValue\s*=\s*''/);

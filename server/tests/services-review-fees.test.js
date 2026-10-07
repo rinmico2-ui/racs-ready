@@ -51,6 +51,8 @@ function renderReview(selectedServices, travelFare = 45) {
     BookingState: state,
     document: { getElementById },
     getProjectReviewInfo: () => ({ isProject: false }),
+    bookingDebug() {},
+    bookingTravelFare: () => Number(state.travelFare ?? state.fare ?? 0),
     window: {},
     console: { log() {}, error() {} }
   };

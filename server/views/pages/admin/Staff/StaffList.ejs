@@ -683,10 +683,10 @@
               <label class="staff-form-label">Password *</label>
               <div style="position:relative;">
                 <i class="bi bi-lock" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
-                <input id="wizPassword" class="staff-form-control" type="password" minlength="8" maxlength="12" pattern="[A-Za-z0-9]+" required placeholder="8-12 alphanumeric characters" style="padding-left:2rem;padding-right:2.5rem;" />
+                <input id="wizPassword" class="staff-form-control" type="password" minlength="8" maxlength="12" pattern="[A-Za-z0-9!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?`~]+" required placeholder="8-12 characters, letters, numbers, symbols" style="padding-left:2rem;padding-right:2.5rem;" />
                 <button type="button" id="toggleWizPass" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;font-size:0.85rem;padding:4px;"><i class="bi bi-eye"></i></button>
               </div>
-              <div class="wiz-hint" id="wizPassHint">8-12 characters, letters and numbers only</div>
+              <div class="wiz-hint" id="wizPassHint">8-12 characters, letters, numbers, and special characters allowed</div>
               <div class="wiz-error" id="wizPassError"></div>
               <div style="display:flex;gap:4px;margin-top:6px;" id="passStrength">
                 <div style="flex:1;height:3px;border-radius:2px;background:#e2e8f0;"></div>
@@ -1063,7 +1063,7 @@
         else { el("wizEmail").classList.add("is-valid"); }
         if (!pass) { setError("wizPassError", "Password is required"); el("wizPassword").classList.add("is-invalid"); valid = false; }
         else if (pass.length < 8 || pass.length > 12) { setError("wizPassError", "Must be 8-12 characters"); el("wizPassword").classList.add("is-invalid"); valid = false; }
-        else if (!/^[A-Za-z0-9]+$/.test(pass)) { setError("wizPassError", "Letters and numbers only"); el("wizPassword").classList.add("is-invalid"); valid = false; }
+        else if (!/^\S+$/.test(pass)) { setError("wizPassError", "No spaces allowed"); el("wizPassword").classList.add("is-invalid"); valid = false; }
         else { el("wizPassword").classList.add("is-valid"); }
         return valid;
       }

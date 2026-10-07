@@ -751,11 +751,10 @@ body.booking-sheet-open .mobile-booking-bar { visibility: hidden; }
 }
 body.booking-sheet-open { overflow: hidden; }
 
-/* Location step: show the decision details before the map, then keep the
-   schedule action in the customer's viewport while they confirm the pin. */
+/* Keep the selected address and route estimate directly below the map. */
 .service-location-overview {
   overflow: hidden;
-  margin: 0 0 1rem;
+  margin: 1rem 0;
   border: 1px solid #cbdcf5;
   border-radius: 16px;
   background: #fff;
@@ -820,13 +819,14 @@ body.booking-sheet-open { overflow: hidden; }
 .service-map-suggestions .suggestion-item { min-height: 52px; white-space: normal; text-align: left; }
 .service-map-suggestions .suggestion-item small { display: block; line-height: 1.35; }
 .service-map-suggestions .suggestion-item:focus-visible { outline: 3px solid #93c5fd; outline-offset: -3px; }
-.service-pin-confirm { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .85rem; padding: .85rem 1rem; border: 1px solid #fcd34d; border-radius: 12px; background: #fffbeb; }
+.service-pin-confirm { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .85rem; padding: .85rem 1rem; border: 1px solid #86efac; border-radius: 12px; background: #f0fdf4; }
 .service-location-overview .service-map-selection.needs-confirmation { background: #fffbeb; }
 .service-pin-confirm > div { display: grid; gap: .2rem; }
-.service-pin-confirm strong { color: #78350f; font-size: .84rem; }
-.service-pin-confirm span { color: #92400e; font-size: .74rem; line-height: 1.4; }
-.service-pin-confirm button { min-height: 44px; padding: .6rem .85rem; border: 0; border-radius: 9px; background: #1d4ed8; color: #fff; font-size: .76rem; font-weight: 800; white-space: nowrap; }
-.service-pin-confirm button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.service-pin-confirm strong { color: #14532d; font-size: .84rem; }
+.service-pin-confirm span { color: #166534; font-size: .74rem; line-height: 1.4; }
+.service-pin-confirm button { min-height: 44px; padding: .6rem .85rem; border: 0; border-radius: 9px; background: #15803d; color: #fff; font-size: .76rem; font-weight: 800; white-space: nowrap; }
+.service-pin-confirm button:hover { background: #166534; }
+.service-pin-confirm button:focus-visible { outline: 3px solid #22c55e; outline-offset: 2px; }
 @media (max-width: 600px) { .service-pin-confirm { flex-direction: column; align-items: stretch; } .service-pin-confirm button { width: 100%; } }
 .saved-address-action.is-applying { border-color: #93c5fd; background: #eff6ff; color: #1d4ed8; }
 .saved-address-action.is-applied { border-color: #86efac; background: #f0fdf4; color: #15803d; }

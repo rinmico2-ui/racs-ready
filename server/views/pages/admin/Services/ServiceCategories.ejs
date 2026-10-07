@@ -1,5 +1,6 @@
 <%
   const resolvedServiceCategoriesApiBase = typeof serviceCategoriesApiBase === "string" ? serviceCategoriesApiBase : "/api/admin/service-categories";
+  const resolvedServiceArchiveHref = resolvedServiceCategoriesApiBase.startsWith('/api/admin/') ? '/admin/archive?group=services' : '?status=archived';
   const resolvedServiceCategoriesCorePath = typeof serviceCategoriesCorePath === "string" ? serviceCategoriesCorePath : "/admin/services/core";
   const resolvedServiceCategoriesCanManage = typeof serviceCategoriesCanManage === "boolean" ? serviceCategoriesCanManage : true;
   const resolvedRepairInspectionDefaultFee = typeof repairInspectionDefaultFee !== "undefined" && Number.isFinite(Number(repairInspectionDefaultFee)) ? Number(repairInspectionDefaultFee) : 500;
@@ -21,6 +22,8 @@
     .sc-hero-btn:hover{background:rgba(255,255,255,.18);color:#fff;transform:translateY(-1px)}
     .sc-hero-btn.primary{border-color:#fff;background:#fff;color:#174477;box-shadow:0 6px 16px rgba(15,23,42,.15)}
     .sc-hero-btn.primary:hover{background:#eff6ff;color:#1d4ed8}
+    .sc-archive-link{min-width:39px;padding-inline:10px}
+    .sc-archive-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.16);font-size:.62rem;line-height:1}
     .sc-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}
     .sc-kpi{position:relative;overflow:hidden;display:flex;align-items:center;gap:13px;min-height:96px;padding:16px;border:1px solid #e2e8f0;border-radius:13px;background:#fff;box-shadow:0 5px 18px rgba(15,23,42,.045)}
     .sc-kpi::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--sc-accent,#2563eb)}
@@ -46,6 +49,10 @@
     .sc-table tbody tr{transition:background .16s ease,box-shadow .16s ease}
     .sc-table tbody tr:last-child td{border-bottom:0}
     .sc-table tbody tr[data-id]:hover td{background:#f8fbff}
+    .sc-table tbody tr[data-status="archived"] td{background:#fbfcfe}
+    .sc-table tbody tr[data-status="archived"] td:first-child{box-shadow:inset 3px 0 #c7d5e6}
+    .service-categories-page.archive-view .sc-table{min-width:640px}
+    .service-categories-page.archive-view .sc-table th:nth-child(3),.service-categories-page.archive-view .sc-table td:nth-child(3),.service-categories-page.archive-view .sc-table th:nth-child(4),.service-categories-page.archive-view .sc-table td:nth-child(4){display:none}
     .sc-row-number{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#f1f5f9;color:#64748b;font-size:.68rem;font-weight:750}
     .sc-category-cell{display:flex;align-items:center;gap:11px;min-width:190px}
     .sc-category-name{font-size:.82rem;font-weight:750;color:#1e293b;line-height:1.3}
@@ -64,7 +71,7 @@
     .sc-badge{display:inline-flex;align-items:center;gap:5px;font-size:.61rem;font-weight:750;padding:4px 8px;border-radius:999px;white-space:nowrap}
     .sc-badge::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
     .sc-badge.active{background:#ecfdf5;color:#047857}
-    .sc-badge.inactive{background:#fef2f2;color:#b91c1c}
+    .sc-badge.inactive{background:#fff7ed;color:#9a3412}
     .sc-badge.custom{background:#eff6ff;color:#2563eb}
     .sc-add-btn{min-height:39px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:.76rem;font-weight:650;padding:7px 13px;border-radius:9px;border:1px solid #2563eb;background:#2563eb;color:#fff;cursor:pointer;transition:all .2s}
     .sc-add-btn:hover{border-color:#1d4ed8;color:#fff;background:#1d4ed8;box-shadow:0 5px 12px rgba(37,99,235,.18);transform:translateY(-1px)}
@@ -73,7 +80,7 @@
     .sc-empty{padding:48px 24px!important;text-align:center;color:#94a3b8}
     .sc-empty i{font-size:2rem;display:block;margin-bottom:8px;color:#cbd5e1}
     .sc-actions{display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
-    .sc-action-btn{width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#526077;transition:all .15s ease}
+    .sc-action-btn{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#526077;transition:all .15s ease}
     .sc-action-btn:hover{border-color:#93b4f5;background:#eff6ff;color:#1d4ed8;transform:translateY(-1px)}
     .sc-action-btn.danger:hover{border-color:#fecaca;background:#fef2f2;color:#dc2626}
     .sc-action-btn.success:hover{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
@@ -113,6 +120,7 @@
       .sc-hero h1{font-size:1.18rem}
       .sc-hero-actions{width:100%}
       .sc-hero-btn{flex:1}
+      .sc-hero-btn.sc-archive-link{flex:0 0 auto;min-width:48px}
       .sc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
       .sc-kpi{min-height:84px;padding:13px 11px;gap:10px}
       .sc-kpi-icon{width:36px;height:36px}
@@ -124,9 +132,11 @@
       .sc-add-btn{justify-content:center}
       .sc-table-wrap{overflow:visible;padding:10px;background:#f8fafc}
       .sc-table{min-width:0;display:block}
+      .service-categories-page.archive-view .sc-table{min-width:0}
       .sc-table thead{display:none}
       .sc-table tbody{display:grid;gap:10px}
       .sc-table tbody tr[data-id]{display:grid;grid-template-columns:1fr auto;overflow:hidden;border:1px solid #dfe6ef;border-radius:11px;background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.035)}
+      .service-categories-page.archive-view .sc-table tbody tr[data-id]{border-left:3px solid #c7d5e6}
       .sc-table tbody tr[data-id] td{display:block;padding:9px 13px;border:0!important;background:#fff!important}
       .sc-table tbody tr[data-id] td::before{content:attr(data-label);display:block;margin-bottom:4px;color:#94a3b8;font-size:.57rem;font-weight:750;text-transform:uppercase;letter-spacing:.06em}
       .sc-table tbody tr[data-id] td:first-child{display:none}
@@ -163,6 +173,7 @@
       </div>
       <div class="sc-hero-actions">
         <a class="sc-hero-btn" href="<%= resolvedServiceCategoriesCorePath %>"><i class="bi bi-arrow-left"></i> Core Services</a>
+        <a class="sc-hero-btn sc-archive-link" href="<%= resolvedServiceArchiveHref %>" title="View archived services" aria-label="View archived services (<%= cats.filter(c => !c.active).length %> repair categories)"><i class="bi bi-archive" aria-hidden="true"></i><span class="sc-archive-count" aria-hidden="true"><%= cats.filter(c => !c.active).length %></span></a>
         <% if (resolvedServiceCategoriesCanManage) { %><button type="button" class="sc-hero-btn primary" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> New Category</button><% } %>
       </div>
     </div>
@@ -196,10 +207,10 @@
   <!-- Category Table -->
   <div class="dash-card">
     <div class="sc-toolbar">
-      <div class="sc-toolbar-heading"><div class="sc-toolbar-mark"><i class="bi bi-list-check"></i></div><div><h2 class="sc-toolbar-title">Category Directory</h2><span class="sc-result-count" id="categoryResultCount"><%= cats.length %> categories</span></div></div>
+      <div class="sc-toolbar-heading"><div class="sc-toolbar-mark"><i class="bi bi-list-check"></i></div><div><h2 class="sc-toolbar-title" id="categoryTableHeading">Category Directory</h2><span class="sc-result-count" id="categoryResultCount"><%= cats.length %> categories</span></div></div>
       <div class="sc-toolbar-controls">
         <div class="sc-search"><i class="bi bi-search"></i><input id="categorySearch" type="search" class="form-control" placeholder="Search category, slug, or unit type" aria-label="Search categories" /></div>
-        <select id="categoryStatusFilter" class="form-select sc-filter" aria-label="Filter category status"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="custom">Custom</option></select>
+        <select id="categoryStatusFilter" class="form-select sc-filter" aria-label="Filter category status"><option value="current">Current categories</option><option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived (<%= cats.filter(c => !c.active).length %>)</option><option value="custom">Custom</option></select>
         <% if (resolvedServiceCategoriesCanManage) { %><button class="sc-add-btn" onclick="openAddModal()"><i class="bi bi-plus-lg"></i> Add Category</button><% } else { %><span class="sc-readonly"><i class="bi bi-eye"></i> View only</span><% } %>
       </div>
     </div>
@@ -216,13 +227,14 @@
         <tbody id="categoryTableBody">
           <% if (!cats.length) { %><tr><td colspan="6" class="sc-empty"><i class="bi bi-inboxes"></i><strong>No service categories yet</strong><div class="mt-1">Add the first category to begin configuring customer repair requests.</div></td></tr><% } %>
           <% cats.forEach(function(cat, i) { %>
-          <tr data-id="<%= cat._id %>" data-status="<%= cat.isCustom ? 'custom' : (cat.active ? 'active' : 'inactive') %>" data-search="<%= [cat.name, cat.slug].concat((cat.unitTypes || []).map(ut => ut.label + ' ' + ut.value)).join(' ').toLowerCase() %>">
+          <tr data-id="<%= cat._id %>" data-status="<%= cat.active ? 'active' : 'archived' %>" data-custom="<%= cat.isCustom ? 'true' : 'false' %>" data-search="<%= [cat.name, cat.slug].concat((cat.unitTypes || []).map(ut => ut.label + ' ' + ut.value)).join(' ').toLowerCase() %>">
             <td data-label="Record"><span class="sc-row-number"><%= i + 1 %></span></td>
             <td data-label="Category">
               <div class="sc-category-cell">
                 <div class="sc-icon-badge <%= cat.iconColor %>"><i class="bi <%= cat.icon %>"></i></div>
                 <div>
                   <div class="sc-category-name"><%= cat.name %></div>
+                  <% if (!cat.active) { %><div class="small text-warning-emphasis mt-1"><i class="bi bi-archive me-1"></i>Archived<%= cat.archivedAt ? ' ' + new Date(cat.archivedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '' %><%= cat.archiveReason ? ' · ' + cat.archiveReason : '' %></div><% } %>
                   <div class="sc-category-meta"><span><%= (cat.unitTypes || []).length %> unit type<%= (cat.unitTypes || []).length === 1 ? '' : 's' %></span><% if (cat.isCustom) { %><span>•</span><span>Free-text entry</span><% } %></div>
                 </div>
               </div>
@@ -236,13 +248,13 @@
                 <% if (!(cat.unitTypes || []).length) { %><span class="text-muted small"><i class="bi bi-input-cursor-text me-1"></i>Customer provides the unit type</span><% } %>
               </div>
             </td>
-            <td data-label="Status" style="text-align:center;"><span class="sc-badge <%= cat.active ? 'active' : 'inactive' %>"><%= cat.active ? 'Active' : 'Inactive' %></span></td>
+            <td data-label="Status" style="text-align:center;"><span class="sc-badge <%= cat.active ? 'active' : 'inactive' %>"><%= cat.active ? 'Active' : 'Archived' %></span></td>
             <td data-label="Actions" style="text-align:right;">
               <div class="sc-actions">
                 <% if (resolvedServiceCategoriesCanManage) { %>
                 <button class="sc-action-btn" title="Edit <%= cat.name %>" aria-label="Edit <%= cat.name %>" onclick="openEditModal('<%= cat._id %>')"><i class="bi bi-pencil"></i></button>
-                <% if (!cat.isCustom) { %>
-                <button class="sc-action-btn <%= cat.active ? 'danger' : 'success' %>" title="<%= cat.active ? 'Deactivate category' : 'Activate category' %>" aria-label="<%= cat.active ? 'Deactivate category' : 'Activate category' %>" onclick="toggleCategory('<%= cat._id %>', <%= cat.active %>)"><i class="bi bi-<%= cat.active ? 'pause' : 'play' %>"></i></button>
+                <% if (!cat.isCustom || !cat.active) { %>
+                <button class="sc-action-btn <%= cat.active ? 'danger' : 'success' %>" title="<%= cat.active ? 'Archive category' : 'Restore category' %>" aria-label="<%= cat.active ? 'Archive category' : 'Restore category' %>" onclick="toggleCategory('<%= cat._id %>', <%= cat.active %>)"><i class="bi bi-<%= cat.active ? 'archive' : 'arrow-counterclockwise' %>"></i></button>
                 <% } %>
                 <% } else { %><span class="text-muted small">—</span><% } %>
               </div>
@@ -339,11 +351,14 @@
   function applyCategoryFilters() {
     const query = (document.getElementById('categorySearch')?.value || '').trim().toLowerCase();
     const status = document.getElementById('categoryStatusFilter')?.value || 'all';
+    document.querySelector('.service-categories-page')?.classList.toggle('archive-view', status === 'archived');
+    const heading = document.getElementById('categoryTableHeading');
+    if (heading) heading.textContent = status === 'archived' ? 'Archived Repair Categories' : 'Category Directory';
     const rows = [...document.querySelectorAll('#categoryTableBody tr[data-id]')];
     let visible = 0;
     rows.forEach(row => {
       const matchesQuery = !query || (row.dataset.search || '').includes(query);
-      const matchesStatus = status === 'all' || row.dataset.status === status;
+      const matchesStatus = status === 'all' || (status === 'current' ? row.dataset.status !== 'archived' : (status === 'custom' ? row.dataset.custom === 'true' : row.dataset.status === status));
       const show = matchesQuery && matchesStatus;
       row.style.display = show ? '' : 'none';
       if (show) visible += 1;
@@ -356,6 +371,8 @@
 
   document.getElementById('categorySearch')?.addEventListener('input', applyCategoryFilters);
   document.getElementById('categoryStatusFilter')?.addEventListener('change', applyCategoryFilters);
+  if (new URLSearchParams(location.search).get('status') === 'archived') document.getElementById('categoryStatusFilter').value = 'archived';
+  applyCategoryFilters();
 
   // ── Auto-generate slug from name ──
   document.getElementById('catName').addEventListener('input', function() {
@@ -506,33 +523,37 @@
     }
   };
 
-  // ── Toggle Active/Inactive ──
+  // ── Archive / restore category ──
   window.toggleCategory = async function(id, currentlyActive) {
     if (!CAN_MANAGE) return;
-    const action = currentlyActive ? 'Deactivate' : 'Activate';
-    const confirmed = window.Swal
-      ? (await Swal.fire({
-          icon: currentlyActive ? 'warning' : 'question',
-          title: `${action} category?`,
-          text: currentlyActive ? 'Customers will no longer see this category when submitting repair requests.' : 'This category will become available to customers immediately.',
-          showCancelButton: true,
-          confirmButtonText: action,
-          cancelButtonText: 'Keep unchanged',
-          confirmButtonColor: currentlyActive ? '#dc2626' : '#2563eb'
-        })).isConfirmed
-      : confirm(currentlyActive ? 'Deactivate this category? It will be hidden from customers.' : 'Activate this category?');
-    if (!confirmed) return;
-    const reason = currentlyActive
-      ? prompt('Archive reason:', 'No longer offered for new repair requests')
-      : 'Restored from the service category catalogue';
-    if (reason == null) return;
-    if (String(reason).trim().length < 10) return notify('error', 'Enter a reason of at least 10 characters.');
+    const category = allCategories.find(c => c._id === id);
+    if (!category) return;
+    let reason = currentlyActive ? '' : 'Restored to the repair service catalogue by an administrator';
+    if (window.Swal) {
+      const result = await Swal.fire({
+        icon: currentlyActive ? 'warning' : 'question',
+        title: `${currentlyActive ? 'Archive' : 'Restore'} ${category.name}?`,
+        text: currentlyActive ? 'It will be hidden from new repair requests. Existing bookings remain intact.' : 'Customers will be able to select this category again.',
+        input: currentlyActive ? 'text' : undefined,
+        inputLabel: currentlyActive ? 'Reason for archiving' : undefined,
+        inputPlaceholder: currentlyActive ? 'For example: Category is no longer offered' : undefined,
+        inputValidator: currentlyActive ? value => (!value || value.trim().length < 10) ? 'Enter at least 10 characters.' : undefined : undefined,
+        showCancelButton: true,
+        confirmButtonText: currentlyActive ? 'Archive category' : 'Restore category',
+        confirmButtonColor: currentlyActive ? '#b45309' : '#047857'
+      });
+      if (!result.isConfirmed) return;
+      if (currentlyActive) reason = String(result.value || '').trim();
+    } else if (currentlyActive) {
+      reason = prompt(`Archive ${category.name}? Enter a reason of at least 10 characters:`, '') || '';
+      if (reason.trim().length < 10) { if (reason) notify('error', 'Enter at least 10 characters.'); return; }
+    } else if (!confirm(`Restore ${category.name} for new repair requests?`)) return;
     try {
-      const resp = await authFetch(`${API}/${id}`, { method: 'PATCH', body: JSON.stringify({ active: !currentlyActive, ...(currentlyActive ? { archiveReason: String(reason).trim() } : { restoreReason: String(reason).trim() }) }) });
+      const resp = await authFetch(`${API}/${id}${currentlyActive ? '' : '/restore'}`, { method: currentlyActive ? 'DELETE' : 'POST', body: JSON.stringify({ reason: reason.trim() }) });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data.success) throw new Error(data.error || 'Update failed.');
-      notify('success', currentlyActive ? 'Category deactivated.' : 'Category activated.');
-      window.setTimeout(() => location.reload(), 300);
+      await notify('success', currentlyActive ? 'Category archived.' : 'Category restored.');
+      location.reload();
     } catch (e) { notify('error', e.message || 'Network error.'); }
   };
 })();

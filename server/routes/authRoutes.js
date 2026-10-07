@@ -3,6 +3,7 @@ const router = express.Router();
 const { body } = require("express-validator");
 const authController = require("../controllers/authController");
 const googleAuthController = require("../controllers/googleAuthController");
+const auth = require("../middleware/authenticate");
 const {
   REGISTRATION_PASSWORD_MESSAGE,
   isValidRegistrationPassword,
@@ -14,6 +15,8 @@ const secureAuthRoutes = require("./secureAuth");
 // first-time customers after Google verifies their identity.
 router.get("/google", googleAuthController.start);
 router.get("/google/callback", googleAuthController.callback);
+router.get("/google/device", auth.authenticate, auth.requireRole("technician"), googleAuthController.deviceSetupPage);
+router.post("/google/device", auth.authenticate, auth.requireRole("technician"), googleAuthController.deviceSetupSubmit);
 router.get("/google/signup", googleAuthController.signupPage);
 router.post("/google/complete-signup", googleAuthController.completeSignup);
 

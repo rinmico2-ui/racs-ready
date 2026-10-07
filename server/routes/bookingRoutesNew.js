@@ -10,6 +10,8 @@ const schedulingEngine = require('../utils/enterpriseSchedulingEngine');
 const { sendRepairRequestSubmittedEmail } = require('../utils/mailer');
 const CoreService = require('../models/CoreService');
 const UnitAssistanceRequest = require('../models/UnitAssistanceRequest');
+const RelocationRequest = require('../models/RelocationRequest');
+const CustomerAsset = require('../models/CustomerAsset');
 const { resolveCoreServicePricing } = require('../utils/coreServicePricing');
 const RepairService = require('../models/RepairService');
 const { createNotification } = require('../utils/notify');
@@ -39,6 +41,7 @@ const {
   storePaymentProof,
 } = require('../utils/paymentProofStorage');
 const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
+const { isUnsupportedMongoWriteFeature } = require('../utils/mongoWriteSupport');
 const {
   normalizeRepairModel,
   validateRepairModel,
@@ -116,6 +119,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // Basic validation
     if (!parsedServices || !Array.isArray(parsedServices) || parsedServices.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
+    }
+    if (parsedServices.some(item => item?.type === 'repair' && item.relocation)) {
+      return res.status(400).json({ error: 'Relocation details are only valid for Aircon Relocation.' });
+    }
+    if (parsedServices.some(item => item?.relocation?.scope === 'custom_quote') && parsedServices.length !== 1) {
+      return res.status(400).json({ error: 'Book an accepted relocation quote on its own so its price and payment stay clear.' });
     }
     for (let index = 0; index < parsedServices.length; index += 1) {
       const service = parsedServices[index];
@@ -345,15 +354,65 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       ? await UnitAssistanceRequest.find({ _id: { $in: assistanceIds }, customerId: userId, status: 'accepted' }).lean()
       : [];
     const assistanceById = new Map(assistanceRequests.map(item => [String(item._id), item]));
+    const relocationIds = parsedServices.map(item => item.relocation?.requestId).filter(Boolean);
+    if (relocationIds.some(id => !mongoose.isValidObjectId(id))) return res.status(400).json({ error: 'Invalid relocation quote.' });
+    const relocationRequests = relocationIds.length
+      ? await RelocationRequest.find({ _id: { $in: relocationIds }, customerId: userId, status: 'accepted' }).lean()
+      : [];
+    const relocationById = new Map(relocationRequests.map(item => [String(item._id), item]));
     for (let index = 0; index < parsedServices.length; index += 1) {
       const item = parsedServices[index];
       if (item.type === 'repair') continue;
       const catalog = coreById.get(String(item.serviceId));
       if (!catalog) return res.status(400).json({ error: `Core service ${index + 1} is unavailable.` });
+      if (catalog.slug === 'aircon-relocation') {
+        const relocation = item.relocation;
+        if (!relocation || !['same_property', 'custom_quote'].includes(relocation.scope) || Number(item.quantity) !== 1) {
+          return res.status(400).json({ error: 'Provide both relocation locations for one aircon unit.' });
+        }
+        if (relocation.scope === 'same_property') {
+          const fromDetails = String(relocation.from?.details || '').trim().slice(0, 500);
+          const toDetails = String(relocation.to?.details || '').trim().slice(0, 500);
+          if (fromDetails.length < 2 || toDetails.length < 2 || relocation.requestId) {
+            return res.status(400).json({ error: 'Describe the current and new aircon positions on the same property.' });
+          }
+          relocation.from = { address: String(location.address || '').slice(0, 300), details: fromDetails };
+          relocation.to = { address: String(location.address || '').slice(0, 300), details: toDetails };
+          relocation.model = String(relocation.model || '').trim().slice(0, 80);
+          relocation.serialNumber = String(relocation.serialNumber || '').trim().slice(0, 100);
+          if (relocation.assetId) {
+            const asset = await CustomerAsset.findOne({ _id: relocation.assetId, customerId: userId, status: { $ne: 'retired' } }).select('_id').lean();
+            if (!asset) return res.status(400).json({ error: 'The selected aircon asset is unavailable.' });
+          }
+        } else {
+          const request = relocationById.get(String(relocation.requestId));
+          if (!request || String(request.serviceId) !== String(item.serviceId) || request.bookingId ||
+              !request.quote?.expiresAt || request.quote.expiresAt <= new Date() ||
+              Number(request.quote.total) !== Number(item.unitPrice) ||
+              !Number.isInteger(Number(request.quote.durationMinutes)) || Number(request.quote.durationMinutes) < 60 ||
+              String(request.unit.airconType) !== String(item.airconType) ||
+              Number(request.unit.hp) !== Number(item.hp) ||
+              String(request.unit.brand) !== String(item.brand || '').trim()) {
+            return res.status(409).json({ error: 'This relocation quote changed or expired. Review your request before paying.' });
+          }
+          relocation.assetId = request.assetId;
+          if (request.assetId) {
+            const asset = await CustomerAsset.findOne({ _id: request.assetId, customerId: userId, status: { $ne: 'retired' } }).select('_id').lean();
+            if (!asset) return res.status(409).json({ error: 'The aircon asset linked to this quote is no longer available.' });
+          }
+          relocation.from = request.from;
+          relocation.to = request.to;
+          relocation.model = request.unit.model;
+          relocation.serialNumber = request.unit.serialNumber;
+        }
+      } else if (item.relocation) {
+        return res.status(400).json({ error: 'Relocation details can only be used for Aircon Relocation.' });
+      }
       let pricing;
       try { pricing = resolveCoreServicePricing(catalog, item); }
       catch (error) { return res.status(400).json({ error: `Core service ${index + 1}: ${error.message}` }); }
-      if (Number(item.unitPrice) !== pricing.unitPrice) {
+      const isQuotedRelocation = catalog.slug === 'aircon-relocation' && item.relocation?.scope === 'custom_quote';
+      if (!isQuotedRelocation && Number(item.unitPrice) !== pricing.unitPrice) {
         return res.status(409).json({ error: `The price for ${catalog.name} changed. Refresh the page and review the price before paying.` });
       }
       if (item.assistanceRequestId) {
@@ -369,8 +428,9 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         }
       }
       parsedServices[index] = {
-        ...item, name: catalog.name, unitPrice: pricing.unitPrice,
-        totalPrice: pricing.totalPrice, duration: pricing.duration,
+        ...item, name: catalog.name, unitPrice: isQuotedRelocation ? Number(item.unitPrice) : pricing.unitPrice,
+        totalPrice: isQuotedRelocation ? Number(item.unitPrice) : pricing.totalPrice,
+        duration: isQuotedRelocation ? Number(relocationById.get(String(item.relocation.requestId)).quote.durationMinutes) : pricing.duration,
         airconType: pricing.airconType, airconTypeName: pricing.airconTypeName,
         hp: pricing.hp, isAirconService: catalog.isAirconService,
       };
@@ -477,6 +537,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       repairIssue: svc.repairIssue || null,
       problemDescription: svc.problemDescription || svc.repairIssue || null,
       model: svc.type === 'repair' ? normalizeRepairModel(svc.model) || null : null,
+      relocation: svc.relocation || undefined,
       status: svc.type === 'repair' ? 'inspection_pending' : 'pending',
       phase: svc.type === 'repair' ? 'repair_phase_1' : 'core',
       schedule: {
@@ -492,7 +553,9 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // Rebuild the amount used for the payment policy from the submitted
     // service lines and fare, then calculate the server-authoritative deposit.
     const serviceTotal = cleanServices.reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0);
-    const authoritativeTotal = Math.max(0, serviceTotal + Math.max(0, Number(travelFare) || 0));
+    const quotedRelocation = cleanServices.some(item => item.relocation?.scope === 'custom_quote');
+    const authoritativeTravelFare = quotedRelocation ? 0 : Math.max(0, Number(travelFare) || 0);
+    const authoritativeTotal = Math.max(0, serviceTotal + authoritativeTravelFare);
     const downpaymentPercentage = await getDownpaymentPercentage();
     const paymentBreakdown = calculatePaymentBreakdown(authoritativeTotal, downpaymentPercentage);
 
@@ -585,7 +648,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       totalInitialCost: cleanServices
         .filter(service => service.type === 'repair')
         .reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0),
-      travelFare: travelFare || 0,
+      travelFare: authoritativeTravelFare,
       travelTime: travelDurationMinutes || 0,
       distanceKm: distanceKm || 0,
       travelDurationMinutes: travelDurationMinutes || 0,
@@ -743,6 +806,15 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
               $push: { events: { action: 'converted', actorId: userId, unitPrice: service.unitPrice } } },
             { session: creationSession, returnDocument: "after" });
             if (!accepted) throw Object.assign(new Error('The unit quote was already used or changed. Review your request.'), { status: 409 });
+          }
+          for (const service of cleanServices.filter(item => item.relocation?.scope === 'custom_quote')) {
+            const request = await RelocationRequest.findOneAndUpdate({
+              _id: service.relocation.requestId, customerId: userId, status: 'accepted', bookingId: null,
+              'quote.total': service.unitPrice, 'quote.expiresAt': { $gt: new Date() },
+            }, { $set: { status: 'converted', bookingId: bookingAttempt._id },
+              $push: { events: { action: 'converted', actorId: userId } } },
+            { session: creationSession, returnDocument: 'after' });
+            if (!request) throw Object.assign(new Error('This relocation quote was already used or changed. Review your request.'), { status: 409 });
           }
           committedBooking = bookingAttempt;
         });
@@ -980,6 +1052,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     if (savedBooking?.status === 'cancelled' && savedBooking.cancellationReason === 'Maintenance cycle could not be reserved.') {
       return res.status(error.status || 409).json({ error: error.message });
     }
+    if (!savedBooking && isUnsupportedMongoWriteFeature(error)) {
+      return res.status(503).json({
+        error: 'Booking is temporarily unavailable. If you already sent a payment, keep your receipt and contact support before trying again.',
+        code: 'BOOKING_DATABASE_UNAVAILABLE',
+      });
+    }
     if (!savedBooking && error.status) {
       return res.status(error.status).json({ error: error.message });
     }
@@ -1013,7 +1091,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       return res.status(201).json({
         success: true,
         message: 'Booking created successfully. Follow-up processing will continue in the background.',
-        warning: error.message,
+        warning: 'Follow-up processing is delayed.',
         bookingReference: savedBooking.bookingReference,
         serviceName: savedBooking.service?.name || req.body?.services?.[0]?.name || 'Selected Service',
         serviceNames: Array.isArray(req.body?.services) ? req.body.services.map(s => s.name).filter(Boolean) : [],
@@ -1043,8 +1121,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       });
     }
     res.status(500).json({
-      error: 'Failed to create booking',
-      details: error.message
+      error: 'We could not complete your booking right now. Please try again or contact support.',
     });
   }
 });

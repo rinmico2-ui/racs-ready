@@ -45,6 +45,13 @@ const customerAssetSchema = new mongoose.Schema(
       default: null,
     },
     notes: { type: String, trim: true, maxlength: 1000, default: "" },
+    serviceHistory: [{
+      serviceType: { type: String, trim: true },
+      bookingId: { type: mongoose.Schema.Types.ObjectId, ref: "BookingService" },
+      fromAddress: String,
+      toAddress: String,
+      completedAt: Date,
+    }],
   },
   { timestamps: true },
 );

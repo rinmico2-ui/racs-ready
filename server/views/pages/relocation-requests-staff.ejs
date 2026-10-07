@@ -1,0 +1,14 @@
+<link rel="stylesheet" href="/css/relocation-requests.css?v=20261007-v1">
+<main class="rr-page rr-staff">
+  <header class="rr-head">
+    <div><span class="rr-eyebrow">Customer service operations</span><h1>Aircon relocation requests</h1><p>Review both locations, verify the unit, and send a clear itemized quote before payment and assignment.</p></div>
+    <a class="rr-button rr-button-light" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>"><i class="bi bi-calendar3"></i> Appointments</a>
+  </header>
+  <div class="rr-steps" aria-label="Relocation process"><span>Review request</span><span>Assess if needed</span><span>Send quote</span><span>Customer pays</span><span>Assign technician</span></div>
+  <div id="relocationMessage" class="rr-message" role="status" aria-live="polite" hidden></div>
+  <section class="rr-panel" aria-labelledby="relocationTitle">
+    <div class="rr-section-head"><div><h2 id="relocationTitle">Review queue</h2><p>Requests here do not reserve technician capacity.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
+    <div id="relocationList" class="rr-list" aria-live="polite"><p class="rr-muted">Loading requests…</p></div>
+  </section>
+</main>
+<script src="/js/relocation-requests.js?v=20261007-v1" defer></script>

@@ -24,7 +24,7 @@ test("appointment time choices do not expose technician counts", () => {
   assert.doesNotMatch(times, /technician|slot\.availableCount/);
   assert.match(times, /statusLabel = isSelected \? 'Selected' : 'Available'/);
   assert.match(times, /statusLabel = 'Fully booked'/);
-  assert.match(view, /enterprise-calendar\.js\?v=20261001-project-date-guide-v1/);
+  assert.match(view, /enterprise-calendar\.js\?v=[^'"\s]+/);
 });
 
 test("calendar cells show only the day number; counts appear after choosing a date", () => {

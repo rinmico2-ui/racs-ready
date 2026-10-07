@@ -85,5 +85,5 @@ test("sign-up keeps passwords untouched and reports matching separately from str
   assert.match(client, /getPasswordState\(password\)\.valid/);
   assert.match(view, /id="register-password"[^>]*minlength="8"[^>]*maxlength="30"/);
   assert.match(view, /id="passwordMatchHint" aria-live="polite"/);
-  assert.match(layout, /auth\.css\?v=20260928-modern-auth-flow/);
+  assert.match(layout, /auth\.css\?v=[^'"\s]+/);
 });

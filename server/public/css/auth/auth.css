@@ -196,6 +196,16 @@ select.auth-field-input { appearance: none; padding-right: 36px; cursor: pointer
 .auth-otp-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
 .auth-otp-input { padding-left: 14px; letter-spacing: .2em; font-weight: 750; }
 .auth-trust-device { margin-top: 11px; }
+.auth-device-panel { gap: 24px; }
+.auth-device-brand { color: var(--auth-text); }
+.auth-device-brand .auth-brand-copy small { color: var(--auth-muted); }
+.auth-device-card { width: min(100%, 520px); }
+.auth-device-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 20px; border-radius: 11px; background: var(--auth-blue-soft); color: var(--auth-blue); font-size: 21px; }
+.auth-device-actions { display: grid; gap: 10px; }
+.auth-device-actions .auth-secondary-button { min-height: 46px; }
+.auth-device-footnote { margin: 14px 0 0; color: var(--auth-muted); font-size: 12px; line-height: 1.5; }
+.auth-device-link { text-decoration: none; }
+.auth-device-skip-link { display: block; margin-top: 14px; color: var(--auth-muted); font-size: 12px; text-align: center; }
 
 .auth-password-meter { height: 3px; margin: 7px 3px 0; overflow: hidden; border-radius: 999px; background: #e7edf4; }
 .auth-password-meter span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--auth-danger); transition: width .2s ease, background .2s ease; }

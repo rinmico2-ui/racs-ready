@@ -511,6 +511,8 @@ router.get("/core-services", admin.listCoreServices);
 router.get("/core-services/:id", admin.getCoreService);
 router.post("/core-services", (req, res, next) => serviceImageUpload(req, res, next), admin.createCoreService);
 router.patch("/core-services/:id", (req, res, next) => serviceImageUpload(req, res, next), admin.editCoreService);
+router.post("/core-services/:id/archive", admin.archiveCoreService);
+router.post("/core-services/:id/restore", admin.restoreCoreService);
 // Repair service administration
 router.get("/repair-services", admin.listRepairServices);
 router.get("/repair-services/:id", admin.getRepairService);

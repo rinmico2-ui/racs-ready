@@ -8,12 +8,16 @@ const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { isAccountEnabled } = require("../middleware/accountState");
 const loginRateLimiter = require("../middleware/loginRateLimiter");
 const authController = require("./authController");
+const trustedDevices = require("../utils/trustedDevices");
 
 const OAUTH_COOKIE = "google_oauth_state";
 const OAUTH_COOKIE_PATH = "/api/auth/google/callback";
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SIGNUP_COOKIE = "google_signup_state";
 const GOOGLE_SIGNUP_TTL_SECONDS = 30 * 60;
+const DEVICE_SETUP_COOKIE = "google_technician_device_setup";
+const DEVICE_SETUP_PATH = "/api/auth/google/device";
+const DEVICE_SETUP_TTL_SECONDS = 5 * 60;
 
 function googleOAuthConfig() {
   const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || "").trim();
@@ -108,6 +112,37 @@ function signupCookieOptions(config = googleOAuthConfig()) {
   };
 }
 
+function deviceSetupCookieOptions(config = googleOAuthConfig()) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production" || isHttpsUrl(config.redirectUri),
+    sameSite: "lax",
+    maxAge: DEVICE_SETUP_TTL_SECONDS * 1000,
+    path: DEVICE_SETUP_PATH,
+  };
+}
+
+function clearDeviceSetupCookie(res) {
+  const { maxAge, ...options } = deviceSetupCookieOptions();
+  res.clearCookie(DEVICE_SETUP_COOKIE, options);
+}
+
+function deviceSetupState(req) {
+  const token = req.cookies && req.cookies[DEVICE_SETUP_COOKIE];
+  if (!token || req.user?.role !== "technician") return null;
+  try {
+    const state = jwt.verify(token, oauthSigningSecret(), { algorithms: ["HS256"] });
+    return state.purpose === "google_technician_device_setup"
+      && state.sub === String(req.user._id)
+      && state.sessionId === String(req.user.currentSessionId || "")
+      && typeof state.nonce === "string" && state.nonce.length >= 32
+      ? state
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function signupState(req) {
   const token = req.cookies && req.cookies[GOOGLE_SIGNUP_COOKIE];
   if (!token) return null;
@@ -154,6 +189,27 @@ async function finishGoogleLogin(req, res, user, returnTo) {
     sameSite: "lax",
   });
 
+  let next = redirect;
+  if (user.role === "technician") {
+    let alreadyTrusted = false;
+    try {
+      alreadyTrusted = await trustedDevices.validateAndRotate(req, res, user);
+    } catch (error) {
+      console.warn("googleAuth: unable to verify technician device", error && error.message);
+    }
+    if (!alreadyTrusted) {
+      const setupToken = jwt.sign({
+        purpose: "google_technician_device_setup",
+        sub: String(user._id),
+        sessionId: String(user.currentSessionId),
+        nonce: base64Url(crypto.randomBytes(32)),
+        returnTo: safeReturnTo(redirect) || "/technician/attendance",
+      }, oauthSigningSecret(), { algorithm: "HS256", expiresIn: DEVICE_SETUP_TTL_SECONDS });
+      res.cookie(DEVICE_SETUP_COOKIE, setupToken, deviceSetupCookieOptions());
+      next = DEVICE_SETUP_PATH;
+    }
+  }
+
   try {
     await AuthSession.create({
       sessionId: req.sessionID,
@@ -165,7 +221,7 @@ async function finishGoogleLogin(req, res, user, returnTo) {
     console.warn("googleAuth: AuthSession create failed", error && error.message);
   }
   await saveSession(req);
-  return redirect;
+  return next;
 }
 
 function createOAuthClient(config) {
@@ -368,6 +424,70 @@ exports.callback = async (req, res) => {
   }
 };
 
+function renderDeviceSetup(req, res, { status = 200, expired = false, error = "" } = {}) {
+  const state = expired ? null : deviceSetupState(req);
+  res.set("Cache-Control", "no-store, private");
+  return res.status(status).render("pages/technician/GoogleDeviceTrust", {
+    title: "Technician Device Setup | CALIDRO RACS",
+    layout: "layouts/auth",
+    setupAvailable: Boolean(state),
+    csrfToken: state?.nonce || "",
+    error,
+    trustDays: trustedDevices._private.trustDurationMs() / 86400000,
+  });
+}
+
+exports.deviceSetupPage = async (req, res) => {
+  if (!deviceSetupState(req)) {
+    clearDeviceSetupCookie(res);
+    return renderDeviceSetup(req, res, { status: 403, expired: true });
+  }
+  return renderDeviceSetup(req, res);
+};
+
+exports.deviceSetupSubmit = async (req, res) => {
+  const state = deviceSetupState(req);
+  if (!state) {
+    clearDeviceSetupCookie(res);
+    return renderDeviceSetup(req, res, { status: 403, expired: true });
+  }
+  const submittedNonce = String(req.body?.csrfToken || "");
+  const expectedNonce = Buffer.from(state.nonce);
+  const actualNonce = Buffer.from(submittedNonce);
+  if (expectedNonce.length !== actualNonce.length
+      || !crypto.timingSafeEqual(expectedNonce, actualNonce)) {
+    return renderDeviceSetup(req, res, { status: 403, error: "This device setup request was invalid. Refresh the page and try again." });
+  }
+  const returnTo = safeReturnTo(state.returnTo) || "/technician/attendance";
+  if (req.body?.choice === "skip") {
+    clearDeviceSetupCookie(res);
+    return res.redirect(303, returnTo);
+  }
+  if (req.body?.choice !== "trust") {
+    return renderDeviceSetup(req, res, { status: 400, error: "Choose whether to trust this device." });
+  }
+  try {
+    await trustedDevices.issue(req, res, req.user);
+  } catch (error) {
+    console.warn("googleAuth: unable to trust technician device", error && error.message);
+    return renderDeviceSetup(req, res, { status: 503, error: "This device could not be registered right now. Please try again." });
+  }
+  clearDeviceSetupCookie(res);
+  audit.logEvent({
+    actor: req.user._id,
+    target: req.user._id,
+    action: "auth.trusted_device_added",
+    module: "auth",
+    req,
+    entityType: "TrustedDevice",
+    actorRole: req.user.role,
+    details: { trustDays: trustedDevices._private.trustDurationMs() / 86400000 },
+  }).catch((error) => {
+    console.warn("googleAuth: trusted-device audit failed", error && error.message);
+  });
+  return res.redirect(303, returnTo);
+};
+
 exports.signupPage = async (req, res) => {
   const state = signupState(req);
   if (!state) return callbackError(res, "signup_expired");
@@ -477,4 +597,6 @@ exports._test = {
   signupCookieOptions,
   signupDetails,
   signupState,
+  deviceSetupCookieOptions,
+  deviceSetupState,
 };

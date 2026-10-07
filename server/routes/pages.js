@@ -996,6 +996,15 @@ router.get("/book-history", pageAuth.requireRole("customer"), (req, res) => {
 router.get('/unit-assistance', pageAuth.requireRole('customer'), (req, res) => {
   res.render('pages/unit-assistance', { title: 'Unit identification requests' });
 });
+router.get('/relocation-requests', pageAuth.requireRole('customer'), (req, res) => {
+  res.render('pages/relocation-requests', { title: 'Aircon relocation requests' });
+});
+router.get('/admin/relocation-requests', pageAuth.requireRole('admin'), (req, res) => {
+  res.render('pages/relocation-requests-staff', { title: 'Aircon relocation requests', layout: 'layouts/admin' });
+});
+router.get('/secretary/relocation-requests', pageAuth.requireRole('secretary'), (req, res) => {
+  res.render('pages/relocation-requests-staff', { title: 'Aircon relocation requests', layout: 'layouts/secretary' });
+});
 router.get('/admin/unit-assistance', pageAuth.requireRole('admin'), (req, res) => {
   res.render('pages/unit-assistance-staff', { title: 'Unit identification requests', layout: 'layouts/admin' });
 });
@@ -1795,7 +1804,10 @@ router.get(
   pageAuth.requireRole("admin"),
   async (req, res) => {
     try {
-      const coreServices = await CoreService.find({}).lean().limit(200);
+      const [coreServices, coreArchivedCount] = await Promise.all([
+        CoreService.find({}).lean().limit(200),
+        CoreService.countDocuments({ archivedAt: { $ne: null } }),
+      ]);
       const BookingService = require("../models/BookingService");
       const bookingCounts = await getServiceBookingCounts(BookingService, coreServices);
       applyServiceBookingCounts(coreServices, bookingCounts);
@@ -1804,6 +1816,7 @@ router.get(
         title: "Core Services",
         layout: "layouts/admin",
         coreServices,
+        coreArchivedCount,
         coreServicesApiBase: "/api/admin/core-services",
       });
     } catch (err) {
@@ -1812,6 +1825,7 @@ router.get(
         title: "Core Services",
         layout: "layouts/admin",
         coreServices: [],
+        coreArchivedCount: 0,
         coreServicesApiBase: "/api/admin/core-services",
       });
     }
@@ -2158,6 +2172,11 @@ router.get(
 // ── Technician Enterprise Dashboard Pages ─────────────────────────────────────
 
 // My Assignments
+router.get('/technician/relocation-work-order/:bookingId', pageAuth.requireRole('technician'), (req, res) => {
+  res.render('pages/technician/relocation-work-order', {
+    title: 'Relocation work order', layout: 'layouts/technician', bookingId: req.params.bookingId,
+  });
+});
 router.get(
   "/technician/assignments",
   pageAuth.requireRole("technician"),
@@ -4158,7 +4177,10 @@ router.get(
   pageAuth.requireRole("secretary"),
   async (req, res) => {
     try {
-      const coreServices = await CoreService.find({}).lean().limit(200);
+      const [coreServices, coreArchivedCount] = await Promise.all([
+        CoreService.find({}).lean().limit(200),
+        CoreService.countDocuments({ archivedAt: { $ne: null } }),
+      ]);
       const BookingService = require("../models/BookingService");
       const bookingCounts = await getServiceBookingCounts(BookingService, coreServices);
       applyServiceBookingCounts(coreServices, bookingCounts);
@@ -4166,7 +4188,9 @@ router.get(
         title: "Core Services",
         layout: "layouts/secretary",
         coreServices,
+        coreArchivedCount,
         coreServicesApiBase: "/api/secretary/core-services",
+        coreServicesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
       });
     } catch (err) {
       console.error("/secretary/services/core failed", err && err.message);
@@ -4174,7 +4198,9 @@ router.get(
         title: "Core Services",
         layout: "layouts/secretary",
         coreServices: [],
+        coreArchivedCount: 0,
         coreServicesApiBase: "/api/secretary/core-services",
+        coreServicesCanManage: (res.locals.effectivePermissions || []).includes("services.manage"),
       });
     }
   },

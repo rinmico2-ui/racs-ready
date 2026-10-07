@@ -5,6 +5,12 @@
 
 "use strict";
 
+// Routine booking diagnostics stay out of customers' consoles. A developer
+// can opt in temporarily with window.RACS_BOOKING_DEBUG = true.
+function bookingDebug(...args) {
+  if (window.RACS_BOOKING_DEBUG === true) console.debug('[Booking]', ...args);
+}
+
 // Global state management
 const BookingState = {
   selectedServices: [],
@@ -183,10 +189,10 @@ function saveBookingProgress() {
     };
     if (!bookingDraftHasProgress(data)) return false;
     localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(data));
-    console.log('💾 Booking progress saved');
+    bookingDebug('💾 Booking progress saved');
     return true;
   } catch(e) {
-    console.warn('Failed to save booking progress:', e);
+    bookingDebug('Failed to save booking progress:', e);
     return false;
   }
 }
@@ -255,12 +261,12 @@ function restoreBookingProgress() {
       );
       BookingState.draftRestored = true;
       BookingState.draftSavedAt = Number(data.savedAt);
-      console.log('📂 Booking progress restored from', new Date(data.savedAt).toLocaleString());
+      bookingDebug('📂 Booking progress restored from', new Date(data.savedAt).toLocaleString());
       return true;
     }
     return false;
   } catch(e) {
-    console.warn('Failed to restore booking progress:', e);
+    bookingDebug('Failed to restore booking progress:', e);
     try { localStorage.removeItem(BOOKING_STORAGE_KEY); } catch (_) {}
     return false;
   }
@@ -292,6 +298,7 @@ function getRestorableBookingStep() {
 }
 
 function restoreBookingProgressUI() {
+  syncRelocationDestination();
   const locationInput = document.getElementById('locationInput');
   if (locationInput && BookingState.location) {
     locationInput.value = BookingState.location;
@@ -351,7 +358,7 @@ function clearBookingProgress() {
     clearTimeout(bookingProgressSaveTimer);
     BookingState.draftPersistenceDisabled = true;
     localStorage.removeItem(BOOKING_STORAGE_KEY);
-    console.log('🗑️ Booking progress cleared');
+    bookingDebug('🗑️ Booking progress cleared');
   } catch(e) {}
 }
 
@@ -422,7 +429,7 @@ fetch('/api/services/payment-policy')
     }
     syncPaymentChoiceGuide();
   })
-  .catch(() => console.warn('Using the default 10% downpayment policy.'));
+  .catch(() => bookingDebug('Using the default 10% downpayment policy.'));
 const LARGE_SCALE_MIN_UNITS = 8;
 const MAX_BOOKING_UNITS = 40;
 const REPAIR_MODEL_MAX_LENGTH = 50;
@@ -567,7 +574,7 @@ function initMultiServiceBooking() {
         restoreBookingProgressUI();
         // Calendar and map components render asynchronously.
         setTimeout(restoreBookingProgressUI, 250);
-        console.log('📂 Restored to step', stepToRestore);
+        bookingDebug('📂 Restored to step', stepToRestore);
       }, 600);
     } else {
       // Login is a prerequisite, not a booking step. Signed-in customers land
@@ -579,6 +586,7 @@ function initMultiServiceBooking() {
     Promise.resolve(catalogReady).then(() => {
       openAftercareMaintenanceService();
       openAcceptedUnitAssistance();
+      openAcceptedRelocation();
     });
 
   }, 500); // 500ms delay to ensure everything is loaded
@@ -609,6 +617,12 @@ async function openAcceptedUnitAssistance() {
       durationMinutes: request.quote.durationMinutes,
       airconType: request.quote.airconType,
       airconTypeName: request.quote.airconTypeName,
+      relocation: request.relocation?.scope === 'same_property' ? {
+        scope: 'same_property', assetId: request.relocation.assetId || null,
+        from: { details: request.relocation.fromPosition },
+        to: { details: request.relocation.toPosition },
+        model: request.relocation.model || '', serialNumber: request.relocation.serialNumber || '',
+      } : undefined,
     });
     const item = BookingState.selectedServices[BookingState.selectedServices.length - 1];
     if (item && String(item.serviceId) === String(service._id)) {
@@ -618,6 +632,45 @@ async function openAcceptedUnitAssistance() {
     const banner = document.createElement('div');
     banner.className = 'alert alert-info mb-3';
     banner.textContent = `${service.name} was added with the approved unit details. Choose your location and schedule; the final amount includes any travel fare.`;
+    document.getElementById('bookingContainer')?.prepend(banner);
+    history.replaceState({}, '', '/services');
+  } catch (error) {
+    showError(error.message);
+  }
+}
+
+async function openAcceptedRelocation() {
+  const requestId = new URLSearchParams(window.location.search).get('relocationRequest');
+  if (!requestId) return;
+  try {
+    const response = await fetch(`/api/relocations/mine/${encodeURIComponent(requestId)}`, { credentials: 'same-origin' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not load your relocation quote.');
+    const request = result.request;
+    if (request.status !== 'accepted' || !request.quote || new Date(request.quote.expiresAt) <= new Date()) {
+      throw new Error('This relocation quote is no longer available. Review your request.');
+    }
+    const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(request.serviceId));
+    if (!service) throw new Error('Aircon Relocation is no longer available.');
+    if (BookingState.selectedServices.some(item => String(item.relocation?.requestId) === String(request._id))) return;
+    if (BookingState.selectedServices.length) throw new Error('Complete or clear your current booking before continuing with this relocation quote.');
+    BookingState.selectedBrand = request.unit.brand;
+    BookingState.applianceType = request.unit.airconType;
+    BookingState.applianceTypeName = request.unit.airconType;
+    addServiceToBooking(service, 1, {
+      hp: request.unit.hp, price: request.quote.total,
+      durationMinutes: request.quote.durationMinutes,
+      airconType: request.unit.airconType, airconTypeName: request.unit.airconType,
+      relocation: {
+        scope: 'custom_quote', requestId: request._id, assetId: request.assetId || null,
+        from: request.from, to: request.to,
+        model: request.unit.model || '', serialNumber: request.unit.serialNumber || '',
+      },
+    });
+    saveBookingProgress();
+    const banner = document.createElement('div');
+    banner.className = 'alert alert-info mb-3';
+    banner.textContent = 'Your accepted relocation quote was added. Pin the current aircon address, choose a schedule, and submit the required payment for staff verification. No technician is assigned yet.';
     document.getElementById('bookingContainer')?.prepend(banner);
     history.replaceState({}, '', '/services');
   } catch (error) {
@@ -911,7 +964,7 @@ function injectTransitionStyles() {
   `;
 
   document.head.appendChild(style);
-  console.log('✅ Scrollable container styles injected');
+  bookingDebug('✅ Scrollable container styles injected');
 
   // Add progress indicator
   addProgressIndicator();
@@ -947,7 +1000,7 @@ function addProgressIndicator() {
     });
   });
 
-  console.log('✅ Progress indicator added');
+  bookingDebug('✅ Progress indicator added');
 }
 
 /**
@@ -1025,7 +1078,7 @@ function loadServicesCatalog() {
     BookingState.catalog.coreServices = window.initialCatalog.coreServices || [];
     BookingState.catalog.repairServices = window.initialCatalog.repairs || [];
 
-    console.log('Services loaded from window.initialCatalog:', {
+    bookingDebug('Services loaded from window.initialCatalog:', {
       coreServices: BookingState.catalog.coreServices.length,
       repairServices: BookingState.catalog.repairServices.length
     });
@@ -1213,7 +1266,7 @@ async function loadTechnicianOptions() {
     return;
   }
 
-  console.log('🔄 Loading technicians...');
+  bookingDebug('🔄 Loading technicians...');
 
   // Remove any existing event listeners by cloning the element
   const newSelect = technicianSelect.cloneNode(true);
@@ -1229,17 +1282,16 @@ async function loadTechnicianOptions() {
       }
     });
 
-    console.log('📡 API Response status:', resp.status);
+    bookingDebug('📡 API Response status:', resp.status);
 
     if (!resp.ok) {
       throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
     }
 
     const json = await resp.json();
-    console.log('📦 API Response data:', json);
 
     const techs = json.technicians || [];
-    console.log(`👨‍🔧 Found ${techs.length} technicians`);
+    bookingDebug(`👨‍🔧 Found ${techs.length} technicians`);
 
     // Clear dropdown
     newSelect.innerHTML = '';
@@ -1256,7 +1308,7 @@ async function loadTechnicianOptions() {
       noTechOption.textContent = "No technicians available";
       noTechOption.disabled = true;
       newSelect.appendChild(noTechOption);
-      console.warn('⚠️ No technicians found in response');
+      bookingDebug('⚠️ No technicians found in response');
       return;
     }
 
@@ -1281,7 +1333,7 @@ async function loadTechnicianOptions() {
       }
 
       newSelect.appendChild(opt);
-      console.log(`✅ Added technician: ${opt.textContent}`, {
+      bookingDebug(`✅ Added technician: ${opt.textContent}`, {
         id: t._id,
         name: t.name,
         location: t.location,
@@ -1296,14 +1348,14 @@ async function loadTechnicianOptions() {
       const technicianId = e.target.value || null;
       const selectedOption = e.target.options[e.target.selectedIndex];
 
-      console.log('👨‍🔧 Technician selected:', technicianId);
+      bookingDebug('👨‍🔧 Technician selected:', technicianId);
 
       // Check if this is a reselection (technician already selected)
       const isReselection = BookingState.selectedTechnicianId &&
         BookingState.selectedTechnicianId !== technicianId;
 
       if (isReselection) {
-        console.log('🔄 Technician reselection detected - resetting dependent steps');
+        bookingDebug('🔄 Technician reselection detected - resetting dependent steps');
         resetTechnicianDependentSteps();
       }
 
@@ -1320,7 +1372,7 @@ async function loadTechnicianOptions() {
             lng: selectedOption.dataset.lng || null
           };
 
-          console.log('📍 Stored technician data:', BookingState.selectedTechnician);
+          bookingDebug('📍 Stored technician data:', BookingState.selectedTechnician);
         } else {
           BookingState.selectedTechnician = null;
         }
@@ -1334,14 +1386,14 @@ async function loadTechnicianOptions() {
 
         // Auto-advance after 1 second
         setTimeout(() => {
-          console.log('⏭️ Auto-advancing to Step 4 after technician selection');
+          bookingDebug('⏭️ Auto-advancing to Step 4 after technician selection');
           requestBookingStepNavigation(4);
         }, 1000);
       }
     });
 
-    console.log('✅ Technicians loaded successfully');
-    console.log('📋 Dropdown options count:', newSelect.options.length);
+    bookingDebug('✅ Technicians loaded successfully');
+    bookingDebug('📋 Dropdown options count:', newSelect.options.length);
 
   } catch (err) {
     console.error("❌ Load technicians error:", err);
@@ -1371,7 +1423,7 @@ async function loadTechnicianOptions() {
  * Reset technician-dependent steps when technician is reselected
  */
 function resetTechnicianDependentSteps() {
-  console.log('🔄 Resetting technician-dependent steps');
+  bookingDebug('🔄 Resetting technician-dependent steps');
 
   // Show notification about technician change
   showTechnicianChangeNotification(BookingState.selectedTechnician?.name || 'Previous technician');
@@ -1391,14 +1443,14 @@ function resetTechnicianDependentSteps() {
   BookingState.fare = null;
   BookingState.travelDuration = null;
 
-  console.log('✅ Technician-dependent steps reset complete');
+  bookingDebug('✅ Technician-dependent steps reset complete');
 }
 
 /**
  * Reset Step 4 (Location/Map) for technician change
  */
 function resetStep4ForTechnicianChange() {
-  console.log('🗺️ Resetting Step 4 map for new technician');
+  bookingDebug('🗺️ Resetting Step 4 map for new technician');
 
   // Clear location input
   const locationInput = document.getElementById('locationInput');
@@ -1446,26 +1498,26 @@ function resetStep4ForTechnicianChange() {
 
   // Clear and reinitialize map with proper timing
   if (typeof cleanupMap === 'function') {
-    console.log('🧹 Cleaning up existing map...');
+    bookingDebug('🧹 Cleaning up existing map...');
     cleanupMap();
   }
 
   // Wait a bit longer for cleanup to complete, then reinitialize
   setTimeout(() => {
-    console.log('🔄 Reinitializing map after technician change...');
+    bookingDebug('🔄 Reinitializing map after technician change...');
     if (typeof initializeMap === 'function') {
       initializeMap();
     }
   }, 1000); // Increased delay to ensure cleanup is complete
 
-  console.log('✅ Step 4 map reset initiated');
+  bookingDebug('✅ Step 4 map reset initiated');
 }
 
 /**
  * Reset Step 5 (Schedule) for technician change
  */
 function resetStep5ForTechnicianChange() {
-  console.log('📅 Resetting Step 5 schedule for new technician');
+  bookingDebug('📅 Resetting Step 5 schedule for new technician');
 
   // Clear calendar selections
   document.querySelectorAll('.date-btn').forEach(btn => {
@@ -1536,7 +1588,7 @@ function resetStep5ForTechnicianChange() {
   if (suggestedWrapper) suggestedWrapper.classList.add('d-none');
   if (manualCalendar) manualCalendar.classList.remove('d-none');
 
-  console.log('✅ Step 5 schedule reset complete (manual-only enforced)');
+  bookingDebug('✅ Step 5 schedule reset complete (manual-only enforced)');
 }
 
 /**
@@ -1567,17 +1619,21 @@ function showTechnicianChangeNotification(technicianName) {
     }
   }, 4000);
 
-  console.log('📢 Technician change notification shown');
+  bookingDebug('📢 Technician change notification shown');
 }
 
 /**
  * Show specific step with completed steps visibility
  */
 function showStep(stepNumber) {
-  console.log(`🔧 showStep(${stepNumber}) called`);
+  bookingDebug(`🔧 showStep(${stepNumber}) called`);
 
   const requestedStep = Number(stepNumber);
   if (!Number.isInteger(requestedStep) || requestedStep < 1 || requestedStep > 6) return false;
+  if (requestedStep > 4 && pendingRelocationQuoteItem()) {
+    showError('Send the relocation request after choosing a preferred date. Staff will send a quote before checkout.');
+    return false;
+  }
 
   const prevStep = Number(BookingState.currentStep) || 1;
   if (requestedStep > prevStep && typeof getBookingStepIssue === 'function') {
@@ -1635,6 +1691,7 @@ function showStep(stepNumber) {
   // The action bar is attached to <body> so it stays fixed to the viewport.
   // Sync it explicitly whenever the customer moves between booking steps.
   syncBookingActionBarLayer();
+  syncRelocationDestination();
   syncLocationContinueAction();
   syncScheduleNextAction(stepNumber === 4);
   syncPaymentConfirmAction(stepNumber === 6);
@@ -1668,13 +1725,53 @@ function showStep(stepNumber) {
 
   // Load content for specific steps
   if (stepNumber === 4) {
-    console.log('🔧 Initializing Step 4 scheduling...');
+    const customQuote = Boolean(pendingRelocationQuoteItem());
+    document.getElementById('manualCalendar')?.classList.toggle('relocation-quote-schedule', customQuote);
+    const preferredDateSection = document.getElementById('relocationPreferredDateSection');
+    const preferredDateInput = document.getElementById('relocationQuotePreferredDate');
+    preferredDateSection?.classList.toggle('d-none', !customQuote);
+    document.getElementById('serviceScheduleHours')?.classList.toggle('d-none', customQuote);
+    if (preferredDateInput && customQuote) {
+      const today = new Date();
+      const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      preferredDateInput.min = dateKey(today);
+      preferredDateInput.value = BookingState.selectedDate ? dateKey(new Date(BookingState.selectedDate)) : '';
+      if (!preferredDateInput.dataset.wired) {
+        preferredDateInput.dataset.wired = '1';
+        preferredDateInput.addEventListener('change', () => {
+          const selected = preferredDateInput.value ? new Date(`${preferredDateInput.value}T12:00:00`) : null;
+          BookingState.selectedDate = selected && !Number.isNaN(selected.getTime()) ? selected : null;
+          BookingState.scheduleDate = BookingState.selectedDate;
+          BookingState.selectedTimeSlot = null;
+          BookingState.selectedTime = null;
+          BookingState.scheduleTime = null;
+          saveBookingProgress();
+          syncScheduleNextAction();
+        });
+      }
+    }
+    const scheduleTitle = document.getElementById('serviceScheduleTitle');
+    const scheduleIntro = document.getElementById('serviceScheduleIntro');
+    const scheduleLead = document.getElementById('serviceScheduleLead');
+    if (scheduleTitle) scheduleTitle.textContent = customQuote ? 'Choose a Preferred Date' : 'Choose a Date and Time';
+    if (scheduleIntro) scheduleIntro.textContent = customQuote
+      ? 'Choose a preferred date for your relocation request.'
+      : 'Tell us when you want the service.';
+    if (scheduleLead) scheduleLead.textContent = customQuote
+      ? 'Choose a preferred date for staff review. This does not reserve a technician or require payment.'
+      : 'Pick a date, then choose a start time. We will assign an available technician for you.';
+    bookingDebug('🔧 Initializing Step 4 scheduling...');
     setTimeout(() => {
       const manualCalendar = document.getElementById('manualCalendar');
       const suggestedWrapper = document.getElementById('suggestedDates');
 
       if (suggestedWrapper) suggestedWrapper.classList.add('d-none');
       if (manualCalendar) manualCalendar.classList.remove('d-none');
+
+      if (customQuote) {
+        syncScheduleNextAction();
+        return;
+      }
 
       initializeSchedulingModes();
 
@@ -1715,7 +1812,7 @@ function showStep(stepNumber) {
 
   if (stepNumber === 5) {
     // Recalculate and display total fee from current BookingState.selectedServices
-    console.log('💰 Calculating total fee for Fee Review...');
+    bookingDebug('💰 Calculating total fee for Fee Review...');
     displayTotalFee();
     updateReviewContent();
   }
@@ -1723,7 +1820,7 @@ function showStep(stepNumber) {
 
   if (stepNumber === 6) {
     // Initialize payment step
-    console.log('💳 Initializing Step 7 (Payment)...');
+    bookingDebug('💳 Initializing Step 7 (Payment)...');
     setTimeout(() => {
       initializePaymentStep();
     }, 100);
@@ -1747,7 +1844,7 @@ function showStep(stepNumber) {
       targetStep.classList.remove('step-highlight');
     }, 2000);
 
-    console.log(`✅ Scrolled to Step ${stepNumber}`);
+    bookingDebug(`✅ Scrolled to Step ${stepNumber}`);
   }, 100);
 
   // Update stepper
@@ -1759,7 +1856,7 @@ function showStep(stepNumber) {
  * Setup progression for location and later steps
  */
 function setupStepProgression(stepNumber) {
-  console.log(`🔧 Setting up progression for Step ${stepNumber}`);
+  bookingDebug(`🔧 Setting up progression for Step ${stepNumber}`);
 
   // For Step 3 (Location), setup location input auto-progress
   if (stepNumber === 3) {
@@ -1838,7 +1935,7 @@ function resolveSavedAccountAddress(button) {
       return mapAddress;
     })
     .catch(error => {
-      console.error('Unable to load the saved account address:', error);
+      bookingDebug('Unable to load the saved account address:', error);
       button.dataset.address = '';
       button.disabled = false;
       button.removeAttribute('aria-busy');
@@ -1913,7 +2010,7 @@ function guideToSavedAddressRoute(attempt = 0) {
  * Setup location input with map display
  */
 function setupLocationAutoProgress() {
-  console.log('🔄 Setting up location auto-progress');
+  bookingDebug('🔄 Setting up location auto-progress');
 
   const locationInput = document.getElementById("locationInput");
   const technicianMap = document.getElementById("technicianMap");
@@ -1923,7 +2020,7 @@ function setupLocationAutoProgress() {
     return;
   }
 
-  console.log('✅ Location input found');
+  bookingDebug('✅ Location input found');
 
   // Remove existing listener
   const newInput = locationInput.cloneNode(true);
@@ -2009,7 +2106,6 @@ function setupLocationAutoProgress() {
           .filter(Boolean)
           .join(', ')).toString().trim();
     if (savedAddress) {
-      console.log('🏠 Auto-populating user saved address:', savedAddress);
       newInput.value = savedAddress;
       newInput.classList.add('is-valid');
       if (typeof BookingState !== 'undefined') {
@@ -2028,11 +2124,11 @@ function setupLocationAutoProgress() {
     clearTimeout(debounceTimer);
     const value = e.target.value.trim();
 
-    console.log('📝 Location input changed:', value);
+    bookingDebug('📝 Location input changed:', value);
 
     if (value.length >= 10) { // Minimum address length
       debounceTimer = setTimeout(() => {
-        console.log('📍 Location entered, waiting for Next Step button');
+        bookingDebug('📍 Location entered, waiting for Next Step button');
         const confirmedAddress = String(BookingState?.customerLocation?.address || '').trim();
         const isConfirmed = Boolean(confirmedAddress && newInput.value.trim() === confirmedAddress);
         newInput.classList.toggle('is-valid', isConfirmed);
@@ -2048,7 +2144,7 @@ function setupLocationAutoProgress() {
     }
   });
 
-  console.log('✅ Location auto-progress setup complete');
+  bookingDebug('✅ Location auto-progress setup complete');
 }
 
 function closeAddressSuggestions() {
@@ -2260,7 +2356,7 @@ function fetchAddressSuggestions(query) {
     })
     .catch(error => {
       if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
-      console.error('Address suggestions error:', error);
+      bookingDebug('Address suggestions error:', error);
       suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the point on the map.</div>';
       suggestContainer.classList.remove('d-none');
       document.getElementById('locationInput')?.setAttribute('aria-expanded', 'true');
@@ -2483,7 +2579,7 @@ function applyAddressSearchResult(result, fallbackAddress, source) {
  */
 function displayTechnicianDetails() {
   if (!BookingState.selectedTechnicianId) {
-    console.warn('No technician selected');
+    bookingDebug('No technician selected');
     return;
   }
 
@@ -2520,7 +2616,7 @@ function displayTechnicianDetails() {
     </div>
   `;
 
-  console.log('✅ Technician details displayed:', { name: technicianName, location: technicianLocation });
+  bookingDebug('✅ Technician details displayed:', { name: technicianName, location: technicianLocation });
 }
 
 /**
@@ -2530,7 +2626,7 @@ function initializeMap() {
   const mapContainer = document.getElementById("technicianMap");
 
   if (!mapContainer) {
-    console.warn('Map container not found');
+    bookingDebug('Map container not found');
     return;
   }
 
@@ -2538,16 +2634,16 @@ function initializeMap() {
   if (BookingState && BookingState.map) {
     try {
       BookingState.map.invalidateSize();
-      console.log('✅ Map already exists, invalidated size');
+      bookingDebug('✅ Map already exists, invalidated size');
     } catch(e) {
-      console.warn('Map invalidateSize failed, reinitializing:', e);
+      bookingDebug('Map invalidateSize failed, reinitializing:', e);
       cleanupMap();
     }
     return;
   }
 
   if (typeof L === 'undefined') {
-    console.warn('Leaflet not loaded, waiting...');
+    bookingDebug('Leaflet not loaded, waiting...');
     mapContainer.innerHTML = `
       <div class="d-flex align-items-center justify-content-center h-100 bg-light">
         <div class="text-center">
@@ -2603,7 +2699,7 @@ function cleanupMap() {
     if (BookingState.map) {
       BookingState.map.remove();
       BookingState.map = null;
-      console.log('✅ Map instance removed');
+      bookingDebug('✅ Map instance removed');
     }
 
     // Clear markers
@@ -2621,11 +2717,11 @@ function cleanupMap() {
     if (mapContainer) {
       mapContainer.innerHTML = '';
       mapContainer._leaflet_id = null; // Clear Leaflet's internal tracking
-      console.log('✅ Map container cleared');
+      bookingDebug('✅ Map container cleared');
     }
 
   } catch (error) {
-    console.warn('⚠️ Error during map cleanup:', error);
+    bookingDebug('⚠️ Error during map cleanup:', error);
 
     // Fallback: force clear the container
     const mapContainer = document.getElementById('technicianMap');
@@ -2690,7 +2786,7 @@ function renderCompanyBaseMarker() {
       BookingState.map.fitBounds(group.getBounds().pad(0.2));
     }
   } catch (e) {
-    console.warn('Company base marker render failed:', e);
+    bookingDebug('Company base marker render failed:', e);
   }
 }
 
@@ -2714,7 +2810,7 @@ function setupCompanyBaseMarkerAfterMap() {
 
       // If userCoordinates is already present, draw the route and calculate distance/fare
       if (BookingState.userCoordinates) {
-        console.log('🏁 Coordinates found during company base setup, drawing route...');
+        bookingDebug('🏁 Coordinates found during company base setup, drawing route...');
         drawRoute();
       }
       return;
@@ -2738,17 +2834,17 @@ function initializeMapInternal(mapContainer) {
   if (BookingState.companyBaseCoordinates && BookingState.companyBaseCoordinates.lat && BookingState.companyBaseCoordinates.lng) {
     technicianLat = parseFloat(BookingState.companyBaseCoordinates.lat);
     technicianLng = parseFloat(BookingState.companyBaseCoordinates.lng);
-    console.log('📍 Using company baseline coordinates for map base:', { lat: technicianLat, lng: technicianLng });
+    bookingDebug('📍 Using company baseline coordinates for map base:', { lat: technicianLat, lng: technicianLng });
   } else if (window._companyBaseLocation && window._companyBaseLocation.lat && window._companyBaseLocation.lng) {
     technicianLat = parseFloat(window._companyBaseLocation.lat);
     technicianLng = parseFloat(window._companyBaseLocation.lng);
     BookingState.companyBaseCoordinates = { lat: technicianLat, lng: technicianLng };
-    console.log('📍 Using company baseline coordinates from window location for map base:', { lat: technicianLat, lng: technicianLng });
+    bookingDebug('📍 Using company baseline coordinates from window location for map base:', { lat: technicianLat, lng: technicianLng });
   } else {
     // Fallback to data attributes or default
     technicianLat = parseFloat(mapContainer.dataset.technicianLat) || technicianLat;
     technicianLng = parseFloat(mapContainer.dataset.technicianLng) || technicianLng;
-    console.log('📍 Using fallback coordinates for map base:', { lat: technicianLat, lng: technicianLng });
+    bookingDebug('📍 Using fallback coordinates for map base:', { lat: technicianLat, lng: technicianLng });
   }
 
   // Initialize Leaflet map with error handling
@@ -2761,16 +2857,16 @@ function initializeMapInternal(mapContainer) {
       scrollWheelZoom: false,
       preferCanvas: true
     });
-    console.log('✅ Leaflet map instance created');
+    bookingDebug('✅ Leaflet map instance created');
   } catch (error) {
-    console.error('❌ Failed to create map instance:', error);
+    bookingDebug('❌ Failed to create map instance:', error);
     // Try to recover by clearing container and retrying
     mapContainer.innerHTML = '';
     try {
       map = L.map(mapContainer).setView([technicianLat, technicianLng], 13);
-      console.log('✅ Map instance created on retry');
+      bookingDebug('✅ Map instance created on retry');
     } catch (retryError) {
-      console.error('❌ Failed to create map instance on retry:', retryError);
+      bookingDebug('❌ Failed to create map instance on retry:', retryError);
       showError('Unable to initialize map. Please refresh the page.');
       return;
     }
@@ -2869,7 +2965,7 @@ function initializeMapInternal(mapContainer) {
 
   // Enhanced click handler for technician marker
   technicianMarker.on('click', function (e) {
-    console.log('📍 Technician marker clicked');
+    bookingDebug('📍 Technician marker clicked');
     map.setView([technicianLat, technicianLng], 16);
 
     // Open popup
@@ -2884,7 +2980,7 @@ function initializeMapInternal(mapContainer) {
 
   // Make zoomToTechnician globally available
   window.zoomToTechnician = function () {
-    console.log('🔍 Zooming to technician');
+    bookingDebug('🔍 Zooming to technician');
     if (BookingState?.map && BookingState?.technicianMarker) {
       const pos = BookingState.technicianMarker.getLatLng();
       BookingState.map.setView(pos, 16);
@@ -2905,7 +3001,6 @@ function initializeMapInternal(mapContainer) {
   // Restore user marker and route if we have saved coordinates
   if (BookingState.userCoordinates && BookingState.userCoordinates.lat && BookingState.userCoordinates.lng) {
     const { lat, lng } = BookingState.userCoordinates;
-    console.log('📂 Restoring user marker at:', lat, lng);
     setTimeout(() => {
       setCustomerLocationMarker(lat, lng, BookingState.location || '', 'Restored from saved progress');
       map.setView([lat, lng], 15);
@@ -2923,7 +3018,7 @@ function initializeMapInternal(mapContainer) {
       try {
         setupCompanyBaseMarkerAfterMap();
       } catch (e) {
-        console.warn('Re-run company base marker setup failed:', e);
+        bookingDebug('Re-run company base marker setup failed:', e);
       }
     }, 150);
   } else {
@@ -2932,7 +3027,7 @@ function initializeMapInternal(mapContainer) {
       try {
         renderCompanyBaseMarker();
       } catch (e) {
-        console.warn('Immediate company base marker render failed:', e);
+        bookingDebug('Immediate company base marker render failed:', e);
       }
     }
   }
@@ -2944,10 +3039,10 @@ function initializeMapInternal(mapContainer) {
     try {
       if (map) {
         map.invalidateSize();
-        console.log('🔄 Leaflet map size invalidated');
+        bookingDebug('🔄 Leaflet map size invalidated');
       }
     } catch (err) {
-      console.warn('Map invalidateSize failed:', err);
+      bookingDebug('Map invalidateSize failed:', err);
     }
   }
 
@@ -2984,7 +3079,7 @@ function initializeMapInternal(mapContainer) {
   });
   technicianMarker.bindTooltip('CALIDRO RACS', { direction: 'top', offset: [0, -34] });
 
-  console.log('✅ Leaflet map initialized with technician location:', {
+  bookingDebug('✅ Leaflet map initialized with technician location:', {
     lat: technicianLat,
     lng: technicianLng,
     name: BookingState.selectedTechnician?.name
@@ -3047,7 +3142,7 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
       window.setTimeout(() => geocodeAddress(address, finalize, mapReadyAttempt + 1), 250);
       return;
     }
-    console.warn('Map not initialized');
+    bookingDebug('Map not initialized');
     if (finalize) {
       BookingState.guideToSavedAddressRoute = false;
       window.clearTimeout(guideToSavedAddressRoute.timeout);
@@ -3066,7 +3161,7 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
     .then(data => {
       if (activeGeocodeRequest !== addressGeocodeRequestToken) return;
       if (data && data.error) {
-        console.error('Geocoding API error:', data.error);
+        bookingDebug('Geocoding API error:', data.error);
         if (finalize) {
           BookingState.guideToSavedAddressRoute = false;
           window.clearTimeout(guideToSavedAddressRoute.timeout);
@@ -3099,10 +3194,9 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
           drawRoute();
         }
 
-        console.log('✅ Address geocoded:', address, { lat, lng });
 
       } else {
-        console.warn('Geocoding failed: No results found');
+        bookingDebug('Geocoding failed: No results found');
         if (finalize) {
           BookingState.guideToSavedAddressRoute = false;
           window.clearTimeout(guideToSavedAddressRoute.timeout);
@@ -3112,7 +3206,7 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
       }
     })
     .catch(error => {
-      console.error('Geocoding error:', error);
+      bookingDebug('Geocoding error:', error);
       if (finalize) {
         BookingState.guideToSavedAddressRoute = false;
         window.clearTimeout(guideToSavedAddressRoute.timeout);
@@ -3127,7 +3221,7 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
  */
 function drawRoute() {
   if (!BookingState.userCoordinates) {
-    console.warn('⚠️ Customer location required for route drawing');
+    bookingDebug('⚠️ Customer location required for route drawing');
     return;
   }
 
@@ -3145,7 +3239,7 @@ function drawRoute() {
     : null;
 
   if (!companyPos) {
-    console.warn('⚠️ Company base location required for route drawing');
+    bookingDebug('⚠️ Company base location required for route drawing');
     return;
   }
 
@@ -3153,22 +3247,21 @@ function drawRoute() {
 
   const userPos = L.latLng(BookingState.userCoordinates.lat, BookingState.userCoordinates.lng);
 
-  console.log('🛣️ Drawing route from company baseline to user');
-  console.log('📍 Company baseline position:', companyPos);
-  console.log('📍 User position:', userPos);
+  bookingDebug('🛣️ Drawing route from company baseline to user');
+  bookingDebug('📍 Company baseline position:', companyPos);
 
   // Remove existing route
   if (BookingState.routeLine) {
     BookingState.map.removeLayer(BookingState.routeLine);
     BookingState.routeLine = null;
-    console.log('🗑️ Removed existing route line');
+    bookingDebug('🗑️ Removed existing route line');
   }
 
   // Remove existing route markers
   if (BookingState.routeMarkers) {
     BookingState.routeMarkers.forEach(marker => BookingState.map.removeLayer(marker));
     BookingState.routeMarkers = [];
-    console.log('🗑️ Removed existing route markers');
+    bookingDebug('🗑️ Removed existing route markers');
   }
 
   // Show loading indicator
@@ -3184,7 +3277,7 @@ function drawRoute() {
       hideRouteLoading();
 
       if (routeData && routeData.coordinates && routeData.coordinates.length > 2) {
-        console.log('✅ Drawing actual route with', routeData.coordinates.length, 'points');
+        bookingDebug('✅ Drawing actual route with', routeData.coordinates.length, 'points');
 
         // Draw the actual route with enhanced styling
         BookingState.routeLine = L.polyline(routeData.coordinates, {
@@ -3200,7 +3293,7 @@ function drawRoute() {
 
         // Add route waypoints markers (turn points)
         if (routeData.waypoints && routeData.waypoints.length > 0) {
-          console.log('🎯 Adding', routeData.waypoints.length, 'waypoint markers');
+          bookingDebug('🎯 Adding', routeData.waypoints.length, 'waypoint markers');
           BookingState.routeMarkers = [];
 
           routeData.waypoints.forEach((waypoint, index) => {
@@ -3229,7 +3322,7 @@ function drawRoute() {
             padding: [60, 60],
             maxZoom: 16
           });
-          console.log('🗺️ Fitted map to route bounds');
+          bookingDebug('🗺️ Fitted map to route bounds');
         } else {
           const markers = [];
           if (BookingState.technicianMarker) markers.push(BookingState.technicianMarker);
@@ -3240,17 +3333,17 @@ function drawRoute() {
           }
         }
 
-        console.log('✅ Actual route drawn successfully');
+        bookingDebug('✅ Actual route drawn successfully');
 
       } else {
-        console.warn('⚠️ Route data insufficient, falling back to straight line');
+        bookingDebug('⚠️ Route data insufficient, falling back to straight line');
         drawStraightLineRoute(companyPos, userPos);
       }
     })
     .catch(error => {
       if (activeRouteRequest !== routeRequestToken) return;
       hideRouteLoading();
-      console.warn('❌ Route API failed, using straight line:', error);
+      bookingDebug('❌ Route API failed, using straight line:', error);
       drawStraightLineRoute(companyPos, userPos);
     });
 
@@ -3352,15 +3445,15 @@ function animateRoute(routeLine) {
  */
 async function getActualRoute(startPos, endPos) {
   try {
-    console.log('🛣️ Getting actual route from', startPos, 'to', endPos);
+    bookingDebug('🛣️ Getting actual route from', startPos, 'to', endPos);
 
     // Using OSRM (Open Source Routing Machine) - free OpenStreetMap routing service
     const url = `https://router.project-osrm.org/route/v1/driving/${startPos.lng},${startPos.lat};${endPos.lng},${endPos.lat}?overview=full&geometries=geojson&steps=true`;
 
-    console.log('📡 Requesting route from OSRM:', url);
+    bookingDebug('📡 Requesting route from OSRM:', url);
 
     const response = await fetch(url);
-    console.log('📡 OSRM response status:', response.status);
+    bookingDebug('📡 OSRM response status:', response.status);
 
     if (!response.ok) {
       throw new Error(`OSRM API error: ${response.status} ${response.statusText}`);
@@ -3370,33 +3463,33 @@ async function getActualRoute(startPos, endPos) {
 
     if (data.routes && data.routes.length > 0) {
       const route = data.routes[0];
-      console.log('✅ Found route with', route.geometry.coordinates.length, 'coordinates');
+      bookingDebug('✅ Found route with', route.geometry.coordinates.length, 'coordinates');
 
       // Convert [lng, lat] to [lat, lng] for Leaflet
       const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
 
       // Create bounds from the route
       const bounds = L.latLngBounds(coordinates);
-      console.log('🗺️ Route bounds:', bounds);
+      bookingDebug('🗺️ Route bounds:', bounds);
 
       // Extract waypoints for visual markers (turn points)
       const waypoints = [];
       if (route.legs && route.legs.length > 0) {
         route.legs.forEach((leg, legIndex) => {
-          console.log(`🚶 Processing leg ${legIndex} with ${leg.steps ? leg.steps.length : 0} steps`);
+          bookingDebug(`🚶 Processing leg ${legIndex} with ${leg.steps ? leg.steps.length : 0} steps`);
           if (leg.steps) {
             leg.steps.forEach((step, stepIndex) => {
               if (step.maneuver && step.maneuver.location) {
                 const waypoint = [step.maneuver.location[1], step.maneuver.location[0]];
                 waypoints.push(waypoint);
-                console.log(`🔄 Waypoint ${stepIndex}:`, waypoint, step.maneuver.instruction || '');
+                bookingDebug(`🔄 Waypoint ${stepIndex}:`, waypoint, step.maneuver.instruction || '');
               }
             });
           }
         });
       }
 
-      console.log('🎯 Total waypoints:', waypoints.length);
+      bookingDebug('🎯 Total waypoints:', waypoints.length);
 
       return {
         coordinates: coordinates,
@@ -3406,11 +3499,11 @@ async function getActualRoute(startPos, endPos) {
         waypoints: waypoints.slice(1, -1) // Exclude start and end points
       };
     } else {
-      console.warn('⚠️ No routes found in OSRM response');
+      bookingDebug('⚠️ No routes found in OSRM response');
       return null;
     }
   } catch (error) {
-    console.error('❌ Error getting route from OSRM:', error);
+    bookingDebug('❌ Error getting route from OSRM:', error);
     return null;
   }
 }
@@ -3436,7 +3529,7 @@ function drawStraightLineRoute(technicianPos, userPos) {
     BookingState.map.fitBounds(group.getBounds().pad(0.1));
   }
 
-  console.log('✅ Fallback straight line route drawn');
+  bookingDebug('✅ Fallback straight line route drawn');
 }
 
 /**
@@ -3586,7 +3679,6 @@ function reverseGeocode(lat, lng, requestToken, options = {}) {
     BookingState.userCoordinates = { lat: parsedLat, lng: parsedLng };
     scheduleBookingProgressSave();
 
-    console.log('📍 Customer location stored (reverse geocode):', BookingState.customerLocation);
 
     if (BookingState.map) {
       BookingState.map.setView([parsedLat, parsedLng], 16);
@@ -3655,9 +3747,9 @@ function reverseGeocode(lat, lng, requestToken, options = {}) {
         }
 
         if (error.status === 429) {
-          console.warn('Reverse geocoding is temporarily rate limited; keeping the selected coordinates.');
+          bookingDebug('Reverse geocoding is temporarily rate limited; keeping the selected coordinates.');
         } else {
-          console.error('Reverse geocoding error:', error);
+          bookingDebug('Reverse geocoding error:', error);
         }
         showPinWithoutStreetName();
       });
@@ -3734,7 +3826,7 @@ function requestCustomerGpsLocation(button) {
       button.innerHTML = button.dataset.idleHtml;
     },
     error => {
-      console.error('Unable to get device location:', error);
+      bookingDebug('Unable to get device location:', error);
       button.disabled = false;
       button.innerHTML = button.dataset.idleHtml;
       if (error.code === 1) return showLocationTurnOnPrompt(button, 'denied');
@@ -3747,7 +3839,7 @@ function requestCustomerGpsLocation(button) {
 }
 
 function addCurrentLocationButton() {
-  console.log('🔄 addCurrentLocationButton called');
+  bookingDebug('🔄 addCurrentLocationButton called');
 
   const locationInput = document.getElementById("locationInput");
   if (!locationInput) {
@@ -3755,19 +3847,19 @@ function addCurrentLocationButton() {
     return;
   }
 
-  console.log('✅ Location input found, checking for existing button');
+  bookingDebug('✅ Location input found, checking for existing button');
 
   // Check if button already exists by ID
   const existingBtn = document.getElementById('currentLocationBtn');
   if (existingBtn) {
-    console.log('⚠️ Current location button already exists, removing old one');
+    bookingDebug('⚠️ Current location button already exists, removing old one');
     existingBtn.parentNode.remove();
   }
 
   // Check if container already exists
   let buttonContainer = locationInput.parentNode.querySelector('.current-location-btn-container');
   if (buttonContainer) {
-    console.log('⚠️ Button container already exists, removing old one');
+    bookingDebug('⚠️ Button container already exists, removing old one');
     buttonContainer.remove();
   }
 
@@ -3785,10 +3877,10 @@ function addCurrentLocationButton() {
   currentLocationBtn.id = 'currentLocationBtn'; // Add ID for tracking
   currentLocationBtn.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i> Use Current Location';
 
-  console.log('✅ Creating current location button with event listener');
+  bookingDebug('✅ Creating current location button with event listener');
 
   currentLocationBtn.addEventListener('click', function () {
-    console.log('📍 Current location button clicked');
+    bookingDebug('📍 Current location button clicked');
     requestCustomerGpsLocation(this);
   });
 
@@ -3797,16 +3889,16 @@ function addCurrentLocationButton() {
   // Insert button after the suggestions container or input group
   if (suggestContainer && suggestContainer.parentNode) {
     suggestContainer.parentNode.insertBefore(buttonContainer, suggestContainer.nextSibling);
-    console.log('✅ Current location button added after suggestions container');
+    bookingDebug('✅ Current location button added after suggestions container');
   } else if (inputGroup) {
     inputGroup.parentNode.insertBefore(buttonContainer, inputGroup.nextSibling);
-    console.log('✅ Current location button added after input group');
+    bookingDebug('✅ Current location button added after input group');
   } else {
     locationInput.parentNode.insertBefore(buttonContainer, locationInput.nextSibling);
-    console.log('✅ Current location button added after location input');
+    bookingDebug('✅ Current location button added after location input');
   }
 
-  console.log('✅ Current location button setup complete');
+  bookingDebug('✅ Current location button setup complete');
 }
 
 /**
@@ -3823,13 +3915,13 @@ function setupLocateButtons() {
   if (locateCompanyBtn && !locateCompanyBtn.dataset.mapBound) {
     locateCompanyBtn.dataset.mapBound = 'true';
     locateCompanyBtn.addEventListener('click', () => {
-      console.log('🔍 Locate company button clicked');
+      bookingDebug('🔍 Locate company button clicked');
       if (BookingState?.technicianMarker && BookingState?.map) {
         const pos = BookingState.technicianMarker.getLatLng();
         BookingState.map.setView(pos, 16);
         BookingState.technicianMarker.openPopup();
       } else {
-        console.warn('Company marker not available');
+        bookingDebug('Company marker not available');
       }
     });
   }
@@ -3837,7 +3929,7 @@ function setupLocateButtons() {
   if (locateCustomerBtn && !locateCustomerBtn.dataset.mapBound) {
     locateCustomerBtn.dataset.mapBound = 'true';
     locateCustomerBtn.addEventListener('click', () => {
-      console.log('📍 Use My Location clicked');
+      bookingDebug('📍 Use My Location clicked');
       requestCustomerGpsLocation(locateCustomerBtn);
     });
   }
@@ -3845,13 +3937,13 @@ function setupLocateButtons() {
   if (focusCustomerBtn && !focusCustomerBtn.dataset.mapBound) {
     focusCustomerBtn.dataset.mapBound = 'true';
     focusCustomerBtn.addEventListener('click', () => {
-      console.log('🔍 Focus customer button clicked');
+      bookingDebug('🔍 Focus customer button clicked');
       if (BookingState?.userMarker && BookingState?.map) {
         const pos = BookingState.userMarker.getLatLng();
         BookingState.map.setView(pos, 16);
         BookingState.userMarker.openPopup();
       } else {
-        console.warn('User marker not available');
+        bookingDebug('User marker not available');
         showError('Please enter your location first');
       }
     });
@@ -3901,7 +3993,7 @@ function setupLocateButtons() {
     });
   }
 
-  console.log('✅ Locate buttons setup complete');
+  bookingDebug('✅ Locate buttons setup complete');
 }
 
 function syncLocationContinueAction() {
@@ -3922,6 +4014,9 @@ function syncLocationContinueAction() {
   const label = document.getElementById('locationContinueLabel');
   const eyebrow = document.getElementById('locationNextEyebrow');
   const message = document.getElementById('locationNextMessage');
+  const quoteItem = pendingRelocationQuoteItem();
+  const needsDestination = Boolean(quoteItem &&
+    String(quoteItem.relocation?.to?.address || '').trim().length < 8);
 
   action.classList.toggle('is-visible', isLocationStepActive);
   action.setAttribute('aria-hidden', String(!isLocationStepActive));
@@ -3946,7 +4041,7 @@ function syncLocationContinueAction() {
     return;
   }
 
-  if (!routeReady) {
+  if (!routeReady && !quoteItem) {
     action.classList.add('is-checking');
     action.classList.remove('is-ready');
     if (eyebrow) eyebrow.textContent = 'Location selected';
@@ -3956,12 +4051,23 @@ function syncLocationContinueAction() {
     return;
   }
 
+  if (needsDestination) {
+    action.classList.remove('is-checking', 'is-ready');
+    if (eyebrow) eyebrow.textContent = 'Destination needed';
+    if (message) message.textContent = 'Enter the new address for the aircon.';
+    if (label) label.textContent = 'Enter New Address';
+    if (button) button.disabled = false;
+    return;
+  }
+
   const becameReady = !action.classList.contains('is-ready');
   action.classList.remove('is-checking');
   action.classList.add('is-ready');
   if (eyebrow) eyebrow.textContent = 'Location ready';
-  if (message) message.textContent = `Travel fee ${fareText} · ${distanceText}`;
-  if (fareDetailsButton) fareDetailsButton.hidden = false;
+  if (message) message.textContent = quoteItem
+    ? 'Origin and destination ready for staff review.'
+    : `Travel fee ${fareText} · ${distanceText}`;
+  if (fareDetailsButton) fareDetailsButton.hidden = Boolean(quoteItem);
   if (label) label.textContent = 'Continue to Schedule';
   if (button) button.disabled = false;
   if (becameReady) {
@@ -4016,8 +4122,13 @@ window.continueServiceBookingFromMap = function() {
     document.querySelector('#servicePinConfirm button')?.focus({ preventScroll: true });
     return;
   }
-  if (!routeReady) {
+  if (!routeReady && !pendingRelocationQuoteItem()) {
     showError('Please wait for the route and travel fare to finish calculating.');
+    return;
+  }
+  if (pendingRelocationQuoteItem() &&
+      String(pendingRelocationQuoteItem().relocation?.to?.address || '').trim().length < 8) {
+    presentBookingStepIssue(getBookingStepIssue(3));
     return;
   }
   requestBookingStepNavigation(4);
@@ -4048,14 +4159,14 @@ function calculateDistanceAndFare(requestToken = routeRequestToken) {
   }
 
   if (!BookingState?.companyBaseCoordinates || !BookingState?.userCoordinates) {
-    console.warn('Both company baseline and user coordinates are required for distance calculation');
+    bookingDebug('Both company baseline and user coordinates are required for distance calculation');
     return;
   }
 
   const companyPos = L.latLng(BookingState.companyBaseCoordinates.lat, BookingState.companyBaseCoordinates.lng);
   const userPos = L.latLng(BookingState.userCoordinates.lat, BookingState.userCoordinates.lng);
 
-  console.log('🧮 Calculating realistic distance and fare');
+  bookingDebug('🧮 Calculating realistic distance and fare');
 
   // Try to get actual route distance from OSRM
   getActualRoute(companyPos, userPos)
@@ -4067,7 +4178,7 @@ function calculateDistanceAndFare(requestToken = routeRequestToken) {
       if (routeData && routeData.distance) {
         // Use actual route distance from OSRM
         distance = routeData.distance;
-        console.log('🛣️ Using actual route distance:', distance.toFixed(2), 'km');
+        bookingDebug('🛣️ Using actual route distance:', distance.toFixed(2), 'km');
 
         // Calculate realistic duration
         const trafficFactor = getTrafficFactor();
@@ -4080,7 +4191,7 @@ function calculateDistanceAndFare(requestToken = routeRequestToken) {
           userPos.lat, userPos.lng
         );
         distance = straightDistance * 1.4; // Apply road factor
-        console.log('📏 Using calculated distance:', distance.toFixed(2), 'km');
+        bookingDebug('📏 Using calculated distance:', distance.toFixed(2), 'km');
 
         // Calculate realistic duration for fallback
         const trafficFactor = getTrafficFactor();
@@ -4106,7 +4217,7 @@ function calculateDistanceAndFare(requestToken = routeRequestToken) {
         scheduleBookingProgressSave();
       }
 
-      console.log('📊 Realistic calculation complete:', {
+      bookingDebug('📊 Realistic calculation complete:', {
         distance: distance.toFixed(2) + ' km',
         trafficFactor: trafficFactor,
         billableDistance: distance.toFixed(1) + ' km',
@@ -4122,7 +4233,7 @@ function calculateDistanceAndFare(requestToken = routeRequestToken) {
     })
     .catch(error => {
       if (requestToken !== routeRequestToken) return;
-      console.warn('Route calculation failed, using enhanced fallback:', error);
+      bookingDebug('Route calculation failed, using enhanced fallback:', error);
 
       // Enhanced fallback calculation
       const straightDistance = calculateHaversineDistance(
@@ -4186,7 +4297,7 @@ function getTrafficFactor() {
   const hour = now.getHours();
   const day = now.getDay(); // 0 = Sunday, 6 = Saturday
 
-  console.log(`🕐 Getting traffic factor for ${day === 0 || day === 6 ? 'weekend' : 'weekday'} at ${hour}:00`);
+  bookingDebug(`🕐 Getting traffic factor for ${day === 0 || day === 6 ? 'weekend' : 'weekday'} at ${hour}:00`);
 
   // Weekend traffic patterns (lighter overall)
   if (day === 0 || day === 6) {
@@ -4248,7 +4359,7 @@ function getRoadConditionFactor(routeData) {
   // Philippines-specific factors
   roadFactor *= 1.1; // General road condition factor for PH
 
-  console.log('🛣️ Road condition factor:', roadFactor);
+  bookingDebug('🛣️ Road condition factor:', roadFactor);
   return roadFactor;
 }
 
@@ -4287,7 +4398,7 @@ function getRealisticAverageSpeed(baseSpeedKmh, trafficFactor, roadConditionFact
   // Ensure minimum and maximum speeds
   effectiveSpeed = Math.max(5, Math.min(50, effectiveSpeed));
 
-  console.log(`🚗 Realistic speed: ${effectiveSpeed.toFixed(1)} km/h (traffic: ${trafficFactor}, road: ${roadConditionFactor})`);
+  bookingDebug(`🚗 Realistic speed: ${effectiveSpeed.toFixed(1)} km/h (traffic: ${trafficFactor}, road: ${roadConditionFactor})`);
 
   return effectiveSpeed;
 }
@@ -4353,7 +4464,7 @@ function calculateRealisticDuration(routeData, trafficFactor) {
   // Ensure reasonable minimum and maximum
   durationMinutes = Math.max(15, Math.min(180, durationMinutes)); // 15 min to 3 hours max
 
-  console.log(`⏱️ Realistic duration: ${durationMinutes} min`, {
+  bookingDebug(`⏱️ Realistic duration: ${durationMinutes} min`, {
     distance: `${distance.toFixed(1)} km`,
     baseSpeed: `${baseSpeed.toFixed(1)} km/h`,
     trafficMultiplier: trafficMultiplier.toFixed(2),
@@ -4422,7 +4533,7 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
   const routeMethodElement = document.getElementById('serviceRouteMethod');
   const fitRouteButton = document.getElementById('fitServiceRouteBtn');
 
-  console.log('📍 Updating distance info:', { distance, fare, duration });
+  bookingDebug('📍 Updating distance info:', { distance, fare, duration });
 
   const durationText = duration > 60
     ? `${Math.floor(duration / 60)}h ${duration % 60}min`
@@ -4454,7 +4565,7 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
   const hasValidFare = fare && fare > 0;
   const hasValidDuration = duration && duration > 0;
 
-  console.log('🔍 Auto-advance check:', {
+  bookingDebug('🔍 Auto-advance check:', {
     hasValidDistance,
     hasValidFare,
     hasValidDuration,
@@ -4463,7 +4574,7 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
 
   // Check if distance calculation is complete and auto-advance to next step
   if (hasValidDistance && hasValidFare && hasValidDuration) {
-    console.log('✅ Distance and fare calculation complete, preparing to auto-advance');
+    bookingDebug('✅ Distance and fare calculation complete, preparing to auto-advance');
 
     // Show success feedback immediately
     showLocationStepComplete();
@@ -4473,7 +4584,7 @@ function updateDistanceInfo(distance, fare, duration, isRoadRoute = true) {
       autoAdvanceToNextStep();
     }, 2000);
   } else {
-    console.log('⏳ Distance calculation not yet complete, waiting...', {
+    bookingDebug('⏳ Distance calculation not yet complete, waiting...', {
       distance,
       fare,
       duration
@@ -4488,7 +4599,7 @@ function autoAdvanceToNextStep() {
   const currentStep = document.querySelector('.booking-step:not(.d-none)');
   const currentStepNumber = currentStep ? currentStep.dataset.step : 'unknown';
 
-  console.log('🔍 Auto-advance check:', {
+  bookingDebug('🔍 Auto-advance check:', {
     currentStep: currentStepNumber,
     targetStep: '4'
   });
@@ -4505,12 +4616,12 @@ function autoAdvanceToNextStep() {
       !distanceElement.textContent.includes('Detecting');
 
     if (hasDistanceContent && hasFareContent && isNotDetecting) {
-      console.log('⏹ Step 3 location set; waiting for Next Step button');
+      bookingDebug('⏹ Step 3 location set; waiting for Next Step button');
     } else {
-      console.log('⏳ Distance calculation not yet complete, waiting...');
+      bookingDebug('⏳ Distance calculation not yet complete, waiting...');
     }
   } else {
-    console.log('ℹ️ Not on Step 3, skipping auto-advance');
+    bookingDebug('ℹ️ Not on Step 3, skipping auto-advance');
   }
 }
 
@@ -4533,27 +4644,27 @@ function showLocationStepComplete() {
     distancePanel.style.backgroundColor = '#f8fff9';
   }
 
-  console.log('✅ Location step completion feedback shown');
+  bookingDebug('✅ Location step completion feedback shown');
 }
 
 /**
  * Setup schedule selection with auto-progress
  */
 function setupScheduleAutoProgress() {
-  console.log('📅 Setting up schedule auto-progress');
+  bookingDebug('📅 Setting up schedule auto-progress');
 
   setupCalendarTypeSelection();
   setupDateSelection();
   setupTimeSlotSelection();
 
-  console.log('✅ Schedule auto-progress setup complete');
+  bookingDebug('✅ Schedule auto-progress setup complete');
 }
 
 /**
  * Setup Step 5: Schedule with enhanced functionality
  */
 function setupStep5() {
-  console.log('📅 Setting up Step 5: Schedule');
+  bookingDebug('📅 Setting up Step 5: Schedule');
 
   // Initialize enhanced calendar state
   initializeCalendarState();
@@ -4579,11 +4690,11 @@ function setupStep5() {
   // Load technician schedule for enhanced functionality
   if (BookingState.selectedTechnicianId) {
     loadTechnicianScheduleEnhanced().catch(error => {
-      console.warn('Failed to load technician schedule on Step 5 init:', error);
+      bookingDebug('Failed to load technician schedule on Step 5 init:', error);
     });
   }
 
-  console.log('✅ Enhanced Step 5 setup complete with professional scheduling');
+  bookingDebug('✅ Enhanced Step 5 setup complete with professional scheduling');
 }
 
 /**
@@ -4598,7 +4709,7 @@ function setupCalendarTypeSelection() {
   const manualCalendar = document.getElementById('manualCalendar');
   const modeSelection = document.getElementById('modeSelection');
 
-  console.log('🔍 Looking for calendar elements (manual-only enforcement):', {
+  bookingDebug('🔍 Looking for calendar elements (manual-only enforcement):', {
     suggestedWrapper: !!suggestedWrapper,
     manualCalendar: !!manualCalendar,
     modeSelection: !!modeSelection
@@ -4637,7 +4748,7 @@ function setupCalendarTypeSelection() {
     });
   }
 
-  console.log('✅ Calendar type set to manual (AI suggested hidden)');
+  bookingDebug('✅ Calendar type set to manual (AI suggested hidden)');
 }
 
 /**
@@ -4675,10 +4786,10 @@ async function loadAvailableDates(modeOverride = null) {
     serviceId = state.service?._id || state.service?.slug || null;
   }
 
-  console.log('🔍 loadAvailableDates resolved serviceId:', serviceId);
+  bookingDebug('🔍 loadAvailableDates resolved serviceId:', serviceId);
 
   if (!serviceId && totalSelectedDuration <= 0) {
-    console.warn('⚠️ Technician or service not selected:', {
+    bookingDebug('⚠️ Technician or service not selected:', {
       technicianId,
       serviceId,
       BookingState: typeof BookingState !== 'undefined' ? {
@@ -4693,7 +4804,7 @@ async function loadAvailableDates(modeOverride = null) {
     return;
   }
 
-  console.log('📅 Loading available dates...', { technicianId, serviceId });
+  bookingDebug('📅 Loading available dates...', { technicianId, serviceId });
 
   try {
     // Get current calendar type selection - use BookingState or default
@@ -4704,7 +4815,7 @@ async function loadAvailableDates(modeOverride = null) {
       mode = state.mode === 'manual' ? 'manual' : 'ai-suggested';
     }
 
-    console.log(`📅 Loading dates in ${mode} mode`);
+    bookingDebug(`📅 Loading dates in ${mode} mode`);
 
     // Explicit aggregate duration is authoritative for Core-only,
     // Repair-only, and Mixed carts. quantity=1 prevents double counting.
@@ -4722,7 +4833,6 @@ async function loadAvailableDates(modeOverride = null) {
     }
 
     const data = await response.json();
-    console.log('📅 Available dates response:', data);
 
     // Store scheduling info in both state systems for compatibility
     if (typeof BookingState !== 'undefined') {
@@ -4833,7 +4943,7 @@ function displayAvailableDates(availableDates, mode = 'ai-suggested') {
     : (manualDatesContainer || calendarGrid);
 
   if (!activeContainer) {
-    console.warn(`⚠️ Container not found for mode: ${mode}`);
+    bookingDebug(`⚠️ Container not found for mode: ${mode}`);
     return;
   }
 
@@ -4893,7 +5003,7 @@ function displayAvailableDates(availableDates, mode = 'ai-suggested') {
     activeContainer.appendChild(dateButton);
   });
 
-  console.log(`✅ Displayed ${availableDates.length} available dates in ${mode} mode`);
+  bookingDebug(`✅ Displayed ${availableDates.length} available dates in ${mode} mode`);
 }
 
 /**
@@ -4927,11 +5037,11 @@ function formatTime12h(time24) {
 async function loadTimeSlots(date) {
   const totalDuration = selectedBookingDurationMinutes();
   if (!BookingState.selectedServiceId && totalDuration <= 0) {
-    console.warn('⚠️ Service not selected');
+    bookingDebug('⚠️ Service not selected');
     return;
   }
 
-  console.log('🕐 Loading time slots for date:', date);
+  bookingDebug('🕐 Loading time slots for date:', date);
 
   try {
     const params = new URLSearchParams({ date, duration: String(totalDuration), quantity: '1' });
@@ -4946,7 +5056,6 @@ async function loadTimeSlots(date) {
     }
 
     const data = await response.json();
-    console.log('🕐 Time slots response:', data);
 
     // Check if booking is blocked (exceeds working hours)
     if (data.blocked) {
@@ -5032,12 +5141,12 @@ function displayTimeSlots(timeSlots) {
  */
 async function loadTechnicianScheduleEnhanced() {
   if (!BookingState.selectedTechnicianId) {
-    console.warn('⚠️ No technician selected for schedule loading');
+    bookingDebug('⚠️ No technician selected for schedule loading');
     return;
   }
 
   try {
-    console.log('📅 Loading enhanced technician schedule for:', BookingState.selectedTechnicianId);
+    bookingDebug('📅 Loading enhanced technician schedule for:', BookingState.selectedTechnicianId);
 
     let url = "/api/services/technician-schedule";
     if (BookingState.selectedTechnicianId) {
@@ -5048,11 +5157,10 @@ async function loadTechnicianScheduleEnhanced() {
     if (!resp.ok) throw new Error(`status=${resp.status}`);
 
     const json = await resp.json();
-    console.log('📅 Technician schedule loaded:', json);
 
     // Update schedule state for slot generation
     if (typeof BookingState !== 'undefined') {
-      console.log('📅 Updating schedule state with:', {
+      bookingDebug('📅 Updating schedule state with:', {
         workingDays: json.workingDays,
         nonWorkingWeekdays: json.nonWorkingWeekdays,
         restDates: json.restDates
@@ -5064,7 +5172,7 @@ async function loadTechnicianScheduleEnhanced() {
         restDates: new Set(Array.isArray(json.restDates) ? json.restDates : [])
       };
 
-      console.log('✅ Schedule state updated:', {
+      bookingDebug('✅ Schedule state updated:', {
         workingDaysCount: BookingState.scheduleState.workingDays.length,
         nonWorkingWeekdaysCount: BookingState.scheduleState.nonWorkingWeekdays.length,
         restDatesCount: BookingState.scheduleState.restDates.size
@@ -5072,7 +5180,7 @@ async function loadTechnicianScheduleEnhanced() {
 
       // Apply conservative default schedule if none defined (Mon, Wed, Thu, Fri only)
       if (BookingState.scheduleState.workingDays.length === 0) {
-        console.log('📅 Using conservative default schedule (8 AM - 5 PM, Mon/Wed/Thu/Fri only)');
+        bookingDebug('📅 Using conservative default schedule (8 AM - 5 PM, Mon/Wed/Thu/Fri only)');
         BookingState.scheduleState.workingDays = [];
         const workingDays = [1, 3, 4, 5]; // Monday, Wednesday, Thursday, Friday
         workingDays.forEach(d => {
@@ -5090,7 +5198,7 @@ async function loadTechnicianScheduleEnhanced() {
       }
     }
 
-    console.log('✅ Enhanced technician schedule loaded successfully');
+    bookingDebug('✅ Enhanced technician schedule loaded successfully');
 
     // Schedule state now respects the actual technician schedule from the backend
     // (no hardcoded day-of-week overrides)
@@ -5132,14 +5240,14 @@ async function loadTechnicianScheduleEnhanced() {
  * Render enhanced time slots for a specific date
  */
 async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = {}) {
-  console.log('🕐 Rendering enhanced time slots for date:', date);
+  bookingDebug('🕐 Rendering enhanced time slots for date:', date);
 
   const timeSelection = document.getElementById('timeSelection');
   const timeSlots = document.getElementById('timeSlots');
   const timeNotice = document.getElementById('timeNotice');
 
   if (!timeSelection || !timeSlots) {
-    console.warn('⚠️ Time selection elements not found');
+    bookingDebug('⚠️ Time selection elements not found');
     return;
   }
 
@@ -5155,7 +5263,7 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
     try {
       await loadTechnicianScheduleEnhanced();
     } catch (e) {
-      console.warn("Failed to preload schedule", e);
+      bookingDebug("Failed to preload schedule", e);
       if (timeNotice) {
         timeNotice.textContent = "Unable to load schedule. Please try again.";
       }
@@ -5213,13 +5321,12 @@ async function renderTimeSlotsForDateEnhanced(date, { scrollToSlots = false } = 
       url.searchParams.set("technicianId", BookingState.selectedTechnicianId);
     }
 
-    console.log('🕐 Fetching time slots from:', url.toString());
+    bookingDebug('🕐 Fetching time slots from:', url.toString());
 
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
 
     const data = await resp.json();
-    console.log('🕐 Time slots response:', data);
 
     // Display the time slots
     displayTimeSlots(data.timeSlots || []);
@@ -5270,7 +5377,7 @@ function bindCalendarNavigationEnhanced() {
   const calendarNavButtons = document.querySelectorAll('[data-calendar-nav]');
 
   if (!calendarNavButtons?.length) {
-    console.warn('⚠️ Calendar navigation buttons not found');
+    bookingDebug('⚠️ Calendar navigation buttons not found');
     return;
   }
 
@@ -5291,7 +5398,7 @@ function bindCalendarNavigationEnhanced() {
     });
   });
 
-  console.log('✅ Enhanced calendar navigation bound');
+  bookingDebug('✅ Enhanced calendar navigation bound');
 }
 
 /**
@@ -5313,7 +5420,7 @@ function initializeCalendarState() {
       selectedDate: null
     };
 
-    console.log('✅ Calendar state initialized');
+    bookingDebug('✅ Calendar state initialized');
   }
 }
 
@@ -5321,7 +5428,7 @@ function initializeCalendarState() {
  * Handle time slot selection
  */
 function selectTimeSlot(slot) {
-  console.log('🕐 Time slot selected:', slot);
+  bookingDebug('🕐 Time slot selected:', slot);
 
   // Update UI
   document.querySelectorAll('.time-slot-btn').forEach(btn => {
@@ -5350,7 +5457,7 @@ function selectTimeSlot(slot) {
   // Let the customer review the chosen time and use the visible next action.
   syncScheduleNextAction();
 
-  console.log('✅ Time slot selection complete');
+  bookingDebug('✅ Time slot selection complete');
 }
 
 /**
@@ -5384,7 +5491,7 @@ function showTimeSlotComplete() {
     }, 3000);
   }
 
-  console.log('✅ Time slot completion feedback shown');
+  bookingDebug('✅ Time slot completion feedback shown');
 }
 
 /**
@@ -5392,7 +5499,7 @@ function showTimeSlotComplete() {
  */
 function setupDateSelection() {
   // Additional date selection setup if needed
-  console.log('📅 Date selection handlers setup');
+  bookingDebug('📅 Date selection handlers setup');
 }
 
 /**
@@ -5400,14 +5507,14 @@ function setupDateSelection() {
  */
 function setupTimeSlotSelection() {
   // Additional time slot selection setup if needed
-  console.log('🕐 Time slot selection handlers setup');
+  bookingDebug('🕐 Time slot selection handlers setup');
 }
 
 /**
  * Setup review step with final submission
  */
 function setupReviewStep() {
-  console.log('📋 Setting up review step');
+  bookingDebug('📋 Setting up review step');
 
   // Update review content with booking details
   updateReviewContent();
@@ -5471,7 +5578,7 @@ function updateReviewContent() {
     const qty = s.quantity || 1;
     const price = s.unitPrice || s.price || 0;
     return sum + (price * qty);
-  }, 0) + (BookingState.travelFare || BookingState.fare || 0);
+  }, 0) + bookingTravelFare();
   BookingState.totalEstimatedPrice = reviewTotal;
   html += `<h6 class="mt-3">💰 Total Price</h6>
     <div class="fs-5 text-primary fw-bold">₱${reviewTotal.toLocaleString()}</div>`;
@@ -5484,7 +5591,7 @@ function updateReviewContent() {
  * Submit the booking
  */
 function submitBooking() {
-  console.log('🚀 Submitting booking...');
+  bookingDebug('🚀 Submitting booking...');
 
   // Get all booking data
   const bookingData = {
@@ -5496,7 +5603,6 @@ function submitBooking() {
     totalPrice: BookingState.totalEstimatedPrice
   };
 
-  console.log('Booking data:', bookingData);
 
   // Here you would typically send this to your backend
   // For now, just show a success message
@@ -5588,7 +5694,7 @@ function cacheDOMElements() {
   });
 
   // Log DOM caching summary
-  console.log('DOM Cache:', {
+  bookingDebug('DOM Cache:', {
     found: foundElements.length,
     missing: missingElements.length,
     missingElements: missingElements,
@@ -5596,9 +5702,9 @@ function cacheDOMElements() {
   });
 
   if (missingElements.length > 0) {
-    console.warn('Missing DOM elements:', missingElements);
+    bookingDebug('Missing DOM elements:', missingElements);
   } else {
-    console.log('All DOM elements cached successfully');
+    bookingDebug('All DOM elements cached successfully');
   }
 }
 
@@ -5610,7 +5716,7 @@ function loadServiceCatalog() {
     BookingState.catalog.coreServices = window.initialCatalog.coreServices || [];
     BookingState.catalog.repairServices = window.initialCatalog.repairs || [];
 
-    console.log('Services loaded from window.initialCatalog:', {
+    bookingDebug('Services loaded from window.initialCatalog:', {
       coreServices: BookingState.catalog.coreServices.length,
       repairServices: BookingState.catalog.repairServices.length
     });
@@ -5842,6 +5948,36 @@ function bookingServiceIcon(service, fallback = 'bi-gear-wide-connected') {
 
 function isAirconRelocationService(service) {
   return service?.slug === 'aircon-relocation' || /^aircon relocation$/i.test(String(service?.name || '').trim());
+}
+
+function hasAcceptedRelocationQuote() {
+  return (BookingState.selectedServices || []).some(item => item.relocation?.scope === 'custom_quote');
+}
+
+function pendingRelocationQuoteItem() {
+  return (BookingState.selectedServices || []).find(item =>
+    item.relocation?.scope === 'custom_quote' && !item.relocation?.requestId);
+}
+
+function syncRelocationDestination() {
+  const field = document.getElementById('relocationDestinationAddress');
+  const section = document.getElementById('relocationDestinationSection');
+  const item = pendingRelocationQuoteItem();
+  if (section) section.classList.toggle('d-none', !item);
+  document.getElementById('mapInfoPanel')?.classList.toggle('d-none', Boolean(item));
+  if (!field) return;
+  if (item) field.value = item.relocation.to?.address || '';
+  field.oninput = () => {
+    const current = pendingRelocationQuoteItem();
+    if (!current) return;
+    current.relocation.to = { ...current.relocation.to, address: field.value.trim() };
+    scheduleBookingProgressSave();
+    syncLocationContinueAction();
+  };
+}
+
+function bookingTravelFare() {
+  return hasAcceptedRelocationQuote() ? 0 : (Number(BookingState.travelFare ?? BookingState.fare ?? 0) || 0);
 }
 
 function createServiceCard(service, type) {
@@ -6544,7 +6680,7 @@ function handleServiceCardClick(event) {
     return;
   }
 
-  console.log('Service card clicked:', {
+  bookingDebug('Service card clicked:', {
     serviceId: addBtn.dataset.serviceId,
     serviceType: addBtn.dataset.serviceType,
     serviceName: addBtn.dataset.serviceName,
@@ -6590,7 +6726,7 @@ function handleServiceCardClick(event) {
  */
 function showCombinedQuantityHpModal(service) {
   setServicePickerGuide('configure');
-  console.log('showCombinedQuantityHpModal called for:', service.name, {
+  bookingDebug('showCombinedQuantityHpModal called for:', service.name, {
     isAirconService: service.isAirconService,
     hasAirconTypes: !!(service.airconTypes && service.airconTypes.length > 0),
     airconTypesCount: service.airconTypes?.length || 0,
@@ -6638,7 +6774,7 @@ function showCombinedQuantityHpModal(service) {
   const backToTypeBtn = document.getElementById('cfgBackToType');
   const singleQuantitySection = DOM.quantityModalInput?.closest('.mb-3');
 
-  console.log('Modal elements check:', {
+  bookingDebug('Modal elements check:', {
     modal: !!modal,
     serviceNameEl: !!serviceNameEl,
     serviceUnitEl: !!serviceUnitEl,
@@ -6668,7 +6804,7 @@ function showCombinedQuantityHpModal(service) {
   const pricingNoteEl = document.getElementById('pricingNoteSection');
   const issueDescriptionEl = document.getElementById('issueDescriptionSection');
 
-  console.log('Checking if repair service:', {
+  bookingDebug('Checking if repair service:', {
     serviceType: service.type,
     isRepair: service.type === 'repair' || service.type === 'repairServices',
     hasPricingNoteEl: !!pricingNoteEl,
@@ -6748,8 +6884,26 @@ function showCombinedQuantityHpModal(service) {
                 <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small mb-2"><input type="radio" name="relocationScope" value="same_property"> Nearby position on the same property</label>
                 <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small"><input type="radio" name="relocationScope" value="custom_quote"> Distant position or another address</label>
               </fieldset>
-              <div id="relocationCustomQuote" class="small mt-2 d-none" role="status">
-                This move needs a custom quote for transport, piping, and travel if needed. <a href="/contact?topic=relocation">Contact us</a> with the current and destination locations before booking.
+              <label class="form-label small fw-semibold mt-3" for="relocationAsset">Select a saved aircon (optional)</label>
+              <select class="form-select" id="relocationAsset" aria-describedby="relocationAssetHelp"><option value="">My aircon is not listed</option></select>
+              <small class="text-muted d-block mt-1" id="relocationAssetHelp">These are aircons recorded from your previous CALIDRO RACS purchases or services. Select one to link its service history. If yours is not listed, continue and enter the details you know.</small>
+              <div class="small text-primary mt-2 d-none" id="relocationAssetStatus" role="status" aria-live="polite"></div>
+              <div id="relocationSameProperty" class="d-none mt-3">
+                <p class="small text-muted mb-2">The address is selected later. Tell us where the unit is now and where it will go on the same property. One unit per relocation request.</p>
+                <label class="form-label small fw-semibold" for="relocationFromPosition">From · current position</label>
+                <input class="form-control mb-2" id="relocationFromPosition" maxlength="500" placeholder="e.g. Living room, ground floor">
+                <label class="form-label small fw-semibold" for="relocationToPosition">To · new position</label>
+                <input class="form-control" id="relocationToPosition" maxlength="500" placeholder="e.g. Bedroom, ground floor">
+                <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label small fw-semibold" for="relocationSameModel">Model (optional)</label><input class="form-control" id="relocationSameModel" maxlength="80" placeholder="Unit model"></div><div class="col-sm-6"><label class="form-label small fw-semibold" for="relocationSameSerial">Serial number (optional)</label><input class="form-control" id="relocationSameSerial" maxlength="100" placeholder="Unit serial number"></div></div>
+              </div>
+              <div id="relocationCustomQuote" class="mt-3 d-none">
+                <p class="small text-muted mb-2">Custom Quote Required. You will enter the current and new addresses in the location step, then choose a preferred date. Staff will review the move before any payment or technician assignment.</p>
+                <label class="form-label small fw-semibold" for="relocationModel">Model (optional)</label>
+                <input class="form-control mb-2" id="relocationModel" maxlength="80" placeholder="Model from the unit label, if known">
+                <label class="form-label small fw-semibold" for="relocationSerial">Serial number (optional)</label>
+                <input class="form-control mb-2" id="relocationSerial" maxlength="100" placeholder="Serial number from the unit label">
+                <label class="form-label small fw-semibold" for="relocationNotes">Access, piping, or other details (optional)</label>
+                <textarea class="form-control" id="relocationNotes" rows="2" maxlength="1000" placeholder="e.g. Second floor, narrow access, extra piping"></textarea>
               </div>
             </div>
           </div>`;
@@ -6757,11 +6911,26 @@ function showCombinedQuantityHpModal(service) {
           input.addEventListener('change', () => {
             const needsCustomQuote = input.checked && input.value === 'custom_quote';
             document.getElementById('relocationCustomQuote')?.classList.toggle('d-none', !needsCustomQuote);
+            document.getElementById('relocationSameProperty')?.classList.toggle('d-none', input.value !== 'same_property');
+            if (modalSubtitle) modalSubtitle.textContent = needsCustomQuote
+              ? 'Share any unit details you know. Staff can verify the rest before quoting.'
+              : 'Choose the brand, aircon type, and HP to get the right price.';
+            if (needsCustomQuote && BookingState.unitAssistanceMode) {
+              BookingState.unitAssistanceMode = false;
+              document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+              const brandSection = document.getElementById('brandSection');
+              if (brandSection) brandSection.style.display = 'block';
+              document.getElementById('cfgBackToType')?.classList.add('d-none');
+            }
+            if (!needsCustomQuote && document.getElementById('brandInput')?.value === '__unknown__') {
+              showUnitAssistancePanel(1);
+            }
             updateCombinedPrice();
             syncConfigurationPrimaryAction();
             clearModalError();
           });
         });
+        loadRelocationAssets();
         pricingNoteEl.classList.remove('d-none');
       } else {
         pricingNoteEl.classList.add('d-none');
@@ -6785,7 +6954,7 @@ function showCombinedQuantityHpModal(service) {
   const hasLegacyHpPricing = service.isAirconService && service.hpPricing && service.hpPricing.length > 0;
   const isAirconService = hasAirconTypes || hasLegacyHpPricing;
 
-  console.log('Service type analysis:', {
+  bookingDebug('Service type analysis:', {
     hasAirconTypes,
     hasLegacyHpPricing,
     isAirconService
@@ -6888,7 +7057,7 @@ function showCombinedQuantityHpModal(service) {
 
     // Add immediate visibility check
     setTimeout(() => {
-      console.log('Modal visibility check:', {
+      bookingDebug('Modal visibility check:', {
         display: window.getComputedStyle(modal).display,
         visibility: window.getComputedStyle(modal).visibility,
         opacity: window.getComputedStyle(modal).opacity,
@@ -7004,6 +7173,13 @@ function renderAirconTypeSelection(airconTypes, container) {
 
       // Show HP options for this type
       renderHpOptionsForType(type, container);
+      if (isAirconRelocationService(BookingState.currentService) && document.getElementById('relocationAsset')?.value) {
+        const prefilledHp = selectSavedRelocationHp(type, container);
+        const status = document.getElementById('relocationAssetStatus');
+        if (status) status.textContent = prefilledHp
+          ? `Saved aircon details are filled: ${BookingState.selectedBrand || 'brand needed'}, ${type.name}, and ${document.getElementById('relocationAsset').dataset.savedHp} HP. Review the estimate and move positions.`
+          : `${type.name} is selected. Choose the HP below if it is not available in your saved record.`;
+      }
       updateCombinedPrice();
     });
     typeCol.appendChild(typeCard);
@@ -7067,17 +7243,6 @@ function renderAirconTypeSelection(airconTypes, container) {
   }
   if (changeButton) changeButton.addEventListener('click', () => showAirconTypeStep(container));
   hpSectionDiv.querySelector('#cfgUnknownHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3));
-  const unknownBrandButton = document.getElementById('cfgUnknownBrandBtn');
-  if (unknownBrandButton && !unknownBrandButton.dataset.wired) {
-    unknownBrandButton.dataset.wired = '1';
-    unknownBrandButton.addEventListener('click', () => {
-      BookingState.selectedBrand = "I don't know";
-      const brandInput = document.getElementById('brandInput');
-      if (brandInput) brandInput.value = "I don't know";
-      showUnitAssistancePanel(1);
-    });
-  }
-
 }
 
 function notifyServiceConfigurationStep(step, complete = false) {
@@ -7149,6 +7314,14 @@ async function submitUnitAssistanceRequest(service, done) {
       hp: null, quantity,
       notes: document.getElementById('unitAssistanceNotes')?.value || '',
     };
+    if (isAirconRelocationService(service)) payload.relocation = {
+      scope: 'same_property',
+      fromPosition: document.getElementById('relocationFromPosition')?.value.trim() || '',
+      toPosition: document.getElementById('relocationToPosition')?.value.trim() || '',
+      assetId: document.getElementById('relocationAsset')?.value || null,
+      model: document.getElementById('relocationSameModel')?.value.trim() || '',
+      serialNumber: document.getElementById('relocationSameSerial')?.value.trim() || '',
+    };
     const response = await fetch('/api/unit-assistance', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
@@ -7161,6 +7334,157 @@ async function submitUnitAssistanceRequest(service, done) {
     if (button) button.disabled = false;
     done();
   }
+}
+
+async function submitRelocationQuoteRequest() {
+  const item = pendingRelocationQuoteItem();
+  if (!item) return false;
+  if (BookingState.relocationQuoteSubmitting) return false;
+  const fromAddress = String(BookingState.customerLocation?.address || '').trim();
+  const toAddress = String(item.relocation?.to?.address || '').trim();
+  const preferredDate = serializeBookingDate(BookingState.selectedDate || BookingState.scheduleDate);
+  if (fromAddress.length < 8 || toAddress.length < 8 || !preferredDate) {
+    showError('Confirm the current and new addresses and choose a preferred date.');
+    return false;
+  }
+  BookingState.relocationQuoteSubmitting = true;
+  try {
+    const response = await fetch('/api/relocations', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        serviceId: item.serviceId, scope: 'custom_quote',
+        assetId: item.relocation.assetId || null,
+        from: { address: fromAddress }, to: { address: toAddress }, preferredDate,
+        unit: {
+          brand: item.brand === "I don't know" ? '' : (item.brand || ''),
+          airconType: item.airconType || '',
+          hp: item.hp || null,
+          model: item.relocation.model || '',
+          serialNumber: item.relocation.serialNumber || '',
+        },
+        notes: item.relocation.notes || '',
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Could not submit the relocation request.');
+    clearBookingProgress();
+    window.location.assign('/relocation-requests');
+    return true;
+  } catch (error) {
+    BookingState.relocationQuoteSubmitting = false;
+    showError(error.message);
+    return false;
+  }
+}
+
+function selectSavedRelocationHp(airconType, container) {
+  const savedHp = Number(document.getElementById('relocationAsset')?.dataset.savedHp);
+  if (!savedHp || !(airconType.hpPricing || []).some(tier => Number(tier.hp) === savedHp)) return false;
+  const checkbox = Array.from(container?.querySelectorAll('#hpOptionsForType .hp-checkbox') || [])
+    .find(input => Number(input.value) === savedHp);
+  if (!checkbox) return false;
+  checkbox.checked = true;
+  checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+function applySavedRelocationAsset(asset) {
+  const service = BookingState.currentService;
+  if (!isAirconRelocationService(service)) return;
+  const equipment = asset?.equipment || {};
+  const status = document.getElementById('relocationAssetStatus');
+  const brand = String(equipment.brand || '').trim();
+  const container = activeAirconConfigurationContainer();
+  const assetSelect = document.getElementById('relocationAsset');
+  const capacityUnit = String(equipment.capacityUnit || 'HP').trim().toUpperCase();
+  const savedHp = capacityUnit === 'HP' ? Number.parseFloat(String(equipment.capacity || '')) : NaN;
+  if (assetSelect) assetSelect.dataset.savedHp = Number.isFinite(savedHp) && savedHp > 0 ? String(savedHp) : '';
+  if (assetSelect) assetSelect.dataset.savedType = String(equipment.applianceType || equipment.applianceTypeName || '').trim();
+  const customQuote = document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
+
+  for (const [id, value] of [
+    ['relocationSameModel', equipment.model], ['relocationModel', equipment.model],
+    ['relocationSameSerial', equipment.serialNumber], ['relocationSerial', equipment.serialNumber],
+  ]) {
+    const field = document.getElementById(id);
+    if (!field) continue;
+    if (asset) {
+      field.value = String(value || '').trim();
+      field.dataset.savedAssetValue = field.value;
+    } else if (field.value === field.dataset.savedAssetValue) {
+      field.value = '';
+      delete field.dataset.savedAssetValue;
+    }
+  }
+
+  if (!asset || !brand) {
+    showBrandConfigurationStep(container);
+    if (status) {
+      status.textContent = asset
+        ? (customQuote ? 'No brand is recorded for this aircon. Choose it if known, or continue so staff can check.' : 'No brand is recorded for this aircon. Choose the brand below.')
+        : '';
+      status.classList.toggle('d-none', !asset);
+    }
+    syncConfigurationPrimaryAction();
+    return;
+  }
+
+  BookingState.selectedBrand = brand;
+  showBrandSection(service);
+  const savedType = String(equipment.applianceType || equipment.applianceTypeName || '').trim().toLowerCase();
+  const catalogType = (service.airconTypes || []).find(type =>
+    String(type.type || '').toLowerCase() === savedType || String(type.name || '').toLowerCase() === savedType);
+  showAirconTypeStep(container);
+
+  if (!catalogType) {
+    if (status) {
+      status.textContent = customQuote
+        ? `${brand} is filled from your saved aircon. Add the type and HP if known, or continue to locations.`
+        : `${brand} is filled from your saved aircon. Choose its aircon type below; we will reuse its saved HP if available.`;
+      status.classList.remove('d-none');
+    }
+    return;
+  }
+
+  BookingState.selectedAirconType = catalogType;
+  BookingState.applianceType = catalogType.type;
+  BookingState.applianceTypeName = catalogType.name;
+  const typeCard = Array.from(container?.querySelectorAll('.aircon-type-card') || [])
+    .find(card => card.dataset.type === catalogType.type);
+  typeCard?.classList.add('selected');
+  typeCard?.setAttribute('aria-pressed', 'true');
+  renderHpOptionsForType(catalogType, container);
+
+  const prefilledHp = selectSavedRelocationHp(catalogType, container);
+  if (status) {
+    status.textContent = prefilledHp
+      ? `${brand}, ${catalogType.name}, and ${savedHp} HP were filled from your saved aircon. Review the estimate and move positions.`
+      : customQuote
+        ? `${brand} and ${catalogType.name} were filled from your saved aircon. Add HP if known, or continue to locations.`
+        : `${brand} and ${catalogType.name} were filled from your saved aircon. Choose the HP below.`;
+    status.classList.remove('d-none');
+  }
+  syncConfigurationPrimaryAction();
+}
+
+async function loadRelocationAssets() {
+  const select = document.getElementById('relocationAsset');
+  if (!select) return;
+  try {
+    const response = await fetch('/api/maintenance/customer', { credentials: 'same-origin' });
+    if (!response.ok) return;
+    const result = await response.json();
+    const assets = (result.assets || []).filter(asset => /air|condition/i.test(asset.equipment?.category || 'Air Conditioning'));
+    const assetsById = new Map(assets.map(asset => [String(asset._id), asset]));
+    assets.forEach(asset => {
+      const option = document.createElement('option');
+      option.value = asset._id;
+      option.textContent = [asset.equipment?.brand, asset.equipment?.model, asset.equipment?.serialNumber].filter(Boolean).join(' · ') || asset.equipment?.unitLabel || 'Aircon unit';
+      select.appendChild(option);
+    });
+    select.addEventListener('change', () => applySavedRelocationAsset(assetsById.get(select.value) || null));
+  } catch (_) { /* Unit selection remains optional. */ }
 }
 
 function isAirconConfigurationComplete() {
@@ -7179,7 +7503,29 @@ function usesAirconTypeWizard(service = BookingState.currentService) {
 
 function advanceFromBrandSelection() {
   if (!usesAirconTypeWizard() || !String(BookingState.selectedBrand || '').trim()) return false;
-  showAirconTypeStep(activeAirconConfigurationContainer());
+  const container = activeAirconConfigurationContainer();
+  const savedAsset = document.getElementById('relocationAsset');
+  const savedType = String(savedAsset?.dataset.savedType || '').toLowerCase();
+  const catalogType = isAirconRelocationService(BookingState.currentService) && savedAsset?.value && savedType
+    ? (BookingState.currentService.airconTypes || []).find(type =>
+      String(type.type || '').toLowerCase() === savedType || String(type.name || '').toLowerCase() === savedType)
+    : null;
+  showAirconTypeStep(container);
+  if (catalogType) {
+    BookingState.selectedAirconType = catalogType;
+    BookingState.applianceType = catalogType.type;
+    BookingState.applianceTypeName = catalogType.name;
+    const typeCard = Array.from(container?.querySelectorAll('.aircon-type-card') || [])
+      .find(card => card.dataset.type === catalogType.type);
+    typeCard?.classList.add('selected');
+    typeCard?.setAttribute('aria-pressed', 'true');
+    renderHpOptionsForType(catalogType, container);
+    const prefilledHp = selectSavedRelocationHp(catalogType, container);
+    const status = document.getElementById('relocationAssetStatus');
+    if (status) status.textContent = prefilledHp
+      ? `Saved ${catalogType.name} and HP were filled. Review the estimate and move positions.`
+      : `Saved ${catalogType.name} was filled. Choose the HP below.`;
+  }
   return true;
 }
 
@@ -7232,12 +7578,12 @@ function syncConfigurationPrimaryAction() {
     const priceValue = document.getElementById('quantityModalEstimatedPrice');
     const priceSub = document.getElementById('cfgPriceSub');
     if (priceLabel) priceLabel.textContent = scope === 'custom_quote' ? 'Custom quote' : 'Same-property estimate';
-    if (priceSub) priceSub.textContent = scope === 'custom_quote' ? 'Contact us with both locations' : 'Updates as you choose';
+    if (priceSub) priceSub.textContent = scope === 'custom_quote' ? 'Staff will review both locations' : 'Updates as you choose';
     if (scope === 'custom_quote' && priceValue) priceValue.textContent = 'After review';
     if (scope !== 'same_property') {
       button.disabled = scope !== 'custom_quote';
       button.innerHTML = scope === 'custom_quote'
-        ? '<i class="bi bi-envelope me-2"></i>Contact us for a quote'
+        ? '<i class="bi bi-arrow-right me-2"></i>Continue to locations'
         : '<i class="bi bi-geo-alt me-2"></i>Choose the move location';
       button.style.setProperty('opacity', scope === 'custom_quote' ? '1' : '0.58', 'important');
       button.style.setProperty('cursor', scope === 'custom_quote' ? 'pointer' : 'not-allowed', 'important');
@@ -7326,16 +7672,6 @@ function showBrandSection(service) {
   const select = document.getElementById('brandInput');
   const custom = document.getElementById('brandInputCustom');
   if (!section || !select) return;
-  const unknownBrandButton = document.getElementById('cfgUnknownBrandBtn');
-  if (unknownBrandButton && !unknownBrandButton.dataset.wired) {
-    unknownBrandButton.dataset.wired = '1';
-    unknownBrandButton.addEventListener('click', () => {
-      BookingState.selectedBrand = "I don't know";
-      select.value = "I don't know";
-      showUnitAssistancePanel(1);
-    });
-  }
-
   // Preserve any brand the user already chose (e.g. selected before picking an aircon type)
   const prevBrand = BookingState.selectedBrand || select.value || (custom && !custom.classList.contains('d-none') ? custom.value : '');
   const prevIsCustom = custom && !custom.classList.contains('d-none') && custom.value;
@@ -7347,13 +7683,17 @@ function showBrandSection(service) {
   const brands = (service && Array.isArray(service.brands)) ? service.brands : [];
   select.innerHTML = '<option value="">Choose a brand…</option>' +
     brands.map(b => `<option value="${String(b).replace(/"/g, '&quot;')}">${b}</option>`).join('') +
-    '<option value="I don\'t know">I don\'t know</option>' +
-    '<option value="__other__">Other brand</option>';
+    '<option value="__other__">Other brand</option>' +
+    '<option value="__unknown__">I don\'t know the unit details</option>';
 
   // Restore previous selection if it is still valid
   if (prevBrand) {
     let matched = false;
-    if (prevIsCustom) {
+    if (prevBrand === "I don't know") {
+      select.value = '__unknown__';
+      BookingState.selectedBrand = prevBrand;
+      matched = true;
+    } else if (prevIsCustom) {
       select.value = '__other__';
       if (custom) { custom.classList.remove('d-none'); custom.value = prevBrand; }
       BookingState.selectedBrand = prevBrand;
@@ -7383,6 +7723,19 @@ function showBrandSection(service) {
     select.dataset.wired = '1';
     select.addEventListener('change', () => {
       clearModalError();
+      if (select.value === '__unknown__') {
+        BookingState.selectedBrand = "I don't know";
+        if (custom) { custom.classList.add('d-none'); custom.value = ''; }
+        if (isAirconRelocationService(BookingState.currentService) &&
+            document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote') {
+          BookingState.unitAssistanceMode = false;
+          document.getElementById('unitAssistancePanel')?.classList.add('d-none');
+          syncConfigurationPrimaryAction();
+          return;
+        }
+        showUnitAssistancePanel(1);
+        return;
+      }
       if (custom) {
         if (select.value === '__other__') {
           custom.classList.remove('d-none');
@@ -7397,7 +7750,6 @@ function showBrandSection(service) {
         BookingState.selectedBrand = select.value;
       }
       syncConfigurationPrimaryAction();
-      if (select.value === "I don't know") { showUnitAssistancePanel(1); return; }
       if (select.value && select.value !== '__other__' && advanceFromBrandSelection()) return;
       notifyServiceConfigurationStep(1, false);
     });
@@ -7578,7 +7930,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
   const quantityInput = card.querySelector('.hp-quantity-input');
   const quantityPrice = card.querySelector('.quantity-price');
 
-  console.log('Adding HP card event listeners:', {
+  bookingDebug('Adding HP card event listeners:', {
     hp: hpOption.hp,
     type: airconType.type,
     checkboxFound: !!checkbox,
@@ -7591,7 +7943,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
 
   // Checkbox change event
   checkbox.addEventListener('change', (e) => {
-    console.log('HP checkbox changed:', {
+    bookingDebug('HP checkbox changed:', {
       checked: e.target.checked,
       hp: hpOption.hp,
       price: hpOption.price,
@@ -7720,7 +8072,7 @@ function updateHpQuantityForType(hp, quantity, type) {
   if (hpSelection) {
     const oldQuantity = hpSelection.quantity;
     hpSelection.quantity = quantity;
-    console.log('Updated HP quantity:', {
+    bookingDebug('Updated HP quantity:', {
       hp: hpSelection.hp,
       type: hpSelection.airconType,
       oldQuantity: oldQuantity,
@@ -7827,7 +8179,7 @@ function addHpCardEventListeners(card, hpOption) {
 
   // Checkbox change event
   checkbox.addEventListener('change', (e) => {
-    console.log('HP checkbox changed:', {
+    bookingDebug('HP checkbox changed:', {
       checked: e.target.checked,
       hp: hpOption.hp,
       price: hpOption.price
@@ -8091,7 +8443,7 @@ function resetModalForNextUse() {
     DOM.quantityModalInput.value = 1;
   }
 
-  console.log('Reset modal for next use:', {
+  bookingDebug('Reset modal for next use:', {
     hasListener: confirmBtn?.hasAttribute('data-listener-attached'),
     disabled: confirmBtn?.disabled,
     buttonId: confirmBtn?.id,
@@ -8127,7 +8479,7 @@ function showEnterpriseModal(modalElement) {
   modalElement.classList.add('show');
   modalElement.classList.remove('hide');
 
-  console.log('Modal shown with enterprise-level styling:', {
+  bookingDebug('Modal shown with enterprise-level styling:', {
     display: modalElement.style.display,
     classList: modalElement.classList.toString()
   });
@@ -8163,7 +8515,7 @@ function showEnterpriseModal(modalElement) {
 
   // Check if modal is actually visible after styling
   const computedStyle = window.getComputedStyle(modalElement);
-  console.log('Modal visibility check after styling:', {
+  bookingDebug('Modal visibility check after styling:', {
     display: computedStyle.display,
     visibility: computedStyle.visibility,
     opacity: computedStyle.opacity,
@@ -8186,7 +8538,7 @@ function showEnterpriseModal(modalElement) {
 
     // Final check
     const finalStyle = window.getComputedStyle(modalElement);
-    console.log('Final modal visibility check:', {
+    bookingDebug('Final modal visibility check:', {
       display: finalStyle.display,
       visibility: finalStyle.visibility,
       opacity: finalStyle.opacity,
@@ -8351,7 +8703,7 @@ function showEnterpriseModal(modalElement) {
 
           // Get the current button (might be different from original due to cloning)
           const currentBtn = e.currentTarget || e.target;
-          console.log('Button click listener attached:', {
+          bookingDebug('Button click listener attached:', {
             disabled: currentBtn.disabled,
             hasListener: currentBtn.hasAttribute('data-listener-attached')
           });
@@ -8587,7 +8939,7 @@ function showEnterpriseModal(modalElement) {
   // PROFESSIONAL QUANTITY BUTTONS OVERRIDE - Fix for non-HP services
   setupQuantityButtonOverride(modalElement);
 
-  console.log('Modal element visibility check:', {
+  bookingDebug('Modal element visibility check:', {
     display: window.getComputedStyle(modalElement).display,
     visibility: window.getComputedStyle(modalElement).visibility,
     opacity: window.getComputedStyle(modalElement).opacity,
@@ -8607,7 +8959,7 @@ function setupQuantityButtonOverride(modalElement) {
   const increaseBtn = modalElement.querySelector('#quantityModalIncrease');
   const quantityInput = modalElement.querySelector('#quantityModalInput');
 
-  console.log('Quantity control elements found:', {
+  bookingDebug('Quantity control elements found:', {
     decreaseBtn: !!decreaseBtn,
     increaseBtn: !!increaseBtn,
     quantityInput: !!quantityInput
@@ -8915,7 +9267,7 @@ function updateHpQuantity(hp, quantity) {
   if (hpSelection) {
     const oldQuantity = hpSelection.quantity;
     hpSelection.quantity = quantity;
-    console.log('Updated HP quantity:', {
+    bookingDebug('Updated HP quantity:', {
       hp: hpSelection.hp,
       oldQuantity: oldQuantity,
       newQuantity: quantity,
@@ -9336,7 +9688,7 @@ function updateHpModalPrice() {
 
   if (selectedHp) {
     const totalPrice = selectedHp.price * quantity;
-    console.log('Updating HP price display:', {
+    bookingDebug('Updating HP price display:', {
       hp: selectedHp.hp,
       price: selectedHp.price,
       quantity: quantity,
@@ -9528,18 +9880,38 @@ function confirmQuantitySelection() {
       }
     }
   }
+  const customRelocationQuote = service && isAirconRelocationService(service) &&
+    document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
   if (service && isAirconRelocationService(service)) {
     const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
     if (scope === 'custom_quote') {
-      resetProcessingFlag();
-      window.location.assign('/contact?topic=relocation');
-      return;
+      if (BookingState.selectedServices.length) {
+        showModalError('Request a distant relocation quote on its own. Complete or clear your current booking first.');
+        resetProcessingFlag();
+        return;
+      }
+      if (Number(DOM.quantityModalInput?.value || 1) !== 1) {
+        showModalError('Request one aircon relocation at a time.');
+        resetProcessingFlag();
+        return;
+      }
     }
-    if (scope !== 'same_property') {
+    if (!customRelocationQuote && scope !== 'same_property') {
       showModalError('Choose where the aircon is moving before continuing.');
       resetProcessingFlag();
       return;
     }
+    if (!customRelocationQuote && ((document.getElementById('relocationFromPosition')?.value || '').trim().length < 2 ||
+        (document.getElementById('relocationToPosition')?.value || '').trim().length < 2)) {
+      showModalError('Describe the current and new aircon positions.');
+      resetProcessingFlag();
+      return;
+    }
+  }
+  if (hasAcceptedRelocationQuote()) {
+    showModalError('Finish or remove the selected relocation before adding another service.');
+    resetProcessingFlag();
+    return;
   }
   if (BookingState.unitAssistanceMode) {
     if (!service) { showModalError('Choose a service first.'); resetProcessingFlag(); return; }
@@ -9569,7 +9941,22 @@ function confirmQuantitySelection() {
     }
   }
 
-  if (isAirconService) {
+  if (customRelocationQuote) {
+    addServiceToBooking(service, 1, {
+      price: 0,
+      hp: BookingState.selectedHps?.[0]?.hp || null,
+      airconType: BookingState.selectedAirconType?.type || '',
+      airconTypeName: BookingState.selectedAirconType?.name || '',
+      relocation: {
+        scope: 'custom_quote',
+        assetId: document.getElementById('relocationAsset')?.value || null,
+        from: {}, to: {},
+        model: document.getElementById('relocationModel')?.value.trim() || '',
+        serialNumber: document.getElementById('relocationSerial')?.value.trim() || '',
+        notes: document.getElementById('relocationNotes')?.value.trim() || '',
+      },
+    });
+  } else if (isAirconService) {
 
     // Refresh selected brand from the DOM (select or custom input)
     const brandSelect = document.getElementById('brandInput');
@@ -9659,6 +10046,11 @@ function confirmQuantitySelection() {
     }
 
     const hpTotalUnits = BookingState.selectedHps.reduce((sum, hp) => sum + (Number(hp.quantity) || 0), 0);
+    if (isAirconRelocationService(service) && hpTotalUnits !== 1) {
+      showModalError('Add one aircon at a time for relocation so each move has clear locations.');
+      resetProcessingFlag();
+      return;
+    }
     if (selectedUnitTotal() + hpTotalUnits > MAX_BOOKING_UNITS) {
       showError(`You can add up to ${MAX_BOOKING_UNITS} units.`);
       resetProcessingFlag();
@@ -9669,7 +10061,7 @@ function confirmQuantitySelection() {
     // Add each selected HP as a separate service item
     BookingState.selectedHps.forEach(hpSelection => {
       if (hpSelection.quantity > 0) {
-        console.log('Adding HP selection to cart:', {
+        bookingDebug('Adding HP selection to cart:', {
           service: service.name,
           quantity: hpSelection.quantity,
           hp: hpSelection.hp,
@@ -9684,7 +10076,15 @@ function confirmQuantitySelection() {
           description: hpSelection.description,
           durationMinutes: hpSelection.durationMinutes,
           airconType: hpSelection.airconType,
-          airconTypeName: hpSelection.airconTypeName
+          airconTypeName: hpSelection.airconTypeName,
+          relocation: isAirconRelocationService(service) ? {
+            scope: 'same_property',
+            assetId: document.getElementById('relocationAsset')?.value || null,
+            from: { details: document.getElementById('relocationFromPosition')?.value.trim() || '' },
+            to: { details: document.getElementById('relocationToPosition')?.value.trim() || '' },
+            model: document.getElementById('relocationSameModel')?.value.trim() || '',
+            serialNumber: document.getElementById('relocationSameSerial')?.value.trim() || '',
+          } : undefined,
         });
       }
     });
@@ -9711,7 +10111,7 @@ function confirmQuantitySelection() {
       return;
     }
 
-    console.log('Adding non-HP service with quantity:', {
+    bookingDebug('Adding non-HP service with quantity:', {
       service: service.name,
       quantity: quantity,
       basePrice: service.basePrice || service.initialPrice || service.price
@@ -9719,7 +10119,7 @@ function confirmQuantitySelection() {
 
     // Add service directly with quantity - use initialPrice for repair services, basePrice for others
     const unitPrice = service.initialPrice || service.basePrice || service.price || 0;
-    console.log('Service pricing details:', {
+    bookingDebug('Service pricing details:', {
       initialPrice: service.initialPrice,
       basePrice: service.basePrice,
       price: service.price,
@@ -9789,7 +10189,13 @@ function confirmQuantitySelection() {
     resetModalForNextUse();
   }
 
-  showServiceAddedConfirmation(service.name).then(resetProcessingFlag, resetProcessingFlag);
+  if (customRelocationQuote) {
+    revealNextBookingAction();
+    showBookingToast('Relocation request started. Next: pin the current address and enter the new address.')
+      .then(resetProcessingFlag, resetProcessingFlag);
+  } else {
+    showServiceAddedConfirmation(service.name).then(resetProcessingFlag, resetProcessingFlag);
+  }
 }
 
 /**
@@ -9840,11 +10246,15 @@ function hideModalWithoutBackdrop(modalElement) {
  * Add service to booking
  */
 function addServiceToBooking(service, quantity, hpData = null) {
-  console.log('Adding service to booking:', {
+  bookingDebug('Adding service to booking:', {
     service: service.name,
     quantity: quantity,
     hpData: hpData
   });
+  if (hasAcceptedRelocationQuote() && !hpData?.relocation?.requestId) {
+    showError('Finish or remove the selected relocation before adding another service.');
+    return;
+  }
   if (selectedUnitTotal() + Number(quantity || 1) > MAX_BOOKING_UNITS) {
     showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     return;
@@ -9866,6 +10276,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     applianceType: BookingState.applianceType || (hpData && hpData.airconType) || null,
     applianceTypeName: BookingState.applianceTypeName || null,
     brand: BookingState.selectedBrand || null,
+    relocation: hpData?.relocation || null,
     repairIssue: hpData && hpData.repairIssue ? hpData.repairIssue : null, // Handle individual repair issues
     duration: Number(hpData?.durationMinutes) || service.durationMinutes || service.duration || 60,
     icon: bookingServiceIcon(service, isRepairBookingService(service) ? 'bi-tools' : 'bi-gear-wide-connected'),
@@ -9904,7 +10315,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
  * Advance to the next step with smooth transition
  */
 function advanceToNextStep() {
-  console.log('🔧 advanceToNextStep called');
+  bookingDebug('🔧 advanceToNextStep called');
   toggleBookingSummary(false);
 
   // Get current active step
@@ -9916,11 +10327,11 @@ function advanceToNextStep() {
   }
 
   const nextStep = currentStep + 1;
-  console.log(`📋 Current: ${currentStep}, Next: ${nextStep}`);
+  bookingDebug(`📋 Current: ${currentStep}, Next: ${nextStep}`);
 
   // Validate current step before advancing
   if (!validateStep(currentStep)) {
-    console.log(`⚠️ Step ${currentStep} validation failed`);
+    bookingDebug(`⚠️ Step ${currentStep} validation failed`);
     return;
   }
 
@@ -9932,7 +10343,7 @@ function advanceToNextStep() {
     const verifyStep = document.querySelector('.booking-step.step-active');
     if (verifyStep) {
       const verifyNum = parseInt(verifyStep.dataset.step);
-      console.log(`✅ Now showing Step ${verifyNum}`);
+      bookingDebug(`✅ Now showing Step ${verifyNum}`);
 
       if (verifyNum !== nextStep) {
         console.error(`❌ ERROR: Expected Step ${nextStep} but showing Step ${verifyNum}`);
@@ -9994,13 +10405,23 @@ function getBookingStepIssue(stepNumber) {
       };
     }
 
-    if (!routeReady) {
+    if (!routeReady && !pendingRelocationQuoteItem()) {
       return {
         step: 3,
         title: 'Location Confirmation in Progress',
         message: 'Please wait for the route and travel fee to finish calculating before continuing.',
         confirmButtonText: 'Review Location',
         focusSelector: '#serviceCheckoutMapCard'
+      };
+    }
+    if (pendingRelocationQuoteItem() &&
+        String(pendingRelocationQuoteItem().relocation?.to?.address || '').trim().length < 8) {
+      return {
+        step: 3,
+        title: 'Enter the New Address',
+        message: 'Enter the destination address for the aircon so staff can review the move.',
+        confirmButtonText: 'Enter Destination',
+        focusSelector: '#relocationDestinationAddress'
       };
     }
   }
@@ -10013,6 +10434,21 @@ function getBookingStepIssue(stepNumber) {
       BookingState.isProject === true ||
       !!BookingState.projectScheduling;
     const selectedDate = BookingState.selectedDate || BookingState.scheduleDate;
+
+    const preferredDate = selectedDate ? new Date(selectedDate) : null;
+    const earliestDate = new Date();
+    earliestDate.setHours(0, 0, 0, 0);
+    if (pendingRelocationQuoteItem() &&
+        (!preferredDate || Number.isNaN(preferredDate.getTime()) || preferredDate < earliestDate)) {
+      return {
+        step: 4,
+        title: 'Choose a Preferred Date',
+        message: 'Choose the date you would prefer for the move. Staff will confirm availability after reviewing the locations.',
+        confirmButtonText: 'Choose Date',
+        focusSelector: '#relocationQuotePreferredDate'
+      };
+    }
+    if (pendingRelocationQuoteItem()) return null;
 
     if (isProject) {
       const projectSchedule = BookingState.projectScheduling;
@@ -10116,9 +10552,10 @@ function syncScheduleNextAction(highlight = false) {
   if (action.parentElement !== document.body) document.body.appendChild(action);
 
   const calendar = window.EnterpriseCalendar;
-  const isProject = (typeof isLargeScaleSelection === 'function' && isLargeScaleSelection()) ||
+  const awaitingQuote = Boolean(pendingRelocationQuoteItem());
+  const isProject = !awaitingQuote && ((typeof isLargeScaleSelection === 'function' && isLargeScaleSelection()) ||
     BookingState.isProject === true || !!BookingState.projectScheduling ||
-    calendar?.isProjectMode?.() === true;
+    calendar?.isProjectMode?.() === true);
   const start = formatScheduleActionDate(BookingState.selectedDate || BookingState.scheduleDate);
   const end = isProject ? formatScheduleActionDate(
     BookingState.projectScheduling?.endDate || calendar?.getSelectedEndDate?.()
@@ -10132,12 +10569,12 @@ function syncScheduleNextAction(highlight = false) {
 
   summary.textContent = isProject
     ? (start ? `${start}${end ? ` – ${end}` : ' · choose an end date'}` : 'Choose your project dates')
-    : (start ? `${start}${time ? ` · ${time}` : ' · choose a start time'}` : 'Choose a date and time');
+    : (start ? (awaitingQuote ? start : `${start}${time ? ` · ${time}` : ' · choose a start time'}`) : (awaitingQuote ? 'Choose a preferred date' : 'Choose a date and time'));
   hint.textContent = ready
-    ? 'Ready to check your booking details.'
+    ? (awaitingQuote ? 'Staff will review both addresses and send a quote. No payment is due now.' : 'Ready to check your booking details.')
     : (isProject
       ? (start && end ? 'Wait for the date check, or choose a different date range.' : 'Choose a start and end date to continue.')
-      : 'Select an available date, then a start time.');
+      : (awaitingQuote ? 'Select a preferred date for staff review.' : 'Select an available date, then a start time.'));
   const wasVisible = action.classList.contains('is-visible');
   action.classList.toggle('is-ready', ready);
   action.classList.toggle('is-visible', visible);
@@ -10150,7 +10587,10 @@ function syncScheduleNextAction(highlight = false) {
   } else if (!visible) {
     action.classList.remove('just-became-ready');
   }
-  button.disabled = !visible;
+  button.disabled = !visible || BookingState.relocationQuoteSubmitting === true;
+  button.innerHTML = awaitingQuote
+    ? 'Send Quote Request <i class="bi bi-arrow-right" aria-hidden="true"></i>'
+    : 'Review Booking <i class="bi bi-arrow-right" aria-hidden="true"></i>';
 }
 window.syncScheduleNextAction = syncScheduleNextAction;
 
@@ -10198,6 +10638,7 @@ async function continueFromSchedule() {
   const button = document.getElementById('scheduleNextButton');
   if (button) button.disabled = true;
   try {
+    if (pendingRelocationQuoteItem()) return await submitRelocationQuoteRequest();
     // A saved time may have been taken while the customer was on Review.
     if (!isProject && calendar?.getSelectedSlot?.() && typeof calendar.validateSelectedSlot === 'function') {
       const available = await calendar.validateSelectedSlot();
@@ -10377,6 +10818,7 @@ window.navigateServiceGuide = navigateServiceGuide;
 
 function updateBookingCartChrome() {
   const count = BookingState.selectedServices.length;
+  const needsQuote = Boolean(pendingRelocationQuoteItem());
   const total = BookingState.selectedServices.reduce((sum, service) => sum + (Number(service.totalPrice) || 0), 0);
   const countCopy = document.getElementById('selectedServiceCountText');
   const mobileCount = document.getElementById('mobileSelectedServiceCount');
@@ -10387,9 +10829,9 @@ function updateBookingCartChrome() {
 
   if (countCopy) countCopy.textContent = count === 0
     ? 'No service selected'
-    : 'Check the details and estimated price before you continue.';
+    : (needsQuote ? 'Continue to the locations and preferred date for staff review.' : 'Check the details and estimated price before you continue.');
   if (mobileCount) mobileCount.textContent = `${count} ${count === 1 ? 'service' : 'services'} selected`;
-  if (mobileTotal) mobileTotal.textContent = formatBookingPrice(total);
+  if (mobileTotal) mobileTotal.textContent = needsQuote ? 'Custom quote' : formatBookingPrice(total);
   syncBookingActionBarLayer();
   if (reviewButton) {
     reviewButton.classList.toggle('has-selection', count > 0);
@@ -10561,11 +11003,19 @@ window.editSelectedService = editSelectedService;
 
 function updateSelectedServicesDisplay() {
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
+  syncRelocationDestination();
 
   DOM.selectedServiceCount.textContent = BookingState.selectedServices.length;
-  document.getElementById('relocationLocationHint')?.classList.toggle(
-    'd-none', !BookingState.selectedServices.some(isAirconRelocationService)
-  );
+  const relocationHint = document.getElementById('relocationLocationHint');
+  const relocationItem = BookingState.selectedServices.find(isAirconRelocationService);
+  if (relocationHint) {
+    relocationHint.classList.toggle('d-none', !relocationItem);
+    if (relocationItem) relocationHint.textContent = relocationItem.relocation?.scope === 'custom_quote'
+      ? (relocationItem.relocation.requestId
+        ? `Pin the aircon's current address: ${relocationItem.relocation.from?.address || 'the From address on your quote'}. The accepted quote already includes transport and travel.`
+        : 'Pin the aircon’s current address, then enter the destination below. Staff will quote the move before any payment or assignment.')
+      : 'Pin the unit’s current address. The standard estimate applies only when the new position is nearby on the same property.';
+  }
 
   if (BookingState.selectedServices.length === 0) {
     DOM.selectedServicesList.innerHTML = `
@@ -10589,6 +11039,13 @@ function updateSelectedServicesDisplay() {
         if (service.hp) details.push(`${service.hp} HP`);
       }
       details.push(`${service.quantity} ${getServiceUnitText(service)}`);
+      const move = service.relocation;
+      const routeDetails = move?.scope && move.requestId
+        ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || move.from?.address || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || move.to?.address || 'New position')}</div>`
+        : move?.scope === 'custom_quote'
+          ? `<div class="selected-service-details mt-1">Enter both addresses and a preferred date in the next steps.</div>`
+          : move?.scope
+            ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || 'New position')}</div>` : '';
 
       return `
       <article class="selected-service-item" aria-label="${esc(service.name)}">
@@ -10596,14 +11053,13 @@ function updateSelectedServicesDisplay() {
           <div class="selected-service-icon"><i class="bi ${iconClass}" aria-hidden="true"></i></div>
           <div class="selected-service-copy">
             <div class="selected-service-name">${esc(service.name)}</div>
+            ${routeDetails}
             <div class="selected-service-details">${details.join(' <span aria-hidden="true">•</span> ')}</div>
           </div>
-          <div class="selected-service-price"><span>Estimate</span><strong>${formatBookingPrice(service.totalPrice)}</strong></div>
+          <div class="selected-service-price"><span>${move?.scope === 'custom_quote' ? (move.requestId ? 'Approved quote' : 'Staff review') : 'Estimate'}</span><strong>${move?.scope === 'custom_quote' && !move.requestId ? 'Custom quote' : formatBookingPrice(service.totalPrice)}</strong></div>
         </div>
         <div class="selected-service-actions">
-          <button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}">
-            <i class="bi bi-pencil" aria-hidden="true"></i> Change
-          </button>
+          ${move?.scope === 'custom_quote' ? (move.requestId ? '<a class="selected-service-edit" href="/relocation-requests"><i class="bi bi-file-text" aria-hidden="true"></i> View quote</a>' : '') : `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>`}
           <button type="button" class="remove-service-btn" data-service-id="${service.id}" aria-label="Remove ${esc(service.name)}">
             <i class="bi bi-trash3" aria-hidden="true"></i> Remove
           </button>
@@ -10637,7 +11093,7 @@ function updateSelectedServicesDisplay() {
 
   const totalPricingSection = document.getElementById('totalPricingSection');
   if (totalPricingSection) {
-    if (BookingState.selectedServices.length > 0) {
+    if (BookingState.selectedServices.length > 0 && !pendingRelocationQuoteItem()) {
       totalPricingSection.classList.remove('d-none');
     } else {
       totalPricingSection.classList.add('d-none');
@@ -10684,7 +11140,7 @@ function updatePricingDisplay() {
 
   DOM.totalEstimatedPrice.textContent = `₱${total.toLocaleString()}`;
 
-  if (BookingState.selectedServices.length > 0) {
+  if (BookingState.selectedServices.length > 0 && !pendingRelocationQuoteItem()) {
     DOM.totalPricingSection.classList.remove('d-none');
   } else {
     DOM.totalPricingSection.classList.add('d-none');
@@ -10971,12 +11427,12 @@ function getBookingData() {
  * Initialize Step 5 scheduling mode buttons
  */
 function initializeSchedulingModes() {
-  console.log('🔧 initializeSchedulingModes() called');
+  bookingDebug('🔧 initializeSchedulingModes() called');
 
   let aiSuggestedBtn = document.querySelector('[data-mode="suggested"]');
   let manualCalendarBtn = document.querySelector('[data-mode="manual"]');
 
-  console.log('🔍 Looking for mode buttons:', {
+  bookingDebug('🔍 Looking for mode buttons:', {
     aiSuggestedBtn: aiSuggestedBtn ? 'Found' : 'Not found',
     manualCalendarBtn: manualCalendarBtn ? 'Found' : 'Not found'
   });
@@ -10990,13 +11446,13 @@ function initializeSchedulingModes() {
     // Add fresh event listener
     aiSuggestedBtn.addEventListener('click', function (e) {
       e.preventDefault();
-      console.log('🤖 AI Suggested button clicked!');
+      bookingDebug('🤖 AI Suggested button clicked!');
       switchSchedulingMode('ai-suggested');
     });
 
-    console.log('✅ AI Suggested button initialized');
+    bookingDebug('✅ AI Suggested button initialized');
   } else {
-    console.warn('⚠️ AI Suggested button not found in DOM');
+    bookingDebug('⚠️ AI Suggested button not found in DOM');
   }
 
   if (manualCalendarBtn) {
@@ -11008,16 +11464,16 @@ function initializeSchedulingModes() {
     // Add fresh event listener
     manualCalendarBtn.addEventListener('click', function (e) {
       e.preventDefault();
-      console.log('📅 Manual Calendar button clicked!');
+      bookingDebug('📅 Manual Calendar button clicked!');
       switchSchedulingMode('manual');
     });
 
-    console.log('✅ Manual Calendar button initialized');
+    bookingDebug('✅ Manual Calendar button initialized');
   } else {
-    console.warn('⚠️ Manual Calendar button not found in DOM');
+    bookingDebug('⚠️ Manual Calendar button not found in DOM');
   }
 
-  console.log('✅ All scheduling mode buttons initialized');
+  bookingDebug('✅ All scheduling mode buttons initialized');
 }
 
 /**
@@ -11039,14 +11495,14 @@ function showModeSelection() {
     btn.classList.add('btn-outline-primary');
   });
 
-  console.log('🔄 Returned to mode selection');
+  bookingDebug('🔄 Returned to mode selection');
 }
 
 /**
  * Switch between AI Suggested and Manual Calendar modes
  */
 function switchSchedulingMode(mode) {
-  console.log('🔄 Switching to mode:', mode);
+  bookingDebug('🔄 Switching to mode:', mode);
 
   // Validate technician and service selection
   if (false && !BookingState.selectedTechnicianId) {
@@ -11058,7 +11514,7 @@ function switchSchedulingMode(mode) {
     (BookingState.selectedServices && BookingState.selectedServices.length > 0);
 
   if (!hasService) {
-    console.warn('⚠️ No service selected');
+    bookingDebug('⚠️ No service selected');
     showError('Please select a service first');
     return;
   }
@@ -11068,8 +11524,7 @@ function switchSchedulingMode(mode) {
     // Service items store the actual service ID in the 'serviceId' property
     BookingState.selectedServiceId = BookingState.selectedServices[0].serviceId ||
       BookingState.selectedServices[0]._id || null;
-    console.log('📝 Set selectedServiceId from selectedServices:', BookingState.selectedServiceId);
-    console.log('📝 First service object:', BookingState.selectedServices[0]);
+    bookingDebug('📝 Set selectedServiceId from selectedServices:', BookingState.selectedServiceId);
   }
 
   // Update active button state
@@ -11089,7 +11544,7 @@ function switchSchedulingMode(mode) {
   // Store mode in state
   BookingState.schedulingMode = mode;
 
-  console.log('📊 Current state:', {
+  bookingDebug('📊 Current state:', {
     technicianId: BookingState.selectedTechnicianId,
     serviceId: BookingState.selectedServiceId,
     mode: mode
@@ -11097,10 +11552,10 @@ function switchSchedulingMode(mode) {
 
   // Render appropriate view
   if (mode === 'ai-suggested') {
-    console.log('🤖 Rendering AI suggested dates...');
+    bookingDebug('🤖 Rendering AI suggested dates...');
     renderAISuggestedDates();
   } else {
-    console.log('📅 Rendering manual calendar...');
+    bookingDebug('📅 Rendering manual calendar...');
     renderManualCalendar();
   }
 }
@@ -11114,7 +11569,7 @@ async function renderAISuggestedDates() {
   const manualContainer = document.getElementById('manualCalendar');
 
   if (!suggestedContainer || !suggestedCards) {
-    console.warn('⚠️ Suggested dates container not found');
+    bookingDebug('⚠️ Suggested dates container not found');
     return;
   }
 
@@ -11160,7 +11615,6 @@ async function renderAISuggestedDates() {
     }
 
     const data = await response.json();
-    console.log('🤖 AI Suggested dates received:', data);
 
     suggestedCards.innerHTML = '';
 
@@ -11246,7 +11700,7 @@ async function renderManualCalendar() {
   const suggestedContainer = document.getElementById('suggestedDates');
 
   if (!manualContainer || !calendarGrid) {
-    console.warn('⚠️ Manual calendar container not found');
+    bookingDebug('⚠️ Manual calendar container not found');
     return;
   }
 
@@ -11588,8 +12042,8 @@ function nextMonth() {
  * Select a date and load time slots
  */
 async function selectDate(date) {
-  console.log('📅 Date selected:', date);
-  console.log('📅 Active scheduling mode:', BookingState.schedulingMode);
+  bookingDebug('📅 Date selected:', date);
+  bookingDebug('📅 Active scheduling mode:', BookingState.schedulingMode);
 
   // Store selected date
   BookingState.selectedDate = date;
@@ -11759,14 +12213,14 @@ function timeToMinutesLocal(timeStr) {
  * Professional time slot generation with service duration + travel time
  */
 async function renderTimeSlotsProfessional(date) {
-  console.log('🔧 renderTimeSlotsProfessional CALLED with date:', date);
-  console.log('🔧 Current time:', new Date().toTimeString());
+  bookingDebug('🔧 renderTimeSlotsProfessional CALLED with date:', date);
+  bookingDebug('🔧 Current time:', new Date().toTimeString());
 
   const timeSelection = document.getElementById('timeSelection');
   const timeSlots = document.getElementById('timeSlots');
 
   if (!timeSelection || !timeSlots) {
-    console.warn('⚠️ Time slot container not found');
+    bookingDebug('⚠️ Time slot container not found');
     return;
   }
 
@@ -11783,7 +12237,7 @@ async function renderTimeSlotsProfessional(date) {
   try {
     // Ensure technician schedule is loaded (only if technician is selected)
     if (BookingState.selectedTechnicianId && (!BookingState.scheduleState || !BookingState.scheduleState.workingDays || BookingState.scheduleState.workingDays.length === 0)) {
-      console.log('📅 Loading technician schedule...');
+      bookingDebug('📅 Loading technician schedule...');
       await loadTechnicianScheduleEnhanced();
     }
     // Get service duration from Step 2
@@ -11797,7 +12251,7 @@ async function renderTimeSlotsProfessional(date) {
     // Total duration = service duration + travel time
     const totalDuration = serviceDuration + travelDuration;
 
-    console.log('⏱️ Duration calculation:', {
+    bookingDebug('⏱️ Duration calculation:', {
       serviceDuration: `${serviceDuration} min`,
       travelDuration: `${travelDuration} min`,
       totalDuration: `${totalDuration} min`
@@ -11811,7 +12265,6 @@ async function renderTimeSlotsProfessional(date) {
       );
       existingBookings = bookingsResponse.ok ? await bookingsResponse.json() : [];
     }
-    console.log('📋 Existing bookings:', existingBookings);
 
     // When no technician is selected (capacity mode), use server-side aggregation
     // to properly account for ALL technicians' bookings
@@ -11824,13 +12277,13 @@ async function renderTimeSlotsProfessional(date) {
         if (apiResponse.ok) {
           const apiData = await apiResponse.json();
           if (apiData.timeSlots && apiData.timeSlots.length > 0) {
-            console.log('📋 Capacity-mode slots from API:', apiData.timeSlots.length);
+            bookingDebug('📋 Capacity-mode slots from API:', apiData.timeSlots.length);
             renderCapacityTimeSlots(apiData.timeSlots, totalDuration);
             return;
           }
         }
       } catch (apiErr) {
-        console.warn('⚠️ Capacity API failed, falling back to client-side:', apiErr);
+        bookingDebug('⚠️ Capacity API failed, falling back to client-side:', apiErr);
       }
     }
 
@@ -11838,7 +12291,7 @@ async function renderTimeSlotsProfessional(date) {
     const dayOfWeek = date.getDay();
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-    console.log('📅 Looking for schedule:', {
+    bookingDebug('📅 Looking for schedule:', {
       date: formatDateKey(date),
       dayOfWeek: dayOfWeek,
       dayName: dayNames[dayOfWeek],
@@ -11850,7 +12303,7 @@ async function renderTimeSlotsProfessional(date) {
 
     // If no working day found, use default schedule (8 AM - 5 PM)
     if (!workingDay) {
-      console.warn(`⚠️ No working day configured for ${dayNames[dayOfWeek]}, using default schedule`);
+      bookingDebug(`⚠️ No working day configured for ${dayNames[dayOfWeek]}, using default schedule`);
       workingDay = {
         dayOfWeek: dayOfWeek,
         startMinutes: 480,  // 8:00 AM
@@ -11861,7 +12314,7 @@ async function renderTimeSlotsProfessional(date) {
     const startMinutes = workingDay.startMinutes || 480; // 8:00 AM
     const endMinutes = workingDay.endMinutes || 1020; // 5:00 PM
 
-    console.log('🕐 Working hours:', {
+    bookingDebug('🕐 Working hours:', {
       start: minutesToTime(startMinutes),
       end: minutesToTime(endMinutes)
     });
@@ -11875,7 +12328,7 @@ async function renderTimeSlotsProfessional(date) {
       date  // Pass selected date for past time checking
     );
 
-    console.log(`🔍 Backend generated ${slots.length} slots (${slots.filter(s => s.available).length} available)`);
+    bookingDebug(`🔍 Backend generated ${slots.length} slots (${slots.filter(s => s.available).length} available)`);
 
     timeSlots.innerHTML = '';
 
@@ -12085,7 +12538,7 @@ function generateTimeSlotsWithConflicts(startMinutes, endMinutes, durationMinute
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const cutoffMinutes = currentMinutes + bufferMinutes;
 
-  console.log(`📅 RAW DATE VALIDATION:`, {
+  bookingDebug(`📅 RAW DATE VALIDATION:`, {
     selectedDate: selectedDate.toDateString(),
     isToday,
     isPastDate,
@@ -12135,7 +12588,7 @@ function generateTimeSlotsWithConflicts(startMinutes, endMinutes, durationMinute
     });
   }
 
-  console.log(`✅ Generated ${slots.length} total slots (${slots.filter(s => s.available).length} valid, ${slots.filter(s => !s.available && s.conflict).length} conflicted, ${slots.filter(s => !s.available && s.isPast).length} past)`);
+  bookingDebug(`✅ Generated ${slots.length} total slots (${slots.filter(s => s.available).length} valid, ${slots.filter(s => !s.available && s.conflict).length} conflicted, ${slots.filter(s => !s.available && s.isPast).length} past)`);
   return slots;
 }
 
@@ -12183,7 +12636,7 @@ function minutesToTime(minutes) {
  * Select a time slot
  */
 function selectTimeSlot(slot, buttonElement) {
-  console.log('🕐 Time slot selected:', slot);
+  bookingDebug('🕐 Time slot selected:', slot);
 
   // Store selected slot
   BookingState.selectedTimeSlot = slot;
@@ -12200,7 +12653,7 @@ function selectTimeSlot(slot, buttonElement) {
     buttonElement.classList.add('active');
   }
 
-  console.log('✅ Time slot confirmed:', {
+  bookingDebug('✅ Time slot confirmed:', {
     date: BookingState.selectedDate,
     time: slot.label,
   });
@@ -12265,7 +12718,7 @@ function getProjectReviewInfo() {
  * Professional fee calculation with breakdown
  */
 function displayTotalFee() {
-  console.log('💰 Calculating total fee...');
+  bookingDebug('💰 Calculating total fee...');
 
   // Get DOM elements
   const servicesTotalDisplay = document.getElementById('servicesTotalDisplay');
@@ -12320,6 +12773,10 @@ function displayTotalFee() {
       } else {
         if (service.hp != null && service.hp !== '') details.push(`${esc(service.hp)} HP`);
         if (service.airconTypeName) details.push(esc(service.airconTypeName));
+        if (service.relocation?.scope) {
+          details.push(`From: ${esc(service.relocation.from?.details || service.relocation.from?.address || 'Current position')}`);
+          details.push(`To: ${esc(service.relocation.to?.details || service.relocation.to?.address || 'New position')}`);
+        }
         details.push(`Qty: ${quantity}`);
       }
 
@@ -12344,7 +12801,7 @@ function displayTotalFee() {
   }
 
   // Get travel fare
-  const travelFare = Number(BookingState.travelFare ?? BookingState.fare ?? 0) || 0;
+  const travelFare = bookingTravelFare();
 
   // Calculate total (labor fee removed — included in service price for core, quoted on-site for repair)
   const totalFee = servicesTotal + travelFare;
@@ -12447,7 +12904,7 @@ function displayTotalFee() {
   BookingState.totalFee = totalFee;
   BookingState.servicesTotal = servicesTotal;
 
-  console.log('💰 Total fee calculated:', {
+  bookingDebug('💰 Total fee calculated:', {
     servicesTotal: `₱${servicesTotal}`,
     travelFare: `₱${travelFare}`,
     totalFee: `₱${totalFee}`,
@@ -12460,7 +12917,7 @@ function displayTotalFee() {
  * Set up payment-option selection and form handling
  */
 function initializePaymentStep() {
-  console.log('💳 Initializing payment step...');
+  bookingDebug('💳 Initializing payment step...');
 
   // Get payment-option buttons
   const paymentTabs = document.querySelectorAll('.payment-tab, .ent-payment-tab');
@@ -12469,7 +12926,7 @@ function initializePaymentStep() {
   const confirmBookingBtn = document.getElementById('confirmBookingBtn');
 
   if (!paymentTabs || paymentTabs.length === 0) {
-    console.warn('⚠️ Payment tabs not found');
+    bookingDebug('⚠️ Payment tabs not found');
     return;
   }
 
@@ -12481,7 +12938,7 @@ function initializePaymentStep() {
     tab.dataset.paymentOptionBound = 'true';
     tab.addEventListener('click', function () {
       const method = this.dataset.method;
-      console.log(`💳 Payment option selected: ${method}`);
+      bookingDebug(`💳 Payment option selected: ${method}`);
       if (typeof window.selectPaymentMethod === 'function') {
         window.selectPaymentMethod(method, true);
       }
@@ -12532,7 +12989,7 @@ function initializePaymentStep() {
   updatePaymentAmounts();
   syncPaymentChoiceGuide();
 
-  console.log('✅ Payment step initialized');
+  bookingDebug('✅ Payment step initialized');
 }
 
 /**
@@ -12977,7 +13434,7 @@ function showBookingPaymentError(issue) {
  * Professional validation and submission to backend with car loading animation
  */
 async function handleBookingSubmission() {
-  console.log('📤 Submitting booking...');
+  bookingDebug('📤 Submitting booking...');
 
   const confirmBtn = document.getElementById('confirmBookingBtn');
   let submissionIssue = null;
@@ -13024,10 +13481,8 @@ async function handleBookingSubmission() {
         : `booking_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
     }
     bookingData.clientSubmissionId = BookingState.clientSubmissionId;
-    console.log('📋 Booking data prepared:', bookingData);
-    console.log('📋 Services type:', typeof bookingData.services);
-    console.log('📋 Services is array:', Array.isArray(bookingData.services));
-    console.log('📋 First service:', bookingData.services[0]);
+    bookingDebug('📋 Services type:', typeof bookingData.services);
+    bookingDebug('📋 Services is array:', Array.isArray(bookingData.services));
 
     // Submit to backend using simplified endpoint
     const bookingForm = new FormData();
@@ -13043,7 +13498,6 @@ async function handleBookingSubmission() {
 
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Booking created successfully:', result);
 
       // Give the browser enough time to paint and run the progress motion;
       // otherwise a fast local response makes the loader appear static/flash.
@@ -13099,7 +13553,7 @@ async function handleBookingSubmission() {
       if (typeof showBookingConfirmationModal === 'function') {
         showBookingConfirmationModal(modalData);
       } else {
-        console.warn('⚠️ showBookingConfirmationModal function not available, falling back to default success');
+        bookingDebug('⚠️ showBookingConfirmationModal function not available, falling back to default success');
         showBookingSuccessModal(result);
       }
 
@@ -13108,8 +13562,8 @@ async function handleBookingSubmission() {
       BookingState.clientSubmissionId = null;
 
     } else {
-      const errorData = await response.json();
-      throw new Error(errorData.details || errorData.error || 'Failed to create booking');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'We could not complete your booking right now. Please try again or contact support.');
     }
 
   } catch (error) {
@@ -13147,7 +13601,7 @@ function waitForCarLoadingMinimum(minimumMs = 900) {
 function showCarLoadingModal() {
   const modal = document.getElementById('carLoadingModal');
   if (!modal) {
-    console.warn('⚠️ Car loading modal not found');
+    bookingDebug('⚠️ Car loading modal not found');
     return;
   }
 
@@ -13301,6 +13755,7 @@ async function prepareBookingData() {
         applianceType: service.applianceType || service.unitType || null,
         applianceTypeName: service.applianceTypeName || service.unitType || null,
         brand: service.brand,
+        relocation: service.relocation || undefined,
         model: service.model || null,
         duration: service.duration,
         isAirconService: service.isAirconService,
@@ -13325,7 +13780,7 @@ async function prepareBookingData() {
     // Totals
     totalPrice: BookingState.totalFee || 0,
     totalInitialCost: BookingState.servicesTotal || 0,
-    travelFare: BookingState.travelFare || 0,
+    travelFare: bookingTravelFare(),
     travelDurationMinutes: BookingState.travelDuration || 0,
     distanceKm: BookingState.distance || 0,
 
@@ -13429,7 +13884,7 @@ async function prepareBookingData() {
  * Show booking success receipt modal
  */
 function showBookingSuccessModal(result) {
-  console.log('🎉 Showing booking success modal');
+  bookingDebug('🎉 Showing booking success modal');
 
   // Update receipt details
   const bookingRef = document.getElementById('receiptBookingRef');
@@ -13545,7 +14000,7 @@ function showBookingSuccessModal(result) {
     });
     modal.addEventListener('hidden.bs.modal', () => { window.location.reload(); }, { once: true });
     bsModal.show();
-    console.log('✅ Booking success modal shown');
+    bookingDebug('✅ Booking success modal shown');
   }
 }
 
@@ -13553,7 +14008,7 @@ function showBookingSuccessModal(result) {
  * View booking history (redirect to book history page)
  */
 function viewBookingHistory() {
-  console.log('📚 Redirecting to booking history...');
+  bookingDebug('📚 Redirecting to booking history...');
 
   // Close modal first
   const modal = bootstrap.Modal.getInstance(document.getElementById('bookingSuccessModal'));
@@ -13571,7 +14026,7 @@ function viewBookingHistory() {
  * Close booking success modal
  */
 function closeBookingSuccessModal() {
-  console.log('❌ Closing booking success modal');
+  bookingDebug('❌ Closing booking success modal');
 
   const modal = bootstrap.Modal.getInstance(document.getElementById('bookingSuccessModal'));
   if (modal) {
@@ -13586,13 +14041,13 @@ function closeBookingSuccessModal() {
  * Show booking success message (fallback)
  */
 function showBookingSuccess(result) {
-  console.log('🎉 Showing success message');
+  bookingDebug('🎉 Showing success message');
 
   // Try to show modal first
   try {
     showBookingSuccessModal(result);
   } catch (error) {
-    console.warn('⚠️ Could not show modal, using fallback:', error);
+    bookingDebug('⚠️ Could not show modal, using fallback:', error);
 
     // Fallback to alert
     alert(`Booking created successfully!\nReference: ${result.bookingReference || result._id}\n\nYou will be redirected to your bookings page.`);
@@ -13656,11 +14111,10 @@ window.BookingSystem = {
   validateBookingData,
   prepareBookingData,
   testTechnicians: async () => {
-    console.log('🧪 Testing technician API...');
+    bookingDebug('🧪 Testing technician API...');
     try {
       const resp = await fetch("/api/services/technicians");
       const data = await resp.json();
-      console.log('Technician API response:', data);
       return data;
     } catch (err) {
       console.error('Technician API error:', err);
@@ -14535,7 +14989,7 @@ function showRepairLoadingModal() {
       modal.classList.add('show');
       modal.style.display = 'block';
     }
-  } catch (err) { console.error('Error showing loading modal:', err); }
+  } catch (err) { bookingDebug('Error showing loading modal:', err); }
 }
 
 function hideRepairLoadingModal() {
@@ -14555,7 +15009,7 @@ function hideRepairLoadingModal() {
     modal.removeAttribute('aria-modal');
     document.body.classList.remove('modal-open');
     document.querySelectorAll('.modal-backdrop').forEach(bd => bd.remove());
-  } catch (err) { console.error('Error hiding loading modal:', err); }
+  } catch (err) { bookingDebug('Error hiding loading modal:', err); }
 }
 
 // Initialize repair form controls when DOM is ready

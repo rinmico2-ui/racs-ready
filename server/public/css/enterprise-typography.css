@@ -1,0 +1,28 @@
+/* One typeface for customer and staff portals, including page-level components. */
+:root {
+  --app-font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body,
+body :where(*) {
+  font-family: var(--app-font-family) !important;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body :where(table, .archive-summary) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep symbols and machine-readable values in their intended typefaces. */
+body .bi,
+body .bi::before {
+  font-family: "bootstrap-icons" !important;
+}
+
+body :where(code, pre, kbd, samp, .font-monospace, .core-code-badge, .sc-slug) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+}

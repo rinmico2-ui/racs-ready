@@ -28,7 +28,7 @@ test("service dialogs require deliberate acknowledgement", () => {
   assert.match(servicesScript, /allowOutsideClick: false/);
   assert.match(servicesScript, /confirmButtonText: 'Review Details'/);
   assert.match(servicesScript, /confirmButtonText: 'Continue'/);
-  assert.match(servicesView, /services-multi\.js\?v=20261005-service-specific-icons/);
+  assert.match(servicesView, /services-multi\.js\?v=[^'"\s]+/);
 });
 
 test("service-added confirmation is a subtle live-region toast after the configurator closes", () => {

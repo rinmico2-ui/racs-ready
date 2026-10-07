@@ -49,7 +49,7 @@ test("calculates overtime from approved hours and the effective rate", () => {
   assert.equal(calculateOvertimePay({ overtimeRate: 0 }, 5), 0);
 });
 
-test("surfaces attendance exceptions and blocks unsafe non-monthly approval", () => {
+test("surfaces attendance exceptions and blocks unsafe approval", () => {
   const compensation = { payType: "hourly" };
   const attendance = {
     present: 1,
@@ -61,7 +61,14 @@ test("surfaces attendance exceptions and blocks unsafe non-monthly approval", ()
   const warnings = attendanceQualityWarnings(compensation, attendance);
   assert.equal(warnings.length, 2);
   assert.equal(hasBlockingAttendanceExceptions(compensation, attendance), true);
-  assert.equal(hasBlockingAttendanceExceptions({ payType: "monthly" }, attendance), false);
+  assert.equal(hasBlockingAttendanceExceptions({ payType: "monthly" }, attendance), true);
+  const monthlyWithNoHours = { recordedDays: 0, hoursWorked: 0 };
+  const monthlyWarnings = attendanceQualityWarnings({ payType: "monthly" }, monthlyWithNoHours);
+  assert.match(monthlyWarnings[0], /No worked hours/);
+  assert.equal(hasBlockingAttendanceExceptions({ payType: "monthly" }, monthlyWithNoHours), true);
+  assert.equal(hasBlockingAttendanceExceptions({ payType: "monthly" }, {
+    hoursWorked: 40, incompleteShifts: 0, unverifiedEntries: 0,
+  }), false);
 });
 
 test("enforces maker-checker controls only when multiple administrators are available", () => {

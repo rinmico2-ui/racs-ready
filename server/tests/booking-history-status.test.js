@@ -148,7 +148,7 @@ test("list and modal use display-only status recovery without bypassing customer
   assert.match(routes, /appt\.customerProjectStatus = project\.status/);
   assert.match(client, /statusBadge\(displayStatus, b\.customerProjectStatus\)/);
   assert.match(client, /statusBadge\(b\.status, b\.customerProjectStatus\)/);
-  assert.match(read("views/pages/book-history.ejs"), /book-history\.js\?v=20260929-service-picker-v9-history-status-v1/);
+  assert.match(read("views/pages/book-history.ejs"), /book-history\.js\?v=[^'"\s]+/);
 });
 
 for (const lookupFails of [false, true]) {

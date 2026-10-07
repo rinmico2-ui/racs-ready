@@ -1,0 +1,35 @@
+<div class="auth-form-panel auth-device-panel">
+  <a class="auth-brand-lockup auth-device-brand" href="/technician" aria-label="CALIDRO RACS technician portal">
+    <img src="/images/LOGO/RACS.png" alt="" class="auth-brand-mark" />
+    <span class="auth-brand-copy"><strong>CALIDRO RACS</strong><small>Technician portal</small></span>
+  </a>
+
+  <section class="auth-form-card auth-device-card" aria-labelledby="deviceSetupTitle">
+    <div class="auth-device-icon" aria-hidden="true"><i class="bi bi-phone"></i></div>
+    <% if (setupAvailable) { %>
+      <header class="auth-form-card-header">
+        <span class="auth-page-kicker">Google sign-in complete</span>
+        <h1 class="auth-form-card-title" id="deviceSetupTitle">Set up attendance on this device</h1>
+        <p class="auth-form-card-subtitle">Attendance requires a registered device in addition to your account, QR code, and location.</p>
+      </header>
+
+      <% if (error) { %><div class="auth-notice auth-notice-info" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span><%= error %></span></div><% } %>
+      <div class="auth-notice auth-notice-info"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Register this browser only if it is on your private phone or computer. Registration lasts up to <%= trustDays %> days and can be revoked from your technician profile.</span></div>
+
+      <form action="/api/auth/google/device" method="POST" class="auth-device-actions">
+        <input type="hidden" name="csrfToken" value="<%= csrfToken %>" />
+        <button type="submit" name="choice" value="trust" class="auth-submit"><i class="bi bi-shield-check" aria-hidden="true"></i>Register this private device</button>
+        <button type="submit" name="choice" value="skip" class="auth-secondary-button">Continue without registering</button>
+      </form>
+      <p class="auth-device-footnote">You can use the technician portal without registering. Attendance will remain unavailable on this browser.</p>
+    <% } else { %>
+      <header class="auth-form-card-header">
+        <span class="auth-page-kicker">Technician device setup</span>
+        <h1 class="auth-form-card-title" id="deviceSetupTitle">Setup link expired</h1>
+        <p class="auth-form-card-subtitle">For your security, device registration must follow a recent Google sign-in. Sign in with Google again on this browser to continue.</p>
+      </header>
+      <a class="auth-submit auth-device-link" href="/api/auth/google?returnTo=%2Ftechnician%2Fattendance"><i class="bi bi-google" aria-hidden="true"></i>Sign in with Google again</a>
+      <a class="auth-device-skip-link" href="/technician/attendance">Go to attendance</a>
+    <% } %>
+  </section>
+</div>

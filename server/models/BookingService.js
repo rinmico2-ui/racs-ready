@@ -109,6 +109,17 @@ const bookingSchema = new mongoose.Schema({
     isAirconService: Boolean,
     repairIssue: String, // Individual repair issue description
     model: { type: String, trim: true, maxlength: 50 },
+    relocation: {
+      scope: { type: String, enum: ['same_property', 'custom_quote'] },
+      requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'RelocationRequest', default: null },
+      assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomerAsset', default: null },
+      from: { address: String, details: String },
+      to: { address: String, details: String },
+      model: String,
+      serialNumber: String,
+      completedTasks: [String],
+      taskEvents: [{ task: String, technicianId: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' }, at: { type: Date, default: Date.now } }],
+    },
     problemDescription: { type: String, trim: true },
     unitCategory: { type: String, trim: true },
     unitType: { type: String, trim: true, maxlength: 80 },

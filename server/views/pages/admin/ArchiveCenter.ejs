@@ -1,49 +1,216 @@
-<div class="container-fluid px-0">
-  <div class="au-hero">
-    <div class="au-hero-inner">
-      <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-archive"></i></div>
-        <div><h1>Archive &amp; Retention Center</h1><p>Review retained lifecycle records and restore eligible catalogue or staff records.</p></div>
+﻿<div class="archive-center container-fluid py-4" aria-labelledby="archiveTitle">
+  <header class="archive-page-head">
+    <div class="archive-page-heading">
+      <span class="archive-page-icon"><i class="bi bi-archive" aria-hidden="true"></i></span>
+      <div>
+        <p class="archive-eyebrow">Administration / Records</p>
+        <h1 id="archiveTitle">Archive &amp; Retention Center</h1>
+        <p class="archive-subtitle">Find archived services, catalogue items, and retained records. Restore eligible items when they are ready to be used again.</p>
       </div>
-      <div class="au-hero-stats"><div class="au-hero-stat"><div class="au-hero-stat-val" id="archiveTotal">—</div><div class="au-hero-stat-lbl">Retained records</div></div></div>
     </div>
-  </div>
+    <div class="archive-summary" aria-label="Archive summary">
+      <div><strong id="archiveTotal">—</strong><span>Records loaded</span></div>
+      <button type="button" id="archiveServicesShortcut" title="Show archived services" aria-label="Show archived services"><strong id="archiveServices">—</strong><span>Services</span></button>
+      <div><strong id="archiveRestorable">—</strong><span>Restorable</span></div>
+    </div>
+  </header>
 
-  <div class="alert alert-primary border-0 shadow-sm">
-    <i class="bi bi-shield-check me-2"></i><strong>Retention policy:</strong>
-    operational, financial, payroll, warranty and audit records are retained. Corrections use cancel, void or release actions; permanent deletion is not available here.
-  </div>
+  <div class="archive-policy"><i class="bi bi-shield-check" aria-hidden="true"></i><p><strong>Records are retained.</strong> Archiving hides catalogue items from new use while preserving booking and audit history. Operational corrections use cancel, void, or release actions.</p></div>
 
-  <div id="archiveGroups" class="row g-3">
-    <div class="col-12 text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Loading retained records…</div>
-  </div>
+  <section class="archive-directory" aria-labelledby="archiveDirectoryTitle">
+    <div class="archive-toolbar">
+      <div>
+        <h2 id="archiveDirectoryTitle">Archived records</h2>
+        <p id="archiveResultCount" role="status" aria-live="polite">Loading records…</p>
+      </div>
+      <div class="archive-controls">
+        <label class="archive-search"><span class="visually-hidden">Search archived records</span><i class="bi bi-search" aria-hidden="true"></i><input id="archiveSearch" type="search" placeholder="Search name, type, or reason" autocomplete="off"></label>
+        <label class="archive-filter"><span class="visually-hidden">Filter archive section</span><select id="archiveGroupFilter"><option value="all">All sections</option></select></label>
+      </div>
+    </div>
+    <div id="archiveFeedback" class="archive-feedback" role="status" aria-live="polite"></div>
+    <div id="archiveGroups" class="archive-groups">
+      <div class="archive-loading"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading retained records…</div>
+    </div>
+  </section>
 </div>
 
 <style>
-  .archive-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 8px 25px rgba(15,23,42,.05);overflow:hidden}
-  .archive-head{padding:16px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
-  .archive-row{display:grid;grid-template-columns:minmax(180px,1.4fr) minmax(130px,1fr) 110px minmax(180px,1.3fr) auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;font-size:.82rem}
-  .archive-row:last-child{border-bottom:0}.archive-label{font-weight:700;color:#0f172a}.archive-meta{color:#64748b;font-size:.74rem}.archive-state{font-weight:700;text-transform:uppercase;font-size:.68rem;color:#475569;background:#f1f5f9;border-radius:999px;padding:5px 9px;justify-self:start}.archive-reason{color:#475569}.archive-empty{padding:24px;text-align:center;color:#94a3b8}
-  @media(max-width:900px){.archive-row{grid-template-columns:1fr}.archive-row>div,.archive-row>span,.archive-row>button{justify-self:start}}
+  .archive-center{max-width:1500px;margin-inline:auto;color:#172033;font-family:var(--app-font-family,'Inter',system-ui,sans-serif)}
+  .archive-page-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:25px 28px;border:1px solid #dce5ef;border-radius:14px;background:#fff}
+  .archive-page-heading{display:flex;align-items:flex-start;gap:17px;min-width:0}
+  .archive-page-icon{display:grid;place-items:center;flex:0 0 50px;width:50px;height:50px;border-radius:12px;background:#eaf2ff;color:#2357a5;font-size:1.3rem}
+  .archive-eyebrow{margin:0 0 4px;color:#526a8d;font-size:.7rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase}
+  .archive-page-head h1{margin:0;color:#13243a;font-size:1.65rem;font-weight:700;letter-spacing:-.025em}
+  .archive-subtitle{max-width:720px;margin:7px 0 0;color:#64748b;font-size:.9rem;line-height:1.55}
+  .archive-summary{display:flex;gap:0;flex:0 0 auto;border:1px solid #e3eaf2;border-radius:10px;background:#f9fbfe}
+  .archive-summary>div,.archive-summary>button{min-width:104px;padding:12px 17px;display:flex;flex-direction:column;gap:2px}
+  .archive-summary>*+*{border-left:1px solid #e3eaf2!important}
+  .archive-summary>button{border:0;background:transparent;text-align:left;cursor:pointer}
+  .archive-summary>button:hover{background:#edf5ff}
+  .archive-summary>button:focus-visible{outline:3px solid rgba(37,99,235,.3);outline-offset:2px}
+  .archive-summary strong{color:#183b68;font-size:1.35rem;line-height:1.1}
+  .archive-summary span{color:#64748b;font-size:.75rem;font-weight:600}
+  .archive-policy{display:flex;align-items:flex-start;gap:11px;margin:16px 0 22px;padding:12px 15px;border:1px solid #dbe8f8;border-radius:10px;background:#f5f9ff;color:#49627e}
+  .archive-policy i{font-size:1rem;color:#2563a6}
+  .archive-policy p{margin:0;font-size:.83rem;line-height:1.55}
+  .archive-policy strong{color:#294766}
+  .archive-directory{border:1px solid #dfe6ee;border-radius:14px;background:#fff;overflow:hidden}
+  .archive-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid #e9eef4}
+  .archive-toolbar h2{margin:0;color:#1b2d42;font-size:1.05rem;font-weight:700}
+  .archive-toolbar p{margin:4px 0 0;color:#718096;font-size:.8rem}
+  .archive-controls{display:flex;align-items:center;gap:9px;min-width:0}
+  .archive-search{position:relative;min-width:265px;margin:0}
+  .archive-search i{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#8291a6;pointer-events:none}
+  .archive-search input,.archive-filter select{height:41px;width:100%;border:1px solid #d7e0e9;border-radius:8px;background:#fff;color:#25364a;font-size:.84rem;outline:none}
+  .archive-search input{padding:8px 12px 8px 35px}
+  .archive-filter{min-width:166px;margin:0}
+  .archive-filter select{padding:8px 30px 8px 11px}
+  .archive-search input:focus,.archive-filter select:focus{border-color:#5184c4;box-shadow:0 0 0 3px rgba(47,107,183,.12)}
+  .archive-feedback:empty{display:none}
+  .archive-feedback{margin:16px 22px 0;padding:10px 12px;border-radius:8px;font-size:.8rem}
+  .archive-feedback.success{background:#ecfdf3;color:#166534;border:1px solid #bbf7d0}
+  .archive-feedback.error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+  .archive-groups{padding:0 22px 22px}
+  .archive-section{margin-top:22px}
+  .archive-section-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .archive-section-head h3{margin:0;color:#273e59;font-size:.92rem;font-weight:700}
+  .archive-section-icon{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:7px;background:#eef5ff;color:#2e63a3;font-size:.79rem}
+  .archive-section-count{display:inline-grid;place-items:center;min-width:24px;height:22px;padding-inline:6px;border-radius:6px;background:#eef3f9;color:#536c88;font-size:.7rem;font-weight:700}
+  .archive-list{border:1px solid #e4eaf1;border-radius:10px;overflow:hidden}
+  .archive-record{display:grid;grid-template-columns:minmax(220px,1.35fr) minmax(200px,1fr) auto;align-items:center;gap:20px;min-height:86px;padding:14px 16px;background:#fff}
+  .archive-record+.archive-record{border-top:1px solid #edf1f5}
+  .archive-record:hover{background:#fafcff}
+  .archive-record-main{min-width:0}
+  .archive-record-name{margin:0;color:#192f49;font-size:.9rem;font-weight:700;overflow-wrap:anywhere}
+  .archive-record-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:5px;color:#718096;font-size:.78rem}
+  .archive-record-type{color:#5273a0;font-weight:700}
+  .archive-record-dot{color:#b3bfcb}
+  .archive-record-detail{min-width:0}
+  .archive-record-state{display:inline-block;margin-bottom:5px;padding:3px 8px;border-radius:999px;background:#f2f5f9;color:#54667e;font-size:.7rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+  .archive-record-reason{margin:0;color:#485c73;font-size:.8rem;line-height:1.45;overflow-wrap:anywhere}
+  .archive-record-actions{display:flex;justify-content:flex-end;align-items:center;min-width:42px}
+  .archive-restore{min-height:36px;padding:7px 12px;border:1px solid #afdec4;border-radius:8px;background:#fff;color:#087448;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .archive-restore:hover{background:#eaf8f0;border-color:#75c797;color:#086440}
+  .archive-restore:focus-visible{outline:3px solid rgba(8,116,72,.23);outline-offset:2px}
+  .archive-restore:disabled{opacity:.55;cursor:wait}
+  .archive-restore.js-restore{display:inline-grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;font-size:1rem}
+  .archive-retained{color:#718096;font-size:.77rem;font-weight:600}
+  .archive-empty,.archive-loading{display:flex;align-items:center;justify-content:center;gap:10px;min-height:150px;color:#718096;font-size:.82rem;text-align:center}
+  .archive-empty{flex-direction:column;gap:5px}
+  .archive-empty i{font-size:1.5rem;color:#a9b9cc}
+  .archive-empty strong{color:#435a73}
+  @media(max-width:1000px){.archive-page-head{align-items:flex-start;flex-direction:column}.archive-summary{align-self:stretch}.archive-summary>div,.archive-summary>button{flex:1;min-width:0}.archive-toolbar{align-items:stretch;flex-direction:column}.archive-controls{width:100%}.archive-search{flex:1}}
+  @media(max-width:700px){.archive-center{padding-inline:12px!important}.archive-page-head{padding:18px}.archive-page-heading{gap:12px}.archive-page-icon{width:42px;height:42px;flex-basis:42px}.archive-page-head h1{font-size:1.24rem}.archive-summary>div,.archive-summary>button{padding:10px 9px}.archive-policy{margin-bottom:16px}.archive-directory{border-radius:11px}.archive-toolbar{padding:16px}.archive-controls{flex-direction:column;align-items:stretch}.archive-search,.archive-filter{width:100%;min-width:0}.archive-groups{padding:0 12px 15px}.archive-section{margin-top:17px}.archive-record{grid-template-columns:1fr;gap:10px;padding:14px}.archive-record-actions{justify-content:flex-start}.archive-restore{min-height:40px}.archive-record-meta{line-height:1.4}}
 </style>
 
 <script>
-(function(){
-  const groupsEl=document.getElementById('archiveGroups');
-  const esc=(value)=>String(value??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const date=(value)=>value?new Date(value).toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}):'Date unavailable';
-  async function loadArchive(){
-    try{
-      const response=await fetch('/api/admin/archive',{credentials:'same-origin'});const data=await response.json();if(!response.ok)throw new Error(data.error||'Unable to load archive');
-      document.getElementById('archiveTotal').textContent=data.total||0;
-      groupsEl.innerHTML=(data.groups||[]).map(group=>`<section class="col-12"><div class="archive-card"><div class="archive-head"><h2 class="h6 mb-0 fw-bold">${esc(group.label)}</h2><span class="badge bg-secondary">${group.count}</span></div>${group.records.length?group.records.map(item=>`<div class="archive-row"><div><div class="archive-label">${esc(item.label)}</div><div class="archive-meta">${esc(item.type)}${item.secondary?' · '+esc(item.secondary):''}</div></div><div class="archive-meta">${esc(date(item.at))}</div><span class="archive-state">${esc(item.state)}</span><div class="archive-reason">${esc(item.reason)}</div>${item.restorable?`<button class="btn btn-sm btn-outline-success js-restore" data-url="${esc(item.restoreUrl)}" data-label="${esc(item.label)}"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>`:'<span></span>'}</div>`).join(''):'<div class="archive-empty">No records in this section.</div>'}</div></section>`).join('');
-      groupsEl.querySelectorAll('.js-restore').forEach(button=>button.addEventListener('click',async()=>{
-        if(!confirm(`Restore ${button.dataset.label}?`))return;button.disabled=true;
-        try{const r=await fetch(button.dataset.url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({reason:'Restored from the Archive and Retention Center'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Restore failed');await loadArchive();}
-        catch(error){alert(error.message);button.disabled=false;}
-      }));
-    }catch(error){groupsEl.innerHTML=`<div class="col-12"><div class="alert alert-danger">${esc(error.message)}</div></div>`;}
+(function () {
+  const groupsEl = document.getElementById('archiveGroups');
+  const totalEl = document.getElementById('archiveTotal');
+  const servicesEl = document.getElementById('archiveServices');
+  const restorableEl = document.getElementById('archiveRestorable');
+  const countEl = document.getElementById('archiveResultCount');
+  const searchEl = document.getElementById('archiveSearch');
+  const filterEl = document.getElementById('archiveGroupFilter');
+  const feedbackEl = document.getElementById('archiveFeedback');
+  let groups = [];
+  let loadFailed = false;
+  const initialGroup = new URLSearchParams(window.location.search).get('group') || 'all';
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const formatDate = value => {
+    if (!value || Number.isNaN(new Date(value).getTime())) return 'Date unavailable';
+    return new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+  function feedback(type, message) {
+    feedbackEl.className = 'archive-feedback ' + type;
+    feedbackEl.textContent = message;
   }
+  function renderRecord(item) {
+    const label = esc(item.label);
+    const secondary = item.secondary ? '<span class="archive-record-dot" aria-hidden="true">·</span><span>' + esc(item.secondary) + '</span>' : '';
+    const action = item.restorable
+      ? '<button type="button" class="archive-restore js-restore" data-url="' + esc(item.restoreUrl) + '" data-label="' + label + '" title="Restore ' + label + '" aria-label="Restore ' + label + '"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>'
+      : '<span class="archive-retained">Retained for history</span>';
+    return '<article class="archive-record"><div class="archive-record-main"><h4 class="archive-record-name">' + label + '</h4><div class="archive-record-meta"><span class="archive-record-type">' + esc(item.type) + '</span>' + secondary + '<span class="archive-record-dot" aria-hidden="true">·</span><span>' + esc(formatDate(item.at)) + '</span></div></div><div class="archive-record-detail"><span class="archive-record-state">' + esc(item.state) + '</span><p class="archive-record-reason">' + esc(item.reason || 'No reason recorded') + '</p></div><div class="archive-record-actions">' + action + '</div></article>';
+  }
+  function render() {
+    if (loadFailed) return;
+    const query = searchEl.value.trim().toLowerCase();
+    const selected = filterEl.value;
+    let visibleCount = 0;
+    let sections = '';
+    groups.forEach(group => {
+      if (selected !== 'all' && selected !== group.key) return;
+      const records = (group.records || []).filter(item => {
+        const searchable = [item.label, item.type, item.secondary, item.state, item.reason].join(' ').toLowerCase();
+        return !query || searchable.includes(query);
+      });
+      if (!records.length) return;
+      visibleCount += records.length;
+      const icon = ({ services: 'bi-wrench-adjustable', catalogue: 'bi-box-seam', staff: 'bi-people', scheduling: 'bi-calendar3', operations: 'bi-clipboard-check', moderation: 'bi-chat-square-text' })[group.key] || 'bi-collection';
+      sections += '<section class="archive-section" aria-label="' + esc(group.label) + '"><div class="archive-section-head"><span class="archive-section-icon"><i class="bi ' + icon + '" aria-hidden="true"></i></span><h3>' + esc(group.label) + '</h3><span class="archive-section-count">' + records.length + '</span></div><div class="archive-list">' + records.map(renderRecord).join('') + '</div></section>';
+    });
+    const loadedCount = groups.reduce((sum, group) => sum + (group.records || []).length, 0);
+    countEl.textContent = 'Showing ' + visibleCount + ' of ' + loadedCount + ' loaded records';
+    groupsEl.innerHTML = sections || (selected === 'services' && !query ? '<div class="archive-empty"><i class="bi bi-archive" aria-hidden="true"></i><strong>No archived services</strong><span>Core services and repair categories will appear here when archived.</span></div>' : loadedCount ? '<div class="archive-empty"><i class="bi bi-inboxes" aria-hidden="true"></i><strong>No matching records</strong><span>Try another search or section.</span></div>' : '<div class="archive-empty"><i class="bi bi-inboxes" aria-hidden="true"></i><strong>No archived records yet</strong><span>Archived items will appear here when available.</span></div>');
+  }
+  async function loadArchive() {
+    try {
+      const response = await fetch('/api/admin/archive', { credentials: 'same-origin' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to load archive.');
+      loadFailed = false;
+      groups = Array.isArray(data.groups) ? data.groups : [];
+      const total = groups.reduce((sum, group) => sum + (group.records || []).length, 0);
+      totalEl.textContent = total;
+      servicesEl.textContent = (groups.find(group => group.key === 'services')?.records || []).length;
+      restorableEl.textContent = groups.reduce((sum, group) => sum + (group.records || []).filter(item => item.restorable).length, 0);
+      const previousFilter = filterEl.dataset.initialized ? filterEl.value : initialGroup;
+      filterEl.innerHTML = '<option value="all">All sections</option>' + groups.map(group => '<option value="' + esc(group.key) + '">' + esc(group.label) + ' (' + (group.records || []).length + ')</option>').join('');
+      filterEl.value = [...filterEl.options].some(option => option.value === previousFilter) ? previousFilter : 'all';
+      filterEl.dataset.initialized = 'true';
+      if (data.warnings?.length) feedback('error', 'Some archive records could not be loaded. Please refresh or contact an administrator.');
+      else if (feedbackEl.classList.contains('error')) feedback('', '');
+      render();
+    } catch (error) {
+      loadFailed = true;
+      countEl.textContent = 'Unable to load records';
+      groupsEl.innerHTML = '<div class="archive-empty"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><strong>Archive unavailable</strong><span>' + esc(error.message) + '</span><button type="button" class="archive-restore" id="archiveRetry">Try again</button></div>';
+      document.getElementById('archiveRetry')?.addEventListener('click', loadArchive);
+    }
+  }
+  async function confirmRestore(label) {
+    if (window.Swal) {
+      const result = await Swal.fire({ icon: 'question', title: 'Restore ' + label + '?', text: 'This item will become available for use again.', showCancelButton: true, confirmButtonText: 'Restore', confirmButtonColor: '#087448' });
+      return result.isConfirmed;
+    }
+    return window.confirm('Restore ' + label + '?');
+  }
+  groupsEl.addEventListener('click', async event => {
+    const button = event.target.closest('.js-restore');
+    if (!button || button.disabled) return;
+    if (!await confirmRestore(button.dataset.label || 'this record')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(button.dataset.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ reason: 'Restored from the Archive and Retention Center' }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Restore failed.');
+      feedback('success', (button.dataset.label || 'Record') + ' restored successfully.');
+      await loadArchive();
+    } catch (error) {
+      feedback('error', error.message || 'Unable to restore this record.');
+      button.disabled = false;
+    }
+  });
+  searchEl.addEventListener('input', render);
+  filterEl.addEventListener('change', render);
+  document.getElementById('archiveServicesShortcut').addEventListener('click', () => {
+    if (!groups.length) return;
+    filterEl.value = 'services';
+    render();
+    filterEl.focus();
+  });
   loadArchive();
 })();
 </script>

@@ -35,6 +35,7 @@ const {
 } = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const paymentProofStorage = require("../utils/paymentProofStorage");
+const { isUnsupportedMongoWriteFeature } = require("../utils/mongoWriteSupport");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
@@ -1141,6 +1142,12 @@ router.use("/:id", authenticate, async (req, res, next) => {
 });
 
 function checkoutErrorResponse(res, error) {
+  if (isUnsupportedMongoWriteFeature(error)) {
+    return res.status(503).json({
+      error: "Ordering is temporarily unavailable. If you already sent a payment, keep your receipt and contact support before trying again.",
+      code: "ORDER_DATABASE_UNAVAILABLE",
+    });
+  }
   const status = Number(error?.status) || 500;
   const isOperational = error instanceof OrderCheckoutError && status < 500;
   return res.status(status).json({

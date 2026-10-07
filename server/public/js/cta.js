@@ -15,8 +15,7 @@
         fetch('/collect', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: body }).catch(function () {});
       }
     } catch (e) {
-      // swallow — analytics should never break UX
-      console.debug('CTA track failed', e);
+      // Analytics must not interrupt navigation or fill the customer console.
     }
   }
 

@@ -1,5 +1,13 @@
 <%
   const resolvedCoreServicesApiBase = typeof coreServicesApiBase === "string" ? coreServicesApiBase : "/api/admin/core-services";
+  const resolvedCoreArchiveHref = resolvedCoreServicesApiBase.startsWith('/api/admin/') ? '/admin/archive?group=services' : '?status=archived';
+  const resolvedCoreServicesCanManage = typeof coreServicesCanManage === "boolean" ? coreServicesCanManage : true;
+  const totalCount = coreServices ? coreServices.length : 0;
+  const activeCount = coreServices ? coreServices.filter(s => s.active && !s.archivedAt).length : 0;
+  const archivedCount = coreServices ? coreServices.filter(s => s.archivedAt).length : 0;
+  const totalArchivedCount = typeof coreArchivedCount === 'number' ? coreArchivedCount : archivedCount;
+  const reviewCount = totalCount - activeCount - archivedCount;
+  const avgTime = coreServices && coreServices.length ? (coreServices.reduce((sum,s)=>sum + (s.durationMinutes||0),0) / coreServices.length) : 0;
 %>
 <div class="admin-dashboard container-fluid py-4 core-services-page">
   <%- include('../../../partials/dashboard-styles') %>
@@ -452,6 +460,22 @@
       padding-top: 0.9rem;
       padding-bottom: 0.9rem;
     }
+    .core-services-page .core-table tr[data-status="archived"] td { background: #fbfcfe; }
+    .core-services-page .core-table tr[data-status="archived"] td:first-child { box-shadow: inset 3px 0 #c7d5e6; }
+    .core-services-page .core-archive-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px}
+    .core-services-page .core-archive-count{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.2);font-size:.7rem;line-height:1}
+    .core-services-page .core-actions{display:flex;justify-content:flex-end;gap:6px;white-space:nowrap}
+    .core-services-page .core-action-btn{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid #dbe3ee;border-radius:8px;background:#fff;color:#526077;font-size:.92rem;transition:all .15s ease}
+    .core-services-page .core-action-btn:hover{border-color:#93b4f5;background:#eff6ff;color:#1d4ed8;transform:translateY(-1px)}
+    .core-services-page .core-action-btn.danger:hover{border-color:#fecaca;background:#fef2f2;color:#dc2626}
+    .core-services-page .core-action-btn.success:hover{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+    .core-services-page .core-action-btn:focus-visible{outline:3px solid rgba(37,99,235,.3);outline-offset:2px}
+    .core-services-page.archive-view .core-table th:nth-child(4),
+    .core-services-page.archive-view .core-table td:nth-child(4),
+    .core-services-page.archive-view .core-table th:nth-child(5),
+    .core-services-page.archive-view .core-table td:nth-child(5),
+    .core-services-page.archive-view .core-table th:nth-child(7),
+    .core-services-page.archive-view .core-table td:nth-child(7) { display: none; }
     .core-services-page .core-table-footer {
       display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid rgba(148, 163, 184, 0.18); background: #fff; flex-wrap: wrap; gap: 10px;
     }
@@ -522,11 +546,6 @@
       color: #0f172a;
       font-weight: 700;
       font-size: 0.75rem;
-    }
-    .core-services-page .core-edit-btn {
-      border-radius: 10px;
-      font-weight: 600;
-      min-width: 88px;
     }
     .core-services-page .core-empty-state {
       padding: 2rem 1rem;
@@ -802,22 +821,18 @@
         </div>
       </div>
       <div class="au-hero-actions">
-        <div class="btn-group">
+        <a class="btn btn-outline-light btn-sm fw-semibold core-archive-link" href="<%= resolvedCoreArchiveHref %>" title="View archived services" aria-label="View archived services (<%= totalArchivedCount %> core)"><i class="bi bi-archive" aria-hidden="true"></i><span class="core-archive-count" aria-hidden="true"><%= totalArchivedCount %></span></a>
+        <% if (resolvedCoreServicesCanManage) { %><div class="btn-group">
           <button class="btn btn-light btn-sm fw-semibold new-core-service">
             <i class="bi bi-plus-lg me-1"></i>New Core Service
           </button>
-        </div>
+        </div><% } %>
       </div>
     </div>
   </div>
 
   <!-- original header removed -->
 
-  <% // compute some simple stats from the list %>
-  <% const totalCount = coreServices ? coreServices.length : 0; %>
-  <% const activeCount = coreServices ? coreServices.filter(s=>s.active).length : 0; %>
-  <% const reviewCount = totalCount - activeCount; %>
-  <% const avgTime = coreServices && coreServices.length ? (coreServices.reduce((sum,s)=>sum + (s.durationMinutes||0),0) / coreServices.length) : 0; %>
   <div class="row g-3 mb-4">
     <div class="col-lg col-md-6">
       <div class="dash-card h-100" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
@@ -867,7 +882,7 @@
               <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
               <span class="kpi-percent-badge"><%= totalCount ? Math.round((reviewCount/totalCount)*100) : 0 %>%</span>
             </div>
-            <small class="text-muted">Inactive or draft</small>
+            <small class="text-muted">Inactive, available to edit</small>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
             <i class="bi bi-pencil-square text-white"></i>
@@ -906,7 +921,7 @@
             <span class="input-group-text bg-light border-end-0"
               ><i class="bi bi-search text-muted"></i
             ></span>
-            <input
+            <input id="coreServiceSearch"
               type="text"
               class="form-control border-start-0 bg-light"
               placeholder="Service name, code, or category"
@@ -915,24 +930,23 @@
         </div>
         <div class="col-md-3">
           <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-tags me-1 text-primary"></i>Category</label>
-          <select class="form-select">
-            <option>All Categories</option>
-            <option>Cleaning</option>
-            <option>Installation</option>
-            <option>Maintenance</option>
+          <select class="form-select" id="coreCategoryFilter">
+            <option value="">All Categories</option>
+            <% [...new Set((coreServices || []).map(s => s.category).filter(Boolean))].sort().forEach(function(category) { %><option value="<%= category %>"><%= category %></option><% }); %>
           </select>
         </div>
         <div class="col-md-3">
           <label class="form-label small text-uppercase text-muted fw-bold"><i class="bi bi-check2-circle me-1 text-primary"></i>Status</label>
-          <select class="form-select">
-            <option>All</option>
-            <option>Active</option>
-            <option>Draft</option>
-            <option>Archived</option>
+          <select class="form-select" id="coreStatusFilter">
+            <option value="current">Current services</option>
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="archived">Archived (<%= archivedCount %>)</option>
           </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button class="btn core-filter-btn w-100">
+          <button type="button" class="btn core-filter-btn w-100" id="coreFilterApply">
             <i class="bi bi-funnel-fill me-2"></i>Filter
           </button>
         </div>
@@ -963,8 +977,8 @@
     <div
       class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center"
     >
-      <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Core Service Definitions</h6>
-      <span class="text-muted small">Updated with category structure</span>
+      <h6 class="mb-0 fw-bold" id="coreTableHeading"><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Core Service Definitions</h6>
+      <span class="text-muted small" id="coreTableNote">Archive a service to remove it from new bookings while keeping its history.</span>
     </div>
     <div class="table-responsive">
       <table class="table table-hover table-dense align-middle mb-0 core-table">
@@ -984,13 +998,14 @@
         <tbody id="coreTableBody">
           <% if (coreServices && coreServices.length) { %>
             <% coreServices.forEach(function(svc) { %>
-              <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>">
+              <tr data-svc="<%= encodeURIComponent(JSON.stringify(svc)) %>" data-status="<%= svc.archivedAt ? 'archived' : (svc.active ? 'active' : 'inactive') %>" data-category="<%= svc.category || '' %>" data-search="<%= [svc.name, svc.slug, svc.category].filter(Boolean).join(' ').toLowerCase() %>">
                 <td class="ps-4">
                   <div class="core-service-cell">
                     <span class="core-service-icon"><i class="bi bi-tools"></i></span>
                     <div>
                       <div class="core-service-title"><%= svc.name %></div>
                       <div class="core-service-sub"><%= svc.description || 'No description provided.' %></div>
+                      <% if (svc.archivedAt) { %><div class="small text-warning-emphasis mt-1"><i class="bi bi-archive me-1"></i>Archived <%= new Date(svc.archivedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) %><%= svc.archiveReason ? ' · ' + svc.archiveReason : '' %></div><% } %>
                     </div>
                   </div>
                 </td>
@@ -1008,13 +1023,19 @@
                 <td><span class="core-booking-badge"><i class="bi bi-graph-up-arrow"></i><%= svc.bookingCount || 0 %></span></td>
                 <td><span class="badge <%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'bg-secondary-subtle text-secondary' : 'bg-primary-subtle text-primary border border-primary-subtle' %>"><%= svc.warrantyPolicy && svc.warrantyPolicy.enabled === false ? 'Disabled' : ((svc.warrantyPolicy && svc.warrantyPolicy.workmanshipDays) || 90) + ' days' %></span></td>
                 <td>
-                  <span class="badge <%= svc.active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle' %>"><%= svc.active ? 'Active' : 'Inactive' %></span>
+                  <span class="badge <%= svc.archivedAt ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : (svc.active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle') %>"><%= svc.archivedAt ? 'Archived' : (svc.active ? 'Active' : 'Inactive') %></span>
                 </td>
                 <td class="text-end pe-4">
-                  <button class="btn btn-sm btn-light border edit-core-service core-edit-btn"><i class="bi bi-pencil-square me-1"></i>Edit</button>
+                  <% if (resolvedCoreServicesCanManage) { %>
+                  <div class="core-actions">
+                    <button type="button" class="core-action-btn edit-core-service" title="Edit <%= svc.name %>" aria-label="Edit <%= svc.name %>"><i class="bi bi-pencil" aria-hidden="true"></i></button>
+                    <% if (svc.archivedAt) { %><button type="button" class="core-action-btn success core-lifecycle-btn" data-action="restore" title="Restore <%= svc.name %>" aria-label="Restore <%= svc.name %>"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button><% } else { %><button type="button" class="core-action-btn danger core-lifecycle-btn" data-action="archive" title="Archive <%= svc.name %>" aria-label="Archive <%= svc.name %>"><i class="bi bi-archive" aria-hidden="true"></i></button><% } %>
+                  </div>
+                  <% } else { %><span class="text-muted small">View only</span><% } %>
                 </td>
               </tr>
             <% }); %>
+            <tr id="coreFilterEmpty" style="display:none"><td colspan="9" class="text-center core-empty-state"><i class="bi bi-search"></i><div>No services match these filters.</div></td></tr>
           <% } else { %>
             <tr>
               <td colspan="9" class="text-center core-empty-state">
@@ -1155,6 +1176,7 @@
                       <input class="form-check-input" type="checkbox" name="active" id="activeCheck" checked />
                       <label class="form-check-label fw-semibold" for="activeCheck">Active in Catalog</label>
                       <div class="form-text small text-muted mb-0">Make this service available for booking.</div>
+                      <div class="form-text small text-warning-emphasis d-none" id="coreArchivedHint">Restore this service before making it available for booking.</div>
                     </div>
                   </div>
                 </div>
@@ -1430,6 +1452,8 @@
         form.exclusions.value = (data.exclusions || []).join(', ');
         form.isAirconService.checked = !!data.isAirconService;
         form.active.checked = !!data.active;
+        form.active.disabled = !!data.archivedAt;
+        document.getElementById('coreArchivedHint').classList.toggle('d-none', !data.archivedAt);
         currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
         setWarrantyPolicy(data.warrantyPolicy);
         warrantyDaysTouched = true;
@@ -1444,6 +1468,8 @@
         modalEl.querySelector('.modal-title').innerText = 'New Core Service';
         form.reset();
         form.active.checked = true;
+        form.active.disabled = false;
+        document.getElementById('coreArchivedHint').classList.add('d-none');
         currentAirconTypes = [];
         setWarrantyPolicy(null);
         warrantyDaysTouched = false;
@@ -1454,7 +1480,7 @@
       modal.show();
     }
 
-    document.querySelector('.new-core-service').addEventListener('click', function() {
+    document.querySelector('.new-core-service')?.addEventListener('click', function() {
       openForm();
     });
 
@@ -1464,6 +1490,53 @@
         if (!tr) return;
         const svc = JSON.parse(decodeURIComponent(tr.dataset.svc || '{}'));
         openForm(svc);
+      }
+    });
+
+    document.body.addEventListener('click', async function(e) {
+      const button = e.target.closest('.core-lifecycle-btn');
+      if (!button || button.disabled) return;
+      const row = button.closest('tr[data-svc]');
+      if (!row) return;
+      const service = JSON.parse(decodeURIComponent(row.dataset.svc || '{}'));
+      const restoring = button.dataset.action === 'restore';
+      let reason = restoring ? 'Restored to the core service catalogue by an administrator' : '';
+      if (window.Swal) {
+        const result = await Swal.fire({
+          icon: restoring ? 'question' : 'warning',
+          title: `${restoring ? 'Restore' : 'Archive'} ${service.name}?`,
+          text: restoring ? 'This service will become available for new bookings.' : 'This service will be hidden from new bookings. Existing bookings and history remain intact.',
+          input: restoring ? undefined : 'text',
+          inputLabel: restoring ? undefined : 'Reason for archiving',
+          inputPlaceholder: restoring ? undefined : 'For example: Service is no longer offered',
+          inputValidator: restoring ? undefined : value => (!value || value.trim().length < 10) ? 'Enter at least 10 characters.' : undefined,
+          showCancelButton: true,
+          confirmButtonText: restoring ? 'Restore service' : 'Archive service',
+          confirmButtonColor: restoring ? '#047857' : '#b45309'
+        });
+        if (!result.isConfirmed) return;
+        if (!restoring) reason = String(result.value || '').trim();
+      } else if (restoring) {
+        if (!confirm(`Restore ${service.name} for new bookings?`)) return;
+      } else {
+        reason = prompt(`Archive ${service.name}? Enter a reason of at least 10 characters:`, '') || '';
+        if (reason.trim().length < 10) { if (reason) alert('Enter at least 10 characters.'); return; }
+      }
+      button.disabled = true;
+      try {
+        const base = <%- JSON.stringify(resolvedCoreServicesApiBase).replace(/</g, "\\u003c") %>;
+        const response = await fetch(`${base}/${service._id}/${restoring ? 'restore' : 'archive'}`, {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'The service could not be updated.');
+        if (window.Swal) await Swal.fire({ icon: 'success', title: restoring ? 'Service restored' : 'Service archived', text: data.message, timer: 1700, showConfirmButton: false });
+        else alert(data.message || 'Service updated.');
+        location.reload();
+      } catch (error) {
+        button.disabled = false;
+        if (window.Swal) Swal.fire({ icon: 'error', title: 'Unable to update service', text: error.message });
+        else alert(error.message);
       }
     });
 
@@ -1618,8 +1691,12 @@
     const rows = tbody ? Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.dataset.svc) : [];
     const info = document.getElementById('corePaginationInfo');
     const nav = document.getElementById('corePagination');
+    const search = document.getElementById('coreServiceSearch');
+    const category = document.getElementById('coreCategoryFilter');
+    const status = document.getElementById('coreStatusFilter');
     const perPage = 10;
     let currentPage = 1;
+    let filteredRows = rows;
 
     function renderPagination(total, pages) {
       if (!info || !nav) return;
@@ -1637,21 +1714,47 @@
     }
 
     function goToCorePage(page) {
-      const pages = Math.max(1, Math.ceil(rows.length / perPage));
+      const pages = Math.max(1, Math.ceil(filteredRows.length / perPage));
       currentPage = Math.max(1, Math.min(page, pages));
       render();
     }
     window.goToCorePage = goToCorePage;
 
     function render() {
-      const pages = Math.ceil(rows.length / perPage) || 1;
-      rows.forEach((row, idx) => {
+      const pages = Math.ceil(filteredRows.length / perPage) || 1;
+      rows.forEach(row => { row.style.display = 'none'; });
+      filteredRows.forEach((row, idx) => {
         const start = (currentPage - 1) * perPage;
         row.style.display = (idx >= start && idx < start + perPage) ? '' : 'none';
       });
-      renderPagination(rows.length, pages);
+      const empty = document.getElementById('coreFilterEmpty');
+      if (empty) empty.style.display = filteredRows.length ? 'none' : '';
+      renderPagination(filteredRows.length, pages);
     }
 
-    render();
+    function applyFilters() {
+      const query = (search?.value || '').trim().toLowerCase();
+      const archiveView = status?.value === 'archived';
+      document.querySelector('.core-services-page')?.classList.toggle('archive-view', archiveView);
+      const heading = document.getElementById('coreTableHeading');
+      const note = document.getElementById('coreTableNote');
+      if (heading) heading.innerHTML = archiveView ? '<i class="bi bi-archive me-2 text-primary"></i>Archived Core Services' : '<i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Core Service Definitions';
+      if (note) note.textContent = archiveView ? 'Restore a service to make it available for new bookings again.' : 'Archive a service to remove it from new bookings while keeping its history.';
+      filteredRows = rows.filter(row =>
+        (!query || row.dataset.search.includes(query)) &&
+        (!category?.value || row.dataset.category === category.value) &&
+        (!status?.value || status.value === 'all' || (status.value === 'current' ? row.dataset.status !== 'archived' : row.dataset.status === status.value))
+      );
+      currentPage = 1;
+      render();
+    }
+
+    search?.addEventListener('input', applyFilters);
+    category?.addEventListener('change', applyFilters);
+    status?.addEventListener('change', applyFilters);
+    document.getElementById('coreFilterApply')?.addEventListener('click', applyFilters);
+    if (new URLSearchParams(location.search).get('status') === 'archived' && status) status.value = 'archived';
+
+    applyFilters();
   })();
 </script>

@@ -1,0 +1,14 @@
+<link rel="stylesheet" href="/css/relocation-requests.css?v=20261007-v1">
+<main class="rr-page">
+  <header class="rr-head">
+    <div><span class="rr-eyebrow">Customer services</span><h1>Aircon relocation</h1><p>Track a move between addresses, review the quote, then continue to booking and payment.</p></div>
+    <a class="rr-button rr-button-light" href="/services"><i class="bi bi-arrow-left"></i> Browse services</a>
+  </header>
+  <div class="rr-steps" aria-label="Relocation process"><span>1. Staff reviews locations</span><span>2. You approve the quote</span><span>3. Pay and book</span><span>4. Technician completes the move</span></div>
+  <div id="relocationMessage" class="rr-message" role="status" aria-live="polite" hidden></div>
+  <section class="rr-panel" aria-labelledby="relocationTitle">
+    <div class="rr-section-head"><div><h2 id="relocationTitle">Your requests</h2><p>The same-property estimate applies only to nearby moves at one address.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
+    <div id="relocationList" class="rr-list" aria-live="polite"><p class="rr-muted">Loading requests…</p></div>
+  </section>
+</main>
+<script src="/js/relocation-requests.js?v=20261007-v1" defer></script>

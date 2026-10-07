@@ -16,7 +16,7 @@ const functions = script.slice(
   script.indexOf("function requestBookingStepNavigation(targetStep)")
 );
 
-function setupScheduleAction(selectedTimeSlot, slotAvailable = true) {
+function setupScheduleAction(selectedTimeSlot, slotAvailable = true, pendingQuote = false) {
   const elements = new Map();
   const getElementById = id => {
     if (!elements.has(id)) {
@@ -45,6 +45,7 @@ function setupScheduleAction(selectedTimeSlot, slotAvailable = true) {
     selectedTime: selectedTimeSlot?.label || null
   };
   const navigated = [];
+  const quoteCalls = [];
   const body = { appendChild(element) { element.parentElement = body; } };
   const context = {
     BookingState: state,
@@ -62,14 +63,26 @@ function setupScheduleAction(selectedTimeSlot, slotAvailable = true) {
         }
       }
     },
-    getBookingStepIssue: () => state.selectedDate && state.selectedTimeSlot ? null : { step: 4 },
+    getBookingStepIssue: () => state.selectedDate && (pendingQuote || state.selectedTimeSlot) ? null : { step: 4 },
+    pendingRelocationQuoteItem: () => pendingQuote ? { relocation: { scope: 'custom_quote' } } : null,
+    submitRelocationQuoteRequest: async () => { quoteCalls.push('sent'); return true; },
     requestBookingStepNavigation: step => { navigated.push(step); return true; },
     presentBookingStepIssue() {},
     showServiceDialog: async () => {}
   };
   vm.runInNewContext(functions, context);
-  return { context, state, navigated, get: getElementById };
+  return { context, state, navigated, quoteCalls, get: getElementById };
 }
+
+test("relocation quote uses the preferred date without booking or reserving a time", async () => {
+  const { context, navigated, quoteCalls, get } = setupScheduleAction(null, true, true);
+  context.syncScheduleNextAction();
+  assert.equal(get("scheduleNextButton").disabled, false);
+  assert.match(get("scheduleNextButton").innerHTML, /Send Quote Request/);
+  assert.equal(await context.continueFromSchedule(), true);
+  assert.deepEqual(quoteCalls, ['sent']);
+  assert.deepEqual(navigated, []);
+});
 
 test("returning to Schedule shows the saved date and a working Review Booking button", async () => {
   const { context, navigated, get } = setupScheduleAction({ label: "8:00 AM" });

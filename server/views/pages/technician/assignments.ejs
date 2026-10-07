@@ -7322,6 +7322,7 @@ if (a.status === 'accepted') {
             }
           }
           let actionBtns = `
+          ${(a.bookingId?.services || []).some(item => item.relocation?.scope) || /aircon relocation/i.test(String(a.serviceName || '')) ? `<a class="btn btn-outline-primary" href="/technician/relocation-work-order/${encodeURIComponent(bId)}"><i class="bi bi-list-check me-2"></i>Relocation work order</a>` : ''}
           ${canCancel ? `<button class="btn btn-outline-danger" onclick="openModalAfterClose(null,'assignDetailModal',()=>openCancelModal('${a._id}','${esc(a.customerName)}','${esc(a.serviceName)}'));"><i class="bi bi-x-circle me-2"></i>Cancel</button>` : ''}
           ${a.status === 'on_site' ? `<button type="button" class="btn btn-warning text-dark" onclick="openCustomerNotAvailable('${a._id}',this);"><i class="bi bi-person-x me-2"></i>Customer Not Available</button>` : ''}
           ${a.status === 'waiting_for_customer' ? `<button type="button" class="btn btn-outline-warning" onclick="openCustomerNotAvailable('${a._id}',this,'resume');"><i class="bi bi-clock-history me-2"></i>Waiting Timer</button>` : ''}`;

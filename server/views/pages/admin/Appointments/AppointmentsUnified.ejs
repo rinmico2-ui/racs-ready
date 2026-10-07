@@ -632,6 +632,7 @@
       </div>
       <div class="au-hero-actions">
         <a class="btn btn-light fw-bold" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-search me-1"></i> Unit Identification</a>
+        <a class="btn btn-light fw-bold" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-geo-alt me-1"></i> Relocation Requests</a>
         <a class="btn btn-light fw-bold" href="<%= appointmentsOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
         <% if (appointmentsResolutionEnabled) { %>
           <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>

@@ -34,6 +34,20 @@ function isSingleLabelMongoUri(value) {
   return /^[a-z](?:[a-z0-9-]*[a-z0-9])?(?::\d{1,5})?$/i.test(host);
 }
 
+// A direct connection without a replica-set name may point at a standalone
+// server, which cannot accept retryable writes. Keep the caller's URI intact
+// for replica-set/SRV deployments and avoid requiring a secret .env edit.
+function disableRetryableWritesForDirectConnection(value) {
+  const uri = String(value || "");
+  if (!uri.startsWith("mongodb://") || !uri.includes("?")) return uri;
+  const queryIndex = uri.indexOf("?");
+  const params = new URLSearchParams(uri.slice(queryIndex + 1));
+  if (params.get("directConnection")?.toLowerCase() !== "true" || params.has("replicaSet")) return uri;
+  if (params.get("retryWrites") === "false") return uri;
+  params.set("retryWrites", "false");
+  return `${uri.slice(0, queryIndex)}?${params.toString()}`;
+}
+
 function buildMongoConnectionUri(srvUri, options = {}) {
   const directHosts = parseDirectHosts(options.directHosts);
   if (!directHosts.length || !String(srvUri || "").startsWith("mongodb+srv://")) {
@@ -60,4 +74,4 @@ function buildMongoConnectionUri(srvUri, options = {}) {
   };
 }
 
-module.exports = { buildMongoConnectionUri, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts };
+module.exports = { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri, parseDirectHosts };

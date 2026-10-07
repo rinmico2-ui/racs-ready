@@ -163,6 +163,10 @@
       data('Service quantity', `${request.quantity} ${request.quantity === 1 ? 'unit' : 'units'}`),
       data('Customer reported brand', request.brand || 'Not sure'),
       data('Customer reported type / HP', `${request.airconType || 'Not sure'} / ${request.hp ? `${request.hp} HP` : 'Not sure'}`));
+    if (request.relocation?.scope === 'same_property') {
+      details.append(data('From · current position', request.relocation.fromPosition || 'Not provided'),
+        data('To · new position', request.relocation.toPosition || 'Not provided'));
+    }
     if (request.existingBookingId) details.append(data('Existing booking', request.existingBookingReference || String(request.existingBookingId)));
     customerSection.append(details);
     if (request.notes) customerSection.append(text('p', 'ua-customer-note', request.notes));

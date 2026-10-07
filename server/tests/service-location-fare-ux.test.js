@@ -11,10 +11,10 @@ const view = read("views/pages/services.ejs");
 const script = read("public/js/services-multi.js");
 const styles = read("public/css/services-mobile-ux.css");
 
-test("travel fee is the primary result beside the selected location", () => {
+test("the selected location and travel fee appear below the map", () => {
   const locationStep = view.slice(view.indexOf('id="locationStep"'), view.indexOf('id="manualCalendar"'));
+  assert.ok(locationStep.indexOf('id="technicianMap"') < locationStep.indexOf('id="serviceMapAddress"'));
   assert.ok(locationStep.indexOf('id="serviceMapAddress"') < locationStep.indexOf('id="mapInfoFare"'));
-  assert.ok(locationStep.indexOf('id="mapInfoFare"') < locationStep.indexOf('id="technicianMap"'));
   assert.match(locationStep, /class="service-route-total"[\s\S]*?id="mapInfoFare"/);
   assert.match(locationStep, /id="serviceMapCoordinates"[\s\S]*?<\/details>/);
   assert.match(locationStep, /id="locationFareDetailsButton"[\s\S]*?See travel fee details/);
@@ -34,7 +34,7 @@ test("confirmed location copy keeps the address, fee, and pin instruction withou
 });
 
 test("sticky next action shows the fare and links back to its breakdown", () => {
-  assert.match(script, /if \(message\) message\.textContent = `Travel fee \$\{fareText\} · \$\{distanceText\}`/);
+  assert.match(script, /if \(message\) message\.textContent = quoteItem[\s\S]*?`Travel fee \$\{fareText\} · \$\{distanceText\}`/);
   assert.match(script, /function showServiceTravelDetails\(\)[\s\S]*?panel\.scrollIntoView/);
   assert.match(script, /function confirmServiceAddressPin\(\)[\s\S]*?showServiceTravelDetails\(\)/);
   assert.match(styles, /\.location-fare-details\[hidden\] \{ display: none; \}/);
@@ -76,6 +76,7 @@ test("the fixed action shows the calculated fare only for a confirmed pin", () =
   };
   const sync = vm.runInNewContext(`(${source})`, {
     BookingState: { currentStep: 3, customerLocation: location },
+    pendingRelocationQuoteItem: () => null,
     document: { body, getElementById: id => elements[id] },
     window: { clearTimeout() {}, setTimeout: () => 1 },
   });

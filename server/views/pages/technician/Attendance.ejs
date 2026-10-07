@@ -739,12 +739,16 @@
 
   async function showAttendanceFailure(data, fallback) {
     if (data && data.code === 'TRUSTED_DEVICE_REQUIRED') {
-      await Swal.fire({
+      const result = await Swal.fire({
         icon: 'warning',
         title: 'Registered Device Required',
-        text: data.error || 'Sign in again on this device and select Trust this device.',
+        text: data.error || 'Sign in again on this browser and complete the technician device setup.',
+        confirmButtonText: 'Sign in again',
+        showCancelButton: true,
+        cancelButtonText: 'Close',
         confirmButtonColor: '#2563eb',
       });
+      if (result.isConfirmed) window.location.href = '/login?returnTo=%2Ftechnician%2Fattendance';
       return;
     }
     const locationCodes = ['LOCATION_REQUIRED', 'LOCATION_INACCURATE', 'LOCATION_STALE', 'OUTSIDE_GEOFENCE', 'OUTSIDE_WORKSITE_GEOFENCE', 'GEOFENCE_NOT_CONFIGURED'];

@@ -24,7 +24,7 @@ const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
-const { buildMongoConnectionUri, isTlsProtectedMongoUri, isSingleLabelMongoUri } = require("./utils/mongoConnection");
+const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri } = require("./utils/mongoConnection");
 const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
 const { createHttpAdmission } = require("./middleware/httpAdmission");
 const {
@@ -70,7 +70,9 @@ const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
   replicaSet: process.env.MONGODB_REPLICA_SET,
   authSource: process.env.MONGODB_AUTH_SOURCE,
 });
-const MONGODB_URI = mongoConnection.uri || "mongodb://localhost:27017/appointment_scheduler";
+const MONGODB_URI = disableRetryableWritesForDirectConnection(
+  mongoConnection.uri || "mongodb://localhost:27017/appointment_scheduler",
+);
 const redactMongoError = (value) => {
   let message = String(value || "");
   try {
@@ -585,6 +587,7 @@ app.use("/api/bookings", bookingRoutes);
 const bookingRoutesNew = require("./routes/bookingRoutesNew");
 app.use("/api/bookings", bookingRoutesNew);
 app.use("/api/unit-assistance", require("./routes/unitAssistanceRoutes"));
+app.use("/api/relocations", require("./routes/relocationRoutes"));
 
 app.use("/api/paymongo", paymongoRoutes);
 

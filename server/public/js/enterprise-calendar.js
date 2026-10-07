@@ -11,6 +11,10 @@
 "use strict";
 
 const EnterpriseCalendar = (() => {
+  function calendarDebug(...args) {
+    if (window.RACS_BOOKING_DEBUG === true) console.debug('[Calendar]', ...args);
+  }
+
   let _currentMonth = null;
   let _selectedDate = null;
   let _selectedSlot = null;
@@ -320,7 +324,7 @@ const EnterpriseCalendar = (() => {
             _availabilityError = 'Could not load available project dates. Try again.';
           }
         } catch (avErr) {
-          console.warn('EnterpriseCalendar: window-availability load error', avErr);
+          calendarDebug('EnterpriseCalendar: window-availability load error', avErr);
           _availabilityError = 'Could not load available project dates. Try again.';
         }
 
@@ -339,13 +343,13 @@ const EnterpriseCalendar = (() => {
               _projectCapacityData = capData.availableDates || null;
             }
           } catch (capErr) {
-            console.warn('EnterpriseCalendar: project capacity data load error', capErr);
+            calendarDebug('EnterpriseCalendar: project capacity data load error', capErr);
             _projectCapacityData = null;
           }
         }
       }
 
-      console.log('EnterpriseCalendar: Data loaded', {
+      calendarDebug('EnterpriseCalendar: Data loaded', {
         availableDates: _scheduleData.availableDates?.length || 0,
         projectCapacityDates: _projectCapacityData?.length || 0,
         holidays: _holidaysData.holidays?.length || 0,

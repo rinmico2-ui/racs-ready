@@ -41,34 +41,20 @@ body.admin-layout {
   font-weight: 400 !important;
 }
 
-/* prevent bold tags from rendering bold in admin pages */
-body.admin-layout b,
-body.admin-layout strong {
-  font-weight: 400 !important;
-}
-
-/* override Bootstrap utility classes that add bold weight */
-.admin-layout .fw-bold,
-.admin-layout .fw-semibold,
-.admin-layout .font-weight-bold,
-.admin-layout .fw-bolder {
-  font-weight: 400 !important;
-}
-
-/* headings use Outfit font family for consistent typography */
+/* Use the shared portal typeface while retaining a clear heading hierarchy. */
 .admin-layout h1,
 .admin-layout h2,
 .admin-layout h3,
 .admin-layout h4,
 .admin-layout h5,
 .admin-layout h6 {
-  font-family: 'Outfit', 'Inter', sans-serif;
-  font-weight: 600;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
 }
 
-/* reset table header weight which Bootstrap sets heavier */
+/* Table headers need enough contrast to scan dense operational data. */
 .admin-layout th {
-  font-weight: 400;
+  font-weight: 600;
 }
 
 

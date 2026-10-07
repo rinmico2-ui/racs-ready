@@ -66,7 +66,7 @@
       <% if (!user) { %>
         <div class="ent-alert ent-alert-warning" role="alert">
           <i class="bi bi-exclamation-triangle-fill"></i>
-          <strong>Please log in to book a service.</strong> <a href="/login" class="alert-link">Go to login</a> or create an account if you are new.
+          <span class="service-login-copy"><strong>Please log in to book a service.</strong> <a href="/login" class="alert-link service-login-link">Go to login</a> or create an account if you are new.</span>
         </div>
       <% } %>
 
@@ -74,7 +74,7 @@
         <script id="initial-services-json" type="application/json"><%- JSON.stringify(initialServices, null, 2) %></script>
         <script>window.initialCatalog = JSON.parse(document.getElementById('initial-services-json').textContent||'{"coreServices":[],"repairs":[]}');</script>
       <% } else { %>
-        <script>console.warn('No initialServices data available');</script>
+        <script>window.initialCatalog = { coreServices: [], repairs: [] };</script>
       <% } %>
 
       <% if (typeof serviceCategories !== 'undefined' && serviceCategories.length) { %>
@@ -654,7 +654,7 @@
               </script>
               <script>
                 document.addEventListener('DOMContentLoaded',async()=>{
-                  try{const l=await(window._companyBaseLocationPromise||Promise.resolve(window._companyBaseLocation));window._companyBaseLocation=l||window._companyBaseLocation;if(window.BookingState&&window._companyBaseLocation){window.BookingState.companyBaseCoordinates={lat:window._companyBaseLocation.lat,lng:window._companyBaseLocation.lng};}}catch(e){console.error('Company location load failed:',e);}
+                  try{const l=await(window._companyBaseLocationPromise||Promise.resolve(window._companyBaseLocation));window._companyBaseLocation=l||window._companyBaseLocation;if(window.BookingState&&window._companyBaseLocation){window.BookingState.companyBaseCoordinates={lat:window._companyBaseLocation.lat,lng:window._companyBaseLocation.lng};}}catch(e){window._companyBaseLocation=window._companyBaseLocation||{configured:false,lat:14.676049,lng:121.043731,address:'Company location not set'};}
                 });
               </script>
               <div class="service-map-search mb-3">
@@ -673,6 +673,40 @@
                 </button>
                 <small class="text-muted d-block mt-1">Address search data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</small>
                 <small class="text-muted d-none mt-1" id="geoapifyAttribution">Live suggestions powered by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>.</small>
+              </div>
+              <div class="service-map-search mb-3 d-none" id="relocationDestinationSection">
+                <label class="form-label fw-semibold" for="relocationDestinationAddress">New address for the aircon</label>
+                <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" autocomplete="off" placeholder="House number, street, barangay, city, province" />
+                <small class="text-muted d-block mt-2">The map pin marks where the aircon is now. Staff will review both addresses and send a custom quote before payment or assignment.</small>
+              </div>
+
+              <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
+                <div class="service-map-toolbar">
+                  <div>
+                    <h6><i class="bi bi-map me-2 text-primary"></i>Check the pin</h6>
+                    <p>Drag the green pin if needed.</p>
+                  </div>
+                  <div class="service-map-actions" aria-label="Map controls">
+                    <button type="button" class="service-map-action" id="locateCustomerBtn" title="Use my current location"><i class="bi bi-crosshair"></i><span>My Location</span></button>
+                    <button type="button" class="service-map-action" id="locateCompanyBtn" title="Show CALIDRO RACS"><i class="bi bi-building"></i><span>RACS</span></button>
+                    <button type="button" class="service-map-action" id="focusCustomerBtn" title="Show the service location"><i class="bi bi-geo-alt"></i><span>Service Pin</span></button>
+                    <button type="button" class="service-map-action" id="fitServiceRouteBtn" title="Show the full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Full Route</span></button>
+                    <button type="button" class="service-map-action" id="expandServiceMapBtn" title="Make the map larger"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
+                  </div>
+                </div>
+                <div class="service-map-stage">
+                  <div id="technicianMap" class="technician-map" role="application" tabindex="0" aria-label="Interactive service route map"
+                    data-technician-lat="<%= (technicianLocation&&technicianLocation.lat)||14.676049 %>"
+                    data-technician-lng="<%= (technicianLocation&&technicianLocation.lng)||121.043731 %>"></div>
+                  <div class="service-map-legend" aria-label="Map legend">
+                    <span><i class="service-map-dot company"></i>CALIDRO RACS</span>
+                    <span><i class="service-map-dot customer"></i>Service location</span>
+                  </div>
+                </div>
+                <div class="service-pin-confirm d-none" id="servicePinConfirm" role="status" aria-live="polite">
+                  <div><strong>Is the green pin at the service address?</strong><span>Move it to the exact spot if needed.</span></div>
+                  <button type="button" onclick="confirmServiceAddressPin()">Yes, this is the place</button>
+                </div>
               </div>
 
               <section class="service-location-overview" aria-labelledby="locationDetailsTitle">
@@ -715,35 +749,6 @@
                 </div>
               </section>
 
-              <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
-                <div class="service-map-toolbar">
-                  <div>
-                    <h6><i class="bi bi-map me-2 text-primary"></i>Check the pin</h6>
-                    <p>Drag the green pin if needed.</p>
-                  </div>
-                  <div class="service-map-actions" aria-label="Map controls">
-                    <button type="button" class="service-map-action" id="locateCustomerBtn" title="Use my current location"><i class="bi bi-crosshair"></i><span>My Location</span></button>
-                    <button type="button" class="service-map-action" id="locateCompanyBtn" title="Show CALIDRO RACS"><i class="bi bi-building"></i><span>RACS</span></button>
-                    <button type="button" class="service-map-action" id="focusCustomerBtn" title="Show the service location"><i class="bi bi-geo-alt"></i><span>Service Pin</span></button>
-                    <button type="button" class="service-map-action" id="fitServiceRouteBtn" title="Show the full route" disabled><i class="bi bi-arrows-fullscreen"></i><span>Full Route</span></button>
-                    <button type="button" class="service-map-action" id="expandServiceMapBtn" title="Make the map larger"><i class="bi bi-fullscreen"></i><span>Expand</span></button>
-                  </div>
-                </div>
-                <div class="service-map-stage">
-                  <div id="technicianMap" class="technician-map" role="application" tabindex="0" aria-label="Interactive service route map"
-                    data-technician-lat="<%= (technicianLocation&&technicianLocation.lat)||14.676049 %>"
-                    data-technician-lng="<%= (technicianLocation&&technicianLocation.lng)||121.043731 %>"></div>
-                  <div class="service-map-legend" aria-label="Map legend">
-                    <span><i class="service-map-dot company"></i>CALIDRO RACS</span>
-                    <span><i class="service-map-dot customer"></i>Service location</span>
-                  </div>
-                </div>
-                <div class="service-pin-confirm d-none" id="servicePinConfirm" role="status" aria-live="polite">
-                  <div><strong>Is the green pin at the service address?</strong><span>Move it to the exact spot if needed.</span></div>
-                  <button type="button" onclick="confirmServiceAddressPin()">Yes, this is the place</button>
-                </div>
-              </div>
-
               <div class="location-next-action" id="locationNextAction" aria-label="Location status and next step" aria-live="polite">
                 <div class="location-next-status">
                   <span class="location-next-icon"><i class="bi bi-geo-alt-fill"></i></span>
@@ -763,17 +768,22 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-calendar"><i class="bi bi-calendar3"></i></div>
               <div class="ent-step-info">
-                <h5>Choose a Date and Time</h5>
-                <p>Tell us when you want the service.</p>
+                <h5 id="serviceScheduleTitle">Choose a Date and Time</h5>
+                <p id="serviceScheduleIntro">Tell us when you want the service.</p>
               </div>
             </div>
             <div class="ent-step-body">
-              <p class="booking-step-lead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
-              <%- include('../partials/customer-hours-note', {
+              <p class="booking-step-lead" id="serviceScheduleLead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
+              <div id="relocationPreferredDateSection" class="d-none mb-3">
+                <label class="form-label fw-semibold" for="relocationQuotePreferredDate">Preferred relocation date</label>
+                <input class="form-control" type="date" id="relocationQuotePreferredDate" />
+                <small class="text-muted d-block mt-2">This is your preferred date. Staff will confirm availability when they send the custom quote.</small>
+              </div>
+              <div id="serviceScheduleHours"><%- include('../partials/customer-hours-note', {
                 hoursLabel: 'Service team hours',
                 hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
                 hoursNote: 'Available service dates and start times are shown below. Hours can vary by technician.'
-              }) %>
+              }) %></div>
               <div class="booking-confidence-note mb-3"><i class="bi bi-info-circle"></i><span>Your date and time are a request. We will let you know when your booking is confirmed.</span></div>
               <div class="schedule-next-action" id="scheduleNextAction" aria-label="Selected schedule and next step">
                 <div class="schedule-next-copy" aria-live="polite">
@@ -1327,7 +1337,7 @@
               <div class="cfg-stage-panel mb-3" id="brandSection" style="display:none;">
                 <div class="cfg-stage-heading">
                   <span class="cfg-stage-icon"><i class="bi bi-upc-scan"></i></span>
-                  <div><span class="cfg-stage-kicker">First</span><h6>What is the aircon brand?</h6><p>Choose the brand shown on the unit. Choose “I don't know” if you are not sure.</p></div>
+                  <div><span class="cfg-stage-kicker">First</span><h6>What is the aircon brand?</h6><p>Choose the brand shown on the unit. If you are not sure, select the unknown details option.</p></div>
                 </div>
                 <label class="cfg-fl" for="brandInput">Brand <span class="text-danger">*</span></label>
                 <select class="cfg-f" id="brandInput" required>
@@ -1335,7 +1345,6 @@
                 </select>
                 <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Enter the brand" maxlength="80" required>
                 <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
-                <button type="button" class="btn btn-outline-primary mt-3" id="cfgUnknownBrandBtn">I don't know the unit details</button>
               </div>
 
               <div id="issueDescriptionSection" class="mb-3 d-none">
@@ -1520,6 +1529,10 @@
 </section>
 
 <style>
+/* Quote requests need only a preferred date; time is arranged after approval. */
+#manualCalendar.relocation-quote-schedule #timeSelection,
+#manualCalendar.relocation-quote-schedule #projectPrefs,
+#manualCalendar.relocation-quote-schedule #calendarGrid { display: none !important; }
 /* Responsive Configure Service modal */
 @media(max-width:575.98px){
   html body #quantitySelectionModal.show{padding:0!important}
@@ -2747,8 +2760,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261001-project-date-guide-v1';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261005-service-specific-icons':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261006-booking-console-cleanup';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261007-relocation-asset-prefill-v4':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3349,5 +3362,5 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261006-sticky-pages">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261007-map-summary-below">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">

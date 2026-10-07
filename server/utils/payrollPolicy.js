@@ -65,10 +65,16 @@ function calculateOvertimePay(compensation, overtimeHours = 0) {
 }
 
 function attendanceQualityWarnings(compensation, attendance = {}) {
-  if (!compensation || compensation.payType === "monthly") return [];
+  if (!compensation) return [];
   const warnings = [];
   const payableDays = Number(attendance.present || 0) + Number(attendance.late || 0);
-  if (payableDays === 0) warnings.push("No payable attendance was recorded for this period.");
+  if (compensation.payType === "monthly") {
+    if (Number(attendance.hoursWorked || 0) <= 0) {
+      warnings.push("No worked hours were recorded for this monthly period. Review attendance and any paid leave before approval; the monthly salary is not reduced automatically.");
+    }
+  } else if (payableDays === 0) {
+    warnings.push("No payable attendance was recorded for this period.");
+  }
   if (Number(attendance.incompleteShifts || 0) > 0) {
     warnings.push(`${attendance.incompleteShifts} payable attendance record(s) are missing check-in or check-out.`);
   }
@@ -82,9 +88,11 @@ function attendanceQualityWarnings(compensation, attendance = {}) {
 }
 
 function hasBlockingAttendanceExceptions(compensation, attendance = {}) {
-  if (!compensation || compensation.payType === "monthly") return false;
+  if (!compensation) return false;
   const payableDays = Number(attendance.present || 0) + Number(attendance.late || 0);
-  return payableDays === 0
+  return (compensation.payType === "monthly"
+    ? Number(attendance.hoursWorked || 0) <= 0
+    : payableDays === 0)
     || Number(attendance.incompleteShifts || 0) > 0
     || Number(attendance.unverifiedEntries || 0) > 0;
 }

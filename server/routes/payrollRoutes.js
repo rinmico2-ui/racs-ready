@@ -231,7 +231,7 @@ async function attendanceFor(employeeId, periodStart, periodEnd) {
     if (["Present", "Late"].includes(record.status) && (!record.checkInTime || !record.checkOutTime)) {
       summary.incompleteShifts += 1;
     }
-    if (record.checkInTime && record.checkOutTime) {
+    if (["Present", "Late"].includes(record.status) && record.checkInTime && record.checkOutTime) {
       const hours = (new Date(record.checkOutTime) - new Date(record.checkInTime)) / 3600000;
       if (hours > 0 && hours < 24) summary.hoursWorked += hours;
     }
@@ -863,7 +863,9 @@ router.post("/:id/approve", requireAdmin, async (req, res, next) => {
     const attendanceOverrideReason = String((req.body && req.body.attendanceExceptionReason) || "").trim().slice(0, 500);
     if (hasAttendanceBlock && !attendanceOverrideRequested) {
       return res.status(409).json({
-        error: "Resolve the attendance exceptions or approve with a documented exception reason.",
+        error: calculation.compensation.payType === "monthly" && Number(calculation.attendance.hoursWorked || 0) <= 0
+          ? "Monthly salary was calculated, but no worked hours were recorded. Review attendance or paid leave, then document the exception before approval."
+          : "Resolve the attendance exceptions or approve with a documented exception reason.",
         code: "ATTENDANCE_EXCEPTION_OVERRIDE_REQUIRED",
         requiresOverride: true,
         warnings: calculation.warnings,

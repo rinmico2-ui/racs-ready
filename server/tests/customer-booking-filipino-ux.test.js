@@ -138,7 +138,9 @@ test("location, price, payment, and success states answer the customer's key que
   assert.match(script, /confirmButtonText: '[^']*Try Again'[\s\S]*?cancelButtonText: 'Enter Address Instead'/);
   assert.match(script, /if \(error\.code === 1\)[\s\S]*?if \(error\.code === 2\)/);
   assert.match(psgcRoutes, /router\.get\('\/resolve'[\s\S]*?const addressCityCodes = codes\.filter/);
-  assert.ok(view.indexOf('id="locationDetailsTitle"') < view.indexOf('id="technicianMap"'));
+  assert.ok(view.indexOf('id="technicianMap"') < view.indexOf('id="locationDetailsTitle"'));
+  assert.ok(view.indexOf('id="servicePinConfirm"') < view.indexOf('id="locationDetailsTitle"'));
+  assert.match(styles, /\.service-pin-confirm button\s*\{[^}]*background:\s*#15803d/);
   assert.match(view, /id="locationContinueButton"[\s\S]*?id="locationContinueLabel"/);
   assert.match(script, /function syncLocationContinueAction\(\)[\s\S]*?Checking Route[\s\S]*?Continue to Schedule/);
   assert.match(styles, /\.location-next-action\.is-visible\s*\{[\s\S]*?position:\s*fixed/);

@@ -6,6 +6,7 @@ const { authenticatedOrIpKey } = require('../utils/rateLimitIdentity');
 const CoreService = require('../models/CoreService');
 const BookingService = require('../models/BookingService');
 const UnitAssistanceRequest = require('../models/UnitAssistanceRequest');
+const CustomerAsset = require('../models/CustomerAsset');
 const { resolveCoreServicePricing } = require('../utils/coreServicePricing');
 const { createNotification } = require('../utils/notify');
 
@@ -15,7 +16,7 @@ const customer = auth.requireRole('customer');
 const staff = auth.requireRole(['admin', 'secretary']);
 const limiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyGenerator: authenticatedOrIpKey, standardHeaders: true, legacyHeaders: false });
 const validId = id => mongoose.isValidObjectId(id);
-const customerFields = '_id serviceId serviceName existingBookingId existingBookingReference brand airconType hp quantity notes status createdAt quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
+const customerFields = '_id serviceId serviceName existingBookingId existingBookingReference brand airconType hp quantity relocation notes status createdAt quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
 
 router.post('/', customer, limiter, async (req, res) => {
   try {
@@ -27,6 +28,24 @@ router.post('/', customer, limiter, async (req, res) => {
     const catalog = await CoreService.findOne({ _id: serviceId, active: true }).lean();
     if (!catalog?.isAirconService || !(catalog.airconTypes?.length || catalog.hpPricing?.length)) {
       return res.status(400).json({ error: 'Unit identification is unavailable for this service.' });
+    }
+    let relocation = undefined;
+    if (catalog.slug === 'aircon-relocation') {
+      const fromPosition = String(req.body.relocation?.fromPosition || '').trim().slice(0, 500);
+      const toPosition = String(req.body.relocation?.toPosition || '').trim().slice(0, 500);
+      if (quantity !== 1 || req.body.relocation?.scope !== 'same_property' || fromPosition.length < 2 || toPosition.length < 2) {
+        return res.status(400).json({ error: 'For same-property relocation, describe both positions for one aircon unit.' });
+      }
+      let assetId = null;
+      if (req.body.relocation?.assetId) {
+        if (!validId(req.body.relocation.assetId)) return res.status(400).json({ error: 'Invalid aircon asset.' });
+        const asset = await CustomerAsset.findOne({ _id: req.body.relocation.assetId, customerId: req.user._id, status: { $ne: 'retired' } }).select('_id').lean();
+        if (!asset) return res.status(404).json({ error: 'Aircon asset not found.' });
+        assetId = asset._id;
+      }
+      relocation = { scope: 'same_property', fromPosition, toPosition, assetId,
+        model: String(req.body.relocation.model || '').trim().slice(0, 80),
+        serialNumber: String(req.body.relocation.serialNumber || '').trim().slice(0, 100) };
     }
     const brand = String(req.body.brand || '').trim().slice(0, 80);
     const airconType = String(req.body.airconType || '').trim();
@@ -51,7 +70,7 @@ router.post('/', customer, limiter, async (req, res) => {
       customerId: req.user._id, serviceId, serviceName: catalog.name,
       existingBookingId: existingBooking?._id || null,
       existingBookingReference: existingBooking?.bookingReference || '',
-      brand, airconType, hp, quantity,
+      brand, airconType, hp, quantity, relocation,
       notes: String(req.body.notes || '').trim().slice(0, 1000),
       events: [{ action: 'requested', actorId: req.user._id, notes: String(req.body.notes || '').trim().slice(0, 1000) }],
     });

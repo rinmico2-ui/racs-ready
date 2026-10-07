@@ -37,7 +37,7 @@ test("login remains a compact secure single-step form", () => {
   assert.doesNotMatch(login, /data-register-step/);
 });
 
-test("auth layout cache-busts the modern flow styles", () => {
+test("auth layout cache-busts the technician device setup styles", () => {
   const layout = read("views/layouts/auth.ejs");
-  assert.match(layout, /auth\.css\?v=20260928-modern-auth-flow/);
+  assert.match(layout, /auth\.css\?v=20261006-technician-device-setup/);
 });

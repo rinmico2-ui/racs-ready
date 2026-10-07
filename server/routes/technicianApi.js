@@ -208,6 +208,56 @@ router.use((req, res, next) => {
   next();
 });
 
+router.get('/relocation-work-order/:bookingId', async (req, res) => {
+  const BookingService = require('../models/BookingService');
+  const Assignment = require('../models/Assignment');
+  const { RELOCATION_STAGES } = require('../utils/relocationChecklist');
+  if (!mongoose.isValidObjectId(req.params.bookingId)) return res.status(400).json({ error: 'Invalid booking.' });
+  const { tech } = await loadTechnicianContext(req.user._id);
+  if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+  const assignment = await Assignment.findOne({ bookingId: req.params.bookingId, technicianId: tech._id, status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress', 'completed'] } }).select('_id status').lean();
+  if (!assignment) return res.status(403).json({ error: 'This work order is not assigned to you.' });
+  const booking = await BookingService.findById(req.params.bookingId).select('bookingReference services paymentStatus status').lean();
+  const items = (booking?.services || []).filter(item => item.relocation?.scope).map(item => ({
+    id: item._id, name: item.name, from: item.relocation.from, to: item.relocation.to,
+    brand: item.brand, model: item.relocation.model, serialNumber: item.relocation.serialNumber,
+    completedTasks: item.relocation.completedTasks || [],
+  }));
+  if (!items.length) return res.status(404).json({ error: 'Relocation work order not found.' });
+  return res.json({ bookingReference: booking.bookingReference, assignmentStatus: assignment.status, stages: RELOCATION_STAGES, items });
+});
+
+router.post('/relocation-work-order/:bookingId/items/:itemId/tasks', async (req, res) => {
+  const BookingService = require('../models/BookingService');
+  const Assignment = require('../models/Assignment');
+  const { RELOCATION_STAGES, taskKeys } = require('../utils/relocationChecklist');
+  if (!mongoose.isValidObjectId(req.params.bookingId) || !mongoose.isValidObjectId(req.params.itemId)) return res.status(400).json({ error: 'Invalid work order.' });
+  const task = String(req.body.task || '');
+  if (!taskKeys.includes(task)) return res.status(400).json({ error: 'Invalid relocation task.' });
+  const { tech } = await loadTechnicianContext(req.user._id);
+  if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+  const assignment = await Assignment.exists({ bookingId: req.params.bookingId, technicianId: tech._id, status: 'in_progress' });
+  if (!assignment) return res.status(409).json({ error: 'Start the assigned job before completing relocation tasks.' });
+  const booking = await BookingService.findById(req.params.bookingId).select('services status').lean();
+  const item = (booking?.services || []).find(row => String(row._id) === req.params.itemId && row.relocation?.scope);
+  if (!item || booking.status === 'completed') return res.status(409).json({ error: 'This relocation work order is not open.' });
+  const stageIndex = RELOCATION_STAGES.findIndex(stage => stage.tasks.some(([key]) => `${stage.key}.${key}` === task));
+  const completed = item.relocation.completedTasks || [];
+  for (const stage of RELOCATION_STAGES.slice(0, stageIndex)) {
+    if (stage.tasks.some(([key]) => !completed.includes(`${stage.key}.${key}`))) {
+      return res.status(409).json({ error: `Complete ${stage.label} before moving to the next stage.` });
+    }
+  }
+  const updated = await BookingService.findOneAndUpdate({ _id: booking._id,
+    services: { $elemMatch: { _id: item._id, 'relocation.completedTasks': { $ne: task } } },
+  }, { $addToSet: { 'services.$.relocation.completedTasks': task },
+    $push: { 'services.$.relocation.taskEvents': { task, technicianId: tech._id, at: new Date() } },
+  }, { returnDocument: 'after' }).select('services').lean();
+  if (!updated && !completed.includes(task)) return res.status(409).json({ error: 'This task changed. Refresh the work order.' });
+  const updatedItem = (updated?.services || []).find(row => String(row._id) === req.params.itemId);
+  return res.json({ completedTasks: updatedItem?.relocation?.completedTasks || completed });
+});
+
 // Warranty inspections mirror the core-service field lifecycle.
 router.get("/warranty-claims", async (req, res, next) => {
   try {
@@ -1581,7 +1631,7 @@ async function verifyAttendanceDevice(req, res) {
   }).catch(() => {});
   res.status(403).json({
     code: "TRUSTED_DEVICE_REQUIRED",
-    error: "Attendance can only be recorded from your registered device. Sign in again and select Trust this device.",
+    error: "Attendance requires a registered device. Sign in again on this browser and complete the technician device setup.",
   });
   return false;
 }
@@ -6339,6 +6389,13 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
 
       const booking = await BookingService.findById(assignment.bookingId);
       if (!booking) return res.status(404).json({ error: "Booking not found" });
+      const relocationItems = (booking.services || []).filter(item => item.relocation?.scope);
+      if (relocationItems.length) {
+        const { allTasksComplete } = require('../utils/relocationChecklist');
+        if (relocationItems.some(item => !allTasksComplete(item))) {
+          return res.status(409).json({ error: 'Finish the Removal, Transport, Installation, and Testing checklist before submitting completion proof.' });
+        }
+      }
       if (booking && ["cod", "cash", "cash_onsite", "gcash_downpayment"].includes(booking.paymentMethod) && !booking.balanceCollected && (booking.balanceAmount || 0) > 0) {
         return res.status(400).json({ error: "You must collect the remaining balance before completing this job." });
       }

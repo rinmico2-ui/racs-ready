@@ -131,6 +131,10 @@
     card.append(head);
 
     const body = item('div', 'uac-card-body');
+    if (request.relocation?.scope === 'same_property') {
+      body.append(detailNote('From · current position', request.relocation.fromPosition || 'Not provided'));
+      body.append(detailNote('To · new position', request.relocation.toPosition || 'Not provided'));
+    }
     if (request.existingBookingId) {
       const booking = item('div', 'uac-booking-ref');
       booking.append(icon('bi-link-45deg'), item('span', '', `Booking ${request.existingBookingReference || request.existingBookingId}`));
