@@ -3115,10 +3115,10 @@ function initializeMapInternal(mapContainer) {
     BookingState.customerLocation = { address: manualAddress || coordinateLabel, lat, lng, pinConfirmed: false,
       ...(manualAddress ? { manualAddress } : {}) };
     BookingState.location = manualAddress || coordinateLabel;
+    BookingState.userCoordinates = { lat, lng };
     // Move the one authoritative customer marker immediately. Reverse
     // geocoding is asynchronous and must not create a second marker later.
     setCustomerLocationMarker(lat, lng, manualAddress, 'Point selected on map');
-    BookingState.userCoordinates = { lat, lng };
     reverseGeocode(lat, lng, requestToken, { preserveManualAddress: Boolean(manualAddress), requirePinConfirmation: true });
   });
   technicianMarker.bindTooltip('CALIDRO RACS', { direction: 'top', offset: [0, -34] });
@@ -6076,10 +6076,17 @@ function syncRelocationMapSummary() {
 function setRelocationDestinationPin(lat, lng) {
   const item = activeRelocationItem();
   if (item?.relocation?.scope !== 'custom_quote') return;
-  if (!item || !BookingState.map || typeof L === 'undefined') return;
   const address = String(item.relocation.to?.address || '').trim();
   if (address.length < 8 || !isWithinPhilippinesMapBounds(lat, lng)) return;
   item.relocation.to = { ...item.relocation.to, address, lat, lng };
+  scheduleBookingProgressSave();
+  if (!BookingState.map || typeof L === 'undefined') {
+    const status = document.getElementById('relocationDestinationStatus');
+    if (status) status.textContent = 'Destination found. The orange pin will appear when the map finishes loading.';
+    syncRelocationMapSummary();
+    syncLocationContinueAction();
+    return;
+  }
   const icon = L.divIcon({
     className: 'relocation-destination-marker',
     html: '<div style="background:#ea580c;border:3px solid white;border-radius:50% 50% 50% 0;width:36px;height:36px;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.28)"><div style="background:white;border-radius:50%;width:11px;height:11px;position:relative;top:10px;left:10px"></div></div>',
@@ -6109,7 +6116,6 @@ function setRelocationDestinationPin(lat, lng) {
   if (status) status.textContent = 'Orange pin marks the new address. Drag it to the exact place if needed.';
   syncRelocationMapSummary();
   syncLocationContinueAction();
-  scheduleBookingProgressSave();
 }
 
 async function searchRelocationDestination() {
@@ -11225,7 +11231,7 @@ function updateSelectedServicesDisplay() {
     if (relocationItem) relocationHint.textContent = relocationItem.relocation?.scope === 'custom_quote'
       ? (relocationItem.relocation.requestId
         ? `Pin the aircon's current address: ${relocationItem.relocation.from?.address || 'the From address on your quote'}. The accepted quote already includes transport and travel.`
-        : 'Pin the aircon’s current address, then enter the destination below. Staff will quote the move before any payment or assignment.')
+        : 'Pin the aircon’s current address, then show the new address on the map. Staff will quote the move before any payment or assignment.')
       : 'Pin the unit’s current address. The standard estimate applies only when the new position is nearby on the same property.';
   }
 

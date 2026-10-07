@@ -196,7 +196,7 @@ test('a relocation booking item preserves both locations, quote and existing ass
     services: [{ name: 'Aircon Relocation', type: 'core', quantity: 1,
       relocation: {
         scope: 'custom_quote', requestId: id(3), assetId: id(4),
-        from: { address: 'Old address' }, to: { address: 'New address' },
+        from: { address: 'Old address', lat: 14.7, lng: 121.1 }, to: { address: 'New address', lat: 14.6, lng: 121.0 },
         model: 'Model A', serialNumber: 'SN-123', completedTasks: ['removal.disconnect'],
       },
     }],
@@ -204,6 +204,7 @@ test('a relocation booking item preserves both locations, quote and existing ass
   await booking.validate();
   const move = booking.toObject().services[0].relocation;
   assert.equal(move.to.address, 'New address');
+  assert.equal(move.to.lat, 14.6);
   assert.equal(String(move.assetId), id(4));
   assert.equal(move.serialNumber, 'SN-123');
   assert.equal(allTasksComplete(booking.services[0]), false);
