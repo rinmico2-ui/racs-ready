@@ -16,7 +16,7 @@ const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
 const User = require("../models/User");
 const AirconCart = require("../models/AirconCart");
-const { parseCartItemIds, assertCartSelection } = require("../utils/cartCheckoutSelection");
+const { parseCartItemIds } = require("../utils/cartCheckoutSelection");
 const { reorderCancelledOrder } = require("../utils/orderReorder");
 const { requestOrderRefund } = require("../utils/orderRefundRequest");
 const {
@@ -29,13 +29,13 @@ const {
   getGcashRecipientNumber,
   calculatePaymentBreakdown,
   normalizePaymentChannel,
-  paymentRecordMethod,
   getPaymentMethods,
   MANUAL_PAYMENT_CHANNELS,
 } = require("../utils/paymentPolicy");
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const paymentProofStorage = require("../utils/paymentProofStorage");
 const { isUnsupportedMongoWriteFeature } = require("../utils/mongoWriteSupport");
+const { persistOrderCheckout } = require("../utils/orderCheckoutWrite");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
@@ -773,85 +773,12 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
 
     let order;
     const commitOrder = async () => {
-      const session = await mongoose.startSession();
-      try {
-      session.startTransaction();
-      if (cartItemIds) {
-        const cart = await AirconCart.findOne({ userId: req.user._id }).select('items').session(session).lean();
-        assertCartSelection(cart, cartItemIds, requestedItems);
-        // Removing selected lines and creating the order must commit together.
-        // A failed checkout keeps all items, and unselected lines are untouched.
-        const result = await AirconCart.updateOne({ _id: cart._id, userId: req.user._id }, {
-          $pull: { items: { _id: { $in: cartItemIds.map(id => new mongoose.Types.ObjectId(id)) } } },
-        }, { session });
-        if (result.modifiedCount !== 1) {
-          throw new OrderCheckoutError("Your cart changed. Refresh it before checking out.", 409, "ORDER_CART_SELECTION_CHANGED");
-        }
-      }
-      for (const item of enrichedItems) {
-        let reserved;
-        if (item.isHvac) {
-          reserved = await HVACProduct.findOneAndUpdate(
-            {
-              _id: item.parentHvacId,
-              variants: { $elemMatch: { _id: item.inventoryId, quantity: { $gte: item.quantity }, active: { $ne: false }, status: { $nin: ["out_of_stock", "discontinued", "coming_soon"] } } },
-            },
-            { $inc: { "variants.$.quantity": -item.quantity } },
-            { returnDocument: "after", session },
-          );
-        } else {
-          reserved = await Inventory.findOneAndUpdate(
-            { _id: item.inventoryId, quantity: { $gte: item.quantity }, active: { $ne: false }, status: { $nin: ["out_of_stock", "discontinued", "coming_soon"] } },
-            { $inc: { quantity: -item.quantity } },
-            { returnDocument: "after", session },
-          );
-        }
-        if (!reserved) {
-          throw new OrderCheckoutError(
-            `${item.modelLine || "A selected product"} no longer has enough stock. Your order was not charged or created.`,
-            409,
-            "ORDER_STOCK_RACE_LOST",
-          );
-        }
-      }
-
-      order = new Order(orderData);
-      await order.save({ session });
-      if (["cod", "gcash_full"].includes(selection.paymentMethod) && req.file) {
-        const isDownpayment = selection.paymentMethod === "cod";
-        const paymentRecord = new Payment({
-          orderId: order._id,
-          amount: isDownpayment ? order.downpaymentAmount : order.total,
-          method: paymentRecordMethod(normalizedPaymentChannel),
-          type: isDownpayment ? "downpayment" : "final",
-          gateway: paymentRecordMethod(normalizedPaymentChannel),
-          reference: orderData.paymentReference || undefined,
-          proofUrl: orderData.gcashProofUrl || null,
-          status: "pending",
-          notes: isDownpayment
-            ? `${order.downpaymentPercentage}% order downpayment via ${normalizedPaymentChannel} initiated`
-            : `Full order payment via ${normalizedPaymentChannel} initiated`,
-          events: [{
-            status: "pending",
-            actor: req.user._id,
-            actorName: req.user.name || req.user.email || "Customer",
-            actorRole: "customer",
-            note: "Payment proof submitted with order",
-            at: new Date(),
-          }],
-        });
-        await paymentRecord.save({ session });
-        order.paymentId = paymentRecord._id;
-        await order.save({ session });
-      }
-      await session.commitTransaction();
+      order = await persistOrderCheckout({
+        mongoose, Order, Payment, Inventory, HVACProduct, AirconCart,
+        orderData, enrichedItems, requestedItems, cartItemIds,
+        user: req.user, receiptPresent: Boolean(req.file),
+      });
       orderCommitted = true;
-      } catch (transactionError) {
-        await session.abortTransaction().catch(() => {});
-        throw transactionError;
-      } finally {
-        await session.endSession();
-      }
     };
 
     if (selection.delivery) {
@@ -887,7 +814,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     console.error("POST /api/orders error:", err);
     // A lost commit acknowledgement is not proof of rollback. Preserve the
     // receipt if MongoDB cannot tell us whether the transaction committed.
-    if (storedReceiptId && !orderCommitted && !err?.hasErrorLabel?.('UnknownTransactionCommitResult')) {
+    if (storedReceiptId && !orderCommitted && !err?.preserveReceipt && !err?.hasErrorLabel?.('UnknownTransactionCommitResult')) {
       await paymentProofStorage.deletePaymentProof(storedReceiptId).catch(() => {});
     }
     if (err?.code === 11000 && checkoutRequestId) {
@@ -1142,6 +1069,12 @@ router.use("/:id", authenticate, async (req, res, next) => {
 });
 
 function checkoutErrorResponse(res, error) {
+  if (error?.code === "ORDER_WRITE_INCOMPLETE") {
+    return res.status(503).json({
+      error: "We could not confirm the order status. Keep your payment receipt and contact support before trying again.",
+      code: "ORDER_WRITE_INCOMPLETE",
+    });
+  }
   if (isUnsupportedMongoWriteFeature(error)) {
     return res.status(503).json({
       error: "Ordering is temporarily unavailable. If you already sent a payment, keep your receipt and contact support before trying again.",
