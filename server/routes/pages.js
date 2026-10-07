@@ -1084,7 +1084,7 @@ router.get("/tracking/data", pageAuth.requireRole("customer"), async (req, res, 
     // Project row even when BookingService.isProject was never backfilled.
     const projectBookingIds = items.map(b => b._id);
     const projects = projectBookingIds.length
-      ? await Project.find({ bookingId: { $in: projectBookingIds } })
+      ? await Project.find({ bookingId: { $in: projectBookingIds }, status: { $ne: 'cancelled' } })
           .select("bookingId customer.name customer.phone customer.email service.name status projectPhase totalUnits completedUnits payment.paymentMethod payment.amountPaid payment.totalAmount quotationReview.status quotationReview.totalAmount repair.quotation.approvedAt repair.quotation.totalCost location.address location.lat location.lng assignedTechnicians._id assignedTechnicians.name assignedTechnicians.phone leadTechnicianId plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline dailyAcceptance.required")
           .lean()
       : [];

@@ -289,11 +289,11 @@ function getRestorableBookingStep() {
   const projectEndDate = BookingState.projectScheduling?.endDate
     ? new Date(BookingState.projectScheduling.endDate)
     : null;
-  const hasProjectSchedule = BookingState.isProject === true && hasUsableDate &&
+  const hasProjectSchedule = bookingRequiresProjectSchedule() && hasUsableDate &&
     projectEndDate && !Number.isNaN(projectEndDate.getTime()) && projectEndDate >= selectedDate;
   const hasAppointmentSchedule = hasUsableDate &&
     Boolean(BookingState.selectedTimeSlot || BookingState.selectedTime);
-  if (step > 4 && !hasProjectSchedule && !hasAppointmentSchedule) return 4;
+  if (step > 4 && !(bookingRequiresProjectSchedule() ? hasProjectSchedule : hasAppointmentSchedule)) return 4;
   return step;
 }
 
@@ -435,6 +435,8 @@ const MAX_BOOKING_UNITS = 40;
 const REPAIR_MODEL_MAX_LENGTH = 50;
 const SAFE_REPAIR_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/;
 let customerLocationRequestToken = 0;
+let relocationDestinationRequestToken = 0;
+let placingRelocationDestination = false;
 let routeRequestToken = 0;
 let addressGeocodeRequestToken = 0;
 let reverseGeocodeDebounceTimer = null;
@@ -456,6 +458,44 @@ function repairModelValidationMessage(value) {
   return '';
 }
 function isLargeScaleSelection() { return selectedUnitTotal() >= LARGE_SCALE_MIN_UNITS; }
+function bookingRequiresProjectSchedule() {
+  if (isLargeScaleSelection()) return true;
+  const configuredHours = Number(window.__bookingPolicy?.largeProjectThresholdHours);
+  const thresholdMinutes = (Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : 8) * 60;
+  const serviceMinutes = (BookingState.selectedServices || []).reduce((sum, service) =>
+    sum + Math.max(1, Number(service.duration) || (service.type === 'repair' ? 90 : 60)) * Math.max(1, Number(service.quantity) || 1), 0);
+  // Preserve a restored project's range until the current policy loads. Once
+  // the policy arrives, the selected work becomes the sole source of truth.
+  if (!Number.isFinite(configuredHours) && BookingState.isProject && BookingState.projectScheduling) return true;
+  return serviceMinutes > thresholdMinutes;
+}
+
+let bookingScheduleServiceSignature = null;
+function reconcileBookingScheduleAfterServiceChange() {
+  const signature = JSON.stringify((BookingState.selectedServices || []).map(service => [
+    service.id || service._id || service.serviceId,
+    Number(service.quantity) || 1,
+    Number(service.duration) || (service.type === 'repair' ? 90 : 60),
+  ]));
+  const hasPendingRelocationQuote = (BookingState.selectedServices || []).some(service =>
+    service.relocation?.scope === 'custom_quote' && !service.relocation?.requestId);
+  const requiresProject = !hasPendingRelocationQuote && bookingRequiresProjectSchedule();
+  const changed = bookingScheduleServiceSignature !== null && bookingScheduleServiceSignature !== signature;
+  const wrongMode = Boolean(BookingState.isProject || BookingState.projectScheduling) !== requiresProject &&
+    Boolean(BookingState.selectedDate || BookingState.scheduleDate || BookingState.selectedTimeSlot || BookingState.projectScheduling);
+  bookingScheduleServiceSignature = signature;
+  if (!changed && !wrongMode) return;
+  BookingState.selectedDate = null;
+  BookingState.scheduleDate = null;
+  BookingState.selectedTimeSlot = null;
+  BookingState.selectedTime = null;
+  BookingState.scheduleTime = null;
+  BookingState.projectScheduling = null;
+  BookingState.isProject = false;
+  document.getElementById('timeSelection')?.classList.add('d-none');
+  syncScheduleNextAction();
+  scheduleBookingProgressSave();
+}
 function remainingBookingUnits() {
   return Math.max(0, MAX_BOOKING_UNITS - selectedUnitTotal());
 }
@@ -543,12 +583,21 @@ function initMultiServiceBooking() {
 
     // Initialize booking state (restores from localStorage if available)
     initializeBookingState();
+    reconcileBookingScheduleAfterServiceChange();
 
     // Load services catalog
     const catalogReady = loadServicesCatalog();
 
     // Setup event listeners
     setupEventListeners();
+
+    if (BookingState.draftRestored && BookingState.selectedServices.length && !window.__bookingPolicy) {
+      try {
+        const response = await fetch('/api/schedule/booking-policy');
+        if (response.ok) window.__bookingPolicy = await response.json();
+      } catch (_) { /* The calendar can retry when the customer reaches Schedule. */ }
+      reconcileBookingScheduleAfterServiceChange();
+    }
 
     // Restore UI state even when the customer reached a later step before
     // selecting a service. The previous implementation ignored that draft.
@@ -1625,6 +1674,20 @@ function showTechnicianChangeNotification(technicianName) {
 /**
  * Show specific step with completed steps visibility
  */
+function syncServiceScheduleCopy(customQuote = false) {
+  const project = !customQuote && bookingRequiresProjectSchedule();
+  const scheduleTitle = document.getElementById('serviceScheduleTitle');
+  const scheduleIntro = document.getElementById('serviceScheduleIntro');
+  const scheduleLead = document.getElementById('serviceScheduleLead');
+  if (scheduleTitle) scheduleTitle.textContent = customQuote ? 'Choose a Preferred Date' : project ? 'Choose Project Dates' : 'Choose a Date and Time';
+  if (scheduleIntro) scheduleIntro.textContent = customQuote
+    ? 'Choose a preferred date for your relocation request.'
+    : project ? 'Choose when the project can start and when you would like it finished.' : 'Tell us when you want the service.';
+  if (scheduleLead) scheduleLead.textContent = customQuote
+    ? 'Choose a preferred date for staff review. This does not reserve a technician or require payment.'
+    : project ? 'Select a start and end date. Our team will confirm the work plan.' : 'Pick a date, then choose a start time. We will assign an available technician for you.';
+}
+
 function showStep(stepNumber) {
   bookingDebug(`🔧 showStep(${stepNumber}) called`);
 
@@ -1725,41 +1788,13 @@ function showStep(stepNumber) {
 
   // Load content for specific steps
   if (stepNumber === 4) {
+    reconcileBookingScheduleAfterServiceChange();
     const customQuote = Boolean(pendingRelocationQuoteItem());
     document.getElementById('manualCalendar')?.classList.toggle('relocation-quote-schedule', customQuote);
     const preferredDateSection = document.getElementById('relocationPreferredDateSection');
-    const preferredDateInput = document.getElementById('relocationQuotePreferredDate');
     preferredDateSection?.classList.toggle('d-none', !customQuote);
     document.getElementById('serviceScheduleHours')?.classList.toggle('d-none', customQuote);
-    if (preferredDateInput && customQuote) {
-      const today = new Date();
-      const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      preferredDateInput.min = dateKey(today);
-      preferredDateInput.value = BookingState.selectedDate ? dateKey(new Date(BookingState.selectedDate)) : '';
-      if (!preferredDateInput.dataset.wired) {
-        preferredDateInput.dataset.wired = '1';
-        preferredDateInput.addEventListener('change', () => {
-          const selected = preferredDateInput.value ? new Date(`${preferredDateInput.value}T12:00:00`) : null;
-          BookingState.selectedDate = selected && !Number.isNaN(selected.getTime()) ? selected : null;
-          BookingState.scheduleDate = BookingState.selectedDate;
-          BookingState.selectedTimeSlot = null;
-          BookingState.selectedTime = null;
-          BookingState.scheduleTime = null;
-          saveBookingProgress();
-          syncScheduleNextAction();
-        });
-      }
-    }
-    const scheduleTitle = document.getElementById('serviceScheduleTitle');
-    const scheduleIntro = document.getElementById('serviceScheduleIntro');
-    const scheduleLead = document.getElementById('serviceScheduleLead');
-    if (scheduleTitle) scheduleTitle.textContent = customQuote ? 'Choose a Preferred Date' : 'Choose a Date and Time';
-    if (scheduleIntro) scheduleIntro.textContent = customQuote
-      ? 'Choose a preferred date for your relocation request.'
-      : 'Tell us when you want the service.';
-    if (scheduleLead) scheduleLead.textContent = customQuote
-      ? 'Choose a preferred date for staff review. This does not reserve a technician or require payment.'
-      : 'Pick a date, then choose a start time. We will assign an available technician for you.';
+    syncServiceScheduleCopy(customQuote);
     bookingDebug('🔧 Initializing Step 4 scheduling...');
     setTimeout(() => {
       const manualCalendar = document.getElementById('manualCalendar');
@@ -1769,6 +1804,7 @@ function showStep(stepNumber) {
       if (manualCalendar) manualCalendar.classList.remove('d-none');
 
       if (customQuote) {
+        renderManualCalendar();
         syncScheduleNextAction();
         return;
       }
@@ -2708,6 +2744,8 @@ function cleanupMap() {
     BookingState.companyBaseMarker = null;
     BookingState.routeLine = null;
     BookingState.routeMarkers = [];
+    BookingState.relocationDestinationMarker = null;
+    BookingState.relocationMoveLine = null;
 
     // Clear coordinates
     BookingState.userCoordinates = null;
@@ -2996,6 +3034,7 @@ function initializeMapInternal(mapContainer) {
     BookingState.technicianIcon = technicianIcon;
     BookingState.userIcon = userIcon;
     BookingState.routeMarkers = [];
+    syncRelocationDestination();
   }
 
   // Restore user marker and route if we have saved coordinates
@@ -3061,6 +3100,11 @@ function initializeMapInternal(mapContainer) {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (!isWithinPhilippinesMapBounds(lat, lng)) {
       showError('Choose a service location in the Philippines.');
+      return;
+    }
+    if (placingRelocationDestination && pendingRelocationQuoteItem()) {
+      placingRelocationDestination = false;
+      setRelocationDestinationPin(lat, lng);
       return;
     }
     const requestToken = ++customerLocationRequestToken;
@@ -3638,6 +3682,11 @@ function setCustomerLocationMarker(lat, lng, address, source) {
   BookingState.userMarker.on('click', function () { map.setView(this.getLatLng(), 16); this.openPopup(); });
   bindServiceCustomerMarkerDrag(BookingState.userMarker);
   updateServiceMapSelectionUI(lat, lng, address, source || 'Map selection');
+  syncRelocationMapSummary();
+  const destination = activeRelocationItem()?.relocation?.to;
+  if (isWithinPhilippinesMapBounds(Number(destination?.lat), Number(destination?.lng))) {
+    setRelocationDestinationPin(Number(destination.lat), Number(destination.lng));
+  }
   return BookingState.userMarker;
 }
 
@@ -3953,6 +4002,11 @@ function setupLocateButtons() {
     fitRouteBtn.dataset.mapBound = 'true';
     fitRouteBtn.addEventListener('click', () => {
       if (!BookingState?.map) return;
+      if (BookingState.relocationDestinationMarker && BookingState.userMarker) {
+        const markers = [BookingState.technicianMarker, BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean);
+        BookingState.map.fitBounds(L.featureGroup(markers).getBounds(), { padding: [50, 50], maxZoom: 16 });
+        return;
+      }
       if (BookingState.routeLine && typeof BookingState.routeLine.getBounds === 'function') {
         const bounds = BookingState.routeLine.getBounds();
         if (bounds && bounds.isValid()) {
@@ -4017,6 +4071,8 @@ function syncLocationContinueAction() {
   const quoteItem = pendingRelocationQuoteItem();
   const needsDestination = Boolean(quoteItem &&
     String(quoteItem.relocation?.to?.address || '').trim().length < 8);
+  const needsDestinationPin = Boolean(quoteItem && !needsDestination &&
+    !isWithinPhilippinesMapBounds(Number(quoteItem.relocation?.to?.lat), Number(quoteItem.relocation?.to?.lng)));
 
   action.classList.toggle('is-visible', isLocationStepActive);
   action.setAttribute('aria-hidden', String(!isLocationStepActive));
@@ -4056,6 +4112,15 @@ function syncLocationContinueAction() {
     if (eyebrow) eyebrow.textContent = 'Destination needed';
     if (message) message.textContent = 'Enter the new address for the aircon.';
     if (label) label.textContent = 'Enter New Address';
+    if (button) button.disabled = false;
+    return;
+  }
+
+  if (needsDestinationPin) {
+    action.classList.remove('is-checking', 'is-ready');
+    if (eyebrow) eyebrow.textContent = 'Destination pin needed';
+    if (message) message.textContent = 'Show the new address on the map or place the orange pin.';
+    if (label) label.textContent = 'Set Destination Pin';
     if (button) button.disabled = false;
     return;
   }
@@ -4128,6 +4193,11 @@ window.continueServiceBookingFromMap = function() {
   }
   if (pendingRelocationQuoteItem() &&
       String(pendingRelocationQuoteItem().relocation?.to?.address || '').trim().length < 8) {
+    presentBookingStepIssue(getBookingStepIssue(3));
+    return;
+  }
+  if (pendingRelocationQuoteItem() &&
+      !isWithinPhilippinesMapBounds(Number(pendingRelocationQuoteItem().relocation?.to?.lat), Number(pendingRelocationQuoteItem().relocation?.to?.lng))) {
     presentBookingStepIssue(getBookingStepIssue(3));
     return;
   }
@@ -5959,20 +6029,157 @@ function pendingRelocationQuoteItem() {
     item.relocation?.scope === 'custom_quote' && !item.relocation?.requestId);
 }
 
+function activeRelocationItem() {
+  return (BookingState.selectedServices || []).find(item => item.relocation?.scope);
+}
+
+function syncRelocationMapSummary() {
+  const item = activeRelocationItem();
+  const move = item?.relocation;
+  const separateDestination = move?.scope === 'custom_quote';
+  const sharedProperty = move?.scope === 'same_property';
+  document.getElementById('relocationMapLocations')?.classList.toggle('d-none', !item);
+  document.getElementById('serviceDestinationLegend')?.classList.toggle('d-none', !item);
+  const toolbarTitle = document.getElementById('serviceMapToolbarTitle');
+  if (toolbarTitle) toolbarTitle.innerHTML = `<i class="bi bi-map me-2 text-primary"></i>${item ? 'Check both locations' : 'Check the pin'}`;
+  const toolbarHint = document.getElementById('serviceMapToolbarHint');
+  if (toolbarHint) toolbarHint.textContent = separateDestination ? 'Green: current address. Orange: new address. Drag pins if needed.' : sharedProperty ? 'The green pin marks this property for both positions.' : 'Drag the green pin if needed.';
+  const pinQuestion = document.getElementById('servicePinConfirmQuestion');
+  if (pinQuestion) pinQuestion.textContent = item ? 'Is the green pin at the aircon’s current address?' : 'Is the green pin at the service address?';
+  const originLegend = document.getElementById('serviceOriginLegend');
+  if (originLegend) originLegend.lastChild.textContent = item ? 'Current aircon location' : 'Service location';
+  const destinationLegend = document.getElementById('serviceDestinationLegend');
+  if (destinationLegend) destinationLegend.lastChild.textContent = sharedProperty ? 'New position · same property' : 'New address';
+  const from = document.getElementById('relocationMapFrom');
+  const to = document.getElementById('relocationMapTo');
+  const originAddress = BookingState.customerLocation?.address || move?.from?.address || 'Choose the current address above.';
+  if (from) from.textContent = move?.from?.details ? `${originAddress} · ${move.from.details}` : originAddress;
+  if (to) to.textContent = sharedProperty
+    ? `${originAddress} · ${move.to?.details || 'New position on the same property'}`
+    : move?.to?.address || 'Choose the new address above.';
+  if (item && BookingState.userMarker) {
+    const popup = `<strong>From · current aircon location</strong><br><small>${escapeServiceMapText(originAddress)}</small>${sharedProperty ? `<br><strong>To · new position on the same property</strong><br><small>${escapeServiceMapText(move.to?.details || 'Position confirmed on site')}</small>` : ''}`;
+    BookingState.userMarker.bindPopup(popup);
+  } else if (!item && BookingState.userMarker) {
+    BookingState.userMarker.bindPopup(`<strong>Service location</strong><br><small>${escapeServiceMapText(BookingState.customerLocation?.address || '')}</small>`);
+  }
+  if (!separateDestination && BookingState.relocationDestinationMarker && BookingState.map) {
+    BookingState.map.removeLayer(BookingState.relocationDestinationMarker);
+    BookingState.relocationDestinationMarker = null;
+  }
+  if (!separateDestination && BookingState.relocationMoveLine && BookingState.map) {
+    BookingState.map.removeLayer(BookingState.relocationMoveLine);
+    BookingState.relocationMoveLine = null;
+  }
+}
+
+function setRelocationDestinationPin(lat, lng) {
+  const item = activeRelocationItem();
+  if (item?.relocation?.scope !== 'custom_quote') return;
+  if (!item || !BookingState.map || typeof L === 'undefined') return;
+  const address = String(item.relocation.to?.address || '').trim();
+  if (address.length < 8 || !isWithinPhilippinesMapBounds(lat, lng)) return;
+  item.relocation.to = { ...item.relocation.to, address, lat, lng };
+  const icon = L.divIcon({
+    className: 'relocation-destination-marker',
+    html: '<div style="background:#ea580c;border:3px solid white;border-radius:50% 50% 50% 0;width:36px;height:36px;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,.28)"><div style="background:white;border-radius:50%;width:11px;height:11px;position:relative;top:10px;left:10px"></div></div>',
+    iconSize: [40, 40], iconAnchor: [20, 40], popupAnchor: [0, -36],
+  });
+  if (BookingState.relocationDestinationMarker) BookingState.relocationDestinationMarker.setLatLng([lat, lng]);
+  else BookingState.relocationDestinationMarker = L.marker([lat, lng], { icon, draggable: !item.relocation.requestId, keyboard: true, title: 'New aircon address' }).addTo(BookingState.map);
+  BookingState.relocationDestinationMarker.bindPopup(`<strong>To · new aircon address</strong><br><small>${escapeServiceMapText(address)}</small>`);
+  BookingState.relocationDestinationMarker.off('dragend');
+  BookingState.relocationDestinationMarker.on('dragend', event => {
+    if (item.relocation.requestId) return;
+    const point = event.target.getLatLng();
+    if (!isWithinPhilippinesMapBounds(point.lat, point.lng)) {
+      event.target.setLatLng([item.relocation.to.lat, item.relocation.to.lng]);
+      showError('Choose a destination in the Philippines.');
+      return;
+    }
+    setRelocationDestinationPin(point.lat, point.lng);
+  });
+  const from = BookingState.userCoordinates;
+  if (BookingState.relocationMoveLine) BookingState.map.removeLayer(BookingState.relocationMoveLine);
+  if (from && Number.isFinite(Number(from.lat)) && Number.isFinite(Number(from.lng))) {
+    BookingState.relocationMoveLine = L.polyline([[from.lat, from.lng], [lat, lng]], { color: '#ea580c', weight: 3, dashArray: '7 7', opacity: .9 }).addTo(BookingState.map);
+    BookingState.map.fitBounds(L.featureGroup([BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean)).getBounds(), { padding: [50, 50], maxZoom: 16 });
+  } else BookingState.map.setView([lat, lng], 15);
+  const status = document.getElementById('relocationDestinationStatus');
+  if (status) status.textContent = 'Orange pin marks the new address. Drag it to the exact place if needed.';
+  syncRelocationMapSummary();
+  syncLocationContinueAction();
+  scheduleBookingProgressSave();
+}
+
+async function searchRelocationDestination() {
+  const item = pendingRelocationQuoteItem();
+  const address = String(document.getElementById('relocationDestinationAddress')?.value || '').trim();
+  const status = document.getElementById('relocationDestinationStatus');
+  if (!item || address.length < 8) {
+    if (status) status.textContent = 'Enter the full new address first.';
+    return;
+  }
+  const requestId = ++relocationDestinationRequestToken;
+  if (status) status.textContent = 'Finding the new address on the map...';
+  try {
+    const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(address)}&limit=1`);
+    if (!response.ok) throw new Error('Address search unavailable');
+    const results = await response.json();
+    if (requestId !== relocationDestinationRequestToken || pendingRelocationQuoteItem() !== item || item.relocation.to?.address !== address) return;
+    const point = Array.isArray(results) ? results[0] : null;
+    const lat = Number(point?.lat), lng = Number(point?.lon);
+    if (!isWithinPhilippinesMapBounds(lat, lng)) throw new Error('Address not found');
+    setRelocationDestinationPin(lat, lng);
+  } catch (_) {
+    if (requestId === relocationDestinationRequestToken && status) status.textContent = 'Could not locate this address. Check it or place the orange pin manually.';
+  }
+}
+
 function syncRelocationDestination() {
   const field = document.getElementById('relocationDestinationAddress');
   const section = document.getElementById('relocationDestinationSection');
   const item = pendingRelocationQuoteItem();
   if (section) section.classList.toggle('d-none', !item);
   document.getElementById('mapInfoPanel')?.classList.toggle('d-none', Boolean(item));
+  syncRelocationMapSummary();
   if (!field) return;
   if (item) field.value = item.relocation.to?.address || '';
+  const destination = (item || activeRelocationItem())?.relocation?.to;
+  if (isWithinPhilippinesMapBounds(Number(destination?.lat), Number(destination?.lng)) && BookingState.map) {
+    setRelocationDestinationPin(Number(destination.lat), Number(destination.lng));
+  }
   field.oninput = () => {
     const current = pendingRelocationQuoteItem();
     if (!current) return;
-    current.relocation.to = { ...current.relocation.to, address: field.value.trim() };
+    ++relocationDestinationRequestToken;
+    placingRelocationDestination = false;
+    current.relocation.to = { ...current.relocation.to, address: field.value.trim(), lat: null, lng: null };
+    if (BookingState.relocationDestinationMarker && BookingState.map) BookingState.map.removeLayer(BookingState.relocationDestinationMarker);
+    if (BookingState.relocationMoveLine && BookingState.map) BookingState.map.removeLayer(BookingState.relocationMoveLine);
+    BookingState.relocationDestinationMarker = null;
+    BookingState.relocationMoveLine = null;
+    const status = document.getElementById('relocationDestinationStatus');
+    if (status) status.textContent = 'Show the new address on the map, or place its pin manually.';
+    syncRelocationMapSummary();
     scheduleBookingProgressSave();
     syncLocationContinueAction();
+  };
+  field.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); searchRelocationDestination(); } };
+  const search = document.getElementById('relocationDestinationSearch');
+  if (search) search.onclick = searchRelocationDestination;
+  const pin = document.getElementById('relocationDestinationPin');
+  if (pin) pin.onclick = () => {
+    if (field.value.trim().length < 8) {
+      field.focus();
+      const status = document.getElementById('relocationDestinationStatus');
+      if (status) status.textContent = 'Enter the new address before placing its pin.';
+      return;
+    }
+    placingRelocationDestination = true;
+    const status = document.getElementById('relocationDestinationStatus');
+    if (status) status.textContent = 'Click the new location on the map. The orange pin can be dragged afterward.';
+    document.getElementById('technicianMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 }
 
@@ -7355,7 +7562,8 @@ async function submitRelocationQuoteRequest() {
       body: JSON.stringify({
         serviceId: item.serviceId, scope: 'custom_quote',
         assetId: item.relocation.assetId || null,
-        from: { address: fromAddress }, to: { address: toAddress }, preferredDate,
+        from: { address: fromAddress, lat: BookingState.customerLocation?.lat, lng: BookingState.customerLocation?.lng },
+        to: { address: toAddress, lat: item.relocation.to?.lat, lng: item.relocation.to?.lng }, preferredDate,
         unit: {
           brand: item.brand === "I don't know" ? '' : (item.brand || ''),
           airconType: item.airconType || '',
@@ -10424,15 +10632,21 @@ function getBookingStepIssue(stepNumber) {
         focusSelector: '#relocationDestinationAddress'
       };
     }
+    if (pendingRelocationQuoteItem() &&
+        !isWithinPhilippinesMapBounds(Number(pendingRelocationQuoteItem().relocation?.to?.lat), Number(pendingRelocationQuoteItem().relocation?.to?.lng))) {
+      return {
+        step: 3,
+        title: 'Show the New Address on the Map',
+        message: 'Search for the new address or place its orange pin on the map so staff can review both locations.',
+        confirmButtonText: 'Set Destination Pin',
+        focusSelector: '#relocationDestinationSearch'
+      };
+    }
   }
 
   if (stepNumber === 4) {
     const calendar = typeof EnterpriseCalendar !== 'undefined' ? EnterpriseCalendar : null;
-    const isProject =
-      isLargeScaleSelection() ||
-      (calendar && calendar.isProjectMode && calendar.isProjectMode()) ||
-      BookingState.isProject === true ||
-      !!BookingState.projectScheduling;
+    const isProject = !pendingRelocationQuoteItem() && bookingRequiresProjectSchedule();
     const selectedDate = BookingState.selectedDate || BookingState.scheduleDate;
 
     const preferredDate = selectedDate ? new Date(selectedDate) : null;
@@ -10445,7 +10659,7 @@ function getBookingStepIssue(stepNumber) {
         title: 'Choose a Preferred Date',
         message: 'Choose the date you would prefer for the move. Staff will confirm availability after reviewing the locations.',
         confirmButtonText: 'Choose Date',
-        focusSelector: '#relocationQuotePreferredDate'
+        focusSelector: '#calendarGrid'
       };
     }
     if (pendingRelocationQuoteItem()) return null;
@@ -10553,9 +10767,7 @@ function syncScheduleNextAction(highlight = false) {
 
   const calendar = window.EnterpriseCalendar;
   const awaitingQuote = Boolean(pendingRelocationQuoteItem());
-  const isProject = !awaitingQuote && ((typeof isLargeScaleSelection === 'function' && isLargeScaleSelection()) ||
-    BookingState.isProject === true || !!BookingState.projectScheduling ||
-    calendar?.isProjectMode?.() === true);
+  const isProject = !awaitingQuote && bookingRequiresProjectSchedule();
   const start = formatScheduleActionDate(BookingState.selectedDate || BookingState.scheduleDate);
   const end = isProject ? formatScheduleActionDate(
     BookingState.projectScheduling?.endDate || calendar?.getSelectedEndDate?.()
@@ -10626,8 +10838,7 @@ async function continueFromSchedule() {
   }
 
   const calendar = window.EnterpriseCalendar;
-  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
-    calendar?.isProjectMode?.() === true;
+  const isProject = !pendingRelocationQuoteItem() && bookingRequiresProjectSchedule();
   if (isProject) {
     const verdict = calendar?.getWindowVerdict?.() || BookingState.projectScheduling?.windowVerdict;
     if (verdict?.sufficient !== true) {
@@ -11002,6 +11213,7 @@ function editSelectedService(index) {
 window.editSelectedService = editSelectedService;
 
 function updateSelectedServicesDisplay() {
+  reconcileBookingScheduleAfterServiceChange();
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
   syncRelocationDestination();
 
@@ -11718,7 +11930,7 @@ async function renderManualCalendar() {
     <div class="ent-calendar">
       <div class="ent-cal-loading">
         <div class="spinner-border" role="status"></div>
-        <span>Retrieving available dates...</span>
+        <span>${pendingRelocationQuoteItem() ? 'Loading preferred dates...' : 'Retrieving available dates...'}</span>
       </div>
     </div>
   `;
@@ -11745,12 +11957,21 @@ async function renderManualCalendar() {
         duration: serviceDuration / totalQuantity,
         quantity: totalQuantity,
         totalEstimatedMinutes: totalEstimatedMinutes,
+        mode: pendingRelocationQuoteItem() ? 'preferred' : bookingRequiresProjectSchedule() ? 'project' : 'appointment',
         travelTime: travelDuration,
         showCommercialProjects: false,
         // Keep the chosen date/time in view and reveal the Review Booking
         // action instead of moving the customer forward without a click.
         onSelect: () => syncScheduleNextAction()
       });
+      // The policy arrives during calendar initialization. Rebuild once if
+      // it changed the classification of a restored booking draft.
+      if (!pendingRelocationQuoteItem() && EnterpriseCalendar.isProjectMode() !== bookingRequiresProjectSchedule()) {
+        reconcileBookingScheduleAfterServiceChange();
+        syncServiceScheduleCopy();
+        return renderManualCalendar();
+      }
+      syncServiceScheduleCopy();
       syncScheduleNextAction();
 
     setTimeout(() => {
@@ -12667,11 +12888,7 @@ function selectTimeSlot(slot, buttonElement) {
  * Returns null-safe defaults for standard (appointment) bookings.
  */
 function getProjectReviewInfo() {
-  const isProjectMode =
-    isLargeScaleSelection() ||
-    (typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
-    BookingState.isProject === true ||
-    !!BookingState.projectScheduling;
+  const isProjectMode = bookingRequiresProjectSchedule();
 
   const fmt = d => {
     if (!d) return '';
@@ -13226,8 +13443,7 @@ function paymentProofValidationMessage(file) {
 function getPaymentConfirmationState() {
   const paymentStep = document.getElementById('paymentStep');
   const active = Number(BookingState.currentStep) === 6 || paymentStep?.classList.contains('step-active');
-  const isProject = BookingState.isProject === true || !!BookingState.projectScheduling ||
-    (typeof EnterpriseCalendar !== 'undefined' && EnterpriseCalendar.isProjectMode?.() === true);
+  const isProject = bookingRequiresProjectSchedule();
   const projectLabel = isProject ? 'project request' : 'booking request';
 
   if (!active || BookingState.draftPersistenceDisabled) {
@@ -13455,10 +13671,7 @@ async function handleBookingSubmission() {
       throw new Error(validationResult.error);
     }
 
-    const projectSchedule = isLargeScaleSelection()
-      || (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode())
-      || BookingState.isProject === true
-      || !!BookingState.projectScheduling;
+    const projectSchedule = bookingRequiresProjectSchedule();
     if (!projectSchedule && typeof EnterpriseCalendar.validateSelectedSlot === 'function') {
       const stillAvailable = await EnterpriseCalendar.validateSelectedSlot();
       if (!stillAvailable) {
@@ -13507,9 +13720,7 @@ async function handleBookingSubmission() {
       hideCarLoadingModal();
 
       // Prepare data for the enterprise confirmation modal
-      const isProjectResult = Boolean(result.isProject) ||
-        (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
-        BookingState.isProject === true || !!BookingState.projectScheduling;
+      const isProjectResult = Boolean(result.isProject) || bookingRequiresProjectSchedule();
 
       let serviceName;
       if (result.serviceNames && result.serviceNames.length) {
@@ -13669,11 +13880,7 @@ function validateBookingData() {
 
   // In large-scale / project mode only a start date is chosen (no fixed time
   // slot), so skip the time-slot requirement there.
-  const isProjectMode =
-    isLargeScaleSelection() ||
-    (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
-    BookingState.isProject === true ||
-    !!BookingState.projectScheduling;
+  const isProjectMode = bookingRequiresProjectSchedule();
   if (!isProjectMode && !BookingState.selectedTimeSlot) {
     return { valid: false, error: 'Choose your preferred time.', step: 4 };
   }
@@ -13828,11 +14035,7 @@ async function prepareBookingData() {
   };
 
   // ── Large-scale / project scheduling ──────────────────────────────────
-  const isProjectMode =
-    isLargeScaleSelection() ||
-    (EnterpriseCalendar.isProjectMode && EnterpriseCalendar.isProjectMode()) ||
-    BookingState.isProject === true ||
-    !!BookingState.projectScheduling;
+  const isProjectMode = bookingRequiresProjectSchedule();
   if (isProjectMode) {
     const ps = BookingState.projectScheduling || { preferredStartDate: BookingState.selectedDate, date: BookingState.selectedDate, preferences: {} };
     bookingData.isProject = true;

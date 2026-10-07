@@ -101,6 +101,9 @@ if (mongoConnection.usesDirectHosts) {
 // Finish synchronous app setup before starting MongoDB's server-selection timer.
 const databaseReady = new Promise((resolve) => setImmediate(resolve))
   .then(() => mongoose.connect(MONGODB_URI, {
+    // Programmatic options take precedence over URI defaults, including
+    // provider URIs that silently enable retryable writes.
+    retryWrites: false,
     maxPoolSize: positiveInteger(process.env.MONGODB_MAX_POOL_SIZE, 20),
     minPoolSize: positiveInteger(
       process.env.MONGODB_MIN_POOL_SIZE,

@@ -26,6 +26,16 @@ router.post('/', customer, limiter, async (req, res) => {
     if (req.body.scope !== 'custom_quote') return res.status(400).json({ error: 'Use the normal booking for a nearby move on the same property.' });
     const from = { address: clean(req.body.from?.address, 300), details: clean(req.body.from?.details, 500) };
     const to = { address: clean(req.body.to?.address, 300), details: clean(req.body.to?.details, 500) };
+    for (const [source, target] of [[req.body.from, from], [req.body.to, to]]) {
+      if (source?.lat != null && source?.lng != null) {
+        const lat = Number(source.lat), lng = Number(source.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < 4 || lat > 22 || lng < 116 || lng > 127) {
+          return res.status(400).json({ error: 'Choose both locations within the Philippines.' });
+        }
+        target.lat = lat;
+        target.lng = lng;
+      }
+    }
     if (from.address.length < 8 || to.address.length < 8) return res.status(400).json({ error: 'Enter both the current and new addresses.' });
     const preferredDate = new Date(req.body.preferredDate);
     if (!Number.isFinite(preferredDate.getTime()) || preferredDate.getTime() < Date.now() - 86400000) {

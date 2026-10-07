@@ -1220,7 +1220,9 @@
           : Number(row.duration || row.schedule?.durationMinutes) || 60;
         return sum + perUnit * (Number(row.quantity) || 1);
       }, 0);
-      const needsProjectSchedule = () => Boolean(state.isProject) || selectedUnits() >= 8 || serviceMinutes() > projectThresholdMinutes;
+      // The edited services determine the new schedule type. The original
+      // booking may be a project even after the customer reduces the work.
+      const needsProjectSchedule = () => selectedUnits() >= 8 || serviceMinutes() > projectThresholdMinutes;
 
       const activeTab = focusTab === "schedule" ? "schedule" : "services";
 
@@ -1261,6 +1263,7 @@
               <div class="tab-pane fade ${activeTab === 'services' ? 'show active' : ''}" id="bh-pane-services" role="tabpanel">
                 <div id="bhScheduleProposal"></div>
                 <div class="alert alert-info d-none" id="bhProjectEditNotice" role="status">This booking needs a project schedule. Choose a new start and end date before saving. The team will confirm the final work plan.</div>
+                <div class="alert alert-info d-none" id="bhStandardEditNotice" role="status">This booking now fits a standard appointment. Choose a new date and start time on the Schedule tab before saving.</div>
                 <div class="bh-editor-workspace">
                   <main class="bh-editor-catalog">
                     <div class="bh-editor-section-heading">
@@ -1339,6 +1342,7 @@
               </div>
               <div class="tab-pane fade ${activeTab === 'schedule' ? 'show active' : ''}" id="bh-pane-schedule" role="tabpanel">
                 <div class="alert alert-info d-none" id="bhProjectScheduleNotice">This booking needs a large-scale project schedule. Choose a start and end date. The team will confirm the final schedule.</div>
+                <div class="alert alert-info d-none" id="bhStandardScheduleNotice">Your earlier project date range no longer applies. Choose an available date and start time for this standard booking.</div>
                 <div class="d-flex align-items-start gap-3 p-3 rounded-4 mb-4" style="background:linear-gradient(135deg,#eff6ff,#dbeafe)">
                   <div class="rounded-3 d-flex align-items-center justify-content-center" style="width:48px;height:48px;background:#fff;flex-shrink:0"><i class="bi bi-calendar-event fs-4 text-primary"></i></div>
                   <div><h6 class="fw-bold mb-1" style="color:#1e293b">Choose a new schedule</h6><p class="small text-muted mb-0">Choose an available time for a regular booking, or a start and end date for a project.</p></div>
@@ -1468,6 +1472,9 @@
         const project = needsProjectSchedule();
         host.querySelector('#bhProjectEditNotice')?.classList.toggle('d-none', !project);
         host.querySelector('#bhProjectScheduleNotice')?.classList.toggle('d-none', !project);
+        const changingToStandard = Boolean(state.isProject) && !project;
+        host.querySelector('#bhStandardEditNotice')?.classList.toggle('d-none', !changingToStandard);
+        host.querySelector('#bhStandardScheduleNotice')?.classList.toggle('d-none', !changingToStandard);
         const workload = `${project}:${selectedUnits()}:${serviceMinutes()}`;
         if (editorCalendarWorkload === workload) return;
         const crossedToProject = editorCalendarMode === false && project && !projectPopupShown;
@@ -2315,6 +2322,11 @@
             }
             if (project && EnterpriseCalendar.getWindowVerdict()?.sufficient !== true) {
               alert('These dates do not have enough time for the project. Choose a longer date range.');
+              bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
+              return;
+            }
+            if (state.isProject && !project && !scheduleChanged) {
+              alert('This booking now fits a standard appointment. Choose a new date and start time before saving.');
               bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
               return;
             }

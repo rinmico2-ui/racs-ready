@@ -21,9 +21,9 @@ test('custom quote submission reuses the pinned origin and scheduled date withou
 
   const calls = [];
   const item = { serviceId: id(2), brand: "I don't know", hp: null,
-    relocation: { scope: 'custom_quote', to: { address: '123 New Street, Manila' }, notes: 'Second floor' } };
+    relocation: { scope: 'custom_quote', to: { address: '123 New Street, Manila', lat: 14.6, lng: 121.0 }, notes: 'Second floor' } };
   const context = {
-    BookingState: { customerLocation: { address: '45 Old Street, Quezon City' }, selectedDate: new Date('2027-01-20T00:00:00Z') },
+    BookingState: { customerLocation: { address: '45 Old Street, Quezon City', lat: 14.7, lng: 121.1 }, selectedDate: new Date('2027-01-20T00:00:00Z') },
     pendingRelocationQuoteItem: () => item,
     serializeBookingDate: date => date.toISOString(),
     fetch: async (url, options) => { calls.push({ url, payload: JSON.parse(options.body) }); return { ok: true, json: async () => ({ id: id(3) }) }; },
@@ -36,6 +36,8 @@ test('custom quote submission reuses the pinned origin and scheduled date withou
   assert.equal(calls[0].url, '/api/relocations');
   assert.equal(calls[0].payload.from.address, '45 Old Street, Quezon City');
   assert.equal(calls[0].payload.to.address, '123 New Street, Manila');
+  assert.equal(calls[0].payload.from.lat, 14.7);
+  assert.equal(calls[0].payload.to.lng, 121.0);
   assert.equal(calls[0].payload.preferredDate, '2027-01-20T00:00:00.000Z');
   assert.equal(calls[0].payload.unit.brand, '');
   assert.deepEqual(calls.slice(1), [{ cleared: true }, { redirected: '/relocation-requests' }]);
@@ -101,16 +103,91 @@ test('a generic saved aircon reuses its brand and HP but still asks for its type
 test('a relocation quote request requires both locations and starts before booking or assignment', async () => {
   const request = new RelocationRequest({
     customerId: id(1), serviceId: id(2), scope: 'custom_quote',
-    from: { address: 'Quezon City, current property' },
-    to: { address: 'Manila, destination property' },
+    from: { address: 'Quezon City, current property', lat: 14.7, lng: 121.1 },
+    to: { address: 'Manila, destination property', lat: 14.6, lng: 121.0 },
     preferredDate: new Date('2027-01-20'),
   });
   await request.validate();
   assert.equal(request.status, 'pending_review');
+  assert.equal(request.to.lng, 121.0);
   assert.equal(request.bookingId, null);
   assert.equal(request.quote?.total, undefined);
   request.to.address = '';
   await assert.rejects(request.validate(), /address/i);
+});
+
+test('relocation preferred calendar selects a date without looking up or reserving time slots', async () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/js/enterprise-calendar.js'), 'utf8');
+  const requests = [];
+  const handlers = [];
+  const calendarGrid = {
+    innerHTML: '',
+    querySelectorAll() {
+      return [{ dataset: { date: chosenKey }, addEventListener(type, handler) { if (type === 'click') handlers.push(handler); } }];
+    },
+  };
+  const chosen = new Date();
+  chosen.setDate(chosen.getDate() + 3);
+  const chosenKey = `${chosen.getFullYear()}-${String(chosen.getMonth() + 1).padStart(2, '0')}-${String(chosen.getDate()).padStart(2, '0')}`;
+  const document = {
+    getElementById: name => name === 'calendarGrid' ? calendarGrid : null,
+    createElement: () => ({}),
+    head: { appendChild() {} },
+  };
+  const window = { BookingState: { selectedServices: [], selectedTimeSlot: { startTime: '09:00' } }, saveBookingProgress() {}, syncScheduleNextAction() {} };
+  const context = { document, window, console, URLSearchParams, setTimeout,
+    fetch: async url => {
+      requests.push(url);
+      return { ok: true, json: async () => url.includes('projects') ? { projects: [] } : url.includes('holidays') ? { holidays: [], nonWorkingDays: [] } : {} };
+    },
+  };
+  vm.runInNewContext(script, context);
+  await window.EnterpriseCalendar.init({ mode: 'preferred', totalEstimatedMinutes: 1200 });
+  assert.equal(window.EnterpriseCalendar.getMode(), 'preferred');
+  assert.match(calendarGrid.innerHTML, /Choose a preferred day/);
+  assert.equal(requests.some(url => url.includes('available-dates') || url.includes('available-times') || url.includes('window-availability')), false);
+  await handlers.at(-1)();
+  assert.equal(window.EnterpriseCalendar.formatDateKey(window.BookingState.selectedDate), chosenKey);
+  assert.equal(window.BookingState.selectedTimeSlot, null);
+  assert.equal(requests.some(url => url.includes('time-slots')), false);
+});
+
+test('mapping a relocation destination keeps the current pin and updates the move path', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../public/js/services-multi.js'), 'utf8');
+  const implementation = script.slice(script.indexOf('function setRelocationDestinationPin('), script.indexOf('async function searchRelocationDestination()'));
+  const paths = [];
+  const marker = (point, options) => ({
+    point, options, handlers: {},
+    addTo() { return this; }, setLatLng(next) { this.point = next; return this; },
+    bindPopup() { return this; }, off(name) { delete this.handlers[name]; },
+    on(name, handler) { this.handlers[name] = handler; },
+    getLatLng() { return { lat: this.point[0], lng: this.point[1] }; },
+  });
+  const currentPin = marker([14.7, 121.1], {});
+  const map = { removeLayer() {}, fitBounds() {}, setView() {} };
+  const item = { relocation: { scope: 'custom_quote', to: { address: '123 New Street, Manila' } } };
+  const state = { map, userMarker: currentPin, userCoordinates: { lat: 14.7, lng: 121.1 } };
+  const context = {
+    BookingState: state, activeRelocationItem: () => item,
+    isWithinPhilippinesMapBounds: (lat, lng) => lat >= 4.5 && lat <= 21.5 && lng >= 116 && lng <= 127,
+    escapeServiceMapText: value => value, syncRelocationMapSummary() {}, syncLocationContinueAction() {}, scheduleBookingProgressSave() {},
+    document: { getElementById: () => ({ textContent: '' }) },
+    L: {
+      divIcon: value => value, marker,
+      polyline: points => { paths.push(points); return { addTo() { return this; } }; },
+      featureGroup: () => ({ getBounds: () => ({}) }),
+    },
+  };
+  vm.runInNewContext(implementation, context);
+  context.setRelocationDestinationPin(14.6, 121.0);
+  assert.equal(state.userMarker, currentPin);
+  assert.deepEqual(Array.from(paths[0][0]), [14.7, 121.1]);
+  assert.deepEqual(Array.from(paths[0][1]), [14.6, 121.0]);
+  assert.equal(item.relocation.to.lat, 14.6);
+  state.relocationDestinationMarker.setLatLng([14.61, 121.01]);
+  state.relocationDestinationMarker.handlers.dragend({ target: state.relocationDestinationMarker });
+  assert.equal(item.relocation.to.lng, 121.01);
+  assert.deepEqual(Array.from(paths.at(-1)[1]), [14.61, 121.01]);
 });
 
 test('a relocation booking item preserves both locations, quote and existing asset link', async () => {

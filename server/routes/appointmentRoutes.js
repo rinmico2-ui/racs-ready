@@ -30,7 +30,7 @@ const { manilaDateKey, manilaDateTime } = require("../utils/bookingDateTime");
 const { loadActiveOrderCapacityRows } = require("../utils/orderScheduleCapacity");
 const { BookingStatus } = require("../models/BookingStatus");
 const { capacityMinutes, aggregateBookingType, mutationPolicy, summarizeChanges } = require("../utils/bookingServiceItems");
-const { parseProjectWindow, saveProjectServiceChange } = require("../utils/projectServiceChange");
+const { parseProjectWindow, saveProjectServiceChange, saveStandardServiceChange } = require("../utils/projectServiceChange");
 const { createNotification } = require("../utils/notify");
 const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
@@ -2437,7 +2437,7 @@ router.get("/:id", auth.authenticate, async (req, res) => {
         const WorkOrder = require("../models/WorkOrder");
         const DailyAssignment = require("../models/DailyAssignment");
         const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
-        const project = await Project.findOne({ bookingId: appt._id })
+        const project = await Project.findOne({ bookingId: appt._id, status: { $ne: 'cancelled' } })
           .select("customer service status projectPhase totalUnits completedUnits payment quotationReview location assignedTechnicians leadTechnicianId plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline dailyAcceptance")
           .lean();
         if (project) {
@@ -4746,7 +4746,7 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
     const inspectionDuration = await require("../utils/bookingPolicy").getInspectionDurationMinutes();
     const proposedUnits = (change.proposedServices || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
     const proposedMinutes = capacityMinutes(change.proposedServices, inspectionDuration);
-    const projectRequired = Boolean(booking.isProject) || await schedulingEngine.isLargeProject({
+    const projectRequired = await schedulingEngine.isLargeProject({
       totalUnits: proposedUnits, totalEstimatedMinutes: proposedMinutes,
     });
     const customerRequestedSchedule = change.requestedSchedule?.date
@@ -4877,7 +4877,16 @@ router.post("/:id/service-change-requests/:requestId/decision", auth.authenticat
       booking.rescheduleRequest.processedBy = req.user._id;
       booking.rescheduleRequest.processedAt = new Date();
     }
-    await booking.save();
+    if (booking.isProject) {
+      await saveStandardServiceChange(booking, {
+        date: approvedDate,
+        startTime: approvedStartTime,
+        endTime: booking.endTime,
+        inspectionDurationMinutes: inspectionDuration,
+      });
+    } else {
+      await booking.save();
+    }
     });
     await Promise.all([
       createNotification({ type: "booking_change_approved", title: "Service change approved", message: `${booking.bookingReference || booking._id} has been updated.`, userId: booking.customerId, referenceId: booking._id, referenceModel: "BookingService", link: "/book-history", priority: "normal", io: req.app.get("io") }),

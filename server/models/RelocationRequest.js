@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const locationSchema = new mongoose.Schema({
   address: { type: String, required: true, trim: true, maxlength: 300 },
   details: { type: String, trim: true, maxlength: 500, default: '' },
+  lat: { type: Number, min: 4, max: 22 },
+  lng: { type: Number, min: 116, max: 127 },
 }, { _id: false });
 
 const relocationRequestSchema = new mongoose.Schema({

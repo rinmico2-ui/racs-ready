@@ -86,14 +86,17 @@ test("native bcrypt verifies hashes created by the previous bcryptjs implementat
   assert.equal(await user.comparePassword("Compatible-password-1"), true);
 });
 
-test("booking submission uses multipart streaming and a transactional capacity guard", () => {
+test("booking submission uses multipart streaming, a capacity guard, and supported atomic writes", () => {
   const root = path.join(__dirname, "..");
   const browser = fs.readFileSync(path.join(root, "public/js/services-multi.js"), "utf8");
   const route = fs.readFileSync(path.join(root, "routes/bookingRoutesNew.js"), "utf8");
+  const persistence = fs.readFileSync(path.join(root, "utils/bookingSubmissionWrite.js"), "utf8");
   assert.match(browser, /new FormData\(\)/);
   assert.doesNotMatch(browser, /bookingData\.proofImageBase64\s*=/);
   assert.match(route, /withOperationLock\(capacityLockKey/);
-  assert.match(route, /creationSession\.withTransaction/);
+  assert.match(route, /persistBookingSubmission\(/);
+  assert.match(persistence, /session\.withTransaction/);
+  assert.match(persistence, /writeWithoutTransaction\(/);
 });
 
 test("login OTP state is persistent and hidden by default", () => {

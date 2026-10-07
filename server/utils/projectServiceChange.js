@@ -117,13 +117,70 @@ function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompl
   };
 }
 
+function prepareStandardServiceChange(booking, { date, startTime, endTime, inspectionDurationMinutes }) {
+  booking.quantity = booking.services.reduce((sum, item) => sum + Number(item.quantity), 0);
+  booking.serviceDurationMinutes = capacityMinutes(booking.services, inspectionDurationMinutes);
+  booking.isProject = false;
+  booking.projectScheduling = undefined;
+  if (booking.status === "pending_project_scheduling") booking.status = booking.paymentVerifiedAt ? "payment_verified" : "pending";
+  booking.bookingDate = date;
+  booking.startTime = startTime;
+  booking.endTime = endTime;
+  booking.selectedTimeLabel = startTime;
+  for (const item of booking.services) {
+    item.schedule = {
+      date,
+      startTime,
+      endTime,
+      durationMinutes: Number(item.duration || item.schedule?.durationMinutes) || inspectionDurationMinutes,
+      kind: item.type === "repair" ? "inspection" : "service",
+    };
+  }
+}
+
+async function saveStandardServiceChange(booking, options) {
+  const startedStatuses = new Set(["on-the-way", "arrived", "in-progress", "inspection_in_progress", "repair_in_progress", "completed", "cancelled"]);
+  if (startedStatuses.has(booking.status) || booking.technicianId || booking.assignmentId ||
+      booking.services.some(item => startedStatuses.has(item.status) || item.assignmentId)) {
+    throw Object.assign(new Error("This project already has assigned or started work. Contact the operations team to change it."), { status: 409 });
+  }
+  const project = await Project.findOne({ bookingId: booking._id, status: { $ne: "cancelled" } });
+  if (project && project.status !== "pending_project_scheduling") {
+    throw Object.assign(new Error("This project is already underway. Its schedule must be changed by the operations team."), { status: 409 });
+  }
+  if (project?.status === "pending_project_scheduling") {
+    const WorkOrder = require("../models/WorkOrder");
+    const DailyAssignment = require("../models/DailyAssignment");
+    if (await WorkOrder.exists({ projectId: project._id }) || await DailyAssignment.exists({ projectId: project._id })) {
+      throw Object.assign(new Error("This project already has a work plan. Contact the operations team to change it."), { status: 409 });
+    }
+  }
+  prepareStandardServiceChange(booking, options);
+  if (!project) return booking.save();
+
+  // Release the project reservation before saving the appointment. Restore it
+  // if the booking write fails so the two records do not disagree.
+  const reservedTechnicians = project.reservedTechnicians;
+  project.status = "cancelled";
+  project.reservedTechnicians = 0;
+  await project.save();
+  try {
+    await booking.save();
+  } catch (error) {
+    project.status = "pending_project_scheduling";
+    project.reservedTechnicians = reservedTechnicians;
+    await project.save();
+    throw error;
+  }
+}
+
 async function saveProjectServiceChange(booking, options) {
   const projectData = prepareProjectServiceChange(booking, options);
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
       const existingProject = await Project.findOne({ bookingId: booking._id }).session(session);
-      if (existingProject && existingProject.status !== "pending_project_scheduling") {
+      if (existingProject && !["pending_project_scheduling", "cancelled"].includes(existingProject.status)) {
         throw Object.assign(new Error("This project is already underway. Its schedule must be changed by the operations team."), { status: 409 });
       }
       await booking.save({ session });
@@ -138,4 +195,4 @@ async function saveProjectServiceChange(booking, options) {
   }
 }
 
-module.exports = { parseProjectWindow, prepareProjectServiceChange, saveProjectServiceChange };
+module.exports = { parseProjectWindow, prepareProjectServiceChange, saveProjectServiceChange, prepareStandardServiceChange, saveStandardServiceChange };

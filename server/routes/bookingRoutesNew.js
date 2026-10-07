@@ -17,7 +17,7 @@ const RepairService = require('../models/RepairService');
 const { createNotification } = require('../utils/notify');
 const { bookingServices, mutationPolicy, summarizeChanges, capacityMinutes, aggregateBookingType } = require('../utils/bookingServiceItems');
 const { validateBookingUnitLimit } = require('../utils/bookingUnitLimit');
-const { parseProjectWindow, saveProjectServiceChange } = require('../utils/projectServiceChange');
+const { parseProjectWindow, saveProjectServiceChange, saveStandardServiceChange } = require('../utils/projectServiceChange');
 const audit = require('../utils/audit');
 const {
   getDownpaymentPercentage,
@@ -42,6 +42,7 @@ const {
 } = require('../utils/paymentProofStorage');
 const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
 const { isUnsupportedMongoWriteFeature } = require('../utils/mongoWriteSupport');
+const { bookingSubmissionIsComplete, persistBookingSubmission } = require('../utils/bookingSubmissionWrite');
 const {
   normalizeRepairModel,
   validateRepairModel,
@@ -227,6 +228,15 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       clientSubmissionId,
     }).select('+clientSubmissionId');
     if (existingBooking) {
+      if (!await bookingSubmissionIsComplete({
+        booking: existingBooking, submissionId: clientSubmissionId,
+        Payment, UnitAssistanceRequest, RelocationRequest,
+      })) {
+        return res.status(503).json({
+          error: 'We could not confirm this booking yet. Check Booking History or contact support before sending another payment.',
+          code: 'BOOKING_INCOMPLETE',
+        });
+      }
       return res.status(200).json({
         success: true,
         duplicate: true,
@@ -737,6 +747,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         clientSubmissionId,
       }).select('+clientSubmissionId');
       if (concurrentDuplicate) {
+        if (!await bookingSubmissionIsComplete({
+          booking: concurrentDuplicate, submissionId: clientSubmissionId,
+          Payment, UnitAssistanceRequest, RelocationRequest,
+        })) {
+          throw Object.assign(new Error('Booking confirmation is incomplete. Check Booking History or contact support before sending another payment.'), { status: 503 });
+        }
         duplicateCreatedByConcurrentRequest = true;
         savedBooking = concurrentDuplicate;
         booking = concurrentDuplicate;
@@ -779,50 +795,11 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         }
       }
 
-      const creationSession = await mongoose.startSession();
-      try {
-        let committedBooking;
-        await creationSession.withTransaction(async () => {
-          // Construct fresh documents for every transaction callback because
-          // MongoDB may retry the callback after a transient conflict.
-          const bookingAttempt = new BookingService(
-            booking.toObject({ depopulate: true, versionKey: false }),
-          );
-          const paymentAttempt = new Payment(
-            paymentDoc.toObject({ depopulate: true, versionKey: false }),
-          );
-          await bookingAttempt.save({ session: creationSession });
-          await paymentAttempt.save({ session: creationSession });
-          for (const service of cleanServices.filter(item => item.assistanceRequestId)) {
-            const accepted = await UnitAssistanceRequest.findOneAndUpdate({
-              _id: service.assistanceRequestId, customerId: userId,
-              status: 'accepted', bookingId: null, existingBookingId: null,
-              'quote.unitPrice': service.unitPrice,
-              'quote.brand': service.brand,
-              'quote.hp': service.hp,
-              'quote.airconType': service.airconType,
-              'quote.expiresAt': { $gt: new Date() },
-            }, { $set: { status: 'converted', bookingId: bookingAttempt._id },
-              $push: { events: { action: 'converted', actorId: userId, unitPrice: service.unitPrice } } },
-            { session: creationSession, returnDocument: "after" });
-            if (!accepted) throw Object.assign(new Error('The unit quote was already used or changed. Review your request.'), { status: 409 });
-          }
-          for (const service of cleanServices.filter(item => item.relocation?.scope === 'custom_quote')) {
-            const request = await RelocationRequest.findOneAndUpdate({
-              _id: service.relocation.requestId, customerId: userId, status: 'accepted', bookingId: null,
-              'quote.total': service.unitPrice, 'quote.expiresAt': { $gt: new Date() },
-            }, { $set: { status: 'converted', bookingId: bookingAttempt._id },
-              $push: { events: { action: 'converted', actorId: userId } } },
-            { session: creationSession, returnDocument: 'after' });
-            if (!request) throw Object.assign(new Error('This relocation quote was already used or changed. Review your request.'), { status: 409 });
-          }
-          committedBooking = bookingAttempt;
-        });
-        booking = committedBooking;
-        savedBooking = booking;
-      } finally {
-        await creationSession.endSession();
-      }
+      booking = await persistBookingSubmission({
+        mongoose, BookingService, Payment, UnitAssistanceRequest, RelocationRequest,
+        booking, payment: paymentDoc, services: cleanServices, customerId: userId,
+      });
+      savedBooking = booking;
     });
 
     if (duplicateCreatedByConcurrentRequest) {
@@ -1066,7 +1043,10 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         customerId: req.user._id,
         clientSubmissionId: String(req.body.clientSubmissionId || '').trim(),
       }).catch(() => null);
-      if (duplicate) {
+      if (duplicate && await bookingSubmissionIsComplete({
+        booking: duplicate, submissionId: String(req.body.clientSubmissionId || '').trim(),
+        Payment, UnitAssistanceRequest, RelocationRequest,
+      })) {
         return res.status(200).json({
           success: true,
           duplicate: true,
@@ -2075,13 +2055,17 @@ router.post('/:id/service-change-requests', async (req, res) => {
     const inspectionDuration = await getInspectionDurationMinutes();
     const totalUnits = proposedServices.reduce((sum, item) => sum + Number(item.quantity), 0);
     const serviceMinutes = capacityMinutes(proposedServices, inspectionDuration);
-    const projectRequired = Boolean(booking.isProject) || await schedulingEngine.isLargeProject({
+    const wasProject = Boolean(booking.isProject);
+    const projectRequired = await schedulingEngine.isLargeProject({
       totalUnits, totalEstimatedMinutes: serviceMinutes,
     });
     const scheduleInput = req.body.requestedSchedule || null;
     const hasRequestedSchedule = projectRequired
       ? Boolean(scheduleInput?.date && scheduleInput?.endDate)
       : Boolean(scheduleInput?.date && scheduleInput?.startTime);
+    if (booking.isProject && !projectRequired && !hasRequestedSchedule) {
+      return res.status(400).json({ error: 'Choose a new appointment date and start time when changing a project to a standard booking.' });
+    }
     const scheduleNotes = String(scheduleInput?.notes || changeReason).trim();
     if (scheduleNotes.length > 500) {
       return res.status(400).json({ error: 'Reschedule reason must be 500 characters or fewer.' });
@@ -2175,7 +2159,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
         booking.balanceAmount = Math.max(0, booking.totalPrice - dp);
         booking.amountPaid = dp;
       }
-      if (requestedSchedule && !projectRequired) {
+      if (requestedSchedule && !projectRequired && !booking.isProject) {
         booking.bookingDate = requestedSchedule.date;
         booking.startTime = requestedSchedule.startTime;
         booking.selectedTimeLabel = requestedSchedule.startTime;
@@ -2204,6 +2188,13 @@ router.post('/:id/service-change-requests', async (req, res) => {
         plannedCompletionDate: projectCompletionDate,
         inspectionDurationMinutes: inspectionDuration,
       });
+    } else if (policy.direct && booking.isProject && !projectRequired) {
+      await saveStandardServiceChange(booking, {
+        date: requestedSchedule.date,
+        startTime: requestedSchedule.startTime,
+        endTime: requestedSchedule.endTime,
+        inspectionDurationMinutes: inspectionDuration,
+      });
     } else {
       await booking.save();
     }
@@ -2225,7 +2216,11 @@ router.post('/:id/service-change-requests', async (req, res) => {
       success: true, applied: policy.direct, policy, projectRequired,
       message: projectRequired
         ? policy.direct ? 'Your booking is now a large-scale project. The team will confirm the schedule.' : 'Your project change was sent for review. Your current booking stays in place until it is approved.'
-        : undefined,
+        : wasProject
+          ? policy.direct
+            ? 'Your booking now has a standard appointment date and time.'
+            : 'Your standard appointment request was sent for review. The project schedule stays active until staff approve the change.'
+          : undefined,
       changeRequest: booking.serviceChangeRequests.at(-1),
     });
   } catch (error) {
@@ -2250,6 +2245,14 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
     const date = new Date(change.proposedSchedule.date);
     const start = parseTimeToMinutes(change.proposedSchedule.startTime);
     const end = parseTimeToMinutes(change.proposedSchedule.endTime);
+    const proposedUnits = (change.proposedServices || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const inspectionDuration = await getInspectionDurationMinutes();
+    if (await schedulingEngine.isLargeProject({
+      totalUnits: proposedUnits,
+      totalEstimatedMinutes: capacityMinutes(change.proposedServices, inspectionDuration),
+    })) {
+      return res.status(409).json({ error: 'This change still requires a project date range.' });
+    }
     await withOperationLock(bookingCapacityLockKey(date), async () => {
     await assertCompanyCapacity(date, start, end, booking._id);
     booking.bookingDate = date; booking.startTime = change.proposedSchedule.startTime; booking.endTime = change.proposedSchedule.endTime;
@@ -2266,7 +2269,14 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
       booking.rescheduleRequest.processedBy = req.user._id;
       booking.rescheduleRequest.processedAt = new Date();
     }
-    await booking.save();
+    if (booking.isProject) {
+      await saveStandardServiceChange(booking, {
+        date, startTime: booking.startTime, endTime: booking.endTime,
+        inspectionDurationMinutes: inspectionDuration,
+      });
+    } else {
+      await booking.save();
+    }
     });
     await Promise.all([
       createNotification({ type: 'booking_change_approved', title: 'Customer accepted proposed schedule', message: `${booking.bookingReference || booking._id} was updated.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: `/admin/appointments?booking=${booking._id}`, priority: 'normal', io: req.app.get('io') }),

@@ -53,6 +53,8 @@ test("disables retryable writes for direct standalone-style connections without 
   assert.match(configured, /^mongodb:\/\/user:p%40ss@db\.example:27017\/app\?/);
   assert.equal(new URLSearchParams(configured.split("?")[1]).get("retryWrites"), "false");
   assert.equal(disableRetryableWritesForDirectConnection(configured), configured);
+  assert.equal(disableRetryableWritesForDirectConnection("mongodb://db.example/app"), "mongodb://db.example/app?retryWrites=false");
+  assert.equal(disableRetryableWritesForDirectConnection("mongodb://db.example/app?authSource=admin"), "mongodb://db.example/app?authSource=admin&retryWrites=false");
   assert.equal(disableRetryableWritesForDirectConnection("mongodb+srv://cluster.example/app?retryWrites=true"), "mongodb+srv://cluster.example/app?retryWrites=true");
   assert.equal(disableRetryableWritesForDirectConnection("mongodb://db.example/app?directConnection=true&replicaSet=rs0"), "mongodb://db.example/app?directConnection=true&replicaSet=rs0");
 });

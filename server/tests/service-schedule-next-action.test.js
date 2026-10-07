@@ -64,6 +64,7 @@ function setupScheduleAction(selectedTimeSlot, slotAvailable = true, pendingQuot
       }
     },
     getBookingStepIssue: () => state.selectedDate && (pendingQuote || state.selectedTimeSlot) ? null : { step: 4 },
+    bookingRequiresProjectSchedule: () => false,
     pendingRelocationQuoteItem: () => pendingQuote ? { relocation: { scope: 'custom_quote' } } : null,
     submitRelocationQuoteRequest: async () => { quoteCalls.push('sent'); return true; },
     requestBookingStepNavigation: step => { navigated.push(step); return true; },

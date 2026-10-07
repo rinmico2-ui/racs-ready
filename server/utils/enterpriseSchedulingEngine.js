@@ -1263,7 +1263,7 @@ async function reserveProjectCapacity(params) {
   }
 
   // Try to find existing project for this booking
-  let project = await Project.findOne({ bookingId }).lean();
+  let project = await Project.findOne({ bookingId, status: { $ne: "cancelled" } }).lean();
 
   if (project) {
     // Update existing project with capacity reservation

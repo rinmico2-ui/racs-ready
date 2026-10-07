@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const servicesScript = fs.readFileSync(
   path.join(__dirname, "../public/js/services-multi.js"),
@@ -78,6 +79,47 @@ test("the calendar rehydrates saved dates, time slots, and project ranges", () =
   assert.match(calendarScript, /_currentMonth = _selectedDate \? new Date\(_selectedDate\) : new Date\(\)/);
   assert.match(calendarScript, /if \(_mode === 'appointment' && _selectedDate\) await loadTimeSlots\(_selectedDate\)/);
   assert.match(servicesScript, /const hasUsableDate = selectedDate[\s\S]*?selectedDate >= today/);
+});
+
+test("changing project workload clears the old range and requires a new appointment time", () => {
+  const start = servicesScript.indexOf("function selectedUnitTotal() {");
+  const end = servicesScript.indexOf("function remainingBookingUnits()", start);
+  assert.ok(start > 0 && end > start);
+  const bookingState = {
+    selectedServices: [{ id: "cleaning", quantity: 8, duration: 60 }],
+    selectedDate: new Date("2027-01-10T00:00:00"),
+    selectedTimeSlot: null,
+    isProject: true,
+    projectScheduling: { endDate: "2027-01-12" },
+  };
+  let saves = 0;
+  const context = {
+    BookingState: bookingState,
+    window: { __bookingPolicy: { largeProjectThresholdHours: 8 } },
+    document: { getElementById: () => null },
+    syncScheduleNextAction: () => {},
+    scheduleBookingProgressSave: () => { saves += 1; },
+  };
+  vm.runInNewContext(`const LARGE_SCALE_MIN_UNITS = 8;\n${servicesScript.slice(start, end)}\nthis.bookingSchedule = { reconcileBookingScheduleAfterServiceChange, bookingRequiresProjectSchedule };`, context);
+  context.bookingSchedule.reconcileBookingScheduleAfterServiceChange();
+  bookingState.selectedServices[0].quantity = 1;
+  context.bookingSchedule.reconcileBookingScheduleAfterServiceChange();
+  assert.equal(context.bookingSchedule.bookingRequiresProjectSchedule(), false);
+  assert.equal(bookingState.selectedDate, null);
+  assert.equal(bookingState.projectScheduling, null);
+  assert.equal(bookingState.isProject, false);
+  assert.equal(saves, 1);
+
+  bookingState.selectedDate = new Date("2027-01-10T00:00:00");
+  bookingState.selectedTimeSlot = { startTime: "09:00" };
+  context.bookingSchedule.reconcileBookingScheduleAfterServiceChange();
+  assert.ok(bookingState.selectedTimeSlot);
+  bookingState.selectedServices[0].quantity = 8;
+  context.bookingSchedule.reconcileBookingScheduleAfterServiceChange();
+  assert.equal(context.bookingSchedule.bookingRequiresProjectSchedule(), true);
+  assert.equal(bookingState.selectedDate, null);
+  assert.equal(bookingState.selectedTimeSlot, null);
+  assert.equal(saves, 2);
 });
 
 test("large uploads and payment evidence are not written to localStorage", () => {

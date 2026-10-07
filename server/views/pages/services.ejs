@@ -676,15 +676,20 @@
               </div>
               <div class="service-map-search mb-3 d-none" id="relocationDestinationSection">
                 <label class="form-label fw-semibold" for="relocationDestinationAddress">New address for the aircon</label>
-                <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" autocomplete="off" placeholder="House number, street, barangay, city, province" />
-                <small class="text-muted d-block mt-2">The map pin marks where the aircon is now. Staff will review both addresses and send a custom quote before payment or assignment.</small>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" autocomplete="street-address" placeholder="House number, street, barangay, city, province" />
+                  <button type="button" class="btn btn-outline-primary" id="relocationDestinationSearch"><i class="bi bi-search me-1" aria-hidden="true"></i>Show on map</button>
+                </div>
+                <button type="button" class="service-manual-pin-link mt-2" id="relocationDestinationPin"><i class="bi bi-pin-map-fill me-1" aria-hidden="true"></i>Can't find it? Place the destination pin on the map</button>
+                <small class="text-muted d-block mt-1" id="relocationDestinationStatus" role="status" aria-live="polite">Enter the new address, then show it on the map.</small>
+                <small class="text-muted d-block mt-1">Staff will review both addresses and send a custom quote before payment or assignment.</small>
               </div>
 
               <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
                 <div class="service-map-toolbar">
                   <div>
-                    <h6><i class="bi bi-map me-2 text-primary"></i>Check the pin</h6>
-                    <p>Drag the green pin if needed.</p>
+                    <h6 id="serviceMapToolbarTitle"><i class="bi bi-map me-2 text-primary"></i>Check the pin</h6>
+                    <p id="serviceMapToolbarHint">Drag the green pin if needed.</p>
                   </div>
                   <div class="service-map-actions" aria-label="Map controls">
                     <button type="button" class="service-map-action" id="locateCustomerBtn" title="Use my current location"><i class="bi bi-crosshair"></i><span>My Location</span></button>
@@ -700,11 +705,12 @@
                     data-technician-lng="<%= (technicianLocation&&technicianLocation.lng)||121.043731 %>"></div>
                   <div class="service-map-legend" aria-label="Map legend">
                     <span><i class="service-map-dot company"></i>CALIDRO RACS</span>
-                    <span><i class="service-map-dot customer"></i>Service location</span>
+                    <span id="serviceOriginLegend"><i class="service-map-dot customer"></i>Service location</span>
+                    <span class="d-none" id="serviceDestinationLegend"><i class="service-map-dot destination"></i>New address</span>
                   </div>
                 </div>
                 <div class="service-pin-confirm d-none" id="servicePinConfirm" role="status" aria-live="polite">
-                  <div><strong>Is the green pin at the service address?</strong><span>Move it to the exact spot if needed.</span></div>
+                  <div><strong id="servicePinConfirmQuestion">Is the green pin at the service address?</strong><span>Move it to the exact spot if needed.</span></div>
                   <button type="button" onclick="confirmServiceAddressPin()">Yes, this is the place</button>
                 </div>
               </div>
@@ -730,6 +736,10 @@
                     <strong id="serviceMapCoordinates">Not selected</strong>
                     <small id="serviceMapSource">Waiting for location</small>
                   </details>
+                </div>
+                <div class="relocation-map-locations d-none" id="relocationMapLocations" aria-live="polite">
+                  <div><span><i class="service-map-dot customer"></i>From · current aircon location</span><strong id="relocationMapFrom">Choose the current address above.</strong></div>
+                  <div><span><i class="service-map-dot destination"></i>To · new aircon location</span><strong id="relocationMapTo">Choose the new address above.</strong></div>
                 </div>
 
                 <div class="service-route-panel" id="mapInfoPanel">
@@ -774,11 +784,7 @@
             </div>
             <div class="ent-step-body">
               <p class="booking-step-lead" id="serviceScheduleLead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
-              <div id="relocationPreferredDateSection" class="d-none mb-3">
-                <label class="form-label fw-semibold" for="relocationQuotePreferredDate">Preferred relocation date</label>
-                <input class="form-control" type="date" id="relocationQuotePreferredDate" />
-                <small class="text-muted d-block mt-2">This is your preferred date. Staff will confirm availability when they send the custom quote.</small>
-              </div>
+              <p id="relocationPreferredDateSection" class="d-none text-muted small mb-3">Select a preferred day on the calendar. Staff will confirm availability when they send the custom quote; no time or technician is reserved.</p>
               <div id="serviceScheduleHours"><%- include('../partials/customer-hours-note', {
                 hoursLabel: 'Service team hours',
                 hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
@@ -1531,8 +1537,12 @@
 <style>
 /* Quote requests need only a preferred date; time is arranged after approval. */
 #manualCalendar.relocation-quote-schedule #timeSelection,
-#manualCalendar.relocation-quote-schedule #projectPrefs,
-#manualCalendar.relocation-quote-schedule #calendarGrid { display: none !important; }
+#manualCalendar.relocation-quote-schedule #projectPrefs { display: none !important; }
+.service-map-dot.destination{background:#ea580c;box-shadow:0 0 0 2px #ffedd5}
+.relocation-map-locations{display:grid;gap:.65rem;padding:.85rem 1rem;border-bottom:1px solid #e2e8f0;background:#fff}
+.relocation-map-locations>div{display:grid;gap:.2rem;min-width:0}
+.relocation-map-locations span{display:flex;align-items:center;gap:.5rem;color:#475569;font-size:.72rem;font-weight:700}
+.relocation-map-locations strong{color:#0f172a;font-size:.85rem;font-weight:600;overflow-wrap:anywhere}
 /* Responsive Configure Service modal */
 @media(max-width:575.98px){
   html body #quantitySelectionModal.show{padding:0!important}
@@ -2760,8 +2770,8 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261006-booking-console-cleanup';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261007-relocation-asset-prefill-v4':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261007-relocation-preferred-calendar';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261007-relocation-map-calendar':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

@@ -2,10 +2,11 @@
  * Enterprise Calendar Module
  * Capacity-based scheduling with distinct holiday/non-working visuals.
  *
- * Supports two scheduling modes:
+ * Supports three scheduling modes:
  *  - "appointment" (default): date + time-slot selection for standard jobs.
  *  - "project": large-scale work. The customer chooses a start date and
  *    latest acceptable finish date; operations confirms the work schedule.
+ *  - "preferred": date-only request for a quote, without checking or reserving slots.
  */
 
 "use strict";
@@ -36,7 +37,7 @@ const EnterpriseCalendar = (() => {
   let _syncGlobalState = true;
 
   // Large-scale / project mode
-  let _mode = "appointment"; // "appointment" | "project"
+  let _mode = "appointment"; // "appointment" | "project" | "preferred"
   let _totalEstimatedMinutes = 0;
   let _isLargeProject = false;
   let _selectedEndDate = null;
@@ -171,8 +172,12 @@ const EnterpriseCalendar = (() => {
 
   async function init(opts = {}) {
     _availabilityRequestId++;
+    _timeSlotRequestId++;
     _availabilityExtendPromise = null;
     _availabilityError = null;
+    _windowResult = null;
+    _windowError = null;
+    _lastValidationResult = null;
     _endDatePromptShown = false;
     _minProjectStartKey = opts.minProjectStartDate ? formatDateKey(opts.minProjectStartDate) : null;
     _projectAvailability = null;
@@ -207,12 +212,12 @@ const EnterpriseCalendar = (() => {
     } else if (_syncGlobalState && window.BookingState) {
       const restoredDate = window.BookingState.selectedDate || window.BookingState.scheduleDate;
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
-      if (parsedDate && !Number.isNaN(parsedDate.getTime())) _selectedDate = parsedDate;
+      _selectedDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
       _selectedSlot = window.BookingState.selectedTimeSlot || null;
 
       const restoredEndDate = window.BookingState.projectScheduling?.endDate;
       const parsedEndDate = restoredEndDate ? new Date(restoredEndDate) : null;
-      if (parsedEndDate && !Number.isNaN(parsedEndDate.getTime())) _selectedEndDate = parsedEndDate;
+      _selectedEndDate = parsedEndDate && !Number.isNaN(parsedEndDate.getTime()) ? parsedEndDate : null;
       _selectingEndDate = Boolean(_selectedDate && !_selectedEndDate);
     }
     if (typeof opts.nextStep === 'number') _nextStep = opts.nextStep;
@@ -222,9 +227,9 @@ const EnterpriseCalendar = (() => {
 
     // Large-scale detection
     _totalEstimatedMinutes = Number(opts.totalEstimatedMinutes) || 0;
-    _mode = opts.mode === 'project' ? 'project' : 'appointment';
+    _mode = opts.mode === 'preferred' ? 'preferred' : opts.mode === 'project' ? 'project' : 'appointment';
     _isLargeProject = false;
-    if (_totalEstimatedMinutes > 0) {
+    if (_mode !== 'preferred' && _totalEstimatedMinutes > 0) {
       _isLargeProject = await detectLargeProject(_totalEstimatedMinutes);
     }
     if (_mode === 'project' || _isLargeProject) {
@@ -265,7 +270,7 @@ const EnterpriseCalendar = (() => {
         .then(r => r.ok ? r.json() : { projects: [] })
         .catch(() => ({ projects: [] }));
       let schPromise;
-      if (_serviceId || _duration) {
+      if (_mode !== 'preferred' && (_serviceId || _duration)) {
         const params = new URLSearchParams({ duration: _duration, mode: 'manual' });
         if (_serviceId) params.set('serviceId', _serviceId);
         if (_quantity > 1) params.set('quantity', _quantity);
@@ -290,6 +295,13 @@ const EnterpriseCalendar = (() => {
         if (policyData.largeProjectThresholdHours) {
           // already applied lazily in detectLargeProject via window.__bookingPolicy
         }
+      }
+
+      // The configured threshold may differ from the fallback used before
+      // this request. Apply it before loading project availability.
+      if (_mode !== 'preferred' && _totalEstimatedMinutes > 0 && await detectLargeProject(_totalEstimatedMinutes)) {
+        _isLargeProject = true;
+        _mode = 'project';
       }
 
       // ── Load project-mode availability data ─────────────────────────────
@@ -446,14 +458,15 @@ const EnterpriseCalendar = (() => {
       </div>
       <div class="ent-cal-mode">
         <span class="mode-dot capacity"></span>
-        <span>Tap a green or orange date to see its available times.</span>
+        <span>${_mode === 'preferred' ? 'Choose a preferred day. Staff will confirm availability after reviewing your request.' : 'Tap a green or orange date to see its available times.'}</span>
       </div>
       <div class="ent-cal-legend">
+        ${_mode === 'preferred' ? '<div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Preferred date</div><div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday / closed</div>' : `
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Few times left</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>Fully booked</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>No service</div>
+        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>No service</div>`}
       </div>
       <div class="ent-cal-days">
         ${DAYS_SHORT.map(d => `<div class="ent-cal-day-name">${d}</div>`).join('')}
@@ -480,7 +493,18 @@ const EnterpriseCalendar = (() => {
       let reasonText = '';
       let clickable = false;
 
-      if (isPast) {
+      if (_mode === 'preferred') {
+        if (isPast) cellClass += ' past';
+        else if (holInfo) {
+          cellClass += holInfo.type === 'holiday' ? ' holiday' : ' non-working';
+          reasonText = holInfo.name;
+          tooltipText = `${holInfo.type === 'holiday' ? 'Holiday' : 'Closed'}: ${holInfo.name}`;
+        } else {
+          cellClass += ' available';
+          clickable = true;
+          tooltipText = 'Request this preferred date; availability is confirmed by staff';
+        }
+      } else if (isPast) {
         cellClass += ' past';
       } else if (isToday) {
         // TODAY takes precedence over everything else.
@@ -652,7 +676,7 @@ const EnterpriseCalendar = (() => {
     if (selectedDate < today) return;
 
     const parts = dateStr.split('-');
-    _selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    _selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), _mode === 'preferred' ? 12 : 0);
     _selectedSlot = null;
     if (_syncGlobalState && window.BookingState) {
       window.BookingState.selectedDate = _selectedDate;
@@ -664,7 +688,7 @@ const EnterpriseCalendar = (() => {
     }
     render();
     if (_syncGlobalState) window.syncScheduleNextAction?.();
-    await loadTimeSlots(_selectedDate);
+    if (_mode !== 'preferred') await loadTimeSlots(_selectedDate);
   }
 
   async function loadTimeSlots(date) {
