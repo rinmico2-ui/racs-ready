@@ -163,6 +163,47 @@ function summarizeOrderCosts(orders = [], inventoryItems = []) {
   };
 }
 
+function summarizeOrderConsumables(orders = [], usageRows = []) {
+  const orderIds = new Set(orders.map(order => String(order._id)));
+  const rows = usageRows.filter(row => orderIds.has(String(row.orderId || ""))
+    && row.itemType === "consumable" && row.lifecycleStatus !== "voided");
+  let totalCost = 0;
+  let missingCostRecords = 0;
+  const byOrder = new Map();
+  rows.forEach(row => {
+    const quantity = Math.max(0, Number(row.quantityUsed) || 0);
+    const snapshotCost = Math.max(0, Number(row.toolCost) || 0);
+    const unitPrice = Math.max(0, Number(row.unitPrice) || 0);
+    const cost = snapshotCost || quantity * unitPrice;
+    if (quantity > 0 && cost <= 0) missingCostRecords++;
+    totalCost += cost;
+    const id = String(row.orderId);
+    byOrder.set(id, (byOrder.get(id) || 0) + cost);
+  });
+  return { totalCost, missingCostRecords, usageCount: rows.length, ordersWithUsage: byOrder.size, byOrder };
+}
+
+function summarizeLinkedInstallationCosts(orders = [], serviceRows = []) {
+  const linkedBookingIds = new Set(orders.map(order => String(order.bookingId || "")).filter(Boolean));
+  const byBooking = new Map();
+  const totals = { partsCost: 0, consumablesCost: 0, laborCost: 0, localPurchaseCost: 0, totalCost: 0, unpricedConsumablesCount: 0 };
+  serviceRows.forEach(row => {
+    const bookingId = String(row.bookingId || "");
+    if (!linkedBookingIds.has(bookingId)) return;
+    const cost = {
+      partsCost: Math.max(0, Number(row.partsCost) || 0),
+      consumablesCost: Math.max(0, Number(row.consumablesCost) || 0),
+      laborCost: Math.max(0, Number(row.laborCost) || 0),
+      localPurchaseCost: Math.max(0, Number(row.localPurchaseCost) || 0),
+      unpricedConsumablesCount: Math.max(0, Number(row.unpricedConsumablesCount) || 0),
+    };
+    cost.totalCost = cost.partsCost + cost.consumablesCost + cost.laborCost + cost.localPurchaseCost;
+    byBooking.set(bookingId, cost);
+    Object.keys(totals).forEach(field => { totals[field] += cost[field] || 0; });
+  });
+  return { ...totals, byBooking };
+}
+
 module.exports = {
   ACCEPTED_PAYMENT_STATUSES,
   RECOGNIZED_BOOKING_STATUSES,
@@ -179,5 +220,7 @@ module.exports = {
   parseReportDate,
   refundDate,
   summarizeOrderCosts,
+  summarizeOrderConsumables,
+  summarizeLinkedInstallationCosts,
   summarizePaymentLedger,
 };

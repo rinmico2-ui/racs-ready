@@ -9,6 +9,9 @@
   var state = document.getElementById("reportCenterState");
   var freshness = document.getElementById("reportFreshness");
   var requestController = null;
+  var overviewLoaded = false;
+  var activeTab = null;
+  var tabButtons = Array.from(root.querySelectorAll("[data-report-tab]"));
   var peso = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
 
   function setText(id, value) {
@@ -118,6 +121,7 @@
       var payload = await response.json().catch(function () { return {}; });
       if (!response.ok) throw new Error(payload.error || "Unable to load the report snapshot.");
       render(payload);
+      overviewLoaded = true;
     } catch (error) {
       if (error.name === "AbortError") return;
       setState(error.message || "Unable to load the report snapshot. Please retry.", "error");
@@ -128,6 +132,42 @@
     }
   }
 
-  refreshButton.addEventListener("click", loadSnapshot);
-  loadSnapshot();
+  function showTab(nextTab, updateHistory) {
+    activeTab = nextTab === "decisions" ? "decisions" : "overview";
+    tabButtons.forEach(function (button) {
+      var selected = button.dataset.reportTab === activeTab;
+      button.setAttribute("aria-selected", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+      document.getElementById(button.getAttribute("aria-controls")).hidden = !selected;
+    });
+    freshness.hidden = activeTab === "decisions";
+    refreshButton.setAttribute("aria-label", activeTab === "decisions" ? "Refresh management decisions" : "Refresh overview");
+    if (updateHistory) {
+      var url = new URL(window.location.href);
+      if (activeTab === "decisions") url.searchParams.set("tab", "decisions");
+      else url.searchParams.delete("tab");
+      window.history.pushState({ reportTab: activeTab }, "", url);
+    }
+    if (activeTab === "decisions") document.dispatchEvent(new Event("reportcenter:decisions"));
+    else if (!overviewLoaded) loadSnapshot();
+  }
+
+  tabButtons.forEach(function (button, index) {
+    button.addEventListener("click", function () { showTab(button.dataset.reportTab, true); });
+    button.addEventListener("keydown", function (event) {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      var next = event.key === "Home" ? 0 : event.key === "End" ? tabButtons.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabButtons.length) % tabButtons.length;
+      tabButtons[next].focus();
+      showTab(tabButtons[next].dataset.reportTab, true);
+    });
+  });
+  window.addEventListener("popstate", function () {
+    showTab(new URLSearchParams(window.location.search).get("tab"), false);
+  });
+  refreshButton.addEventListener("click", function () {
+    if (activeTab === "decisions") document.dispatchEvent(new Event("reportcenter:decisions-refresh"));
+    else loadSnapshot();
+  });
+  showTab(root.dataset.initialTab, false);
 })();

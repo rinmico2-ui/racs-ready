@@ -40,6 +40,7 @@ function validatePayment({ number = "", proof = null, channel = "gcash" } = {}) 
     MAX_BOOKING_UNITS: 40,
     selectedUnitTotal: () => 1,
     isLargeScaleSelection: () => false,
+    bookingRequiresProjectSchedule: () => false,
     EnterpriseCalendar: { isProjectMode: () => false },
     isValidPhilippineMobile: value => /^09\d{9}$/.test(value),
     paymentProofValidationMessage: file => !file ? "Upload the payment receipt to continue." : "",

@@ -1,0 +1,38 @@
+<section class="sr-card sr-table-card mt-3" aria-labelledby="order-direct-cost-title">
+  <header class="sr-card-header">
+    <div>
+      <span class="sr-card-kicker">Direct cost evidence</span>
+      <h2 id="order-direct-cost-title">Where order costs are deducted</h2>
+      <p>Completed orders only. Product cost uses current inventory prices; consumables use their recorded usage prices.</p>
+    </div>
+  </header>
+  <div class="sr-control-list">
+    <div><span><strong>Completed order value</strong><small>Recognized in this period</small></span><b>₱<%= money(A.recognizedRevenue) %></b></div>
+    <div><span><strong>Product cost</strong><small>Current inventory cost × completed units</small></span><b>− ₱<%= money(A.productCost) %></b></div>
+    <div><span><strong>Installation consumables</strong><small>Order and linked booking usage</small></span><b>− ₱<%= money(A.consumablesCost) %></b></div>
+    <div><span><strong>Other linked installation cost</strong><small>Recorded labor, parts, and local purchases</small></span><b>− ₱<%= money(A.linkedServiceCost) %></b></div>
+    <div><span><strong>Known direct contribution</strong><small>Before unallocated delivery and other expenses</small></span><b>₱<%= money(A.estimatedGrossMargin) %></b></div>
+  </div>
+  <p class="sr-card-note px-3 pb-3"><%= number(A.installationsWithoutUsage) %> of <%= number(A.installationOrders) %> completed installation orders have no consumable usage recorded; verify whether materials were used. <%= number(A.consumablesMissingCostRecords) %> usage records have no cost. A zero cost means no cost was recorded.</p>
+  <div class="table-responsive">
+    <table class="sr-table">
+      <thead><tr><th>Completed order</th><th>Fulfillment</th><th class="text-end">Order value</th><th class="text-end">Product cost</th><th class="text-end">Consumables</th><th class="text-end">Other installation cost</th><th class="text-end">Known contribution</th><th>Cost evidence</th></tr></thead>
+      <tbody>
+        <% if (Array.isArray(A.orderCostRows) && A.orderCostRows.length) { A.orderCostRows.forEach(function(row) { %>
+          <tr>
+            <td><strong><%= row.reference %></strong></td>
+            <td><%= nice(row.fulfillment) %></td>
+            <td class="text-end">₱<%= money(row.revenue) %></td>
+            <td class="text-end">₱<%= money(row.productCost) %></td>
+            <td class="text-end">₱<%= money(row.consumablesCost) %></td>
+            <td class="text-end">₱<%= money(row.linkedServiceCost) %></td>
+            <td class="text-end">₱<%= money(row.knownContribution) %></td>
+            <td><%= !row.productCostComplete ? 'Product cost incomplete' : row.fulfillment === 'delivery_installation' && !row.usageRecorded ? 'Verify consumable usage' : 'Recorded costs shown' %></td>
+          </tr>
+        <% }); } else { %>
+          <tr><td colspan="8" class="sr-empty">No completed orders in this reporting period.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</section>

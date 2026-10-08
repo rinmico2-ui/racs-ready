@@ -16,12 +16,15 @@ const HVACProduct = require("../models/HVACProduct");
 const Expense = require("../models/Expense");
 const Payroll = require("../models/Payroll");
 const ProjectMaterial = require("../models/ProjectMaterial");
+const ServiceToolUsage = require("../models/ServiceToolUsage");
 const {
   bookingApprovedValue, buildProjectPricingMap, isRepairBooking, normalizePaymentMethod,
 } = require("./revenueRecognition");
 const { buildServiceCostAnalytics } = require("./serviceCostAnalytics");
 const { buildRevenueForecast, buildServiceProfitability } = require("./revenueDecisionAnalytics");
 const { remember } = require("./reportCache");
+const { leastSoldProducts } = require("./reportRankings");
+const { netLineValue } = require('./transactionDiscounts');
 const {
   ACCEPTED_PAYMENT_STATUSES,
   bookingCompletionDate,
@@ -35,6 +38,8 @@ const {
   parseReportDate,
   refundDate,
   summarizeOrderCosts,
+  summarizeOrderConsumables,
+  summarizeLinkedInstallationCosts,
   summarizePaymentLedger,
 } = require("./enterpriseRevenue");
 
@@ -42,7 +47,7 @@ const {
 // out of the reporting queries prevents base64 receipts and completion photos
 // from being transferred repeatedly for bookings, orders, and payments.
 const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
-const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
+const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice items.discountAmount total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
 const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
 const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod";
 const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.quantity items.totalPrice items.costPrice";
@@ -265,8 +270,8 @@ async function computeRevenueAnalytics(query = {}) {
   const orderLinkedBookingIds = new Set(
     [...orders, ...recognizedOrders].map((order) => order.bookingId).filter(Boolean).map(String),
   );
-  filteredBookings = filteredBookings.filter((booking) => !orderLinkedBookingIds.has(String(booking._id)));
-  recognizedBookings = recognizedBookings.filter((booking) => !orderLinkedBookingIds.has(String(booking._id)));
+  filteredBookings = filteredBookings.filter((booking) => !booking.sourceOrderId && !orderLinkedBookingIds.has(String(booking._id)));
+  recognizedBookings = recognizedBookings.filter((booking) => !booking.sourceOrderId && !orderLinkedBookingIds.has(String(booking._id)));
   const recognizedBookingById = new Map(recognizedBookings.map((booking) => [String(booking._id), booking]));
   const projectToBooking = new Map(Array.from(projectPricingMap.entries())
     .map(([bookingId, entry]) => [String(entry.projectId), bookingId]));
@@ -440,7 +445,8 @@ async function computeRevenueAnalytics(query = {}) {
   const recognizedProjectIds = Array.from(projectPricingMap.entries())
     .filter(([bookingId]) => recognizedBookingById.has(bookingId))
     .map(([, entry]) => entry.projectId);
-  const [serviceCostAnalytics, inventoryCosts, hvacCostProducts, expenseRows, payrollRows, projectMaterials] = await Promise.all([
+  const linkedInstallationOrders = recognizedOrders.filter(order => order.fulfillmentType === "delivery_installation" && order.bookingId);
+  const [serviceCostAnalytics, inventoryCosts, hvacCostProducts, expenseRows, payrollRows, projectMaterials, orderConsumableUsages, linkedBookingRows] = await Promise.all([
     buildServiceCostAnalytics(recognizedBookings, { revenueResolver: getBookingRevenue }),
     recognizedInventoryIds.length
       ? Inventory.find({ _id: { $in: recognizedInventoryIds } }).select("costPrice").lean()
@@ -457,7 +463,22 @@ async function computeRevenueAnalytics(query = {}) {
         type: { $in: ["part", "consumable"] },
       }).select("projectId totalPrice quantity unitPrice type").lean()
       : [],
+    recognizedOrders.length
+      ? ServiceToolUsage.find({ orderId: { $in: recognizedOrders.map(order => order._id) }, itemType: "consumable", lifecycleStatus: { $ne: "voided" } })
+        .select("orderId itemType quantityUsed unitPrice toolCost lifecycleStatus").lean()
+      : [],
+    linkedInstallationOrders.length
+      ? BookingService.find({ _id: { $in: linkedInstallationOrders.map(order => order.bookingId) } })
+        .select(BOOKING_EVIDENCE_EXCLUSIONS).lean()
+      : [],
   ]);
+  const linkedOrderByBooking = new Map(linkedInstallationOrders.map(order => [String(order.bookingId), order]));
+  const linkedInstallationServiceRows = linkedBookingRows.length
+    ? (await buildServiceCostAnalytics(
+      linkedBookingRows.map(booking => ({ ...booking, status: "completed", completedAt: linkedOrderByBooking.get(String(booking._id))?.completedAt || booking.completedAt })),
+      { revenueResolver: () => 0, excludeOrderLinkedUsage: true },
+    )).services
+    : [];
   const orderCostCatalog = inventoryCosts.concat(
     hvacCostProducts.flatMap((product) => (product.variants || []).map((variant) => ({
       _id: variant._id,
@@ -465,6 +486,8 @@ async function computeRevenueAnalytics(query = {}) {
     }))),
   );
   const orderCostSummary = summarizeOrderCosts(recognizedOrders, orderCostCatalog);
+  const orderConsumableSummary = summarizeOrderConsumables(recognizedOrders, orderConsumableUsages);
+  const linkedInstallationCost = summarizeLinkedInstallationCosts(recognizedOrders, linkedInstallationServiceRows);
   const projectMaterialCost = projectMaterials.reduce(
     (sum, material) => sum + Number(material.totalPrice || (Number(material.quantity || 0) * Number(material.unitPrice || 0))),
     0,
@@ -492,7 +515,7 @@ async function computeRevenueAnalytics(query = {}) {
     + serviceCostAnalytics.totals.consumablesCost
     + serviceCostAnalytics.totals.localPurchaseCost
     + serviceCostAnalytics.totals.laborCost;
-  const totalPartsCost = serviceDirectCost + posCost + orderCostSummary.totalCost + projectMaterialCost;
+  const totalPartsCost = serviceDirectCost + posCost + orderCostSummary.totalCost + orderConsumableSummary.totalCost + linkedInstallationCost.totalCost + projectMaterialCost;
   const grossProfit = recognizedRevenue - totalPartsCost;
   const grossProfitMargin = recognizedRevenue > 0 ? ((grossProfit / recognizedRevenue) * 100).toFixed(1) : "0.0";
   const operatingExpenses = approvedExpenseTotal + payrollCost;
@@ -526,7 +549,9 @@ async function computeRevenueAnalytics(query = {}) {
   recognizedOrders.forEach((order) => {
     const key = new Date(orderCompletionDate(order)).toLocaleString("en-PH", { month: "short", year: "numeric" });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) {
-      monthlyPartsCost[key] += summarizeOrderCosts([order], orderCostCatalog).totalCost;
+      monthlyPartsCost[key] += summarizeOrderCosts([order], orderCostCatalog).totalCost
+        + Number(orderConsumableSummary.byOrder.get(String(order._id)) || 0)
+        + Number(linkedInstallationCost.byBooking.get(String(order.bookingId || ""))?.totalCost || 0);
     }
   });
   posSales.forEach((sale) => {
@@ -597,7 +622,7 @@ async function computeRevenueAnalytics(query = {}) {
       const businessCategory = counterSaleBusinessCategory(item);
       if (!businessCategory) return;
       const name = item.itemName || "Unnamed";
-      const key = `${businessCategory}:${name}`;
+      const key = item.toolId ? `${businessCategory}:${item.toolId}` : `${businessCategory}:${name}`;
       if (!posProductMap[key]) posProductMap[key] = {
         name,
         category: item.category || (businessCategory === "consumables" ? "Consumable" : "Repair Part"),
@@ -626,11 +651,6 @@ async function computeRevenueAnalytics(query = {}) {
   );
   const walkInAirconProductMap = {};
   recognizedWalkInOrders.forEach((order) => {
-    const merchandiseSubtotal = Number(order.subtotal || 0)
-      || (order.items || []).reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-    const netMerchandise = Math.max(0, merchandiseSubtotal - Number(order.discount || 0));
-    const revenueFactor = merchandiseSubtotal > 0 ? netMerchandise / merchandiseSubtotal : 1;
-
     (order.items || []).forEach((item) => {
       const name = item.modelLine || item.brand || "Unknown Aircon Unit";
       const capacity = item.capacity ? `${item.capacity}${item.capacityUnit || "HP"}` : "";
@@ -651,7 +671,7 @@ async function computeRevenueAnalytics(query = {}) {
       const row = walkInAirconProductMap[key];
       const quantity = Number(item.quantity || 0);
       row.quantity += quantity;
-      row.revenue += Number(item.totalPrice || 0) * revenueFactor;
+      row.revenue += netLineValue(order, item);
       row.cost += Number(orderCostByInventoryId.get(String(item.inventoryId || "")) || 0) * quantity;
       row.profit = row.revenue - row.cost;
     });
@@ -662,6 +682,7 @@ async function computeRevenueAnalytics(query = {}) {
   const airconProducts = Object.values(walkInAirconProductMap);
   const posCategoryProducts = [...repairPartProducts, ...consumableProducts, ...airconProducts]
     .sort((left, right) => right.revenue - left.revenue);
+  const lowestSellingPosProducts = leastSoldProducts(posCategoryProducts, posCategoryProducts.length);
   const summarizePosCategory = (key, label, products, transactionCount) => {
     const revenue = products.reduce((sum, product) => sum + Number(product.revenue || 0), 0);
     const cost = products.reduce((sum, product) => sum + Number(product.cost || 0), 0);
@@ -702,17 +723,18 @@ async function computeRevenueAnalytics(query = {}) {
       const capacity = item.capacity ? `${item.capacity}${item.capacityUnit || "HP"}` : "N/A";
       if (!orderProductMap[name]) orderProductMap[name] = { name, brand, capacity, channel: "order", quantity: 0, revenue: 0, avgUnitPrice: 0, orders: 0 };
       const row = orderProductMap[name];
+      const netRevenue = netLineValue(o, item);
       row.quantity += Number(item.quantity || 0);
-      row.revenue += Number(item.totalPrice || 0);
+      row.revenue += netRevenue;
       row.orders++;
       row.avgUnitPrice = row.quantity > 0 ? row.revenue / row.quantity : 0;
       if (!orderBrandMap[brand]) orderBrandMap[brand] = { brand, quantity: 0, revenue: 0, models: new Set() };
       orderBrandMap[brand].quantity += Number(item.quantity || 0);
-      orderBrandMap[brand].revenue += Number(item.totalPrice || 0);
+      orderBrandMap[brand].revenue += netRevenue;
       orderBrandMap[brand].models.add(name);
       if (!orderCapacityMap[capacity]) orderCapacityMap[capacity] = { capacity, quantity: 0, revenue: 0, orders: 0 };
       orderCapacityMap[capacity].quantity += Number(item.quantity || 0);
-      orderCapacityMap[capacity].revenue += Number(item.totalPrice || 0);
+      orderCapacityMap[capacity].revenue += netRevenue;
       orderCapacityMap[capacity].orders++;
     });
   });
@@ -905,8 +927,13 @@ async function computeRevenueAnalytics(query = {}) {
         .filter(s => { const b = recognizedBookingById.get(String(s.bookingId)); return b ? serviceCategory(b) === "mix" : false; })
         .reduce((sum, s) => sum + (s.partsCost || 0), 0),
       monthlyRevenue, dailyRevenue, monthlyPartsCost, totalPartsCost, grossProfit, grossProfitMargin,
-      serviceDirectCost, orderCost: orderCostSummary.totalCost, orderCostCoverage: orderCostSummary.coveragePercent,
-      orderCostBasis: orderCostSummary.basis, projectMaterialCost, approvedExpenseTotal, payrollCost,
+      serviceDirectCost, orderCost: orderCostSummary.totalCost + orderConsumableSummary.totalCost + linkedInstallationCost.totalCost,
+      orderProductCost: orderCostSummary.totalCost,
+      orderConsumablesCost: orderConsumableSummary.totalCost + linkedInstallationCost.consumablesCost,
+      orderLinkedServiceCost: linkedInstallationCost.totalCost - linkedInstallationCost.consumablesCost,
+      orderConsumablesMissingCostRecords: orderConsumableSummary.missingCostRecords + linkedInstallationCost.unpricedConsumablesCount,
+      orderCostCoverage: orderCostSummary.coveragePercent,
+      orderCostBasis: `${orderCostSummary.basis}; recorded order consumables use usage cost snapshots`, projectMaterialCost, approvedExpenseTotal, payrollCost,
       operatingExpenses, operatingProfit, operatingMargin, operatingProfitMargin: operatingMargin, costDataCoverage,
       serviceCosts: serviceCostAnalytics.totals,
       serviceProfitability,
@@ -949,7 +976,7 @@ async function computeRevenueAnalytics(query = {}) {
       collectionRate, outstandingValue, serviceShare, orderShare, posShare,
       topTechnicians, recentTransactions, growthRate: growthRate.toFixed(1), posPaymentMethods,
       topPosProducts: Object.values(posProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
-      posCategoryBreakdown, posCategoryProducts,
+      posCategoryBreakdown, posCategoryProducts, lowestSellingPosProducts,
       topOrderProducts, orderBrandAnalysis, orderCapacityAnalysis, orderFulfillmentMap,
       combinedTopProducts, totalProductUnits, totalProductRevenue,
       onlineOrderProductUnits, onlineOrderProductRevenue, posProductRevenue,

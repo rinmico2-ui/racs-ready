@@ -40,6 +40,27 @@ test("order report renders focused progressive analysis and valid browser JavaSc
   assert.equal((template.match(/<canvas id=/g) || []).length, 3);
 });
 
+test("order cost view reconciles a completed installation with linked service costs", () => {
+  const financials = {
+    ...analytics, recognizedOrders: 1, recognizedRevenue: 1000,
+    productCost: 500, consumablesCost: 110, linkedServiceCost: 95,
+    estimatedCost: 705, estimatedGrossMargin: 295, marginReliable: false,
+    installationOrders: 1, installationsWithoutUsage: 0, consumablesMissingCostRecords: 0,
+    orderCostRows: [{ reference: 'ORD-1', fulfillment: 'delivery_installation', revenue: 1000,
+      productCost: 500, consumablesCost: 110, linkedServiceCost: 95, knownContribution: 295,
+      productCostComplete: true, usageRecorded: true }],
+  };
+  const html = ejs.render(template, {
+    analytics: financials,
+    analyticsJson: JSON.stringify(financials),
+    filters: { range: '30', from: '', to: '', activeCount: 0 },
+    filterOptions: { technicians: [], brands: [] },
+  }, { filename: templatePath });
+  assert.match(html, /Other linked installation cost/);
+  assert.match(html, /ORD-1/);
+  assert.match(html, /₱295/);
+});
+
 test("order report separates executive, fulfillment, cash, product, and record decisions", () => {
   for (const label of ["Valid orders placed", "Completed order value", "Net collections", "Orders requiring attention"]) assert.match(template, new RegExp(label));
   for (const tab of ["Overview", "Fulfillment", "Cash &amp; margin", "Products", "Records"]) assert.match(template, new RegExp(">" + tab + "<"));

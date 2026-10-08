@@ -1,80 +1,121 @@
-.maintenance-shell { max-width: 1440px; margin: 0 auto; color: #1e293b; }
-.maintenance-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; }
-.maintenance-head h1 { margin:0; font-size:1.45rem; font-weight:750; letter-spacing:0; color:#0f172a; }
-.maintenance-head p { margin:5px 0 0; color:#64748b; font-size:.86rem; }
-.maintenance-head-icon { width:42px; height:42px; border-radius:8px; display:grid; place-items:center; background:#e0f2fe; color:#0369a1; font-size:1.1rem; flex:none; }
-.maintenance-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
-.maintenance-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; min-height:86px; }
-.maintenance-kpi-label { color:#64748b; font-size:.7rem; font-weight:700; text-transform:uppercase; }
-.maintenance-kpi-value { color:#0f172a; font-size:1.45rem; font-weight:750; margin-top:6px; }
-.maintenance-kpi.danger .maintenance-kpi-value { color:#b91c1c; }
-.maintenance-kpi.warning .maintenance-kpi-value { color:#b45309; }
-.maintenance-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid #e2e8f0; border-bottom:0; background:#fff; border-radius:8px 8px 0 0; }
-.maintenance-tabs { display:flex; gap:4px; overflow-x:auto; }
-.maintenance-tab { border:0; background:transparent; color:#64748b; font-size:.78rem; font-weight:650; padding:8px 10px; white-space:nowrap; border-bottom:2px solid transparent; }
-.maintenance-tab.active { color:#0369a1; border-bottom-color:#0284c7; }
-.maintenance-search { position:relative; min-width:240px; }
-.maintenance-search i { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#94a3b8; }
-.maintenance-search input { width:100%; height:36px; border:1px solid #cbd5e1; border-radius:6px; padding:0 10px 0 32px; font-size:.8rem; }
-.maintenance-table-wrap { overflow:auto; border:1px solid #e2e8f0; background:#fff; }
-.maintenance-table { width:100%; border-collapse:collapse; min-width:980px; }
-.maintenance-table th { padding:10px 12px; background:#f8fafc; color:#64748b; font-size:.66rem; text-transform:uppercase; font-weight:750; text-align:left; border-bottom:1px solid #e2e8f0; }
-.maintenance-table td { padding:12px; font-size:.79rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
-.maintenance-table tr:last-child td { border-bottom:0; }
-.maintenance-primary { color:#0f172a; font-weight:700; }
-.maintenance-secondary { color:#64748b; font-size:.72rem; margin-top:2px; }
-.maintenance-status { display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:999px; font-size:.68rem; font-weight:700; text-transform:capitalize; }
-.maintenance-status.upcoming { background:#e0f2fe; color:#075985; }
-.maintenance-status.due { background:#fef3c7; color:#92400e; }
-.maintenance-status.overdue { background:#fee2e2; color:#991b1b; }
-.maintenance-status.scheduled { background:#ede9fe; color:#5b21b6; }
-.maintenance-status.completed { background:#dcfce7; color:#166534; }
-.maintenance-status.paused,.maintenance-status.cancelled { background:#e2e8f0; color:#475569; }
-.maintenance-empty { padding:54px 20px; text-align:center; color:#64748b; background:#fff; border:1px solid #e2e8f0; border-top:0; }
-.maintenance-pagination { display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid #e2e8f0; border-top:0; background:#fff; border-radius:0 0 8px 8px; font-size:.75rem; color:#64748b; }
-.asset-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-.asset-card { background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
-.asset-card-head { display:flex; align-items:center; gap:12px; padding:15px 16px; border-bottom:1px solid #eef2f7; }
-.asset-icon { width:38px; height:38px; border-radius:8px; background:#ecfeff; color:#0e7490; display:grid; place-items:center; flex:none; }
-.asset-card-body { padding:16px; }
-.asset-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:15px; }
-.asset-meta-label { font-size:.65rem; color:#94a3b8; text-transform:uppercase; font-weight:700; }
-.asset-meta-value { font-size:.78rem; color:#334155; font-weight:650; margin-top:3px; overflow-wrap:anywhere; }
-.maintenance-cycle { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0 0; border-top:1px solid #e2e8f0; }
-.maintenance-cycle-actions { display:flex; gap:6px; flex:none; flex-wrap:wrap; justify-content:flex-end; }
-.aftercare-head { padding-bottom:16px; border-bottom:1px solid #e2e8f0; }
-.aftercare-alert { margin-bottom:14px; padding:11px 13px; border:1px solid #bbf7d0; border-radius:7px; background:#f0fdf4; color:#166534; font-size:.8rem; }
-.aftercare-alert.error { border-color:#fecaca; background:#fef2f2; color:#991b1b; }
-.aftercare-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
-.aftercare-kpi-button { appearance:none; width:100%; text-align:left; cursor:pointer; transition:border-color .16s ease,box-shadow .16s ease; }
-.aftercare-kpi-button:hover { border-color:#94a3b8; box-shadow:0 3px 12px rgba(15,23,42,.06); }
-.aftercare-tabs { display:flex; gap:4px; margin-bottom:22px; padding:4px; border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; width:max-content; max-width:100%; }
-.aftercare-tab { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:7px 13px; border:0; border-radius:6px; background:transparent; color:#64748b; font-size:.78rem; font-weight:700; white-space:nowrap; }
-.aftercare-tab.active { background:#fff; color:#0f766e; box-shadow:0 1px 4px rgba(15,23,42,.1); }
-.aftercare-panel { padding-bottom:24px; }
-.aftercare-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:13px; }
-.aftercare-section-head h2 { margin:0; color:#0f172a; font-size:1rem; font-weight:750; }
-.aftercare-section-head p { margin:3px 0 0; color:#64748b; font-size:.75rem; }
-.aftercare-cycle { align-items:flex-end; }
-.aftercare-response-state { display:inline-flex; align-items:center; gap:5px; margin-top:7px; color:#475569; font-size:.68rem; font-weight:700; }
-.aftercare-response-state.callback_requested,.aftercare-response-state.booking_started { color:#0f766e; }
-.aftercare-response-state.declined { color:#64748b; }
-.warranty-records { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-.warranty-record { display:flex; min-width:0; flex-direction:column; border:1px solid #e2e8f0; border-radius:8px; background:#fff; overflow:hidden; }
-.warranty-record > header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:15px 16px; border-bottom:1px solid #eef2f7; }
-.warranty-record h3 { margin:3px 0 0; color:#0f172a; font-size:.9rem; font-weight:750; overflow-wrap:anywhere; }
-.warranty-record header p { margin:3px 0 0; color:#64748b; font-size:.7rem; }
-.aftercare-record-type { color:#0f766e; font-size:.64rem; font-weight:800; text-transform:uppercase; }
-.warranty-record-body { flex:1; padding:5px 16px 12px; }
-.warranty-coverage-row,.warranty-claim-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid #f1f5f9; }
-.warranty-coverage-row:last-child,.warranty-claim-row:last-child { border-bottom:0; }
-.warranty-coverage-row strong,.warranty-claim-row strong { display:block; color:#1e293b; font-size:.75rem; }
-.warranty-coverage-row span:not(.maintenance-status),.warranty-claim-row span:not(.maintenance-status) { display:block; margin-top:2px; color:#64748b; font-size:.68rem; }
-.warranty-subhead { padding-top:12px; color:#475569; font-size:.66rem; font-weight:800; text-transform:uppercase; }
-.warranty-record > footer { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:54px; padding:10px 16px; border-top:1px solid #eef2f7; color:#64748b; font-size:.7rem; }
-.maintenance-status.active { background:#dcfce7; color:#166534; }
-.maintenance-status.claimed { background:#fef3c7; color:#92400e; }
-.maintenance-status.expired { background:#e2e8f0; color:#475569; }
-@media (max-width: 991px) { .maintenance-kpis { grid-template-columns:repeat(3,1fr); } .asset-grid { grid-template-columns:1fr; } }
-@media (max-width: 991px) { .aftercare-kpis { grid-template-columns:repeat(2,1fr); } .warranty-records { grid-template-columns:1fr; } }
-@media (max-width: 640px) { .maintenance-head,.maintenance-toolbar { flex-direction:column; align-items:stretch; } .maintenance-kpis { grid-template-columns:repeat(2,1fr); } .maintenance-search { min-width:0; } .asset-meta { grid-template-columns:1fr 1fr; } .maintenance-cycle { align-items:flex-start; flex-direction:column; } .maintenance-cycle-actions { width:100%; justify-content:flex-start; } .aftercare-tabs { width:100%; } .aftercare-tab { flex:1; justify-content:center; white-space:normal; } .warranty-record > header,.warranty-record > footer { align-items:flex-start; } }
+/* Customer Aftercare page — clean modern UI */
+.maintenance-shell { max-width: 1180px; margin: 0 auto; padding: 28px 16px 48px; color: #1e293b; }
+
+/* ── Page header ─────────────────────────────────────────────────────── */
+.maintenance-head { flex-wrap: wrap; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.maintenance-head h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; color: #0f172a; }
+.maintenance-head p { margin: 4px 0 0; color: #64748b; font-size: .86rem; }
+.maintenance-head-icon { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, #0f766e, #14b8a6); color: #fff; font-size: 1.15rem; flex: none; box-shadow: 0 6px 14px rgba(15, 118, 110, .25); }
+.aftercare-head { padding-bottom: 18px; border-bottom: 1px solid #e8edf4; }
+
+/* ── Alert ───────────────────────────────────────────────────────────── */
+.aftercare-alert { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 12px 14px; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4; color: #166534; font-size: .82rem; font-weight: 600; }
+.aftercare-alert.error { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+
+/* ── KPI cards ───────────────────────────────────────────────────────── */
+.maintenance-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.aftercare-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.maintenance-kpi { position: relative; background: #fff; border: 1px solid #e8edf4; border-radius: 14px; padding: 16px; min-height: 92px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); overflow: hidden; }
+.maintenance-kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #cbd5e1; border-radius: 3px 0 0 3px; }
+.maintenance-kpi.warning::before { background: #f59e0b; }
+.maintenance-kpi.danger::before { background: #ef4444; }
+.maintenance-kpi-label { color: #64748b; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.maintenance-kpi-value { color: #0f172a; font-size: 1.6rem; font-weight: 800; margin-top: 8px; letter-spacing: -0.01em; }
+.maintenance-kpi.danger .maintenance-kpi-value { color: #b91c1c; }
+.maintenance-kpi.warning .maintenance-kpi-value { color: #b45309; }
+.aftercare-kpi-button { appearance: none; width: 100%; text-align: left; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.aftercare-kpi-button:hover { transform: translateY(-2px); border-color: #99f6e4; box-shadow: 0 8px 18px rgba(15, 118, 110, .08); }
+.aftercare-kpi-button:focus-visible { outline: 2px solid #0d9488; outline-offset: 2px; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────── */
+.aftercare-tabs { display: flex; gap: 4px; margin-bottom: 22px; padding: 4px; border: 1px solid #e8edf4; border-radius: 12px; background: #f1f5f9; width: max-content; max-width: 100%; }
+.aftercare-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 7px 14px; border: 0; border-radius: 9px; background: transparent; color: #64748b; font-size: .8rem; font-weight: 700; white-space: nowrap; transition: background .16s ease, color .16s ease; }
+.aftercare-tab.active { background: #fff; color: #0f766e; box-shadow: 0 1px 3px rgba(15, 23, 42, .1); }
+
+/* ── Section head ────────────────────────────────────────────────────── */
+.aftercare-panel { padding-bottom: 24px; }
+.aftercare-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.aftercare-section-head h2 { margin: 0; color: #0f172a; font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
+.aftercare-section-head p { margin: 3px 0 0; color: #64748b; font-size: .78rem; }
+
+/* ── Cards grid ──────────────────────────────────────────────────────── */
+.asset-grid, .warranty-records { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.asset-card, .warranty-record { background: #fff; border: 1px solid #e8edf4; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: box-shadow .16s ease, transform .16s ease; }
+.asset-card:hover, .warranty-record:hover { box-shadow: 0 10px 24px rgba(15, 23, 42, .07); transform: translateY(-2px); }
+.asset-card-head, .warranty-record > header { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-bottom: 1px solid #eef2f7; }
+.warranty-record > header { align-items: flex-start; justify-content: space-between; }
+.asset-icon { width: 40px; height: 40px; border-radius: 11px; background: #f0fdfa; color: #0f766e; display: grid; place-items: center; flex: none; font-size: 1.05rem; }
+.asset-card-body, .warranty-record-body { padding: 16px; }
+.warranty-record-body { flex: 1; padding: 6px 16px 14px; }
+.warranty-record { display: flex; min-width: 0; flex-direction: column; }
+.asset-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 4px; }
+.asset-meta-label { font-size: .64rem; color: #94a3b8; text-transform: uppercase; font-weight: 700; letter-spacing: .05em; }
+.asset-meta-value { font-size: .78rem; color: #334155; font-weight: 650; margin-top: 3px; overflow-wrap: anywhere; }
+.maintenance-primary { color: #0f172a; font-weight: 700; font-size: .85rem; }
+.maintenance-secondary { color: #64748b; font-size: .72rem; margin-top: 2px; }
+
+/* ── Cycle row ───────────────────────────────────────────────────────── */
+.maintenance-cycle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 2px; margin-top: 12px; border-top: 1px dashed #e2e8f0; }
+.aftercare-cycle { align-items: flex-end; }
+.maintenance-cycle-actions { display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.aftercare-response-state { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; color: #475569; font-size: .68rem; font-weight: 700; }
+.aftercare-response-state.callback_requested, .aftercare-response-state.booking_started { color: #0f766e; }
+.aftercare-response-state.declined { color: #64748b; }
+
+/* ── Status pills ────────────────────────────────────────────────────── */
+.maintenance-status { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; font-size: .66rem; font-weight: 700; text-transform: capitalize; white-space: nowrap; }
+.maintenance-status.upcoming { background: #e0f2fe; color: #075985; }
+.maintenance-status.due { background: #fef3c7; color: #92400e; }
+.maintenance-status.overdue { background: #fee2e2; color: #991b1b; }
+.maintenance-status.scheduled { background: #ede9fe; color: #5b21b6; }
+.maintenance-status.completed { background: #dcfce7; color: #166534; }
+.maintenance-status.paused, .maintenance-status.cancelled { background: #e2e8f0; color: #475569; }
+.maintenance-status.active { background: #dcfce7; color: #166534; }
+.maintenance-status.claimed { background: #fef3c7; color: #92400e; }
+.maintenance-status.expired { background: #e2e8f0; color: #475569; }
+
+/* ── Warranty record internals ───────────────────────────────────────── */
+.warranty-record h3 { margin: 3px 0 0; color: #0f172a; font-size: .92rem; font-weight: 800; overflow-wrap: anywhere; }
+.warranty-record header p { margin: 3px 0 0; color: #64748b; font-size: .7rem; }
+.aftercare-record-type { color: #0f766e; font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.warranty-coverage-row, .warranty-claim-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+.warranty-coverage-row:last-child, .warranty-claim-row:last-child { border-bottom: 0; }
+.warranty-coverage-row strong, .warranty-claim-row strong { display: block; color: #1e293b; font-size: .76rem; }
+.warranty-coverage-row span:not(.maintenance-status), .warranty-claim-row span:not(.maintenance-status) { display: block; margin-top: 2px; color: #64748b; font-size: .68rem; }
+.warranty-subhead { padding-top: 14px; color: #475569; font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.warranty-record > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 54px; padding: 10px 16px; border-top: 1px solid #eef2f7; color: #64748b; font-size: .7rem; }
+
+/* ── Empty states ────────────────────────────────────────────────────── */
+.maintenance-empty { padding: 56px 20px; text-align: center; color: #64748b; background: #fff; border: 1px dashed #cbd5e1; border-radius: 14px; font-size: .85rem; }
+
+/* ── Admin/technician table leftovers ────────────────────────────────── */
+.maintenance-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #e2e8f0; border-bottom: 0; background: #fff; border-radius: 8px 8px 0 0; }
+.maintenance-tabs { display: flex; gap: 4px; overflow-x: auto; }
+.maintenance-tab { border: 0; background: transparent; color: #64748b; font-size: .78rem; font-weight: 650; padding: 8px 10px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.maintenance-tab.active { color: #0369a1; border-bottom-color: #0284c7; }
+.maintenance-search { position: relative; min-width: 240px; }
+.maintenance-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+.maintenance-search input { width: 100%; height: 36px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px 0 32px; font-size: .8rem; }
+.maintenance-table-wrap { overflow: auto; border: 1px solid #e2e8f0; background: #fff; }
+.maintenance-table { width: 100%; border-collapse: collapse; min-width: 980px; }
+.maintenance-table th { padding: 10px 12px; background: #f8fafc; color: #64748b; font-size: .66rem; text-transform: uppercase; font-weight: 750; text-align: left; border-bottom: 1px solid #e2e8f0; }
+.maintenance-table td { padding: 12px; font-size: .79rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.maintenance-table tr:last-child td { border-bottom: 0; }
+.maintenance-pagination { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid #e2e8f0; border-top: 0; background: #fff; border-radius: 0 0 8px 8px; font-size: .75rem; color: #64748b; }
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 991px) {
+  .aftercare-kpis { grid-template-columns: repeat(2, 1fr); }
+  .asset-grid, .warranty-records { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .maintenance-head { flex-direction: column; align-items: stretch; }
+  .maintenance-head > .d-flex { justify-content: space-between; }
+  .aftercare-kpis { grid-template-columns: repeat(2, 1fr); }
+  .asset-meta { grid-template-columns: 1fr 1fr; }
+  .maintenance-cycle { align-items: flex-start; flex-direction: column; }
+  .maintenance-cycle-actions { width: 100%; justify-content: flex-start; }
+  .aftercare-tabs { width: 100%; }
+  .aftercare-tab { flex: 1; justify-content: center; white-space: normal; }
+  .warranty-record > header, .warranty-record > footer { align-items: flex-start; }
+}

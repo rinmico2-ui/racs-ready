@@ -50,6 +50,7 @@ const orderItemSchema = new mongoose.Schema(
     parentHvacId: { type: mongoose.Schema.Types.ObjectId, default: null },
     manufacturerWarranty: { type: String, trim: true, maxlength: 1000, default: "" },
     serialNumbers: { type: [String], default: [] },
+    discountAmount: { type: Number, min: 0, default: null },
   },
   { _id: false }
 );
@@ -242,6 +243,7 @@ const orderSchema = new mongoose.Schema(
     // financials
     subtotal: { type: Number, default: 0, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
+    loyaltyDiscount: { type: require('../utils/loyaltyDiscountSchema'), default: null },
     deliveryFee: { type: Number, default: 0, min: 0 },
     installationFee: { type: Number, default: 0, min: 0 },
     transportationFee: { type: Number, default: 0, min: 0 },
@@ -366,6 +368,7 @@ orderSchema.index({ technicianId: 1, status: 1 });
 orderSchema.index({ status: 1, updatedAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ status: 1, completedAt: -1 });
+orderSchema.index({ status: 1, userId: 1 }); // Customer lifetime activity cohorts
 orderSchema.index({ status: 1, "statusHistory.timestamp": -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ fulfillmentType: 1, createdAt: -1 });
@@ -434,9 +437,8 @@ orderSchema.pre("save", async function () {
   }
 
   // Recalculate total
-  this.subtotal = this.items.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
-  this.total = Math.max(0, this.subtotal - (this.discount || 0))
-    + (this.transportationFee || 0);
+  this.subtotal = Math.round(this.items.reduce((sum, it) => sum + (it.totalPrice || 0), 0) * 100) / 100;
+  this.total = Math.round((Math.max(0, this.subtotal - (this.discount || 0)) + (this.transportationFee || 0)) * 100) / 100;
 });
 
 // ─── Instance Methods ───────────────────────────────────────────────────────

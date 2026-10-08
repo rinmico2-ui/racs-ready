@@ -180,6 +180,7 @@ test('maintenance badges calculate current due states without writes or double-c
 test('navigation counts retain queue policies and do not call full dashboards', async t => {
   const Booking = require('../models/BookingService');
   const now = new Date(2026, 8, 29, 12);
+  let failExpenses = false;
   const fixtures = [{ status: 'pending' }, { status: 'awaiting_assignment' },
     { status: 'in-progress' }, { status: 'repair_approved', repairSchedule: { preference: 'later' } },
     { status: 'cancelled', escalated: true }, { status: 'pending_reassignment', reassignmentCount: 3 }];
@@ -193,6 +194,7 @@ test('navigation counts retain queue policies and do not call full dashboards', 
   for (const [name, count] of [['Expense', 2], ['LeaveRequest', 3], ['ActivityLog', 4],
     ['Order', 5], ['Project', 6], ['EquipmentAssignment', 7]]) {
     t.mock.method(require('../models/' + name), 'countDocuments', async filter => {
+      if (name === 'Expense' && failExpenses) throw new Error('temporary database timeout');
       if (name === 'Order') assert.deepEqual(filter.status.$in, ['pending_payment', 'preparing_unit', 'ready_for_pickup', 'technician_declined']);
       if (name === 'Project') assert.equal(filter.status, 'pending_project_scheduling');
       if (name === 'EquipmentAssignment') {
@@ -212,6 +214,13 @@ test('navigation counts retain queue policies and do not call full dashboards', 
   assert.deepEqual(result.repairScheduling, { pendingScheduling: 1 });
   assert.equal(result.maintenance.actionable, 8);
   assert.equal(result.asOf, now.toISOString());
+  failExpenses = true;
+  const degraded = await require('../utils/adminNavigationSummary').buildAdminNavigationSummary(now);
+  assert.equal(degraded.degraded, true);
+  assert.deepEqual(degraded.failedSources, ['expenses']);
+  assert.deepEqual(degraded.staleSources, ['expenses']);
+  assert.equal(degraded.counts.pendingExpenses, 2);
+  assert.equal(degraded.counts.pendingBookings, 1);
 });
 
 test('payment compact lists preserve proof availability and legacy detail evidence', async t => {

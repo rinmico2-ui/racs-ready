@@ -76,11 +76,64 @@ async function reconcileOrderRefundState(orderId) {
 }
 
 // Customers
+router.get('/customers/loyalty-rules', requirePermission('customers.view'), async (req, res, next) => {
+  try {
+    const rewards = require('../utils/loyaltyRewards');
+    const CoreService = require('../models/CoreService');
+    const Inventory = require('../models/Inventory');
+    const HVACProduct = require('../models/HVACProduct');
+    const [policy, services, inventory, hvac] = await Promise.all([
+      rewards.loadPolicy(), CoreService.find({ active: true }).select('_id name').sort({ name: 1 }).lean(),
+      Inventory.find({ active: true }).select('_id modelLine capacity').lean(),
+      HVACProduct.find({ active: true }).select('modelLine variants._id variants.capacity variants.active').lean(),
+    ]);
+    const products = [...inventory.map(item => ({ id: String(item._id), name: `${item.modelLine} ${item.capacity || ''} HP` })),
+      ...hvac.flatMap(item => item.variants.filter(variant => variant.active !== false).map(variant => ({ id: String(variant._id), name: `${item.modelLine} ${variant.capacity || ''} HP` })))];
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ policy, services: services.map(item => ({ id: String(item._id), name: item.name })), products });
+  } catch (err) { next(err); }
+});
+router.put('/customers/loyalty-rules', requirePermission('customers.manage'), async (req, res, next) => {
+  try {
+    const policy = await require('../utils/loyaltyRewards').savePolicy(req.body, req.user._id);
+    require('../utils/reportCache').clear('customer-performance');
+    require('../utils/reportCache').clear('decision-intelligence');
+    await audit.logEvent({ actor: req.user._id, action: 'customers.loyalty_rules_updated', module: 'customers', req, details: { revision: policy.revision, enabled: policy.enabled, rules: policy.rules } });
+    res.json({ policy });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
 router.get("/customers", admin.listCustomers);
 router.get("/customers/:id", admin.getCustomer);
 router.get("/customers/:id/violations", admin.getCustomerViolations);
 router.get("/customers/:id/bookings", admin.getCustomerBookingHistory);
 router.patch("/customers/:id", admin.updateCustomer);
+
+router.get('/reports/customers', requirePermission('reports.view'), async (req, res, next) => {
+  try {
+    const { buildCustomerPerformance } = require('../utils/customerPerformance');
+    res.set('Cache-Control', 'private, no-store');
+    res.json(await buildCustomerPerformance(req.query));
+  } catch (error) {
+    if (/date range|start and end dates|history dates|history status/i.test(error.message)) return res.status(400).json({ error: error.message });
+    next(error);
+  }
+});
+router.get('/reports/customers/:id', requirePermission('reports.view'), async (req, res, next) => {
+  try {
+    const { customerProfile } = require('../utils/customerPerformance');
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid customer ID.' });
+    const profile = await customerProfile(req.params.id, req.query);
+    if (!profile) return res.status(404).json({ error: 'Customer not found.' });
+    res.set('Cache-Control', 'private, no-store');
+    res.json(profile);
+  } catch (error) {
+    if (/date range|start and end dates|history dates|history status/i.test(error.message)) return res.status(400).json({ error: error.message });
+    next(error);
+  }
+});
 
 // Staff
 router.get("/staff", admin.listStaff);
@@ -123,6 +176,25 @@ router.get("/navigation-summary", async (req, res, next) => {
     const { measureRequest } = require("../utils/requestTiming");
     return res.json(await measureRequest(req, "navigationSummary", () => buildAdminNavigationSummary()));
   } catch (error) { return next(error); }
+});
+
+// Reporting reads are available to admins and secretaries with reports.view.
+// Policy mutations remain admin-only and are not on the secretary allowlist.
+router.get('/reports/decisions', async (req, res, next) => {
+  if (!['admin', 'secretary'].includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const { buildDecisionIntelligence } = require('../utils/decisionIntelligence');
+    res.set('Cache-Control', 'private, no-store');
+    return res.json(await buildDecisionIntelligence(req.query));
+  } catch (error) {
+    if (error.message.startsWith('Choose') || error.message.startsWith('Limit reports')) return res.status(400).json({ error: error.message });
+    return next(error);
+  }
+});
+
+router.put('/reports/decisions/loyalty-policy', async (req, res, next) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  return res.status(410).json({ error: 'Manage actual discount rules in Admin → Customer Privileges.', url: '/admin/customers/privileges' });
 });
 
 // Authoritative operational control-center snapshot. This intentionally stays

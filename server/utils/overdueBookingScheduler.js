@@ -352,6 +352,75 @@ async function checkForUpcomingUnverifiedBookings() {
   }
 }
 
+function customerReminderSlot(booking, now = new Date()) {
+  if (!booking?.customerId || !['confirmed', 'scheduled', 'repair_scheduled'].includes(booking.status)) return null;
+  if (!Number.isFinite(parseAppointmentTime(booking.startTime))) return null;
+  const start = parseBookingDateTime(booking.bookingDate, booking.startTime);
+  if (!start) return null;
+  const remaining = start.getTime() - now.getTime();
+  if (remaining <= 0 || remaining > 24 * 3600000) return null;
+  // Avoid sending both windows only minutes apart for a late booking.
+  if (remaining > 2 * 3600000 && remaining <= 6 * 3600000) return null;
+  const soon = remaining <= 2 * 3600000;
+  const marker = soon ? 'customerReminder2hFor' : 'customerReminder24hFor';
+  if (booking[marker] && new Date(booking[marker]).getTime() === start.getTime()) return null;
+  return { marker, start, soon };
+}
+
+/** Remind the customer about a confirmed service, once per schedule and window. */
+async function checkForCustomerServiceReminders(now = new Date()) {
+  const statuses = ['confirmed', 'scheduled', 'repair_scheduled'];
+  const windowEnd = new Date(now.getTime() + 24 * 3600000);
+  const candidates = await BookingService.find({
+    status: { $in: statuses },
+    customerId: { $ne: null },
+    bookingDate: { $gte: new Date(now.getTime() - 24 * 3600000), $lte: new Date(windowEnd.getTime() + 24 * 3600000) },
+  }).select('status bookingDate startTime customerId customer.email bookingReference serviceName service.name customerReminder24hFor customerReminder2hFor').lean();
+  let sent = 0;
+  for (const booking of candidates) {
+    const slot = customerReminderSlot(booking, now);
+    if (!slot) continue;
+    const { start, marker, soon } = slot;
+    // Claim atomically across workers. A reschedule changes bookingDate/startTime,
+    // so an old worker cannot claim a reminder for a new schedule.
+    const claimed = await BookingService.findOneAndUpdate({
+      _id: booking._id,
+      status: { $in: statuses },
+      bookingDate: booking.bookingDate,
+      startTime: booking.startTime,
+      [marker]: { $ne: start },
+    }, { $set: { [marker]: start } }, { new: false }).select('_id');
+    if (!claimed) continue;
+    const { createNotification } = require('./notify');
+    const serviceName = booking.serviceName || booking.service?.name || 'service';
+    const when = start.toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' });
+    const notification = await createNotification({
+      type: 'booking_service_reminder',
+      title: soon ? 'Service starts soon' : 'Upcoming service appointment',
+      message: `Reminder: ${serviceName} (${booking.bookingReference || 'your booking'}) is scheduled for ${when}. Please check your booking details and be ready at the service address.`,
+      userId: booking.customerId,
+      referenceId: booking._id,
+      referenceModel: 'BookingService',
+      link: '/tracking',
+      io: global.io,
+    });
+    if (notification) {
+      sent++;
+      if (booking.customer?.email) {
+        const { sendMail } = require('./mailer');
+        await sendMail({
+          to: booking.customer.email,
+          subject: soon ? 'Your service appointment starts soon' : 'Reminder: upcoming service appointment',
+          text: `Your ${serviceName} appointment (${booking.bookingReference || 'booking'}) is scheduled for ${when}. Please be ready at the service address. View your booking in your customer account.`,
+          source: 'service-reminder',
+        }).catch(error => console.error('[service-reminder] Email failed:', error));
+      }
+    } else await BookingService.updateOne({ _id: booking._id, [marker]: start }, { $set: { [marker]: null } });
+  }
+  if (sent) console.log(`[service-reminder] Sent ${sent} customer reminder(s).`);
+  return sent;
+}
+
 /**
  * Detect pre-service bookings where the technician hasn't departed
  * beyond the grace period. Emits notifications to admin, technician, and customer.
@@ -716,6 +785,7 @@ function startOverdueScheduler() {
     await checkForDelayedBookings();
     await checkForServiceDelays();
     await checkForUpcomingUnverifiedBookings();
+    await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
   }, 30 * 1000);
 
   // Then run every 5 minutes
@@ -724,6 +794,7 @@ function startOverdueScheduler() {
     await checkForDelayedBookings();
     await checkForServiceDelays();
     await checkForUpcomingUnverifiedBookings();
+    await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
   }, CHECK_INTERVAL_MS);
 }
 
@@ -733,6 +804,8 @@ module.exports = {
   checkForServiceDelays,
   checkForUnassignedOverdueBookings,
   checkForUpcomingUnverifiedBookings,
+  checkForCustomerServiceReminders,
+  customerReminderSlot,
   parseBookingDateTime,
   isCommittedAssignmentStatus,
   shouldNotifyDelay,

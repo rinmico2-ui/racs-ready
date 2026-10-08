@@ -2014,6 +2014,39 @@
       let selectedGroupIdx = null;
       let selectedVariantIdx = null;
       let selectedQuantity = 1;
+      let directLoyaltyQuote = null;
+      function directRewardSelection() {
+        const variant = GROUPS[selectedGroupIdx]?.variants[selectedVariantIdx];
+        return { items: variant ? [{ inventoryId: variant._id, quantity: selectedQuantity }] : [] };
+      }
+      function currentDirectReward() {
+        return directLoyaltyQuote?.key === JSON.stringify(directRewardSelection()) ? directLoyaltyQuote : null;
+      }
+      function directRewardDiscount() { return Number(currentDirectReward()?.discount) || 0; }
+      async function refreshDirectReward() {
+        const selection = directRewardSelection();
+        const key = JSON.stringify(selection);
+        if (currentDirectReward() && Date.now() - directLoyaltyQuote.checkedAt < 10 * 60 * 1000) return directLoyaltyQuote;
+        const variant = GROUPS[selectedGroupIdx].variants[selectedVariantIdx];
+        const previousTotal = Number(variant.sellingPrice) * selectedQuantity - directRewardDiscount();
+        const response = await fetch('/api/orders/loyalty-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to check your loyalty price. Please try again.');
+        if (key !== JSON.stringify(directRewardSelection())) throw new Error('Your product selection changed. Review it again.');
+        directLoyaltyQuote = { ...data, key, checkedAt: Date.now() };
+        variant.sellingPrice = Number(data.subtotal) / selectedQuantity;
+        const panel = document.getElementById('wizardStep4');
+        let note = document.getElementById('directLoyaltyPriceNote');
+        if (!note && panel) { note = document.createElement('p'); note.id = 'directLoyaltyPriceNote'; note.className = 'small text-success px-3'; note.setAttribute('role', 'status'); panel.prepend(note); }
+        if (note) note.textContent = data.reward ? `${data.reward.ruleName}: ${data.reward.discountPercent}% off eligible products. You save ₱${data.discount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}. Transport fees are unchanged.` : 'Loyalty price checked. No discount applies to this product.';
+        if (currentStep >= 4) {
+          const method = document.getElementById('wizardPaymentMethod')?.value;
+          if (method) window.selectPaymentMethods(method);
+          if (currentStep === 5) populateReview();
+          if (previousTotal !== Number(data.subtotal) - directRewardDiscount()) throw new Error('Your loyalty price changed. Review the updated payment amount before submitting your receipt.');
+        }
+        return directLoyaltyQuote;
+      }
       let selectedFulfillment = null;
       let leafletMap = null;
       let leafletMarker = null;
@@ -2200,7 +2233,7 @@
         if (input && value !== undefined && value !== null) input.value = String(value);
       }
 
-      function restoreDirectCheckoutDraft(draft) {
+      async function restoreDirectCheckoutDraft(draft) {
         if (!draft) return;
         _restoringDirectDraft = true;
         try {
@@ -2233,6 +2266,10 @@
           if (!draft.selectedFulfillment && targetStep > 2) targetStep = 2;
           const needsReceipt = ['gcash_full', 'cod'].includes(draft.paymentMethod);
           if (needsReceipt && targetStep > 4) targetStep = 4;
+          if (targetStep >= 4) {
+            try { await refreshDirectReward(); }
+            catch (_) { targetStep = 3; }
+          }
 
           if (targetStep >= 3) {
             const isDelivery = selectedFulfillment !== 'customer_pickup';
@@ -2500,6 +2537,10 @@
         }
 
         // Validate current step
+        if (currentStep >= 3) {
+          try { await refreshDirectReward(); }
+          catch (error) { await guideDirectCheckoutIssue(error.message, 'Review your loyalty price', '#wizardStep4'); return; }
+        }
         if (currentStep === 1 && selectedVariantIdx === null) {
           await guideDirectCheckoutIssue('Choose the HP (aircon size) you want.', 'Choose an aircon size', '#wizardHpOptions');
           return;
@@ -2760,7 +2801,7 @@
           const v = g.variants[selectedVariantIdx];
           
           let subtotal = v.sellingPrice * selectedQuantity;
-          let total = subtotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+          let total = Math.round((subtotal - directRewardDiscount() + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0)) * 100) / 100;
           
           const isDownpayment = method === 'cod';
           const percentage = window.downpaymentPercentage || 10;
@@ -2928,7 +2969,8 @@
           document.getElementById('reviewInstallRow').style.display = 'none';
         }
 
-        const total = subtotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+        if (directRewardDiscount()) details.push({ label: `${currentDirectReward().reward.ruleName} (${currentDirectReward().reward.discountPercent}%)`, value: `−₱${directRewardDiscount().toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+        const total = Math.round((subtotal - directRewardDiscount() + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0)) * 100) / 100;
         const percentage = window.downpaymentPercentage || 10;
         const dueNow = payMethod === 'cash_onsite' ? 0 : (payMethod === 'cod' ? Math.round(total * percentage / 100) : total);
         const dueLater = Math.max(0, total - dueNow);
@@ -3223,6 +3265,7 @@
           
           const formData = new FormData();
           formData.append('items', JSON.stringify([{ inventoryId: v._id, quantity: selectedQuantity }]));
+          formData.append('loyaltyQuoteToken', currentDirectReward()?.token || '');
           formData.append('fulfillmentType', selectedFulfillment);
           formData.append('paymentMethod', payMethod);
           formData.append('checkoutRequestId', _checkoutRequestId || (_checkoutRequestId = createCheckoutRequestId()));
@@ -3265,6 +3308,12 @@
           const data = await res.json();
 
           if (!res.ok) {
+            if (data.code === 'LOYALTY_QUOTE_CHANGED') {
+              directLoyaltyQuote = null;
+              try { await refreshDirectReward(); } catch (_) {}
+              currentStep = 4;
+              updateWizardUI();
+            }
             console.warn('Order checkout rejected', { status: res.status, code: data?.code || 'UNKNOWN' });
             if (data?.code === 'ORDER_CHECKOUT_REQUEST_ID_INVALID') _checkoutRequestId = createCheckoutRequestId();
             const issue = window.OrderCheckoutErrors?.issueFor(data, 'direct');

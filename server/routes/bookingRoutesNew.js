@@ -43,6 +43,7 @@ const {
 const { resolveRepairInspectionFees } = require('../utils/repairInspectionPricing');
 const { isUnsupportedMongoWriteFeature } = require('../utils/mongoWriteSupport');
 const { bookingSubmissionIsComplete, persistBookingSubmission } = require('../utils/bookingSubmissionWrite');
+const loyaltyRewards = require('../utils/loyaltyRewards');
 const {
   normalizeRepairModel,
   validateRepairModel,
@@ -65,6 +66,19 @@ const bookingSubmissionLimiter = rateLimit({
  * POST /api/bookings/create-new
  * Simplified booking creation endpoint
  */
+router.post('/loyalty-quote', async (req, res, next) => {
+  try {
+    const lines = await loyaltyRewards.serviceLines(req.body.services);
+    const excluded = req.body.isProject === true;
+    const reward = await loyaltyRewards.rewardFor(req.user._id, 'services', lines, excluded);
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ reward, lines, discount: reward?.amount || 0, token: loyaltyRewards.quoteToken(req.user._id, 'services', lines, reward, excluded) });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, async (req, res) => {
   let savedBooking = null;
   let uploadedPaymentProofId = null;
@@ -565,7 +579,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     const serviceTotal = cleanServices.reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0);
     const quotedRelocation = cleanServices.some(item => item.relocation?.scope === 'custom_quote');
     const authoritativeTravelFare = quotedRelocation ? 0 : Math.max(0, Number(travelFare) || 0);
-    const authoritativeTotal = Math.max(0, serviceTotal + authoritativeTravelFare);
+    const loyaltyLines = cleanServices.map(service => ({ id: String(service.serviceId || '').toLowerCase(),
+      eligible: service.type !== 'repair' && service.relocation?.scope !== 'custom_quote' && !service.assistanceRequestId,
+      amount: service.type === 'repair' || service.relocation?.scope === 'custom_quote' || service.assistanceRequestId ? 0 : service.totalPrice }));
+    const loyaltyDiscount = await loyaltyRewards.rewardFor(userId, 'services', loyaltyLines, effectiveIsProject);
+    loyaltyRewards.assertQuote(req.body.loyaltyQuoteToken, userId, 'services', loyaltyLines, loyaltyDiscount, effectiveIsProject);
+    const authoritativeTotal = loyaltyRewards.round(Math.max(0, serviceTotal - (loyaltyDiscount?.amount || 0) + authoritativeTravelFare));
     const downpaymentPercentage = await getDownpaymentPercentage();
     const paymentBreakdown = calculatePaymentBreakdown(authoritativeTotal, downpaymentPercentage);
 
@@ -655,6 +674,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       // Pricing and travel
       totalPrice: authoritativeTotal,
       estimatedFee: authoritativeTotal,
+      discount: loyaltyDiscount?.amount || 0,
+      loyaltyDiscount,
       totalInitialCost: cleanServices
         .filter(service => service.type === 'repair')
         .reduce((sum, service) => sum + Math.max(0, Number(service.totalPrice) || 0), 0),

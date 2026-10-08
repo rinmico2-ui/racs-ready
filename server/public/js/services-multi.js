@@ -616,7 +616,7 @@ function initMultiServiceBooking() {
       const bookingContainer = document.getElementById('bookingContainer') || document.querySelector('.booking-body');
       if (bookingContainer) bookingContainer.insertBefore(restoredBanner, bookingContainer.firstChild);
 
-      const stepToRestore = getRestorableBookingStep();
+      const stepToRestore = Math.min(getRestorableBookingStep(), 5);
       setTimeout(() => {
         showStep(stepToRestore);
         updateStepperIndicators(stepToRestore);
@@ -1693,6 +1693,11 @@ function showStep(stepNumber) {
 
   const requestedStep = Number(stepNumber);
   if (!Number.isInteger(requestedStep) || requestedStep < 1 || requestedStep > 6) return false;
+  if (requestedStep === 6 && (!currentBookingReward() || bookingLoyaltyPending || bookingLoyaltyError)) {
+    showStep(5);
+    void refreshBookingReward().catch(() => {});
+    return false;
+  }
   if (requestedStep > 4 && pendingRelocationQuoteItem()) {
     showError('Send the relocation request after choosing a preferred date. Staff will send a quote before checkout.');
     return false;
@@ -10898,6 +10903,9 @@ function requestBookingStepNavigation(targetStep) {
     }
   }
 
+  if (step === 6 && (!currentBookingReward() || bookingLoyaltyPending || bookingLoyaltyError)) {
+    return refreshBookingReward().then(() => requestBookingStepNavigation(step)).catch(error => { showError(error.message); return false; });
+  }
   showStep(step);
   return true;
 }
@@ -12940,6 +12948,53 @@ function getProjectReviewInfo() {
  * Display Total Fee in Step 6
  * Professional fee calculation with breakdown
  */
+let bookingLoyaltyQuote = null;
+let bookingLoyaltyPending = null;
+let bookingLoyaltyError = '';
+function bookingRewardSelection() {
+  return { services: (BookingState.selectedServices || []).map(service => ({
+    serviceId: service.serviceId || service._id, type: isRepairBookingService(service) ? 'repair' : 'core',
+    quantity: service.quantity || 1, hp: service.hp, airconType: service.airconType,
+    brand: service.brand, relocation: service.relocation, assistanceRequestId: service.assistanceRequestId
+  })), isProject: bookingRequiresProjectSchedule() };
+}
+function currentBookingReward() {
+  return bookingLoyaltyQuote?.key === JSON.stringify(bookingRewardSelection()) ? bookingLoyaltyQuote : null;
+}
+async function refreshBookingReward(force = false) {
+  const selection = bookingRewardSelection();
+  const key = JSON.stringify(selection);
+  if (!selection.services.length) return null;
+  if (bookingLoyaltyPending?.key === key) return bookingLoyaltyPending.promise;
+  if (!force && currentBookingReward() && Date.now() - bookingLoyaltyQuote.checkedAt < 10 * 60 * 1000) return bookingLoyaltyQuote;
+  bookingLoyaltyError = '';
+  const promise = (async () => {
+    try {
+      const response = await fetch('/api/bookings/loyalty-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to check your loyalty price. Please try again.');
+      if (key === JSON.stringify(bookingRewardSelection())) {
+        (data.lines || []).forEach((line, index) => {
+          const service = BookingState.selectedServices[index];
+          if (line.eligible && service) { service.unitPrice = line.amount / Math.max(1, Number(service.quantity) || 1); service.price = service.unitPrice; service.totalPrice = line.amount; }
+        });
+        bookingLoyaltyQuote = { ...data, key, checkedAt: Date.now() };
+      }
+      return bookingLoyaltyQuote;
+    } catch (error) {
+      if (key === JSON.stringify(bookingRewardSelection())) { bookingLoyaltyQuote = null; bookingLoyaltyError = error.message; }
+      throw error;
+    } finally {
+      if (bookingLoyaltyPending?.key === key) bookingLoyaltyPending = null;
+      displayTotalFee();
+      updatePaymentAmounts();
+      syncPaymentConfirmAction();
+    }
+  })();
+  bookingLoyaltyPending = { key, promise };
+  return promise;
+}
+
 function displayTotalFee() {
   bookingDebug('💰 Calculating total fee...');
 
@@ -13027,7 +13082,17 @@ function displayTotalFee() {
   const travelFare = bookingTravelFare();
 
   // Calculate total (labor fee removed — included in service price for core, quoted on-site for repair)
-  const totalFee = servicesTotal + travelFare;
+  const quote = currentBookingReward();
+  const discount = Number(quote?.discount) || 0;
+  const totalFee = Math.round((servicesTotal - discount + travelFare) * 100) / 100;
+  document.getElementById('bookingLoyaltyDiscountRow')?.classList.toggle('d-none', !discount);
+  const rewardLabel = document.getElementById('bookingLoyaltyDiscountLabel');
+  if (rewardLabel) rewardLabel.textContent = quote?.reward ? `${quote.reward.ruleName} (${quote.reward.discountPercent}%)` : 'Loyalty discount';
+  const rewardAmount = document.getElementById('bookingLoyaltyDiscountDisplay');
+  if (rewardAmount) rewardAmount.textContent = '-₱' + discount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const rewardMessage = bookingLoyaltyError || (!quote ? 'Checking your loyalty price before payment…' : discount ? `You saved ₱${discount.toLocaleString('en-PH')} on eligible services. Travel and inspection fees are unchanged.` : 'Loyalty price checked. No reward applies to this selection.');
+  ['bookingLoyaltyQuoteState', 'bookingLoyaltyPaymentState'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = rewardMessage; });
+  if (!quote && !bookingLoyaltyPending && !bookingLoyaltyError && BookingState.selectedServices?.length) void refreshBookingReward().catch(() => {});
 
   // Update displays
   servicesTotalDisplay.textContent = `₱${coreTotal.toLocaleString()}`;
@@ -13455,6 +13520,9 @@ function getPaymentConfirmationState() {
   if (!active || BookingState.draftPersistenceDisabled) {
     return { active: false, ready: false, isProject, eyebrow: '', title: '', hint: '' };
   }
+  if (!currentBookingReward() || bookingLoyaltyPending || bookingLoyaltyError) {
+    return { active: true, ready: false, isProject, eyebrow: 'Checking price', title: 'Confirm your loyalty price first', hint: bookingLoyaltyError || 'Please wait for the final amount before sending payment.' };
+  }
   if (!['gcash', 'cod'].includes(BookingState.paymentMethod)) {
     return {
       active: true, ready: false, isProject,
@@ -13670,6 +13738,9 @@ async function handleBookingSubmission() {
   }
 
   try {
+    const previousTotal = Number(BookingState.totalFee) || 0;
+    const latestQuote = await refreshBookingReward(true);
+    if (!latestQuote || previousTotal !== Number(BookingState.totalFee)) throw new Error('Your loyalty price changed. Review the updated payment amount before submitting your receipt.');
     // Validate booking data
     const validationResult = validateBookingData();
     if (!validationResult.valid) {
@@ -13992,6 +14063,7 @@ async function prepareBookingData() {
 
     // Totals
     totalPrice: BookingState.totalFee || 0,
+    loyaltyQuoteToken: currentBookingReward()?.token || '',
     totalInitialCost: BookingState.servicesTotal || 0,
     travelFare: bookingTravelFare(),
     travelDurationMinutes: BookingState.travelDuration || 0,

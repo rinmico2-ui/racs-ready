@@ -88,4 +88,11 @@ test("admin report center is wired as a lightweight protected shell", async () =
   assert.match(html, /People &amp; customer experience/);
   assert.match(html, /Source &amp; methodology/);
   assert.match(html, /It is not an audited accounting profit/);
+  assert.match(html, /role="tablist" aria-label="Report Center views"/);
+  assert.match(html, /id="rcPanelDecisions"[^>]*hidden/);
+  assert.match(html, /Management Decisions/);
+  const decisionsHtml = await ejs.renderFile(path.join(serverRoot, "views/pages/admin/Reports/ReportCenter.ejs"), { initialReportTab: "decisions" });
+  assert.match(decisionsHtml, /id="rcPanelOverview"[^>]*hidden/);
+  assert.match(decisionsHtml, /id="rcTabDecisions"[^>]*aria-selected="true"/);
+  assert.match(pages, /reports\/decisions'[\s\S]*res\.redirect\(302, `\/\$\{req\.user\.role\}\/reports\?/);
 });

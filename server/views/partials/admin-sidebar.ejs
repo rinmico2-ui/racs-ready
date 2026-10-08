@@ -52,7 +52,7 @@
       <li class="nav-section" aria-hidden="true"><span class="section-label">Operations</span><span class="section-line"></span></li>
       <li class="nav-item nav-group<%= bookingsGroupOpen ? ' expanded' : '' %>">
         <button class="btn btn-toggle nav-link<%= bookingsGroupOpen ? ' active' : ' collapsed' %>" type="button" data-bs-toggle="collapse" data-bs-target="#appointment-mgmt-collapse" aria-controls="appointment-mgmt-collapse" aria-expanded="<%= bookingsGroupOpen ? 'true' : 'false' %>">
-          <i class="bi bi-kanban nav-icon"></i><span class="nav-label">Work</span><span class="nav-badge badge bg-warning text-dark" id="pendingReviewCount" style="display:none;">0</span><i class="bi bi-chevron-down nav-chevron"></i>
+          <i class="bi bi-kanban nav-icon"></i><span class="nav-label">Work</span><span class="nav-badge badge bg-warning text-dark" id="pendingReviewCount" style="display:none;" title="Total of the counts shown under Work; queues may overlap">0</span><i class="bi bi-chevron-down nav-chevron"></i>
         </button>
         <div class="collapse<%= bookingsGroupOpen ? ' show' : '' %>" id="appointment-mgmt-collapse" data-default-open="<%= bookingsGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
@@ -110,6 +110,7 @@
         <div class="collapse<%= peopleGroupOpen ? ' show' : '' %>" id="people-collapse" data-default-open="<%= peopleGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
             <li><a href="/admin/customers/list" class="nav-link"><i class="bi bi-person-heart nav-icon"></i><span class="nav-label">Customers</span></a></li>
+            <li><a href="/admin/customers/privileges" class="nav-link"><i class="bi bi-award nav-icon"></i><span class="nav-label">Customer Privileges</span></a></li>
             <li><a href="/admin/technicians" class="nav-link"><i class="bi bi-person-workspace nav-icon"></i><span class="nav-label">Technicians</span></a></li>
             <li><a href="/admin/technicians/leaves" class="nav-link"><i class="bi bi-calendar-x nav-icon"></i><span class="nav-label">Leave Requests</span><span class="nav-badge badge bg-warning text-dark" id="leavesBadge" style="display:none;">0</span></a></li>
             <li><a href="/admin/staff/list" class="nav-link"><i class="bi bi-person-badge nav-icon"></i><span class="nav-label">Staff Directory</span></a></li>
@@ -144,6 +145,7 @@
             <li><a href="/admin/reports/service" class="nav-link"><i class="bi bi-wrench-adjustable nav-icon"></i><span class="nav-label">Service Reports</span></a></li>
             <li><a href="/admin/reports/orders" class="nav-link"><i class="bi bi-bag-check nav-icon"></i><span class="nav-label">Order Reports</span></a></li>
             <li><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Inventory Reports</span></a></li>
+            <li><a href="/admin/reports/customers" class="nav-link"><i class="bi bi-people nav-icon"></i><span class="nav-label">Customer Performance</span></a></li>
             <li><a href="/admin/ratings/service" class="nav-link"><i class="bi bi-star-half nav-icon"></i><span class="nav-label">Customer Ratings</span></a></li>
             <li><a href="/admin/ratings/technicians" class="nav-link"><i class="bi bi-award nav-icon"></i><span class="nav-label">Technician Ratings</span></a></li>
           </ul>
@@ -152,7 +154,7 @@
 
       <li class="nav-item nav-group<%= systemGroupOpen ? ' expanded' : '' %>">
         <button class="btn btn-toggle nav-link<%= systemGroupOpen ? ' active' : ' collapsed' %>" type="button" data-bs-toggle="collapse" data-bs-target="#settings-collapse" aria-controls="settings-collapse" aria-expanded="<%= systemGroupOpen ? 'true' : 'false' %>">
-          <i class="bi bi-sliders nav-icon"></i><span class="nav-label">System</span><span class="nav-badge badge bg-primary" id="auditTodayBadge" style="display:none;">0</span><i class="bi bi-chevron-down nav-chevron"></i>
+          <i class="bi bi-sliders nav-icon"></i><span class="nav-label">System</span><span class="nav-badge badge bg-primary" id="systemGroupBadge" style="display:none;" title="Total of the counts shown under System">0</span><i class="bi bi-chevron-down nav-chevron"></i>
         </button>
         <div class="collapse<%= systemGroupOpen ? ' show' : '' %>" id="settings-collapse" data-default-open="<%= systemGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
@@ -166,7 +168,7 @@
             <li class="nav-subsection">Governance</li>
             <li><a href="/admin/roles" class="nav-link"><i class="bi bi-shield-lock nav-icon"></i><span class="nav-label">Roles &amp; Permissions</span></a></li>
             <li><a href="/admin/archive" class="nav-link"><i class="bi bi-archive nav-icon"></i><span class="nav-label">Archive &amp; Retention</span></a></li>
-            <li><a href="/admin/audit-trail" class="nav-link"><i class="bi bi-clipboard2-check nav-icon"></i><span class="nav-label">Audit Trail</span></a></li>
+            <li><a href="/admin/audit-trail" class="nav-link"><i class="bi bi-clipboard2-check nav-icon"></i><span class="nav-label">Audit Trail</span><span class="nav-badge badge bg-primary" id="auditTodayBadge" style="display:none;" title="Audit events today (Philippine time)">0</span></a></li>
           </ul>
         </div>
       </li>
@@ -185,10 +187,52 @@
     function setSidebarBadge(id, value, title) {
       const badge = document.getElementById(id);
       if (!badge) return;
-      const count = Math.max(0, Number(value) || 0);
+      const number = Number(value);
+      const count = Number.isFinite(number) ? Math.max(0, Math.floor(number)) : 0;
+      badge.dataset.count = String(count);
       badge.textContent = count > 0 ? String(count) : '';
       badge.style.display = count > 0 ? 'inline-flex' : 'none';
-      if (title) badge.title = title;
+      if (title) { badge.title = title; badge.dataset.countTitle = title; }
+      else if (badge.dataset.countUnavailable) {
+        if (badge.dataset.countTitle) badge.title = badge.dataset.countTitle;
+        else badge.removeAttribute('title');
+      }
+      delete badge.dataset.countUnavailable;
+      delete badge.dataset.countStale;
+    }
+
+    function updateSidebarGroupBadge(id, selector, label) {
+      const children = [...document.querySelectorAll(selector)];
+      const unavailable = children.some(badge => badge.dataset.countUnavailable === 'true' && badge.dataset.countStale !== 'true');
+      const stale = children.some(badge => badge.dataset.countStale === 'true');
+      const total = children.reduce((sum, badge) => sum + (Number(badge.dataset.count) || 0), 0);
+      const detail = label === 'Work' ? '; queues may overlap' : '';
+      setSidebarBadge(id, total, unavailable
+        ? `Total of the counts shown under ${label}; some counts temporarily unavailable${detail}`
+        : stale ? `Last known total of the counts shown under ${label}; update temporarily unavailable${detail}`
+          : `Total of the counts shown under ${label}${detail}`);
+      const group = document.getElementById(id);
+      if (group) {
+        group.dataset.countUnavailable = String(unavailable || stale);
+        group.dataset.countStale = String(stale && !unavailable);
+      }
+    }
+
+    function updateSystemGroupBadge() {
+      updateSidebarGroupBadge('systemGroupBadge', '#settings-collapse a.nav-link .nav-badge', 'System');
+    }
+
+    function updateWorkGroupBadge() {
+      updateSidebarGroupBadge('pendingReviewCount', '#appointment-mgmt-collapse a.nav-link .nav-badge', 'Work');
+    }
+
+    function markSidebarBadgeUnavailable(id) {
+      const badge = document.getElementById(id);
+      if (!badge) return;
+      const known = badge.dataset.count !== undefined;
+      badge.dataset.countUnavailable = 'true';
+      badge.dataset.countStale = String(known);
+      badge.title = known ? 'Last known count; update temporarily unavailable' : 'Count temporarily unavailable';
     }
 
     function setResolutionSidebarCount(summary) {
@@ -196,6 +240,7 @@
       const orderCases = Math.max(0, Number(summary?.bySource?.order) || 0);
       const total = bookingCases + orderCases;
       setSidebarBadge('attentionBadge', total, `${bookingCases} booking case${bookingCases === 1 ? '' : 's'} and ${orderCases} order case${orderCases === 1 ? '' : 's'}`);
+      updateWorkGroupBadge();
     }
 
     async function sidebarJson(url) {
@@ -215,12 +260,13 @@
         const summary = await sidebarJson('/api/admin/navigation-summary');
         const counts = summary.counts;
         if (counts) {
-          setSidebarBadge('pendingReviewCount', counts.pendingBookings);
-          setSidebarBadge('appointmentsBadge', Number(counts.pendingBookings || 0) + Number(counts.assignmentQueue || 0) + Number(counts.activeJobs || 0));
-          setSidebarBadge('expensesBadge', counts.pendingExpenses);
-          setSidebarBadge('escalatedBadge', counts.escalatedBookings);
-          setSidebarBadge('leavesBadge', counts.pendingLeaveRequests);
-          setSidebarBadge('auditTodayBadge', counts.auditToday);
+          if ([counts.pendingBookings, counts.assignmentQueue, counts.activeJobs].every(Number.isFinite)) {
+            setSidebarBadge('appointmentsBadge', counts.pendingBookings + counts.assignmentQueue + counts.activeJobs);
+          }
+          if (Number.isFinite(counts.pendingExpenses)) setSidebarBadge('expensesBadge', counts.pendingExpenses);
+          if (Number.isFinite(counts.escalatedBookings)) setSidebarBadge('escalatedBadge', counts.escalatedBookings);
+          if (Number.isFinite(counts.pendingLeaveRequests)) setSidebarBadge('leavesBadge', counts.pendingLeaveRequests);
+          if (Number.isFinite(counts.auditToday)) setSidebarBadge('auditTodayBadge', counts.auditToday, 'Audit events today (Philippine time)');
         }
         const maintenance = summary.maintenance;
         if (maintenance) setSidebarBadge('maintenanceBadge', maintenance.actionable);
@@ -235,10 +281,46 @@
           setSidebarBadge('equipmentReturnsBadge', returns.overdue);
           setSidebarBadge('equipmentReturnsDashboardBadge', returns.overdue);
         }
+        const failedSources = new Set(summary.failedSources || []);
+        const staleSources = new Set(summary.staleSources || []);
+        const sourceBadges = {
+          bookings: ['appointmentsBadge', 'escalatedBadge', 'repairSchedBadge'],
+          expenses: ['expensesBadge'], leaveRequests: ['leavesBadge'], auditToday: ['auditTodayBadge'],
+          orders: ['ordersBadge'], projects: ['projectsBadge'],
+          returns: ['equipmentReturnsBadge', 'equipmentReturnsDashboardBadge'],
+          maintenance: ['maintenanceBadge'],
+        };
+        Object.entries(sourceBadges).forEach(([source, ids]) => ids.forEach(id => {
+          const badge = document.getElementById(id);
+          if (!badge) return;
+          if (failedSources.has(source)) {
+            if (!staleSources.has(source)) setSidebarBadge(id, 0);
+            badge.title = staleSources.has(source) ? 'Last known count; update temporarily unavailable' : 'Count temporarily unavailable';
+            badge.dataset.countUnavailable = 'true';
+            badge.dataset.countStale = String(staleSources.has(source));
+          } else if (badge.dataset.countUnavailable) {
+            if (badge.dataset.countTitle) badge.title = badge.dataset.countTitle;
+            else badge.removeAttribute('title');
+            delete badge.dataset.countUnavailable;
+            delete badge.dataset.countStale;
+          }
+        }));
+        updateSystemGroupBadge();
+        updateWorkGroupBadge();
+        if (summary.degraded) console.warn('Some navigation counts are temporarily unavailable:', summary.failedSources.join(', '));
         // Keep the exact warranty/case policies, but defer their heavier reads
         // so they do not compete with the first list/modal response.
         scheduleExtendedBadges(onResolutionCenter);
       } catch (error) {
+        const auditBadge = document.getElementById('auditTodayBadge');
+        if (auditBadge) {
+          auditBadge.dataset.countUnavailable = 'true';
+          auditBadge.dataset.countStale = String(auditBadge.dataset.count !== undefined);
+          auditBadge.title = auditBadge.dataset.countStale === 'true' ? 'Last known audit count; update temporarily unavailable' : 'Audit count temporarily unavailable';
+        }
+        updateSystemGroupBadge();
+        ['appointmentsBadge', 'escalatedBadge', 'repairSchedBadge', 'expensesBadge', 'ordersBadge', 'projectsBadge', 'maintenanceBadge'].forEach(markSidebarBadgeUnavailable);
+        updateWorkGroupBadge();
         console.warn('Navigation summary unavailable:', error.message);
       } finally {
         sidebarBadgeRefreshRunning = false;
@@ -261,8 +343,10 @@
           if (results[0].status === 'fulfilled') {
             const warranty = results[0].value;
             setSidebarBadge('warrantyBadge', Number(warranty.activeWarranty || 0) + Number(warranty.warrantyClaims || 0));
-          }
+          } else markSidebarBadgeUnavailable('warrantyBadge');
           if (results[1].status === 'fulfilled' && results[1].value) setResolutionSidebarCount(results[1].value.summary);
+          else if (results[1].status === 'rejected') markSidebarBadgeUnavailable('attentionBadge');
+          updateWorkGroupBadge();
         } finally { extendedBadgeRunning = false; }
       }, 1500);
     }

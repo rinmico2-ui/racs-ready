@@ -144,6 +144,8 @@ test("large-scale projects show the final action before it is ready and unlock i
     BookingState: state,
     document: { body, getElementById: make },
     window: { paymentMethodsConfig: { bank_transfer: { available: true } } },
+    currentBookingReward: () => ({ discount: 0 }), bookingLoyaltyPending: null, bookingLoyaltyError: '',
+    bookingRequiresProjectSchedule: () => Boolean(state.isProject),
   };
   vm.runInNewContext(confirmationFunctions, context);
 
@@ -162,6 +164,10 @@ test("large-scale projects show the final action before it is ready and unlock i
   assert.equal(make("confirmBookingBtn").disabled, false);
   assert.equal(action.classList.contains("is-ready"), true);
   assert.equal(make("paymentConfirmTitle").textContent, "Ready to send your project request");
+  context.bookingLoyaltyPending = {};
+  context.syncPaymentConfirmAction();
+  assert.equal(make("confirmBookingBtn").disabled, true);
+  assert.match(make("paymentConfirmTitle").textContent, /Confirm your loyalty price/);
 });
 
 test("payment summary uses the reviewed total and per-unit fallback without multiplying line totals twice", () => {

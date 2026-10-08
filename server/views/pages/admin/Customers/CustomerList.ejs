@@ -90,6 +90,7 @@
           <p>Manage customer records, lifecycle status, and account health</p>
         </div>
       </div>
+      <% if (resolvedCustomerApiBase === '/api/admin/customers') { %><a href="/admin/reports/customers" class="btn btn-light btn-sm fw-semibold"><i class="bi bi-bar-chart-line me-1" aria-hidden="true"></i> Customer Performance</a><% } %>
     </div>
   </div>
 
@@ -553,6 +554,13 @@
             (customerCanManage ? '<button class="btn ' + (c.vip ? 'btn-outline-warning' : 'btn-warning') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
               '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') +
             '</button>' : '');
+          if (customerApiBase === '/api/admin/customers') {
+            var performanceLink = document.createElement('a');
+            performanceLink.className = 'btn btn-outline-primary';
+            performanceLink.href = '/admin/reports/customers/' + encodeURIComponent(c._id);
+            performanceLink.textContent = 'Customer Performance';
+            footer.appendChild(performanceLink);
+          }
           if (footer.innerHTML.trim()) modal.querySelector('.modal-content').appendChild(footer);
 
           footer.querySelectorAll('.action-btn').forEach(function(btn) {

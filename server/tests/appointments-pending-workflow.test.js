@@ -54,7 +54,7 @@ test('overview renders recent bookings independently of statistics and uses comp
 });
 
 test('payment verification completes the assignment-queue transition in one request', () => {
-  const verifyRoute = section(route, "router.post('/:id/verify-payment'", '/**\n * Replace an overdue requested schedule');
+  const verifyRoute = section(route, "router.post('/:id/verify-payment'", '/**\n * Replace a requested schedule');
   assert.match(verifyRoute, /transitionStatus\(BookingStatus\.PAYMENT_VERIFIED/);
   assert.match(verifyRoute, /transitionStatus\(BookingStatus\.AWAITING_ASSIGNMENT/);
   assert.match(verifyRoute, /destination:\s*'assignment_queue'/);
@@ -80,4 +80,21 @@ test('deep-linked appointment tabs do not perform a duplicate initial load', () 
   assert.match(init, /classList\.contains\('active'\)\)switchTab\(initialTab\)/);
   assert.doesNotMatch(init, /loaded\[initialTab\]=true/);
   assert.doesNotMatch(init, /\n\s*loadTab\(initialTab\)/);
+});
+
+test('schedule conflicts keep pending requests open for customer-agreed rescheduling', () => {
+  const reschedule = section(route, "router.post('/:id/review-reschedule'", "router.post('/:id/move-to-queue'");
+  assert.match(reschedule, /booking\.status !== BookingStatus\.PENDING/);
+  assert.doesNotMatch(reschedule, /isReviewOverdue/);
+  assert.match(reschedule, /contactConfirmed !== true/);
+  assert.match(view, /value="schedule_conflict">Schedule conflict/);
+  assert.match(view, /AU\.Pending\.rescheduleFromReject/);
+  assert.match(route, /RESCHEDULE_RECOMMENDED/);
+});
+
+test('assignment queue priority is persisted and sorted before pagination', () => {
+  assert.match(route, /sortPreset === 'priority'[\s\S]*?_priorityRank: -1, bookingDate: 1/);
+  assert.match(route, /router\.patch\('\/:id\/priority'/);
+  assert.match(view, /url\+='&sort=priority'/);
+  assert.match(view, /AU\.Queue\.setPriority=function/);
 });

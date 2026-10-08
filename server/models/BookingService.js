@@ -275,6 +275,8 @@ const bookingSchema = new mongoose.Schema({
     technicianAcknowledgedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
   }],
   totalPrice: { type: Number }, // Total price for multi-service bookings
+  discount: { type: Number, min: 0, default: 0 },
+  loyaltyDiscount: { type: require('../utils/loyaltyDiscountSchema'), default: null },
   totalInitialCost: { type: Number }, // Sum of all initial costs
   totalFinalCost: { type: Number }, // Sum of all final costs (after technician updates)
   repairIssues: { type: String }, // Combined repair issues for multi-service bookings
@@ -847,6 +849,10 @@ const bookingSchema = new mongoose.Schema({
   // Pre-schedule verification reminder — set once when a booking approaches its
   // scheduled time while still pending payment verification / technician assignment.
   verificationReminderAt: { type: Date },
+  // The scheduled start for which each customer reminder was delivered.
+  // Changing the schedule makes the new occurrence eligible again.
+  customerReminder24hFor: { type: Date, default: null },
+  customerReminder2hFor: { type: Date, default: null },
 
   // optional external gateway tracking (kept for compatibility)
   paymentGatewayId: { type: String },
@@ -1138,6 +1144,14 @@ bookingSchema.methods.calculateTotalCosts = function () {
   });
 
   // Add travel fare to totals
+  // A checkout reward is a fixed, recorded discount on the original service
+  // scope. It is not recalculated from today's policy during later status saves.
+  const eligibleServiceTotal = this.services.filter(service => service.type !== 'repair' && !service.assistanceRequestId && service.relocation?.scope !== 'custom_quote'
+    && (this.loyaltyDiscount?.eligibleItemIds || []).includes(String(service.serviceId)))
+    .reduce((sum, service) => sum + require('../utils/transactionDiscounts').serviceLineValue(service), 0);
+  const discount = Math.round(Math.min(Math.max(0, totalFinal), eligibleServiceTotal, Math.max(0, Number(this.loyaltyDiscount?.amount) || 0)) * 100) / 100;
+  totalInitial = Math.max(0, totalInitial - discount);
+  totalFinal = Math.max(0, totalFinal - discount);
   if (this.travelFare) {
     totalInitial += this.travelFare;
     totalFinal += this.travelFare;
@@ -1147,6 +1161,7 @@ bookingSchema.methods.calculateTotalCosts = function () {
     totalInitialCost: totalInitial,
     totalFinalCost: hasUndiagnosedRepairs ? null : totalFinal,
     totalPrice: totalFinal,
+    discount,
     hasUndiagnosedRepairs
   };
 };
@@ -1421,6 +1436,8 @@ bookingSchema.pre("save", async function () {
     this.totalInitialCost = totals.totalInitialCost;
     this.totalFinalCost = totals.totalFinalCost;
     this.totalPrice = totals.totalPrice;
+    this.discount = totals.discount || 0;
+    if (this.loyaltyDiscount) this.estimatedFee = totals.totalPrice;
   }
 
   this.updatedAt = new Date();
@@ -1430,6 +1447,7 @@ bookingSchema.pre("save", async function () {
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ bookingDate: 1, startTime: 1, _id: 1 }); // Date-bounded operations calendar without a status filter
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
+bookingSchema.index({ sourceOrderId: 1, createdAt: -1 }); // Date-bounded demand analytics without order-linked installations
 bookingSchema.index(
   { customerId: 1, clientSubmissionId: 1 },
   { unique: true, partialFilterExpression: { clientSubmissionId: { $type: "string" } } },

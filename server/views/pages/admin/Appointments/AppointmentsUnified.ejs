@@ -1517,7 +1517,7 @@
   </div>
 </div>
 
-<!-- Overdue Pending Review Reschedule Modal -->
+<!-- Pending Review Reschedule Modal -->
 <div class="modal fade" id="reviewRescheduleModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content ent-modal">
@@ -1527,7 +1527,7 @@
       </div>
       <div class="modal-body ent-modal-body" style="max-height:75vh;overflow-y:auto;">
         <input type="hidden" id="reviewRescheduleBookingId">
-        <div class="alert alert-warning small"><i class="bi bi-telephone me-1"></i>Contact the customer and confirm the new schedule before saving.</div>
+        <div class="alert alert-warning small"><i class="bi bi-telephone me-1"></i>Contact the customer and confirm the new schedule before saving. The request stays Pending Review; service reminders begin after confirmation.</div>
         <div class="row g-3">
           <div class="col-7"><label class="form-label small fw-semibold">New Date</label><input type="date" class="form-control" id="reviewRescheduleDate" required></div>
           <div class="col-5"><label class="form-label small fw-semibold">Start Time</label><input type="time" class="form-control" id="reviewRescheduleTime" required></div>
@@ -1553,12 +1553,13 @@
       </div>
       <div class="modal-body ent-modal-body">
         <input type="hidden" id="rejectBookingId">
-        <div class="mb-3"><label class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label><select class="form-select" id="rejectReason"><option value="">Select reason...</option><option value="invalid_payment">Invalid Payment</option><option value="incomplete_info">Incomplete Information</option><option value="duplicate_booking">Duplicate Booking</option><option value="unavailable">Service Unavailable</option><option value="other">Other</option></select></div>
+        <div class="mb-3"><label class="form-label fw-semibold">Reason <span class="text-danger">*</span></label><select class="form-select" id="rejectReason" onchange="AU.Pending.updateRejectGuidance()"><option value="">Select reason...</option><option value="schedule_conflict">Schedule conflict — reschedule</option><option value="personal_matter">Customer or staff personal matter — reschedule</option><option value="invalid_payment">Invalid Payment</option><option value="incomplete_info">Incomplete Information</option><option value="duplicate_booking">Duplicate Booking</option><option value="unavailable">Service Unavailable</option><option value="other">Other</option></select><div id="rejectRescheduleHint" class="alert alert-info small mt-2 d-none">Keep this request open. Contact the customer, agree on a new time, then choose Reschedule.</div></div>
         <div class="mb-0"><label class="form-label fw-semibold">Note <small class="text-muted">(optional)</small></label><textarea class="form-control" rows="3" id="rejectNote" placeholder="Provide additional context..."></textarea></div>
       </div>
       <div class="modal-footer ent-modal-footer">
         <button type="button" class="btn btn-light btn-sm fw-semibold" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger btn-sm fw-semibold" onclick="AU.Pending.confirmReject()"><i class="bi bi-x-circle me-1"></i> Reject Booking</button>
+        <button type="button" class="btn btn-primary btn-sm fw-semibold d-none" id="rejectRescheduleButton" onclick="AU.Pending.rescheduleFromReject()"><i class="bi bi-calendar2-week me-1"></i>Reschedule instead</button>
+        <button type="button" class="btn btn-danger btn-sm fw-semibold" id="rejectConfirmButton" onclick="AU.Pending.confirmReject()"><i class="bi bi-x-circle me-1"></i> Reject Booking</button>
       </div>
     </div>
   </div>
@@ -2104,6 +2105,7 @@
       '</div></div></div>' : '';
 
     var paymentRows = '<div class="dv2-payment-row"><span class="dv2-payment-label">Total Amount</span><span class="dv2-payment-value">\u20B1'+total.toLocaleString()+'</span></div>'+
+      (Number(b.discount)>0?'<div class="dv2-payment-row text-success"><span class="dv2-payment-label">'+qEsc(b.loyaltyDiscount?.ruleName||'Loyalty discount')+' (included)</span><span class="dv2-payment-value">−\u20B1'+Number(b.discount).toLocaleString()+'</span></div>':'')+
       (travelFee>0?'<div class="dv2-payment-row" style="padding-left:12px;"><span class="dv2-payment-label" style="font-size:0.72rem;"><i class="bi bi-arrow-return-right me-1"></i>Incl. Travel Fee</span><span class="dv2-payment-value" style="font-size:0.72rem;">\u20B1'+travelFee.toLocaleString()+'</span></div>':'')+
       '<div class="dv2-payment-row"><span class="dv2-payment-label">Payment Option</span><span class="dv2-payment-value">'+(b.paymentMethod==='gcash'?'Full payment via ':b.paymentMethod==='cod'?'Downpayment via ':'N/A')+(b.paymentMethod==='gcash'||b.paymentMethod==='cod'?(({gcash:'GCash',maya:'Maya',bank_transfer:'Bank Transfer',other:'Other Transfer'})[b.paymentChannel]||'selected method'):'')+(b.paymentMethod==='cod'?' + balance at completion':'')+'</span></div>';
     if (isCOD) {
@@ -2883,7 +2885,7 @@
         '<td><span class="payment-badge '+pc+'">'+pl+'</span>'+(isCOD&&b.paymentStatus!=='paid'?'<div style="font-size:0.68rem;color:#d97706;margin-top:2px;">Balance due on completion</div>':'')+'</td>'+
         '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+
         '<button class="btn btn-sm btn-primary" onclick="AU.Pending.viewDetail(\''+b._id+'\', this)" title="View Details"><i class="bi bi-eye me-1"></i>View</button>'+
-        (overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\',this)" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
+        (overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'" title="Resolve this overdue booking"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="btn btn-sm btn-success" onclick="AU.Pending.verifyPayment(\''+b._id+'\',this)" title="Verify Payment"><i class="bi bi-check-lg me-1"></i>Verify</button><button class="btn btn-sm btn-outline-primary" onclick="AU.Pending.openReviewReschedule(\''+b._id+'\')" title="Agree on a new schedule with the customer"><i class="bi bi-calendar2-week me-1"></i>Reschedule</button><button class="btn btn-sm btn-danger" onclick="AU.Pending.openReject(\''+b._id+'\')" title="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>')+
         '</div></td></tr>';
     }).join('');
   };
@@ -2984,7 +2986,24 @@
     document.getElementById('rejectBookingId').value=id;
     document.getElementById('rejectReason').value='';
     document.getElementById('rejectNote').value='';
+    AU.Pending.updateRejectGuidance();
     new bootstrap.Modal(document.getElementById('rejectModal')).show();
+  };
+
+  AU.Pending.updateRejectGuidance=function(){
+    var reschedule=['schedule_conflict','personal_matter'].includes(document.getElementById('rejectReason').value);
+    document.getElementById('rejectRescheduleHint').classList.toggle('d-none',!reschedule);
+    document.getElementById('rejectRescheduleButton').classList.toggle('d-none',!reschedule);
+    document.getElementById('rejectConfirmButton').classList.toggle('d-none',reschedule);
+  };
+
+  AU.Pending.rescheduleFromReject=function(){
+    var id=document.getElementById('rejectBookingId').value;
+    var reason=document.getElementById('rejectReason').selectedOptions[0].textContent;
+    var note=document.getElementById('rejectNote').value.trim();
+    var modal=document.getElementById('rejectModal');
+    modal.addEventListener('hidden.bs.modal',function openNext(){modal.removeEventListener('hidden.bs.modal',openNext);AU.Pending.openReviewReschedule(id);document.getElementById('reviewRescheduleNotes').value=reason+(note?' — '+note:'');},{once:true});
+    bootstrap.Modal.getInstance(modal).hide();
   };
 
   AU.Pending.confirmReject=function(){
@@ -2992,6 +3011,7 @@
     var reason=document.getElementById('rejectReason').value;
     var note=document.getElementById('rejectNote').value;
     if(!reason){showNotification({type:'warning',title:'Required',message:'Please select a rejection reason.',duration:3000});return;}
+    if(['schedule_conflict','personal_matter'].includes(reason)){AU.Pending.rescheduleFromReject();return;}
     fetch(APPOINTMENTS_API+'/'+id+'/reject',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason,note:note})})
     .then(function(r){return r.json();}).then(function(data){
       if(data.success){bootstrap.Modal.getInstance(document.getElementById('rejectModal')).hide();showNotification({type:'success',title:'Booking Rejected',message:'The booking has been rejected and the customer will be notified.',duration:4000});AU.Pending.load();}
@@ -3261,7 +3281,7 @@
 
   // â•â•â• QUEUE â•â•â•
   AU.Queue={};
-  var _qCurrentBookingId=null,_qSelectedTechId=null,_qRecommendedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[],_qLoadRequest=0;
+  var _qCurrentBookingId=null,_qSelectedTechId=null,_qRecommendedTechId=null,_qPage=1,_qEquipment=[],_qEquipmentCache=[],_qRescheduleBookingId=null,_qRecommendations={},_qBulkPlan=[],_qLoadRequest=0,_qBookingPriorities={};
 
   var _qStatusFilter='all_active';
   AU.Queue.loadStats=function(){
@@ -3295,12 +3315,14 @@
     var url;
     if(filter==='all_active')url=APPOINTMENTS_API+'/list?page='+page+'&limit=20&compact=queue&status=awaiting_assignment,pending_reassignment';
     else url=APPOINTMENTS_API+'/list?status='+filter+'&page='+page+'&limit=20&compact=queue';
+    url+='&sort=priority';
     if(search)url+='&search='+encodeURIComponent(search);
     var container=document.getElementById('queueContainer');
     container.innerHTML='<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading queue...</p></div>';
     fetch(url).then(appointmentResponseJson).then(function(data){
       if(loadRequest!==_qLoadRequest)return;
       if(!data.bookings||!data.bookings.length){container.innerHTML='<div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-inbox"></i></div><h6>No Bookings in Queue</h6><p>All assignments have been handled</p></div>';document.getElementById('aqPagination').innerHTML='';return;}
+      data.bookings.forEach(function(booking){_qBookingPriorities[booking._id]=booking.priority||'medium';});
       var statusColors={awaiting_assignment:'bg-warning text-dark',assigned:'bg-info text-dark',pending_reassignment:'bg-danger',payment_verified:'bg-success',confirmed:'bg-primary','waiting-for-customer':'bg-warning text-dark'};
       container.innerHTML=data.bookings.map(function(b){
         var canAssign=['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1;
@@ -3332,6 +3354,18 @@
         (canAssign?'<div class="aq-action-bar"><button class="au-btn au-btn-ghost" onclick="AU.Queue.viewBooking(\''+b._id+'\')" style="font-size:0.75rem;"><i class="bi bi-eye me-1"></i>View</button>'+(overdue?(APPOINTMENTS_CAN_RESOLVE?'<a class="au-btn au-btn-danger" href="'+bookingResolutionUrl(b)+'" style="font-size:0.75rem;"><i class="bi bi-exclamation-diamond me-1"></i>Resolve Issue</a>':''):'<button class="au-btn au-btn-primary" onclick="AU.Queue.openAssignModal(\''+b._id+'\',\''+custName+'\',\''+servName+'\',\''+schedDate+'\',\''+schedTime+'\')" style="font-size:0.75rem;"><i class="bi bi-person-plus me-1"></i>Choose Another Technician</button>')+'</div>':'')+
         '</div>';
       }).join('');
+      container.querySelectorAll('.aq-booking-card').forEach(function(card,index){
+        var booking=data.bookings[index];
+        if(!booking||!['awaiting_assignment','pending_reassignment','rescheduled'].includes(booking.status))return;
+        var header=card.querySelector('.aq-booking-header .text-end');
+        if(!header)return;
+        var label=document.createElement('label');label.className='small fw-semibold text-muted';label.textContent='Scheduling priority';
+        var select=document.createElement('select');select.className='form-select form-select-sm';select.style.minWidth='120px';
+        ['low','medium','high','critical'].forEach(function(value){var option=document.createElement('option');option.value=value;option.textContent=value.charAt(0).toUpperCase()+value.slice(1);select.append(option);});
+        select.value=booking.priority||'medium';select.setAttribute('aria-label','Scheduling priority for '+(booking.bookingReference||'booking'));
+        select.addEventListener('change',function(){AU.Queue.setPriority(booking._id,select.value,select);});
+        label.append(select);header.append(label);
+      });
       AU.Queue.loadRecommendations(data.bookings.filter(function(b){return !b.assignmentTiming?.isExpired;}).map(function(b){return b._id;}),loadRequest);
       var pag=data.pagination||{};
       if(pag.pages>1){
@@ -3341,6 +3375,13 @@
         document.getElementById('aqPagination').innerHTML=pg;
       }else document.getElementById('aqPagination').innerHTML='';
     }).catch(function(){if(loadRequest===_qLoadRequest)container.innerHTML='<div class="alert alert-danger">Failed to load queue</div>';});
+  };
+
+  AU.Queue.setPriority=function(id,priority,select){
+    select.disabled=true;
+    fetch(APPOINTMENTS_API+'/'+id+'/priority',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({priority:priority})})
+    .then(appointmentResponseJson).then(function(){showNotification({type:'success',title:'Priority Updated',message:'The assignment queue is ordered by priority, then scheduled date.',duration:3500});AU.Queue.loadQueue(_qPage);})
+    .catch(function(error){select.disabled=false;showNotification({type:'error',title:'Priority Update Failed',message:error.message,duration:5000});AU.Queue.loadQueue(_qPage);});
   };
 
   function qEsc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -3498,7 +3539,8 @@
     document.getElementById('assignCustomerName').textContent=customerName;
     document.getElementById('assignServiceInfo').textContent=serviceName;
     document.getElementById('assignNotes').value='';
-    document.getElementById('assignPriority').value='normal';
+    var bookingPriority=_qBookingPriorities[bookingId]||'medium';
+    document.getElementById('assignPriority').value=bookingPriority==='critical'?'urgent':bookingPriority==='high'?'high':'normal';
     document.getElementById('assignDate').value=bookingDate||'';
     document.getElementById('assignTimeSlot').value=startTime||'';
     document.getElementById('btnConfirmAssign').disabled=true;

@@ -6,7 +6,7 @@
     payments: "/admin/payments", equipment: "/admin/inventory/equipment-returns?state=overdue",
     remittance: "/admin/payments/remittance", attendance: "/admin/staff/attendance",
     customers: "/admin/customers/list", jobs: "/admin/jobs/active", inventory: "/admin/inventory",
-    staff: "/admin/staff/list", technicians: "/admin/technicians", reports: "/admin/reports/service",
+    staff: "/admin/staff/list", technicians: "/admin/technicians", reports: "/admin/reports",
     expenses: "/admin/expenses"
   } : {
     appointments: "/secretary/appointments", orders: "/secretary/inventory/ordered-products",
@@ -15,7 +15,7 @@
     remittance: null, attendance: "/secretary/attendance",
     customers: "/secretary/customers", jobs: "/secretary/service-tracking",
     inventory: "/secretary/inventory", staff: "/secretary/staff",
-    technicians: "/secretary/technicians", reports: "/secretary/reports/service", expenses: null
+    technicians: "/secretary/technicians", reports: "/secretary/reports", expenses: null
   };
   const dashboardClientConfig = {
     role: dashboardIsAdmin ? "admin" : "secretary",
@@ -770,7 +770,7 @@
         <div class="au-hero-icon"><i class="bi bi-grid-1x2-fill"></i></div>
         <div>
           <h1><%= dashboardIsAdmin ? "Admin Dashboard" : "Secretary Dashboard" %></h1>
-          <p>Shared operations workspace — the actions shown here follow your role permissions.</p>
+          <p><%= dashboardIsAdmin ? "Today's operations and this month's management decisions." : "Shared operations workspace — the actions shown here follow your role permissions." %></p>
         </div>
       </div>
       <div class="au-hero-stats">
@@ -869,12 +869,28 @@
         <div class="exec-metric-icon red"><i class="bi bi-graph-up-arrow"></i></div>
         <div class="exec-metric-body">
           <div class="exec-metric-val" id="execProfitMargin">--</div>
-          <div class="exec-metric-lbl">Profit Margin</div>
+          <div class="exec-metric-lbl">Recorded Operating Margin</div>
         </div>
       </div>
     </div>
     <div class="exec-summary-insights" id="execInsights"></div>
   </div>
+
+  <% if (dashboardIsAdmin) { %>
+    <link rel="stylesheet" href="/css/admin-management-focus.css">
+    <section class="management-focus" id="managementFocus" aria-labelledby="managementFocusTitle">
+      <div class="management-focus-head">
+        <div><span class="management-focus-kicker">Decision intelligence</span><h2 id="managementFocusTitle">Management Focus</h2><p>What is performing, what needs review, and where to investigate next. Based on this month's recorded activity.</p></div>
+        <a href="/admin/reports?tab=decisions" class="management-focus-link">Open management decisions <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <div class="management-focus-state" id="managementFocusState" role="status">Insights load when this section comes into view.</div>
+      <div class="management-focus-health" id="managementFocusHealth" aria-label="Business health"></div>
+      <div class="management-focus-columns">
+        <div><h3>Decisions to review</h3><div class="management-focus-actions" id="managementFocusActions"></div></div>
+        <aside><h3>Read the full picture</h3><div class="management-focus-routes"><a href="/admin/reports/revenue">Revenue and recorded contribution <i class="bi bi-arrow-right" aria-hidden="true"></i></a><a href="/admin/reports/service">Service demand and completed work <i class="bi bi-arrow-right" aria-hidden="true"></i></a><a href="/admin/reports/inventory">Inventory movement and stock <i class="bi bi-arrow-right" aria-hidden="true"></i></a><a href="/admin/reports?tab=decisions">Customers and loyalty candidates <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div><p>Item contribution and loyalty qualification are previews where cost and checkout records are incomplete.</p></aside>
+      </div>
+    </section>
+  <% } %>
 
   <style>
     /* ── Stat Cards (copied from Ratings Overview) ── */
@@ -1125,7 +1141,7 @@
           <div class="dash-card h-100" data-card-type="bookingsTrend" style="cursor:pointer;">
             <div class="dash-card-header">
               <h6><i class="bi bi-graph-up-arrow me-1" style="color:#2563eb;"></i>Bookings Trend</h6>
-              <span class="meta">Last 30 days</span>
+              <span class="meta">Last 7 days</span>
             </div>
             <div class="dash-card-body">
               <div class="chart-container" style="position:relative;height:240px;">
@@ -1140,10 +1156,10 @@
           </div>
         </div>
         <div class="col-lg-6">
-          <div class="dash-card h-100" data-card-type="revenueTrend" style="cursor:pointer;">
+          <div class="dash-card h-100">
             <div class="dash-card-header">
               <h6><i class="bi bi-currency-dollar me-1" style="color:#10b981;"></i>Revenue Trend</h6>
-              <span class="meta">Last 30 days</span>
+              <span class="meta">Recent days this month</span>
             </div>
             <div class="dash-card-body">
               <div class="chart-container" style="position:relative;height:240px;">
@@ -1407,9 +1423,9 @@
                 <span class="kpi-enterprise-badge purple">Value</span>
               </div>
               <div class="kpi-enterprise-body">
-                <p class="kpi-enterprise-label">Inventory Value</p>
+                <p class="kpi-enterprise-label">Recorded Aircon Stock Cost</p>
                 <div class="kpi-enterprise-value" id="inv-total-value">--</div>
-                <span class="kpi-enterprise-secondary" id="inv-value-sub">Total asset value</span>
+                <span class="kpi-enterprise-secondary" id="inv-value-sub">Aircon units with recorded cost</span>
               </div>
               <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkInvValue"></canvas></div>
               <div class="kpi-enterprise-footer">
@@ -1438,7 +1454,7 @@
     <div class="col-12">
       <div class="dash-card" data-card-type="topAirconProducts" style="cursor:pointer;">
         <div class="dash-card-header">
-          <h6><i class="bi bi-grid-fill me-1" style="color:#2563eb;"></i>Top Aircon Products</h6>
+          <h6><i class="bi bi-grid-fill me-1" style="color:#2563eb;"></i>Highest-Value Aircon Stock</h6>
           <a href="<%= dashboardLinks.inventory %>" class="quick-btn quick-btn-sm">
             <i class="bi bi-box-arrow-up-right me-1"></i>Manage Inventory
           </a>
@@ -1478,6 +1494,7 @@
 <script src="/js/admin-operations-dashboard.js"></script>
 <script src="/js/dashboard-notifications.js?v=20260926"></script>
 <script src="/js/admin-dashboard.js?v=20260929-async-attendance"></script>
+<% if (dashboardIsAdmin) { %><script src="/js/admin-management-focus.js" defer></script><% } %>
 
 <% if (dashboardIsAdmin) { %>
 <!-- Resolve Prep Issue Modal -->

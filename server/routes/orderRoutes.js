@@ -39,6 +39,7 @@ const { persistOrderCheckout } = require("../utils/orderCheckoutWrite");
 const { buildOrderWarrantySnapshot } = require("../utils/orderWarrantyPolicy");
 const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercarePolicy");
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
+const loyaltyRewards = require('../utils/loyaltyRewards');
 const { bookingCapacityLockKey, withOperationLock } = require("../utils/operationLock");
 const { getBufferMinutesSync } = require("../utils/bookingPolicy");
 const { orderCapacityEndTime } = require("../utils/orderScheduleCapacity");
@@ -522,6 +523,18 @@ router.get("/badge", authenticate, requireRole(["admin", "secretary"]), async (r
  * The browser may display this quote, but order creation recomputes it so a
  * modified request cannot lower the payable amount.
  */
+router.post('/loyalty-quote', authenticate, requireRole('customer'), async (req, res, next) => {
+  try {
+    const lines = await loyaltyRewards.orderLines(req.body.items);
+    const reward = await loyaltyRewards.rewardFor(req.user._id, 'orders', lines);
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ reward, lines, subtotal: loyaltyRewards.round(lines.reduce((sum, line) => sum + line.amount, 0)), discount: reward?.amount || 0, token: loyaltyRewards.quoteToken(req.user._id, 'orders', lines, reward, false) });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
 router.post("/delivery-quote", authenticate, requireRole("customer"), async (req, res) => {
   try {
     const settings = await getOrderCheckoutSettings();
@@ -712,10 +725,19 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     }
 
     const lifecycle = initialOrderLifecycle(selection.fulfillmentType, selection.paymentMethod);
+    const loyaltyLines = enrichedItems.map(item => ({ id: String(item.inventoryId), amount: item.totalPrice, eligible: true }));
+    const loyaltyDiscount = await loyaltyRewards.rewardFor(req.user._id, 'orders', loyaltyLines);
+    loyaltyRewards.assertQuote(req.body.loyaltyQuoteToken, req.user._id, 'orders', loyaltyLines, loyaltyDiscount, false);
+    if (loyaltyDiscount) {
+      const allocations = require('../utils/transactionDiscounts').allocateLoyaltyDiscount(loyaltyLines, loyaltyDiscount);
+      enrichedItems.forEach((item, index) => { item.discountAmount = allocations[index]; });
+    }
     const orderData = {
       userId: req.user._id,
       checkoutRequestId,
       items: enrichedItems,
+      discount: loyaltyDiscount?.amount || 0,
+      loyaltyDiscount,
       fulfillmentType: selection.fulfillmentType,
       paymentMethod: selection.paymentMethod,
       ...(normalizedPaymentChannel ? {
@@ -759,6 +781,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     }
 
     const calculatedOrderTotal = enrichedItems.reduce((sum, item) => sum + item.totalPrice, 0)
+      - (orderData.discount || 0)
       + orderData.transportationFee;
     if (selection.paymentMethod === "cod") {
       const breakdown = calculatePaymentBreakdown(calculatedOrderTotal, downpaymentPercentage);
@@ -1082,7 +1105,7 @@ function checkoutErrorResponse(res, error) {
     });
   }
   const status = Number(error?.status) || 500;
-  const isOperational = error instanceof OrderCheckoutError && status < 500;
+  const isOperational = (error instanceof OrderCheckoutError || error instanceof loyaltyRewards.LoyaltyError) && status < 500;
   return res.status(status).json({
     error: isOperational ? error.message : "The order request could not be completed. Please try again.",
     ...(isOperational && error.code ? { code: error.code } : {}),

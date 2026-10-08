@@ -5,6 +5,8 @@ const {
   netPaymentsThrough,
   orderCompletionDate,
   summarizeOrderCosts,
+  summarizeOrderConsumables,
+  summarizeLinkedInstallationCosts,
   summarizePaymentLedger,
 } = require("./enterpriseRevenue");
 const { orderAttentionState, requestedOrderCutoff } = require("./orderAttention");
@@ -115,20 +117,24 @@ function buildTrend(cohortOrders, completionOrders, payments, productRefunds, st
   return buckets.map(bucket => ({ ...bucket, start: bucket.start.toISOString(), end: bucket.end.toISOString() }));
 }
 
-function productRankings(orders = []) {
+function productRankings(orders = [], inventoryItems = [], startDate, endDate, portfolioComplete = true) {
   const products = new Map();
   const brands = new Map();
-  orders.forEach(order => {
+  const inventoryById = new Map(inventoryItems.map(item => [String(item._id), item]));
+  orders.forEach((order, orderIndex) => {
     (order.items || []).forEach(item => {
       const quantity = Math.max(0, Number(item.quantity) || 0);
-      const revenue = money(item.totalPrice) || money(item.unitPrice) * quantity;
+      const revenue = require('./transactionDiscounts').netLineValue(order, item);
       const name = [item.brand, item.modelLine, item.capacity && `${item.capacity}${item.capacityUnit || " HP"}`]
         .filter(Boolean).join(" ") || "Unnamed product";
-      const product = products.get(name) || { name, units: 0, revenue: 0, orders: 0 };
+      const inventoryId = item.inventoryId ? String(item.inventoryId) : '';
+      const key = inventoryId || `name:${name.toLowerCase()}`;
+      const product = products.get(key) || { name, inventoryId, units: 0, revenue: 0, orders: 0, orderIds: new Set() };
       product.units += quantity;
       product.revenue += revenue;
-      product.orders += 1;
-      products.set(name, product);
+      const orderId = String(order._id || order.orderReference || `row-${orderIndex}`);
+      if (!product.orderIds.has(orderId)) { product.orderIds.add(orderId); product.orders += 1; }
+      products.set(key, product);
 
       const brandName = String(item.brand || "Unspecified");
       const brand = brands.get(brandName) || { name: brandName, units: 0, revenue: 0 };
@@ -137,8 +143,39 @@ function productRankings(orders = []) {
       brands.set(brandName, brand);
     });
   });
+  const periodDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / 86400000));
+  const currentWindow = Number.isFinite(new Date(endDate).getTime()) && new Date(endDate).getTime() >= Date.now() - 14 * 86400000;
+  const allProducts = [...products.values()];
+  const portfolioUnits = allProducts.reduce((sum, row) => sum + row.units, 0);
+  const portfolioValue = allProducts.reduce((sum, row) => sum + row.revenue, 0);
+  const productRows = allProducts.map(({ orderIds, ...row }) => {
+    const inventory = inventoryById.get(row.inventoryId);
+    const stock = inventory ? Math.max(0, Number(inventory.quantity) || 0) : null;
+    const minStock = inventory ? Math.max(0, Number(inventory.minStockLevel) || 0) : null;
+    const share = portfolioUnits ? (row.units / portfolioUnits) * 100 : 0;
+    let decision = 'Monitor demand';
+    let reason = `${row.units} completed units across ${row.orders} orders; more history is needed before changing purchasing.`;
+    if (!portfolioComplete || !currentWindow) {
+      decision = 'Review in full portfolio';
+      reason = 'This filtered or historical period cannot establish current purchasing priority; compare full demand and POS sales.';
+    } else if (periodDays >= 14 && portfolioUnits >= 10 && row.units >= 3 && stock !== null && stock <= minStock) {
+      decision = 'Review replenishment';
+      reason = `${row.units} completed units (${share.toFixed(0)}% of order units); ${stock} on hand against a ${minStock}-unit stock floor.`;
+    } else if (periodDays >= 30 && portfolioUnits >= 10 && row.units <= 2 && stock !== null && stock > minStock) {
+      decision = 'Pause extra buying';
+      reason = `Only ${row.units} completed unit${row.units === 1 ? '' : 's'} in this period with ${stock} on hand; check POS demand before the next purchase.`;
+    } else if (periodDays >= 14 && portfolioUnits >= 10 && share >= 20 && row.units >= 5) {
+      decision = 'Protect availability';
+      reason = `${row.units} completed units account for ${share.toFixed(0)}% of order unit demand; verify stock and supplier lead time.`;
+    }
+    return { ...row, stock, minStock, unitShare: share, valueShare: portfolioValue ? row.revenue / portfolioValue * 100 : 0, decision, reason };
+  });
   return {
-    topProducts: [...products.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8),
+    topProducts: [...productRows].sort((a, b) => b.revenue - a.revenue || b.units - a.units).slice(0, 8),
+    mostOrderedProducts: [...productRows].sort((a, b) => b.units - a.units || b.orders - a.orders || b.revenue - a.revenue).slice(0, 8),
+    leastOrderedProducts: [...productRows].filter(row => row.units > 0).sort((a, b) => a.units - b.units || a.revenue - b.revenue).slice(0, 8),
+    productDecisions: productRows.filter(row => !['Monitor demand', 'Review in full portfolio'].includes(row.decision)).sort((a, b) => (a.decision === 'Review replenishment' ? -1 : 0) - (b.decision === 'Review replenishment' ? -1 : 0) || b.units - a.units).slice(0, 6),
+    productPortfolioUnits: portfolioUnits,
     topBrands: [...brands.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8),
   };
 }
@@ -150,10 +187,13 @@ function buildOrderAnalytics({
   payments = [],
   productRefunds = [],
   inventoryItems = [],
+  orderConsumableUsages = [],
+  linkedInstallationServices = [],
   startDate,
   endDate,
   previousStart,
   previousEnd,
+  productPortfolioComplete = true,
 }) {
   const cohortValid = validOrders(cohortOrders);
   const previousValid = validOrders(previousCohortOrders);
@@ -251,9 +291,38 @@ function buildOrderAnalytics({
   });
 
   const cost = summarizeOrderCosts(recognized, inventoryItems);
-  const estimatedGrossMargin = recognizedRevenue - cost.totalCost;
-  const marginReliable = cost.coveragePercent >= 100;
-  const rankings = productRankings(recognized);
+  const consumables = summarizeOrderConsumables(recognized, orderConsumableUsages);
+  const linkedInstallation = summarizeLinkedInstallationCosts(recognized, linkedInstallationServices);
+  const installationOrders = recognized.filter(order => order.fulfillmentType === "delivery_installation");
+  const installationsWithoutUsage = installationOrders.filter(order => {
+    const linkedCost = linkedInstallation.byBooking.get(String(order.bookingId || ""));
+    return !consumables.byOrder.has(String(order._id))
+      && !Number(linkedCost?.consumablesCost || 0)
+      && !Number(linkedCost?.unpricedConsumablesCount || 0);
+  }).length;
+  const knownDirectCost = cost.totalCost + consumables.totalCost + linkedInstallation.totalCost;
+  const estimatedGrossMargin = recognizedRevenue - knownDirectCost;
+  const marginReliable = cost.coveragePercent >= 100 && consumables.missingCostRecords === 0 && installationOrders.length === 0;
+  const orderCostRows = recognized.map(order => {
+    const productCost = summarizeOrderCosts([order], inventoryItems);
+    const consumablesCost = consumables.byOrder.get(String(order._id)) || 0;
+    const linkedCost = linkedInstallation.byBooking.get(String(order.bookingId || "")) || {};
+    return {
+      reference: order.orderReference || String(order._id),
+      fulfillment: order.fulfillmentType || "unknown",
+      completedAt: orderCompletionDate(order),
+      revenue: money(order.total),
+      productCost: productCost.totalCost,
+      consumablesCost: consumablesCost + Number(linkedCost.consumablesCost || 0),
+      linkedServiceCost: Number(linkedCost.totalCost || 0) - Number(linkedCost.consumablesCost || 0),
+      knownContribution: money(order.total) - productCost.totalCost - consumablesCost - Number(linkedCost.totalCost || 0),
+      productCostComplete: productCost.coveragePercent >= 100,
+      usageRecorded: consumables.byOrder.has(String(order._id))
+        || Number(linkedCost.consumablesCost || 0) > 0
+        || Number(linkedCost.unpricedConsumablesCount || 0) > 0,
+    };
+  }).sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt)).slice(0, 20);
+  const rankings = productRankings(recognized, inventoryItems, startDate, endDate, productPortfolioComplete);
   const totalOrders = cohortOrders.length;
   const completionRate = totalOrders ? (completedCohort.length / totalOrders) * 100 : 0;
   const cancellationRate = totalOrders ? (cancelled.length / totalOrders) * 100 : 0;
@@ -265,6 +334,8 @@ function buildOrderAnalytics({
   if (outstandingBalance > 0) insights.push({ tone: "warning", icon: "bi-wallet2", title: "Collection exposure", text: `${outstandingBalance.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} remains outstanding on valid orders placed in this period.` });
   if (ledgerMismatchCount) insights.push({ tone: "danger", icon: "bi-database-exclamation", title: "Ledger reconciliation required", text: `${ledgerMismatchCount} order${ledgerMismatchCount === 1 ? " is" : "s are"} marked settled without a complete payment ledger.` });
   if (cost.coveragePercent < 100) insights.push({ tone: "warning", icon: "bi-boxes", title: "Incomplete margin coverage", text: `${cost.coveragePercent.toFixed(1)}% of recognized units have a current inventory cost. Margin is an estimate until cost coverage is complete.` });
+  if (consumables.missingCostRecords) insights.push({ tone: "warning", icon: "bi-tools", title: "Unpriced installation materials", text: `${consumables.missingCostRecords} recorded consumable usage row${consumables.missingCostRecords === 1 ? " has" : "s have"} no cost snapshot. Known contribution may be overstated.` });
+  if (installationsWithoutUsage) insights.push({ tone: "info", icon: "bi-clipboard-check", title: "Installation usage to verify", text: `${installationsWithoutUsage} completed installation order${installationsWithoutUsage === 1 ? " has" : "s have"} no recorded consumable usage; confirm whether any material was used.` });
   if (!insights.length) insights.push({ tone: "info", icon: "bi-check2-circle", title: "Stable order operation", text: "No material sales, cancellation, collection, or cost exception is visible in this reporting window." });
 
   return {
@@ -279,7 +350,17 @@ function buildOrderAnalytics({
     outstandingBalance,
     pendingPaymentValue: outstandingBalance,
     ledgerMismatchCount,
-    estimatedCost: cost.totalCost,
+    estimatedCost: knownDirectCost,
+    productCost: cost.totalCost,
+    consumablesCost: consumables.totalCost + linkedInstallation.consumablesCost,
+    linkedServiceCost: linkedInstallation.totalCost - linkedInstallation.consumablesCost,
+    installationLaborCost: linkedInstallation.laborCost,
+    installationPartsCost: linkedInstallation.partsCost,
+    installationLocalPurchaseCost: linkedInstallation.localPurchaseCost,
+    consumablesMissingCostRecords: consumables.missingCostRecords + linkedInstallation.unpricedConsumablesCount,
+    installationOrders: installationOrders.length,
+    installationsWithoutUsage,
+    orderCostRows,
     costCoveragePercent: cost.coveragePercent,
     marginReliable,
     estimatedGrossMargin,

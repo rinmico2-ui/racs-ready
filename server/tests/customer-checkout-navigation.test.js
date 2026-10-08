@@ -28,6 +28,7 @@ function paymentFixture() {
     selectedFulfillment: "delivery_installation", SUB_TOTAL: 1000, _transportFee: 20,
     clearTimeout() {}, scheduleCartCheckoutDraftSave() {}, updateNextButtonState() {},
     orderPaymentChannelLabel: () => "GCash", focusCheckoutControl() {}, validateReceiptFile: () => true,
+    orderRewardDiscount: () => 100,
     updateCartGcashSenderFeedback: () => ({ valid: true }),
     scheduleCheckoutAdvance() { throw new Error("Payment must not automatically advance"); },
     FileReader: class { readAsDataURL() { this.onload({ target: { result: "data:image/png;base64,preview" } }); } },
@@ -42,6 +43,10 @@ test("choosing full, partial or pickup payment keeps the customer on the payment
     f.context.window.selectPaymentMethods(method);
     assert.equal(f.element("wizardPaymentMethod").value, method);
     assert.equal(f.context.currentStep, 3);
+    if (method !== 'cash_onsite') {
+      assert.equal(f.element('gcashTotalDisplayWizard').textContent, '₱920');
+      assert.equal(f.element('gcashAmountDisplayWizard').textContent, method === 'cod' ? '₱92' : '₱920');
+    }
   }
 });
 

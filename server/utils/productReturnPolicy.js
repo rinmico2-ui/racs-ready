@@ -28,6 +28,7 @@ function itemFor(sourceType, source, index) {
   return source.items?.[index] || null;
 }
 function itemPrice(sourceType, source, item) {
+  if (sourceType === 'order' && item.discountAmount != null) return require('./transactionDiscounts').netLineValue(source, item);
   const quantity = Math.max(1, Number(item.quantity) || 1);
   const gross = money(Number(item.totalPrice) || Number(item.unitPrice || 0) * quantity);
   const subtotal = Number(source.subtotal) || (source.items || []).reduce((sum, row) => sum + Number(row.totalPrice || 0), 0);

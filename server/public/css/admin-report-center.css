@@ -32,3 +32,17 @@
 @media(max-width:1250px){.rc-kpi-grid-four{grid-template-columns:repeat(2,minmax(0,1fr))}.rc-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rc-report-grid-three{grid-template-columns:repeat(2,minmax(0,1fr))}.rc-methodology-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){.rc-metric-group{padding:13px}.rc-library-group{grid-template-columns:1fr;gap:8px}.rc-library-label{padding:0}.rc-report-grid-three,.rc-methodology-grid{grid-template-columns:1fr}.rc-insight-grid{grid-template-columns:1fr}.rc-insight-grid .rc-insight{min-height:auto}.rc-methodology{padding:15px}.rc-group-heading p{display:block}.rc-methodology .rc-section-heading p{display:block}}
 @media(max-width:440px){.rc-kpi-grid-four{grid-template-columns:1fr}}
+
+/* Report Center workspace navigation */
+.rc-workspace-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:20px 0 0;padding:7px;border:1px solid #dfe7f1;border-radius:18px;background:#f4f7fb;box-shadow:0 5px 18px rgba(15,23,42,.04)}
+.rc-workspace-tab{display:flex;align-items:center;gap:13px;min-width:0;padding:14px 17px;border:1px solid transparent;border-radius:13px;background:transparent;color:#516179;text-align:left;cursor:pointer;transition:background .18s,border-color .18s,box-shadow .18s,color .18s}
+.rc-workspace-tab:hover{background:#fff;color:#173d8f}
+.rc-workspace-tab[aria-selected="true"]{border-color:#d7e5f8;background:#fff;color:#173d8f;box-shadow:0 3px 12px rgba(27,60,108,.09)}
+.rc-workspace-tab-icon{display:grid;width:38px;height:38px;flex:none;place-items:center;border-radius:11px;background:#e6edf7;color:#587096;font-size:1rem}
+.rc-workspace-tab[aria-selected="true"] .rc-workspace-tab-icon{background:#eaf2ff;color:#2563eb}
+.rc-workspace-tab strong,.rc-workspace-tab small{display:block}
+.rc-workspace-tab strong{font-size:.8rem;font-weight:780;letter-spacing:-.01em}
+.rc-workspace-tab small{margin-top:3px;color:#8391a5;font-size:.66rem;line-height:1.35}
+.rc-workspace-tab:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.rc-tab-panel[hidden],.rc-live-status[hidden]{display:none}
+@media(max-width:620px){.rc-workspace-tabs{gap:5px;padding:5px}.rc-workspace-tab{gap:8px;padding:11px 9px}.rc-workspace-tab-icon{width:31px;height:31px}.rc-workspace-tab small{display:none}.rc-workspace-tab strong{font-size:.71rem}}

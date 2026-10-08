@@ -1057,6 +1057,7 @@
       ${kv('Service', escapeHtml(serviceTypeLabel) + (serviceName !== 'Service' ? ` · ${escapeHtml(serviceName)}` : ''))}
       ${kv('Technician', escapeHtml(String(techText)))}
       ${kv(isUnpaidAftercareMaintenance(b) ? 'Estimated price' : 'Estimated Fee', fmtCurrency(b.estimatedFee))}
+      ${Number(b.discount) > 0 ? kv(escapeHtml(b.loyaltyDiscount?.ruleName || 'Loyalty discount') + ' (included)', '−' + fmtCurrency(b.discount)) : ''}
       ${b.maintenance?.paymentOnSite === true ? kv('When to pay', 'On site after service. No down payment.') : ''}
       ${kv('Location', escapeHtml(locationText), { full: true })}
     `, '', 'purple');

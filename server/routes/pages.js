@@ -111,6 +111,7 @@ router.get("/", pageAuth.requireCustomerOrGuest, async (req, res) => {
 
 const CoreService = require("../models/CoreService");
 const RepairService = require("../models/RepairService");
+const { leastBookedServices, servicePortfolioDecision } = require("../utils/reportRankings");
 const {
   DEFAULT_REPAIR_INSPECTION_FEE,
   getDefaultRepairInspectionFee,
@@ -2385,6 +2386,19 @@ router.get("/admin/roles", pageAuth.requireRole("admin"), async (req, res) => {
 });
 
 // Admin - Reports
+router.get('/admin/reports/customers', pageAuth.requireRole('admin'), (req, res) => {
+  res.render('pages/admin/Reports/CustomerPerformance', { title: 'Customer Performance', layout: 'layouts/admin' });
+});
+router.get('/admin/reports/customers/:id', pageAuth.requireRole('admin'), (req, res) => {
+  res.render('pages/admin/Reports/CustomerPerformance', { title: 'Customer Records', layout: 'layouts/admin', customerProfileId: req.params.id });
+});
+router.get(['/admin/reports/decisions', '/secretary/reports/decisions'], pageAuth.requireRole(['admin', 'secretary']), (req, res) => {
+  const params = new URLSearchParams({ tab: 'decisions' });
+  for (const key of ['range', 'from', 'to']) {
+    if (typeof req.query[key] === 'string') params.set(key, req.query[key]);
+  }
+  res.redirect(302, `/${req.user.role}/reports?${params.toString()}`);
+});
 router.get(
   ["/admin/reports", "/secretary/reports"],
   pageAuth.requireRole(["admin", "secretary"]),
@@ -2392,6 +2406,7 @@ router.get(
     res.render("pages/admin/Reports/ReportCenter", {
       title: "Report Center",
       layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
+      initialReportTab: req.query.tab === 'decisions' ? 'decisions' : 'overview',
     });
   },
 );
@@ -2419,9 +2434,12 @@ router.get(
       const Payment = require("../models/Payment");
       const ProductRefund = require("../models/ProductRefund");
       const Inventory = require("../models/Inventory");
+      const HVACProduct = require("../models/HVACProduct");
+      const BookingService = require("../models/BookingService");
+      const ServiceToolUsage = require("../models/ServiceToolUsage");
       const Technician = require("../models/Technician");
       const mongoose = require("mongoose");
-      const { buildOrderAnalytics } = require("../utils/orderAnalytics");
+      const { buildOrderAnalytics, recognizedOrders } = require("../utils/orderAnalytics");
       const { buildOrderFilter, combineOrderFilters } = require("../utils/orderReportFilters");
       const allowedRanges = new Set(["today", "7", "30", "mtd", "qtd", "ytd", "90", "365", "custom"]);
       const range = allowedRanges.has(String(req.query.range)) ? String(req.query.range) : "90";
@@ -2499,7 +2517,9 @@ router.get(
         ...eligibleActivityIds.map(String),
       ])];
       const inventoryIds = [...new Set(completionCandidates.flatMap(order => (order.items || []).map(item => String(item.inventoryId || ""))).filter(mongoose.isValidObjectId))];
-      const [payments, productRefunds, inventoryItems] = await Promise.all([
+      const completedOrderIds = recognizedOrders(completionCandidates, start, end).map(order => order._id);
+      const linkedOrderBookings = recognizedOrders(completionCandidates, start, end).filter(order => order.fulfillmentType === "delivery_installation" && order.bookingId);
+      const [payments, productRefunds, inventoryItems, hvacCostProducts, orderConsumableUsages, linkedBookingRows] = await Promise.all([
         ledgerOrderIds.length
           ? Payment.find({ orderId: { $in: ledgerOrderIds }, status: { $in: ledgerStatuses } }).lean()
           : [],
@@ -2507,16 +2527,43 @@ router.get(
           ? ProductRefund.find({ sourceType: "order", sourceId: { $in: ledgerOrderIds }, status: "completed" }).lean()
           : [],
         inventoryIds.length
-          ? Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice").lean()
+          ? Inventory.find({ _id: { $in: inventoryIds } }).select("costPrice quantity minStockLevel status").lean()
+          : [],
+        inventoryIds.length
+          ? HVACProduct.find({ "variants._id": { $in: inventoryIds } })
+            .select("variants._id variants.costPrice variants.quantity variants.minStockLevel variants.status").lean()
+          : [],
+        completedOrderIds.length
+          ? ServiceToolUsage.find({ orderId: { $in: completedOrderIds }, itemType: "consumable", lifecycleStatus: { $ne: "voided" } })
+            .select("orderId itemType quantityUsed unitPrice toolCost lifecycleStatus").lean()
+          : [],
+        linkedOrderBookings.length
+          ? BookingService.find({ _id: { $in: linkedOrderBookings.map(order => order.bookingId) } })
+            .select("-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof")
+            .lean()
           : [],
       ]);
+      const inventoryItemIds = new Set(inventoryItems.map(item => String(item._id)));
+      const selectedInventoryIds = new Set(inventoryIds);
+      const orderCostCatalog = inventoryItems.concat(hvacCostProducts.flatMap(product => product.variants || [])
+        .filter(variant => selectedInventoryIds.has(String(variant._id)) && !inventoryItemIds.has(String(variant._id))));
+      const linkedOrderByBooking = new Map(linkedOrderBookings.map(order => [String(order.bookingId), order]));
+      const linkedInstallationServices = linkedBookingRows.length
+        ? (await require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(
+          linkedBookingRows.map(booking => ({ ...booking, status: "completed", completedAt: linkedOrderByBooking.get(String(booking._id))?.completedAt || booking.completedAt })),
+          { revenueResolver: () => 0, excludeOrderLinkedUsage: true },
+        )).services
+        : [];
       const analytics = buildOrderAnalytics({
         cohortOrders: orders,
         previousCohortOrders: previousOrders,
         completionCandidates,
         payments,
         productRefunds,
-        inventoryItems,
+        inventoryItems: orderCostCatalog,
+        orderConsumableUsages,
+        linkedInstallationServices,
+        productPortfolioComplete: reportFilters.activeCount === 0,
         startDate: start,
         endDate: end,
         previousStart,
@@ -2685,7 +2732,7 @@ router.get(
       // Load them concurrently and avoid the old order/attendance reads that no
       // longer feed anything rendered by this page.
       const [bookingRows, technicians] = await Promise.all([
-        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd } })
+        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd }, sourceOrderId: null })
           .select("-statusHistory -services.statusHistory -services.priceHistory -cancellationHistory -rescheduleHistory -contactAttempts -imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof")
           .lean(),
         Technician.find({}).select("name userEmail specialization active").lean(),
@@ -2942,32 +2989,45 @@ router.get(
       // Service-level aggregation. Multi-service bookings are expanded so each
       // selected service (and its quantity) contributes to its own ranking.
       const serviceAggMap = {};
+      const servicePeriodDays = Math.max(1, Math.ceil((reportEnd - reportStart) / 86400000));
+      const serviceMidpoint = new Date((reportStart.getTime() + reportEnd.getTime()) / 2);
+      const servicePortfolioComplete = reportEnd.getTime() >= Date.now() - 14 * 86400000
+        && !Object.entries(filterContext).some(([key, value]) => !["range", "from", "to"].includes(key) && value && value !== "all");
       bookings.forEach(b => {
         const lines = allocateServiceRevenue(b, getBookingRevenue(b));
         lines.forEach(line => {
           const type = normalizedType(line.type) === "repair" ? "repair" : "core";
           const name = String(line.name || (type === "repair" ? "Repair Service" : "Core Service")).trim();
           const key = `${type}:${name.toLowerCase()}`;
-          if (!serviceAggMap[key]) serviceAggMap[key] = { name, type, bookings: 0, units: 0, completed: 0, revenue: 0, ratings: [], bookingIds: new Set(), completedIds: new Set(), ratedIds: new Set() };
+          if (!serviceAggMap[key]) serviceAggMap[key] = { name, type, bookings: 0, units: 0, completed: 0, recentBookings: 0, priorBookings: 0, cancelled: 0, revenue: 0, ratings: [], bookingIds: new Set(), completedIds: new Set(), ratedIds: new Set() };
           const quantity = Math.max(1, Number(line.quantity) || 1);
           serviceAggMap[key].units += quantity;
           if (statusGroup(b.status) !== "cancelled") serviceAggMap[key].revenue += Number(line.allocatedRevenue) || 0;
           const bookingId = String(b._id);
-          if (!serviceAggMap[key].bookingIds.has(bookingId)) { serviceAggMap[key].bookingIds.add(bookingId); serviceAggMap[key].bookings++; }
+          if (!serviceAggMap[key].bookingIds.has(bookingId)) {
+            serviceAggMap[key].bookingIds.add(bookingId);
+            serviceAggMap[key].bookings++;
+            if (new Date(b.createdAt) >= serviceMidpoint) serviceAggMap[key].recentBookings++;
+            else serviceAggMap[key].priorBookings++;
+            if (statusGroup(b.status) === "cancelled") serviceAggMap[key].cancelled++;
+          }
           if (statusGroup(b.status) === "completed" && !serviceAggMap[key].completedIds.has(bookingId)) { serviceAggMap[key].completedIds.add(bookingId); serviceAggMap[key].completed++; }
           const bookingRating = ratingForBooking(b, ratingByBooking);
           if (bookingRating && !serviceAggMap[key].ratedIds.has(bookingId)) { serviceAggMap[key].ratedIds.add(bookingId); serviceAggMap[key].ratings.push(bookingRating); }
         });
       });
+      const portfolioServiceBookings = Object.values(serviceAggMap).reduce((sum, row) => sum + row.bookings, 0);
       const allServicePerformance = Object.values(serviceAggMap)
         .map(s => ({
-          name: s.name, type: s.type, bookings: s.bookings, units: s.units, completed: s.completed, revenue: s.revenue,
+          name: s.name, type: s.type, bookings: s.bookings, units: s.units, completed: s.completed, recentBookings: s.recentBookings, priorBookings: s.priorBookings, cancelled: s.cancelled, revenue: s.revenue,
+          ...servicePortfolioDecision(s, { periodDays: servicePeriodDays, portfolioBookings: portfolioServiceBookings, portfolioComplete: servicePortfolioComplete }),
           completionRate: s.bookings > 0 ? (s.completed / s.bookings) * 100 : 0,
           avgRating: s.ratings.length > 0 ? (s.ratings.reduce((a, b) => a + b, 0) / s.ratings.length) : 0,
           avgRevenue: s.bookings > 0 ? s.revenue / s.bookings : 0,
         }))
         .sort((a, b) => b.bookings - a.bookings || b.units - a.units || b.revenue - a.revenue);
       const topServices = allServicePerformance.slice(0, 10);
+      const lowestBookedServices = leastBookedServices(allServicePerformance);
       const topCoreServices = allServicePerformance.filter(s => s.type === "core").slice(0, 5);
       const topRepairServices = allServicePerformance.filter(s => s.type === "repair").slice(0, 5);
 
@@ -3302,6 +3362,10 @@ router.get(
           dailyTrend,
           bookingForecast,
           topServices,
+          servicePortfolio: allServicePerformance,
+          servicePortfolioBookings: portfolioServiceBookings,
+          servicePeriodDays,
+          lowestBookedServices,
           topCoreServices,
           topRepairServices,
           topBrands,

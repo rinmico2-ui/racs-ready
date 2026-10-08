@@ -45,6 +45,7 @@ const notificationSchema = new mongoose.Schema(
         "booking_reschedule_confirmed",
         "booking_reschedule_request",
         "booking_rescheduled",
+        "booking_service_reminder",
         "booking_schedule_proposed",
         "booking_update_acknowledgement",
         "booking_verify_reminder",

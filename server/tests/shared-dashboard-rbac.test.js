@@ -29,12 +29,15 @@ test("secretary dashboard renders role-safe endpoints and links", async () => {
   assert.match(html, /\/api\/secretary\/dashboard\/operations/);
   assert.match(html, /\/api\/secretary\/analytics\/summary/);
   assert.match(html, /href="\/secretary\/staff"/);
+  assert.match(html, /href="\/secretary\/reports"/);
   assert.match(html, /href="\/secretary\/operations\/resolution-center"/);
   assert.match(html, /<a class="ops-kpi" href="\/secretary\/inventory\/ordered-products"><div class="ops-kpi-top"><span class="ops-kpi-label">Orders Today/);
   assert.match(html, /<div class="ops-kpi danger"><div class="ops-kpi-top"><span class="ops-kpi-label">Equipment Overdue/);
   assert.match(html, /<div class="ops-kpi warn"><div class="ops-kpi-top"><span class="ops-kpi-label">Remittance Action/);
   assert.doesNotMatch(html, /href="null"/);
   assert.doesNotMatch(html, /<div class="dash-card" id="prepIssuesCard"/);
+  assert.doesNotMatch(html, /id="managementFocus"/);
+  assert.doesNotMatch(html, /admin-management-focus\.js/);
   assert.doesNotMatch(html, /href="\/admin\//);
 });
 
@@ -46,6 +49,9 @@ test("admin dashboard keeps the equipment and remittance queues linked", async (
   assert.match(html, /href="\/admin\/inventory\/equipment-returns\?state=overdue"/);
   assert.match(html, /href="\/admin\/payments\/remittance"/);
   assert.match(html, /href="\/admin\/staff\/attendance"/);
+  assert.match(html, /href="\/admin\/reports"/);
+  assert.match(html, /id="managementFocus"/);
+  assert.match(html, /admin-management-focus\.js/);
 });
 
 test("secretary profile exposes working edit and password forms", async () => {

@@ -1561,6 +1561,41 @@
     const initialCheckoutCart = window.getSelectedCartForCheckout?.() || cartObj;
     let CART_ITEMS = initialCheckoutCart.items || [];
     let SUB_TOTAL = initialCheckoutCart.totalAmount || 0;
+    let orderLoyaltyQuote = null;
+    function orderRewardSelection() {
+      return { items: CART_ITEMS.map(item => ({ inventoryId: item.inventoryId?._id || item.inventoryId, quantity: item.quantity })) };
+    }
+    function currentOrderReward() {
+      return orderLoyaltyQuote?.key === JSON.stringify(orderRewardSelection()) ? orderLoyaltyQuote : null;
+    }
+    function orderRewardDiscount() { return Number(currentOrderReward()?.discount) || 0; }
+    async function refreshOrderReward() {
+      const selection = orderRewardSelection();
+      const key = JSON.stringify(selection);
+      if (currentOrderReward() && Date.now() - orderLoyaltyQuote.checkedAt < 10 * 60 * 1000) return orderLoyaltyQuote;
+      const previousTotal = SUB_TOTAL - orderRewardDiscount();
+      const response = await fetch('/api/orders/loyalty-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to check your loyalty price. Please try again.');
+      if (key !== JSON.stringify(orderRewardSelection())) throw new Error('Your cart changed. Please check your selected products again.');
+      orderLoyaltyQuote = { ...data, key, checkedAt: Date.now() };
+      SUB_TOTAL = Number(data.subtotal);
+      (data.lines || []).forEach(line => {
+        const item = CART_ITEMS.find(item => String(item.inventoryId?._id || item.inventoryId) === line.id);
+        if (item && typeof item.inventoryId === 'object') item.inventoryId.sellingPrice = line.amount / Number(item.quantity);
+      });
+      const panel = document.getElementById('gcashFieldsWizard');
+      let note = document.getElementById('orderLoyaltyPriceNote');
+      if (!note && panel) { note = document.createElement('p'); note.id = 'orderLoyaltyPriceNote'; note.className = 'small text-success px-3 pt-3'; note.setAttribute('role', 'status'); panel.prepend(note); }
+      if (note) note.textContent = data.reward ? `${data.reward.ruleName}: ${data.reward.discountPercent}% off eligible products. You save ₱${data.discount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}. Transport fees are unchanged.` : 'Loyalty price checked. No discount applies to these products.';
+      if (currentStep >= 3) {
+        const method = document.getElementById('wizardPaymentMethod')?.value;
+        if (method) window.selectPaymentMethods(method);
+        if (currentStep === 4) populateReview();
+        if (previousTotal !== SUB_TOTAL - orderRewardDiscount()) throw new Error('Your loyalty price changed. Review the updated payment amount before submitting your receipt.');
+      }
+      return orderLoyaltyQuote;
+    }
     let _storeHoursData = null;
 
     // Fetch store open hours for pickup scheduling
@@ -1594,7 +1629,7 @@
       if (input && value !== undefined && value !== null) input.value = String(value);
     }
 
-    function restoreCartCheckoutDraft(draft) {
+    async function restoreCartCheckoutDraft(draft) {
       if (!draft?.selectedFulfillment) return;
       _restoringCartDraft = true;
       try {
@@ -1623,6 +1658,10 @@
         // Browsers do not allow a file input to be restored. Return manual
         // payments to the payment step so they cannot submit without evidence.
         if (needsReceipt && targetStep > 3) targetStep = 3;
+        if (targetStep >= 3) {
+          try { await refreshOrderReward(); }
+          catch (_) { targetStep = 2; }
+        }
         if (targetStep >= 3) {
           renderPaymentOptions();
           if (draft.paymentMethod) window.selectPaymentMethods(draft.paymentMethod);
@@ -1994,6 +2033,13 @@
     }
 
     async function validateCheckoutStep(step) {
+      if (step >= 2) {
+        try { await refreshOrderReward(); }
+        catch (error) {
+          await presentCheckoutStepIssue({ step: currentStep >= 3 ? 3 : 2, title: 'Review your loyalty price', message: error.message, confirmButtonText: 'Review price', focusSelector: '#gcashFieldsWizard' });
+          return false;
+        }
+      }
       if (step === 2 && selectedFulfillment !== 'customer_pickup' && _routeQuotePending) {
         try { await _routeQuotePending; } catch (_) {}
       }
@@ -2171,7 +2217,7 @@
         window.GcashQrActions?.apply(window.gcashQrImageUrl);
         document.getElementById('gcashNumberDisplayWizard').textContent = gcashNum || 'Contact the store';
         const itemTotal = SUB_TOTAL;
-        const grandTotal = itemTotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+        const grandTotal = Math.round((itemTotal - orderRewardDiscount() + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0)) * 100) / 100;
         const percentage = window.downpaymentPercentage || 10;
         const payAmount = method === 'cod' ? Math.round(grandTotal * percentage / 100) : grandTotal;
         const balance = Math.max(0, grandTotal - payAmount);
@@ -2523,7 +2569,8 @@
       } else {
         document.getElementById('reviewInstallRow').style.display = 'none';
       }
-      const total = effectiveTotal + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0);
+      if (orderRewardDiscount()) details.push({ label: `${currentOrderReward().reward.ruleName} (${currentOrderReward().reward.discountPercent}%)`, value: `−₱${orderRewardDiscount().toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+      const total = Math.round((effectiveTotal - orderRewardDiscount() + (selectedFulfillment !== 'customer_pickup' ? _transportFee : 0)) * 100) / 100;
       const percentage = window.downpaymentPercentage || 10;
       const dueNow = payMethod === 'cash_onsite' ? 0 : (payMethod === 'cod' ? Math.round(total * percentage / 100) : total);
       const dueLater = Math.max(0, total - dueNow);
@@ -2896,6 +2943,7 @@
       // Use FormData so we can attach the GCash receipt image
       const fd = new FormData();
       fd.append('items', JSON.stringify(orderItems));
+      fd.append('loyaltyQuoteToken', currentOrderReward()?.token || '');
       if (CART_ITEMS.every(item => item._id)) {
         fd.append('cartItemIds', JSON.stringify(CART_ITEMS.map(item => String(item._id))));
       }
@@ -2932,6 +2980,11 @@
         const data = await res.json();
 
         if (!res.ok) {
+          if (res.status === 409 && /loyalty price/i.test(data.error || '')) {
+            orderLoyaltyQuote = null;
+            try { await refreshOrderReward(); } catch (_) {}
+            enterWizardStep(3);
+          }
           await showCartOrderFailure(data, res.status, loadingStartedAt);
           nextBtn.disabled = false;
           nextBtn.innerHTML = '<i class="bi bi-bag-check me-2"></i>Place Order';

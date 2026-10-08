@@ -31,6 +31,7 @@ body.racs-drawer-open {
   inset: 0 0 0 auto;
   top: 0;
   height: 100vh;
+  height: 100dvh;
   width: var(--racs-sidebar-width);
   max-width: 100%;
   background: transparent;
@@ -71,6 +72,7 @@ body.racs-drawer-open {
 
 /* ── Brand ────────────────────────────────────────────────────────────── */
 .racs-sidebar-brand {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.625rem;
@@ -148,11 +150,13 @@ body.racs-drawer-open {
 
 /* ── Navigation ───────────────────────────────────────────────────────── */
 .racs-sidebar-nav {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 0.75rem 0.75rem 0.5rem;
   scrollbar-width: thin;
 }
@@ -536,6 +540,8 @@ body.racs-drawer-open {
     box-shadow: 0 0 40px rgba(15, 23, 36, 0.18);
   }
 
+  .racs-sidebar-account { padding-bottom: 0.625rem; }
+
   .racs-menu-trigger { width: 40px; padding: 0; }
   .racs-menu-trigger-label { display: none; }
   .racs-navbar-account { order: 2; margin-left: auto !important; }
@@ -544,6 +550,12 @@ body.racs-drawer-open {
 }
 
 @media (max-width: 575.98px) {
-  #authSidebar.auth-sidebar { width: min(88vw, 320px); }
-  .racs-sidebar-nav { padding: 0.75rem 0.625rem 1rem; }
+  #authSidebar.auth-sidebar {
+    width: min(88vw, 320px);
+    height: 100vh;
+    height: 100dvh;
+  }
+  .racs-sidebar-nav {
+    padding: 0.75rem 0.625rem calc(1rem + env(safe-area-inset-bottom));
+  }
 }

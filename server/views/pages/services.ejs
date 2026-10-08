@@ -858,6 +858,9 @@
                       <div class="rv-row" id="servicesSubtotalRow"><span class="rv-label" id="servicesSubtotalLabel">Service price</span><span class="rv-value fw-bold" id="servicesTotalDisplay">₱0</span></div>
                       <div class="rv-row d-none" id="repairInspectionRow"><span class="rv-label">Repair inspection fee</span><span class="rv-value fw-bold" id="repairInspectionTotalDisplay">₱0</span></div>
                       <div class="rv-row"><span class="rv-label">Travel Fee</span><span class="rv-value fw-bold" id="travelFareDisplay">₱0</span></div>
+                      <div class="rv-row d-none text-success" id="bookingLoyaltyDiscountRow"><span id="bookingLoyaltyDiscountLabel">Loyalty discount</span><strong id="bookingLoyaltyDiscountDisplay"></strong></div>
+                      <p class="small text-muted" id="bookingLoyaltyQuoteState" role="status" aria-live="polite"></p>
+                      <button type="button" class="btn btn-link btn-sm p-0" onclick="refreshBookingReward(true).catch(() => {})">Refresh loyalty price</button>
                       <div class="booking-review-total"><span id="bookingTotalLabel">Estimated total</span><strong id="totalFeeDisplay">₱0</strong></div>
                       <p class="booking-review-note" id="bookingReviewNote">The next step shows what to pay now and the balance left.</p>
                     </div>
@@ -873,6 +876,7 @@
 
           <!-- Step 6 -->
           <div class="ent-step-card d-none booking-step" id="paymentStep" data-step="6">
+            <p class="small px-4 pt-3 mb-0 text-muted" id="bookingLoyaltyPaymentState" role="status" aria-live="polite"></p>
             <div class="ent-step-header">
               <div class="ent-step-icon step-review"><i class="bi bi-credit-card-2-front"></i></div>
               <div class="ent-step-info">
@@ -2771,7 +2775,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261007-relocation-preferred-calendar';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261007-relocation-map-calendar':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261009-loyalty':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

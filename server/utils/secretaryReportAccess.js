@@ -1,5 +1,6 @@
 const secretaryReportRequests = new Set([
   "GET /reports/overview",
+  "GET /reports/decisions",
   "GET /reports/revenue",
   "GET /reports/orders/export",
   "POST /reports/orders/drilldown",

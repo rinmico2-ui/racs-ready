@@ -55,7 +55,7 @@ test('report routes batch independent database work', () => {
   const pages = read('routes/pages.js');
   const api = read('routes/adminApi.js');
 
-  assert.match(pages, /const \[payments, productRefunds, inventoryItems\] = await Promise\.all/);
+  assert.match(pages, /const \[payments, productRefunds, inventoryItems, hvacCostProducts, orderConsumableUsages, linkedBookingRows\] = await Promise\.all/);
   assert.match(pages, /const \[toolUsage, productOrders, merchandiseSales, reservations, adjustments\] = await Promise\.all/);
   assert.match(pages, /const \[ratingRows, serviceCostAnalytics, workflowAssignments, partsRequests\] = await Promise\.all/);
   assert.match(api, /const \[allTechs, techRatings, ratedBookings, completedJobCounts\] = await Promise\.all/);

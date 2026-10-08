@@ -1,0 +1,30 @@
+.management-focus{margin:24px 0;background:#fff;border:1px solid #dbe5ef;border-radius:20px;box-shadow:0 8px 30px rgba(15,23,42,.06);overflow:hidden;color:#172033}
+.management-focus *{box-sizing:border-box}
+.management-focus-head{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px 26px;background:linear-gradient(115deg,#102a43,#1d4b68);color:#fff}
+.management-focus-kicker{text-transform:uppercase;letter-spacing:.12em;font-size:.66rem;font-weight:800;color:#7dd3fc}
+.management-focus-head h2{font:750 1.35rem/1.2 Outfit,Inter,sans-serif;margin:5px 0}
+.management-focus-head p{font-size:.78rem;color:#dbeafe;margin:0;max-width:650px}
+.management-focus-link{color:#fff;text-decoration:none;border:1px solid #ffffff55;border-radius:10px;padding:9px 12px;font-size:.74rem;font-weight:700;white-space:nowrap}
+.management-focus-link:hover{color:#fff;background:#ffffff18}
+.management-focus-state{padding:12px 26px;color:#64748b;font-size:.75rem}
+.management-focus-state:empty{display:none}
+.management-focus-health{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:0 24px 22px}
+.management-focus-health article{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:15px;min-width:0}
+.management-focus-health small,.management-focus-health span{display:block;color:#64748b;font-size:.7rem}
+.management-focus-health strong{display:block;font-size:1rem;margin:7px 0 4px;overflow-wrap:anywhere}
+.management-focus-columns{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:20px;padding:22px 24px 26px;border-top:1px solid #edf2f7}
+.management-focus-columns h3{font-size:.88rem;font-weight:750;margin:0 0 12px}
+.management-focus-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.management-focus-action{display:block;background:#fff;border:1px solid #dbe5ef;border-left:4px solid #f59e0b;border-radius:10px;padding:12px 14px;text-decoration:none;color:#172033}
+.management-focus-action:hover{color:#172033;background:#f8fafc}
+.management-focus-action.critical{border-left-color:#ef4444}
+.management-focus-action.review{border-left-color:#2563eb}
+.management-focus-action small{display:block;color:#64748b;font-size:.68rem;margin-bottom:4px;text-transform:capitalize}
+.management-focus-action strong{display:block;font-size:.8rem;line-height:1.4}
+.management-focus-action p{font-size:.7rem;line-height:1.45;color:#475569;margin:6px 0 0}
+.management-focus-routes{display:grid;gap:7px}
+.management-focus-routes a{display:flex;justify-content:space-between;gap:8px;padding:10px;border-radius:9px;background:#f8fafc;color:#075985;text-decoration:none;font-size:.73rem;font-weight:700}
+.management-focus-routes a:hover{background:#e0f2fe}
+.management-focus-columns aside p{font-size:.68rem;line-height:1.45;color:#64748b;margin:12px 0 0}
+@media(max-width:1100px){.management-focus-health{grid-template-columns:repeat(2,minmax(0,1fr))}.management-focus-columns{grid-template-columns:1fr}}
+@media(max-width:650px){.management-focus-head{display:block;padding:20px}.management-focus-link{display:inline-block;margin-top:14px}.management-focus-health,.management-focus-actions{grid-template-columns:1fr}.management-focus-health,.management-focus-columns{padding-left:16px;padding-right:16px}}

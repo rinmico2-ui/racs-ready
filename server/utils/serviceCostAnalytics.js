@@ -9,14 +9,15 @@ function bookingRevenue(booking) {
   if (items.length) {
     const coreRevenue = items
       .filter(item => item.type !== "repair")
-      .reduce((sum, item) => sum + Number(item.totalPrice ?? (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1)), 0);
+      .reduce((sum, item) => sum + (booking.loyaltyDiscount ? require('./transactionDiscounts').serviceLineValue(item)
+        : Number(item.totalPrice ?? (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1))), 0);
     const repairItems = items.filter(item => item.type === "repair");
     const repairInspectionRevenue = Number(booking.inspectionFeeTotalCollected || 0) || repairItems.reduce(
       (sum, item) => sum + Number(item.initialCost ?? item.unitPrice ?? 0) * Math.max(1, Number(item.quantity) || 1), 0,
     );
     const itemQuotationRevenue = repairItems.reduce((sum, item) => sum + Number(item.quotation?.totalCost || 0), 0);
     const quotationRevenue = itemQuotationRevenue || Number(booking.quotation?.totalCost || 0);
-    return coreRevenue + repairInspectionRevenue + quotationRevenue + Number(booking.travelFare || 0);
+    return Math.max(0, coreRevenue - Number(booking.discount || 0)) + repairInspectionRevenue + quotationRevenue + Number(booking.travelFare || 0);
   }
   const isRepair = booking.serviceType === "repair" || booking.serviceModel === "RepairService" ||
     items.some(service => service.type === "repair");
@@ -97,7 +98,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
   const completed = (bookings || []).filter(booking => RECOGNIZED_BOOKING_STATUSES.has(booking.status));
   const ids = completed.map(booking => booking._id);
   if (!ids.length) {
-    const empty = { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, grossProfit: 0, grossProfitMargin: 0 } };
+    const empty = { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, unpricedConsumablesCount: 0, grossProfit: 0, grossProfitMargin: 0 } };
     if (options.includeSourceRows) empty.sourceRows = { reports: [], assignments: [] };
     return empty;
   }
@@ -107,7 +108,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
   // query deliberately narrow. This is especially important for hosted MongoDB
   // connections where transferring base64 evidence can dominate the request.
   const [usages, reports, assignments] = await Promise.all([
-    ServiceToolUsage.find({ bookingId: { $in: ids }, lifecycleStatus: { $ne: "voided" } })
+    ServiceToolUsage.find({ bookingId: { $in: ids }, lifecycleStatus: { $ne: "voided" }, ...(options.excludeOrderLinkedUsage ? { orderId: null } : {}) })
       .select("bookingId serviceItemId itemName itemType unit quantityUsed unitPrice toolCost usedAt")
       .sort({ usedAt: 1 })
       .lean(),
@@ -145,6 +146,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     const report = bookingReports.find(row => !row.serviceItemId) || bookingReports[0];
     const serviceUsages = usageMap.get(id) || [];
     const consumables = serviceUsages.filter(item => item.itemType === "consumable").map(item => ({ name: item.itemName, quantity: Number(item.quantityUsed || 0), unit: item.unit || "pcs", cost: usageCost(item) }));
+    const unpricedConsumablesCount = consumables.filter(item => item.quantity > 0 && item.cost <= 0).length;
     let repairParts = serviceUsages.filter(item => item.itemType === "part").map(item => ({ name: item.itemName, quantity: Number(item.quantityUsed || 0), unit: item.unit || "pcs", cost: usageCost(item) }));
     if (!repairParts.length && bookingReports.some(row => row.partsReplaced?.length)) repairParts = bookingReports.flatMap(row => row.partsReplaced || []).map(item => ({ name: item.name, quantity: Number(item.quantity || 0), unit: item.unit || "pcs", cost: Number(item.cost || 0) * Number(item.quantity || 1) }));
     const equipment = (assignmentMap.get(id) || []).map(item => ({ name: item.equipmentName, technician: item.technicianId?.name || [item.technicianId?.firstName, item.technicianId?.lastName].filter(Boolean).join(" ") || booking.technician?.name || "Unassigned", quantity: Number(item.quantity || 1), status: item.status, checkoutStatus: item.checkedOutAt ? "Checked out" : item.status === "reserved" ? "Reserved" : "Not checked out", returnStatus: item.returnedAt || item.status === "returned" ? "Returned" : ["damaged", "lost"].includes(item.status) ? item.status : "Outstanding" }));
@@ -194,9 +196,9 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
       completedAt: bookingCompletionDate(booking),
       itemCosts,
     });
-    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: bookingCompletionDate(booking), revenue, partsCost, consumablesCost, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment, serviceLines };
+    return { bookingId: id, reference: booking.bookingReference || booking.workOrderNumber || id.slice(-8).toUpperCase(), serviceName: serviceName(booking, report), customer: booking.customer?.name || "Customer", technician: booking.technician?.name || equipment[0]?.technician || "Unassigned", completedAt: bookingCompletionDate(booking), revenue, partsCost, consumablesCost, unpricedConsumablesCount, laborCost, laborCostRecorded: laborCost > 0, localPurchaseCost, localPurchases, grossProfit, grossProfitMargin: revenue ? (grossProfit / revenue) * 100 : 0, laborHours: bookingReports.reduce((sum, row) => sum + Number(row.laborHours || 0), 0), consumables, repairParts, equipment, serviceLines };
   });
-  const totals = services.reduce((sum, row) => ({ revenue: sum.revenue + row.revenue, partsCost: sum.partsCost + row.partsCost, consumablesCost: sum.consumablesCost + row.consumablesCost, laborCost: sum.laborCost + row.laborCost, localPurchaseCost: sum.localPurchaseCost + row.localPurchaseCost, grossProfit: sum.grossProfit + row.grossProfit }), { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, localPurchaseCost: 0, grossProfit: 0 });
+  const totals = services.reduce((sum, row) => ({ revenue: sum.revenue + row.revenue, partsCost: sum.partsCost + row.partsCost, consumablesCost: sum.consumablesCost + row.consumablesCost, unpricedConsumablesCount: sum.unpricedConsumablesCount + row.unpricedConsumablesCount, laborCost: sum.laborCost + row.laborCost, localPurchaseCost: sum.localPurchaseCost + row.localPurchaseCost, grossProfit: sum.grossProfit + row.grossProfit }), { revenue: 0, partsCost: 0, consumablesCost: 0, unpricedConsumablesCount: 0, laborCost: 0, localPurchaseCost: 0, grossProfit: 0 });
   totals.grossProfitMargin = totals.revenue ? (totals.grossProfit / totals.revenue) * 100 : 0;
 
   const equipmentGroups = new Map();

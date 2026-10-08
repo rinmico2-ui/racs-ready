@@ -289,6 +289,7 @@
             <div class="od-card-head"><h2><i class="bi bi-receipt"></i> Payment summary</h2></div>
             <div class="od-card-body">
               <div class="od-cost-line"><span>Aircon product price</span><strong>&#8369;<%= peso(order.subtotal) %></strong></div>
+              <% if (Number(order.discount || 0) > 0) { %><div class="od-cost-line text-success"><span><%= order.loyaltyDiscount?.ruleName || 'Product discount' %><% if (order.loyaltyDiscount) { %> (<%= order.loyaltyDiscount.discountPercent %>%)<% } %></span><strong>−&#8369;<%= peso(order.discount) %></strong></div><% } %>
               <% if (Number(order.installationFee || 0) > 0) { %><div class="od-cost-line"><span>Installation service <small class="text-muted">(not included)</small></span><strong>&#8369;<%= peso(order.installationFee) %></strong></div><% } %>
               <% if (Number(order.deliveryFee || 0) > 0) { %><div class="od-cost-line"><span>Delivery fee</span><strong>&#8369;<%= peso(order.deliveryFee) %></strong></div><% } %>
               <% if (Number(order.transportationFee || 0) > 0) { %><div class="od-cost-line"><span>Transportation service</span><strong>&#8369;<%= peso(order.transportationFee) %></strong></div><% } %>

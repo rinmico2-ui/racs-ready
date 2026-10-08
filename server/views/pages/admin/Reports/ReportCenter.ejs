@@ -1,9 +1,11 @@
 <% const reportRole = typeof user !== "undefined" && user && user.role === "secretary" ? "secretary" : "admin"; %>
+<% const reportInitialTab = typeof initialReportTab !== 'undefined' && initialReportTab === 'decisions' ? 'decisions' : 'overview'; %>
 <% const reportLinks = { pos: reportRole === "secretary" ? "/secretary/pointofsale" : "/admin/inventory/pos" }; %>
-<link rel="stylesheet" href="/css/admin-report-center.css?v=20260927-report-center">
+<link rel="stylesheet" href="/css/admin-report-center.css?v=20261008-tabs">
 <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
+<link rel="stylesheet" href="/css/decision-intelligence.css?v=20261008-tabs">
 
-<div class="report-center" data-report-center data-report-role="<%= reportRole %>">
+<div class="report-center" data-report-center data-report-role="<%= reportRole %>" data-initial-tab="<%= reportInitialTab %>">
   <section class="rc-hero" aria-labelledby="reportCenterTitle">
     <div class="rc-hero-copy">
       <span class="rc-eyebrow"><i class="bi bi-shield-check" aria-hidden="true"></i> Management reporting</span>
@@ -16,6 +18,12 @@
     </div>
   </section>
 
+  <nav class="rc-workspace-tabs" role="tablist" aria-label="Report Center views">
+    <button type="button" id="rcTabOverview" class="rc-workspace-tab" role="tab" data-report-tab="overview" aria-controls="rcPanelOverview" aria-selected="<%= reportInitialTab !== 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '-1' : '0' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-grid-1x2" aria-hidden="true"></i></span><span><strong>Overview</strong><small>Business snapshot and report library</small></span></button>
+    <button type="button" id="rcTabDecisions" class="rc-workspace-tab" role="tab" data-report-tab="decisions" aria-controls="rcPanelDecisions" aria-selected="<%= reportInitialTab === 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '0' : '-1' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span><span><strong>Management decisions</strong><small>Demand, customers, and recommended actions</small></span></button>
+  </nav>
+
+  <div id="rcPanelOverview" class="rc-tab-panel" role="tabpanel" aria-labelledby="rcTabOverview"<% if (reportInitialTab === 'decisions') { %> hidden<% } %>>
   <div class="rc-state" id="reportCenterState" role="status" aria-live="polite">
     <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
     <span>Preparing the management snapshot&hellip;</span>
@@ -78,6 +86,7 @@
     <div class="rc-library-group">
       <div class="rc-library-label"><i class="bi bi-people"></i><span><strong>People &amp; customer experience</strong><small>Quality, satisfaction, and individual performance</small></span></div>
       <div class="rc-report-grid">
+        <% if (reportRole === 'admin') { %><a class="rc-report-card" href="/admin/reports/customers"><span class="rc-report-icon blue"><i class="bi bi-people"></i></span><span class="rc-report-content"><strong>Customer Performance</strong><small>Frequent customers, lowest engagement, and individual booking, product, spending, and loyalty records.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a><% } %>
         <a class="rc-report-card" href="/<%= reportRole %>/ratings/service"><span class="rc-report-icon cyan"><i class="bi bi-star-half"></i></span><span class="rc-report-content"><strong>Customer Ratings</strong><small>Customer sentiment, service quality patterns, and rating exceptions.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a>
         <a class="rc-report-card" href="/<%= reportRole %>/ratings/technicians"><span class="rc-report-icon red"><i class="bi bi-award"></i></span><span class="rc-report-content"><strong>Technician Ratings</strong><small>Individual performance, customer feedback, and coaching opportunities.</small><span>Open technician report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
@@ -108,6 +117,11 @@
       <% if (reportRole === "admin") { %><a href="/admin/audit-trail"><i class="bi bi-shield-lock"></i> Audit trail</a><% } %>
     </nav>
   </section>
+  </div>
+
+  <div id="rcPanelDecisions" class="rc-tab-panel" role="tabpanel" aria-labelledby="rcTabDecisions"<% if (reportInitialTab !== 'decisions') { %> hidden<% } %>>
+    <%- include('DecisionIntelligence', { embeddedDecision: true }) %>
+  </div>
 </div>
 
-<script src="/js/admin-report-center.js?v=20260927-report-center" defer></script>
+<script src="/js/admin-report-center.js?v=20261008-tabs" defer></script>

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { parseBookingDateTime } = require('../utils/overdueBookingScheduler');
+const { parseBookingDateTime, customerReminderSlot } = require('../utils/overdueBookingScheduler');
 const { computeBookingEndDateTime, isBookingPast } = require('../utils/bookingPolicy');
 const { bookingReviewState } = require('../utils/bookingReview');
 const { assignmentTimingState, manilaSlotTiming, strictManilaDateKey } = require('../utils/bookingDateTime');
@@ -26,6 +26,20 @@ test('overdue scheduler combines the selected Manila date with its start time', 
     parseBookingDateTime(manilaSeptember14, '17:00').toISOString(),
     '2026-09-14T09:00:00.000Z',
   );
+});
+
+test('customer reminders follow the confirmed schedule and can repeat after rescheduling', () => {
+  const booking = { status: 'confirmed', customerId: 'customer-1', bookingDate: manilaSeptember14, startTime: '17:00' };
+  const dayBefore = new Date('2026-09-13T10:00:00.000Z');
+  const nearStart = new Date('2026-09-14T08:00:00.000Z');
+  assert.equal(customerReminderSlot({ ...booking, status: 'pending' }, dayBefore), null);
+  assert.equal(customerReminderSlot({ ...booking, startTime: '' }, dayBefore), null);
+  assert.equal(customerReminderSlot(booking, dayBefore).marker, 'customerReminder24hFor');
+  assert.equal(customerReminderSlot(booking, new Date('2026-09-14T04:00:00.000Z')), null);
+  assert.equal(customerReminderSlot({ ...booking, customerReminder24hFor: new Date('2026-09-14T09:00:00.000Z') }, dayBefore), null);
+  assert.equal(customerReminderSlot(booking, nearStart).marker, 'customerReminder2hFor');
+  assert.equal(customerReminderSlot({ ...booking, startTime: '18:00', customerReminder2hFor: new Date('2026-09-14T09:00:00.000Z') }, nearStart).marker, 'customerReminder2hFor');
+  assert.equal(customerReminderSlot(booking, new Date('2026-09-14T09:01:00.000Z')), null);
 });
 
 test('service lifecycle guard uses the Manila service window on any host', () => {
@@ -61,6 +75,12 @@ test('pending review does not mark a future Manila schedule overdue', () => {
     new Date('2026-09-14T05:41:00.000Z'),
   );
   assert.equal(state.isReviewOverdue, false);
+});
+
+test('staff rescheduling stores and announces the agreed Manila time', () => {
+  assert.match(appointmentRoute, /strictManilaDateKey\(String\(newDate\)\) === String\(newDate\)/);
+  assert.match(appointmentRoute, /manilaDateTime\(newDate, timeParts\[0\] \* 60 \+ timeParts\[1\]\)/);
+  assert.match(appointmentRoute, /replacementStart\.toLocaleString\('en-PH', \{ timeZone: 'Asia\/Manila'/);
 });
 
 test('assignment UI does not let a stale auto-reschedule flag override a future schedule', () => {

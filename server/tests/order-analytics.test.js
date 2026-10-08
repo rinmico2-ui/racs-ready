@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildBuckets, buildOrderAnalytics, recognizedOrders } = require("../utils/orderAnalytics");
+const { buildBuckets, buildOrderAnalytics, productRankings, recognizedOrders } = require("../utils/orderAnalytics");
 
 const startDate = new Date(2026, 0, 1, 0, 0, 0, 0);
 const endDate = new Date(2026, 0, 31, 23, 59, 59, 999);
@@ -15,6 +15,23 @@ test("recognizes order revenue on completion rather than creation", () => {
     total: 25000,
   }];
   assert.equal(recognizedOrders(orders, startDate, endDate).length, 1);
+});
+
+test("product decisions distinguish completed demand, distinct orders, and current stock", () => {
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 86400000);
+  const orders = [
+    { _id: 'a', items: [{ inventoryId: 'fast', brand: 'A', modelLine: 'Fast', quantity: 6, totalPrice: 6000 }, { inventoryId: 'fast', brand: 'A', modelLine: 'Fast', quantity: 4, totalPrice: 4000 }] },
+    { _id: 'b', items: [{ inventoryId: 'slow', brand: 'B', modelLine: 'Slow', quantity: 2, totalPrice: 4000 }] },
+  ];
+  const stock = [{ _id: 'fast', quantity: 1, minStockLevel: 3 }, { _id: 'slow', quantity: 15, minStockLevel: 3 }];
+  const result = productRankings(orders, stock, start, end);
+  assert.equal(result.mostOrderedProducts[0].orders, 1);
+  assert.equal(result.mostOrderedProducts[0].decision, 'Review replenishment');
+  assert.equal(result.leastOrderedProducts[0].decision, 'Pause extra buying');
+  assert.equal(result.productDecisions.length, 2);
+  assert.equal(productRankings(orders, stock, start, end, false).productDecisions.length, 0);
+  assert.equal(productRankings(orders, stock, new Date(2025, 0, 1), new Date(2025, 0, 31)).productDecisions.length, 0);
 });
 
 test("uses complete calendar buckets instead of fractional millisecond buckets", () => {
@@ -81,6 +98,40 @@ test("separates booked value, recognized sales, collections, refunds, and outsta
   assert.equal(result.estimatedCost, 600);
   assert.equal(result.estimatedGrossMargin, 400);
   assert.equal(result.marginReliable, true);
+});
+
+test("completed installation consumables reduce order contribution without counting voided usage", () => {
+  const installation = {
+    _id: "installation-order", bookingId: "linked-booking", status: "completed", fulfillmentType: "delivery_installation",
+    createdAt: startDate, completedAt: new Date(2026, 0, 5), total: 1000,
+    items: [{ inventoryId: "unit", quantity: 1, totalPrice: 1000 }],
+  };
+  const result = buildOrderAnalytics({
+    cohortOrders: [installation], completionCandidates: [installation],
+    inventoryItems: [{ _id: "unit", costPrice: 500 }],
+    orderConsumableUsages: [
+      { orderId: "installation-order", itemType: "consumable", quantityUsed: 2, unitPrice: 50, lifecycleStatus: "active" },
+      { orderId: "installation-order", itemType: "consumable", quantityUsed: 1, unitPrice: 80, lifecycleStatus: "voided" },
+      { orderId: "installation-order", itemType: "consumable", quantityUsed: 1, unitPrice: 0, lifecycleStatus: "active" },
+      { orderId: "another-order", itemType: "consumable", quantityUsed: 1, unitPrice: 100, lifecycleStatus: "active" },
+    ],
+    linkedInstallationServices: [{
+      bookingId: "linked-booking", partsCost: 20, consumablesCost: 10,
+      laborCost: 70, localPurchaseCost: 5,
+    }],
+    startDate, endDate, previousStart, previousEnd,
+  });
+  assert.equal(result.productCost, 500);
+  assert.equal(result.consumablesCost, 110);
+  assert.equal(result.linkedServiceCost, 95);
+  assert.equal(result.estimatedCost, 705);
+  assert.equal(result.estimatedGrossMargin, 295);
+  assert.equal(result.orderCostRows[0].consumablesCost, 110);
+  assert.equal(result.orderCostRows[0].linkedServiceCost, 95);
+  assert.equal(result.orderCostRows[0].knownContribution, 295);
+  assert.equal(result.installationsWithoutUsage, 0);
+  assert.equal(result.consumablesMissingCostRecords, 1);
+  assert.equal(result.marginReliable, false); // Installation labor is not allocated.
 });
 
 test("item-level RMA refunds reduce net collections without erasing the original payment", () => {

@@ -8,6 +8,11 @@
   function dashboardLink(key, fallback) {
     return Object.prototype.hasOwnProperty.call(dashboardLinks, key) ? dashboardLinks[key] : fallback;
   }
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (character) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+    });
+  }
 
   // ── KPI Modal ──
   var kpiModalOverlay = $('kpiModalOverlay');
@@ -225,7 +230,7 @@
         renderStat('Monthly Expenses', fmtM(_dashData.monthlyExpenses || 0), 'bi-receipt') +
         renderStat('Pending Expenses', _dashData.pendingExpenses || 0, 'bi-clock-history') +
         renderStat('Pending Exp. Total', fmtM(_dashData.pendingExpensesTotal || 0), 'bi-exclamation-circle') +
-        renderStat('Profit Margin', (_dashData.profitMargin || 0) + '%', 'bi-pie-chart')
+        renderStat('Recorded Operating Margin', (_dashData.profitMargin || 0) + '%', 'bi-pie-chart')
       );
     }
     if (type === 'awaiting') {
@@ -644,7 +649,7 @@
       renderSection('Profitability', 'green',
         renderStat('Monthly Expenses', fmtM(_dashData.monthlyExpenses || 0, cur), 'bi-receipt') +
         renderStat('Operating Profit', fmtM(profit, cur), 'bi-currency-dollar') +
-        renderStat('Profit Margin', (_dashData.profitMargin || 0) + '%', 'bi-pie-chart')
+        renderStat('Recorded Operating Margin', (_dashData.profitMargin || 0) + '%', 'bi-pie-chart')
       );
     }
   };
@@ -888,14 +893,14 @@
       return renderSection('Inventory Snapshot', 'blue',
         renderStat('Total Products', s.totalProducts || 0, 'bi-boxes') +
         renderStat('Total Stock Units', s.totalUnits || 0, 'bi-box-seam') +
-        renderStat('Inventory Value', fmtM(s.totalValue || 0, 'PHP'), 'bi-coin') +
+        renderStat('Recorded Aircon Stock Cost', fmtM(s.totalValue || 0, 'PHP'), 'bi-coin') +
         renderStat('Low / Out of Stock', (low + out) + ' <span style="font-size:0.75rem;color:#94a3b8;">(' + low + ' low, ' + out + ' out)</span>', 'bi-exclamation-triangle')
       );
     }
   };
 
   dashboardCardConfig.topAirconProducts = {
-    title: 'Top Aircon Products',
+    title: 'Highest-Value Aircon Stock',
     subtitle: 'Inventory items and stock status',
     iconClass: 'bi-grid-fill',
     color: '#2563eb',
@@ -905,21 +910,21 @@
     getContent: function() {
       var products = _dashData.topProducts || [];
       if (!products.length) return renderSection('Products', 'blue', '<div class="dash-empty">No products in inventory</div>');
-      return renderSection('Top Products', 'blue',
+      return renderSection('Aircon stock by recorded cost value', 'blue',
         '<div class="inv-prod-grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:8px;">' + products.map(function(p) {
           var st = (p.status === 'in_stock' ? 'success' : p.status === 'low_stock' ? 'warning' : p.status === 'out_of_stock' ? 'danger' : 'info');
           var imgSrc = p.imageUrl && p.imageUrl !== '/images/products/default.png' ? p.imageUrl : null;
           return '<div class="inv-prod-card" style="padding:10px;">' +
             (p.inverter ? '<div class="inv-prod-inverter"><i class="bi bi-lightning-fill me-1"></i>Inverter</div>' : '') +
             '<div class="inv-prod-img" style="height:80px;">' +
-            (imgSrc ? '<img src="' + imgSrc + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" />' : '') +
+            (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" />' : '') +
             '<div class="fallback-icon" style="display:' + (imgSrc ? 'none' : 'flex') + ';align-items:center;justify-content:center;width:100%;height:100%;"><i class="bi bi-box-seam"></i></div>' +
             '</div>' +
             '<div class="inv-prod-body">' +
-            '<div class="inv-prod-name" style="font-size:0.75rem;" title="' + (p.displayLabel || '') + '">' + (p.displayLabel || 'Aircon') + '</div>' +
+            '<div class="inv-prod-name" style="font-size:0.75rem;" title="' + escapeHtml(p.displayLabel || '') + '">' + escapeHtml(p.displayLabel || 'Aircon') + '</div>' +
             '<div class="inv-prod-meta" style="font-size:0.65rem;">Stock: ' + (p.quantity != null ? p.quantity : 0) + '</div>' +
             '<div class="inv-prod-footer" style="flex-direction:column;align-items:flex-start;gap:2px;">' +
-            '<span class="inv-prod-price">' + fmtM(p.sellingPrice, 'PHP') + '</span>' +
+            '<span class="inv-prod-price">' + (p.costPrice > 0 ? 'Stock cost ' + fmtM(p.costPrice * p.quantity, 'PHP') : 'Cost unavailable') + '</span>' +
             '<span class="dash-chip ' + st + '" style="font-size:0.55rem;padding:1px 6px;">' + (statusLabel(p.status) || p.status) + '</span>' +
             '</div></div></div>';
         }).join('') + '</div>'
@@ -1326,8 +1331,7 @@
     // ── Bookings Trend Chart ──
     (function() {
       var cvs = $('chartBookingsTrend');
-      if (!cvs || !window.Chart) return;
-      if (window._bookingsTrend) window._bookingsTrend.destroy();
+      if (!cvs) return;
       var trend = d.trend7 || [];
       var labels = trend.map(function(t) { return t.date; });
       var counts = trend.map(function(t) { return t.count; });
@@ -1335,6 +1339,15 @@
       var total7 = counts.reduce(function(s, c){ return s + c; }, 0);
       var max7 = Math.max.apply(Math, counts.concat([0]));
       var avg7 = counts.length ? Math.round(total7 / counts.length) : 0;
+      setText('bookingsAvg', avg7);
+      setText('bookingsPeak', max7);
+      var half = Math.floor(counts.length / 2);
+      var previous = half ? counts.slice(0, half).reduce(function (sum, value) { return sum + value; }, 0) : 0;
+      var recent = half ? counts.slice(-half).reduce(function (sum, value) { return sum + value; }, 0) : 0;
+      var growth = previous > 0 ? Math.round((recent - previous) * 100 / previous) : null;
+      setText('bookingsGrowth', growth === null ? 'No baseline' : (growth >= 0 ? '+' : '') + growth + '%');
+      if (!window.Chart) return;
+      if (window._bookingsTrend) window._bookingsTrend.destroy();
       var ctx = cvs.getContext('2d');
       var g = ctx.createLinearGradient(0,0,0,250);
       g.addColorStop(0, 'rgba(37,99,235,0.35)');
@@ -1361,18 +1374,45 @@
           },
         },
       });
-      var parent = cvs.closest('.chart-container');
-      if (parent) {
-        var summary = parent.querySelector('.trend-summary');
-        if (!summary) {
-          summary = document.createElement('div');
-          summary.className = 'dash-stat-grid trend-summary';
-          parent.appendChild(summary);
-        }
-        summary.innerHTML = '<div class="dash-stat-card"><div class="dash-stat-card-val">' + total7 + '</div><div class="dash-stat-card-lbl">Total 7-Day</div></div>' +
-          '<div class="dash-stat-card"><div class="dash-stat-card-val">' + (d.totalBookingsToday || 0) + '</div><div class="dash-stat-card-lbl">Today</div></div>' +
-          '<div class="dash-stat-card"><div class="dash-stat-card-val">' + max7 + '</div><div class="dash-stat-card-lbl">Peak Day</div></div>';
+    })();
+
+    // Revenue is drawn from the same recognized-revenue snapshot as the
+    // financial overview; a failed snapshot never becomes a zero-value chart.
+    (function() {
+      var cvs = $('chartRevenueTrend');
+      if (!cvs) return;
+      var container = cvs.closest('.chart-container');
+      if (d.financialDataAvailable === false) {
+        if (container) container.textContent = 'Authoritative revenue trend unavailable.';
+        setText('revenueTotal', 'Unavailable');
+        setText('revenueAvg', 'Unavailable');
+        setText('revenueGrowth', 'Unavailable');
+        return;
       }
+      var trend = d.revenueTrend7 || [];
+      var amounts = trend.map(function (row) { return Number(row.amount) || 0; });
+      var total = amounts.reduce(function (sum, value) { return sum + value; }, 0);
+      setText('revenueTotal', fmtMoney(total, d.revenueCurrency));
+      setText('revenueAvg', amounts.length ? fmtMoney(total / amounts.length, d.revenueCurrency) : '—');
+      var half = Math.floor(amounts.length / 2);
+      var previous = half ? amounts.slice(0, half).reduce(function (sum, value) { return sum + value; }, 0) : 0;
+      var recent = half ? amounts.slice(-half).reduce(function (sum, value) { return sum + value; }, 0) : 0;
+      var change = previous > 0 ? Math.round((recent - previous) * 100 / previous) : null;
+      setText('revenueGrowth', change === null ? 'No baseline' : (change >= 0 ? '+' : '') + change + '%');
+      if (!window.Chart || !amounts.length) {
+        if (container && !amounts.length) container.textContent = 'No recognized revenue activity in this month.';
+        return;
+      }
+      if (window._dashboardRevenueTrend) window._dashboardRevenueTrend.destroy();
+      var ctx = cvs.getContext('2d');
+      var gradient = ctx.createLinearGradient(0, 0, 0, 250);
+      gradient.addColorStop(0, 'rgba(16,185,129,.28)');
+      gradient.addColorStop(1, 'rgba(16,185,129,.02)');
+      window._dashboardRevenueTrend = new Chart(ctx, {
+        type: 'line',
+        data: { labels: trend.map(function (row) { return row.date; }), datasets: [{ label: 'Recognized revenue', data: amounts, borderColor: '#059669', backgroundColor: gradient, fill: true, tension: .35, borderWidth: 3, pointRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (point) { return fmtMoney(point.raw, d.revenueCurrency); } } } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { callback: function (value) { return Number(value).toLocaleString('en-PH'); } } } } }
+      });
     })();
 
     // ── Service Distribution Pie ──
@@ -1542,6 +1582,12 @@
       var body = $('revenueBody');
       var meta = $('revenueCurrencyLabel');
       if (!body) return;
+      if (d.financialDataAvailable === false) {
+        if (meta) meta.textContent = 'Unavailable';
+        body.innerHTML = '<div class="dash-empty">Financial snapshot unavailable. Open Revenue Intelligence to retry the authoritative report.</div>';
+        body.closest('[data-card-type]')?.removeAttribute('data-card-type');
+        return;
+      }
       var cur = d.revenueCurrency || 'PHP';
       if (meta) meta.innerHTML = '<span class="dash-chip info"><i class="bi bi-currency-dollar"></i> ' + cur + '</span>';
 
@@ -1572,7 +1618,7 @@
         '<div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Monthly Expenses</span><span class="dash-list-value" style="color:#ef4444;">' + fmtMoney(d.monthlyExpenses, cur) + '</span></div>' +
         '<div class="dash-list-row"><span class="dash-list-label">Operating Profit</span><span class="dash-list-value" style="color:' + (profit >= 0 ? '#10b981' : '#dc2626') + ';">' + fmtMoney(profit, cur) + '</span></div>' +
-        '<div class="dash-list-row"><span class="dash-list-label">Profit Margin</span><span class="dash-list-value" style="color:' + marginColor + ';">' + (d.profitMargin != null ? d.profitMargin + '%' : '--') + '</span></div>' +
+        '<div class="dash-list-row"><span class="dash-list-label">Recorded Operating Margin</span><span class="dash-list-value" style="color:' + marginColor + ';">' + (d.profitMargin != null ? d.profitMargin + '%' : '--') + '</span></div>' +
         '</div>' +
         '</div>';
 
@@ -1699,12 +1745,13 @@
       setText('execAvgRating', (d.avgRating || '--') + ' ★');
       setText('execActiveProjects', d.activeProjects || 0);
       setText('execCompletionRate', (d.completionRate || 0) + '%');
-      setText('execProfitMargin', d.profitMargin != null ? d.profitMargin + '%' : '--');
+      setText('execProfitMargin', d.financialDataAvailable === false ? 'Unavailable' : d.profitMargin != null ? d.profitMargin + '%' : '--');
 
       // Insight chips
       var chips = $('execInsights');
       if (chips) {
         var insightList = [];
+        if (d.financialDataAvailable === false) insightList.push({ cls: 'warning', icon: 'bi-exclamation-triangle', text: 'Financial snapshot unavailable' });
         if (d.awaitingAssignment > 0) insightList.push({ cls: 'warning', icon: 'bi-person-plus-fill', text: d.awaitingAssignment + ' awaiting assignment' });
         if (d.pendingReview > 0) insightList.push({ cls: 'warning', icon: 'bi-clock-history', text: d.pendingReview + ' pending review' });
         if (d.pendingExpenses > 0) insightList.push({ cls: 'info', icon: 'bi-receipt', text: d.pendingExpenses + ' expense' + (d.pendingExpenses > 1 ? 's' : '') + ' to approve' });
@@ -1788,6 +1835,11 @@
     (function() {
       var body = $('expenseBody');
       if (!body) return;
+      if (d.financialDataAvailable === false) {
+        body.innerHTML = '<div class="dash-empty">Expense and margin snapshot unavailable. Review Revenue Intelligence.</div>';
+        body.closest('[data-card-type]')?.removeAttribute('data-card-type');
+        return;
+      }
       var cur = d.revenueCurrency || 'PHP';
       var pendCount = d.pendingExpenses || 0;
       var pendTotal = d.pendingExpensesTotal || 0;
@@ -1814,6 +1866,7 @@
       setText('inv-total-products', s.totalProducts != null ? s.totalProducts : '--');
       setText('inv-total-units', s.totalUnits != null ? s.totalUnits : '--');
       setText('inv-total-value', s.totalValue != null ? fmtMoney(s.totalValue, 'PHP') : '--');
+      setText('inv-value-sub', s.costCoveragePercent != null ? s.costCoveragePercent + '% of stocked units have cost data' : 'Cost coverage unavailable');
       setText('inv-lowstock-count', s.lowStock != null ? (s.lowStock + (s.outOfStock != null ? ' / ' + s.outOfStock : '')) : '--');
 
       // Inventory status chips
@@ -1838,14 +1891,14 @@
         return '<div class="inv-prod-card">' +
           (p.inverter ? '<div class="inv-prod-inverter"><i class="bi bi-lightning-fill me-1"></i>Inverter</div>' : '') +
           '<div class="inv-prod-img">' +
-          (imgSrc ? '<img src="' + imgSrc + '" alt="' + (p.displayLabel || '') + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" />' : '') +
+          (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(p.displayLabel || '') + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';" />' : '') +
           '<div class="fallback-icon" style="display:' + (imgSrc ? 'none' : 'flex') + ';align-items:center;justify-content:center;width:100%;height:100%;"><i class="bi bi-box-seam"></i></div>' +
           '</div>' +
           '<div class="inv-prod-body">' +
-          '<div class="inv-prod-name" title="' + (p.displayLabel || '') + '">' + (p.displayLabel || 'Aircon') + '</div>' +
+          '<div class="inv-prod-name" title="' + escapeHtml(p.displayLabel || '') + '">' + escapeHtml(p.displayLabel || 'Aircon') + '</div>' +
           '<div class="inv-prod-meta">Stock: ' + (p.quantity != null ? p.quantity : 0) + ' units</div>' +
           '<div class="inv-prod-footer">' +
-          '<span class="inv-prod-price">' + fmtMoney(p.sellingPrice, 'PHP') + '</span>' +
+          '<span class="inv-prod-price">' + (p.costPrice > 0 ? 'Stock cost ' + fmtMoney(p.costPrice * p.quantity, 'PHP') : 'Cost unavailable') + '</span>' +
           '<span class="inv-prod-badge ' + stCls + '">' + statusText + '</span>' +
           '</div></div></div>';
       }).join('') + '</div>';
@@ -1936,7 +1989,7 @@
       // Low stock
       var lowStock = d.lowStockCount || 0;
       if (lowStock > 0) {
-        var items = (d.lowStockItems || []).slice(0, 3).map(function(i) { return i.name || i.productName || 'Item'; }).join(', ');
+        var items = (d.lowStockItems || []).slice(0, 3).map(function(i) { return i.modelLine || i.name || i.productName || 'Item'; }).join(', ');
         insights.push({
           type: 'danger', icon: 'bi-exclamation-triangle',
           title: lowStock + ' item' + (lowStock > 1 ? 's' : '') + ' low on stock',

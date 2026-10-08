@@ -20,7 +20,7 @@ const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
-const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('../utils/bookingDateTime');
+const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime, strictManilaDateKey } = require('../utils/bookingDateTime');
 const { assertCompanyCapacity } = require('../utils/bookingPolicy');
 const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
 const { listSortStages, bookingPendingFilters } = require('../utils/operationsListPolicy');
@@ -312,7 +312,14 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     const sortPreset = sortKeys[sortKey] || sortKey;
     // Keep the common recent-bookings path indexable. Computed sort fields
     // are only needed for service-date and amount ordering.
-    const sortStages = sortPreset === 'newest' || sortPreset === 'oldest'
+    const sortStages = sortPreset === 'priority'
+      ? [{ $addFields: { _priorityRank: { $switch: { branches: [
+        { case: { $eq: ['$priority', 'critical'] }, then: 4 },
+        { case: { $eq: ['$priority', 'high'] }, then: 3 },
+        { case: { $eq: ['$priority', 'medium'] }, then: 2 },
+        { case: { $eq: ['$priority', 'low'] }, then: 1 },
+      ], default: 2 } } } }, { $sort: { _priorityRank: -1, bookingDate: 1, createdAt: 1, _id: 1 } }]
+      : sortPreset === 'newest' || sortPreset === 'oldest'
       ? [{ $sort: { createdAt: sortPreset === 'newest' ? -1 : 1, _id: sortPreset === 'newest' ? -1 : 1 } }]
       : listSortStages('booking', sortPreset);
     const pipeline = [{ $match: query }, ...sortStages,
@@ -327,7 +334,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'services.problemDescription', 'services.repairIssue',
         'serviceType', 'serviceModel',
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
-        'autoReschedulePending', 'duration', 'createdAt', 'updatedAt',
+        'autoReschedulePending', 'priority', 'duration', 'createdAt', 'updatedAt',
       ];
       const projection = Object.fromEntries(fields.map(field => [field, 1]));
       if (req.query.compact === 'queue') {
@@ -338,7 +345,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       }
       pipeline.push({ $project: projection });
     } else {
-      pipeline.push({ $project: { _listDate: 0, _listUndated: 0, _listAmount: 0, completionProofFileId: 0 } });
+      pipeline.push({ $project: { _listDate: 0, _listUndated: 0, _listAmount: 0, _priorityRank: 0, completionProofFileId: 0 } });
     }
     const [total, bookings] = await Promise.all([
       BookingService.countDocuments(query),
@@ -540,7 +547,7 @@ router.get('/queue-metrics', requireRole(['admin', 'secretary']), async (req, re
 });
 
 /**
- * Replace an overdue requested schedule while preserving Pending Review.
+ * Replace a requested schedule while preserving Pending Review.
  * Payment verification remains a separate admin decision.
  */
 router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async (req, res) => {
@@ -559,21 +566,16 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
     if (booking.status !== BookingStatus.PENDING) {
       return res.status(409).json({ error: `Only Pending Review bookings can use this reschedule action (current: "${booking.status}").` });
     }
-    if (!bookingReviewState(booking).isReviewOverdue) {
-      return res.status(409).json({ error: 'This booking is not overdue for review.' });
-    }
-
-    const dateParts = String(newDate).split('-').map(Number);
     const timeParts = String(newTime).split(':').map(Number);
-    const replacementStart = new Date(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1], 0, 0);
-    if (Number.isNaN(replacementStart.getTime()) || replacementStart.getTime() <= Date.now()) {
+    const replacementStart = strictManilaDateKey(String(newDate)) === String(newDate)
+      ? manilaDateTime(newDate, timeParts[0] * 60 + timeParts[1]) : null;
+    if (!replacementStart || replacementStart.getTime() <= Date.now()) {
       return res.status(400).json({ error: 'The replacement schedule must be in the future.' });
     }
 
     const originalDate = booking.preferredDate || booking.bookingDate;
     const originalStartTime = booking.preferredTime || booking.startTime || '';
-    const durationMinutes = Math.max(30, Number(booking.serviceDurationMinutes) || 60);
-    const replacementEnd = new Date(replacementStart.getTime() + durationMinutes * 60000);
+    const durationMinutes = Math.max(30, Math.ceil(Number(booking.serviceDurationMinutes) || 60));
     const pad = value => String(value).padStart(2, '0');
 
     await withOperationLock(bookingCapacityLockKey(newDate), async () => {
@@ -586,7 +588,8 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
     booking.bookingDate = replacementStart;
     if (booking.preferredDate) booking.preferredDate = replacementStart;
     booking.startTime = newTime;
-    booking.endTime = `${pad(replacementEnd.getHours())}:${pad(replacementEnd.getMinutes())}`;
+    const endMinutes = (timeParts[0] * 60 + timeParts[1] + durationMinutes) % 1440;
+    booking.endTime = `${pad(Math.floor(endMinutes / 60))}:${pad(endMinutes % 60)}`;
     if (booking.preferredTime) booking.preferredTime = newTime;
     booking.selectedTimeLabel = `${newTime} - ${booking.endTime}`;
     booking.recordStatusHistory({
@@ -595,7 +598,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
       changedBy: req.user._id,
       changedByModel: 'User',
       changedByName: req.user.name || req.user.email || 'Admin',
-      reason: 'Overdue review schedule replaced after customer contact',
+      reason: 'Requested schedule replaced after customer confirmation',
       notes: String(notes || '').trim().slice(0, 1000),
       metadata: { originalDate, originalStartTime, replacementStart },
     });
@@ -607,8 +610,8 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
     await createNotification({
       type: 'booking_rescheduled',
       title: 'Booking Schedule Updated',
-      message: `Your requested service schedule for ${booking.bookingReference || 'your booking'} was updated to ${replacementStart.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}. The booking remains pending admin review.`,
-      userId: booking.customerId,
+      message: `Your requested service schedule for ${booking.bookingReference || 'your booking'} was updated to ${replacementStart.toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })}. The booking remains pending admin review.`,
+      userId: booking.customerId || booking.customer?._id,
       role: 'customer',
       referenceId: booking._id,
       referenceModel: 'BookingService',
@@ -622,7 +625,7 @@ router.post('/:id/review-reschedule', requireRole(["admin", "secretary"]), async
       message: 'Schedule updated. The booking remains Pending Review.',
     });
   } catch (error) {
-    console.error('Failed to reschedule overdue pending review:', error);
+    console.error('Failed to reschedule pending review:', error);
     res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to update the requested schedule' });
   }
 });
@@ -651,9 +654,32 @@ router.post('/:id/move-to-queue', requireRole(["admin", "secretary"]), async (re
 });
 
 /**
- * POST /api/admin/appointments/:id/assign
- * Assign technician to booking
+ * PATCH /api/admin/appointments/:id/priority
+ * Order the assignment queue by staff-reviewed scheduling priority.
  */
+router.patch('/:id/priority', requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const priority = String(req.body?.priority || '').toLowerCase();
+    if (!['low', 'medium', 'high', 'critical'].includes(priority)) return res.status(400).json({ error: 'Choose a valid priority.' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid booking id.' });
+    const booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    if (!['awaiting_assignment', 'pending_reassignment', 'rescheduled'].includes(booking.status)) {
+      return res.status(409).json({ error: 'Only bookings waiting for assignment can change priority.' });
+    }
+    if (booking.priority !== priority) {
+      booking.priority = priority;
+      booking.recordStatusHistory({ fromStatus: booking.status, toStatus: booking.status, changedBy: req.user._id, changedByModel: 'User', changedByName: req.user.name || req.user.email || 'Staff', reason: `Scheduling priority set to ${priority}` });
+      await booking.save();
+    }
+    res.json({ success: true, priority: booking.priority });
+  } catch (error) {
+    console.error('Failed to update scheduling priority:', error);
+    res.status(500).json({ error: 'Failed to update scheduling priority.' });
+  }
+});
+
+/** POST /api/admin/appointments/:id/assign — assign technician to booking. */
 router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const { technicianId, priority, notes } = req.body;
@@ -965,6 +991,9 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
   try {
     const { reason, note } = req.body;
     if (!reason) return res.status(400).json({ error: 'Rejection reason is required' });
+    if (['schedule_conflict', 'personal_matter', 'customer_unavailable'].includes(String(reason).toLowerCase())) {
+      return res.status(409).json({ code: 'RESCHEDULE_RECOMMENDED', error: 'For a schedule conflict or personal matter, contact the customer and use Reschedule so the request stays open.' });
+    }
 
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
@@ -994,6 +1023,20 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
       link: '/admin/appointments/pending',
       io,
     });
+
+    if (booking.customerId || booking.customer?._id) {
+      await createNotification({
+        type: 'booking_cancelled',
+        title: 'Service Request Rejected',
+        message: `Your service request ${booking.bookingReference || ''} was rejected. Reason: ${reason}${note ? `. ${String(note).slice(0, 300)}` : ''}`,
+        userId: booking.customerId || booking.customer?._id,
+        role: 'customer',
+        referenceId: booking._id,
+        referenceModel: 'BookingService',
+        link: '/tracking',
+        io,
+      }).catch(error => console.error('Failed to notify customer of rejection:', error));
+    }
 
     res.json({ success: true, booking });
   } catch (error) {

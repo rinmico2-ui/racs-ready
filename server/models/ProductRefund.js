@@ -18,4 +18,5 @@ const productRefundSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 productRefundSchema.index({ sourceType: 1, sourceId: 1, status: 1 });
+productRefundSchema.index({ status: 1, processedAt: -1 }); // Completed item refunds by reporting period
 module.exports = mongoose.model("ProductRefund", productRefundSchema);

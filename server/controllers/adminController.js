@@ -885,6 +885,7 @@ exports.analyticsSummary = async (req, res, next) => {
       // Revenue
       monthlyRevenue: 0,
       pendingPayments: 0,
+      financialDataAvailable: false,
 
       // 7-day trend
       trend7: [],
@@ -1120,281 +1121,6 @@ exports.analyticsSummary = async (req, res, next) => {
       console.error("[analyticsSummary] Enterprise revenue snapshot error:", revenueError.message);
     }
 
-    if (!revenueSnapshot) try {
-      var Payment = require("../models/Payment");
-      var BookingService = require("../models/BookingService");
-      var WalkInSale = require("../models/WalkInSale");
-      var Order = require("../models/Order");
-      var paidStatuses = ["paid", "payment_collected", "waiting_for_remittance", "remitted", "verified"];
-      var allCompletedBookingStatuses = [
-        "completed", "repair_completed", "under_warranty", "warranty_claim"
-      ];
-
-      // Helper: build date range filter for a given date field
-      function dateRange(fieldName, start, end) {
-        var f = {};
-        f[fieldName] = { $gte: start, $lte: end };
-        return f;
-      }
-
-      // ── Today's Revenue ──
-      // 1) Payments (service payments)
-      var todayPaymentAgg = await Payment.aggregate([
-        { $match: { submittedAt: { $gte: startOfDay, $lte: endOfDay }, status: { $in: paidStatuses } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      var todayPayments = (todayPaymentAgg && todayPaymentAgg[0]) ? todayPaymentAgg[0].total : 0;
-
-      // 2) Booking services (completed today, totalPrice)
-      var todayBookingsAgg = await BookingService.aggregate([
-        { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", startOfDay, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
-      ]);
-      var todayBookings = (todayBookingsAgg && todayBookingsAgg[0]) ? todayBookingsAgg[0].total : 0;
-
-      // 3) Walk-in POS sales (completed today)
-      var todayPosAgg = await WalkInSale.aggregate([
-        { $match: { status: "completed", ...dateRange("completedAt", startOfDay, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-      ]);
-      var todayPos = (todayPosAgg && todayPosAgg[0]) ? todayPosAgg[0].total : 0;
-
-      // 4) Product orders (completed today)
-      var todayOrdersAgg = await Order.aggregate([
-        { $match: { status: "completed", ...dateRange("updatedAt", startOfDay, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]);
-      var todayOrders = (todayOrdersAgg && todayOrdersAgg[0]) ? todayOrdersAgg[0].total : 0;
-
-      data.revenueToday = todayPayments + todayBookings + todayPos + todayOrders;
-      data.revenueBreakdown = {
-        services: todayPayments + todayBookings,
-        pos: todayPos,
-        orders: todayOrders,
-      };
-
-      // ── Monthly Revenue ──
-      var monthPaymentAgg = await Payment.aggregate([
-        { $match: { submittedAt: { $gte: startOfMonth, $lte: endOfDay }, status: { $in: paidStatuses } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      var monthPayments = (monthPaymentAgg && monthPaymentAgg[0]) ? monthPaymentAgg[0].total : 0;
-
-      var monthBookingsAgg = await BookingService.aggregate([
-        { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", startOfMonth, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$totalPrice" } } },
-      ]);
-      var monthBookings = (monthBookingsAgg && monthBookingsAgg[0]) ? monthBookingsAgg[0].total : 0;
-
-      var monthPosAgg = await WalkInSale.aggregate([
-        { $match: { status: "completed", ...dateRange("completedAt", startOfMonth, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-      ]);
-      var monthPos = (monthPosAgg && monthPosAgg[0]) ? monthPosAgg[0].total : 0;
-
-      var monthOrdersAgg = await Order.aggregate([
-        { $match: { status: "completed", ...dateRange("updatedAt", startOfMonth, endOfDay) } },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]);
-      var monthOrders = (monthOrdersAgg && monthOrdersAgg[0]) ? monthOrdersAgg[0].total : 0;
-
-      data.monthlyRevenue = monthPayments + monthBookings + monthPos + monthOrders;
-
-      // ── Pending payments ──
-      var pendingAgg = await Payment.aggregate([
-        { $match: { status: { $in: ["pending", "partial"] } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]);
-      data.pendingPayments = (pendingAgg && pendingAgg[0]) ? pendingAgg[0].total : 0;
-
-    } catch (e) {
-      data.revenueToday = 0;
-      data.monthlyRevenue = 0;
-      data.pendingPayments = 0;
-      data.revenueBreakdown = { services: 0, pos: 0, orders: 0 };
-    }
-
-    // ── Low stock ──
-    try {
-      var Inventory = require("../models/Inventory");
-      var low = await Inventory.find({ active: true, quantity: { $lte: 5 } }).limit(10).lean();
-      data.lowStockItems = low;
-      data.lowStockCount = low.length;
-    } catch (e) {
-      data.lowStockCount = 0;
-      data.lowStockItems = [];
-    }
-
-    // ── HVAC Product Inventory Stats (aircons) ──
-    try {
-      var HVACProduct = require("../models/HVACProduct");
-      var hvacDocs = await HVACProduct.find({ active: true })
-        .populate("brand", "name")
-        .lean();
-
-      var allVariants = [];
-      hvacDocs.forEach(function(doc) {
-        (doc.variants || []).forEach(function(v) {
-          if (v.active !== false) {
-            allVariants.push({
-              _id: v._id,
-              productId: doc._id,
-              modelLine: doc.modelLine,
-              brandName: doc.brand && doc.brand.name ? doc.brand.name : '',
-              type: doc.type,
-              inverter: doc.inverter || false,
-              imageUrl: doc.imageUrl || '/images/products/default.png',
-              capacity: v.capacity || '',
-              displayLabel: doc.modelLine + ' ' + (v.capacity || '') + 'HP',
-              sellingPrice: v.sellingPrice || 0,
-              quantity: v.quantity || 0,
-              status: v.status || 'out_of_stock',
-            });
-          }
-        });
-      });
-
-      data.inventoryStats = {
-        totalProducts: allVariants.length,
-        totalUnits: allVariants.reduce(function(s, v) { return s + v.quantity; }, 0),
-        totalValue: allVariants.reduce(function(s, v) { return s + (v.sellingPrice * v.quantity); }, 0),
-        inStock: allVariants.filter(function(v) { return v.status === 'in_stock'; }).length,
-        lowStock: allVariants.filter(function(v) { return v.status === 'low_stock'; }).length,
-        outOfStock: allVariants.filter(function(v) { return v.status === 'out_of_stock'; }).length,
-      };
-
-      allVariants.sort(function(a, b) {
-        return (b.sellingPrice * b.quantity) - (a.sellingPrice * a.quantity);
-      });
-      data.topProducts = allVariants.slice(0, 6);
-    } catch (e) {
-      data.inventoryStats = { totalProducts: 0, totalUnits: 0, totalValue: 0, inStock: 0, lowStock: 0, outOfStock: 0 };
-      data.topProducts = [];
-    }
-
-    // ── Enterprise: Customer Data ──
-    try {
-      var User = require("../models/User");
-      data.totalCustomers = await User.countDocuments({ role: "customer" }).catch(() => 0);
-      data.newCustomersThisMonth = await User.countDocuments({ role: "customer", createdAt: { $gte: startOfMonth } }).catch(() => 0);
-      data.vipCustomers = await User.countDocuments({ role: "customer", vip: true }).catch(() => 0);
-    } catch (e) {}
-
-    // ── Enterprise: Financial Analytics ──
-    try {
-      var Expense = require("../models/Expense");
-      var Payment = require("../models/Payment");
-      var BookingService = require("../models/BookingService");
-      var WalkInSale = require("../models/WalkInSale");
-      var Order = require("../models/Order");
-      var paidStatuses = ["paid", "payment_collected", "waiting_for_remittance", "remitted", "verified"];
-      var allCompletedBookingStatuses = [
-        "completed", "repair_completed", "under_warranty", "warranty_claim"
-      ];
-
-      function dateRange(fieldName, start, end) {
-        var f = {};
-        f[fieldName] = { $gte: start, $lte: end };
-        return f;
-      }
-
-      // Monthly approved expenses
-      var expAgg = await Expense.aggregate([
-        { $match: { status: "approved", expenseDate: { $gte: startOfMonth, $lte: endOfDay } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]).catch(() => []);
-      data.monthlyExpenses = (expAgg && expAgg[0]) ? expAgg[0].total : 0;
-
-      // Profit margin
-      if (data.monthlyRevenue > 0) {
-        data.profitMargin = Math.round(((data.monthlyRevenue - data.monthlyExpenses) / data.monthlyRevenue) * 100);
-      }
-
-      // Last month revenue (all sources)
-      var lastMonthStart = new Date(startOfMonth);
-      lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
-      var lastMonthEnd = new Date(startOfMonth);
-      lastMonthEnd.setDate(0);
-      lastMonthEnd.setHours(23, 59, 59, 999);
-      try {
-        var lmPayments = await Payment.aggregate([
-          { $match: { submittedAt: { $gte: lastMonthStart, $lte: lastMonthEnd }, status: { $in: paidStatuses } } },
-          { $group: { _id: null, total: { $sum: "$amount" } } },
-        ]);
-        var lmBookings = await BookingService.aggregate([
-          { $match: { status: { $in: allCompletedBookingStatuses }, ...dateRange("bookingDate", lastMonthStart, lastMonthEnd) } },
-          { $group: { _id: null, total: { $sum: "$totalPrice" } } },
-        ]);
-        var lmPos = await WalkInSale.aggregate([
-          { $match: { status: "completed", ...dateRange("completedAt", lastMonthStart, lastMonthEnd) } },
-          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-        ]);
-        var lmOrders = await Order.aggregate([
-          { $match: { status: "completed", ...dateRange("updatedAt", lastMonthStart, lastMonthEnd) } },
-          { $group: { _id: null, total: { $sum: "$total" } } },
-        ]);
-        data.lastMonthRevenue =
-          ((lmPayments && lmPayments[0]) ? lmPayments[0].total : 0) +
-          ((lmBookings && lmBookings[0]) ? lmBookings[0].total : 0) +
-          ((lmPos && lmPos[0]) ? lmPos[0].total : 0) +
-          ((lmOrders && lmOrders[0]) ? lmOrders[0].total : 0);
-      } catch (e) {}
-
-      // Revenue trend (last 7 days, per day — all sources)
-      try {
-        var revTrend = [];
-        for (var ri = 6; ri >= 0; ri--) {
-          var rd = new Date(); rd.setDate(rd.getDate() - ri); rd.setHours(0, 0, 0, 0);
-          var rdEnd = new Date(rd); rdEnd.setHours(23, 59, 59, 999);
-          var rdRange = { $gte: rd, $lte: rdEnd };
-
-          var rPay = await Payment.aggregate([
-            { $match: { submittedAt: rdRange, status: { $in: paidStatuses } } },
-            { $group: { _id: null, total: { $sum: "$amount" } } },
-          ]).catch(() => []);
-          var rBook = await BookingService.aggregate([
-            { $match: { status: { $in: allCompletedBookingStatuses }, bookingDate: rdRange } },
-            { $group: { _id: null, total: { $sum: "$totalPrice" } } },
-          ]).catch(() => []);
-          var rPos = await WalkInSale.aggregate([
-            { $match: { status: "completed", completedAt: rdRange } },
-            { $group: { _id: null, total: { $sum: "$totalAmount" } } },
-          ]).catch(() => []);
-          var rOrd = await Order.aggregate([
-            { $match: { status: "completed", updatedAt: rdRange } },
-            { $group: { _id: null, total: { $sum: "$total" } } },
-          ]).catch(() => []);
-
-          var revDay =
-            ((rPay && rPay[0]) ? rPay[0].total : 0) +
-            ((rBook && rBook[0]) ? rBook[0].total : 0) +
-            ((rPos && rPos[0]) ? rPos[0].total : 0) +
-            ((rOrd && rOrd[0]) ? rOrd[0].total : 0);
-          revTrend.push({ date: rd.toLocaleDateString("en", { weekday: "short" }), amount: revDay });
-        }
-        data.revenueTrend7 = revTrend;
-      } catch (e) {}
-
-      // Expenses by type
-      try {
-        var expTypeAgg = await Expense.aggregate([
-          { $match: { status: "approved", expenseDate: { $gte: startOfMonth, $lte: endOfDay } } },
-          { $group: { _id: "$type", total: { $sum: "$amount" }, count: { $sum: 1 } } },
-          { $sort: { total: -1 } },
-        ]);
-        data.expensesByType = (expTypeAgg || []).map(e => ({ type: e._id || "other", total: e.total, count: e.count }));
-      } catch (e) {}
-
-      // Pending expenses
-      var pendExpAgg = await Expense.aggregate([
-        { $match: { status: "pending" } },
-        { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$amount" } } },
-      ]).catch(() => []);
-      data.pendingExpenses = (pendExpAgg && pendExpAgg[0]) ? pendExpAgg[0].count : 0;
-      data.pendingExpensesTotal = (pendExpAgg && pendExpAgg[0]) ? pendExpAgg[0].total : 0;
-
-    } catch (e) {}
-
     if (revenueSnapshot) {
       try {
         var Expense = require("../models/Expense");
@@ -1417,7 +1143,83 @@ exports.analyticsSummary = async (req, res, next) => {
       } catch (expenseError) {
         console.error("[analyticsSummary] Expense snapshot error:", expenseError.message);
       }
-      Object.assign(data, revenueSnapshot, { revenueCurrency: "PHP" });
+      Object.assign(data, revenueSnapshot, { revenueCurrency: "PHP", financialDataAvailable: true });
+    }
+
+    // Stock and customer summaries remain independent of the financial snapshot.
+    try {
+      var Inventory = require("../models/Inventory");
+      var lowStockFilter = { active: true, $or: [
+        { status: "low_stock" }, { status: "out_of_stock" },
+        { $expr: { $lte: ["$quantity", "$minStockLevel"] } },
+      ] };
+      var [low, lowCount] = await Promise.all([
+        Inventory.find(lowStockFilter).select("modelLine quantity brand").sort({ quantity: 1 }).limit(10).lean(),
+        Inventory.countDocuments(lowStockFilter),
+      ]);
+      data.lowStockItems = low;
+      data.lowStockCount = lowCount;
+    } catch (stockError) {
+      console.error("[analyticsSummary] Low stock summary error:", stockError.message);
+    }
+
+    try {
+      var HVACProduct = require("../models/HVACProduct");
+      var hvacDocs = await HVACProduct.find({ active: true, status: { $nin: ["discontinued", "coming_soon"] } })
+        .select("modelLine type inverter imageUrl brand variants")
+        .populate("brand", "name").lean();
+      var allVariants = [];
+      hvacDocs.forEach(function (doc) {
+        (doc.variants || []).forEach(function (variant) {
+          if (variant.active === false || ["discontinued", "coming_soon"].includes(variant.status)) return;
+          allVariants.push({
+            _id: variant._id,
+            productId: doc._id,
+            modelLine: doc.modelLine,
+            brandName: doc.brand?.name || "",
+            type: doc.type,
+            inverter: doc.inverter || false,
+            imageUrl: doc.imageUrl || "/images/products/default.png",
+            capacity: variant.capacity || "",
+            displayLabel: doc.modelLine + " " + (variant.capacity || "") + "HP",
+            sellingPrice: variant.sellingPrice || 0,
+            costPrice: variant.costPrice || 0,
+            quantity: variant.quantity || 0,
+            status: variant.status || "out_of_stock",
+          });
+        });
+      });
+      var unitsWithCost = allVariants.reduce(function (sum, variant) { return sum + (variant.costPrice > 0 ? variant.quantity : 0); }, 0);
+      var totalUnits = allVariants.reduce(function (sum, variant) { return sum + variant.quantity; }, 0);
+      data.inventoryStats = {
+        totalProducts: allVariants.length,
+        totalUnits,
+        totalValue: allVariants.reduce(function (sum, variant) { return sum + variant.costPrice * variant.quantity; }, 0),
+        costCoveragePercent: totalUnits ? Math.round(unitsWithCost * 100 / totalUnits) : 100,
+        inStock: allVariants.filter(function (variant) { return variant.status === "in_stock"; }).length,
+        lowStock: allVariants.filter(function (variant) { return variant.status === "low_stock"; }).length,
+        outOfStock: allVariants.filter(function (variant) { return variant.status === "out_of_stock"; }).length,
+      };
+      allVariants.sort(function (a, b) { return b.costPrice * b.quantity - a.costPrice * a.quantity; });
+      data.topProducts = allVariants.slice(0, 6);
+    } catch (inventoryError) {
+      console.error("[analyticsSummary] Aircon inventory summary error:", inventoryError.message);
+      data.inventoryStats = { totalProducts: 0, totalUnits: 0, totalValue: 0, costCoveragePercent: 0, inStock: 0, lowStock: 0, outOfStock: 0 };
+      data.topProducts = [];
+    }
+
+    try {
+      var User = require("../models/User");
+      var [totalCustomers, newCustomers, vipCustomers] = await Promise.all([
+        User.countDocuments({ role: "customer" }),
+        User.countDocuments({ role: "customer", createdAt: { $gte: startOfMonth } }),
+        User.countDocuments({ role: "customer", vip: true }),
+      ]);
+      data.totalCustomers = totalCustomers;
+      data.newCustomersThisMonth = newCustomers;
+      data.vipCustomers = vipCustomers;
+    } catch (customerError) {
+      console.error("[analyticsSummary] Customer summary error:", customerError.message);
     }
 
     // ── Enterprise: Customer Ratings ──

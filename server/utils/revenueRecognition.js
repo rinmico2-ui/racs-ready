@@ -59,6 +59,12 @@ async function buildProjectPricingMap(bookings) {
 function bookingApprovedValue(booking, projectPricingMap = new Map()) {
   const projectEntry = projectPricingMap.get(String(booking?._id));
   if (projectEntry) return money(projectEntry.pricing.total);
+  if (booking?.loyaltyDiscount && (booking.services || []).length) {
+    const core = booking.services.filter(service => service.type !== 'repair').reduce((sum, service) => sum + require('./transactionDiscounts').serviceLineValue(service), 0);
+    const inspections = booking.services.filter(service => service.type === 'repair').reduce((sum, service) => sum + money(service.initialCost ?? service.unitPrice) * Math.max(1, Number(service.quantity) || 1), 0);
+    const repairs = booking.services.filter(service => service.type === 'repair' && (service.approval?.status === 'approved' || booking.approval?.status === 'approved')).reduce((sum, service) => sum + money(service.quotation?.totalCost), 0);
+    return Math.max(0, core - money(booking.discount)) + inspections + repairs + money(booking.travelFare);
+  }
   if (isRepairBooking(booking)) {
     const inspection = money(booking.inspectionFeeTotalCollected || booking.initialCost);
     const approvedRepair = booking?.approval?.status === "approved" ? money(booking?.quotation?.totalCost) : 0;

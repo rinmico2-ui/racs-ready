@@ -377,13 +377,13 @@
     </article>
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-boxes me-2 text-danger"></i>Cost Breakdown Summary</h3><span class="rr-badge"><%= pct(A.costDataCoverage) %> direct-cost coverage</span></div>
-      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>Costs are matched to completed activity in the selected period. Order COGS uses current inventory cost because order lines do not retain a historical unit-cost snapshot.</div>
+      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>Costs are matched to completed activity. Order product cost uses current inventory cost; installation consumables use recorded usage cost. Unrecorded labor and delivery expense can overstate contribution.</div>
       <div class="rr-body">
         <% const C=A.serviceCosts||{}; %>
         <div class="rr-cost-grid" id="costBreakdownGrid" style="grid-template-columns:repeat(3,1fr);">
           <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Recognized Net Revenue</div><div class="rr-value"><%= peso(A.recognizedRevenue) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Service Direct Cost</div><div class="rr-value"><%= peso(A.serviceDirectCost) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order COGS</div><div class="rr-value"><%= peso(A.orderCost) %></div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order Direct Cost</div><div class="rr-value"><%= peso(A.orderCost) %></div><div class="rr-meta">Products <%= peso(A.orderProductCost) %> · consumables <%= peso(A.orderConsumablesCost) %> · other installation <%= peso(A.orderLinkedServiceCost) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">POS COGS</div><div class="rr-value"><%= peso(A.posCost) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value"><%= peso(A.projectMaterialCost) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Operating Expenses</div><div class="rr-value"><%= peso(A.operatingExpenses) %></div><div class="rr-meta">Approved expenses + payroll</div></div>
@@ -394,10 +394,11 @@
       </div>
     </article>
   </div>
-  <div class="rr-note mt-3"><i class="bi bi-info-circle-fill me-2"></i><strong>Management note:</strong> This is a management accounting view, not an audited ledger. Revenue is recognized on completed work, refunds are contra-revenue on their event date, and only approved expenses and payroll are included. Historical order items do not retain acquisition cost, so order COGS is explicitly reported with estimated coverage.</div>
+  <div class="rr-note mt-3"><i class="bi bi-info-circle-fill me-2"></i><strong>Management note:</strong> This is a management accounting view, not an audited ledger. Revenue is recognized on completed work, refunds are contra-revenue on their event date, and only approved expenses and payroll are included. Historical order items do not retain acquisition cost, so product cost is estimated from current inventory. Recorded installation consumables and linked booking costs are charged to orders.</div>
 
   <!-- ═══ SECTION 5: SERVICE PROFITABILITY DEEP DIVE ═══ -->
   <div id="section-service-profit" class="rr-section"><h2><i class="bi bi-clipboard-check me-2" style="color:#2563eb;"></i>Service Profitability Deep Dive</h2><span class="text-muted small">Per-service financial breakdown with resource detail — core vs repair contribution</span></div>
+  <div class="rr-note mb-3"><i class="bi bi-graph-down-arrow me-2"></i>Looking for services with the fewest bookings? <a href="/<%= reportRole %>/reports/service">Open Least Booked Services</a> in Service Performance. This section ranks completed service contribution.</div>
   <% const SP=A.serviceProfitability||{}; const SPR=SP.rows||[]; %>
   <div class="rr-profit-kpis" id="servicePortfolioKpis">
     <article class="rr-card"><span class="rr-profit-kpi-icon leader"><i class="bi bi-trophy"></i></span><div><small>Highest known profit</small><strong><%= SP.mostProfitable?.serviceName||'No completed data' %></strong><p><%= SP.mostProfitable?peso(SP.mostProfitable.grossProfit)+' · '+pct(SP.mostProfitable.grossProfitMargin)+' margin':'—' %></p></div></article>
@@ -479,6 +480,12 @@
       <div class="rr-chart"><canvas id="posPaymentMix"></canvas></div>
     </article>
   </div>
+
+  <article class="rr-card mt-3" aria-labelledby="lowestPosProductsTitle">
+    <div class="rr-head"><div><h3 id="lowestPosProductsTitle"><i class="bi bi-graph-down-arrow me-2 text-warning"></i>Least Sold POS Products</h3><p>Fewest units sold among products with completed sales in the selected period. The category tabs above also filter this list.</p></div><span class="rr-badge" id="lowestPosSummaryBadge"><%= (A.lowestSellingPosProducts||[]).length %> sold products</span></div>
+    <div class="rr-body table-responsive"><table class="rr-table"><thead><tr><th>Product</th><th>Category</th><th class="text-center">Units sold</th><th class="text-end">Sales value</th><th>Review</th></tr></thead><tbody id="lowestPosProductsBody"><% if(!(A.lowestSellingPosProducts||[]).length){ %><tr><td colspan="5" class="rr-empty">No completed POS product sales in this period.</td></tr><% } (A.lowestSellingPosProducts||[]).slice(0,8).forEach(function(p){ %><tr><td class="fw-bold"><%= p.name %><div class="rr-meta"><%= p.category %></div></td><td><span class="rr-pos-category-tag <%= p.businessCategory %>"><%= p.businessCategoryLabel %></span></td><td class="text-center"><%= Number(p.quantity||0).toLocaleString('en-PH') %></td><td class="text-end"><%= peso(p.revenue) %></td><td>Check demand before replenishing</td></tr><% }); %></tbody></table></div>
+    <div class="rr-note m-3"><i class="bi bi-info-circle-fill me-2"></i>Products with zero sales are outside this transaction ranking. <a href="/<%= reportRole %>/reports?tab=decisions">Review Management Decisions</a> for catalog items with no recorded movement and current stock.</div>
+  </article>
 
   <!-- Product Intelligence (merged under POS & Product Performance) -->
   <div class="rr-subsection" style="margin:20px 0 12px;"><h2 style="font-size:.78rem;border-left-color:#0891b2;"><i class="bi bi-box-seam me-2" style="color:#0891b2;"></i>Cross-Channel Product Intelligence</h2><span class="text-muted small">Online orders and POS combined analysis</span></div>
@@ -863,6 +870,13 @@
     }
     const posBadge = document.getElementById('posSummaryBadge');
     if (posBadge) posBadge.textContent = `${products.length} product${products.length===1?'':'s'}`;
+    const slowProducts = (A.lowestSellingPosProducts || []).filter(product => activePosCategory === 'all' || product.businessCategory === activePosCategory);
+    const slowBody = document.getElementById('lowestPosProductsBody');
+    if (slowBody) slowBody.innerHTML = slowProducts.length
+      ? slowProducts.slice(0, 8).map(product => `<tr><td class="fw-bold">${esc(product.name)}<div class="rr-meta">${esc(product.category)}</div></td><td><span class="rr-pos-category-tag ${esc(product.businessCategory)}">${esc(product.businessCategoryLabel)}</span></td><td class="text-center">${Number(product.quantity||0).toLocaleString('en-PH')}</td><td class="text-end">${peso(product.revenue)}</td><td>Check demand before replenishing</td></tr>`).join('')
+      : '<tr><td colspan="5" class="rr-empty">No completed sales in this category for the selected period.</td></tr>';
+    const slowBadge = document.getElementById('lowestPosSummaryBadge');
+    if (slowBadge) slowBadge.textContent = `${slowProducts.length} sold product${slowProducts.length===1?'':'s'}`;
   }
 
   // ── Update dashboard with new data ──
@@ -985,7 +999,7 @@
       costGrid.innerHTML = `
         <div class="rr-cost-metric" style="border-top:3px solid #2563eb;"><div class="rr-label">Recognized Net Revenue</div><div class="rr-value">${peso(A.recognizedRevenue)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #ef4444;"><div class="rr-label">Service Direct Cost</div><div class="rr-value">${peso(A.serviceDirectCost)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order COGS</div><div class="rr-value">${peso(A.orderCost)}</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Order Direct Cost</div><div class="rr-value">${peso(A.orderCost)}</div><div class="rr-meta">Products ${peso(A.orderProductCost)} · consumables ${peso(A.orderConsumablesCost)} · other installation ${peso(A.orderLinkedServiceCost)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">POS COGS</div><div class="rr-value">${peso(A.posCost)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value">${peso(A.projectMaterialCost)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Operating Expenses</div><div class="rr-value">${peso(A.operatingExpenses)}</div><div class="rr-meta">Approved expenses + payroll</div></div>

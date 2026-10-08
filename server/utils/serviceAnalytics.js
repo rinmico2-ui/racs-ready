@@ -35,6 +35,7 @@ function isRepairBooking(booking) {
 
 function resolveBookedValue(booking) {
   if (!booking) return 0;
+  if (booking.loyaltyDiscount) return Math.max(0, Number(booking.totalPrice ?? booking.estimatedFee) || 0);
   if (isRepairBooking(booking)) {
     const inspection = Number(booking.inspectionFeeAmount || 0) + Number(booking.inspectionFeeDistanceFare || 0)
       || Number(booking.inspectionFeeTotalCollected || 0);
