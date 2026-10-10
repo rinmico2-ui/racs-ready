@@ -30,7 +30,7 @@ test("revenue report renders with valid browser JavaScript", () => {
 });
 
 test("revenue report starts with four decision KPIs", () => {
-  for (const metric of ["Recognized Revenue", "Net Collections", "Operating Profit", "Outstanding Receivables"]) {
+  for (const metric of ["Completed sales", "Payments after refunds", "Profit after expenses", "Unpaid balance"]) {
     assert.match(revenueTemplate, new RegExp(metric));
   }
   assert.match(revenueCss, /#kpiGrid\s*>\s*\.kpi-enterprise:nth-child\(1\)/);
@@ -39,7 +39,7 @@ test("revenue report starts with four decision KPIs", () => {
 });
 
 test("revenue drilldowns use progressive disclosure", () => {
-  for (const tab of ["Overview", "Revenue", "Collections", "Profit &amp; cost", "Services", "Products", "Activity"]) {
+  for (const tab of ["Overview", "Sales", "Collections", "Profit &amp; cost", "Services", "Products", "Activity"]) {
     assert.match(revenueTemplate, new RegExp(">" + tab + "<"));
   }
   assert.match(revenueTemplate, /requested : 'section-executive', false/);
@@ -50,7 +50,7 @@ test("revenue drilldowns use progressive disclosure", () => {
     assert.match(revenueTemplate, new RegExp(activity));
   }
   assert.match(revenueTemplate, /revenueActivitySnapshot/);
-  assert.match(revenueTemplate, /Management Overview/);
+  assert.match(revenueTemplate, /Business summary/);
   assert.match(revenueTemplate, /const topInsights=/);
   assert.match(revenueTemplate, /danger:0,warning:1,info:2,success:3/);
   assert.equal((revenueTemplate.match(/id="section-[^"]+" class="rr-section"/g) || []).length, 7);
@@ -65,27 +65,27 @@ test("revenue drilldowns use progressive disclosure", () => {
 test("revenue report provides service portfolio decisions and a disclosed forecast", () => {
   for (const label of [
     "Highest known profit",
-    "Lowest known contribution",
-    "Profitability Ranking &amp; Recommended Action",
+    "Lowest recorded profit",
+    "Service profit estimates and next steps",
     "30-Day Sales Outlook",
     "Expected range",
   ]) assert.match(revenueTemplate, new RegExp(label));
   assert.match(revenueTemplate, /id="serviceProfitRanking"/);
   assert.match(revenueTemplate, /id="revenueForecast"/);
   assert.match(revenueTemplate, /serviceLineDrilldownModal/);
-  assert.match(revenueTemplate, /Allocation policy:/);
-  assert.match(revenueTemplate, /not audited job costing/);
+  assert.match(revenueTemplate, /How shared costs are split:/);
+  assert.match(revenueTemplate, /Missing costs can change the result/);
   assert.match(revenueTemplate, /planning estimate/);
 });
 
 test("POS analytics includes sellable inventory categories and excludes company equipment", () => {
-  for (const label of ["Repair Parts", "Consumables", "Aircon Products", "Top POS Products by Category"]) {
+  for (const label of ["Repair Parts", "Job supplies", "Aircon Products", "Top walk-in products by category"]) {
     assert.match(revenueTemplate, new RegExp(label));
   }
   assert.match(revenueTemplate, /data-pos-category="repair_parts"/);
   assert.match(revenueTemplate, /data-pos-category="consumables"/);
   assert.match(revenueTemplate, /data-pos-category="aircon_products"/);
-  assert.match(revenueTemplate, /Company-owned Equipment is an operational asset and is excluded/);
+  assert.match(revenueTemplate, /Company equipment is not included/);
   assert.match(revenueTemplate, /renderPosCategorySection/);
   assert.match(revenueAnalyticsSource, /recognizedWalkInOrders/);
   assert.match(revenueAnalyticsSource, /counterSaleBusinessCategory/);
@@ -111,7 +111,7 @@ test("revenue, service, and order reports share one KPI system", () => {
 });
 
 test("revenue overview exposes decision controls derived from the full ledger", () => {
-  for (const control of ["Scheduling intervention", "Payment exceptions", "Direct-cost confidence", "Financial close backlog"]) {
+  for (const control of ["Schedule needs a change", "Payments to check", "Saved cost details", "Costs waiting for approval"]) {
     assert.match(revenueTemplate, new RegExp(control));
   }
   for (const field of ["atRiskServiceBookings", "paymentExceptionCount", "orderCostCoverage", "completionEvidenceCoverage", "draftPayrollCount"]) {

@@ -252,7 +252,7 @@
         <li class="nav-item me-4">
           <a class="nav-link" href="/products">
             <i class="bi bi-box-seam nav-icon"></i>
-            <span class="nav-text">Products</span>
+            <span class="nav-text">Aircons</span>
           </a>
         </li>
 
@@ -346,20 +346,6 @@
         var href = (link.getAttribute('href') || '').replace(/\/$/, '') || '/';
         if (href === path) link.classList.add('active');
       });
-
-      var cartCount = document.getElementById('globalCartCount');
-      if (cartCount) {
-        fetch('/api/aircon-cart', { credentials: 'same-origin' })
-          .then(function (response) { return response.ok ? response.json() : null; })
-          .then(function (data) {
-            var items = data && data.cart && Array.isArray(data.cart.items) ? data.cart.items : [];
-            var count = items.reduce(function (sum, item) { return sum + (Number(item.quantity) || 0); }, 0);
-            cartCount.textContent = count > 99 ? '99+' : String(count);
-            cartCount.setAttribute('aria-label', count + (count === 1 ? ' item in cart' : ' items in cart'));
-            cartCount.style.display = count > 0 ? 'inline-flex' : 'none';
-          })
-          .catch(function () { /* The cart remains usable even if the count cannot be loaded. */ });
-      }
 
       // Mobile: tap Services to expand its submenu (hover doesn't work on touch)
       var dd = nav.querySelector('.nav-dropdown');

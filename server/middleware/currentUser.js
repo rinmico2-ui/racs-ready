@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { isAccountEnabled } = require("./accountState");
+const { isSessionCurrent } = require("../utils/sessionPasswordPolicy");
 
 function parseCookies(header) {
   const h = header || "";
@@ -67,7 +68,7 @@ module.exports = async function (req, res, next) {
         const sidUser = await User.findById(req.session.userId).select(
           "-passwordHash",
         );
-        if (isAccountEnabled(sidUser)) {
+        if (isAccountEnabled(sidUser) && isSessionCurrent(req.session, sidUser)) {
           res.locals.user = sidUser;
           req.user = sidUser;
           req.authResolved = true;

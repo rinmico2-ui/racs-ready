@@ -374,19 +374,21 @@
     #adminAppointmentsCalendar .fc-daygrid-event { border-radius: 6px !important; font-size: 0.76rem !important; font-weight: 600 !important; padding: 3px 8px !important; margin: 2px 4px !important; overflow: hidden !important; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease !important; min-height: auto !important; line-height: 1.4 !important; }
     #adminAppointmentsCalendar .fc-daygrid-event:hover { transform: translateY(-1px) !important; box-shadow: 0 3px 10px rgba(0,0,0,0.1) !important; }
     #adminAppointmentsCalendar .fc-daygrid-day-events { padding: 0 2px 4px 2px !important; }
+    /* Keep the month count-only while a view change reloads its event source. */
+    #adminAppointmentsCalendar .fc-dayGridMonth-view .fc-daygrid-day-events { display: none !important; }
     #adminAppointmentsCalendar .cal-day-summary {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
-      padding: 2px 8px 8px; font-size: 0.72rem; font-weight: 600;
+      display: flex; align-items: center;
+      padding: 4px 6px 8px; font-size: 0.72rem; font-weight: 600;
       color: var(--slate-600);
     }
-    #adminAppointmentsCalendar .cal-day-more {
-      border: 0; background: none; padding: 0; color: var(--blue-600);
-      font: inherit; cursor: pointer; text-align: left;
+    #adminAppointmentsCalendar .cal-day-count {
+      width: 100%; min-height: 44px; padding: 6px 4px; border: 1px solid #dbeafe;
+      border-radius: 8px; background: #eff6ff; color: #1e40af;
+      font: inherit; cursor: pointer; text-align: center;
     }
-    #adminAppointmentsCalendar .cal-day-more:hover { text-decoration: underline; }
-    #adminAppointmentsCalendar .cal-day-more:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; border-radius: 2px; }
-    #adminAppointmentsCalendar .cal-day-summary[hidden],
-    #adminAppointmentsCalendar .cal-day-more[hidden] { display: none !important; }
+    #adminAppointmentsCalendar .cal-day-count:hover { background: #dbeafe; }
+    #adminAppointmentsCalendar .cal-day-count:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 2px; }
+    #adminAppointmentsCalendar .cal-day-summary[hidden] { display: none !important; }
 
     /* ── Timegrid (Week/Day) ───────────────────────────────────── */
     #adminAppointmentsCalendar .fc-timegrid-slot { height: 72px !important; min-height: 72px !important; position: relative !important; background: transparent !important; }
@@ -556,7 +558,7 @@
       .filter-controls { gap: 6px; }
     }
   </style>
-  <link rel="stylesheet" href="/css/admin-appointments-calendar.css?v=20260927-enterprise-v2">
+  <link rel="stylesheet" href="/css/admin-appointments-calendar.css?v=20261010-blue-weekdays">
 
   <!-- Scheduling command header -->
   <header class="cal-hero cal-command-header">
@@ -584,7 +586,7 @@
     <div class="cal-range-row">
       <span class="cal-range-label"><i class="bi bi-calendar-range"></i>Viewing</span>
       <strong class="cal-hero-range" id="calendarRangeLabel" aria-live="polite">Current range</strong>
-      <span class="cal-range-hint"><i class="bi bi-info-circle"></i>Select a date to inspect its complete agenda</span>
+      <span class="cal-range-hint"><i class="bi bi-info-circle"></i>Select a date to see its jobs</span>
     </div>
   </header>
 
@@ -614,11 +616,11 @@
         <div>
           <span class="cal-workspace-kicker">Schedule board</span>
           <h2>Workload calendar</h2>
-          <p>Bookings and order fulfillment in one operational view.</p>
+          <p>Daily job counts. Select a date to see bookings and orders.</p>
         </div>
         <div class="cal-type-legend" aria-label="Calendar record types">
           <span><i class="cal-legend-dot is-booking"></i>Service booking</span>
-          <span><i class="cal-legend-dot is-order"></i>Product order</span>
+          <span><i class="cal-legend-dot is-order"></i>Aircon order</span>
         </div>
       </div>
       <!-- Filter Bar -->
@@ -629,7 +631,7 @@
         <div class="filter-controls">
           <div class="cal-search" id="calSearchWrap">
             <i class="bi bi-search"></i>
-            <input type="search" id="calSearchInput" placeholder="Search customer, reference, service or product..." aria-label="Search calendar records" autocomplete="off">
+            <input type="search" id="calSearchInput" placeholder="Search customer, reference, service or aircon..." aria-label="Search calendar records" autocomplete="off">
             <button type="button" class="cal-search-clear" id="calSearchClear" aria-label="Clear calendar search"><i class="bi bi-x-lg"></i></button>
           </div>
           <% if (!calendarIsTechnicianView) { %><div class="tech-filter-wrapper" id="techFilterWrapper">
@@ -663,6 +665,10 @@
       <div class="cal-body">
         <div id="calendarSpinner" class="calendar-spinner" role="status" aria-label="Loading operations schedule"></div>
         <div id="adminAppointmentsCalendar"></div>
+        <div class="cal-calendar-guide">
+          <span><i class="cal-guide-dot" aria-hidden="true"></i>Today is marked in blue</span>
+          <span>Choose a date to see its full schedule</span>
+        </div>
       </div>
     </section>
 
@@ -1195,11 +1201,10 @@
           if (!summary) return;
           const count = dayCounts.get(day.dataset.date) || 0;
           const countLabel = summary.querySelector(".cal-day-count");
-          const moreButton = summary.querySelector(".cal-day-more");
           countLabel.textContent = count ? `${count} job${count === 1 ? "" : "s"}` : "";
-          moreButton.textContent = count > 3 ? `+${count - 3} more` : "";
-          moreButton.hidden = count <= 3;
+          countLabel.setAttribute("aria-label", `View ${count} job${count === 1 ? "" : "s"} for ${toPrettyDate(day.dataset.date)}`);
           summary.hidden = count === 0;
+          day.classList.toggle("cal-has-jobs", count > 0);
         });
       }
 
@@ -1280,16 +1285,7 @@
           dayCounts.set(key, (dayCounts.get(key) || 0) + 1);
         });
         const visibleEvents = calendar.view && calendar.view.type === "dayGridMonth"
-          ? (() => {
-              const shownPerDay = new Map();
-              return calendarEvents.sort((a, b) => Number(b.allDay) - Number(a.allDay) || new Date(a.start) - new Date(b.start)).filter(event => {
-                const key = toDateKey(event.start);
-                const shown = shownPerDay.get(key) || 0;
-                if (shown >= 3) return false;
-                shownPerDay.set(key, shown + 1);
-                return true;
-              });
-            })()
+          ? []
           : calendarEvents;
         calendar.removeAllEvents();
         if (visibleEvents.length) calendar.addEventSource(visibleEvents);
@@ -1481,7 +1477,7 @@
       }
       const calendar = new FullCalendar.Calendar(dom.calendarEl, {
         initialView: initView,
-        headerToolbar: { left: "prev,next today", center: "", right: "" },
+        headerToolbar: { left: "title", center: "", right: "prev,next today" },
         buttonText: { today: "Today", month: "Month", week: "Week", day: "Day", list: "List" },
         height: "auto",
         slotMinTime: "06:00:00",
@@ -1503,21 +1499,17 @@
           const summary = document.createElement("div");
           summary.className = "cal-day-summary";
           summary.hidden = true;
-          const count = document.createElement("span");
+          const count = document.createElement("button");
+          count.type = "button";
           count.className = "cal-day-count";
-          const more = document.createElement("button");
-          more.type = "button";
-          more.className = "cal-day-more";
-          more.hidden = true;
-          more.setAttribute("aria-label", "Show all jobs for " + toPrettyDate(toDateKey(info.date)));
-          more.addEventListener("click", event => {
+          count.addEventListener("click", event => {
             event.stopPropagation();
             state.selectedDateKey = toDateKey(info.date);
             markSelectedDay(state.selectedDateKey, info.el);
             renderDateList();
             if (window.innerWidth < 1200) dom.selectedDateList.closest(".list-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
           });
-          summary.append(count, more);
+          summary.append(count);
           frame.append(summary);
           refreshDaySummaries();
         },

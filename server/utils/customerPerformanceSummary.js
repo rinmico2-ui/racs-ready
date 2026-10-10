@@ -17,7 +17,7 @@ const between = (field, period) => {
 };
 const ifSum = (test, value = 1) => ({ $sum: { $cond: [test, value, 0] } });
 const lastIf = (test, field) => ({ $max: { $cond: [test, field, null] } });
-const HISTORY_NOTE = 'Completed activity uses completion dates, with the recorded last update as the fallback for older records. Pending and cancelled records do not count. Fully refunded transactions are separate from successful engagement. Linked installation bookings are excluded to avoid counting an order twice. Spending is completed transaction value after recorded discounts and completed refunds, including applicable fulfillment fees; cash collections are a separate measure. Anonymous counter sales cannot be assigned to a customer account.';
+const HISTORY_NOTE = 'Activity counts completed bookings and orders by completion date. Older records use their last saved update date when needed. Pending, cancelled, and fully refunded records do not count. Installations linked to orders are excluded to avoid counting twice. Spending uses completed amounts after saved discounts and refunds, including delivery fees. Payments are shown separately. Walk-in sales without a named customer are not added to an account.';
 
 function parsePeriod(query = {}, now = new Date()) {
   const range = ['all', 'month', '3months', '6months', 'year', 'custom'].includes(query.range) ? query.range : 'all';
@@ -56,9 +56,9 @@ function classifyCustomer(row, period, inactiveDays, now = new Date()) {
   const daysSinceLastActivity = lastActivity ? Math.max(0, Math.floor((now - new Date(lastActivity)) / DAY)) : null;
   const recentlyActive = Boolean(lastActivity && new Date(lastActivity) >= new Date(now.getTime() - inactiveDays * DAY));
   const previouslyActiveNowInactive = lifetimeTransactions >= 5 && Boolean(lastActivity) && !recentlyActive;
-  const engagement = !lifetimeTransactions ? 'Never Engaged' : !lastActivity ? 'Activity date unavailable'
+  const engagement = !lifetimeTransactions ? 'No completed bookings or orders' : !lastActivity ? 'Activity date unavailable'
     : previouslyActiveNowInactive ? 'Previously Active / Now Inactive' : !recentlyActive ? 'Inactive'
-      : lifetimeTransactions <= 2 ? 'Very Low Engagement' : lifetimeTransactions < 5 ? 'Low Engagement' : 'Active';
+      : lifetimeTransactions <= 2 ? 'Only 1–2 completed bookings or orders' : lifetimeTransactions < 5 ? 'Only 3–4 completed bookings or orders' : 'Active';
   const customerType = row.completedBookings && row.completedOrders ? 'Bookings + orders' : row.completedBookings ? 'Service customer' : row.completedOrders ? 'Product customer' : 'No period activity';
   return { engagement, customerType, lifetimeTransactions, lastActivity, daysSinceLastActivity, recentlyActive, previouslyActiveNowInactive,
     newAccount: Boolean(row.createdAt && new Date(row.createdAt) >= new Date(now.getTime() - inactiveDays * DAY)) };
@@ -134,12 +134,12 @@ function customerSummaryPipeline(period, inactiveDays, now, customerId = null) {
       daysSinceLastActivity: { $cond: [{ $ne: ['$lastActivity', null] }, { $max: [0, { $floor: { $divide: [{ $subtract: [now, '$lastActivity'] }, DAY] } }] }, null] } } },
     { $set: { previouslyActiveNowInactive: { $and: [{ $gte: ['$lifetimeTransactions', 5] }, { $ne: ['$lastActivity', null] }, { $not: ['$recentlyActive'] }] },
       engagement: { $switch: { branches: [
-        { case: { $eq: ['$lifetimeTransactions', 0] }, then: 'Never Engaged' },
+        { case: { $eq: ['$lifetimeTransactions', 0] }, then: 'No completed bookings or orders' },
         { case: { $eq: ['$lastActivity', null] }, then: 'Activity date unavailable' },
         { case: { $and: [{ $gte: ['$lifetimeTransactions', 5] }, { $not: ['$recentlyActive'] }] }, then: 'Previously Active / Now Inactive' },
         { case: { $not: ['$recentlyActive'] }, then: 'Inactive' },
-        { case: { $lte: ['$lifetimeTransactions', 2] }, then: 'Very Low Engagement' },
-        { case: { $lt: ['$lifetimeTransactions', 5] }, then: 'Low Engagement' },
+        { case: { $lte: ['$lifetimeTransactions', 2] }, then: 'Only 1–2 completed bookings or orders' },
+        { case: { $lt: ['$lifetimeTransactions', 5] }, then: 'Only 3–4 completed bookings or orders' },
       ], default: 'Active' } } } },
     { $project: { booking: 0, order: 0, firstName: 0, lastName: 0, lifetimeValue: 0 } },
   ];

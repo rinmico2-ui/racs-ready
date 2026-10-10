@@ -129,6 +129,7 @@
       this.selectedTime = '';
       this.dateInput.value = key;
       this.timeInput.value = '';
+      if (this.loadTimeSlots) row.timeSlots = [];
       this.render();
       this.onChange();
       if (!this.loadTimeSlots) return;

@@ -1,47 +1,51 @@
-<link rel="stylesheet" href="/css/unit-assistance-customer.css?v=20261006-v1">
-
-<div class="uac-page">
-  <header class="uac-header">
-    <div>
-      <p class="uac-eyebrow">Your service requests</p>
-      <h1>Aircon unit identification</h1>
-      <p class="uac-subtitle">Track the details staff are checking and review your price before you choose a schedule.</p>
-    </div>
-    <div class="uac-header-actions">
-      <a class="uac-button uac-button-light" href="/services"><i class="bi bi-grid" aria-hidden="true"></i> Browse services</a>
-      <a class="uac-button uac-button-light" href="/book-history"><i class="bi bi-calendar-check" aria-hidden="true"></i> My bookings</a>
-    </div>
-  </header>
-
-  <div class="uac-process" aria-label="How unit identification works">
-    <div><span>1</span><p><strong>Staff checks your unit</strong><small>We confirm the type and HP.</small></p></div>
-    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-    <div><span>2</span><p><strong>You review the price</strong><small>Accept or decline the verified quote.</small></p></div>
-    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-    <div><span>3</span><p><strong>Continue your booking</strong><small>Choose a schedule or update an existing booking.</small></p></div>
+<link rel="stylesheet" href="/css/unit-assistance-customer.css?v=20261009-enterprise">
+<div class="uac-workspace">
+  <div class="uac-page">
+    <nav class="uac-breadcrumb" aria-label="Breadcrumb"><a href="/profile">My account</a><span aria-hidden="true">/</span><span>Unit assistance</span></nav>
+    <header class="uac-header">
+      <div><h1>Unit assistance</h1><p class="uac-subtitle">Track your aircon details and review service quotes before booking.</p></div>
+      <div class="uac-header-actions"><a class="uac-button uac-button-light" href="/book-history">My bookings</a><a class="uac-button uac-button-primary" href="/services"><span aria-hidden="true">+</span> Browse services</a></div>
+    </header>
+    <section class="uac-overview" aria-label="Request overview">
+      <div class="uac-metric"><span class="uac-metric-label">Total requests</span><strong id="unitTotalCount">—</strong><span>Your submitted requests</span></div>
+      <div class="uac-metric uac-metric-action"><span class="uac-metric-label"><span class="uac-dot" aria-hidden="true"></span>Needs your action</span><strong id="unitActionCount">—</strong><span>Review a quote or continue booking</span></div>
+      <div class="uac-metric"><span class="uac-metric-label"><span class="uac-dot uac-dot-review" aria-hidden="true"></span>Staff reviewing</span><strong id="unitProgressCount">—</strong><span>We’re checking your unit details</span></div>
+      <div class="uac-metric"><span class="uac-metric-label">Request history</span><strong id="unitPastCount">—</strong><span>Completed, declined, or expired</span></div>
+    </section>
+    <details class="uac-help">
+      <summary><span class="uac-help-icon" aria-hidden="true">?</span> How unit assistance works <span class="uac-help-chevron" aria-hidden="true">⌄</span></summary>
+      <ol class="uac-process">
+        <li><span>1</span><div><strong>We confirm your unit</strong><p>Staff checks the type, HP, and service price.</p></div></li>
+        <li><span>2</span><div><strong>You review the quote</strong><p>Accept or decline the price. No payment is taken here.</p></div></li>
+        <li><span>3</span><div><strong>Continue your booking</strong><p>Choose a schedule, or let staff review your existing booking change.</p></div></li>
+      </ol>
+    </details>
+    <div id="unitRequestMessage" class="uac-alert" role="alert" tabindex="-1" hidden></div>
+    <div id="unitRequestNotice" class="uac-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+    <section class="uac-section" aria-labelledby="uacSectionTitle">
+      <div class="uac-section-heading">
+        <div><h2 id="uacSectionTitle">Your requests</h2><p>Quotes that need your attention appear first.</p></div>
+        <button id="unitRequestRefresh" class="uac-button uac-button-light uac-refresh" type="button" aria-label="Refresh requests"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 18 17"/></svg><span>Refresh</span></button>
+      </div>
+      <div class="uac-toolbar">
+        <div class="uac-filters" role="group" aria-label="Filter requests">
+          <button type="button" data-unit-filter="all" aria-pressed="true">All requests <span data-unit-count="all">0</span></button>
+          <button type="button" data-unit-filter="action" aria-pressed="false">Needs action <span data-unit-count="action">0</span></button>
+          <button type="button" data-unit-filter="progress" aria-pressed="false">In review <span data-unit-count="progress">0</span></button>
+          <button type="button" data-unit-filter="past" aria-pressed="false">History <span data-unit-count="past">0</span></button>
+        </div>
+        <div class="uac-search">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <label for="unitRequestSearch" class="uac-sr-only">Search by service, brand, or request reference</label><input id="unitRequestSearch" type="search" placeholder="Search requests…" autocomplete="off" maxlength="120">
+        </div>
+      </div>
+      <div id="unitRequests" class="uac-list" aria-busy="true"><div class="uac-loading" role="status"><span class="uac-loader" aria-hidden="true"></span>Loading your requests…</div></div>
+      <div class="uac-pagination" id="unitRequestPagination">
+        <p id="unitRequestCount" role="status" aria-live="polite">Loading requests…</p>
+        <div class="uac-page-controls"><button id="unitRequestPrev" type="button" class="uac-button uac-button-light" disabled>Previous</button><span id="unitRequestPage" aria-label="Current page">Page 1</span><button id="unitRequestNext" type="button" class="uac-button uac-button-light" disabled>Next</button></div>
+      </div>
+    </section>
+    <p class="uac-footer-note">Need help with a request? <a href="/contact">Contact our team <span aria-hidden="true">↗</span></a></p>
   </div>
-
-  <div id="unitRequestMessage" class="uac-alert" role="alert" hidden></div>
-  <div id="unitRequestNotice" class="uac-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
-
-  <section class="uac-section" aria-labelledby="uacSectionTitle">
-    <div class="uac-toolbar">
-      <div>
-        <h2 id="uacSectionTitle">Your requests</h2>
-        <p id="unitRequestCount">Loading requests…</p>
-      </div>
-      <div class="uac-controls">
-        <label for="unitRequestFilter">Show</label>
-        <select id="unitRequestFilter" aria-label="Filter unit requests">
-          <option value="all">All requests</option>
-          <option value="action">Needs your action</option>
-          <option value="progress">In progress</option>
-          <option value="past">Past requests</option>
-        </select>
-        <button id="unitRequestRefresh" class="uac-button uac-button-light" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
-      </div>
-    </div>
-    <div id="unitRequests" class="uac-list" aria-live="polite"><div class="uac-loading">Loading your requests…</div></div>
-  </section>
 </div>
-<script src="/js/unit-assistance-customer.js?v=20261007-relocation" defer></script>
+<script src="/js/unit-assistance-customer.js?v=20261009-enterprise" defer></script>

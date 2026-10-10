@@ -44,6 +44,9 @@ const orderItemSchema = new mongoose.Schema(
     capacityUnit: { type: String, default: "HP" },
     quantity: { type: Number, default: 1, min: 1 },
     unitPrice: { type: Number, default: 0, min: 0 },
+    // Staff-only purchase cost at checkout. Undefined means a legacy order;
+    // null means the cost was not recorded when this order was placed.
+    costPrice: { type: Number, min: 0, select: false },
     totalPrice: { type: Number, default: 0, min: 0 },
     imageUrl: { type: String, trim: true },
     isHvac: { type: Boolean, default: false },
@@ -185,6 +188,16 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Preferred installation window; Operations confirms the daily work plan.
+    isProject: { type: Boolean, default: false },
+    projectScheduling: {
+      preferredStartDate: Date,
+      preferredCompletionDeadline: Date,
+      preferredWorkingDays: [String],
+      preferredWorkingHours: { start: String, end: String },
+      estimatedTotalHours: Number,
+    },
+
     // order status
     status: {
       type: String,
@@ -195,11 +208,20 @@ const orderSchema = new mongoose.Schema(
 
     // when an order is cancelled, record the reason
     cancellationReason: { type: String },
+    // Staff invitation to replace an overdue schedule, restricted to the owning account.
+    rescheduleInvitation: {
+      status: { type: String, enum: ['allowed', 'submitted', 'revoked'] },
+      sentAt: { type: Date },
+      expiresAt: { type: Date },
+      sentBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      completedAt: { type: Date },
+    },
     // reschedule request from customer
     rescheduleRequest: {
       requested: { type: Boolean, default: false },
       requestedDate: { type: String },
       requestedTime: { type: String },
+      requestedEndDate: { type: String },
       reason: { type: String },
       requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       requestedAt: { type: Date },
@@ -345,10 +367,15 @@ const orderSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    toJSON: { virtuals: true, transform: hidePurchaseCosts },
+    toObject: { virtuals: true, transform: hidePurchaseCosts },
   }
 );
+
+function hidePurchaseCosts(doc, result) {
+  for (const item of result.items || []) delete item.costPrice;
+  return result;
+}
 
 // ─── Indexes ────────────────────────────────────────────────────────────────
 

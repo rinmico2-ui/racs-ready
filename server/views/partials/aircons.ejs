@@ -3,9 +3,59 @@
 <%
   var airconGroups = (locals.grouped && Array.isArray(grouped)) ? grouped : [];
 %>
-<section class="products-aircons-premium position-relative" style="overflow: hidden;">
-  <div class="position-relative" style="background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%); padding: 3.5rem 0 3rem; border-bottom: 1px solid rgba(37,99,235,0.08);">
+<script src="/js/aircon-catalog-toolbar.js?v=20261009-sticky" defer></script>
+<section class="products-aircons-premium position-relative" style="overflow: clip;">
+  <div class="position-relative" style="overflow: hidden; background: linear-gradient(160deg, #f0f7ff 0%, #dbeafe 50%, #eff6ff 100%); padding: 3.5rem 0 3rem; border-bottom: 1px solid rgba(37,99,235,0.08);">
     <style>
+      html:has(.products-aircons-premium), body:has(.products-aircons-premium) {
+        overflow-x: clip;
+      }
+      .products-aircons-premium .enterprise-filter-bar {
+        position: sticky;
+        top: var(--aircon-catalog-nav-offset, 76px);
+        z-index: 100;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(15,23,42,0.06);
+      }
+      .aircon-catalog-actions { flex-shrink: 0; margin-left: auto; }
+      .aircon-catalog-cart { padding: 4px; margin: 0 0 0 4px; }
+      .aircon-catalog-cart > button { flex-shrink: 0; }
+      @media (max-width: 991.98px) {
+        .products-aircons-premium .enterprise-filter-bar > .row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          margin: 0;
+        }
+        .products-aircons-premium .enterprise-filter-bar > .row > .col-md-4 {
+          width: auto;
+          padding: 0;
+          margin: 0;
+        }
+        .products-aircons-premium .enterprise-filter-bar > .row > .col-md-8,
+        .products-aircons-premium .enterprise-filter-bar > .row > .col-md-8 > div { display: contents !important; }
+        .products-aircons-premium .aircon-catalog-filters {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          flex-wrap: nowrap !important;
+          overflow-x: auto;
+          padding: 3px 2px;
+          scrollbar-width: thin;
+        }
+        .products-aircons-premium .aircon-catalog-filters .ent-filter-pill {
+          flex-shrink: 0;
+          white-space: nowrap;
+          min-height: 40px;
+        }
+        .aircon-catalog-actions { grid-column: 2; grid-row: 1; }
+        .aircon-catalog-cart #cartLabel { display: none !important; }
+      }
+      @media (max-width: 575.98px) {
+        .aircon-catalog-actions > .small { display: none !important; }
+      }
       @media (max-width: 768px) {
         .products-aircons-premium > div:first-child {
           padding: 1.5rem 0 1.25rem !important;
@@ -18,9 +68,6 @@
         }
         .products-aircons-premium p {
           font-size: 0.85rem !important;
-        }
-        .enterprise-filter-bar {
-          padding: 0.5rem 0 0.5rem !important;
         }
         .ent-filter-pill {
           padding: 0.3rem 0.7rem !important;
@@ -65,8 +112,7 @@
             RACS READY
           </div>
           <h1 class="fw-bold mb-2" style="color: #0f172a; font-size: 2.2rem; letter-spacing: -0.8px; line-height: 1.15;">
-            Commercial & Residential<br>
-            <span style="background: linear-gradient(135deg, #2563eb, #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Air Conditioning</span> Systems
+            Aircons
           </h1>
           <p class="mb-0" style="max-width: 500px; color: #64748b; font-size: 0.92rem; line-height: 1.6;">
             Premium HVAC solutions with professional installation, certified warranty, and 24/7 support.
@@ -91,30 +137,14 @@
   <!-- ═══ Products Content Area ═══ -->
   <div class="py-5"
     style="background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); position: relative;">
-    <!-- Floating Cart Button -->
-    <div id="floatingCartBtn" class="position-fixed d-flex align-items-center gap-2" style="bottom: 24px; right: 24px; z-index: 9998;">
-      <span id="cartLabel" class="d-none d-md-inline-block px-3 py-2 fw-semibold small"
-        style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; letter-spacing: 0.2px; cursor: pointer; border-radius: 8px; font-size: 0.78rem; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.25);"
-        onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'">
-        <i class="bi bi-cart3 me-1"></i> Cart <span id="cartLabelCount">0</span>
-      </span>
-      <button class="btn d-flex align-items-center justify-content-center p-0"
-        style="width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 1rem; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transition: transform 0.2s;"
-        onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'"
-        onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-        <i class="bi bi-cart3"></i>
-        <span id="cartBadgeCount"
-          class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"
-          style="font-size: 0.6rem; display: none;">0</span>
-      </button>
-    </div>
     <div class="container position-relative" style="z-index: 1;">
       <!-- Search & Filter Bar -->
-      <div class="enterprise-filter-bar mb-3" style="padding: 0 0 0.75rem; border-bottom: 1px solid rgba(37,99,235,0.1);">
+      <div class="enterprise-filter-bar mb-3" role="region" aria-label="Search and filter aircons">
         <div class="row align-items-center g-2">
           <div class="col-md-4 col-lg-3">
             <div class="position-relative">
               <input type="text" id="productSearchInput" class="form-control"
+                aria-label="Search aircon models and brands"
                 placeholder="Search models, brands..."
                 style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.85rem; font-weight: 500; color: #0f172a; padding: 0.5rem 1rem 0.5rem 2.25rem; transition: all 0.2s;"
                 oninput="filterProductsBySearch()">
@@ -129,16 +159,35 @@
           </div>
           <div class="col-md-8 col-lg-9">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-              <div class="d-flex gap-1 flex-wrap" role="group" aria-label="Product type filters">
+              <div class="aircon-catalog-filters d-flex gap-1 flex-wrap" role="group" aria-label="Aircon type filters">
                 <button class="btn ent-filter-pill active" data-filter="all">All</button>
                 <button class="btn ent-filter-pill" data-filter="split"><i class="bi bi-columns-gap me-1 d-none d-sm-inline"></i>Split</button>
                 <button class="btn ent-filter-pill" data-filter="window_inverter"><i class="bi bi-window me-1 d-none d-sm-inline"></i>Window Inverter</button>
                 <button class="btn ent-filter-pill" data-filter="window_non_inverter"><i class="bi bi-window me-1 d-none d-sm-inline"></i>Window</button>
                 <button class="btn ent-filter-pill" data-filter="floor_mounted"><i class="bi bi-layers me-1 d-none d-sm-inline"></i>Floor Mounted</button>
               </div>
-              <div class="small d-flex align-items-center gap-1" style="color: #64748b; font-weight: 500; white-space: nowrap;">
-                <span id="visibleProductCount" class="fw-bold" style="color: #2563eb; font-variant-numeric: tabular-nums;"><%= airconGroups.length %></span>
-                <span>products</span>
+              <div class="aircon-catalog-actions d-flex align-items-center gap-3">
+                <div class="small d-flex align-items-center gap-1" style="color: #64748b; font-weight: 500; white-space: nowrap;">
+                  <span id="visibleProductCount" class="fw-bold" style="color: #2563eb; font-variant-numeric: tabular-nums;"><%= airconGroups.length %></span>
+                  <span>aircons</span>
+                </div>
+                <!-- Cart has its own toolbar space, separate from product-card actions. -->
+                <div id="floatingCartBtn" class="aircon-catalog-cart d-flex align-items-center gap-2">
+                  <span id="cartLabel" class="d-none d-md-inline-block px-3 py-2 fw-semibold small"
+                    style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; letter-spacing: 0.2px; cursor: pointer; border-radius: 8px; font-size: 0.78rem; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.25);"
+                    onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'">
+                    <i class="bi bi-cart3 me-1"></i> Cart <span id="cartLabelCount">0</span>
+                  </span>
+                  <button type="button" class="btn position-relative d-flex align-items-center justify-content-center p-0" aria-label="Open aircon cart" title="Aircon cart"
+                    style="width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 1rem; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transition: transform 0.2s;"
+                    onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'"
+                    onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <i class="bi bi-cart3"></i>
+                    <span id="cartBadgeCount"
+                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"
+                      style="font-size: 0.6rem; display: none;">0</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1400,7 +1449,7 @@
                 style="width: 72px; height: 72px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 12px;">
                 <i class="bi bi-box-seam" style="font-size: 2rem; color: #3b82f6;"></i>
               </div>
-              <h5 class="fw-bold mb-1" style="color: #0f172a; font-size: 1rem;">No Products Available</h5>
+              <h5 class="fw-bold mb-1" style="color: #0f172a; font-size: 1rem;">No Aircons Available</h5>
               <p class="mb-3 mx-auto" style="max-width: 360px; color: #64748b; font-size: 0.85rem;">Check back soon — we're adding new models regularly.</p>
               <button class="btn btn-sm px-3 py-1 fw-semibold" onclick="activeFilter='all';document.querySelectorAll('.ent-filter-pill').forEach(b=>b.classList.toggle('active',b.dataset.filter==='all'));applyFilters();" style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; border-radius: 6px; font-size: 0.82rem;">Reset Filters</button>
             </div>
@@ -1430,7 +1479,7 @@
                           <% if (g.variants.length > 1) { %><span class="fp-from">from</span><% } %>
                           <% if (g.startingPrice) { %>₱<%= Number(g.startingPrice).toLocaleString() %><% } else { %><span class="fp-from">Price on request</span><% } %>
                         </div>
-                        <a href="/products/<%= g._id %>" class="fp-buy" aria-label="View <%= g.brand %> <%= g.modelLine %>">View Product <i class="bi bi-arrow-right"></i></a>
+                        <a href="/products/<%= g._id %>" class="fp-buy" aria-label="View <%= g.brand %> <%= g.modelLine %>">View Aircon <i class="bi bi-arrow-right"></i></a>
                       </div>
                     </div>
                   </div>
@@ -1627,7 +1676,7 @@
                   <label class="form-label">Delivery Address</label>
                   <div class="input-group">
                     <input type="text" class="form-control" id="wizardAddress"
-                      placeholder="Enter street address, building, city..." autocomplete="off" style="border-radius: 6px 0 0 6px;">
+                      placeholder="Start typing your street, barangay, or city…" autocomplete="off" style="border-radius: 6px 0 0 6px;">
                     <button class="btn" type="button" id="searchAddressBtn"
                       style="border: 1px solid #e2e8f0; border-left: none; border-radius: 0 6px 6px 0; background: #f8fafc; color: #64748b;">
                       <i class="bi bi-search" style="font-size: 0.85rem;"></i>
@@ -1660,6 +1709,7 @@
                   </div>
 
                   <!-- Route Details Panel -->
+                  <p id="orderRouteStatus" class="small text-muted mt-2 mb-0" role="status" aria-live="polite">Choose a location to see the delivery route.</p>
                   <div class="route-info-panel" id="routeInfoPanel">
                     <div class="d-flex align-items-center justify-content-between mb-2">
                       <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Delivery fee details</span>
@@ -1898,6 +1948,7 @@
   <script src="/js/checkout-calendar.js?v=20260929-single-payment-action"></script>
   <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
   <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
+  <script src="/js/order-route-map.js?v=20261009-visible-route"></script>
   <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
   <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
 
@@ -2051,11 +2102,13 @@
       let leafletMap = null;
       let leafletMarker = null;
       let fpDatePickup = null;
-      let addressSearchTimeout = null;
       let checkoutCalendar = null;
       let _routeDistanceKm = 0;
       let _routeDurationMin = 0;
       let _transportFee = 0;
+      let _routeRequestId = 0;
+      let _routeQuotePending = null;
+      let _routeQuoteError = null;
       let _checkoutRequestId = '';
       let _directCheckoutSubmitting = false;
       let _directDraftSaveTimer = null;
@@ -2309,6 +2362,9 @@
         selectedVariantIdx = null;
         selectedQuantity = 1;
         selectedFulfillment = null;
+        ++_routeRequestId;
+        _routeQuotePending = null;
+        _routeQuoteError = null;
         _routeDistanceKm = 0;
         _routeDurationMin = 0;
         _transportFee = 0;
@@ -2551,6 +2607,11 @@
         }
         if (currentStep === 3) {
           if (selectedFulfillment !== 'customer_pickup') {
+            if (_routeQuotePending) await _routeQuotePending;
+            if (_routeQuoteError || !Number.isFinite(_routeDistanceKm)) {
+              await guideDirectCheckoutIssue(_routeQuoteError || 'Select your address or map pin to calculate the delivery route.', 'Check your delivery route', '#wizardMap');
+              return;
+            }
             const addr = document.getElementById('wizardAddress').value.trim();
             const contact = document.getElementById('wizardContact').value.trim();
             const date = document.getElementById('wizardDate').value;
@@ -3002,11 +3063,17 @@
           leafletMarker = null;
         }
 
-        // Default: Manila
-        const defaultLat = 14.5995;
-        const defaultLng = 120.9842;
+        window._routeLayer = null;
+        window._companyMarker = null;
+        const savedLat = parseFloat(document.getElementById('wizardLat').value);
+        const savedLng = parseFloat(document.getElementById('wizardLng').value);
+        const hasSavedLocation = Number.isFinite(savedLat) && Number.isFinite(savedLng);
+        const base = window._companyBaseLocation || { lat:14.676049, lng:121.043731 };
+        const defaultLat = hasSavedLocation ? savedLat : base.lat;
+        const defaultLng = hasSavedLocation ? savedLng : base.lng;
 
         leafletMap = L.map('wizardMap', { zoomControl: false }).setView([defaultLat, defaultLng], 12);
+        const activeMap = leafletMap;
 
         // Add custom zoom control position
         L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
@@ -3023,10 +3090,10 @@
         leafletMarker = L.marker([defaultLat, defaultLng], { icon: customPinIcon, draggable: true }).addTo(leafletMap);
 
         window._companyBaseLocationPromise.then(function(base) {
-          if (!base || !base.lat || !base.lng || !leafletMap) return;
+          if (!base || !base.lat || !base.lng || leafletMap !== activeMap) return;
           const companyIcon = L.divIcon({ className: 'custom-map-pin tech-pin', iconSize: [40, 40], iconAnchor: [20, 40], html: '<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(45deg);"></i></div>' });
           if (window._companyMarker) { window._companyMarker.remove(); }
-          window._companyMarker = L.marker([base.lat, base.lng], { icon: companyIcon, zIndexOffset: -100 }).addTo(leafletMap).bindPopup("<b>Company Location</b><br/>" + (base.address || ""));
+          window._companyMarker = L.marker([base.lat, base.lng], { icon: companyIcon, zIndexOffset: -100 }).addTo(leafletMap).bindPopup("<b>Company Location</b><br/>" + escapeDirectCheckoutHtml(base.address || ""));
         });
 
         // Helper: update calendar with new customer position
@@ -3040,31 +3107,22 @@
           updateCustomerLocation(pos.lat, pos.lng);
           calcTransportFare(pos.lat, pos.lng);
           // Reverse geocode
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.lat}&lon=${pos.lng}`)
-            .then(r => r.json())
-            .then(d => {
-              if (d.display_name) {
-                document.getElementById('wizardAddress').value = d.display_name;
-              }
-            }).catch(() => { });
+          reverseDirectDeliveryPoint(pos.lat, pos.lng);
         });
 
         leafletMap.on('click', function (e) {
           leafletMarker.setLatLng(e.latlng);
           updateCustomerLocation(e.latlng.lat, e.latlng.lng);
           calcTransportFare(e.latlng.lat, e.latlng.lng);
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
-            .then(r => r.json())
-            .then(d => {
-              if (d.display_name) {
-                document.getElementById('wizardAddress').value = d.display_name;
-              }
-            }).catch(() => { });
+          reverseDirectDeliveryPoint(e.latlng.lat, e.latlng.lng);
         });
+
+        if (hasSavedLocation) calcTransportFare(savedLat, savedLng);
 
         // Try to get user location
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(pos => {
+            if (leafletMap !== activeMap || document.getElementById('wizardLat').value || document.getElementById('wizardLng').value) return;
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             leafletMap.flyTo([lat, lng], 15, { animate: true, duration: 1.5 });
@@ -3072,27 +3130,9 @@
             updateCustomerLocation(lat, lng);
             calcTransportFare(lat, lng);
             setTimeout(() => leafletMap.invalidateSize(), 1600);
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-              .then(r => r.json())
-              .then(d => {
-                if (d.display_name) {
-                  document.getElementById('wizardAddress').value = d.display_name;
-                }
-              }).catch(() => { });
+            reverseDirectDeliveryPoint(lat, lng);
           }, () => { }, { enableHighAccuracy: true });
         }
-
-        // ── Company pin ────────────────────────────────────────────────
-        window._companyBaseLocationPromise.then(function(base) {
-          if (!base || !base.lat || !base.lng) return;
-          if (!leafletMap) return;
-          var companyIcon = L.divIcon({
-            html: '<div style="background:#2563eb;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);"><i class="bi bi-building"></i></div>',
-            className: '', iconSize: [28, 28], iconAnchor: [14, 14]
-          });
-          L.marker([base.lat, base.lng], { icon: companyIcon }).addTo(leafletMap)
-            .bindPopup('<b>' + (base.address || 'Company') + '</b>');
-        });
 
         // ── Map Legend Control (upper-right) ──
         const LegendControl = L.Control.extend({
@@ -3133,8 +3173,7 @@
             updateCustomerLocation(lat, lng);
             calcTransportFare(lat, lng);
             if (addrInput) addrInput.value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-              .then(r => r.json()).then(d => { if (d.display_name && addrInput) addrInput.value = d.display_name; }).catch(() => {});
+            reverseDirectDeliveryPoint(lat, lng);
           }, function () {
             showPremiumAlert('Unable to retrieve your location. Please check your GPS settings.', 'Location Error', 'warning');
           }, { enableHighAccuracy: true });
@@ -3144,6 +3183,16 @@
       };
 
       // ── Transport fare calculation ──────────────────────────────────────
+      function reverseDirectDeliveryPoint(lat, lng) {
+        const requestId = _routeRequestId;
+        return fetch('/api/geocoding/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lng))
+          .then(response => response.json())
+          .then(data => {
+            if (requestId !== _routeRequestId) return;
+            if (data.display_name) document.getElementById('wizardAddress').value = data.display_name;
+          }).catch(() => {});
+      }
+
       function updateRoutePanel(distKm, durMin, farePerKm, fee, isRoad) {
         var panel     = document.getElementById('routeInfoPanel');
         var distEl    = document.getElementById('routeDistDisplay');
@@ -3175,67 +3224,74 @@
       }
 
       function calcTransportFare(custLat, custLng) {
+        var routeRequestId = ++_routeRequestId;
+        window.OrderRouteMap.clear(leafletMap, window._routeLayer);
+        window._routeLayer = null;
+        _routeDistanceKm = NaN; _routeDurationMin = 0; _transportFee = 0;
+        document.getElementById('routeInfoPanel')?.classList.remove('has-route');
+        var status = document.getElementById('orderRouteStatus');
+        if (status) status.textContent = 'Checking the road route from CALIDRO RACS to your location…';
         var spinner = document.getElementById('mapLocatingSpinner');
+        var spinnerLabel = document.getElementById('mapSpinnerLabel');
+        if (spinnerLabel) spinnerLabel.textContent = 'Calculating route...';
         if (spinner) spinner.classList.add('show');
-        window._companyBaseLocationPromise.then(function(base) {
-          if (!base || !base.lat || !base.lng) { if (spinner) spinner.classList.remove('show'); return; }
-          var farePerKm = window._farePerKm || 40;
-          var url = '/api/services/osrm-route?coords=' + encodeURIComponent(base.lng + ',' + base.lat + ';' + custLng + ',' + custLat);
-          fetch(url)
-            .then(function(r) { return r.json(); })
-            .then(function(routeData) {
-              var isRoad = false;
-              if (routeData && routeData.routes && routeData.routes.length > 0) {
-                var distKm = routeData.routes[0].distance / 1000;
-                var durMin = Math.round(routeData.routes[0].duration / 60);
-                _routeDistanceKm = Math.round(distKm * 10) / 10;
-                _routeDurationMin = durMin;
-                isRoad = true;
-
-                if (leafletMap && routeData.routes[0].geometry) {
-                  if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
-                  window._routeLayer = L.geoJSON(routeData.routes[0].geometry, {
-                    style: { color: '#6366f1', weight: 5, opacity: 0.85 }
-                  }).addTo(leafletMap);
-                  leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
-                }
-              } else {
-                // Haversine fallback
-                var R = 6371;
-                var dLat = ((custLat - base.lat) * Math.PI) / 180;
-                var dLng = ((custLng - base.lng) * Math.PI) / 180;
-                var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-                var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                var haversineKm = R * c;
-                _routeDistanceKm = Math.round(haversineKm * 14) / 10; // road factor 1.4
-                _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
-              }
-              _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
-              var meta = document.getElementById('reviewTransportMeta');
-              updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, isRoad);
-              if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin || 30);
-              if (meta) meta.textContent = _routeDistanceKm + ' km × ₱' + (window._farePerKm || 40) + '/km';
-            })
-            .catch(function() {
-              // Fallback haversine
-              var R = 6371;
-              var dLat = ((custLat - base.lat) * Math.PI) / 180;
-              var dLng = ((custLng - base.lng) * Math.PI) / 180;
-              var a = Math.sin(dLat / 2) ** 2 + Math.cos((base.lat * Math.PI) / 180) * Math.cos((custLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-              var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-              var hKm = R * c;
-              _routeDistanceKm = Math.round(hKm * 14) / 10;
-              _routeDurationMin = Math.round(_routeDistanceKm * 3 + 10);
-              _transportFee = Math.round(_routeDistanceKm * (window._farePerKm || 40));
-              updateRoutePanel(_routeDistanceKm, _routeDurationMin, farePerKm, _transportFee, false);
-              if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin || 30);
-            });
+        _routeQuoteError = null;
+        _routeQuotePending = fetch('/api/orders/delivery-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: custLat, lng: custLng })
+        }).then(async function(response) {
+          const data = await response.json().catch(function() { return {}; });
+          if (!response.ok || !data.quote) throw new Error(data.error || 'Unable to calculate the delivery route.');
+          if (routeRequestId !== _routeRequestId) return;
+          const quote = data.quote;
+          _routeDistanceKm = Number(quote.distanceKm);
+          _routeDurationMin = Number(quote.durationMin);
+          _transportFee = Number(quote.transportationFee);
+          window._farePerKm = Number(quote.farePerKm) || window._farePerKm;
+          if (!Number.isFinite(_routeDistanceKm) || !Number.isFinite(_routeDurationMin) || !Number.isFinite(_transportFee)) throw new Error('The delivery quote is incomplete. Select your location again.');
+          const origin = window.OrderRouteMap.point(quote.origin);
+          if (origin && window._companyMarker) window._companyMarker.setLatLng([origin.lat, origin.lng]);
+          window._routeLayer = window.OrderRouteMap.draw({
+            map:leafletMap, leaflet:typeof L === 'undefined' ? null : L, quote,
+            origin:window._companyBaseLocation, destination:{ lat:custLat, lng:custLng }
+          });
+          if (status) status.textContent = quote.source === 'road'
+            ? 'Road route shown from CALIDRO RACS to your location.'
+            : 'Road routing is unavailable. The dashed line shows an estimated connection; the delivery fee is estimated.';
+          updateRoutePanel(
+            _routeDistanceKm,
+            _routeDurationMin,
+            Number(quote.farePerKm) || 0,
+            _transportFee,
+            quote.source === 'road'
+          );
+          if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin);
+        }).catch(function(error) {
+          if (routeRequestId !== _routeRequestId) return;
+          _routeDistanceKm = NaN;
+          _routeDurationMin = 0;
+          _transportFee = 0;
+          _routeQuoteError = error.message || 'Unable to calculate the delivery route.';
+          if (status) status.textContent = _routeQuoteError + ' Select your location again to retry.';
+        }).finally(function() {
+          if (routeRequestId === _routeRequestId && spinner) spinner.classList.remove('show');
         });
+        return _routeQuotePending;
       }
 
       // ── Submit order ────────────────────────────────────────────────────
       async function submitOrder() {
         if (_directCheckoutSubmitting) return;
+        if (selectedFulfillment !== 'customer_pickup') {
+          if (_routeQuotePending) await _routeQuotePending;
+          if (_routeQuoteError || !document.getElementById('wizardLat').value || !document.getElementById('wizardLng').value || !Number.isFinite(_routeDistanceKm)) {
+            currentStep = 3;
+            updateWizardUI();
+            await guideDirectCheckoutIssue(_routeQuoteError || 'Select your delivery location to calculate the route and fee.', 'Check your delivery route', '#wizardMap');
+            return;
+          }
+        }
         if (selectedFulfillment === 'customer_pickup' && !window.OrderCheckoutErrors.isFutureDate(document.getElementById('wizardPickupDate')?.value)) {
           currentStep = 3;
           updateWizardUI();
@@ -3411,77 +3467,32 @@
       }
 
       // ── Address Search Logic ───────────────────────────────────────────
+      // Live address suggestions share the service-booking search provider.
       const addrInput = document.getElementById('wizardAddress');
       const suggestBox = document.getElementById('addressSuggestions');
       const searchBtn = document.getElementById('searchAddressBtn');
-
-      if (addrInput) {
-        addrInput.addEventListener('input', function () {
-          clearTimeout(addressSearchTimeout);
-          const q = this.value.trim();
-          if (q.length < 3) {
-            suggestBox.style.display = 'none';
-            return;
+      window.AddressAutocomplete.create({
+        input:addrInput, list:suggestBox, searchButton:searchBtn,
+        onInput:function() {
+          ++_routeRequestId;
+          document.getElementById('wizardLat').value = '';
+          document.getElementById('wizardLng').value = '';
+          _routeDistanceKm = NaN; _routeDurationMin = 0; _transportFee = 0;
+          _routeQuoteError = 'Choose an address suggestion or pin a location to calculate the route.';
+          window.OrderRouteMap.clear(leafletMap, window._routeLayer); window._routeLayer = null;
+          document.getElementById('routeInfoPanel')?.classList.remove('has-route');
+          document.getElementById('mapLocatingSpinner')?.classList.remove('show');
+          const status = document.getElementById('orderRouteStatus'); if (status) status.textContent = 'Choose an address suggestion or pin a location to see the route.';
+        },
+        onSelect:function(suggestion) {
+          const lat = Number(suggestion.lat), lon = Number(suggestion.lon);
+          document.getElementById('wizardLat').value = lat;
+          document.getElementById('wizardLng').value = lon;
+          if (leafletMap && leafletMarker) {
+            leafletMap.flyTo([lat,lon],16);
+            leafletMarker.setLatLng([lat,lon]);
           }
-          addressSearchTimeout = setTimeout(() => searchAddress(q), 500);
-        });
-
-        addrInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            searchAddress(addrInput.value);
-          }
-        });
-      }
-
-      if (searchBtn) {
-        searchBtn.onclick = () => searchAddress(addrInput.value);
-      }
-
-      async function searchAddress(q) {
-        if (!q) return;
-        try {
-          const res = await fetch(`/api/services/geocode-suggest?q=${encodeURIComponent(q)}`);
-          const data = await res.json();
-          if (data.suggestions && data.suggestions.length > 0) {
-            renderSuggestions(data.suggestions);
-          } else {
-            suggestBox.style.display = 'none';
-          }
-        } catch (e) {
-          console.error('Geocode search failed', e);
-        }
-      }
-
-      function renderSuggestions(list) {
-        suggestBox.innerHTML = '';
-        list.forEach(s => {
-          const item = document.createElement('button');
-          item.className = 'list-group-item list-group-item-action border-0 py-2 small';
-          item.innerHTML = `<i class="bi bi-geo-alt me-2 text-primary"></i>${s.display_name}`;
-          item.onclick = () => {
-            addrInput.value = s.display_name;
-            suggestBox.style.display = 'none';
-            const lat = parseFloat(s.lat);
-            const lon = parseFloat(s.lon);
-            document.getElementById('wizardLat').value = lat;
-            document.getElementById('wizardLng').value = lon;
-            if (leafletMap && leafletMarker) {
-              leafletMap.flyTo([lat, lon], 16);
-              leafletMarker.setLatLng([lat, lon]);
-            }
-            if (checkoutCalendar) { /* no setLocation – handled by calcTransportFare below */ }
-            calcTransportFare(lat, lon);
-          };
-          suggestBox.appendChild(item);
-        });
-        suggestBox.style.display = 'block';
-      }
-
-      // Hide suggestions on click outside
-      document.addEventListener('click', (e) => {
-        if (!suggestBox.contains(e.target) && e.target !== addrInput) {
-          suggestBox.style.display = 'none';
+          calcTransportFare(lat,lon);
         }
       });
 

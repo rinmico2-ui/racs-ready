@@ -1,0 +1,165 @@
+/* A shared action palette for service setup, assistance, and confirmations. */
+body:has(#bookingContainer),
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary),
+body:has(#bookingContainer) .swal2-popup {
+  --service-action: #15803d;
+  --service-action-hover: #166534;
+  --service-action-soft: #f0fdf4;
+  --service-action-border: #bbf7d0;
+  --service-action-focus: #86efac;
+}
+
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(.cfg-btn-primary, .ent-btn-primary, .ent-inv-btn-primary),
+body:has(#bookingContainer) :is(.ent-btn-primary, .mobile-booking-continue, .location-next-button, #scheduleNextButton),
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-confirm:not(.racs-enterprise-danger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px !important;
+  padding: 12px 20px !important;
+  border: 1px solid var(--service-action) !important;
+  border-radius: 10px !important;
+  background: var(--service-action) !important;
+  color: #fff !important;
+  font-size: .875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  text-decoration: none;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background-color .15s ease, border-color .15s ease !important;
+}
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(.cfg-btn-primary, .ent-btn-primary, .ent-inv-btn-primary):hover:not(:disabled),
+body:has(#bookingContainer) :is(.ent-btn-primary, .mobile-booking-continue, .location-next-button, #scheduleNextButton):hover:not(:disabled),
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-confirm:not(.racs-enterprise-danger):hover:not(:disabled) {
+  border-color: var(--service-action-hover) !important;
+  background: var(--service-action-hover) !important;
+}
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(.cfg-btn-primary, .ent-btn-primary, .ent-inv-btn-primary):disabled,
+body:has(#bookingContainer) :is(.ent-btn-primary, .mobile-booking-continue, .location-next-button, #scheduleNextButton):disabled,
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-confirm:disabled {
+  opacity: .55 !important;
+  cursor: not-allowed !important;
+}
+
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(.cfg-btn-ghost, .cfg-change-type, .ent-btn-outline, .ent-inv-btn-secondary, .btn-outline-primary, .btn-outline-secondary, .booking-add-another),
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-cancel {
+  min-height: 48px !important;
+  padding: 12px 16px !important;
+  border: 1px solid #dce3ec !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  color: #475569 !important;
+  font-size: .875rem !important;
+  font-weight: 600 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(.cfg-btn-ghost, .cfg-change-type, .ent-btn-outline, .ent-inv-btn-secondary, .btn-outline-primary, .btn-outline-secondary, .booking-add-another):hover:not(:disabled),
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-cancel:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+:is(#quantitySelectionModal, #bookingResultModal, #bookingSuccessModal, #selectedServicesSummary)
+:is(button, a):focus-visible,
+body:has(#bookingContainer) :is(.ent-btn-primary, .mobile-booking-continue, .location-next-button, #scheduleNextButton):focus-visible,
+body:has(#bookingContainer) .swal2-popup .swal2-actions button:focus-visible {
+  outline: 3px solid var(--service-action-focus) !important;
+  outline-offset: 3px !important;
+  box-shadow: none !important;
+}
+
+/* Use the same calm header on desktop and mobile. */
+#quantitySelectionModal .modal-content .cfg-header {
+  background: #fff;
+  color: #172b4d;
+  border-bottom: 1px solid #e0e6ee;
+}
+#quantitySelectionModal .cfg-header::after { display: none; }
+#quantitySelectionModal .modal-content .cfg-header h5 { color: #172b4d !important; }
+#quantitySelectionModal .modal-content .cfg-header p { color: #64748b !important; }
+#quantitySelectionModal .cfg-ico { background: var(--service-action-soft); color: var(--service-action); box-shadow: none; }
+#quantitySelectionModal .cfg-close { width: 44px; height: 44px; border: 1px solid #e0e6ee; border-radius: 10px; background: #f8fafc; color: #475569; }
+#quantitySelectionModal .cfg-close:hover { background: #f1f5f9; transform: none; }
+#quantitySelectionModal .cfg-footer { background: #fff; }
+#quantitySelectionModal .cfg-step.is-active .cfg-dot,
+#quantitySelectionModal .cfg-step.is-done .cfg-dot { border-color: var(--service-action); background: var(--service-action); color: #fff; box-shadow: none; }
+#quantitySelectionModal .cfg-step.is-done + .cfg-line { background: var(--service-action); }
+#quantitySelectionModal .cfg-step.is-active .cfg-step-s,
+#quantitySelectionModal .cfg-price-v { color: var(--service-action); }
+#quantitySelectionModal .cfg-context-icon,
+#quantitySelectionModal .cfg-stage-icon { background: var(--service-action-soft); color: var(--service-action); }
+#quantitySelectionModal .cfg-service-context { border-color: var(--service-action-border); background: #f8fcf9; }
+#quantitySelectionModal .cfg-context-progress { border-color: var(--service-action-border); color: var(--service-action); }
+#quantitySelectionModal :is(.cfg-f, .form-control, .form-select):focus { border-color: var(--service-action); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
+#quantitySelectionModal .aircon-type-card:hover,
+#quantitySelectionModal .aircon-type-card.selected,
+#quantitySelectionModal .hp-selection-card:hover,
+#quantitySelectionModal .hp-selection-card.selected { border-color: var(--service-action) !important; background: var(--service-action-soft) !important; box-shadow: none !important; transform: none !important; }
+#quantitySelectionModal .aircon-type-card.selected::after { background: var(--service-action); }
+#quantitySelectionModal .cfg-type-icon-wrap,
+#quantitySelectionModal .aircon-type-card:hover .cfg-type-icon-wrap,
+#quantitySelectionModal .aircon-type-card.selected .cfg-type-icon-wrap { background: var(--service-action-soft); }
+#quantitySelectionModal .cfg-type-icon,
+#quantitySelectionModal .cfg-type-price,
+#quantitySelectionModal .cfg-hp-price { color: var(--service-action) !important; }
+#quantitySelectionModal .cfg-hp-stepper { border-color: var(--service-action-border); }
+#quantitySelectionModal .cfg-hp-stepper button { color: var(--service-action); }
+#quantitySelectionModal .cfg-hp-stepper button:hover:not(:disabled) { background: var(--service-action-soft); }
+#quantitySelectionModal :is(.cfg-hp-stepper button, .cfg-hp-choice .hp-checkbox, .aircon-type-card):focus-visible { outline: 3px solid var(--service-action-focus); outline-offset: 2px; }
+
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast)::before { height: 3px; background: var(--service-action); }
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-actions { background: #fff; }
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) { border-radius: 14px !important; box-shadow: 0 16px 48px rgba(15,23,42,.16) !important; }
+body:has(#bookingContainer) .swal2-popup:not(.swal2-toast) .swal2-icon { box-shadow: none !important; }
+
+/* Floating step prompts share the popup action style, including route checks. */
+body:has(#bookingContainer) :is(#mobileBookingBar, #locationNextAction, #scheduleNextAction, #reviewNextAction, #paymentConfirmAction) {
+  background: #fff;
+  border-color: #dce3ec;
+  box-shadow: 0 4px 24px rgba(15,23,42,.08);
+  animation: none;
+}
+body:has(#bookingContainer) :is(#locationNextAction, #scheduleNextAction, #reviewNextAction, #paymentConfirmAction).is-ready {
+  border-color: var(--service-action-border);
+}
+body:has(#bookingContainer) #locationNextAction .location-next-icon {
+  background: var(--service-action-soft);
+  color: var(--service-action);
+}
+body:has(#bookingContainer) :is(.location-next-copy small, .schedule-next-copy > span, .booking-review-mobile-action > div span, .payment-confirm-copy span) {
+  color: var(--service-action);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body:has(#bookingContainer) :is(.location-next-copy strong, .schedule-next-copy strong) { font-weight: 600; }
+body:has(#bookingContainer) :is(.mobile-booking-open-label, .mobile-booking-overview > strong, .location-fare-details) { color: var(--service-action); }
+body:has(#bookingContainer) .booking-next-cta-copy small { color: #dcfce7; }
+body:has(#bookingContainer) :is(.mobile-booking-continue, .location-next-button, #scheduleNextButton, #reviewNextAction button, #confirmBookingBtn) { animation: none !important; }
+body:has(#bookingContainer) :is(#locationNextAction, #scheduleNextAction, #reviewNextAction, #paymentConfirmAction) button:focus-visible { outline: 3px solid var(--service-action-focus); outline-offset: 3px; }
+
+@media (max-width: 767.98px) {
+  body:has(#bookingContainer) :is(#mobileBookingBar, #locationNextAction, #scheduleNextAction, #reviewNextAction, #paymentConfirmAction) {
+    box-shadow: 0 -4px 20px rgba(15,23,42,.08);
+  }
+}
+
+@media (max-width: 767.98px) {
+  #quantitySelectionModal :is(#cfgUnknownHpBtn, #cfgOtherHpBtn) { width: 100%; }
+  #quantitySelectionModal .cfg-footer > button { padding-inline: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #quantitySelectionModal button,
+  body:has(#bookingContainer) .swal2-actions button { transition: none !important; }
+}

@@ -28,30 +28,30 @@ function buildReportCenterInsights(snapshot) {
 
   if (financial) {
     if (financial.operatingProfit < 0) {
-      insights.push({ tone: "danger", title: "Recorded cost position requires review", text: "Recognized revenue is below the direct costs, approved expenses, and payroll currently recorded for this month.", href: "/admin/reports/revenue#section-cost" });
+      insights.push({ tone: "danger", title: "Saved costs are higher than completed sales", text: "Completed sales is below the direct costs, approved expenses, and payroll currently recorded for this month.", href: "/admin/reports/revenue#section-cost" });
     } else if (financial.monthlyRevenue > 0) {
-      insights.push({ tone: "success", title: "Positive recorded contribution", text: `The recorded operating result is ${Math.round(financial.profitMargin || 0)}% of recognized revenue.`, href: "/admin/reports/revenue#section-cost" });
+      insights.push({ tone: "success", title: "Saved records show a profit", text: `The profit after saved costs is ${Math.round(financial.profitMargin || 0)}% of completed sales.`, href: "/admin/reports/revenue#section-cost" });
     }
     if (financial.pendingPayments > 0) {
       const outstanding = Number(financial.pendingPayments || 0).toLocaleString("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 });
-      insights.push({ tone: "warning", title: "Outstanding collections", text: `${outstanding} of approved booked value is not yet represented by accepted collections.`, href: "/admin/payments" });
+      insights.push({ tone: "warning", title: "Unpaid amounts", text: `${outstanding} of approved work value has not been paid yet.`, href: "/admin/payments" });
     }
     if (Number(financial.costDataCoverage || 0) < 80) {
-      insights.push({ tone: "warning", title: "Cost coverage is incomplete", text: "Profitability should be treated as provisional until more direct costs are recorded.", href: "/admin/reports/revenue#section-cost" });
+      insights.push({ tone: "warning", title: "Some cost details are missing", text: "Profit is an estimate until more job and product costs are saved.", href: "/admin/reports/revenue#section-cost" });
     }
   }
 
   if (inventory && inventory.alerts > 0) {
-    insights.push({ tone: inventory.outOfStock > 0 ? "danger" : "warning", title: "Inventory needs attention", text: `${inventory.outOfStock} out of stock and ${inventory.lowStock} low-stock product SKUs require review.`, href: "/admin/reports/inventory" });
+    insights.push({ tone: inventory.outOfStock > 0 ? "danger" : "warning", title: "Stock needs attention", text: `${inventory.outOfStock} item types have no stock and ${inventory.lowStock} have low stock. Check these items before buying more.`, href: "/admin/reports/inventory" });
   }
   if (financial && Number(financial.paymentActionCount || 0) > 0) {
-    insights.push({ tone: Number(financial.paymentExceptionCount || 0) > 0 ? "danger" : "warning", title: "Payment controls require action", text: `${financial.paymentActionCount} payment record${financial.paymentActionCount === 1 ? "" : "s"} await verification or exception resolution.`, href: "/admin/payments" });
+    insights.push({ tone: Number(financial.paymentExceptionCount || 0) > 0 ? "danger" : "warning", title: "Payments need checking", text: `${financial.paymentActionCount} payment record${financial.paymentActionCount === 1 ? "" : "s"} need a payment check or a problem fixed.`, href: "/admin/payments" });
   }
   if (operations && operations.activeBookings + operations.activeOrders > 0) {
-    insights.push({ tone: "info", title: "Open operational workload", text: `${operations.activeBookings} service bookings and ${operations.activeOrders} product orders remain active.`, href: "/admin/operations/calendar" });
+    insights.push({ tone: "info", title: "Unfinished bookings and orders", text: `${operations.activeBookings} service bookings and ${operations.activeOrders} product orders remain active.`, href: "/admin/operations/calendar" });
   }
   if (!insights.length) {
-    insights.push({ tone: "info", title: "No immediate exception detected", text: "Open a detailed report to review trends, cohorts, and underlying records.", href: "/admin/reports/revenue" });
+    insights.push({ tone: "info", title: "Nothing urgent to check", text: "Open a report to see changes over time and the records behind each total.", href: "/admin/reports/revenue" });
   }
   const priority = { danger: 0, warning: 1, info: 2, success: 3 };
   return insights

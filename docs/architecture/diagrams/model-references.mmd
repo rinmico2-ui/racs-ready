@@ -1,0 +1,240 @@
+flowchart LR
+  ActivityLog["ActivityLog"]
+  AirconCart["AirconCart"]
+  Assignment["Assignment"]
+  AuthSession["AuthSession"]
+  BookingService["BookingService"]
+  Brand["Brand"]
+  Category["Category"]
+  CoreService["CoreService"]
+  CustomerAsset["CustomerAsset"]
+  DailyAssignment["DailyAssignment"]
+  DailyKit["DailyKit"]
+  EmailDeliveryLog["EmailDeliveryLog"]
+  EmailOutbox["EmailOutbox"]
+  EmployeeCompensation["EmployeeCompensation"]
+  EquipmentAssignment["EquipmentAssignment"]
+  EquipmentUsageLog["EquipmentUsageLog"]
+  Expense["Expense"]
+  FailedLoginAttempt["FailedLoginAttempt"]
+  HVACProduct["HVACProduct"]
+  Inventory["Inventory"]
+  LeaveRequest["LeaveRequest"]
+  LoginHistory["LoginHistory"]
+  MaintenanceSchedule["MaintenanceSchedule"]
+  NonWorkingDay["NonWorkingDay"]
+  Notification["Notification"]
+  OperationLock["OperationLock"]
+  Order["Order"]
+  PartsRequest["PartsRequest"]
+  Payment["Payment"]
+  Payroll["Payroll"]
+  ProductRefund["ProductRefund"]
+  ProductReturn["ProductReturn"]
+  ProductReturnMovement["ProductReturnMovement"]
+  Project["Project"]
+  ProjectIssue["ProjectIssue"]
+  ProjectMaterial["ProjectMaterial"]
+  ProjectResourcePurchase["ProjectResourcePurchase"]
+  ProjectWorkSubmission["ProjectWorkSubmission"]
+  Purchase["Purchase"]
+  Rating["Rating"]
+  RelocationRequest["RelocationRequest"]
+  RepairService["RepairService"]
+  Role["Role"]
+  Secretary["Secretary"]
+  SecretaryAttendance["SecretaryAttendance"]
+  Service["Service"]
+  ServiceCategory["ServiceCategory"]
+  ServiceReport["ServiceReport"]
+  ServiceToolUsage["ServiceToolUsage"]
+  SiteSetting["SiteSetting"]
+  StockAdjustment["StockAdjustment"]
+  StockReservation["StockReservation"]
+  Technician["Technician"]
+  TechnicianAttendance["TechnicianAttendance"]
+  TechnicianSchedule["TechnicianSchedule"]
+  Tool["Tool"]
+  ToolAssignment["ToolAssignment"]
+  TrustedDevice["TrustedDevice"]
+  UnitAssistanceRequest["UnitAssistanceRequest"]
+  User["User"]
+  WalkInSale["WalkInSale"]
+  WarrantyClaim["WarrantyClaim"]
+  WorkOrder["WorkOrder"]
+  ActivityLog --> User
+  AirconCart --> User
+  AirconCart --> Inventory
+  Assignment --> BookingService
+  Assignment --> Project
+  Assignment --> Technician
+  Assignment --> User
+  AuthSession --> User
+  BookingService --> User
+  BookingService --> Technician
+  BookingService --> Order
+  BookingService --> UnitAssistanceRequest
+  BookingService --> RelocationRequest
+  BookingService --> CustomerAsset
+  BookingService --> Assignment
+  BookingService --> Tool
+  BookingService --> ServiceReport
+  BookingService --> MaintenanceSchedule
+  BookingService --> BookingService
+  CoreService --> User
+  CustomerAsset --> User
+  CustomerAsset --> MaintenanceSchedule
+  CustomerAsset --> BookingService
+  DailyAssignment --> Project
+  DailyAssignment --> WorkOrder
+  DailyAssignment --> Technician
+  DailyKit --> Technician
+  DailyKit --> Tool
+  DailyKit --> User
+  DailyKit --> EquipmentAssignment
+  DailyKit --> Order
+  DailyKit --> Project
+  DailyKit --> WorkOrder
+  DailyKit --> DailyAssignment
+  EmployeeCompensation --> User
+  EquipmentAssignment --> Project
+  EquipmentAssignment --> BookingService
+  EquipmentAssignment --> DailyKit
+  EquipmentAssignment --> Technician
+  EquipmentAssignment --> WorkOrder
+  EquipmentAssignment --> Tool
+  EquipmentAssignment --> User
+  EquipmentUsageLog --> Technician
+  EquipmentUsageLog --> Tool
+  EquipmentUsageLog --> User
+  Expense --> Technician
+  Expense --> BookingService
+  Expense --> Project
+  Expense --> WorkOrder
+  Expense --> User
+  FailedLoginAttempt --> User
+  HVACProduct --> Brand
+  HVACProduct --> Category
+  HVACProduct --> User
+  Inventory --> Brand
+  Inventory --> Category
+  Inventory --> User
+  LeaveRequest --> Technician
+  LeaveRequest --> User
+  LoginHistory --> User
+  MaintenanceSchedule --> CustomerAsset
+  MaintenanceSchedule --> User
+  MaintenanceSchedule --> BookingService
+  NonWorkingDay --> Service
+  NonWorkingDay --> User
+  Notification --> User
+  Order --> User
+  Order --> Inventory
+  Order --> Technician
+  Order --> BookingService
+  Order --> DailyKit
+  Order --> Payment
+  PartsRequest --> Project
+  PartsRequest --> BookingService
+  PartsRequest --> User
+  PartsRequest --> Technician
+  PartsRequest --> Tool
+  Payment --> BookingService
+  Payment --> Order
+  Payment --> Project
+  Payment --> WorkOrder
+  Payment --> Technician
+  Payment --> User
+  Payment --> Payroll
+  Payroll --> User
+  Payroll --> EmployeeCompensation
+  ProductRefund --> ProductReturn
+  ProductRefund --> Payment
+  ProductRefund --> User
+  ProductReturn --> User
+  ProductReturn --> BookingService
+  ProductReturn --> WorkOrder
+  ProductReturn --> ProductRefund
+  ProductReturnMovement --> ProductReturn
+  ProductReturnMovement --> User
+  Project --> BookingService
+  Project --> User
+  Project --> Technician
+  Project --> Tool
+  Project --> WorkOrder
+  Project --> PartsRequest
+  Project --> ProjectResourcePurchase
+  Project --> Assignment
+  ProjectIssue --> Project
+  ProjectIssue --> WorkOrder
+  ProjectIssue --> Technician
+  ProjectIssue --> User
+  ProjectMaterial --> Project
+  ProjectMaterial --> WorkOrder
+  ProjectMaterial --> Technician
+  ProjectMaterial --> User
+  ProjectResourcePurchase --> Project
+  ProjectResourcePurchase --> Tool
+  ProjectResourcePurchase --> User
+  ProjectResourcePurchase --> StockAdjustment
+  ProjectWorkSubmission --> Project
+  ProjectWorkSubmission --> Technician
+  ProjectWorkSubmission --> User
+  ProjectWorkSubmission --> WorkOrder
+  ProjectWorkSubmission --> EquipmentAssignment
+  ProjectWorkSubmission --> Tool
+  Purchase --> User
+  Rating --> User
+  RelocationRequest --> User
+  RelocationRequest --> CoreService
+  RelocationRequest --> CustomerAsset
+  RelocationRequest --> BookingService
+  Secretary --> User
+  SecretaryAttendance --> User
+  ServiceCategory --> User
+  ServiceReport --> BookingService
+  ServiceReport --> Assignment
+  ServiceReport --> Technician
+  ServiceReport --> User
+  ServiceToolUsage --> BookingService
+  ServiceToolUsage --> Order
+  ServiceToolUsage --> Assignment
+  ServiceToolUsage --> Project
+  ServiceToolUsage --> WorkOrder
+  ServiceToolUsage --> DailyAssignment
+  ServiceToolUsage --> Technician
+  ServiceToolUsage --> Tool
+  ServiceToolUsage --> User
+  StockAdjustment --> Tool
+  StockAdjustment --> BookingService
+  StockAdjustment --> User
+  StockReservation --> Tool
+  StockReservation --> BookingService
+  Technician --> User
+  TechnicianAttendance --> Technician
+  TechnicianAttendance --> User
+  TechnicianSchedule --> Technician
+  Tool --> User
+  ToolAssignment --> Tool
+  ToolAssignment --> Technician
+  ToolAssignment --> User
+  TrustedDevice --> User
+  UnitAssistanceRequest --> User
+  UnitAssistanceRequest --> CoreService
+  UnitAssistanceRequest --> BookingService
+  UnitAssistanceRequest --> CustomerAsset
+  User --> User
+  WalkInSale --> Tool
+  WalkInSale --> HVACProduct
+  WalkInSale --> User
+  WarrantyClaim --> User
+  WarrantyClaim --> Technician
+  WorkOrder --> Project
+  WorkOrder --> BookingService
+  WorkOrder --> Technician
+  WorkOrder --> Tool
+  WorkOrder --> User
+  MissingProduct["Product: unregistered target"]
+  Purchase -.-> MissingProduct
+  classDef missing fill:#fff1f2,stroke:#be123c;
+  class MissingProduct missing;

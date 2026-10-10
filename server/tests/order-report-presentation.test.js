@@ -62,11 +62,11 @@ test("order cost view reconciles a completed installation with linked service co
 });
 
 test("order report separates executive, fulfillment, cash, product, and record decisions", () => {
-  for (const label of ["Valid orders placed", "Completed order value", "Net collections", "Orders requiring attention"]) assert.match(template, new RegExp(label));
-  for (const tab of ["Overview", "Fulfillment", "Cash &amp; margin", "Products", "Records"]) assert.match(template, new RegExp(">" + tab + "<"));
+  for (const label of ["Orders placed, excluding cancellations", "Completed order sales", "Payments after refunds", "Orders to check"]) assert.match(template, new RegExp(label));
+  for (const tab of ["Overview", "Delivery or pickup", "Payments and profit", "Aircons", "Records"]) assert.match(template, new RegExp(">" + tab + "<"));
   assert.match(template, /Report photos/);
-  for (const measure of ["Median cycle", "90th percentile", "On-time completion", "Active backlog aging", "Cancellation reasons"]) assert.match(template, new RegExp(measure));
-  assert.match(template, /Financial time bases/);
+  for (const measure of ["Typical time to finish", "Time to finish 90% of orders", "On-time completion", "How long unfinished orders have been open", "Cancellation reasons"]) assert.match(template, new RegExp(measure));
+  assert.match(template, /Which dates these totals use/);
   assert.doesNotMatch(template, /Executive outlook/);
   assert.doesNotMatch(template, /Brand Contribution/);
   assert.doesNotMatch(template, /Fulfillment team/);

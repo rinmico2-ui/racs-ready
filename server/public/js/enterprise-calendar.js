@@ -35,6 +35,11 @@ const EnterpriseCalendar = (() => {
   let _timeSlotRequestId = 0;
   let _root = document;
   let _syncGlobalState = true;
+  let _availabilityUrl = null;
+  let _projectAvailabilityUrl = '/api/projects/window-availability';
+  let _autoDetectProject = true;
+  let _showStartDatePrompt = true;
+  let _onStateChangeCb = null;
 
   // Large-scale / project mode
   let _mode = "appointment"; // "appointment" | "project" | "preferred"
@@ -111,7 +116,7 @@ const EnterpriseCalendar = (() => {
     _availabilityError = null;
     _availabilityExtendPromise = (async () => {
       try {
-        const response = await fetch('/api/projects/window-availability', {
+        const response = await fetch(_projectAvailabilityUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ startDate: formatDateKey(nextDay), endDate: endKey }),
@@ -186,6 +191,11 @@ const EnterpriseCalendar = (() => {
       ? (document.querySelector(opts.root) || document)
       : (opts.root || document);
     _syncGlobalState = opts.syncGlobalState !== false;
+    _availabilityUrl = opts.availabilityUrl || null;
+    _projectAvailabilityUrl = opts.projectAvailabilityUrl || '/api/projects/window-availability';
+    _autoDetectProject = opts.autoDetectProject !== false;
+    _showStartDatePrompt = opts.showStartDatePrompt !== false;
+    _onStateChangeCb = typeof opts.onStateChange === 'function' ? opts.onStateChange : null;
     _serviceId = opts.serviceId;
     _technicianId = opts.technicianId || null;
     _duration = opts.duration || 90;
@@ -200,9 +210,9 @@ const EnterpriseCalendar = (() => {
     ));
     _onSelectCb = typeof opts.onSelect === 'function' ? opts.onSelect : null;
     _showCommercialProjects = opts.showCommercialProjects !== false;
-    const restoredProjectPreferences = _syncGlobalState
+    const restoredProjectPreferences = opts.projectPreferences || (_syncGlobalState
       ? window.BookingState?.projectScheduling?.preferences
-      : null;
+      : null);
     _projectPreferences = normalizeProjectPreferences(restoredProjectPreferences);
     if (opts.resetSelection === true) {
       _selectedDate = null;
@@ -229,7 +239,7 @@ const EnterpriseCalendar = (() => {
     _totalEstimatedMinutes = Number(opts.totalEstimatedMinutes) || 0;
     _mode = opts.mode === 'preferred' ? 'preferred' : opts.mode === 'project' ? 'project' : 'appointment';
     _isLargeProject = false;
-    if (_mode !== 'preferred' && _totalEstimatedMinutes > 0) {
+    if (_autoDetectProject && _mode !== 'preferred' && _totalEstimatedMinutes > 0) {
       _isLargeProject = await detectLargeProject(_totalEstimatedMinutes);
     }
     if (_mode === 'project' || _isLargeProject) {
@@ -276,7 +286,7 @@ const EnterpriseCalendar = (() => {
         if (_quantity > 1) params.set('quantity', _quantity);
         if (_travelTime > 0) params.set('travelTime', _travelTime);
         if (_technicianId) params.set('technicianId', _technicianId);
-        schPromise = fetch(`/api/schedule/available-dates?${params.toString()}`);
+        schPromise = fetch(`${_availabilityUrl || "/api/schedule/available-dates"}?${params.toString()}`);
       } else {
         schPromise = Promise.resolve({ ok: false });
       }
@@ -299,7 +309,7 @@ const EnterpriseCalendar = (() => {
 
       // The configured threshold may differ from the fallback used before
       // this request. Apply it before loading project availability.
-      if (_mode !== 'preferred' && _totalEstimatedMinutes > 0 && await detectLargeProject(_totalEstimatedMinutes)) {
+      if (_autoDetectProject && _mode !== 'preferred' && _totalEstimatedMinutes > 0 && await detectLargeProject(_totalEstimatedMinutes)) {
         _isLargeProject = true;
         _mode = 'project';
       }
@@ -318,7 +328,7 @@ const EnterpriseCalendar = (() => {
         const horizon = new Date();
         horizon.setDate(horizon.getDate() + 75);
         try {
-          const avRes = await fetch('/api/projects/window-availability', {
+          const avRes = await fetch(_projectAvailabilityUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ startDate: todayKey, endDate: formatDateKey(horizon) }),
@@ -379,12 +389,20 @@ const EnterpriseCalendar = (() => {
     }
   }
 
-  async function refresh() {
+  async function refresh(opts = {}) {
+    if (opts.invalidateSelection) {
+      _selectedSlot = null;
+      _selectedEndDate = null;
+      _selectingEndDate = _mode === 'project' && Boolean(_selectedDate);
+      _windowResult = null;
+    }
     await loadData();
     render();
+    if (opts.invalidateSelection && _mode === 'appointment' && _selectedDate) await loadTimeSlots(_selectedDate);
   }
 
   function render() {
+    if (_onStateChangeCb) _onStateChangeCb();
     if (_mode === 'project') {
       renderProjectMode();
       return;
@@ -758,7 +776,7 @@ const EnterpriseCalendar = (() => {
       if (_quantity > 1) params.set('quantity', _quantity);
       if (_travelTime > 0) params.set('travelTime', _travelTime);
       if (_technicianId) params.set('technicianId', _technicianId);
-      const resp = await fetch(`/api/schedule/time-slots?${params.toString()}`, { cache: 'no-store' });
+      const resp = await fetch(`${_availabilityUrl || "/api/schedule/time-slots"}?${params.toString()}`, { cache: 'no-store' });
       if (!resp.ok) return null;
       const data = await resp.json();
 
@@ -1344,7 +1362,7 @@ const EnterpriseCalendar = (() => {
     syncProjectSelection();
 
     if (pickedStart) {
-      if (!_endDatePromptShown) {
+      if (_showStartDatePrompt && !_endDatePromptShown) {
         _endDatePromptShown = true;
         if (typeof Swal !== 'undefined') {
           Swal.fire({
@@ -1395,7 +1413,7 @@ const EnterpriseCalendar = (() => {
       const requiredHours = Math.max(1, Math.round((_totalEstimatedMinutes / 60) * 10) / 10);
       const totalUnits = getCustomerUnitTotal();
 
-      const resp = await fetch('/api/projects/window-availability', {
+      const resp = await fetch(_projectAvailabilityUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1775,6 +1793,7 @@ const EnterpriseCalendar = (() => {
     isProjectMode,
     getMode,
     getWindowVerdict,
+    getProjectSelection,
     earliestFeasibleProjectEndDate,
     getCustomerUnitTotal,
     formatDateKey,

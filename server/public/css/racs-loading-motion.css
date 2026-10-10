@@ -1,5 +1,36 @@
 /* Essential progress motion for customer booking and checkout submissions.
    Names are intentionally isolated from legacy page keyframes. */
+/* Only the loader draws a card; its modal wrappers and animation scene do not. */
+:is(#carLoadingModal, #orderLoadingModal, #repairLoadingModal) .modal-content {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
+}
+
+:is(#carLoadingModal, #orderLoadingModal, #repairLoadingModal) .modal-body {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:is(#carLoadingModal, #orderLoadingModal, #repairLoadingModal) .racs-scene {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+:is(#carLoadingModal, #orderLoadingModal, #repairLoadingModal) .racs-glow {
+  display: none;
+}
+
 .racs-loader .racs-vanwrap {
   left: 0 !important;
   width: min(380px, 92%) !important;

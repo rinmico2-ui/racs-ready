@@ -300,88 +300,9 @@ function toIsoDate(date) {
   return `${y}-${m}-${day}`;
 }
 
-// Simple in-memory cache to reduce rate-limit hits for geocoding queries.
-// Keyed by query string; values expire after ~2 minutes.
-const geocodeSuggestCache = new Map();
-const GEOCODE_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
-
-function cachedGeocodeSuggest(q) {
-  const entry = geocodeSuggestCache.get(q);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > GEOCODE_CACHE_TTL_MS) {
-    geocodeSuggestCache.delete(q);
-    return null;
-  }
-  return entry.value;
-}
-
-function setCachedGeocodeSuggest(q, value) {
-  geocodeSuggestCache.set(q, { ts: Date.now(), value });
-  // keep cache size bounded
-  if (geocodeSuggestCache.size > 250) {
-    const firstKey = geocodeSuggestCache.keys().next().value;
-    geocodeSuggestCache.delete(firstKey);
-  }
-}
-
-async function fetchNominatimSuggestions(q) {
-  const url =
-    "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ph&q=" +
-    encodeURIComponent(q);
-  const data = await fetchJsonWithTimeout(url, 5000);
-  if (!Array.isArray(data)) return null;
-  return data.map((item) => ({
-    display_name: item.display_name,
-    lat: item.lat,
-    lon: item.lon,
-  }));
-}
-
-async function fetchPhotonSuggestions(q) {
-  const url =
-    "https://photon.komoot.io/api/?limit=5&lang=en&q=" +
-    encodeURIComponent(q) +
-    "&osm_tag=place:village,place=town,place=city";
-  const data = await fetchJsonWithTimeout(url, 5000);
-  if (!data || !Array.isArray(data.features)) return null;
-  return data.features.map((feat) => {
-    const coord = feat.geometry?.coordinates || [];
-    return {
-      display_name: feat.properties?.name || feat.properties?.osm_key || "",
-      lat: coord[1],
-      lon: coord[0],
-    };
-  });
-}
-
-// GET /api/services/geocode-suggest?q=<query>
-// Proxy to address providers for autocomplete (primary: Nominatim, fallback: Photon)
-router.get("/geocode-suggest", async (req, res) => {
-  try {
-    const q = String(req.query.q || "").trim();
-    if (!q || q.length < 2) return res.json({ suggestions: [] });
-
-    const cached = cachedGeocodeSuggest(q);
-    if (cached) {
-      return res.json({ suggestions: cached });
-    }
-
-    // 1) Try Nominatim (Philippines-only)
-    let suggestions = await fetchNominatimSuggestions(q);
-
-    // 2) If Nominatim returns nothing (or is rate-limited), fall back to Photon.
-    if (!suggestions || suggestions.length === 0) {
-      suggestions = await fetchPhotonSuggestions(q);
-    }
-
-    if (!suggestions) suggestions = [];
-    setCachedGeocodeSuggest(q, suggestions);
-    return res.json({ suggestions });
-  } catch (err) {
-    console.error("GET /api/services/geocode-suggest failed", err && err.message);
-    return res.status(500).json({ suggestions: [] });
-  }
-});
+// Share the same autocomplete provider, cache, and request limits as service booking.
+const { suggestionLimiter, handleSuggestions } = require('../utils/addressSuggestions');
+router.get('/geocode-suggest', suggestionLimiter, handleSuggestions);
 
 // GET /api/services/geocode?q=<query>
 // proxy that returns one matching address to avoid CORS errors

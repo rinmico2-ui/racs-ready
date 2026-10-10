@@ -60,6 +60,8 @@ test("Resolution Center queries only due orders and projected case fields", () =
   const queueRoute = route.slice(routeStart, routeEnd);
   assert.match(queueRoute, /pickupDate: \{ \$lt: orderScheduleUpperBound \}/);
   assert.match(queueRoute, /"delivery\.preferredDate": \{ \$lt: orderScheduleUpperBound \}/);
-  assert.match(queueRoute, /\.select\("bookingId orderReference status fulfillmentType/);
-  assert.match(queueRoute, /\.select\("status bookingDate preferredDate startTime/);
+  assert.match(queueRoute, /const orderFields = "bookingId orderReference status fulfillmentType/);
+  assert.match(queueRoute, /\.select\(orderFields\)/);
+  assert.match(queueRoute, /const bookingFields = "status paymentStatus paymentMethod bookingDate preferredDate startTime/);
+  assert.match(queueRoute, /\.select\(bookingFields\)/);
 });

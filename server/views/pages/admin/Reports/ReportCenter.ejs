@@ -8,56 +8,56 @@
 <div class="report-center" data-report-center data-report-role="<%= reportRole %>" data-initial-tab="<%= reportInitialTab %>">
   <section class="rc-hero" aria-labelledby="reportCenterTitle">
     <div class="rc-hero-copy">
-      <span class="rc-eyebrow"><i class="bi bi-shield-check" aria-hidden="true"></i> Management reporting</span>
+      <span class="rc-eyebrow"><i class="bi bi-shield-check" aria-hidden="true"></i> Business reports</span>
       <h1 id="reportCenterTitle">Report Center</h1>
-      <p>One place to review financial performance, service delivery, product sales, inventory health, and customer outcomes.</p>
+      <p>See your sales, payments, services, orders, stock, and customer feedback in one place.</p>
     </div>
     <div class="rc-hero-actions">
-      <span class="rc-live-status" id="reportFreshness"><span class="rc-live-dot"></span> Loading current snapshot</span>
+      <span class="rc-live-status" id="reportFreshness"><span class="rc-live-dot"></span> Loading the latest summary</span>
       <button class="rc-refresh" type="button" id="refreshReportCenter"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button>
     </div>
   </section>
 
   <nav class="rc-workspace-tabs" role="tablist" aria-label="Report Center views">
-    <button type="button" id="rcTabOverview" class="rc-workspace-tab" role="tab" data-report-tab="overview" aria-controls="rcPanelOverview" aria-selected="<%= reportInitialTab !== 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '-1' : '0' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-grid-1x2" aria-hidden="true"></i></span><span><strong>Overview</strong><small>Business snapshot and report library</small></span></button>
-    <button type="button" id="rcTabDecisions" class="rc-workspace-tab" role="tab" data-report-tab="decisions" aria-controls="rcPanelDecisions" aria-selected="<%= reportInitialTab === 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '0' : '-1' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span><span><strong>Management decisions</strong><small>Demand, customers, and recommended actions</small></span></button>
+    <button type="button" id="rcTabOverview" class="rc-workspace-tab" role="tab" data-report-tab="overview" aria-controls="rcPanelOverview" aria-selected="<%= reportInitialTab !== 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '-1' : '0' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-grid-1x2" aria-hidden="true"></i></span><span><strong>Overview</strong><small>Business summary and reports</small></span></button>
+    <button type="button" id="rcTabDecisions" class="rc-workspace-tab" role="tab" data-report-tab="decisions" aria-controls="rcPanelDecisions" aria-selected="<%= reportInitialTab === 'decisions' %>" tabindex="<%= reportInitialTab === 'decisions' ? '0' : '-1' %>"><span class="rc-workspace-tab-icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span><span><strong>Suggested actions</strong><small>Bookings, customers, and suggested next steps</small></span></button>
   </nav>
 
   <div id="rcPanelOverview" class="rc-tab-panel" role="tabpanel" aria-labelledby="rcTabOverview"<% if (reportInitialTab === 'decisions') { %> hidden<% } %>>
   <div class="rc-state" id="reportCenterState" role="status" aria-live="polite">
     <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-    <span>Preparing the management snapshot&hellip;</span>
+    <span>Loading the business summary&hellip;</span>
   </div>
 
   <section class="rc-executive" aria-labelledby="executiveSnapshotTitle">
     <div class="rc-section-heading">
-      <div><span>Executive snapshot</span><h2 id="executiveSnapshotTitle">Current business position</h2></div>
-      <p>Current month financials and live operational exposure</p>
+      <div><span>This month at a glance</span><h2 id="executiveSnapshotTitle">Business summary</h2></div>
+      <p>This month’s sales, payments, and unfinished work</p>
     </div>
     <div class="rc-metric-group" aria-labelledby="financialPositionTitle">
-      <div class="rc-group-heading"><span class="rc-group-icon blue"><i class="bi bi-cash-stack"></i></span><div><h3 id="financialPositionTitle">Financial position</h3><p>Recognized performance and collection exposure for the current month</p></div></div>
+      <div class="rc-group-heading"><span class="rc-group-icon blue"><i class="bi bi-cash-stack"></i></span><div><h3 id="financialPositionTitle">Sales and payments</h3><p>Completed sales and unpaid amounts for this month</p></div></div>
       <div class="rc-kpi-grid rc-kpi-grid-four report-kpi-grid" aria-live="polite">
-        <article class="rc-kpi kpi-enterprise" data-tone="blue"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="kpi-enterprise-badge">Completed activity</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Recognized revenue</span><strong id="rcRevenue" class="kpi-enterprise-value is-loading">—</strong><small>Completed services, orders, and walk-in sales</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="green"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-bank"></i></span><span class="kpi-enterprise-badge">Cash position</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Net collections</span><strong id="rcCollections" class="kpi-enterprise-value is-loading">—</strong><small>Accepted collections less completed refunds</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="amber"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-hourglass-split"></i></span><span class="kpi-enterprise-badge">Collection exposure</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Outstanding balance</span><strong id="rcOutstanding" class="kpi-enterprise-value is-loading">—</strong><small>Approved booked value not represented by accepted payments</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="purple"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-calculator"></i></span><span class="kpi-enterprise-badge">Recorded costs</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Recorded operating result</span><strong id="rcProfit" class="kpi-enterprise-value is-loading">—</strong><small id="rcProfitMeta">Provisional result based on recorded costs</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="blue"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="kpi-enterprise-badge">Completed activity</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Completed sales</span><strong id="rcRevenue" class="kpi-enterprise-value is-loading">—</strong><small>Completed services, orders, and walk-in sales</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="green"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-bank"></i></span><span class="kpi-enterprise-badge">Payments</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Payments after refunds</span><strong id="rcCollections" class="kpi-enterprise-value is-loading">—</strong><small>Confirmed payments minus refunds</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="amber"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-hourglass-split"></i></span><span class="kpi-enterprise-badge">Unpaid amounts</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Unpaid balance</span><strong id="rcOutstanding" class="kpi-enterprise-value is-loading">—</strong><small>Approved work without a confirmed payment</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="purple"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-calculator"></i></span><span class="kpi-enterprise-badge">Saved costs</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Profit after saved costs</span><strong id="rcProfit" class="kpi-enterprise-value is-loading">—</strong><small id="rcProfitMeta">Estimate based on the costs saved so far</small></div></article>
       </div>
     </div>
     <div class="rc-metric-group" aria-labelledby="operationalExposureTitle">
-      <div class="rc-group-heading"><span class="rc-group-icon purple"><i class="bi bi-activity"></i></span><div><h3 id="operationalExposureTitle">Operational exposure</h3><p>Open workload and controls that may require management action</p></div></div>
+      <div class="rc-group-heading"><span class="rc-group-icon purple"><i class="bi bi-activity"></i></span><div><h3 id="operationalExposureTitle">Unfinished work and alerts</h3><p>Bookings, orders, payments, and stock that may need attention</p></div></div>
       <div class="rc-kpi-grid rc-kpi-grid-four report-kpi-grid" aria-live="polite">
-        <article class="rc-kpi kpi-enterprise" data-tone="cyan"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-calendar-check"></i></span><span class="kpi-enterprise-badge">Service workload</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Active bookings</span><strong id="rcBookings" class="kpi-enterprise-value is-loading">—</strong><small>Non-terminal service bookings</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="blue"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-bag-check"></i></span><span class="kpi-enterprise-badge">Order workload</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Active orders</span><strong id="rcOrders" class="kpi-enterprise-value is-loading">—</strong><small>Non-terminal product orders</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="amber"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-credit-card-2-front"></i></span><span class="kpi-enterprise-badge">Needs review</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Payment controls</span><strong id="rcPaymentActions" class="kpi-enterprise-value is-loading">—</strong><small id="rcPaymentActionsMeta">Pending verification and exceptions</small></div></article>
-        <article class="rc-kpi kpi-enterprise" data-tone="red"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-box-seam"></i></span><span class="kpi-enterprise-badge">Stock exposure</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Inventory alerts</span><strong id="rcInventory" class="kpi-enterprise-value is-loading">—</strong><small id="rcInventoryMeta">Low-stock and out-of-stock SKUs</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="cyan"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-calendar-check"></i></span><span class="kpi-enterprise-badge">Bookings</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Active bookings</span><strong id="rcBookings" class="kpi-enterprise-value is-loading">—</strong><small>Bookings that are not finished or cancelled</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="blue"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-bag-check"></i></span><span class="kpi-enterprise-badge">Orders</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Active orders</span><strong id="rcOrders" class="kpi-enterprise-value is-loading">—</strong><small>Orders that are not finished or cancelled</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="amber"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-credit-card-2-front"></i></span><span class="kpi-enterprise-badge">Needs review</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Payments to check</span><strong id="rcPaymentActions" class="kpi-enterprise-value is-loading">—</strong><small id="rcPaymentActionsMeta">Payments waiting for a check or needing review</small></div></article>
+        <article class="rc-kpi kpi-enterprise" data-tone="red"><div class="kpi-enterprise-top"><span class="rc-kpi-icon kpi-enterprise-icon"><i class="bi bi-box-seam"></i></span><span class="kpi-enterprise-badge">Low stock</span></div><div class="kpi-enterprise-body"><span class="rc-kpi-label kpi-enterprise-label">Stock alerts</span><strong id="rcInventory" class="kpi-enterprise-value is-loading">—</strong><small id="rcInventoryMeta">Items with low or no stock</small></div></article>
       </div>
     </div>
   </section>
 
   <section class="rc-management-focus" aria-labelledby="managementInsightsTitle">
     <div class="rc-section-heading">
-      <div><span>Decision support</span><h2 id="managementInsightsTitle">Management focus</h2></div>
-      <p>Prioritized dynamically from the latest available records</p>
+      <div><span>Next steps</span><h2 id="managementInsightsTitle">What to check next</h2></div>
+      <p>The latest records show what to check first</p>
     </div>
     <div class="rc-insight-list rc-insight-grid" id="rcInsights">
       <div class="rc-insight-skeleton"></div><div class="rc-insight-skeleton"></div><div class="rc-insight-skeleton"></div>
@@ -66,50 +66,50 @@
 
   <section class="rc-library" aria-labelledby="reportLibraryTitle">
     <div class="rc-section-heading">
-      <div><span>Report library</span><h2 id="reportLibraryTitle">Choose an analysis</h2></div>
-      <p>Open a focused report and drill down to its supporting records</p>
+      <div><span>Reports</span><h2 id="reportLibraryTitle">Choose a report</h2></div>
+      <p>Choose a report, then open the records behind its totals</p>
     </div>
     <div class="rc-library-group">
-      <div class="rc-library-label"><i class="bi bi-currency-exchange"></i><span><strong>Financial</strong><small>Revenue, cash movement, cost, and profitability</small></span></div>
+      <div class="rc-library-label"><i class="bi bi-currency-exchange"></i><span><strong>Financial</strong><small>Sales, payments, costs, and profit</small></span></div>
       <div class="rc-report-grid rc-report-grid-financial">
-        <a class="rc-report-card" href="/<%= reportRole %>/reports/revenue"><span class="rc-report-icon blue"><i class="bi bi-graph-up-arrow"></i></span><span class="rc-report-content"><strong>Revenue Intelligence</strong><small>Revenue sources, collections, refunds, profit, costs, and forecasts.</small><span>Open financial report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/revenue"><span class="rc-report-icon blue"><i class="bi bi-graph-up-arrow"></i></span><span class="rc-report-content"><strong>Sales and Payments</strong><small>Sales, payments, refunds, costs, profit, and sales estimates.</small><span>Open financial report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
     <div class="rc-library-group">
-      <div class="rc-library-label"><i class="bi bi-kanban"></i><span><strong>Operations</strong><small>Delivery, fulfillment, stock, and operating controls</small></span></div>
+      <div class="rc-library-label"><i class="bi bi-kanban"></i><span><strong>Operations</strong><small>Services, deliveries, pickups, and stock</small></span></div>
       <div class="rc-report-grid rc-report-grid-three">
-        <a class="rc-report-card" href="/<%= reportRole %>/reports/service"><span class="rc-report-icon purple"><i class="bi bi-wrench-adjustable"></i></span><span class="rc-report-content"><strong>Service Performance</strong><small>Bookings, completion, profitability, technician delivery, and evidence.</small><span>Open service report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/<%= reportRole %>/reports/orders"><span class="rc-report-icon green"><i class="bi bi-bag-check"></i></span><span class="rc-report-content"><strong>Order Analytics</strong><small>Order value, fulfillment, collections, contribution, and product demand.</small><span>Open order report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/<%= reportRole %>/reports/inventory"><span class="rc-report-icon amber"><i class="bi bi-boxes"></i></span><span class="rc-report-content"><strong>Inventory Controls</strong><small>Stock exposure, valuation, movement, consumption, and replenishment risk.</small><span>Open inventory report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/service"><span class="rc-report-icon purple"><i class="bi bi-wrench-adjustable"></i></span><span class="rc-report-content"><strong>Service Reports</strong><small>Bookings, finished jobs, costs, profit estimates, and job photos.</small><span>Open service report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/orders"><span class="rc-report-icon green"><i class="bi bi-bag-check"></i></span><span class="rc-report-content"><strong>Order Reports</strong><small>Order totals, deliveries, pickups, payments, and popular products.</small><span>Open order report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/reports/inventory"><span class="rc-report-icon amber"><i class="bi bi-boxes"></i></span><span class="rc-report-content"><strong>Stock Reports</strong><small>Stock levels, item values, items used, and items to restock.</small><span>Open inventory report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
     <div class="rc-library-group">
-      <div class="rc-library-label"><i class="bi bi-people"></i><span><strong>People &amp; customer experience</strong><small>Quality, satisfaction, and individual performance</small></span></div>
+      <div class="rc-library-label"><i class="bi bi-people"></i><span><strong>People &amp; customer experience</strong><small>Customers, ratings, and feedback</small></span></div>
       <div class="rc-report-grid">
-        <% if (reportRole === 'admin') { %><a class="rc-report-card" href="/admin/reports/customers"><span class="rc-report-icon blue"><i class="bi bi-people"></i></span><span class="rc-report-content"><strong>Customer Performance</strong><small>Frequent customers, lowest engagement, and individual booking, product, spending, and loyalty records.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a><% } %>
-        <a class="rc-report-card" href="/<%= reportRole %>/ratings/service"><span class="rc-report-icon cyan"><i class="bi bi-star-half"></i></span><span class="rc-report-content"><strong>Customer Ratings</strong><small>Customer sentiment, service quality patterns, and rating exceptions.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a>
-        <a class="rc-report-card" href="/<%= reportRole %>/ratings/technicians"><span class="rc-report-icon red"><i class="bi bi-award"></i></span><span class="rc-report-content"><strong>Technician Ratings</strong><small>Individual performance, customer feedback, and coaching opportunities.</small><span>Open technician report <i class="bi bi-arrow-right"></i></span></span></a>
+        <% if (reportRole === 'admin') { %><a class="rc-report-card" href="/admin/reports/customers"><span class="rc-report-icon blue"><i class="bi bi-people"></i></span><span class="rc-report-content"><strong>Customer Activity</strong><small>Frequent customers, less active customers, bookings, orders, spending, and rewards.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a><% } %>
+        <a class="rc-report-card" href="/<%= reportRole %>/ratings/service"><span class="rc-report-icon cyan"><i class="bi bi-star-half"></i></span><span class="rc-report-content"><strong>Customer Ratings</strong><small>Customer reviews and services with low ratings.</small><span>Open customer report <i class="bi bi-arrow-right"></i></span></span></a>
+        <a class="rc-report-card" href="/<%= reportRole %>/ratings/technicians"><span class="rc-report-icon red"><i class="bi bi-award"></i></span><span class="rc-report-content"><strong>Technician Ratings</strong><small>Technician ratings, customer feedback, and areas to improve.</small><span>Open technician report <i class="bi bi-arrow-right"></i></span></span></a>
       </div>
     </div>
   </section>
 
   <section class="rc-methodology" aria-labelledby="methodologyTitle">
     <div class="rc-section-heading">
-      <div><span>Source &amp; methodology</span><h2 id="methodologyTitle">How to read this report</h2></div>
-      <p id="rcMethodologyUpdated">Waiting for the latest reporting timestamp</p>
+      <div><span>Where the numbers come from</span><h2 id="methodologyTitle">How to read this report</h2></div>
+      <p id="rcMethodologyUpdated">Waiting for the latest update time</p>
     </div>
     <div class="rc-methodology-grid">
-      <article><i class="bi bi-check2-circle"></i><div><strong>Revenue recognition</strong><p>Recognized only when a service, online order, or walk-in sale reaches its authoritative completion event.</p></div></article>
-      <article><i class="bi bi-bank"></i><div><strong>Collections &amp; refunds</strong><p>Collections include accepted received payments. Completed refunds reduce net collections in the period refunded.</p></div></article>
-      <article><i class="bi bi-hourglass-split"></i><div><strong>Outstanding balance</strong><p>Approved booked value not represented by accepted payment records. It is exposure—not collected revenue.</p></div></article>
-      <article><i class="bi bi-calculator"></i><div><strong>Recorded operating result</strong><p>Recognized revenue less known direct costs, approved expenses, and recorded payroll. It is not an audited accounting profit.</p></div></article>
-      <article><i class="bi bi-database-check"></i><div><strong>Known-cost coverage</strong><p id="rcCoverageDefinition">The share of recognized gross revenue with sufficient catalog or recorded cost data for margin analysis.</p></div></article>
-      <article><i class="bi bi-calendar-range"></i><div><strong>Reporting period</strong><p id="rcReportingPeriod">Current calendar month through the latest refresh.</p></div></article>
+      <article><i class="bi bi-check2-circle"></i><div><strong>When sales count</strong><p>Sales count when the service, order, or walk-in sale is completed.</p></div></article>
+      <article><i class="bi bi-bank"></i><div><strong>Payments and refunds</strong><p>Only confirmed payments count. Refunds are deducted on the date the money is returned.</p></div></article>
+      <article><i class="bi bi-hourglass-split"></i><div><strong>Unpaid balance</strong><p>Approved booking and order amounts without confirmed payments. This money has not been received yet.</p></div></article>
+      <article><i class="bi bi-calculator"></i><div><strong>Profit after saved costs</strong><p>Completed sales minus saved job costs, approved expenses, and payroll. Missing costs can make this estimate too high.</p></div></article>
+      <article><i class="bi bi-database-check"></i><div><strong>Sales with saved costs</strong><p id="rcCoverageDefinition">The part of completed sales with enough saved cost details to estimate profit.</p></div></article>
+      <article><i class="bi bi-calendar-range"></i><div><strong>Report dates</strong><p id="rcReportingPeriod">Current calendar month through the latest refresh.</p></div></article>
     </div>
   </section>
 
   <section class="rc-quick-links" aria-label="Reporting controls">
-    <div><strong>Review the records behind the numbers</strong><span>Move from analysis to the source workflow without losing context.</span></div>
+    <div><strong>Review the records behind the numbers</strong><span>Open the records used in this report.</span></div>
     <nav>
       <a href="/<%= reportRole %>/payments"><i class="bi bi-credit-card"></i> Payments</a>
       <% if (reportRole === "admin") { %><a href="/admin/refunds"><i class="bi bi-arrow-counterclockwise"></i> Refunds</a><% } %>
@@ -124,4 +124,4 @@
   </div>
 </div>
 
-<script src="/js/admin-report-center.js?v=20261008-tabs" defer></script>
+<script src="/js/admin-report-center.js?v=20261009-plain-words" defer></script>

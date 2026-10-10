@@ -31,12 +31,12 @@ test('periods use Manila midnight, clamp rolling month ends, and include all-tim
 });
 
 test('simple engagement keeps never engaged, new accounts, rare activity, and lapsed regulars distinct', () => {
-  assert.equal(classifyCustomer(base, period, 90, now).engagement, 'Never Engaged');
+  assert.equal(classifyCustomer(base, period, 90, now).engagement, 'No completed bookings or orders');
   const newAccount = classifyCustomer({ ...base, createdAt: new Date('2026-10-01') }, period, 90, now);
-  assert.equal(newAccount.engagement, 'Never Engaged'); assert.equal(newAccount.newAccount, true);
+  assert.equal(newAccount.engagement, 'No completed bookings or orders'); assert.equal(newAccount.newAccount, true);
   const recent = new Date('2026-10-08T12:00:00Z');
-  assert.equal(classifyCustomer({ ...base, lifetimeBookings: 1, lifetimeLastBooking: recent }, period, 90, now).engagement, 'Very Low Engagement');
-  assert.equal(classifyCustomer({ ...base, lifetimeOrders: 3, lifetimeLastOrder: recent }, period, 90, now).engagement, 'Low Engagement');
+  assert.equal(classifyCustomer({ ...base, lifetimeBookings: 1, lifetimeLastBooking: recent }, period, 90, now).engagement, 'Only 1–2 completed bookings or orders');
+  assert.equal(classifyCustomer({ ...base, lifetimeOrders: 3, lifetimeLastOrder: recent }, period, 90, now).engagement, 'Only 3–4 completed bookings or orders');
   const singleOld = classifyCustomer({ ...base, lifetimeBookings: 1, lifetimeLastBooking: new Date('2026-03-01') }, period, 90, now);
   assert.equal(singleOld.engagement, 'Inactive'); assert.equal(singleOld.previouslyActiveNowInactive, false);
   const regularOld = classifyCustomer({ ...base, lifetimeBookings: 4, lifetimeOrders: 1, lifetimeLastOrder: new Date('2026-03-01') }, period, 90, now);
@@ -45,7 +45,7 @@ test('simple engagement keeps never engaged, new accounts, rare activity, and la
   assert.equal(classifyCustomer({ ...base, lifetimeBookings: 6 }, period, 90, now).engagement, 'Activity date unavailable');
 });
 
-test('inactivity uses lifetime completion dates independently of the analysis period', () => {
+test('inactivity uses lifetime completion dates independently of the report dates', () => {
   const row = { ...base, lifetimeBookings: 5, lifetimeLastBooking: new Date('2026-08-24T12:00:00Z') };
   assert.equal(classifyCustomer(row, period, 90, now).engagement, 'Active');
   assert.equal(classifyCustomer(row, period, 30, now).engagement, 'Previously Active / Now Inactive');
@@ -104,7 +104,7 @@ test('main report distinguishes successful activity from financially refunded co
   assert.match(JSON.stringify(bookings), /cancelledAt/); assert.match(JSON.stringify(bookings), /noShowAt/);
 });
 
-test('customer history is owner-scoped, defaults to successful completions, and validates status filters', async () => {
+test('customer history is owner-scoped, defaults to completed bookings and orders, and validates status filters', async () => {
   const bookings = historyPipeline(customerId, {}, period, true), orders = historyPipeline(customerId, {}, period, false);
   assert.deepEqual(bookings[0].$match, { customerId }); assert.deepEqual(orders[0].$match, { userId: customerId });
   assert.ok(bookings.some(stage => stage.$match?.successful === true && stage.$match.sourceOrderId === null));
@@ -137,7 +137,7 @@ test('report and profile render the simple views and reuse protected admin route
   const overview = await ejs.renderFile(template, {}), profile = await ejs.renderFile(template, { customerProfileId: String(customerId) });
   for (const view of ['frequent', 'records', 'lowest']) assert.match(overview, new RegExp('data-cp-view="' + view + '"'));
   assert.doesNotMatch(overview, /Service \+ order matrix|Highly engaged across both|Loyalty candidates/);
-  for (const title of ['Selected period', 'Lifetime', 'Service Booking History', 'Most Booked Services', 'Order History', 'Most Purchased Products', 'Spending Summary', 'Loyalty Status']) assert.ok(profile.includes(title));
+  for (const title of ['Selected dates', 'All time', 'Service Booking History', 'Most Booked Services', 'Order History', 'Most Purchased Products', 'Spending Summary', 'Loyalty Status']) assert.ok(profile.includes(title));
   for (const type of ['bookingStatus', 'orderStatus']) assert.match(profile, new RegExp('name="' + type + '"><option value="successful"'));
   // Every exposed status is a real status in the existing model, or a report-only filter.
   const options = html => [...html.matchAll(/<option value="([^"]*)">/g)].map(item => item[1]);

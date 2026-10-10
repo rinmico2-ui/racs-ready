@@ -1446,6 +1446,7 @@ bookingSchema.pre("save", async function () {
 // Indexes for performance optimization
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ bookingDate: 1, startTime: 1, _id: 1 }); // Date-bounded operations calendar without a status filter
+bookingSchema.index({ bookingDate: 1, updatedAt: -1 }); // Resolution center candidate ordering
 bookingSchema.index({ customerId: 1, status: 1 }); // For customer booking history
 bookingSchema.index({ sourceOrderId: 1, createdAt: -1 }); // Date-bounded demand analytics without order-linked installations
 bookingSchema.index(

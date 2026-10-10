@@ -27,7 +27,7 @@ test("report center classifies active and terminal work without double counting 
   });
 });
 
-test("report center insights prioritize financial and stock exceptions", () => {
+test("report center insights prioritize financial and stock issues to check", () => {
   const insights = buildReportCenterInsights({
     financial: {
       operatingProfit: -2500,
@@ -41,12 +41,12 @@ test("report center insights prioritize financial and stock exceptions", () => {
 
   assert.equal(insights.length, 4);
   assert.equal(insights[0].tone, "danger");
-  assert.match(insights[0].title, /Recorded cost position/);
-  assert.ok(insights.some(insight => /Inventory/.test(insight.title)));
+  assert.match(insights[0].title, /Saved costs are higher than completed sales/);
+  assert.ok(insights.some(insight => /Stock/.test(insight.title)));
   insights.forEach(insight => assert.match(insight.href, /^\/admin\//));
 });
 
-test("report center ranks payment exceptions ahead of informational workload", () => {
+test("report center ranks payment issues to check ahead of informational workload", () => {
   const insights = buildReportCenterInsights({
     financial: {
       operatingProfit: 1000,
@@ -61,7 +61,7 @@ test("report center ranks payment exceptions ahead of informational workload", (
   });
 
   assert.equal(insights[0].tone, "danger");
-  assert.match(insights[0].title, /Payment controls/);
+  assert.match(insights[0].title, /Payments need checking/);
   assert.equal(insights.at(-1).tone, "success");
 });
 
@@ -77,20 +77,20 @@ test("admin report center is wired as a lightweight protected shell", async () =
   assert.match(sidebar, /href="\/admin\/reports"[^>]*>[\s\S]*Report Center/);
   assert.match(client, /fetch\("\/api\/" \+ reportRole \+ "\/reports\/overview"/);
   assert.match(html, /id="reportCenterTitle">Report Center/);
-  assert.match(html, /Revenue Intelligence/);
-  assert.match(html, /Service Performance/);
-  assert.match(html, /Order Analytics/);
-  assert.match(html, /Inventory Controls/);
-  assert.match(html, /id="financialPositionTitle">Financial position/);
-  assert.match(html, /id="operationalExposureTitle">Operational exposure/);
-  assert.match(html, /Recorded operating result/);
-  assert.doesNotMatch(html, />Operating profit</i);
+  assert.match(html, /Sales and Payments/);
+  assert.match(html, /Service Reports/);
+  assert.match(html, /Order Reports/);
+  assert.match(html, /Stock Reports/);
+  assert.match(html, /id="financialPositionTitle">Sales and payments/);
+  assert.match(html, /id="operationalExposureTitle">Unfinished work and alerts/);
+  assert.match(html, /Profit after saved costs/);
+  assert.doesNotMatch(html, />Profit after expenses</i);
   assert.match(html, /People &amp; customer experience/);
-  assert.match(html, /Source &amp; methodology/);
-  assert.match(html, /It is not an audited accounting profit/);
+  assert.match(html, /Where the numbers come from/);
+  assert.match(html, /Missing costs can make this estimate too high/);
   assert.match(html, /role="tablist" aria-label="Report Center views"/);
   assert.match(html, /id="rcPanelDecisions"[^>]*hidden/);
-  assert.match(html, /Management Decisions/);
+  assert.match(html, /Suggested Actions/);
   const decisionsHtml = await ejs.renderFile(path.join(serverRoot, "views/pages/admin/Reports/ReportCenter.ejs"), { initialReportTab: "decisions" });
   assert.match(decisionsHtml, /id="rcPanelOverview"[^>]*hidden/);
   assert.match(decisionsHtml, /id="rcTabDecisions"[^>]*aria-selected="true"/);

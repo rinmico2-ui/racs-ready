@@ -662,7 +662,7 @@
                 <div class="position-relative">
                   <div class="input-group input-group-lg service-map-input">
                     <span class="input-group-text bg-white border-0"><i class="bi bi-geo-alt-fill text-primary"></i></span>
-                    <input type="text" class="form-control border-0" placeholder="House number, street, barangay, city, province" id="locationInput" autocomplete="street-address" maxlength="250" aria-controls="locationSuggest" aria-expanded="false" aria-autocomplete="list" />
+                    <input type="text" class="form-control border-0" placeholder="Start typing your street, barangay, or city…" id="locationInput" role="combobox" autocomplete="off" maxlength="250" aria-controls="locationSuggest" aria-expanded="false" aria-autocomplete="list" />
                     <button type="button" class="btn btn-outline-primary border-0 px-3" id="serviceAddressSearchBtn" aria-label="Search for the address"><i class="bi bi-search"></i></button>
                   </div>
                   <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions" role="listbox" aria-label="Philippine address suggestions"></div>
@@ -672,7 +672,6 @@
                   <i class="bi bi-pin-map-fill" aria-hidden="true"></i>Can't find your address? Place a pin on the map
                 </button>
                 <small class="text-muted d-block mt-1">Address search data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</small>
-                <small class="text-muted d-none mt-1" id="geoapifyAttribution">Live suggestions powered by <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>.</small>
               </div>
               <div class="service-map-search mb-3 d-none" id="relocationDestinationSection">
                 <label class="form-label fw-semibold" for="relocationDestinationAddress">New address for the aircon</label>
@@ -1354,7 +1353,7 @@
                   <option value="">Choose a brand…</option>
                 </select>
                 <input type="text" class="cfg-f mt-2 d-none" id="brandInputCustom" placeholder="Enter the brand" maxlength="80" required>
-                <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
+                <div class="cfg-field-help"><i class="bi bi-arrow-right-circle"></i>Choose or enter a brand, then select Next: Aircon Type below.</div>
               </div>
 
               <div id="issueDescriptionSection" class="mb-3 d-none">
@@ -1378,8 +1377,9 @@
                 <div id="hpOptionsContainer"></div>
               </div>
               <div id="unitAssistancePanel" class="cfg-stage-panel mb-3 d-none">
-                <h6 class="fw-bold">Let us identify your aircon</h6>
+                <h6 class="fw-bold" id="unitAssistanceTitle">Let us identify your aircon</h6>
                 <p class="small text-muted mb-3">Tell us anything you know. Staff will check the type and HP, then send the exact service price for your approval. No payment or appointment is made now.</p>
+                <div id="unitAssistanceHpSection" class="d-none mb-3"><label class="cfg-fl" for="unitAssistanceHp">HP shown on the unit</label><input type="number" id="unitAssistanceHp" class="cfg-f" min="0.01" step="any" placeholder="For example, 0.75 or 4.5"><p class="small text-muted mt-2 mb-0">This size needs a staff quote. Review and accept the price before booking.</p></div>
                 <label class="cfg-fl" for="unitAssistanceNotes">Details you know (optional)</label>
                 <textarea class="cfg-f" id="unitAssistanceNotes" maxlength="1000" rows="3" placeholder="For example: wall-mounted, one indoor unit, or a model on the label"></textarea>
                 <p class="small text-muted mt-2 mb-0">Units: <strong id="unitAssistanceQuantity">1</strong>. Change the quantity above if needed.</p>
@@ -2775,7 +2775,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
   (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261007-relocation-preferred-calendar';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261009-loyalty':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261009-live-addresses':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3376,5 +3376,6 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261007-map-summary-below">
-<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261009-mobile-workspace">
+<link rel="stylesheet" href="/css/services-dialogs.css?v=20261009-green-step-actions">
+<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20261010-single-card">

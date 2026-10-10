@@ -1,0 +1,34 @@
+flowchart TB
+  customer["Customer"]
+  dispatch["Administrator / secretary"]
+  tech["Technician"]
+  finance(["7.0 Finance"])
+  p31(["3.1 Quote and capacity check"])
+  p32(["3.2 Persist booking submission"])
+  p33(["3.3 Review and assign work"])
+  p34(["3.4 Execute / reschedule / complete"])
+  p35(["3.5 Publish work outcome"])
+  d2[("D2 Service catalog")]
+  d3[("D3 Bookings / schedules<br/>Quotes / assignments / reports")]
+  resources(["4.0 Inventory / kits / usage"])
+  proof[("D11 GridFS completionProofs")]
+  notice(["10.0 Alerts / 8.0 aftercare"])
+  customer -->|"Service, units, address, preferred date"| p31
+  d2 -->|"Price / duration / service rules"| p31
+  d3 -->|"Schedules, holidays, quote records"| p31
+  p31 -->|"Quote, availability, validation"| customer
+  p31 -->|"Validated submission"| p32
+  p32 -->|"Booking / quote conversion"| d3
+  p32 -->|"Pending payment request"| finance
+  finance -->|"Payment review outcome"| p33
+  dispatch -->|"Review / technician selection"| p33
+  d3 -->|"Booking / capacity / assignment"| p33
+  p33 -->|"Review and assignment changes"| d3
+  p33 -->|"Assigned job details"| tech
+  tech -->|"Acceptance, GPS, report, photos"| p34
+  p34 -->|"Parts, kit and usage records"| resources
+  p34 -->|"Validated completion images"| proof
+  p34 -->|"Job status / service report"| d3
+  p34 -->|"Confirmed work outcome"| p35
+  p35 -->|"Notification / eligible aftercare event"| notice
+  p35 -->|"Booking status / completion result"| customer

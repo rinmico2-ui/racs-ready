@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { isAccountEnabled } = require("./accountState");
+const { isSessionCurrent } = require("../utils/sessionPasswordPolicy");
 const { getEffectivePermissions, requiredPermissionForRequest } = require("./requirePermission");
 
 const MAX_AGE_MS = Number(process.env.SESSION_MAX_AGE_MS) || 30 * 60 * 1000;
@@ -50,7 +51,7 @@ async function getUserFromSession(req) {
     const user = await User.findById(req.session.userId).select(
       "-passwordHash",
     );
-    if (!isAccountEnabled(user)) return null;
+    if (!isAccountEnabled(user) || !isSessionCurrent(req.session, user)) return null;
     return { user, payload: null };
   } catch (e) {
     return null;

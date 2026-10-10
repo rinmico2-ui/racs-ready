@@ -379,21 +379,23 @@
           icon: 'warning',
           input: 'textarea',
           inputLabel: 'Cancellation reason',
-          inputPlaceholder: 'Briefly explain why you need to cancel.',
-          inputAttributes: { maxlength: 500, 'aria-label': 'Cancellation reason' },
+          inputPlaceholder: 'Enter a reason with 10 to 500 characters.',
+          inputAttributes: { minlength: 10, maxlength: 500, 'aria-label': 'Cancellation reason' },
           showCancelButton: true,
           confirmButtonText: 'Cancel Booking',
           cancelButtonText: 'Keep Booking',
           confirmButtonColor: '#dc2626',
-          inputValidator: value => value && value.trim() ? undefined : 'Please provide a cancellation reason.',
+          inputValidator: bookingCancellationReasonError,
         });
         if (!result.isConfirmed) return;
-        reason = String(result.value || '').trim();
+        reason = normalizeBookingCancellationReason(result.value);
       } else {
         const value = prompt('Please provide a reason for cancellation:');
-        if (value === null || !value.trim()) return;
+        if (value === null) return;
+        const reasonError = bookingCancellationReasonError(value);
+        if (reasonError) return alert(reasonError);
         if (!confirm('Cancel this booking? Any eligible downpayment will be queued for refund.')) return;
-        reason = value.trim().slice(0, 500);
+        reason = normalizeBookingCancellationReason(value);
       }
       await submitRescheduleAction(id, 'cancel', { reason });
       return;
@@ -442,21 +444,23 @@
         icon: 'warning',
         input: 'textarea',
         inputLabel: 'Cancellation reason',
-        inputPlaceholder: 'Enter a short reason',
-        inputAttributes: { maxlength: 500, 'aria-label': 'Cancellation reason' },
+        inputPlaceholder: 'Enter a reason with 10 to 500 characters.',
+        inputAttributes: { minlength: 10, maxlength: 500, 'aria-label': 'Cancellation reason' },
         showCancelButton: true,
         confirmButtonText: 'Cancel Booking',
         cancelButtonText: 'Keep Booking',
         confirmButtonColor: '#dc2626',
-        inputValidator: value => value && value.trim() ? undefined : 'Please provide a cancellation reason.',
+        inputValidator: bookingCancellationReasonError,
       });
       if (!result.isConfirmed) return;
-      reason = String(result.value || '').trim();
+      reason = normalizeBookingCancellationReason(result.value);
     } else {
       const value = prompt('Please provide a reason for cancelling this booking:');
-      if (value === null || !value.trim()) return;
+      if (value === null) return;
+      const reasonError = bookingCancellationReasonError(value);
+      if (reasonError) return alert(reasonError);
       if (!confirm('Are you sure you want to cancel this booking?')) return;
-      reason = value.trim().slice(0, 500);
+      reason = normalizeBookingCancellationReason(value);
     }
     runAfterClosingDetails(() => cancelBooking(booking._id, reason));
   }
@@ -2566,22 +2570,40 @@
       });
   };
 
-  // Cancel booking function
-  function cancelBooking(bookingId, reason) {
-    fetch(`/api/appointments/${encodeURIComponent(bookingId)}/cancel`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reason }),
-    })
-      .then((r) => (r.ok ? r.json() : r.json().then((j) => Promise.reject(j))))
-      .then(() => {
-        alert("Booking cancelled successfully");
-        fetchBookings();
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("Failed to cancel booking: " + (err.message || "Unknown error"));
+  function normalizeBookingCancellationReason(value) {
+    return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+  }
+
+  function bookingCancellationReasonError(value) {
+    const reason = normalizeBookingCancellationReason(value);
+    return reason.length >= 10 && reason.length <= 500
+      ? undefined : 'Please enter a reason with 10 to 500 characters.';
+  }
+
+  const pendingBookingCancellations = new Set();
+
+  // Validate before sending; display the API's actual error when it rejects.
+  async function cancelBooking(bookingId, reason) {
+    const validationError = bookingCancellationReasonError(reason);
+    if (validationError) return alert(validationError);
+    if (pendingBookingCancellations.has(String(bookingId))) return;
+    pendingBookingCancellations.add(String(bookingId));
+    try {
+      const response = await fetch(`/api/appointments/${encodeURIComponent(bookingId)}/cancel`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: normalizeBookingCancellationReason(reason) }),
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.message || 'Could not cancel this booking. Please try again.');
+      alert('Booking cancelled successfully');
+      fetchBookings();
+    } catch (err) {
+      alert('Failed to cancel booking: ' + (err.message || 'Please try again.'));
+    } finally {
+      pendingBookingCancellations.delete(String(bookingId));
+    }
   }
 
   // ── Quotation approve/decline (customer-facing) ──

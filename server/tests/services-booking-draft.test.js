@@ -44,7 +44,7 @@ test("a draft can restore before a service is added and resumes only at a valid 
   assert.match(servicesScript, /const renderedAsLoggedIn = document\.getElementById\('entStepper'\)\?\.dataset\.authenticated === 'true'/);
   assert.match(servicesScript, /normalizeBookingStep\(data\?\.currentStep, 1\) > 1/);
   assert.match(servicesScript, /if \(BookingState\.draftRestored\)/);
-  assert.match(servicesScript, /const stepToRestore = getRestorableBookingStep\(\)/);
+  assert.match(servicesScript, /const stepToRestore = Math\.min\(getRestorableBookingStep\(\), 5\)/);
   assert.match(servicesScript, /restoreBookingProgressUI\(\)/);
   assert.doesNotMatch(
     servicesScript,

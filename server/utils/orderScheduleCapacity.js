@@ -54,6 +54,7 @@ async function loadActiveOrderCapacityRows(startDate, endDate, {
   const queryEnd = new Date(`${lastKey}T23:59:59.999Z`);
   queryEnd.setUTCDate(queryEnd.getUTCDate() + 1);
   const orders = await Order.find({
+    isProject: { $ne: true },
     fulfillmentType: { $in: ["delivery_only", "delivery_installation"] },
     status: { $in: ACTIVE_DELIVERY_STATUSES },
     "delivery.preferredDate": { $gte: queryStart, $lte: queryEnd },

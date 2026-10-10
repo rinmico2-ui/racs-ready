@@ -55,7 +55,7 @@
       var copy = document.createElement("span");
       var title = document.createElement("strong");
       var text = document.createElement("p");
-      title.textContent = insight.title || "Management insight";
+      title.textContent = insight.title || "Suggested next step";
       text.textContent = insight.text || "Open the detailed report for more information.";
       copy.append(title, text);
       item.append(icon, copy);
@@ -78,16 +78,16 @@
 
     var profit = document.getElementById("rcProfit");
     if (profit) profit.classList.toggle("negative", Number(finance.operatingProfit || 0) < 0);
-    setText("rcProfitMeta", data.financial ? Math.round(finance.profitMargin || 0) + "% recorded margin · " + Math.round(finance.costDataCoverage || 0) + "% known-cost coverage" : "Financial source unavailable");
-    setText("rcPaymentActionsMeta", data.financial ? (finance.pendingLedgerCount || 0) + " pending verification · " + (finance.paymentExceptionCount || 0) + " exceptions" : "Payment source unavailable");
-    setText("rcInventoryMeta", data.inventory ? (inventory.outOfStock || 0) + " out · " + (inventory.lowStock || 0) + " low · " + (inventory.skuCount || 0) + " active SKUs" : "Inventory source unavailable");
+    setText("rcProfitMeta", data.financial ? Math.round(finance.profitMargin || 0) + "% recorded margin · " + Math.round(finance.costDataCoverage || 0) + "% known-sales with saved costs" : "Financial source unavailable");
+    setText("rcPaymentActionsMeta", data.financial ? (finance.pendingLedgerCount || 0) + " waiting for a check · " + (finance.paymentExceptionCount || 0) + " issues to check" : "Payment records could not load");
+    setText("rcInventoryMeta", data.inventory ? (inventory.outOfStock || 0) + " out · " + (inventory.lowStock || 0) + " low · " + (inventory.skuCount || 0) + " active item types" : "Stock records could not load");
     renderInsights(data.insights);
 
     var updated = new Date(data.asOf);
     var timeLabel = Number.isNaN(updated.getTime()) ? "just now" : updated.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
     var dateTimeLabel = Number.isNaN(updated.getTime()) ? "Latest refresh unavailable" : "Last updated " + updated.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }) + " · " + timeLabel;
     setText("rcMethodologyUpdated", dateTimeLabel);
-    setText("rcCoverageDefinition", data.financial ? Math.round(finance.costDataCoverage || 0) + "% of recognized gross revenue currently has sufficient recorded cost data for margin analysis." : "Known-cost coverage is temporarily unavailable.");
+    setText("rcCoverageDefinition", data.financial ? Math.round(finance.costDataCoverage || 0) + "% of completed sales before refunds currently has enough saved cost details to estimate profit." : "Sales with saved costs could not load right now.");
     if (data.financial && finance.periodStart && finance.periodEnd) {
       var periodStart = new Date(finance.periodStart);
       var periodEnd = new Date(finance.periodEnd);
@@ -95,7 +95,7 @@
       var endLabel = periodEnd.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
       setText("rcReportingPeriod", startLabel + " – " + endLabel + " (current calendar month)");
     } else {
-      setText("rcReportingPeriod", "Current reporting period is temporarily unavailable.");
+      setText("rcReportingPeriod", "Current reporting period could not load right now.");
     }
     setFreshness((data.partial ? "Partial · " : "Updated ") + timeLabel, data.partial ? "partial" : "ready");
     if (data.partial) setState("Some report sources are temporarily unavailable. Available figures are still shown and clearly separated.", "warning");
@@ -119,13 +119,13 @@
         return;
       }
       var payload = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(payload.error || "Unable to load the report snapshot.");
+      if (!response.ok) throw new Error(payload.error || "Unable to load the report summary.");
       render(payload);
       overviewLoaded = true;
     } catch (error) {
       if (error.name === "AbortError") return;
-      setState(error.message || "Unable to load the report snapshot. Please retry.", "error");
-      setFreshness("Snapshot unavailable", "partial");
+      setState(error.message || "Unable to load the report summary. Please retry.", "error");
+      setFreshness("Summary could not load", "partial");
     } finally {
       refreshButton.disabled = false;
       refreshButton.querySelector("i").classList.remove("rc-spin");

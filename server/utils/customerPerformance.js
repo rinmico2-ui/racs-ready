@@ -119,7 +119,7 @@ async function customerProfile(id, query = {}, now = new Date()) {
   return { customer, period: { range: period.range, from: period.start, to: period.end, inactiveDays }, asOf: now, bookings, orders, collections,
     servicePreferences: services.map(item => ({ name: item._id, bookings: item.bookings })),
     productPreferences: products.map(item => ({ name: [item._id.brand, item._id.name, item._id.capacity && `${item._id.capacity}${item._id.capacityUnit || ' HP'}`].filter(Boolean).join(' '), units: item.units, orders: item.orders })),
-    note: HISTORY_NOTE + ' Service and product summaries show the top 20 in the analysis period; each booking counts once per service. History filters affect the record lists only. Loyalty uses lifetime qualifying completions and the existing Customer Privileges rules; checkout checks eligible items.' };
+    note: HISTORY_NOTE + ' Service and product summaries show the top 20 in the report dates; each booking counts once per service. History filters affect the record lists only. Loyalty uses all-time completed bookings and orders that meet the reward rules and the existing Customer Privileges rules; checkout checks eligible items.' };
 }
 
 module.exports = { ...summary, customerProfile, historyPipeline, paginatedHistory };

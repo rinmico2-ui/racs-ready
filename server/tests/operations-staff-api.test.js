@@ -243,6 +243,7 @@ test('deferred order photo endpoint returns receipt and evidence with private ca
   let selected;
   t.mock.method(Order, 'findById', () => ({ select(fields) { selected = fields; return this; },
     maxTimeMS() { return this; }, lean: async () => ({ gcashProofUrl: 'receipt', arrivalProofUrl: 'arrival', startProofUrl: 'start', proofPhoto: 'completion' }) }));
+  t.mock.method(Payment, 'find', () => chain([]));
   const res = response();
   let cacheHeader;
   res.set = (name, value) => { if (name === 'Cache-Control') cacheHeader = value; return res; };
@@ -250,7 +251,7 @@ test('deferred order photo endpoint returns receipt and evidence with private ca
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.photos, [{ src: 'receipt', label: 'Payment receipt' }, { src: 'arrival', label: 'Arrival' },
     { src: 'start', label: 'Start work' }, { src: 'completion', label: 'Completion' }]);
-  assert.equal(selected, ORDER_PHOTO_FIELDS.join(' '));
+  assert.equal(selected, [...ORDER_PHOTO_FIELDS, '+gcashProofFileId'].join(' '));
   assert.equal(cacheHeader, 'private, no-store');
 });
 

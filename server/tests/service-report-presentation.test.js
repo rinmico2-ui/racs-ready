@@ -43,18 +43,18 @@ test("service report presents a focused four-KPI executive summary", () => {
   for (const label of [
     "Completed services",
     "Completion rate",
-    "Completed-service value",
-    "Service contribution",
+    "Completed service sales",
+    "Service profit estimate",
   ]) {
     assert.match(template, new RegExp(label));
   }
-  assert.match(template, /Provisional/);
+  assert.match(template, /Estimate/);
   assert.doesNotMatch(template, /Enterprise Service Controls/);
 });
 
 test("service report uses progressive disclosure instead of an analytics wall", () => {
   assert.equal((template.match(/<canvas id=/g) || []).length, 3);
-  for (const tab of ["Overview", "Performance", "Cost &amp; contribution", "Quality", "Records"]) {
+  for (const tab of ["Overview", "Performance", "Costs and profit", "Quality", "Records"]) {
     assert.match(template, new RegExp(">" + tab + "<"));
   }
   assert.match(template, /Report photos/);
@@ -65,9 +65,9 @@ test("service report uses progressive disclosure instead of an analytics wall", 
 
 test("service report keeps booked and completed value definitions distinct", () => {
   assert.match(template, /this is not completed revenue/);
-  assert.match(template, /Value from services whose lifecycle is recognized as completed/);
-  assert.match(template, /Service contribution/);
-  assert.match(template, /Missing records can overstate contribution/);
+  assert.match(template, /Sales from finished services/);
+  assert.match(template, /Service profit estimate/);
+  assert.match(template, /Missing costs can make this estimate too high/);
   assert.match(template, /\^\[=\+\\-@\\t\\r\]/);
 });
 
@@ -96,7 +96,7 @@ test("advanced service filters are visible, retained, and applied server-side", 
   assert.match(template, /activeAdvancedFilters/);
   assert.match(template, /<details class="sr-more-filters" open>/);
   assert.match(template, /14 available/);
-  for (const group of ["Workflow", "Service &amp; location", "Commercial"]) {
+  for (const group of ["Job progress", "Service &amp; location", "Price and size"]) {
     assert.match(template, new RegExp(group));
   }
   assert.match(serviceRoute, /bookings = bookings\.filter/);

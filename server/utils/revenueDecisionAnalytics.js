@@ -15,21 +15,21 @@ function dateKey(value) {
 
 function serviceAction(row) {
   if (row.costEvidenceCoverage < 50) {
-    return { tone: "warning", label: "Complete cost capture", detail: "Record labor, parts, and consumables before changing price or promotion." };
+    return { tone: "warning", label: "Save missing costs", detail: "Save labor, parts, and job supply costs before changing a price or offer." };
   }
   if (row.grossProfit < 0) {
-    return { tone: "danger", label: "Correct unit economics", detail: "Review pricing, discounts, repeat work, and direct-cost usage before accepting more volume." };
+    return { tone: "danger", label: "Check service prices and costs", detail: "Check prices, discounts, repeat jobs, and saved costs before taking more bookings." };
   }
   if (row.grossProfitMargin < 15) {
-    return { tone: "danger", label: "Reprice or reduce cost", detail: "Margin is too narrow to absorb overhead and execution variance." };
+    return { tone: "danger", label: "Check the price or lower costs", detail: "Profit is too low to cover other expenses or extra job costs." };
   }
   if (row.grossProfitMargin >= 40 && row.jobs <= 2) {
-    return { tone: "success", label: "Test demand growth", detail: "Margin is attractive but the sample is small; promote carefully and monitor delivery capacity." };
+    return { tone: "success", label: "Try a small special offer", detail: "Profit looks good, but there are only a few jobs. Try a small offer and check that enough technicians are available." };
   }
   if (row.rank === 1) {
-    return { tone: "success", label: "Protect and scale", detail: "Protect technician capacity, service quality, and availability for this profit leader." };
+    return { tone: "success", label: "Keep staff and times available", detail: "Keep enough technicians and open times for this service, and keep checking job quality." };
   }
-  return { tone: "info", label: "Maintain and monitor", detail: "Keep current pricing and watch margin, volume, and cost-recording quality." };
+  return { tone: "info", label: "Keep checking sales and costs", detail: "Keep the current price. Watch sales, profit %, and missing costs." };
 }
 
 function buildServiceProfitability(serviceCostRows = [], options = {}) {
@@ -149,21 +149,21 @@ function buildServiceProfitability(serviceCostRows = [], options = {}) {
   if (mostProfitable) insights.push({
     tone: "success",
     title: `${mostProfitable.serviceName} leads profit`,
-    text: `${mostProfitable.jobs} completed job${mostProfitable.jobs === 1 ? "" : "s"} generated ${mostProfitable.grossProfit.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} in known gross profit at ${mostProfitable.grossProfitMargin.toFixed(1)}% margin.`,
+    text: `${mostProfitable.jobs} completed job${mostProfitable.jobs === 1 ? "" : "s"} generated ${mostProfitable.grossProfit.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} in profit based on saved costs at ${mostProfitable.grossProfitMargin.toFixed(1)}% profit.`,
     action: mostProfitable.action.label,
   });
   if (leastProfitable && leastProfitable !== mostProfitable) insights.push({
     tone: leastProfitable.grossProfit < 0 || leastProfitable.grossProfitMargin < 15 ? "danger" : "warning",
     title: `${leastProfitable.serviceName} needs review`,
-    text: `${leastProfitable.grossProfit.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} known gross profit at ${leastProfitable.grossProfitMargin.toFixed(1)}% margin is the lowest contribution in this period.`,
+    text: `${leastProfitable.grossProfit.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} profit based on saved costs at ${leastProfitable.grossProfitMargin.toFixed(1)}% of sales. This is the lowest recorded profit for these dates.`,
     action: leastProfitable.action.label,
   });
   const weakCoverage = rows.filter((row) => row.costEvidenceCoverage < 50);
   if (weakCoverage.length) insights.push({
     tone: "warning",
-    title: "Cost evidence limits pricing decisions",
-    text: `${weakCoverage.length} service${weakCoverage.length === 1 ? " has" : "s have"} direct-cost evidence on fewer than half of completed jobs. Treat reported margin as provisional.`,
-    action: "Complete technician cost capture",
+    title: "Some job costs are missing",
+    text: `${weakCoverage.length} service${weakCoverage.length === 1 ? " has" : "s have"} saved cost details for fewer than half of finished jobs. Treat the profit % as an estimate.`,
+    action: "Save missing job costs",
   });
 
   return { rows, mostProfitable, leastProfitable, highestMargin, atRiskCount, insights };
@@ -236,7 +236,7 @@ function buildRevenueForecast(dailyRevenue = [], options = {}) {
     actual: history.slice(-30).map((row) => ({ date: row.date, value: row.booked })),
     forecast,
     method: "Recency-weighted weekday averages adjusted by the capped change between the latest and previous 28-day periods.",
-    caveat: "Planning estimate based on approved booked value; it is not recognized revenue or a financial guarantee.",
+    caveat: "An estimate based on approved booking value. It does not promise future sales or money received.",
   };
 }
 

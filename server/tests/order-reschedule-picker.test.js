@@ -125,20 +125,36 @@ test("customer order history uses checkout capacity dates and date-specific slot
   const template = path.join(__dirname, "../views/pages/my-orders.ejs");
   const source = fs.readFileSync(template, "utf8");
   const html = await ejs.renderFile(template, { orders: [] });
+  const client = fs.readFileSync(path.join(__dirname, '../public/js/customer-order-reschedule.js'), 'utf8');
   assert.match(html, /id="orderRescheduleModal"/);
   assert.match(html, /id="rescheduleCalendar"/);
   assert.match(html, /id="rescheduleDate"/);
   assert.match(html, /id="rescheduleTime"/);
   assert.doesNotMatch(html, /<select id="rescheduleDate"|<select id="rescheduleTime"/);
   assert.match(html, /order-reschedule-picker\.js\?v=/);
-  assert.match(html, /\/api\/schedule\/available-dates\?/);
-  assert.match(html, /\/api\/schedule\/time-slots\?/);
+  assert.match(client, /\/reschedule-availability/);
+  assert.match(client, /\/reschedule-availability\?date=/);
   assert.doesNotMatch(html, /\/api\/schedule\/technician\//);
-  assert.match(html, /\/api\/public\/company\/store-open-hours/);
+  assert.match(client, /\/api\/public\/company\/store-open-hours/);
   assert.match(source, /data-quantity=/);
   assert.match(source, /data-travel-time=/);
-  assert.match(html, /requestedDate: requestedDate, requestedTime: requestedTime/);
+  assert.match(client, /requestedDate: requestedDate, requestedTime: requestedTime/);
+  new vm.Script(client);
   for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
+});
+
+test('reopening a date removes cached start times until fresh availability succeeds', async t => {
+  const dom = fakeDom(); t.after(dom.restore);
+  const date = { value:'' }, time = { value:'' };
+  let resolveSlots;
+  const picker = new OrderReschedulePicker(dom.root,date,time,() => {},() => new Promise(resolve => { resolveSlots = resolve; }));
+  picker.setDates([{ date:'2030-01-02',available:true,timeSlots:[{ time:'09:00' }] }]);
+  const loading = picker.selectDate('2030-01-02');
+  picker.selectTime('09:00');
+  assert.equal(time.value,'');
+  resolveSlots([{ startTime:'10:00',available:true }]); await loading;
+  picker.selectTime('09:00'); assert.equal(time.value,'');
+  picker.selectTime('10:00'); assert.equal(time.value,'10:00');
 });
 
 test("reschedule request and approval verify live capacity before changing the order", () => {
@@ -153,7 +169,7 @@ test("reschedule request and approval verify live capacity before changing the o
 
 test("reschedule slot validation uses checkout quantity and travel rules", async () => {
   const source = fs.readFileSync(path.join(__dirname, "../routes/orderRoutes.js"), "utf8");
-  const helper = source.slice(source.indexOf("async function checkOrderRescheduleSlot"), source.indexOf('router.post("/:id/reschedule-request"'));
+  const helper = source.slice(source.indexOf("async function checkOrderRescheduleSlot"), source.indexOf('// Exclusions and capacity inputs'));
   let query;
   const check = vm.runInNewContext(helper + "\ncheckOrderRescheduleSlot", {
     require: () => ({ getTimeSlotsForQuery: async input => {

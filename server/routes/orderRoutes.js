@@ -642,6 +642,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
             capacity: variant.capacity,
             capacityUnit: variant.capacityUnit,
             sellingPrice: variant.sellingPrice,
+            costPrice: variant.costPrice,
             quantity: variant.quantity,
             status: variant.status,
             active: variant.active,
@@ -674,6 +675,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         capacityUnit: inventory.capacityUnit || "HP",
         quantity,
         unitPrice,
+        costPrice: Number(inventory.costPrice) > 0 ? Number(inventory.costPrice) : null,
         totalPrice: unitPrice * quantity,
         imageUrl: inventory.imageUrl || "/images/products/default.png",
         isHvac: Boolean(inventory.isHvac),
@@ -1156,7 +1158,7 @@ function validFieldProof(value) {
 async function syncLinkedInstallationBooking(order, technician, io) {
   if (order.fulfillmentType !== "delivery_installation" || !order.bookingId) return;
   const booking = await BookingService.findById(order.bookingId);
-  if (!booking) return;
+  if (!booking || booking.isProject) return;
   const bookingStatus = {
     technician_assigned: "scheduled",
     technician_accepted: "confirmed",
@@ -1399,10 +1401,11 @@ router.get('/:id/payment-proof', authenticate, requireRole(['admin', 'secretary'
 router.get('/:id/photos', authenticate, requireRole(['admin', 'secretary']), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid order reference.' });
-    const order = await Order.findById(req.params.id).select(ORDER_PHOTO_FIELDS.join(' ')).maxTimeMS(8000).lean();
+    const order = await Order.findById(req.params.id).select([...ORDER_PHOTO_FIELDS, '+gcashProofFileId'].join(' ')).maxTimeMS(8000).lean();
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    const labels = ['Payment receipt', 'Arrival', 'Start work', 'Completion'];
-    const photos = ORDER_PHOTO_FIELDS.flatMap((field, index) => order[field] ? [{ src: order[field], label: labels[index] }] : []);
+    const payments = await Payment.find({ orderId: order._id || req.params.id })
+      .select('proofUrl remittanceProofUrl refundProofUrl').maxTimeMS(8000).lean();
+    const photos = require('../utils/operationsDetail').orderPhotos(order, payments);
     res.set('Cache-Control', 'private, no-store');
     res.json({ photos });
   } catch (error) {
@@ -2193,12 +2196,13 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
 /**
  * POST /api/orders/:id/reschedule-request â€” Submit reschedule request (customer for own pending orders)
  */
-async function checkOrderRescheduleSlot(order, requestedDate, requestedTime) {
+async function checkOrderRescheduleSlot(order, requestedDate, requestedTime, totalEstimatedMinutes = null) {
   const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+  const aggregateWorkload = Number(totalEstimatedMinutes) > 0;
   const slotCheck = await require("./scheduleRoutes").getTimeSlotsForQuery({
     date: String(requestedDate).slice(0, 10),
-    duration: "60",
-    quantity: order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
+    duration: aggregateWorkload ? String(totalEstimatedMinutes) : "60",
+    quantity: aggregateWorkload ? "1" : order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
     travelTime: String(Number(order.routeDurationMin) || 30),
   }, { excludeOrderId: order._id, excludeBookingId: order.bookingId });
   const requested = String(requestedTime || "").trim().toLowerCase();
@@ -2208,14 +2212,47 @@ async function checkOrderRescheduleSlot(order, requestedDate, requestedTime) {
   return { available, message: slotCheck.payload?.message };
 }
 
+// Exclusions and capacity inputs come from the owned order, never the browser.
+router.get("/:id/reschedule-availability", authenticate, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order reference." });
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    if (String(order.userId || "") !== String(req.user._id)) return res.status(403).json({ error: "You can only reschedule your own orders." });
+    if (!["pending_payment", "preparing_unit", "technician_assigned"].includes(order.status)) {
+      return res.status(409).json({ error: "This order can no longer be rescheduled." });
+    }
+    if (order.fulfillmentType === "customer_pickup") return res.status(400).json({ error: "Choose pickup dates using store hours." });
+    const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+    const query = {
+      duration: "60", mode: "manual",
+      quantity: order.fulfillmentType === "delivery_installation" ? String(Math.max(1, totalUnits)) : "1",
+      travelTime: String(Number(order.routeDurationMin) || 30),
+    };
+    if (req.query.date !== undefined) {
+      if (!parseDateOnly(req.query.date)) return res.status(400).json({ error: "Choose a valid delivery date." });
+      query.date = req.query.date;
+    }
+    const schedule = require("./scheduleRoutes");
+    const result = await (query.date ? schedule.getTimeSlotsForQuery : schedule.getAvailableDatesForQuery)(query, {
+      excludeOrderId: order._id, excludeBookingId: order.bookingId,
+    });
+    res.set("Cache-Control", "no-store, private");
+    return res.status(result.statusCode).json(result.payload);
+  } catch (err) {
+    return res.status(Number(err.status) || 500).json({ error: err.message || "Unable to load schedules." });
+  }
+});
+
 router.post("/:id/reschedule-request", authenticate, async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order reference." });
     const { requestedDate, requestedTime, reason } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
 
     // Check if user is the customer
-    const isOwner = order.userId.toString() === req.user._id.toString();
+    const isOwner = String(order.userId || "") === String(req.user._id);
 
     if (!isOwner) {
       return res.status(403).json({ error: "You can only request reschedule for your own orders" });
@@ -2226,10 +2263,13 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
     if (!pendingStatuses.includes(order.status)) {
       return res.status(400).json({ error: "Only pending orders can be rescheduled" });
     }
+    if (order.rescheduleRequest?.requested && order.rescheduleRequest.status === "pending") {
+      return res.status(409).json({ error: "A reschedule request is already under review.", code: "ORDER_RESCHEDULE_PENDING" });
+    }
 
     // Validate required fields
     const pickupRequest = order.fulfillmentType === "customer_pickup";
-    if (!requestedDate || (!pickupRequest && !requestedTime) || !String(reason || "").trim()) {
+    if (typeof requestedDate !== "string" || (!pickupRequest && typeof requestedTime !== "string") || typeof reason !== "string" || !reason.trim()) {
       return res.status(400).json({ error: pickupRequest
         ? "Requested date and reason are required"
         : "Requested date, time, and reason are required" });
@@ -2271,16 +2311,20 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
       status: "pending" // pending, approved, rejected
     };
 
-    await order.save();
+    const updatedOrder = await Order.findOneAndUpdate({
+      _id: order._id, userId: req.user._id, status: { $in: pendingStatuses },
+      $or: [{ "rescheduleRequest.requested": { $ne: true } }, { "rescheduleRequest.status": { $ne: "pending" } }],
+    }, { $set: { rescheduleRequest: order.rescheduleRequest } }, { returnDocument: "after", runValidators: true });
+    if (!updatedOrder) return res.status(409).json({ error: "This order changed or a request is already under review. Refresh your orders before trying again." });
 
-    emitOrderStatus(req, order, { rescheduleRequestStatus: "pending" });
+    emitOrderStatus(req, updatedOrder, { rescheduleRequestStatus: "pending" });
 
     res.json({
       message: "Reschedule request submitted successfully",
-      order: presentOrderForRequest(req, order)
+      order: presentOrderForRequest(req, updatedOrder)
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(Number(err.status) || 500).json({ error: err.message, code: err.code });
   }
 });
 
@@ -2399,18 +2443,75 @@ router.post("/:id/reschedule-reject", authenticate, requireRole(["admin", "secre
  * POST /api/orders/:id/admin-reschedule
  * Replaces a passed requested schedule without cancelling or expiring the order.
  */
-router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
+router.get("/:id/admin-reschedule-availability", authenticate, requireRole(["admin", "secretary"]), resolutionOrderAvailability);
+async function resolutionOrderAvailability(req, res) {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order reference." });
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) return res.status(409).json({ error: "This order is no longer available for rescheduling." });
+    if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
+    if (order.fulfillmentType === 'customer_pickup') {
+      const settings = await getOrderCheckoutSettings();
+      return res.json({ fulfillmentType:'customer_pickup', storeHours:settings.storeHours });
+    }
+    const { source, workload } = await require("../utils/orderResolutionScheduling").loadOrderScheduling(order);
+    res.set("Cache-Control", "no-store, private");
+    if (workload.isProject) return res.json({ scheduling: workload, projectScheduling: source.projectScheduling || null });
+    const query = { duration: String(workload.totalEstimatedMinutes), quantity: "1", mode: "manual", travelTime: String(Number(order.routeDurationMin) || 30) };
+    if (req.query.date !== undefined) {
+      if (!parseDateOnly(req.query.date)) return res.status(400).json({ error: "Choose a valid delivery date." });
+      query.date = req.query.date;
+    }
+    const calendar = require("./scheduleRoutes");
+    const result = await (query.date ? calendar.getTimeSlotsForQuery : calendar.getAvailableDatesForQuery)(query, { excludeOrderId: order._id, excludeBookingId: order.bookingId });
+    return res.status(result.statusCode).json({ ...result.payload, scheduling: workload });
+  } catch (error) { return res.status(Number(error.status) || 500).json({ error: error.message || "Could not load order availability." }); }
+}
+
+router.post("/:id/admin-project-window-availability", authenticate, requireRole(["admin", "secretary"]), resolutionOrderProjectAvailability);
+async function resolutionOrderProjectAvailability(req, res) {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order reference." });
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) return res.status(409).json({ error: "This order is no longer available for rescheduling." });
+    if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
+    const { strictManilaDateKey } = require("../utils/bookingDateTime");
+    const startDate = strictManilaDateKey(req.body?.startDate), endDate = strictManilaDateKey(req.body?.endDate);
+    if (!startDate || !endDate || endDate < startDate || new Date(endDate) - new Date(startDate) > 366 * 86400000) {
+      return res.status(400).json({ error: "Choose a valid project window within one year." });
+    }
+    const { source, workload } = await require("../utils/orderResolutionScheduling").loadOrderScheduling(order);
+    if (!workload.isProject) return res.status(400).json({ error: "This order uses delivery date and time selection." });
+    const { verdict } = await require("../utils/resolutionScheduling").projectWindow(source, { startDate, endDate, requiredHours: req.body.requiredHours }, workload);
+    res.set("Cache-Control", "no-store, private");
+    return res.status(verdict.error ? 400 : 200).json(verdict);
+  } catch (error) { return res.status(Number(error.status) || 500).json({ error: error.message || "Could not check project capacity." }); }
+}
+
+async function announceCustomerOrderSchedule(req, order) {
+  if (!req.orderCustomerReschedule) return;
+  await require('../utils/notify').createNotification({ type:'order_rescheduled', title:'Customer chose a new order schedule',
+    message:`The customer selected a new ${order.fulfillmentType === 'customer_pickup' ? 'pickup date' : order.isProject ? 'installation project window' : 'delivery schedule'} for ${order.orderReference || 'their aircon order'}.`,
+    role:'admin', referenceId:order._id, referenceModel:'Order', link:'/admin/appointments/orders', io:req.app.get('io') }).catch(() => {});
+  emitOrderStatus(req, order, { rescheduleInvitationStatus:'submitted' });
+}
+
+router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secretary"]), saveResolutionOrderSchedule);
+async function saveResolutionOrderSchedule(req, res) {
   try {
     const { scheduledDate, timeSlot, reason } = req.body || {};
     if (!scheduledDate) return res.status(400).json({ error: "A new date is required." });
 
     let order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
     if (!REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: `Order status "${order.status}" cannot be rescheduled from the attention queue.` });
     }
     const isPickup = order.fulfillmentType === "customer_pickup";
-    if (!isPickup && !timeSlot) return res.status(400).json({ error: "A new delivery time is required." });
+
 
     const parsedDateValue = parseDateOnly(scheduledDate);
     const parsedDate = parsedDateValue ? manilaDateTime(parsedDateValue, 0) : null;
@@ -2420,6 +2521,27 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     order = await Order.findById(req.params.id);
     if (!order || !REVIEWABLE_ORDER_STATUSES.has(order.status)) {
       return res.status(409).json({ error: "This order is no longer available for rescheduling." });
+    }
+    if (req.orderCustomerReschedule) require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user);
+    let totalEstimatedMinutes;
+    if (!isPickup) {
+      const { loadOrderScheduling, saveOrderProjectWindow } = require("../utils/orderResolutionScheduling");
+      const { workload } = await loadOrderScheduling(order);
+      totalEstimatedMinutes = workload.totalEstimatedMinutes;
+      if (workload.isProject) {
+        const previousKitTarget = orderKitTarget(order);
+        const schedule = await saveOrderProjectWindow(order, req.body, req.user);
+        await syncAffectedOrderKits(previousKitTarget);
+        await require("../utils/notify").createNotification({
+          type: "order_rescheduled", title: "Project Window Updated",
+          message: `Your order ${order.orderReference || ""} has a preferred project window from ${schedule.date} through ${schedule.endDate}. Operations will confirm the final schedule.`,
+          userId: order.userId, role: "customer", referenceId: order._id, referenceModel: "Order",
+          link: `/my-orders/${order._id}`, io: req.app.get("io"),
+        }).catch(() => {});
+        await announceCustomerOrderSchedule(req, order);
+        return res.json({ success: true, message: "Project window updated. Operations will confirm the final multi-day schedule.", order: presentOrderForRequest(req, order) });
+      }
+      if (!timeSlot) return res.status(400).json({ error: "A new delivery time is required." });
     }
     const proposed = order.toObject();
     proposed.timeSlot = isPickup ? null : timeSlot;
@@ -2441,7 +2563,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
         throw error;
       }
     } else {
-      const slotCheck = await checkOrderRescheduleSlot(order, scheduledDate, timeSlot);
+      const slotCheck = await checkOrderRescheduleSlot(order, scheduledDate, timeSlot, totalEstimatedMinutes);
       if (!slotCheck.available) {
         return res.status(409).json({
           error: slotCheck.message || "This delivery time is no longer available. Choose another date or time.",
@@ -2464,7 +2586,7 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
       requested: true,
       requestedDate: scheduledDate,
       requestedTime: isPickup ? "" : timeSlot,
-      reason: reason || "Past requested schedule replaced by admin",
+      reason: reason || "Past requested schedule replaced from Resolution Center",
       requestedBy: req.user._id,
       requestedAt: new Date(),
       status: "approved",
@@ -2473,9 +2595,10 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
     };
     order.pushStatus(
       order.status,
-      `Admin rescheduled order to ${scheduledDate}${isPickup ? "" : ` at ${timeSlot}`}. ${reason || "Customer schedule updated after admin delay."}`,
+      `${req.user.role === 'customer' ? 'Customer' : 'Staff'} rescheduled order to ${scheduledDate}${isPickup ? "" : ` at ${timeSlot}`}. ${reason || "Customer schedule updated after admin delay."}`,
       { actor: req.user._id, actorRole: req.user.role, actorName: req.user.name || req.user.email || "Admin" }
     );
+    require('../utils/orderRescheduleInvitation').finishOrderRescheduleInvitation(order, req.user);
     await order.save();
 
     if (order.bookingId) {
@@ -2503,18 +2626,23 @@ router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secret
       }).catch(() => {});
     } catch (_) {}
 
+    await announceCustomerOrderSchedule(req, order);
     return res.json({
       success: true,
       message: "Order schedule updated. The order remains active in its current workflow stage.",
       order: presentOrderForRequest(req, order),
     });
     };
-    if (isPickup) return await applyAdminReschedule();
-    return await withOperationLock(bookingCapacityLockKey(scheduledDate), applyAdminReschedule);
+    return await withOperationLock(`order-resolution:${req.params.id}`, () => isPickup ? applyAdminReschedule()
+      : withOperationLock(bookingCapacityLockKey(scheduledDate), applyAdminReschedule));
   } catch (err) {
-    res.status(Number(err?.status) || 500).json({ error: err.message || "Failed to reschedule order" });
+    if (err.name === 'DocumentNotFoundError') return res.status(409).json({ error:'This order or schedule link changed. Refresh before trying again.', code:'ORDER_CHANGED' });
+    res.status(Number(err?.status) || 500).json({ error: err.message || "Failed to reschedule order", code: err.code, refreshSlots: err.refreshSlots });
   }
-});
+}
+
+require('./orderResolutionInvitations')(router, { authenticate, requireRole,
+  availability:resolutionOrderAvailability, projectAvailability:resolutionOrderProjectAvailability, saveSchedule:saveResolutionOrderSchedule });
 
 /**
  * POST /api/orders/:id/requeue-assignment
@@ -2833,6 +2961,20 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
  * PATCH /api/orders/:id/payment â€” Update order payment status (admin/secretary)
  * Body: { paymentStatus: "paid"|"pending"|"failed", note?: string }
  */
+router.get('/:id/payment-review', authenticate, requireRole(['admin', 'secretary']), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error:'Invalid order reference.' });
+    const order = await Order.findById(req.params.id).select('status paymentStatus paymentMethod paymentId').lean();
+    if (!order) return res.status(404).json({ error:'Order not found.' });
+    res.set('Cache-Control', 'no-store, private');
+    if (!require('../utils/resolutionCenter').resolutionPaymentNeedsReview(order, 'order')) return res.json({ success:true, pendingPayment:null });
+    const payment = order.paymentId ? await Payment.findOne({ _id:order.paymentId, orderId:req.params.id, status:'pending' })
+      .select('amount method type reference').lean() : null;
+    return res.json({ success:true, pendingPayment:payment ? { id:payment._id, amount:payment.amount,
+      reference:payment.reference || '', method:payment.method || '', type:payment.type || '' } : null });
+  } catch (error) { return res.status(500).json({ error:'Could not load the submitted payment. Please try again.' }); }
+});
+
 router.patch("/:id/payment", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   const session = await mongoose.startSession();
   try {

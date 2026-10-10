@@ -1,0 +1,32 @@
+flowchart TB
+  customer["Customer / visitor"]
+  admin["Administrator"]
+  secretary["Secretary / dispatcher"]
+  tech["Technician"]
+  p0(["0. CALIDRO RACS<br/>Web management system"])
+  identity["Google identity / reCAPTCHA"]
+  payment["PayMongo<br/>Retained gateway / webhook"]
+  mail["Brevo API / SMTP"]
+  geo["Location / calendar providers<br/>PSGC, Geoapify, Nominatim<br/>OSRM, Esri, Google, Nager"]
+  ai["Gemini / Groq / OpenRouter<br/>Tavily search"]
+  cloud["Cloudinary product images"]
+  customer -->|"Account, booking, order, proof, claim"| p0
+  p0 -->|"Catalog, quote, receipt, status, answer"| customer
+  admin -->|"Approval, pricing, role, settings"| p0
+  p0 -->|"Queues, reports, audit, alerts"| admin
+  secretary -->|"Dispatch, POS, payment review"| p0
+  p0 -->|"Work queues, schedules, reports"| secretary
+  tech -->|"Job response, GPS, evidence, attendance"| p0
+  p0 -->|"Assignments, kit, payslip, alerts"| tech
+  p0 -->|"OAuth / challenge verification"| identity
+  identity -->|"Identity / challenge result"| p0
+  payment -->|"Signed payment events"| p0
+  p0 -->|"Source charge request, if used"| payment
+  p0 -->|"Transactional message"| mail
+  mail -->|"Delivery response"| p0
+  p0 -->|"Address, coordinates, event, holiday query"| geo
+  geo -->|"Location, route, event ID, holiday data"| p0
+  p0 -->|"Question / conversation / search terms"| ai
+  ai -->|"Answer / search evidence"| p0
+  p0 -->|"Product image / deletion request"| cloud
+  cloud -->|"Image URL / upload result"| p0

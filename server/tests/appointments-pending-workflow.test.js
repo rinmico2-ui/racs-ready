@@ -59,7 +59,7 @@ test('payment verification completes the assignment-queue transition in one requ
   assert.match(verifyRoute, /transitionStatus\(BookingStatus\.AWAITING_ASSIGNMENT/);
   assert.match(verifyRoute, /destination:\s*'assignment_queue'/);
 
-  const verifyClient = section(view, 'AU.Pending.verifyPayment=async function', 'AU.Pending.openReviewReschedule=function');
+  const verifyClient = section(view, 'AU.Pending.verifyPayment=async function', 'AU.Pending.openReject=function');
   assert.doesNotMatch(verifyClient, /move-to-queue/);
   assert.match(verifyClient, /destination!==['"]assignment_queue['"]/);
   assert.match(verifyClient, /_pdAll=_pdAll\.filter/);
@@ -82,13 +82,19 @@ test('deep-linked appointment tabs do not perform a duplicate initial load', () 
   assert.doesNotMatch(init, /\n\s*loadTab\(initialTab\)/);
 });
 
-test('schedule conflicts keep pending requests open for customer-agreed rescheduling', () => {
+test('pending review keeps resolution links and removes its duplicate schedule editor', () => {
   const reschedule = section(route, "router.post('/:id/review-reschedule'", "router.post('/:id/move-to-queue'");
   assert.match(reschedule, /booking\.status !== BookingStatus\.PENDING/);
   assert.doesNotMatch(reschedule, /isReviewOverdue/);
   assert.match(reschedule, /contactConfirmed !== true/);
-  assert.match(view, /value="schedule_conflict">Schedule conflict/);
-  assert.match(view, /AU\.Pending\.rescheduleFromReject/);
+  assert.doesNotMatch(view, /reviewRescheduleModal|AU\.Pending\.(?:openReviewReschedule|submitReviewReschedule|rescheduleFromReject|updateRejectGuidance)/);
+  const pendingActions = section(view, 'AU.Pending.renderTable=function', 'AU.Pending.getServiceType=function');
+  assert.match(pendingActions, /bookingResolutionUrl\(b\)/);
+  assert.match(pendingActions, /Resolve Issue/);
+  assert.match(pendingActions, /AU\.Pending\.verifyPayment/);
+  assert.match(pendingActions, /AU\.Pending\.openReject/);
+  const rejectModal = section(view, '<!-- Reject Booking Modal -->', '<!--');
+  assert.doesNotMatch(rejectModal, /schedule_conflict|personal_matter|Reschedule/);
   assert.match(route, /RESCHEDULE_RECOMMENDED/);
 });
 

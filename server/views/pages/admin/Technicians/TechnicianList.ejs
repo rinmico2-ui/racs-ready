@@ -84,7 +84,7 @@
     </div>
     <% if (resolvedTechniciansCanManageAccounts) { %><div class="rp-filter-group ms-auto">
       <label class="rp-filter-label">Action</label>
-      <a href="/admin/technicians/new" class="btn btn-primary rp-filter-btn d-inline-flex align-items-center gap-1"><i class="bi bi-plus-lg"></i> Add Technician</a>
+      <button type="button" data-bs-toggle="modal" data-bs-target="#addStaffModal" data-staff-role="technician" class="btn btn-primary rp-filter-btn d-inline-flex align-items-center gap-1"><i class="bi bi-plus-lg"></i> Add Technician</button>
     </div><% } else { %><span class="badge bg-light text-secondary border px-3 py-2 ms-auto"><i class="bi bi-eye me-1"></i>Account changes are admin-only</span><% } %>
   </div>
 
@@ -228,6 +228,9 @@
     .inventory-premium .badge { padding: 0.45em 0.85em; }
   </style>
 
+  <% if (resolvedTechniciansCanManageAccounts) { %>
+    <%- include('../../../partials/staff-account-modal', { defaultRole: 'technician' }) %>
+  <% } %>
   <script>
     (function () {
       const techniciansApiBase = <%- JSON.stringify(resolvedTechniciansApiBase).replace(/</g, "\\u003c") %>;
@@ -269,7 +272,7 @@
         <td class="d-none d-lg-table-cell small text-muted">${escapeHtml(locationStr)}</td>
         <td>${skillsArr || '<span class="text-muted">—</span>'}</td>
         <td class="small text-warning">${ratingStars}</td>
-        <td><span class="badge fs-7 fw-semibold px-2 py-1 ${t.active ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary"}">${t.active ? "Active" : "Inactive"}</span></td>
+        <td><span class="badge fs-7 fw-semibold px-2 py-1 ${t.active ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary"}">${t.active ? "Active" : "Inactive"}</span>${techniciansCanManageAccounts ? `<div class="small mt-1 ${t.loginState === 'ready' ? 'text-muted' : 'text-warning'}">${t.loginState === 'ready' ? 'Sign-in ready' : t.loginState === 'invited' ? 'Waiting for email confirmation' : 'No sign-in account'}</div>` : ''}</td>
         <td class="text-end">
           <div class="d-flex justify-content-end gap-1">
             ${techniciansCanManageAccounts ? `<a href="/admin/technicians/${t._id}/edit" class="btn btn-sm btn-light text-muted border-0 shadow-sm d-flex align-items-center justify-content-center" style="width:30px;height:30px;padding:0;" title="Edit"><i class="bi bi-pencil" style="font-size:0.85rem;"></i></a>` : ''}
@@ -313,6 +316,8 @@
         el("bulkDeactivate").disabled = !any;
       }
 
+      document.addEventListener("staff:created", load);
+
       async function load() {
         try {
           const r = await fetch(techniciansApiBase, { cache: "no-store" });
@@ -322,9 +327,10 @@
             _id: t._id,
             name:
               t.name || ((t.firstName || "") + " " + (t.lastName || "")).trim(),
-            email: t.email,
+            email: t.user?.email || t.userEmail || t.email,
+            loginState: t.user ? (t.user.emailVerified === false ? 'invited' : 'ready') : 'missing',
             phone: t.phone,
-            location: t.location,
+            location: t.locationText || t.location,
             skills: t.skills || [],
             active: !!t.active,
             avatar: t.avatarUrl || t.avatar || "",

@@ -58,7 +58,7 @@ function formatDateKey(d) {
  * The buffer absorbs minor service overruns so that consecutive bookings
  * don't cascade into conflicts.
  */
-router.get('/available-dates', async (req, res) => {
+async function handleAvailableDates(req, res) {
   try {
     const {
       serviceId,
@@ -166,12 +166,14 @@ router.get('/available-dates', async (req, res) => {
     ];
 
     const allBookings = await BookingService.find({
+      ...(req._trustedExcludeBookingId ? { _id: { $ne: req._trustedExcludeBookingId } } : {}),
       technicianId: { $in: techIds.length > 0 ? techIds : [new mongoose.Types.ObjectId()] },
       bookingDate: { $gte: manilaDateTime(todayKey, 0), $lte: manilaDateTime(windowEnd.toISOString().slice(0, 10), 1440, -1) },
       status: { $in: activeBookingStatuses },
     }).select('_id sourceOrderId technicianId bookingDate startTime endTime serviceDurationMinutes travelTime').lean();
 
     const unassignedBookings = await BookingService.find({
+      ...(req._trustedExcludeBookingId ? { _id: { $ne: req._trustedExcludeBookingId } } : {}),
       $or: [
         { technicianId: { $exists: false } },
         { technicianId: null },
@@ -182,6 +184,7 @@ router.get('/available-dates', async (req, res) => {
 
     const activeBookings = [...allBookings, ...unassignedBookings];
     const orderRows = await loadActiveOrderCapacityRows(todayKey, windowEnd.toISOString().slice(0, 10), {
+      excludeOrderId: req._trustedExcludeOrderId || null,
       activeBookingIds: new Set(activeBookings.map(booking => String(booking._id))),
       activeLinkedOrderIds: new Set(activeBookings.map(booking => String(booking.sourceOrderId || '')).filter(Boolean)),
       bufferMinutes: bufferTime,
@@ -438,7 +441,8 @@ router.get('/available-dates', async (req, res) => {
     console.error('❌ Error getting available dates:', error);
     res.status(500).json({ error: 'Failed to get available dates' });
   }
-});
+}
+router.get('/available-dates', handleAvailableDates);
 
 /**
  * GET /api/bookings/technician/:technicianId/date/:date
@@ -1190,7 +1194,7 @@ router.get('/time-slots', handleTimeSlots);
 // Server-side consumers (for example customer reschedule submission) use the
 // exact same capacity engine as /services instead of maintaining a second
 // conflict checker that can drift from the calendar.
-router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query, trustedExclusions = {}) {
+function schedulingResult(handler, query, trustedExclusions = {}) {
   return new Promise((resolve, reject) => {
     let statusCode = 200;
     const response = {
@@ -1203,13 +1207,15 @@ router.getTimeSlotsForQuery = function getTimeSlotsForQuery(query, trustedExclus
         return payload;
       },
     };
-    Promise.resolve(handleTimeSlots({
+    Promise.resolve(handler({
       query,
       _trustedExcludeOrderId: trustedExclusions.excludeOrderId || null,
       _trustedExcludeBookingId: trustedExclusions.excludeBookingId || null,
     }, response)).catch(reject);
   });
-};
+}
+router.getTimeSlotsForQuery = (query, exclusions) => schedulingResult(handleTimeSlots, query, exclusions);
+router.getAvailableDatesForQuery = (query, exclusions) => schedulingResult(handleAvailableDates, query, exclusions);
 
 /**
  * GET /api/schedule/technician/:technicianId/available-slots

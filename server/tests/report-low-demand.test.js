@@ -30,12 +30,12 @@ test('least booked services rank distinct bookings before completed count and va
 
 test('service recommendations respond to demand, completion, recent drop, and sample size', () => {
   const scope = { periodDays: 60, portfolioBookings: 30 };
-  assert.equal(servicePortfolioDecision({ bookings: 8, completed: 3 }, scope).label, 'Review delivery pipeline');
-  assert.equal(servicePortfolioDecision({ bookings: 6, completed: 5, priorBookings: 6, recentBookings: 0 }, scope).label, 'Investigate demand drop');
-  assert.equal(servicePortfolioDecision({ bookings: 9, completed: 8, priorBookings: 4, recentBookings: 5 }, scope).label, 'Protect capacity');
+  assert.equal(servicePortfolioDecision({ bookings: 8, completed: 3 }, scope).label, 'Check unfinished jobs');
+  assert.equal(servicePortfolioDecision({ bookings: 6, completed: 5, priorBookings: 6, recentBookings: 0 }, scope).label, 'Check why bookings stopped');
+  assert.equal(servicePortfolioDecision({ bookings: 9, completed: 8, priorBookings: 4, recentBookings: 5 }, scope).label, 'Keep enough technicians and open times');
   assert.equal(servicePortfolioDecision({ bookings: 1, completed: 1, priorBookings: 1 }, scope).label, 'Test demand before expanding');
-  assert.equal(servicePortfolioDecision({ bookings: 1, completed: 1 }, { periodDays: 7, portfolioBookings: 30 }).label, 'Collect more evidence');
-  assert.equal(servicePortfolioDecision({ bookings: 9, completed: 8 }, { ...scope, portfolioComplete: false }).label, 'Review in full portfolio');
+  assert.equal(servicePortfolioDecision({ bookings: 1, completed: 1 }, { periodDays: 7, portfolioBookings: 30 }).label, 'Check more bookings first');
+  assert.equal(servicePortfolioDecision({ bookings: 9, completed: 8 }, { ...scope, portfolioComplete: false }).label, 'Compare all services');
 });
 
 test('both shared reports show low activity lists and explain their cohort', () => {
@@ -44,7 +44,7 @@ test('both shared reports show low activity lists and explain their cohort', () 
   const servicePath = path.join(root, 'views/pages/admin/Reports/ServiceReport.ejs');
   const revenue = fs.readFileSync(revenuePath, 'utf8');
   const service = fs.readFileSync(servicePath, 'utf8');
-  assert.match(revenue, /Least Sold POS Products/);
+  assert.match(revenue, /Walk-in products with the fewest sales/);
   assert.match(revenue, /lowestPosProductsBody/);
   assert.match(revenue, /A\.lowestSellingPosProducts/);
   assert.match(service, /Least Booked Services/);

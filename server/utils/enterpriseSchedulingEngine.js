@@ -1048,11 +1048,12 @@ async function validateProjectDateRange(params) {
  * @returns {Promise<{dailyHours:number, days:Array<Object>}>}
  */
 async function computeProjectDailyCapacity(params) {
-  const { startDate, endDate } = params;
+  const { startDate, endDate, excludeProjectId } = params;
   const result = await validateProjectDateRange({
     startDate,
     endDate,
     requiredTechnicians: 0, // pure availability snapshot — nothing is "insufficient"
+    excludeProjectId,
   });
   const dailyHours = await getDailyHours();
   const rows = Array.isArray(result.dailyBreakdown) ? result.dailyBreakdown : [];
@@ -1107,6 +1108,7 @@ async function getProjectWindowAvailability(params) {
     endDate,
     requiredHours = null,
     totalUnits = null,
+    excludeProjectId = null,
   } = params;
 
   if (!startDate || !endDate) {
@@ -1128,7 +1130,7 @@ async function getProjectWindowAvailability(params) {
   // extra queries.
   const scanEnd = new Date(eDate);
   scanEnd.setDate(scanEnd.getDate() + 180);
-  const snap = await computeProjectDailyCapacity({ startDate: sDate, endDate: scanEnd });
+  const snap = await computeProjectDailyCapacity({ startDate: sDate, endDate: scanEnd, excludeProjectId });
   const dailyHours = snap.dailyHours || 8;
 
   const startKey = toLocalDateKey(sDate);

@@ -13,8 +13,8 @@ async function getOrderCheckoutSettings() {
   const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
   const fare = Number(settings.farePerKm);
   const installation = Number(settings.airconInstallFee);
-  const lat = Number(settings.companyLocationLat);
-  const lng = Number(settings.companyLocationLng);
+  const lat = settings.companyLocationLat == null || settings.companyLocationLat === "" ? NaN : Number(settings.companyLocationLat);
+  const lng = settings.companyLocationLng == null || settings.companyLocationLng === "" ? NaN : Number(settings.companyLocationLng);
   return {
     farePerKm: Number.isFinite(fare) && fare >= 0 ? fare : 40,
     installationFee: Number.isFinite(installation) && installation >= 0 ? installation : 1500,

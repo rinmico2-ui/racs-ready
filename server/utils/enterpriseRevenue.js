@@ -136,16 +136,25 @@ function isRecognizedOrder(order, startDate, endDate) {
   return order?.status === "completed" && inRange(orderCompletionDate(order), startDate, endDate);
 }
 
+function orderItemCost(item, costById) {
+  // A saved missing cost must stay missing; do not silently use a later price.
+  const saved = Object.prototype.hasOwnProperty.call(item, "costPrice");
+  const cost = saved ? item.costPrice : costById.get(String(item.inventoryId || ""));
+  return Number.isFinite(Number(cost)) && Number(cost) > 0 ? Number(cost) : 0;
+}
+
 function summarizeOrderCosts(orders = [], inventoryItems = []) {
   const costById = new Map(inventoryItems.map((item) => [String(item._id), money(item.costPrice)]));
   let totalCost = 0;
   let totalUnits = 0;
   let costedUnits = 0;
+  let legacyUnits = 0;
 
   orders.forEach((order) => {
     (order.items || []).forEach((item) => {
       const quantity = Math.max(0, Number(item.quantity) || 0);
-      const unitCost = costById.get(String(item.inventoryId || "")) || 0;
+      const unitCost = orderItemCost(item, costById);
+      if (!Object.prototype.hasOwnProperty.call(item, "costPrice")) legacyUnits += quantity;
       totalUnits += quantity;
       if (unitCost > 0) {
         costedUnits += quantity;
@@ -158,8 +167,11 @@ function summarizeOrderCosts(orders = [], inventoryItems = []) {
     totalCost,
     totalUnits,
     costedUnits,
+    legacyUnits,
     coveragePercent: totalUnits > 0 ? (costedUnits / totalUnits) * 100 : 100,
-    basis: "Current inventory cost; historical order items do not snapshot cost",
+    basis: legacyUnits > 0
+      ? "Saved bought prices; older orders use current inventory cost where no saved price exists"
+      : "Bought prices saved when orders were placed",
   };
 }
 
@@ -205,6 +217,7 @@ function summarizeLinkedInstallationCosts(orders = [], serviceRows = []) {
 }
 
 module.exports = {
+  orderItemCost,
   ACCEPTED_PAYMENT_STATUSES,
   RECOGNIZED_BOOKING_STATUSES,
   bookingCompletionDate,

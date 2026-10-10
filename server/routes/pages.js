@@ -11,6 +11,7 @@ const pageAuth = require("../middleware/pageAuth");
 const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { cacheKey } = require("../utils/reportCache");
+const { profileNamePolicy } = require("../utils/profileNamePolicy");
 
 const serviceReportFragmentCache = new Map();
 const SERVICE_REPORT_FRAGMENT_TTL_MS = 30000;
@@ -280,7 +281,7 @@ router.get("/products", pageAuth.requireCustomerOrGuest, async (req, res, next) 
     });
 
     res.render("pages/product", {
-      title: "Products",
+      title: "Aircons",
       products,
       grouped,
       businessHours: await getBusinessHours(),
@@ -455,6 +456,20 @@ router.get("/my-orders", pageAuth.requireRole("customer"), async (req, res, next
   } catch (err) {
     next(err);
   }
+});
+
+router.get('/my-orders/:id/reschedule', pageAuth.requireRole('customer'), async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).render('pages/404', { title:'Order Not Found' });
+    const order = await require('../models/Order').findOne({ _id:req.params.id, userId:req.user._id })
+      .select('userId status orderReference fulfillmentType rescheduleInvitation').lean();
+    if (!order) return res.status(404).render('pages/404', { title:'Order Not Found' });
+    let scheduleError = '';
+    try { require('../utils/orderRescheduleInvitation').assertCustomerOrderReschedule(order, req.user); }
+    catch (error) { scheduleError = error.message; res.status(error.status || 410); }
+    res.render('pages/order-resolution-schedule', { title:'Choose a new order schedule', order, scheduleError });
+  } catch (error) { next(error); }
 });
 
 // Dedicated customer order record. The ownership predicate is part of the
@@ -955,6 +970,7 @@ router.get("/profile", pageAuth.requireRole("customer"), async (req, res, next) 
     res.render("pages/profile", {
       title: "My Profile",
       user: req.user,
+      nameChangePolicy: profileNamePolicy(req.user),
       ratings,
       productItems,
       bookings,
@@ -970,7 +986,7 @@ router.get("/user", (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
-  res.render("pages/profile", { title: "My Profile" });
+  res.render("pages/profile", { title: "My Profile", nameChangePolicy: profileNamePolicy(req.user) });
 });
 
 // Admin-only profile (separate view)
@@ -1545,7 +1561,7 @@ router.get("/admin/jobs/completed", pageAuth.requireRole("admin"), (req, res) =>
 // Admin - Inventory
 router.get("/admin/inventory", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Inventory/InventoryList", {
-    title: "Inventory",
+    title: "Aircons",
     layout: "layouts/admin",
     inventoryApiBase: "/api/admin/hvac",
   });
@@ -1623,7 +1639,7 @@ router.get(
   pageAuth.requireRole("admin"),
   (req, res) => {
     res.render("pages/admin/Inventory/InventoryList", {
-      title: "Inventory List",
+      title: "Aircons",
       layout: "layouts/admin",
       inventoryApiBase: "/api/admin/hvac",
     });
@@ -1905,18 +1921,15 @@ router.get("/admin/technicians", pageAuth.requireRole("admin"), (req, res) => {
   });
 });
 
-router.get("/admin/technicians/new", pageAuth.requireRole("admin"), (req, res) => {
-  res.render("pages/admin/Technicians/TechnicianForm", {
-    title: "Add Technician",
-    layout: "layouts/admin",
-    technician: null,
-  });
+router.get("/admin/technicians/new", pageAuth.requireRole("admin"), (_req, res) => {
+  res.redirect("/admin/technicians?add=1");
 });
 
 router.get("/admin/technicians/:id/edit", pageAuth.requireRole("admin"), async (req, res) => {
   try {
     const Technician = require("../models/Technician");
-    const technician = await Technician.findById(req.params.id).lean();
+    const technician = await Technician.findById(req.params.id)
+      .populate("user", "email role emailVerified accountStatus active blocked archivedAt invitationLastSentAt").lean();
     if (!technician) return res.status(404).send("Technician not found");
     res.render("pages/admin/Technicians/TechnicianForm", {
       title: "Edit Technician",
@@ -2387,7 +2400,7 @@ router.get("/admin/roles", pageAuth.requireRole("admin"), async (req, res) => {
 
 // Admin - Reports
 router.get('/admin/reports/customers', pageAuth.requireRole('admin'), (req, res) => {
-  res.render('pages/admin/Reports/CustomerPerformance', { title: 'Customer Performance', layout: 'layouts/admin' });
+  res.render('pages/admin/Reports/CustomerPerformance', { title: 'Customer Activity', layout: 'layouts/admin' });
 });
 router.get('/admin/reports/customers/:id', pageAuth.requireRole('admin'), (req, res) => {
   res.render('pages/admin/Reports/CustomerPerformance', { title: 'Customer Records', layout: 'layouts/admin', customerProfileId: req.params.id });
@@ -2415,7 +2428,7 @@ router.get(
   ["/admin/reports/orders", "/secretary/reports/orders"],
   pageAuth.requireRole(["admin", "secretary"]),
   (req, res) => res.render("pages/admin/Reports/DeferredOrderReport", {
-    title: "Order Analytics", layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
+    title: "Order Reports", layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
   }),
 );
 
@@ -2423,7 +2436,7 @@ router.get(
   ["/admin/reports/orders/data", "/secretary/reports/orders/data"],
   pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
-    const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, medianCycleHours: 0, p90CycleHours: 0, onTimeRate: 0, onTimeSampleSize: 0, openOrders: 0, overdueOrders: 0, unassignedOrders: 0, pendingPaymentOrders: 0, actionRequiredOrders: 0, backlogAging: { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 }, cancellationReasons: [], orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Analytics unavailable", text: "Order data could not be loaded. Refresh the report or review the server log for details." }] };
+    const empty = { totalOrders: 0, validOrders: 0, grossRevenue: 0, grossOrderValue: 0, recognizedRevenue: 0, grossCollections: 0, refunds: 0, netCollections: 0, outstandingBalance: 0, pendingPaymentValue: 0, ledgerMismatchCount: 0, estimatedCost: 0, costCoveragePercent: 100, marginReliable: true, estimatedGrossMargin: 0, estimatedMarginPercent: 0, avgOrderValue: 0, unitsSold: 0, unitsPerOrder: 0, completedOrders: 0, recognizedOrders: 0, cancelledOrders: 0, completionRate: 0, cancellationRate: 0, avgCycleHours: 0, medianCycleHours: 0, p90CycleHours: 0, onTimeRate: 0, onTimeSampleSize: 0, openOrders: 0, overdueOrders: 0, unassignedOrders: 0, pendingPaymentOrders: 0, actionRequiredOrders: 0, backlogAging: { today: 0, twoToThree: 0, fourToSeven: 0, overSeven: 0 }, cancellationReasons: [], orderGrowth: 0, revenueGrowth: 0, recognizedRevenueGrowth: 0, collectionGrowth: 0, statusBreakdown: {}, fulfillmentBreakdown: {}, paymentBreakdown: {}, collectionsByMethod: {}, dailyTrend: [], topProducts: [], topBrands: [], recentOrders: [], technicians: [], reportStart: null, reportEnd: null, insights: [{ tone: "info", icon: "bi-info-circle", title: "Report could not load", text: "The order records could not load. Please refresh the report." }] };
     const { parseOrderReportFilters, serializableOrderFilters } = require("../utils/orderReportFilters");
     const reportFilters = parseOrderReportFilters(req.query);
     let filters = { range: "90", from: "", to: "", ...reportFilters };
@@ -2495,9 +2508,9 @@ router.get(
         ],
       };
       const [orders, previousOrders, completionCandidates, activityPayments, activityProductRefunds, brands, technicians] = await Promise.all([
-        Order.find(currentCohortFilter).lean(),
+        Order.find(currentCohortFilter).select("+items.costPrice").lean(),
         Order.find(previousCohortFilter).select("total status").lean(),
-        Order.find(completionFilter).lean(),
+        Order.find(completionFilter).select("+items.costPrice").lean(),
         Payment.find(paymentActivityFilter).select("orderId").lean(),
         ProductRefund.find({ sourceType: "order", status: "completed", processedAt: completionRange }).select("sourceId").lean(),
         Order.distinct("items.brand"),
@@ -2633,11 +2646,11 @@ router.get(
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: false, analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
       empty.appliedFilters = serializableOrderFilters(reportFilters);
-      res.render("pages/admin/Reports/OrderReports", { title: "Order Analytics", layout: false, analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "Order analytics could not be loaded. Please retry or check the server log." });
+      res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "The order report could not load. Please try again." });
     }
   }
 );
@@ -2665,7 +2678,7 @@ router.get(
     // First paint must not wait for the full service analytics workload. The
     // report view hydrates itself from the authenticated data fragment below.
     res.render("pages/admin/Reports/ServiceReport", {
-      title: "Services",
+      title: "Service Reports",
       layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
       analytics: null,
       reportError: null,
@@ -3334,7 +3347,7 @@ router.get(
       const photoEvidenceBookingIds = bookings.slice(0, 500).map(booking => String(booking._id));
 
       const viewModel = {
-        title: "Services",
+        title: "Service Reports",
         layout: false,
         analytics: {
           totalBookings,
@@ -3432,7 +3445,7 @@ router.get(
     } catch (err) {
       console.error("Service reports error:", err);
       res.render("pages/admin/Reports/ServiceReport", {
-        title: "Services",
+        title: "Service Reports",
         layout: false,
         analytics: null,
         reportError: "Service analytics could not be loaded. Please retry or check the server log.",
@@ -3807,7 +3820,7 @@ router.get(
       const topConsumedItems = itemAnalytics.filter(r => r.usage > 0).sort((a,b)=>b.usage-a.usage).slice(0,10).map(r=>({name:r.name,quantity:r.usage,kind:r.kind}));
       
       res.render("pages/admin/Reports/InventoryReports", {
-        title: "Inventory",
+        title: "Stock Reports",
         layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
         analytics: {
           totalProducts,
@@ -3859,7 +3872,7 @@ router.get(
     } catch (err) {
       console.error("Inventory reports error:", err);
       res.render("pages/admin/Reports/InventoryReports", {
-        title: "Inventory",
+        title: "Stock Reports",
         layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
         analytics: null
       });
@@ -3873,7 +3886,7 @@ router.get(
     // Render the report shell immediately. The page already has a filtered API
     // updater, so expensive financial analytics must not block navigation.
     res.render("pages/admin/Reports/RevenueReports", {
-      title: "Revenue",
+      title: "Sales and Payments",
       layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
       analytics: null,
       deferredAnalytics: true,
@@ -4314,7 +4327,7 @@ router.get(
   pageAuth.requireRole("secretary"),
   (req, res) => {
     res.render("pages/admin/Inventory/InventoryList", {
-      title: "Inventory",
+      title: "Aircons",
       layout: "layouts/secretary",
       inventoryApiBase: "/api/secretary/hvac",
     });

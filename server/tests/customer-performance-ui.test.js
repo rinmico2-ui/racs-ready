@@ -81,7 +81,7 @@ test('customer table preserves cents, escapes names, and returns from View to th
 test('profile renders separate period/lifetime evidence, remaining loyalty requirements, and a filtered return link', async () => {
   const f = await fixture('http://localhost:5000/admin/reports/customers/' + row.id + '?range=3months&list=records&page=2&search=fixture&bookingPage=3', [profile()], row.id);
   assert.ok(f.node('cpSelectedSummary').innerHTML.includes('100.25')); assert.ok(f.node('cpLifetimeSummary').innerHTML.includes('300.75'));
-  assert.ok(f.node('cpLoyalty').innerHTML.includes('1 more qualifying completions needed'));
+  assert.ok(f.node('cpLoyalty').innerHTML.includes('1 more completed bookings and orders that meet the reward rules needed'));
   assert.ok(f.node('cpServicePreferences').innerHTML.includes('&lt;script&gt;')); assert.ok(!f.node('cpServicePreferences').innerHTML.includes('<script>'));
   assert.ok(f.node('cpBack').href.includes('list=records')); assert.ok(f.node('cpBack').href.includes('page=2'));
   assert.ok(f.node('cpBack').href.includes('search=fixture')); assert.ok(!f.node('cpBack').href.includes('bookingPage'));
@@ -104,6 +104,6 @@ test('a slow earlier response cannot overwrite a newer selected view', async () 
   await f.node('lowest').fire();
   assert.equal(f.requests[0].options.signal.aborted, true);
   finishEarlier({ ok: true, json: async () => report('frequent') }); await tick();
-  assert.equal(f.node('cpTableTitle').textContent, 'Lowest Customer Engagement');
+  assert.equal(f.node('cpTableTitle').textContent, 'Less Active Customers');
   assert.equal(f.node('lowest').attributes['aria-pressed'], 'true');
 });

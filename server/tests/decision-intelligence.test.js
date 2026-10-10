@@ -25,9 +25,9 @@ test('demand and management recommendations require evidence', () => {
   assert.equal(serviceDemandLabel({ bookings: 20, completed: 15, completedValue: 50000, recentBookings: 12 }, { bookings: 100, value: 150000 }, 30), 'High demand');
   assert.equal(serviceDemandLabel({ bookings: 20, completed: 0, completedValue: 0, recentBookings: 12 }, { bookings: 100, value: 150000 }, 30), 'Low demand');
   assert.equal(serviceDemandLabel({ bookings: 0, completed: 0, completedValue: 0, recentBookings: 0 }, { bookings: 4, value: 0 }, 7), 'Insufficient data');
-  assert.equal(decision({ demand: 'High demand', costCoverage: 0, margin: 0 }), 'Review capacity and cost data');
+  assert.equal(decision({ demand: 'High demand', costCoverage: 0, margin: 0 }), 'Check technician availability and cost data');
   assert.equal(decision({ demand: 'High demand', costCoverage: 1, margin: 10 }), 'Review pricing');
-  assert.equal(decision({ demand: 'Low demand', costCoverage: 1, margin: 30 }), 'Consider promotion');
+  assert.equal(decision({ demand: 'Low demand', costCoverage: 1, margin: 30 }), 'Consider a special offer');
 });
 
 test('loyalty tiers use configured quotas and reject unsafe values', () => {
@@ -78,10 +78,10 @@ test('decision intelligence shares authorized reads and reserves policy writes f
   assert.match(secretaryAllowlist, /GET \/reports\/decisions/);
   assert.doesNotMatch(secretaryAllowlist, /PUT \/reports\/decisions\/loyalty-policy/);
   const html = await ejs.renderFile(path.join(root, 'views/pages/admin/Reports/DecisionIntelligence.ejs'), {});
-  assert.match(html, /Which services and unit configurations are booked/);
+  assert.match(html, /Which services and aircon types are being booked/);
   assert.match(html, /Most requested/);
   assert.match(html, /No requests/);
-  assert.match(html, /Provisional contribution/);
+  assert.match(html, /Profit before other costs/);
   assert.match(html, /Units sold/);
   assert.match(html, /Last recorded sale/);
   assert.match(html, /No sales/);

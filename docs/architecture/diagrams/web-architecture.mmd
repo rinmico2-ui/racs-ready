@@ -1,0 +1,30 @@
+flowchart TB
+  browser["Browser<br/>Customer / admin / secretary / technician"]
+  providers["Browser map / identity assets<br/>Esri tiles, Google / reCAPTCHA<br/>OSRM route display, optional QR service"]
+  proxy["Hosting HTTPS reverse proxy<br/>Render configuration"]
+  public["Fast paths<br/>Public assets + /health + /ready"]
+  security["Express request middleware<br/>Admission, origin, body limits, session<br/>Current user, API budgets, RBAC"]
+  routes["Page and API routers<br/>Domain policies / controllers / utilities"]
+  views["Server-side EJS renderer<br/>HTML response + browser scripts"]
+  mongo[("MongoDB<br/>Domain data + connect-mongo sessions")]
+  socket["Socket.IO gateway<br/>Authenticated rooms / GPS events"]
+  webhook["Raw PayMongo webhook<br/>Signature checked before JSON parsing"]
+  sse["Chat response / SSE stream<br/>AI provider adapters"]
+  storage[("Protected GridFS proof downloads<br/>Public Cloudinary product images")]
+  browser -->|"HTTPS page / API request"| proxy
+  proxy -->|"HTML / JSON / assets"| browser
+  proxy -->|"Static file / probe"| public
+  proxy -->|"Application request"| security
+  security -->|"Session / user / permissions"| mongo
+  security -->|"Authenticated / allowed request"| routes
+  routes -->|"Mongoose reads and writes"| mongo
+  routes -->|"Template and view data"| views
+  views -->|"Rendered HTML"| browser
+  browser -->|"Socket transport / GPS"| socket
+  socket -->|"Scoped notifications / location"| browser
+  webhook -->|"Verified gateway event processing"| mongo
+  routes -->|"Chat question"| sse
+  sse -->|"Answer / streamed tokens"| browser
+  routes -->|"Authorized upload / download"| storage
+  browser -->|"Tiles / routing / challenges"| providers
+  providers -->|"Map data / identity UI assets"| browser

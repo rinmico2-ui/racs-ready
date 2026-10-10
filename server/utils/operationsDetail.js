@@ -2,7 +2,7 @@
 // modal response; the protected photo endpoint reads them only on request.
 const BOOKING_PHOTO_FIELDS = [
   'paymentProof', 'imageUrl', 'repairPaymentProof', 'proofPhoto', 'arrivalProofUrl',
-  'refundProofUrl', 'unitInfo.photos', 'inspection.photos', 'services.photos',
+  'refundProofUrl', 'noShowReport.arrivalProofUrl', 'unitInfo.photos', 'inspection.photos', 'services.photos',
   'services.units.inspection.photos',
 ];
 const ASSIGNMENT_PHOTO_FIELDS = ['startProofUrl', 'arrivalProofUrl', 'proofPhoto', 'damagePhoto'];
@@ -30,11 +30,14 @@ function bookingPhotos(booking, assignment, payments) {
     if (typeof src !== 'string' || !src || seen.has(src)) return;
     seen.add(src); photos.push({ src, label });
   };
-  add(booking.paymentProof, 'Customer Payment Proof');
+  add(booking.paymentProofFileId ? `/api/appointments/${booking._id}/payment-proof` : booking.paymentProof, 'Customer Payment Proof');
   add(booking.imageUrl, 'Booking Image');
   add(booking.repairPaymentProof, 'Repair Payment Proof');
   add(booking.proofPhoto, 'Proof of Completion');
+  add(booking.arrivalProofUrl || booking.noShowReport?.arrivalProofUrl, 'Arrival Proof');
+  add(booking.refundProofUrl, 'Refund Proof');
   if (assignment) {
+    add(assignment.arrivalProofUrl, 'Arrival Proof');
     add(assignment.startProofUrl, 'Start Work Proof');
     add(assignment.proofPhoto, 'Proof of Completion');
     add(assignment.damagePhoto, 'Damaged Item Photo');
@@ -43,6 +46,7 @@ function bookingPhotos(booking, assignment, payments) {
     add(payment.proofUrl, 'Payment Proof');
     add(payment.customerPhotoUrl, 'Customer Confirmation Photo');
     add(payment.remittanceProofUrl, 'Remittance Proof');
+    add(payment.refundProofUrl, 'Refund Proof');
   }
   for (const src of booking.unitInfo?.photos || []) add(src, 'Unit Photo');
   for (const src of booking.inspection?.photos || []) add(src, 'Inspection Photo');
@@ -55,7 +59,25 @@ function bookingPhotos(booking, assignment, payments) {
   return photos;
 }
 
+function orderPhotos(order, payments = []) {
+  const photos = [], seen = new Set();
+  const add = (src, label) => {
+    if (typeof src !== 'string' || !src || seen.has(src)) return;
+    seen.add(src); photos.push({ src, label });
+  };
+  add(order.gcashProofFileId ? `/api/orders/${order._id}/payment-proof` : order.gcashProofUrl, 'Payment receipt');
+  add(order.arrivalProofUrl, 'Arrival');
+  add(order.startProofUrl, 'Start work');
+  add(order.proofPhoto, 'Completion');
+  for (const payment of payments) {
+    add(payment.proofUrl, 'Payment receipt');
+    add(payment.remittanceProofUrl, 'Remittance receipt');
+    add(payment.refundProofUrl, 'Refund receipt');
+  }
+  return photos;
+}
+
 module.exports = {
   BOOKING_PHOTO_FIELDS, ASSIGNMENT_PHOTO_FIELDS, PAYMENT_PHOTO_FIELDS, ORDER_PHOTO_FIELDS,
-  exclude, currentAssignment, bookingPhotos,
+  exclude, currentAssignment, bookingPhotos, orderPhotos,
 };

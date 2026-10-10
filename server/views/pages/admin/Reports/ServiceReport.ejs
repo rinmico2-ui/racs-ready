@@ -20,7 +20,7 @@
   const cancellationRate = Number(report.cancellationRate || 0);
   const topServices = Array.isArray(report.topServices) ? report.topServices.slice(0, 5) : [];
   const servicePortfolio = Array.isArray(report.servicePortfolio) ? report.servicePortfolio : [];
-  const serviceDecisionQueue = servicePortfolio.filter(service => service.label && !['Monitor service', 'Collect more evidence', 'Review in full portfolio'].includes(service.label)).slice(0, 6);
+  const serviceDecisionQueue = servicePortfolio.filter(service => service.label && !['Keep checking this service', 'Check more bookings first', 'Compare all services'].includes(service.label)).slice(0, 6);
   const lowestBookedServices = Array.isArray(report.lowestBookedServices) ? report.lowestBookedServices.slice(0, 5) : [];
   const recentBookings = Array.isArray(report.recentBookings) ? report.recentBookings : [];
   const costRows = Array.isArray(report.completedServiceCosts) ? report.completedServiceCosts : [];
@@ -37,7 +37,7 @@
   if (Number(report.pendingBookings || 0) > 0) attentionItems.push({ tone:'warning', icon:'bi-hourglass-split', title: formatNumber(report.pendingBookings) + ' pending job' + (Number(report.pendingBookings) === 1 ? '' : 's'), text:'Review requests waiting for the next workflow action.', href:`/${reportRole}/appointments`, action:'Open bookings' });
   if (cancellationRate >= 10) attentionItems.push({ tone:'danger', icon:'bi-x-octagon', title:cancellationRate.toFixed(1) + '% cancellation rate', text:'Review the recorded reasons before changing schedules or service offers.', href:`/${reportRole}/appointments/cancellation-log`, action:'Review cancellations' });
   if (completedBookings > 0 && reportCoverage < 100) attentionItems.push({ tone:'info', icon:'bi-file-earmark-text', title:reportCoverage.toFixed(1) + '% report coverage', text:'Some completed jobs do not yet have a service report.', href:`/${reportRole}/appointments/repair-scheduling`, action:'Review workflow' });
-  if (completedBookings > 0 && laborCoverage < 100) attentionItems.push({ tone:'neutral', icon:'bi-calculator', title:laborCoverage.toFixed(1) + '% labor-cost coverage', text:'Contribution remains provisional until direct labor is fully recorded.', href:`/${reportRole}/appointments/expenses`, action:'Review costs' });
+  if (completedBookings > 0 && laborCoverage < 100) attentionItems.push({ tone:'neutral', icon:'bi-calculator', title:laborCoverage.toFixed(1) + '% jobs with saved labor costs', text:'Profit is an estimate until all labor costs are saved.', href:`/${reportRole}/appointments/expenses`, action:'Review costs' });
   const visibleAttentionItems = attentionItems.slice(0, 3);
   const qualityControls = [
     { label:'Service report coverage', value:Number(controls.reportCoverage || 0).toFixed(1) + '%', context:(completedBookings || 0) + ' completed jobs in scope' },
@@ -53,18 +53,18 @@
 
 <div class="sr-data-state" id="serviceReportDataState" role="status" aria-live="polite" <%= isDeferred ? '' : 'hidden' %>>
   <span class="spinner-border" aria-hidden="true"></span>
-  <span><strong>Opening Service Performance</strong><small>Loading bookings, costs, and workflow controls…</small></span>
+  <span><strong>Loading Service Reports</strong><small>Loading bookings, costs, and job progress…</small></span>
 </div>
 
 <div class="sr-shell <%= isDeferred ? 'is-loading' : '' %>" id="serviceReport" <%= isDeferred ? 'aria-busy="true"' : '' %>>
   <header class="sr-hero">
     <div class="sr-hero-copy">
-      <span class="sr-eyebrow"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Service intelligence</span>
-      <h1>Service Performance</h1>
-      <p>Completed work, operating efficiency, and direct service contribution.</p>
+      <span class="sr-eyebrow"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Service bookings</span>
+      <h1>Service Reports</h1>
+      <p>See bookings, finished jobs, saved costs, and profit estimates.</p>
     </div>
     <div class="sr-period" aria-label="Active report period">
-      <span>Reporting period</span>
+      <span>Report dates</span>
       <strong><%= rangeLabel %></strong>
       <% if (filters.range === 'custom' && filters.from && filters.to) { %><small><%= formatDate(filters.from) %> – <%= formatDate(filters.to) %></small><% } %>
     </div>
@@ -87,7 +87,7 @@
       </select></label>
       <label class="sr-field" for="reportSegment"><span>Service type</span><select name="segment" id="reportSegment">
         <option value="all">All services</option>
-        <option value="core" <%= filters.segment === 'core' ? 'selected' : '' %>>Core services</option>
+        <option value="core" <%= filters.segment === 'core' ? 'selected' : '' %>>Standard services</option>
         <option value="repair" <%= filters.segment === 'repair' ? 'selected' : '' %>>Repair services</option>
       </select></label>
       <div class="sr-custom-dates <%= filters.range === 'custom' ? 'is-visible' : '' %>" id="customDateFilters">
@@ -95,22 +95,22 @@
         <label class="sr-field" for="reportTo"><span>To</span><input id="reportTo" type="date" name="to" value="<%= filters.to %>"></label>
       </div>
       <button type="submit" class="sr-button sr-button-primary" id="applyReportFilters"><i class="bi bi-funnel" aria-hidden="true"></i><span>Apply</span></button>
-      <button type="button" class="sr-button" id="exportReportBtn"><i class="bi bi-download" aria-hidden="true"></i> Export</button>
+      <button type="button" class="sr-button" id="exportReportBtn"><i class="bi bi-download" aria-hidden="true"></i> Download</button>
     </div>
 
     <details class="sr-more-filters" open>
       <summary>
-        <span class="sr-more-title"><i class="bi bi-sliders" aria-hidden="true"></i><strong>Advanced filters</strong></span>
+        <span class="sr-more-title"><i class="bi bi-sliders" aria-hidden="true"></i><strong>More filters</strong></span>
         <span class="sr-more-meta"><b>14 available</b><% if (activeAdvancedFilters) { %><em><%= activeAdvancedFilters %> active</em><% } %><i class="bi bi-chevron-down" aria-hidden="true"></i></span>
       </summary>
       <div class="sr-filter-secondary">
-        <fieldset class="sr-filter-group"><legend><i class="bi bi-diagram-3" aria-hidden="true"></i> Workflow</legend><div class="sr-filter-grid">
+        <fieldset class="sr-filter-group"><legend><i class="bi bi-diagram-3" aria-hidden="true"></i> Job progress</legend><div class="sr-filter-grid">
           <label class="sr-field"><span>Status</span><select name="status"><option value="all">All statuses</option><% ['pending','payment_verified','awaiting_assignment','assigned','confirmed','scheduled','on-the-way','arrived','in-progress','inspection_scheduled','inspection_in_progress','inspection_completed','awaiting_approval','repair_approved','waiting_parts','parts_reserved','ready_for_repair','repair_scheduled','repair_in_progress','completed','repair_completed','closed','cancelled','rejected','repair_declined','no-show'].forEach(function(status) { %><option value="<%= status %>" <%= filters.status === status ? 'selected' : '' %>><%= status.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) %></option><% }); %></select></label>
           <label class="sr-field"><span>Technician</span><select name="technician"><option value="all">All technicians</option><% (report.technicians || []).forEach(function(technician) { %><option value="<%= technician._id %>" <%= filters.technician === String(technician._id) ? 'selected' : '' %>><%= technician.name %></option><% }); %></select></label>
-          <label class="sr-field"><span>Assignment</span><select name="assignment"><option value="all">Any assignment state</option><option value="assigned" <%= filters.assignment === 'assigned' ? 'selected' : '' %>>Assigned</option><option value="unassigned" <%= filters.assignment === 'unassigned' ? 'selected' : '' %>>Unassigned</option></select></label>
+          <label class="sr-field"><span>Assignment</span><select name="assignment"><option value="all">Any technician assignment</option><option value="assigned" <%= filters.assignment === 'assigned' ? 'selected' : '' %>>Assigned</option><option value="unassigned" <%= filters.assignment === 'unassigned' ? 'selected' : '' %>>Unassigned</option></select></label>
           <label class="sr-field"><span>Priority</span><select name="priority"><option value="all">All priorities</option><option value="low" <%= filters.priority === 'low' ? 'selected' : '' %>>Low</option><option value="medium" <%= filters.priority === 'medium' ? 'selected' : '' %>>Medium</option><option value="high" <%= filters.priority === 'high' ? 'selected' : '' %>>High</option><option value="critical" <%= filters.priority === 'critical' ? 'selected' : '' %>>Critical</option></select></label>
-          <label class="sr-field"><span>SLA</span><select name="sla"><option value="all">Any SLA state</option><option value="breached" <%= filters.sla === 'breached' ? 'selected' : '' %>>Breached</option><option value="compliant" <%= filters.sla === 'compliant' ? 'selected' : '' %>>Compliant</option><option value="not_tracked" <%= filters.sla === 'not_tracked' ? 'selected' : '' %>>Not tracked</option></select></label>
-          <label class="sr-field"><span>Warranty</span><select name="warranty"><option value="all">Any warranty state</option><option value="active" <%= filters.warranty === 'active' ? 'selected' : '' %>>Active</option><option value="expired" <%= filters.warranty === 'expired' ? 'selected' : '' %>>Expired</option><option value="claimed" <%= filters.warranty === 'claimed' ? 'selected' : '' %>>Claimed</option><option value="none" <%= filters.warranty === 'none' ? 'selected' : '' %>>No warranty</option></select></label>
+          <label class="sr-field"><span>Time target</span><select name="sla"><option value="all">Any time target</option><option value="breached" <%= filters.sla === 'breached' ? 'selected' : '' %>>Past target</option><option value="compliant" <%= filters.sla === 'compliant' ? 'selected' : '' %>>Within target</option><option value="not_tracked" <%= filters.sla === 'not_tracked' ? 'selected' : '' %>>Not tracked</option></select></label>
+          <label class="sr-field"><span>Warranty</span><select name="warranty"><option value="all">Any warranty status</option><option value="active" <%= filters.warranty === 'active' ? 'selected' : '' %>>Active</option><option value="expired" <%= filters.warranty === 'expired' ? 'selected' : '' %>>Expired</option><option value="claimed" <%= filters.warranty === 'claimed' ? 'selected' : '' %>>Claimed</option><option value="none" <%= filters.warranty === 'none' ? 'selected' : '' %>>No warranty</option></select></label>
         </div></fieldset>
         <fieldset class="sr-filter-group"><legend><i class="bi bi-tools" aria-hidden="true"></i> Service &amp; location</legend><div class="sr-filter-grid">
           <label class="sr-field"><span>Service</span><select name="service"><option value="all">All service names</option><% (report.bookingServices || []).forEach(function(service) { %><option value="<%= service %>" <%= filters.service === service ? 'selected' : '' %>><%= service %></option><% }); %></select></label>
@@ -118,13 +118,13 @@
           <label class="sr-field"><span>Brand</span><select name="brand"><option value="all">All brands</option><% (report.bookingBrands || []).forEach(function(brand) { %><option value="<%= brand %>" <%= filters.brand === brand ? 'selected' : '' %>><%= brand %></option><% }); %></select></label>
           <label class="sr-field"><span>Service area</span><select name="area"><option value="all">All service areas</option><% (report.bookingAreas || []).forEach(function(area) { %><option value="<%= area %>" <%= filters.area === area ? 'selected' : '' %>><%= area %></option><% }); %></select></label>
         </div></fieldset>
-        <fieldset class="sr-filter-group"><legend><i class="bi bi-cash-coin" aria-hidden="true"></i> Commercial</legend><div class="sr-filter-grid">
+        <fieldset class="sr-filter-group"><legend><i class="bi bi-cash-coin" aria-hidden="true"></i> Price and size</legend><div class="sr-filter-grid">
           <label class="sr-field"><span>Scale</span><select name="scale"><option value="all">All scales</option><option value="standard" <%= filters.scale === 'standard' ? 'selected' : '' %>>Standard</option><option value="large" <%= filters.scale === 'large' ? 'selected' : '' %>>Large-scale projects</option></select></label>
           <label class="sr-field"><span>Payment</span><select name="payment"><option value="all">All methods</option><option value="gcash" <%= filters.payment === 'gcash' ? 'selected' : '' %>>GCash</option><option value="cod" <%= filters.payment === 'cod' ? 'selected' : '' %>>Cash / COD</option><option value="other" <%= filters.payment === 'other' ? 'selected' : '' %>>Other</option></select></label>
-          <label class="sr-field"><span>Booked value</span><select name="valueBand"><option value="all">All booked values</option><option value="under_1000" <%= filters.valueBand === 'under_1000' ? 'selected' : '' %>>Below &#8369;1,000</option><option value="1000_5000" <%= filters.valueBand === '1000_5000' ? 'selected' : '' %>>&#8369;1,000–4,999</option><option value="5000_10000" <%= filters.valueBand === '5000_10000' ? 'selected' : '' %>>&#8369;5,000–9,999</option><option value="10000_plus" <%= filters.valueBand === '10000_plus' ? 'selected' : '' %>>&#8369;10,000 and above</option></select></label>
+          <label class="sr-field"><span>Booking value</span><select name="valueBand"><option value="all">All booking values</option><option value="under_1000" <%= filters.valueBand === 'under_1000' ? 'selected' : '' %>>Below &#8369;1,000</option><option value="1000_5000" <%= filters.valueBand === '1000_5000' ? 'selected' : '' %>>&#8369;1,000–4,999</option><option value="5000_10000" <%= filters.valueBand === '5000_10000' ? 'selected' : '' %>>&#8369;5,000–9,999</option><option value="10000_plus" <%= filters.valueBand === '10000_plus' ? 'selected' : '' %>>&#8369;10,000 and above</option></select></label>
           <label class="sr-field sr-field-search"><span>Search records</span><input type="search" name="search" value="<%= filters.search %>" placeholder="Reference, customer, issue…"></label>
         </div></fieldset>
-        <div class="sr-filter-footer"><span>Filters apply to every KPI, chart, table, and export.</span><a class="sr-reset" href="/<%= reportRole %>/reports/service"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset all filters</a></div>
+        <div class="sr-filter-footer"><span>These filters apply to all totals, charts, lists, and downloads.</span><a class="sr-reset" href="/<%= reportRole %>/reports/service"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Reset all filters</a></div>
       </div>
     </details>
   </form>
@@ -133,22 +133,22 @@
     <article class="sr-kpi kpi-enterprise" data-accent="blue">
       <div class="sr-kpi-top"><span class="sr-kpi-icon blue"><i class="bi bi-check2-circle" aria-hidden="true"></i></span><span class="sr-kpi-context">of <%= formatNumber(totalBookings) %> bookings</span></div>
       <span class="sr-kpi-label">Completed services</span><strong><%= formatNumber(completedBookings) %></strong>
-      <small>Recognized lifecycle completions</small>
+      <small>Finished services</small>
     </article>
     <article class="sr-kpi kpi-enterprise" data-accent="green">
       <div class="sr-kpi-top"><span class="sr-kpi-icon green"><i class="bi bi-speedometer2" aria-hidden="true"></i></span><span class="sr-kpi-context"><%= formatNumber(report.cancelledBookings) %> cancelled</span></div>
       <span class="sr-kpi-label">Completion rate</span><strong><%= completionRate.toFixed(1) %>%</strong>
-      <small>Completed ÷ bookings in scope</small>
+      <small>Finished services ÷ bookings shown</small>
     </article>
     <article class="sr-kpi kpi-enterprise" data-accent="purple">
       <div class="sr-kpi-top"><span class="sr-kpi-icon purple"><i class="bi bi-cash-stack" aria-hidden="true"></i></span><span class="sr-kpi-context">completed work only</span></div>
-      <span class="sr-kpi-label">Completed-service value</span><strong>&#8369;<%= formatMoney(completedValue) %></strong>
-      <small>Not pending or booked pipeline value</small>
+      <span class="sr-kpi-label">Completed service sales</span><strong>&#8369;<%= formatMoney(completedValue) %></strong>
+      <small>Only finished work counts here</small>
     </article>
     <article class="sr-kpi kpi-enterprise <%= laborCoverage < 100 && completedBookings ? 'is-provisional' : '' %>" data-accent="amber">
-      <div class="sr-kpi-top"><span class="sr-kpi-icon amber"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></span><span class="sr-kpi-context"><%= contributionMargin.toFixed(1) %>% margin</span></div>
-      <span class="sr-kpi-label">Service contribution</span><strong class="<%= contribution < 0 ? 'is-negative' : '' %>">&#8369;<%= formatMoney(contribution) %></strong>
-      <small><%= laborCoverage < 100 && completedBookings ? 'Provisional — ' + laborCoverage.toFixed(1) + '% labor-cost coverage' : 'After recorded direct service costs' %></small>
+      <div class="sr-kpi-top"><span class="sr-kpi-icon amber"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></span><span class="sr-kpi-context"><%= contributionMargin.toFixed(1) %>% profit</span></div>
+      <span class="sr-kpi-label">Service profit estimate</span><strong class="<%= contribution < 0 ? 'is-negative' : '' %>">&#8369;<%= formatMoney(contribution) %></strong>
+      <small><%= laborCoverage < 100 && completedBookings ? 'Estimate — ' + laborCoverage.toFixed(1) + '% jobs with saved labor costs' : 'After recorded direct service costs' %></small>
     </article>
   </section>
 
@@ -156,7 +156,7 @@
     <div class="nav" role="tablist">
       <button class="sr-tab active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-pane" type="button" role="tab" aria-controls="overview-pane" aria-selected="true">Overview</button>
       <button class="sr-tab" id="performance-tab" data-bs-toggle="tab" data-bs-target="#performance-pane" type="button" role="tab" aria-controls="performance-pane" aria-selected="false">Performance</button>
-      <button class="sr-tab" id="cost-tab" data-bs-toggle="tab" data-bs-target="#cost-pane" type="button" role="tab" aria-controls="cost-pane" aria-selected="false">Cost &amp; contribution</button>
+      <button class="sr-tab" id="cost-tab" data-bs-toggle="tab" data-bs-target="#cost-pane" type="button" role="tab" aria-controls="cost-pane" aria-selected="false">Costs and profit</button>
       <button class="sr-tab" id="quality-tab" data-bs-toggle="tab" data-bs-target="#quality-pane" type="button" role="tab" aria-controls="quality-pane" aria-selected="false">Quality</button>
       <button class="sr-tab" id="photos-tab" data-bs-toggle="tab" data-bs-target="#photos-pane" type="button" role="tab" aria-controls="photos-pane" aria-selected="false">Report photos <span class="sr-tab-count" id="servicePhotoTabCount"><%= report.photoEvidenceDeferred ? '—' : formatNumber(photoEvidenceCount) %></span></button>
       <button class="sr-tab" id="records-tab" data-bs-toggle="tab" data-bs-target="#records-pane" type="button" role="tab" aria-controls="records-pane" aria-selected="false">Records</button>
@@ -169,74 +169,74 @@
         <section class="sr-card sr-trend-card" aria-labelledby="trend-title">
           <header class="sr-card-header">
             <div><span class="sr-card-kicker">Trend</span><h2 id="trend-title">Service activity over time</h2></div>
-            <div class="sr-chart-toggle" role="group" aria-label="Trend metric"><button type="button" class="active" data-trend="volume">Volume</button><button type="button" data-trend="value">Booked value</button></div>
+            <div class="sr-chart-toggle" role="group" aria-label="Trend metric"><button type="button" class="active" data-trend="volume">Volume</button><button type="button" data-trend="value">Booking value</button></div>
           </header>
           <p class="sr-card-note" id="trendDefinition">Bookings created and completed during each reporting week.</p>
           <div class="sr-chart"><canvas id="serviceTrendChart" aria-label="Service activity trend"></canvas></div>
         </section>
 
         <aside class="sr-card sr-attention" aria-labelledby="attention-title">
-          <header class="sr-card-header"><div><span class="sr-card-kicker">Action queue</span><h2 id="attention-title">Needs attention</h2></div><span class="sr-count"><%= visibleAttentionItems.length %></span></header>
+          <header class="sr-card-header"><div><span class="sr-card-kicker">Items to check</span><h2 id="attention-title">Needs attention</h2></div><span class="sr-count"><%= visibleAttentionItems.length %></span></header>
           <% if (visibleAttentionItems.length) { %>
             <div class="sr-attention-list"><% visibleAttentionItems.forEach(function(item) { %><article class="sr-attention-item <%= item.tone %>"><i class="bi <%= item.icon %>" aria-hidden="true"></i><div><h3><%= item.title %></h3><p><%= item.text %></p><a href="<%= item.href %>"><%= item.action %> <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div></article><% }); %></div>
           <% } else { %>
-            <div class="sr-clear-state"><i class="bi bi-check2-circle" aria-hidden="true"></i><strong>No priority exceptions</strong><p>No threshold-based issues were detected for this period.</p></div>
+            <div class="sr-clear-state"><i class="bi bi-check2-circle" aria-hidden="true"></i><strong>Nothing urgent to check</strong><p>No issues reached the alert limits during these dates.</p></div>
           <% } %>
         </aside>
       </div>
 
-      <section class="sr-card sr-table-card" aria-labelledby="service-decisions-title"><header class="sr-card-header"><div><span class="sr-card-kicker">Service mix decisions</span><h2 id="service-decisions-title">Where should we act?</h2><p>Recommendations use recent, unfiltered service demand. Filtered views keep the counts visible but withhold portfolio actions. Review staffing and direct costs before changing an offer.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/reports?tab=decisions">Management decisions <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Suggested action</th><th>Evidence</th></tr></thead><tbody><% if (serviceDecisionQueue.length) { serviceDecisionQueue.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><span class="sr-badge"><%= service.label %></span></td><td><%= service.reason %></td></tr><% }); } else { %><tr><td colspan="3" class="sr-empty">No service has enough evidence for a portfolio action in this filtered period.</td></tr><% } %></tbody></table></div></section>
+      <section class="sr-card sr-table-card" aria-labelledby="service-decisions-title"><header class="sr-card-header"><div><span class="sr-card-kicker">Service next steps</span><h2 id="service-decisions-title">What should we check?</h2><p>Suggestions use recent bookings across all services. Extra filters show the counts but hide these suggestions. Check technician availability and saved costs before changing a service.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/reports?tab=decisions">Suggested actions <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Suggested action</th><th>Saved records</th></tr></thead><tbody><% if (serviceDecisionQueue.length) { serviceDecisionQueue.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><span class="sr-badge"><%= service.label %></span></td><td><%= service.reason %></td></tr><% }); } else { %><tr><td colspan="3" class="sr-empty">There are not enough records to suggest a change to a service for these filters.</td></tr><% } %></tbody></table></div></section>
       <section class="sr-card sr-table-card mt-3" aria-labelledby="top-services-title">
-        <header class="sr-card-header"><div><span class="sr-card-kicker">Service portfolio</span><h2 id="top-services-title">Top services</h2><p>Highest booking volume for the selected period.</p></div><a href="#performance-pane" class="sr-inline-link" data-open-tab="performance-tab">View performance details <i class="bi bi-arrow-right" aria-hidden="true"></i></a></header>
-        <div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">Completion</th><th class="text-end">Avg booked value</th><th class="text-end">Rating</th></tr></thead><tbody>
+        <header class="sr-card-header"><div><span class="sr-card-kicker">Service list</span><h2 id="top-services-title">Top services</h2><p>Highest booking volume for the selected dates.</p></div><a href="#performance-pane" class="sr-inline-link" data-open-tab="performance-tab">View performance details <i class="bi bi-arrow-right" aria-hidden="true"></i></a></header>
+        <div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">Completion</th><th class="text-end">Average booking value</th><th class="text-end">Rating</th></tr></thead><tbody>
           <% if (topServices.length) { topServices.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><span class="sr-badge"><%= service.type === 'repair' ? 'Repair' : 'Core' %></span></td><td class="text-end"><%= formatNumber(service.bookings) %></td><td class="text-end"><span class="sr-rate <%= service.completionRate >= 80 ? 'good' : service.completionRate >= 60 ? 'watch' : 'risk' %>"><%= Number(service.completionRate || 0).toFixed(0) %>%</span></td><td class="text-end">&#8369;<%= formatMoney(service.avgRevenue) %></td><td class="text-end"><%= Number(service.avgRating || 0) > 0 ? Number(service.avgRating).toFixed(1) : '—' %></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No service activity matches the selected filters.</td></tr><% } %>
         </tbody></table></div>
       </section>
       <section class="sr-card sr-table-card mt-3" id="lowest-services" aria-labelledby="lowest-services-title">
-        <header class="sr-card-header"><div><span class="sr-card-kicker">Demand review</span><h2 id="lowest-services-title">Least Booked Services</h2><p>Fewest bookings among services with activity in the selected period. Compare completions and booked value before changing the offer.</p></div><a href="/<%= reportRole %>/reports?tab=decisions" class="sr-inline-link">Review zero-booking services <i class="bi bi-arrow-right" aria-hidden="true"></i></a></header>
-        <div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">Completed</th><th class="text-end">Booked value</th><th>Management review</th></tr></thead><tbody>
-          <% if (lowestBookedServices.length) { lowestBookedServices.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><span class="sr-badge"><%= service.type === 'repair' ? 'Repair' : 'Core' %></span></td><td class="text-end"><%= formatNumber(service.bookings) %></td><td class="text-end"><%= formatNumber(service.completed) %></td><td class="text-end">&#8369;<%= formatMoney(service.revenue) %></td><td><strong><%= service.label || 'Collect more evidence' %></strong><small class="sr-cell-sub"><%= service.reason || 'Review demand and completed work before changing the offer.' %></small></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No booked services match the selected filters.</td></tr><% } %>
+        <header class="sr-card-header"><div><span class="sr-card-kicker">Bookings or sales review</span><h2 id="lowest-services-title">Least Booked Services</h2><p>Fewest bookings among services with activity in the selected dates. Compare completions and booking value before changing the offer.</p></div><a href="/<%= reportRole %>/reports?tab=decisions" class="sr-inline-link">Review zero-booking services <i class="bi bi-arrow-right" aria-hidden="true"></i></a></header>
+        <div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">Completed</th><th class="text-end">Booking value</th><th>Management review</th></tr></thead><tbody>
+          <% if (lowestBookedServices.length) { lowestBookedServices.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><span class="sr-badge"><%= service.type === 'repair' ? 'Repair' : 'Core' %></span></td><td class="text-end"><%= formatNumber(service.bookings) %></td><td class="text-end"><%= formatNumber(service.completed) %></td><td class="text-end">&#8369;<%= formatMoney(service.revenue) %></td><td><strong><%= service.label || 'Check more bookings first' %></strong><small class="sr-cell-sub"><%= service.reason || 'Review demand and completed work before changing the offer.' %></small></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No booked services match the selected filters.</td></tr><% } %>
         </tbody></table></div>
-        <p class="sr-card-note px-3 pb-3">This ranking excludes services with no bookings. Management Decisions includes active catalog services with zero recorded demand.</p>
+        <p class="sr-card-note px-3 pb-3">This ranking excludes services with no bookings. Suggested Actions includes active catalog services with zero recorded demand.</p>
       </section>
     </div>
 
     <div class="tab-pane fade" id="performance-pane" role="tabpanel" aria-labelledby="performance-tab" tabindex="0">
-      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Full observed portfolio</span><h2>Demand and delivery by service</h2><p>First and second half compare bookings created within the selected period. A booking can include multiple services.</p></div></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">First half</th><th class="text-end">Second half</th><th class="text-end">Completed</th><th class="text-end">Cancelled</th><th class="text-end">Booked value</th><th>Next step</th></tr></thead><tbody><% if (servicePortfolio.length) { servicePortfolio.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><%= service.type === 'repair' ? 'Repair' : 'Core' %></td><td class="text-end"><%= formatNumber(service.bookings) %></td><td class="text-end"><%= formatNumber(service.priorBookings) %></td><td class="text-end"><%= formatNumber(service.recentBookings) %></td><td class="text-end"><%= formatNumber(service.completed) %></td><td class="text-end"><%= formatNumber(service.cancelled) %></td><td class="text-end">₱<%= formatMoney(service.revenue) %></td><td><strong><%= service.label || 'Monitor service' %></strong><small class="sr-cell-sub"><%= service.reason || '' %></small></td></tr><% }); } else { %><tr><td colspan="9" class="sr-empty">No booked services match the selected filters.</td></tr><% } %></tbody></table></div><p class="sr-card-note px-3 pb-3">Booked value excludes cancelled bookings and is not completed revenue or service margin. Compare recorded direct costs in the Costs tab.</p></section>
+      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">All services with bookings</span><h2>Bookings and finished jobs by service</h2><p>First and second half compare bookings created within the selected dates. A booking can include multiple services.</p></div></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Type</th><th class="text-end">Bookings</th><th class="text-end">First half</th><th class="text-end">Second half</th><th class="text-end">Completed</th><th class="text-end">Cancelled</th><th class="text-end">Booking value</th><th>Next step</th></tr></thead><tbody><% if (servicePortfolio.length) { servicePortfolio.forEach(function(service) { %><tr><td><strong><%= service.name %></strong></td><td><%= service.type === 'repair' ? 'Repair' : 'Core' %></td><td class="text-end"><%= formatNumber(service.bookings) %></td><td class="text-end"><%= formatNumber(service.priorBookings) %></td><td class="text-end"><%= formatNumber(service.recentBookings) %></td><td class="text-end"><%= formatNumber(service.completed) %></td><td class="text-end"><%= formatNumber(service.cancelled) %></td><td class="text-end">₱<%= formatMoney(service.revenue) %></td><td><strong><%= service.label || 'Keep checking this service' %></strong><small class="sr-cell-sub"><%= service.reason || '' %></small></td></tr><% }); } else { %><tr><td colspan="9" class="sr-empty">No booked services match the selected filters.</td></tr><% } %></tbody></table></div><p class="sr-card-note px-3 pb-3">Booking value excludes cancellations and can include unfinished work. Check saved costs in the Costs tab before judging profit.</p></section>
       <div class="sr-detail-grid">
-        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Lifecycle</span><h2>Booking status</h2><p>Operational distribution across four decision states.</p></div></header><div class="sr-chart sr-chart-medium"><canvas id="serviceStatusChart" aria-label="Booking status distribution"></canvas></div></section>
-        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Cancellation</span><h2>Cancellation review</h2><p><%= formatNumber(report.cancelledBookings) %> cancelled bookings · <%= cancellationRate.toFixed(1) %>% of the cohort</p></div></header>
+        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Job status</span><h2>Booking status</h2><p>Bookings grouped into four progress stages.</p></div></header><div class="sr-chart sr-chart-medium"><canvas id="serviceStatusChart" aria-label="Booking status distribution"></canvas></div></section>
+        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Cancellation</span><h2>Cancellation review</h2><p><%= formatNumber(report.cancelledBookings) %> cancelled bookings · <%= cancellationRate.toFixed(1) %>% of the records shown</p></div></header>
           <div class="sr-reason-list"><% if (report.cancellationReasonsArray && report.cancellationReasonsArray.length) { report.cancellationReasonsArray.slice(0, 5).forEach(function(reason) { const share = Number(report.cancelledBookings) ? (Number(reason.count) / Number(report.cancelledBookings)) * 100 : 0; %><div><span><strong><%= reason.reason %></strong><small><%= reason.count %> booking<%= Number(reason.count) === 1 ? '' : 's' %></small></span><span class="sr-bar"><i style="width:<%= Math.min(share, 100) %>%"></i></span><b><%= share.toFixed(0) %>%</b></div><% }); } else { %><div class="sr-clear-inline"><i class="bi bi-check-circle" aria-hidden="true"></i> No cancellation reasons recorded.</div><% } %></div>
         </section>
       </div>
-      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Continue the investigation</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/appointments"><i class="bi bi-calendar-check"></i><span><strong>Bookings</strong><small>Review individual workflow status</small></span></a><a href="/<%= reportRole %>/appointments/cancellation-log"><i class="bi bi-x-circle"></i><span><strong>Cancellation log</strong><small>Inspect reasons and customer history</small></span></a><a href="/<%= reportRole %>/operations/resolution-center"><i class="bi bi-life-preserver"></i><span><strong>Resolution center</strong><small>Handle active service exceptions</small></span></a></div></section>
+      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Related pages</span><h2>Check the related records</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/appointments"><i class="bi bi-calendar-check"></i><span><strong>Bookings</strong><small>Check each booking’s progress</small></span></a><a href="/<%= reportRole %>/appointments/cancellation-log"><i class="bi bi-x-circle"></i><span><strong>Cancellation log</strong><small>Check reasons and past customer bookings</small></span></a><a href="/<%= reportRole %>/operations/resolution-center"><i class="bi bi-life-preserver"></i><span><strong>Resolution center</strong><small>Fix booking problems</small></span></a></div></section>
     </div>
 
     <div class="tab-pane fade" id="cost-pane" role="tabpanel" aria-labelledby="cost-tab" tabindex="0">
       <div class="sr-cost-summary">
         <% [
-          {label:'Completed-service value', value:completedValue, icon:'bi-cash-stack'},
+          {label:'Completed service sales', value:completedValue, icon:'bi-cash-stack'},
           {label:'Recorded direct labor', value:serviceCosts.laborCost, icon:'bi-person-workspace'},
           {label:'Consumables used', value:serviceCosts.consumablesCost, icon:'bi-box-seam'},
           {label:'Repair parts used', value:serviceCosts.partsCost, icon:'bi-tools'},
           {label:'Local purchases', value:serviceCosts.localPurchaseCost, icon:'bi-shop'},
-          {label:'Service contribution', value:contribution, icon:'bi-graph-up-arrow'}
+          {label:'Service profit estimate', value:contribution, icon:'bi-graph-up-arrow'}
         ].forEach(function(item) { %><article><i class="bi <%= item.icon %>" aria-hidden="true"></i><span><small><%= item.label %></small><strong>&#8369;<%= formatMoney(item.value) %></strong></span></article><% }); %>
       </div>
-      <% if (completedBookings && (laborCoverage < 100 || reportCoverage < 100)) { %><div class="sr-data-warning"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Contribution is provisional</strong><p>Labor-cost coverage is <%= laborCoverage.toFixed(1) %>%, and service-report coverage is <%= reportCoverage.toFixed(1) %>%. Missing records can overstate contribution.</p></div></div><% } %>
-      <% if (Number(serviceCosts.unpricedConsumablesCount) > 0) { %><div class="sr-data-warning"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Consumable costs need prices</strong><p><%= formatNumber(serviceCosts.unpricedConsumablesCount) %> recorded usage item(s) have no cost snapshot, so the shown contribution may be overstated.</p></div></div><% } %>
-      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Completed work</span><h2>Direct cost by service</h2><p>Reusable equipment is excluded from service expense. Installations linked to product orders are costed under Orders.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments/expenses">Manage expenses <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Reference</th><th class="text-end">Completed value</th><th class="text-end">Direct cost</th><th class="text-end">Contribution</th><th class="text-end">Margin</th></tr></thead><tbody>
+      <% if (completedBookings && (laborCoverage < 100 || reportCoverage < 100)) { %><div class="sr-data-warning"><i class="bi bi-info-circle" aria-hidden="true"></i><div><strong>Profit is an estimate</strong><p>Labor-sales with saved costs is <%= laborCoverage.toFixed(1) %>%, and jobs with a saved report is <%= reportCoverage.toFixed(1) %>%. Missing costs can make this estimate too high.</p></div></div><% } %>
+      <% if (Number(serviceCosts.unpricedConsumablesCount) > 0) { %><div class="sr-data-warning"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><strong>Some job supplies have no saved cost</strong><p><%= formatNumber(serviceCosts.unpricedConsumablesCount) %> used item(s) have no saved cost, so the profit estimate may be too high.</p></div></div><% } %>
+      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Completed work</span><h2>Direct cost by service</h2><p>Reusable equipment is not counted as a job cost. Costs for installations linked to product orders are shown under Orders.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments/expenses">Manage expenses <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Reference</th><th class="text-end">Completed value</th><th class="text-end">Direct cost</th><th class="text-end">Profit estimate</th><th class="text-end">Profit %</th></tr></thead><tbody>
         <% if (costRows.length) { costRows.slice(0, 20).forEach(function(row) { const rowCost = Number(row.laborCost || 0) + Number(row.partsCost || 0) + Number(row.consumablesCost || 0) + Number(row.localPurchaseCost || 0); %><tr><td><strong><%= row.serviceName %></strong><small class="sr-cell-sub"><%= row.technician %></small></td><td><%= row.reference %></td><td class="text-end">&#8369;<%= formatMoney(row.revenue) %></td><td class="text-end">&#8369;<%= formatMoney(rowCost) %></td><td class="text-end"><strong class="<%= Number(row.grossProfit) < 0 ? 'sr-negative' : 'sr-positive' %>">&#8369;<%= formatMoney(row.grossProfit) %></strong></td><td class="text-end"><%= Number(row.grossProfitMargin || 0).toFixed(1) %>%</td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No completed service cost records in this period.</td></tr><% } %>
       </tbody></table></div></section>
-      <section class="sr-card sr-table-card mt-3"><header class="sr-card-header"><div><span class="sr-card-kicker">Materials consumed</span><h2>Consumables deducted from service contribution</h2><p>Each recorded item is costed at its usage snapshot and included in the completed job's direct cost.</p></div></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Booking</th><th>Consumable</th><th class="text-end">Quantity</th><th class="text-end">Cost deducted</th></tr></thead><tbody><% if (consumableRows.length) { consumableRows.slice(0, 30).forEach(function(item) { %><tr><td><%= item.serviceName %></td><td><%= item.reference %></td><td><strong><%= item.name %></strong></td><td class="text-end"><%= formatNumber(item.quantity) %> <%= item.unit %></td><td class="text-end">₱<%= formatMoney(item.cost) %></td></tr><% }); } else { %><tr><td colspan="5" class="sr-empty">No consumable usage was recorded for completed services in this period.</td></tr><% } %></tbody></table></div><p class="sr-card-note px-3 pb-3">Showing up to 30 usage items. An unrecorded or unpriced item can make contribution look higher than it is.</p></section>
+      <section class="sr-card sr-table-card mt-3"><header class="sr-card-header"><div><span class="sr-card-kicker">Materials consumed</span><h2>Job supplies included in the cost</h2><p>Each used item uses the cost saved when it was used. That cost is included in the finished job’s total cost.</p></div></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Service</th><th>Booking</th><th>Job supply</th><th class="text-end">Quantity</th><th class="text-end">Cost deducted</th></tr></thead><tbody><% if (consumableRows.length) { consumableRows.slice(0, 30).forEach(function(item) { %><tr><td><%= item.serviceName %></td><td><%= item.reference %></td><td><strong><%= item.name %></strong></td><td class="text-end"><%= formatNumber(item.quantity) %> <%= item.unit %></td><td class="text-end">₱<%= formatMoney(item.cost) %></td></tr><% }); } else { %><tr><td colspan="5" class="sr-empty">No consumable usage was recorded for completed services in this period.</td></tr><% } %></tbody></table></div><p class="sr-card-note px-3 pb-3">Showing up to 30 used items. Missing items or prices can make the profit estimate too high.</p></section>
     </div>
 
     <div class="tab-pane fade" id="quality-pane" role="tabpanel" aria-labelledby="quality-tab" tabindex="0">
       <div class="sr-detail-grid">
-        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Customer signal</span><h2>Satisfaction trend</h2><p>Average rating from submitted customer feedback.</p></div><span class="sr-rating"><i class="bi bi-star-fill"></i> <%= report.avgRating || '0.0' %></span></header><div class="sr-chart sr-chart-medium"><canvas id="serviceQualityChart" aria-label="Customer satisfaction trend"></canvas></div></section>
-        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Data quality</span><h2>Control coverage</h2><p>Compact controls for interpreting the report responsibly.</p></div></header><div class="sr-control-list"><% qualityControls.forEach(function(control) { %><div><span><strong><%= control.label %></strong><small><%= control.context %></small></span><b><%= control.value %></b></div><% }); %></div></section>
+        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Customer feedback</span><h2>Customer ratings over time</h2><p>Average rating from submitted customer feedback.</p></div><span class="sr-rating"><i class="bi bi-star-fill"></i> <%= report.avgRating || '0.0' %></span></header><div class="sr-chart sr-chart-medium"><canvas id="serviceQualityChart" aria-label="Customer satisfaction trend"></canvas></div></section>
+        <section class="sr-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Data quality</span><h2>Saved report details</h2><p>Check for missing dates, reports, and costs before using these totals.</p></div></header><div class="sr-control-list"><% qualityControls.forEach(function(control) { %><div><span><strong><%= control.label %></strong><small><%= control.context %></small></span><b><%= control.value %></b></div><% }); %></div></section>
       </div>
-      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Focused workspaces</span><h2>Quality follow-up</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/ratings/service"><i class="bi bi-star"></i><span><strong>Customer ratings</strong><small>Read feedback and rating detail</small></span></a><a href="/<%= reportRole %>/ratings/technicians"><i class="bi bi-person-check"></i><span><strong>Technician ratings</strong><small>Review individual service quality</small></span></a><% if (reportRole === "admin") { %><a href="/admin/warranty"><i class="bi bi-shield-check"></i><span><strong>Warranty</strong><small>Track coverage and claims</small></span></a><% } %></div></section>
+      <section class="sr-card sr-related"><header class="sr-card-header"><div><span class="sr-card-kicker">Related pages</span><h2>Quality follow-up</h2></div></header><div class="sr-related-grid"><a href="/<%= reportRole %>/ratings/service"><i class="bi bi-star"></i><span><strong>Customer ratings</strong><small>Read feedback and rating detail</small></span></a><a href="/<%= reportRole %>/ratings/technicians"><i class="bi bi-person-check"></i><span><strong>Technician ratings</strong><small>Review individual service quality</small></span></a><% if (reportRole === "admin") { %><a href="/admin/warranty"><i class="bi bi-shield-check"></i><span><strong>Warranty</strong><small>Track coverage and claims</small></span></a><% } %></div></section>
     </div>
 
     <div class="tab-pane fade" id="photos-pane" role="tabpanel" aria-labelledby="photos-tab" tabindex="0">
@@ -247,7 +247,7 @@
       <% } else { %>
       <section class="sr-card sr-evidence-section" aria-labelledby="report-photos-title">
         <header class="sr-card-header">
-          <div><span class="sr-card-kicker">Field evidence</span><h2 id="report-photos-title">Service report photos</h2><p>Report attachments, inspection images, customer issue photos, and completion proof for the selected filters.</p></div>
+          <div><span class="sr-card-kicker">Field evidence</span><h2 id="report-photos-title">Service report photos</h2><p>Report files, inspection photos, customer photos, and proof of finished work for these filters.</p></div>
           <span class="sr-evidence-total"><i class="bi bi-images" aria-hidden="true"></i><strong><%= formatNumber(photoEvidenceCount) %></strong><small>photo<%= photoEvidenceCount === 1 ? '' : 's' %></small></span>
         </header>
         <% if (photoEvidenceReports.length) { %>
@@ -276,17 +276,17 @@
             <% }); %>
           </div>
         <% } else { %>
-          <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No service photos in this report period</strong><p>Photos will appear here after a technician attaches report, inspection, or completion evidence. Current report filters also apply to this gallery.</p></div>
+          <div class="sr-evidence-empty"><i class="bi bi-camera" aria-hidden="true"></i><strong>No service photos in this report period</strong><p>Photos appear after a technician adds them to a report, inspection, or finished job. The same report filters apply here.</p></div>
         <% } %>
       </section>
       <% } %>
     </div>
 
     <div class="tab-pane fade" id="records-pane" role="tabpanel" aria-labelledby="records-tab" tabindex="0">
-      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit trail</span><h2>Recent booking records</h2><p>The latest matching service records. Use Bookings for full workflow management.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments">Open all bookings <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th class="text-end">Booked value</th><th>Status</th></tr></thead><tbody>
+      <section class="sr-card sr-table-card"><header class="sr-card-header"><div><span class="sr-card-kicker">Audit trail</span><h2>Recent booking records</h2><p>The latest bookings for these filters. Open Bookings to see and update all jobs.</p></div><a class="sr-inline-link" href="/<%= reportRole %>/appointments">Open all bookings <i class="bi bi-arrow-right"></i></a></header><div class="table-responsive"><table class="sr-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th class="text-end">Booking value</th><th>Status</th></tr></thead><tbody>
         <% if (recentBookings.length) { recentBookings.forEach(function(booking) { %><tr><td><strong><%= booking.reference || '—' %></strong></td><td><%= booking.customer %></td><td><%= booking.service %></td><td><%= booking.technician %></td><td class="text-end">&#8369;<%= formatMoney(booking.amount) %></td><td><span class="sr-badge"><%= String(booking.status || 'pending').replace(/[-_]/g, ' ') %></span></td></tr><% }); } else { %><tr><td colspan="6" class="sr-empty">No recent booking records match the selected filters.</td></tr><% } %>
       </tbody></table></div></section>
-      <section class="sr-card sr-definitions"><header class="sr-card-header"><div><span class="sr-card-kicker">Definitions</span><h2>How to read this report</h2></div></header><dl><div><dt>Booked value</dt><dd>Value attached to non-cancelled bookings, whether or not the service has been completed.</dd></div><div><dt>Completed-service value</dt><dd>Value from services whose lifecycle is recognized as completed.</dd></div><div><dt>Direct service cost</dt><dd>Recorded internal labor, consumables, repair parts, and local purchases used for completed work.</dd></div><div><dt>Service contribution</dt><dd>Completed-service value less recorded direct service costs. It is provisional when cost coverage is incomplete.</dd></div></dl></section>
+      <section class="sr-card sr-definitions"><header class="sr-card-header"><div><span class="sr-card-kicker">Definitions</span><h2>How to read this report</h2></div></header><dl><div><dt>Booking value</dt><dd>The value of bookings that were not cancelled, including unfinished jobs.</dd></div><div><dt>Completed service sales</dt><dd>Sales from finished services.</dd></div><div><dt>Direct service cost</dt><dd>Saved labor costs, job supplies, repair parts, and local purchases used in finished jobs.</dd></div><div><dt>Service profit estimate</dt><dd>Completed service sales less recorded direct service costs. It is an estimate when some costs are missing.</dd></div></dl></section>
     </div>
   </div>
 </div>
@@ -350,7 +350,7 @@
       if (report) report.classList.remove('is-loading');
       if (state) {
         state.classList.add('is-error');
-        state.innerHTML = '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span><strong>Unable to load Service Performance</strong><small></small></span><button type="button">Retry</button>';
+        state.innerHTML = '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span><strong>Unable to load Service Reports</strong><small></small></span><button type="button">Retry</button>';
         state.querySelector('small').textContent = String(error && error.message ? error.message : 'Please refresh and try again.');
         state.querySelector('button').addEventListener('click', function () { window.location.reload(); });
       }
@@ -388,12 +388,12 @@
     if (charts.trend) charts.trend.destroy();
     var valueMode = mode === 'value';
     document.getElementById('trendDefinition').textContent = valueMode
-      ? 'Booked value from non-cancelled requests created during each reporting week; this is not completed revenue.'
+      ? 'Booking value from non-cancelled requests created during each reporting week; this is not completed revenue.'
       : 'Bookings created and completed during each reporting week.';
     charts.trend = new Chart(canvas, {
       type: valueMode ? 'bar' : 'line',
       data: { labels: data.weekly.map(function (row) { return row.label; }), datasets: valueMode
-        ? [{ label:'Booked value', data:data.weekly.map(function (row) { return row.bookedValue; }), backgroundColor:'#2563eb', borderRadius:6 }]
+        ? [{ label:'Booking value', data:data.weekly.map(function (row) { return row.bookedValue; }), backgroundColor:'#2563eb', borderRadius:6 }]
         : [{ label:'Bookings', data:data.weekly.map(function (row) { return row.bookings; }), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.1)', fill:true, tension:.35 }, { label:'Completed', data:data.weekly.map(function (row) { return row.completed; }), borderColor:'#10b981', backgroundColor:'transparent', tension:.35 }]
       },
       options: Object.assign({}, baseOptions, { plugins:Object.assign({}, baseOptions.plugins, { tooltip:Object.assign({}, baseOptions.plugins.tooltip, { callbacks:{ label:function (context) { return valueMode ? ' ' + peso.format(context.parsed.y || 0) : ' ' + context.dataset.label + ': ' + context.parsed.y; } } }) }) })
@@ -479,7 +479,7 @@
   });
   var exportButton = document.getElementById('exportReportBtn');
   if (exportButton) exportButton.addEventListener('click', function () {
-    var columns = ['Reference','Customer','Service','Technician','Status','Booked Value','Date'];
+    var columns = ['Reference','Customer','Service','Technician','Status','Booking value','Date'];
     var rows = data.exportRows.map(function (row) { return [row.reference,row.customer,row.service,row.technician,row.status,row.bookedValue,row.date ? new Date(row.date).toLocaleDateString('en-PH') : '']; });
     var csv = [columns].concat(rows).map(function (row) { return row.map(function (value) {
       var safeValue = String(value == null ? '' : value);

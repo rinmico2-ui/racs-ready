@@ -105,10 +105,14 @@ test("hidden normalized ratings cannot return through the legacy booking fallbac
   assert.match(reportSource, /Rating\.find\(\{ targetType: "booking", targetId: \{ \$in: legacyIds \} \}\)/);
 });
 
-test("legacy technician administration uses the governed archive workflow", () => {
+test("legacy technician administration uses the governed archive workflow", async () => {
   const adminApi = source("routes/adminApi.js");
   const directory = source("views/pages/admin/Technicians/TechnicianList.ejs");
-  assert.match(adminApi, /STAFF_LIFECYCLE_ACTION_REQUIRED/);
+  assert.match(adminApi, /router\.put\("\/technicians\/:id", technicianAccounts\.update\)/);
+  const response = { status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  await require("../controllers/technicianAccountController").update({ params: { id: "507f1f77bcf86cd799439010" }, body: { active: false } }, response);
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.body.code, "STAFF_LIFECYCLE_ACTION_REQUIRED");
   assert.doesNotMatch(adminApi, /if \(active !== undefined\) update\.active = active/);
   assert.match(directory, /\/api\/admin\/staff\/\$\{encodeURIComponent\(id\)\}\/archive/);
 });

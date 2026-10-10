@@ -36,7 +36,7 @@ test("normalizes an overdue order into the shared resolution contract", () => {
   assert.equal(item.itemCount, 2);
   assert.equal(item.routeDurationMin, 45);
   assert.equal(item.severity, "critical");
-  assert.deepEqual(item.allowedActions, ["view", "verify_payment", "reschedule", "call"]);
+  assert.deepEqual(item.allowedActions, ["view", "verify_payment", "reschedule", "send_link", "cancel", "call"]);
 });
 
 test("order recovery uses the customer availability calendar and validates slots when saving", () => {
@@ -51,7 +51,9 @@ test("order recovery uses the customer availability calendar and validates slots
   const routeStart = orders.indexOf('router.post("/:id/admin-reschedule"');
   const routeEnd = orders.indexOf('router.post("/:id/requeue-assignment"', routeStart);
   const recoveryRoute = orders.slice(routeStart, routeEnd);
-  assert.match(recoveryRoute, /getTimeSlotsForQuery\(/);
+  assert.match(recoveryRoute, /checkOrderRescheduleSlot\(order, scheduledDate, timeSlot, totalEstimatedMinutes\)/);
+  const slotHelper = orders.match(/async function checkOrderRescheduleSlot\([^]*?\n\}/)?.[0];
+  assert.match(slotHelper || '', /getTimeSlotsForQuery\(/);
   assert.match(recoveryRoute, /validatePickupDate\(/);
   assert.match(recoveryRoute, /ORDER_SLOT_UNAVAILABLE/);
 });

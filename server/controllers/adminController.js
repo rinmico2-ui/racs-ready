@@ -366,123 +366,8 @@ exports.listStaff = async (req, res, next) => {
   }
 };
 
-exports.createStaff = async (req, res, next) => {
-  try {
-    let { email, password, role, firstName, lastName, phone, location } =
-      req.body;
-    email = sanitizeEmail(email);
-    // admins should not be created via this interface (they are managed separately)
-    if (role === "admin") {
-      return res
-        .status(400)
-        .json({ error: "Cannot create admin via this form" });
-    }
-    role = ["secretary", "technician"].includes(role) ? role : "secretary";
-    // input validation with clearer feedback
-    if (!email) {
-      return res.status(400).json({ error: "Email is required" });
-    }
-    if (!password || typeof password !== "string") {
-      return res.status(400).json({ error: "Password is required" });
-    }
-    // enforce the same constraints used in password reset: 8-12 alphanumeric
-    if (password.length < 8 || password.length > 12) {
-      return res
-        .status(400)
-        .json({ error: "Password must be 8-12 characters" });
-    }
-    if (/\s/.test(password)) {
-      return res
-        .status(400)
-        .json({ error: "Password must not contain spaces" });
-    }
-    const exists = await User.findOne({ email });
-    if (exists) return res.status(409).json({ error: "User already exists" });
-
-    // create User (staff account)
-    const user = new User({
-      email,
-      role,
-      active: true,
-      firstName: firstName || "",
-      lastName: lastName || "",
-      phone: phone || "",
-    });
-    await user.setPassword(password);
-    await user.save();
-
-    // if technician (or admin-as-technician), also create a Technician document and link where appropriate
-    let techDoc = null;
-
-    // if secretary, create a lightweight secretary profile so metadata can be stored later
-    if (role === "secretary") {
-      try {
-        const Secretary = require("../models/Secretary");
-        const secPayload = {
-          user: user._id,
-          phone: user.phone || undefined,
-          extension: "",
-          shift: "",
-          notes: "",
-        };
-        const secDoc = new Secretary(secPayload);
-        await secDoc.save();
-      } catch (e) {
-        // failure to create secretary metadata shouldn't block user creation
-        console.warn("unable to create secretary profile", e && e.message);
-      }
-    }
-
-    if (role === "technician" || role === "admin") {
-      const Technician = require("../models/Technician");
-      const tName =
-        `${(firstName || "").trim()} ${(lastName || "").trim()}`.trim() ||
-        email;
-      const techPayload = {
-        user: user._id,
-        userEmail: user.email,
-        phone: user.phone || undefined,
-        name: tName,
-        active: true,
-      };
-      // Accept either a simple address string (locationText) or a GeoJSON Point for `location`
-      if (typeof location === "string" && location.trim()) {
-        techPayload.locationText = String(location).trim();
-      } else if (location) {
-        // validate GeoJSON Point
-        if (!isPoint(location))
-          return res.status(400).json({ error: "invalid location" });
-        techPayload.location = {
-          type: "Point",
-          coordinates: [
-            Number(location.coordinates[0]),
-            Number(location.coordinates[1]),
-          ],
-        };
-      }
-
-      techDoc = new Technician(techPayload);
-      await techDoc.save();
-
-      // mark the user as technician (already set in role) and add reference in meta
-      user.meta = user.meta || {};
-      user.meta.technicianId = techDoc._id;
-      await user.save();
-    }
-
-    await logAction(req.user._id, user._id, "staff.create", req, {
-      role,
-      technicianId: techDoc?._id,
-    });
-    res.status(201).json({
-      message: "Staff created",
-      user: { id: user._id, email: user.email, role: user.role },
-      technician: techDoc,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+// Staff and technician creation share email verification and password setup.
+exports.createStaff = require("./technicianAccountController").createStaff;
 
 exports.getStaff = async (req, res, next) => {
   try {
@@ -513,13 +398,16 @@ exports.editStaff = async (req, res, next) => {
     const existing = await User.findOne({
       _id: id,
       role: { $in: ["secretary", "technician"] },
-    }).select("archivedAt");
+    }).select("archivedAt emailVerified accountStatus");
     if (!existing) return res.status(404).json({ error: "Staff member not found" });
     if (existing.archivedAt) {
       return res.status(409).json({
         error: "Restore this staff member before editing their account.",
         code: "STAFF_ARCHIVED",
       });
+    }
+    if (existing.accountStatus === "invited" && existing.emailVerified === false) {
+      return require("./technicianAccountController").updateInvitedStaff(req, res);
     }
     const update = {};
     if (role && ["secretary", "technician"].includes(role)) update.role = role;
@@ -2080,8 +1968,9 @@ exports.listTechnicians = async (req, res, next) => {
     // return active technicians; include location so the admin list can show map
     const docs = await Technician.find({ active: true })
       .select(
-        "name userEmail phone location locationText active avatarUrl avatar skills rating ratingCount",
+        "name user userEmail phone location locationText active avatarUrl avatar skills rating ratingCount",
       )
+      .populate("user", "email emailVerified accountStatus")
       .lean();
     return res.json({ technicians: docs });
   } catch (err) {

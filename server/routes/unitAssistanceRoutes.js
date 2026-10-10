@@ -22,8 +22,14 @@ router.post('/', customer, limiter, async (req, res) => {
   try {
     const serviceId = String(req.body.serviceId || '');
     const quantity = Number(req.body.quantity);
+    const clientRequestId = req.body.clientRequestId;
+    if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' || !/^[A-Za-z0-9_-]{12,100}$/.test(clientRequestId))) return res.status(400).json({ error:'Invalid request reference. Reopen the service and try again.' });
     if (!validId(serviceId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 40) {
       return res.status(400).json({ error: 'Choose a valid service and unit quantity.' });
+    }
+    if (clientRequestId) {
+      const existing = await UnitAssistanceRequest.findOne({ customerId:req.user._id, clientRequestId }).select('_id status').lean();
+      if (existing) return res.json({ id:existing._id, status:existing.status });
     }
     const catalog = await CoreService.findOne({ _id: serviceId, active: true }).lean();
     if (!catalog?.isAirconService || !(catalog.airconTypes?.length || catalog.hpPricing?.length)) {
@@ -55,7 +61,11 @@ router.post('/', customer, limiter, async (req, res) => {
     }
     if (hp !== null && (!Number.isFinite(hp) || hp <= 0)) return res.status(400).json({ error: 'Invalid HP.' });
     if (brand && brand.toLowerCase() !== "i don't know" && airconType && hp != null) {
-      return res.status(400).json({ error: 'All unit details are known. Continue with the regular booking.' });
+      const type = catalog.airconTypes?.find(item => item.type === airconType);
+      const tiers = type?.hpPricing || catalog.hpPricing || [];
+      if (tiers.some(tier => Number(tier.hp) === hp && Number.isFinite(Number(tier.price)))) {
+        return res.status(400).json({ error: 'This HP already has a catalog price. Select it in the regular booking.' });
+      }
     }
     let existingBooking = null;
     if (req.body.existingBookingId) {
@@ -68,6 +78,7 @@ router.post('/', customer, limiter, async (req, res) => {
     }
     const request = await UnitAssistanceRequest.create({
       customerId: req.user._id, serviceId, serviceName: catalog.name,
+      ...(clientRequestId ? { clientRequestId } : {}),
       existingBookingId: existingBooking?._id || null,
       existingBookingReference: existingBooking?.bookingReference || '',
       brand, airconType, hp, quantity, relocation,
@@ -81,6 +92,10 @@ router.post('/', customer, limiter, async (req, res) => {
     }
     return res.status(201).json({ id: request._id, status: request.status });
   } catch (error) {
+    if (error.code === 11000 && req.body.clientRequestId) {
+      const existing = await UnitAssistanceRequest.findOne({ customerId:req.user._id, clientRequestId:req.body.clientRequestId }).select('_id status').lean();
+      if (existing) return res.json({ id:existing._id, status:existing.status });
+    }
     console.error('Unit assistance request failed:', error);
     return res.status(500).json({ error: 'Could not submit your request. Please try again.' });
   }

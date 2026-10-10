@@ -1,4 +1,7 @@
 # Enterprise HVAC & Refrigeration Service Management Platform
+
+> **Historical document:** superseded by the [09 October 2026 architecture audit](architecture/README.md) and [offline diagram viewer](architecture/index.html). Counts and implementation claims below are historical; use the new audit for the current system and all 63 models.
+
 ## Exhaustive Technical System Architecture Specification
 
 > [!IMPORTANT]

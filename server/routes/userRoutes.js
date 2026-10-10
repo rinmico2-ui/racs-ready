@@ -6,6 +6,7 @@ const auth = require("../middleware/authenticate");
 const User = require("../models/User");
 const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
+const { profileNamePolicy, NAME_CHANGE_COOLDOWN_MS } = require("../utils/profileNamePolicy");
 
 const passwordChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -75,17 +76,54 @@ router.patch("/me/profile", async (req, res, next) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    const now = new Date();
+    const nameChanged = firstName !== cleanText(user.firstName) || lastName !== cleanText(user.lastName);
+    const customer = user.role === "customer";
+    const policy = profileNamePolicy(user, now);
+    if (customer && nameChanged && !policy.canChangeName) {
+      return res.status(409).json({
+        code: "NAME_CHANGE_COOLDOWN",
+        error: "You can change your name once every 30 days. Your next allowed date is shown below the name fields.",
+        nameChangePolicy: policy,
+        user: { firstName: user.firstName, lastName: user.lastName },
+      });
+    }
+
     const before = {
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
       address: user.address && user.address.toObject ? user.address.toObject() : user.address,
     };
-    user.firstName = firstName;
-    user.lastName = lastName;
-    user.phone = phone;
-    if (address) user.address = address;
-    await user.save();
+    // Contact-only edits never write a stale name back over another session.
+    const changes = { phone };
+    if (address) changes.address = address;
+    const filter = { _id: user._id };
+    if (nameChanged) {
+      changes.firstName = firstName;
+      changes.lastName = lastName;
+      filter.firstName = user.firstName;
+      filter.lastName = user.lastName;
+      if (customer) {
+        changes.profileNameChangedAt = now;
+        // Atomically consume the name-change window, including legacy accounts.
+        filter.$or = [
+          { profileNameChangedAt: null },
+          { profileNameChangedAt: { $lte: new Date(now.getTime() - NAME_CHANGE_COOLDOWN_MS) } },
+        ];
+      }
+    }
+    const updated = await User.findOneAndUpdate(filter, { $set: changes }, { new: true, runValidators: true });
+    if (!updated) {
+      const latest = await User.findById(user._id);
+      if (!latest) return res.status(404).json({ error: "User not found" });
+      return res.status(409).json({
+        code: "PROFILE_CHANGED",
+        error: "Your name changed in another session. Check the current name and next allowed date before saving again.",
+        nameChangePolicy: profileNamePolicy(latest),
+        user: { firstName: latest.firstName, lastName: latest.lastName },
+      });
+    }
 
     await audit.logEvent({
       actor: user._id,
@@ -97,18 +135,20 @@ router.patch("/me/profile", async (req, res, next) => {
       entityId: user._id,
       details: {
         before,
-        after: { firstName: user.firstName, lastName: user.lastName, phone: user.phone, address: user.address },
+        after: { firstName: updated.firstName, lastName: updated.lastName, phone: updated.phone, address: updated.address },
+        nameChanged,
       },
     });
 
     return res.json({
       message: "Profile updated successfully.",
+      nameChangePolicy: profileNamePolicy(updated),
       user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        email: user.email,
-        address: user.address,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        phone: updated.phone,
+        email: updated.email,
+        address: updated.address,
       },
     });
   } catch (err) {

@@ -24,7 +24,7 @@ test("multi-service allocation reconciles revenue and every direct-cost componen
   closeTo(total("grossProfit"), 1100);
 });
 
-test("service-item cost evidence is attributed before shared booking costs", () => {
+test("service-item saved cost details is attributed before shared booking costs", () => {
   const rows = buildServiceLineAllocations({
     serviceType: "core",
     services: [
@@ -73,7 +73,7 @@ test("service profitability ranks individual service lines without double counti
   assert.equal(result.leastProfitable.serviceName, "Aircon Installation");
 });
 
-test("service decisions warn when direct-cost evidence is missing", () => {
+test("service decisions warn when direct-saved cost details is missing", () => {
   const result = buildServiceProfitability([{
     bookingId: "booking-2",
     completedAt: "2026-09-20T08:00:00Z",
@@ -81,8 +81,8 @@ test("service decisions warn when direct-cost evidence is missing", () => {
   }], { startDate: "2026-09-01", endDate: "2026-09-30" });
 
   assert.equal(result.rows[0].costEvidenceCoverage, 0);
-  assert.equal(result.rows[0].action.label, "Complete cost capture");
-  assert.match(result.insights[1].text, /provisional/);
+  assert.equal(result.rows[0].action.label, "Save missing costs");
+  assert.match(result.insights[1].text, /estimate/);
 });
 
 test("revenue forecast preserves weekday seasonality and exposes a bounded range", () => {
@@ -104,5 +104,5 @@ test("revenue forecast preserves weekday seasonality and exposes a bounded range
   assert.ok(result.lower < result.total);
   assert.ok(result.upper > result.total);
   assert.ok(Math.abs(result.cappedTrendPercent) <= 30);
-  assert.match(result.caveat, /not recognized revenue/);
+  assert.match(result.caveat, /does not promise future sales or money received/);
 });

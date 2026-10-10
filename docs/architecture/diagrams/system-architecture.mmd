@@ -1,0 +1,29 @@
+flowchart TB
+  actors["Four browser personas"]
+  edge["HTTPS hosting proxy<br/>render.yaml / readiness probe"]
+  app["Node.js / Express 5 web process<br/>EJS, middleware, domain routes"]
+  domain["Business components<br/>Bookings, sales, stock, projects<br/>Finance, staff, aftercare, reporting"]
+  workers["In-process background workers<br/>Email outbox, overdue, maintenance<br/>Equipment return, delay, reminders"]
+  local[("Process memory / local filesystem<br/>Rate budgets, caches, chat sessions<br/>Temporary + legacy uploads / logs")]
+  db[("MongoDB shared database<br/>63 model collections + sessions<br/>GridFS payment / completion buckets")]
+  images["Cloudinary<br/>Public product image storage"]
+  services["External adapters<br/>Google OAuth / reCAPTCHA / Calendar<br/>Brevo / SMTP, maps / holidays<br/>Gemini / Groq / OpenRouter / Tavily"]
+  gateway["PayMongo<br/>Retained gateway processing"]
+  realtime["Socket.IO + chat SSE<br/>Same HTTP server"]
+  admin["Admin / secretary reports<br/>Revenue and decision analytics"]
+  actors -->|"HTTPS"| edge
+  edge -->|"HTTP / socket forwarding"| app
+  app -->|"Authorized request"| domain
+  domain -->|"Models / sessions / proof bytes"| db
+  app -->|"Shared Mongo client"| db
+  domain -->|"Product image upload / delete"| images
+  domain -->|"Provider requests / responses"| services
+  app -->|"Startup after database ready"| workers
+  workers -->|"Polling, claims, state changes"| db
+  workers -->|"Email / notification delivery"| services
+  app -->|"Bounded state / file access"| local
+  gateway -->|"Raw signed payment event"| app
+  domain -->|"Optional retained source charge"| gateway
+  domain -->|"Room events / chat tokens"| realtime
+  realtime -->|"Live browser updates"| actors
+  domain -->|"Reports from operational records"| admin

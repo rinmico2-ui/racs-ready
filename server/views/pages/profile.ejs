@@ -6,6 +6,7 @@
 <% if (!user) { %>
   <div class="alert alert-warning m-4">Please log in to view your profile.</div>
 <% } else { %>
+  <% const namePolicy = locals.nameChangePolicy || { canChangeName: true, cooldownDays: 30, nextNameChangeAt: null }; %>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- ANIMATED HERO HEADER                                              -->
@@ -91,6 +92,9 @@
         <div class="prof-sidebar-actions">
           <button id="editProfileBtn" class="prof-btn prof-btn-primary">
             <i class="bi bi-pencil-fill"></i> Edit Profile
+          </button>
+          <button id="openPasswordBtn" type="button" class="prof-btn prof-btn-ghost" aria-controls="customerPasswordSection">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i> Change Password
           </button>
           <a href="/book-history" class="prof-btn prof-btn-bookings">
             <i class="bi bi-calendar2-check"></i> View My Bookings
@@ -368,18 +372,27 @@
             <div id="profileAlert" class="alert d-none" role="alert" aria-live="polite"></div>
             <form id="customerProfileForm" class="row g-3" novalidate>
               <div class="col-md-6">
-                <label class="prof-field-label">First Name</label>
+                <label class="prof-field-label" for="profileFirstName">First Name</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-person prof-input-icon"></i>
-                  <input id="profileFirstName" name="firstName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.firstName||'' %>" />
+                  <input id="profileFirstName" name="firstName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.firstName||'' %>" aria-describedby="profileNamePolicy" <%= namePolicy.canChangeName ? '' : 'readonly' %> />
                 </div>
               </div>
               <div class="col-md-6">
-                <label class="prof-field-label">Last Name</label>
+                <label class="prof-field-label" for="profileLastName">Last Name</label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-person prof-input-icon"></i>
-                  <input id="profileLastName" name="lastName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.lastName||'' %>" />
+                  <input id="profileLastName" name="lastName" type="text" maxlength="50" required class="prof-input prof-input-editable" value="<%= user.lastName||'' %>" aria-describedby="profileNamePolicy" <%= namePolicy.canChangeName ? '' : 'readonly' %> />
                 </div>
+              </div>
+              <div class="col-12">
+                <p id="profileNamePolicy" class="prof-name-policy mb-0" role="status" data-next-change-at="<%= namePolicy.nextNameChangeAt || '' %>" data-cooldown-days="<%= namePolicy.cooldownDays %>">
+                  <% if (namePolicy.canChangeName) { %>
+                    You can change your name once every <%= namePolicy.cooldownDays %> days. Check the spelling before saving.
+                  <% } else { %>
+                    Your next name change is available on <%= new Date(namePolicy.nextNameChangeAt).toLocaleString('en-PH', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', timeZone:'Asia/Manila' }) %> (Philippine time). You can still update your phone and address.
+                  <% } %>
+                </p>
               </div>
               <div class="col-md-6">
                 <label class="prof-field-label">Email</label>
@@ -442,6 +455,23 @@
           </div>
         </div>
       </div>
+
+      <section class="prof-card prof-password-section mt-4" id="customerPasswordSection" aria-labelledby="customerPasswordTitle">
+        <div class="prof-edit-header">
+          <h2 class="prof-edit-title" id="customerPasswordTitle"><i class="bi bi-shield-lock" aria-hidden="true"></i>Change Password</h2>
+        </div>
+        <div class="prof-edit-body">
+              <p id="customerPasswordHelp" class="small text-muted mt-3">Use 8–30 characters with an uppercase letter, lowercase letter, number, and special character. After changing your password, sign in again.</p>
+              <div id="customerPasswordAlert" class="alert d-none" role="alert" tabindex="-1"></div>
+              <form id="customerPasswordForm" class="row g-3" novalidate aria-describedby="customerPasswordHelp">
+                <div class="col-12"><label class="prof-field-label" for="customerCurrentPassword">Current password</label><input id="customerCurrentPassword" name="currentPassword" type="password" autocomplete="current-password" maxlength="128" required class="prof-input prof-input-editable"></div>
+                <div class="col-md-6"><label class="prof-field-label" for="customerNewPassword">New password</label><input id="customerNewPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="30" required class="prof-input prof-input-editable"></div>
+                <div class="col-md-6"><label class="prof-field-label" for="customerConfirmPassword">Confirm new password</label><input id="customerConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="30" required class="prof-input prof-input-editable"></div>
+                <div class="col-12"><label class="small d-inline-flex align-items-center gap-2"><input type="checkbox" id="customerShowPasswords"> Show passwords</label></div>
+                <div class="col-12 d-flex align-items-center gap-3 flex-wrap"><button type="submit" id="customerChangePassword" class="prof-btn prof-btn-primary">Change password</button><a href="/forgot-password" class="small">Forgot your current password?</a></div>
+              </form>
+        </div>
+      </section>
 
     </div>
   </div>
@@ -645,6 +675,10 @@
     .prof-input:focus { outline: none; border-color: var(--prof-primary); background: #fff; box-shadow: 0 0 0 4px var(--prof-primary-100); }
     .prof-input:focus + .prof-input-icon, .prof-input-wrap:focus-within .prof-input-icon { color: var(--prof-primary); }
     .prof-input-editable { background: #fff; border-color: rgba(37,99,235,0.2); }
+    .prof-input[readonly] { background: var(--prof-surface-hover); border-color: var(--prof-border); color: var(--prof-text-secondary); }
+    .prof-name-policy { padding: 12px 14px; border: 1px solid var(--prof-border); border-radius: var(--prof-radius-sm); background: var(--prof-surface-hover); color: var(--prof-text-secondary); font-size: 0.82rem; line-height: 1.6; }
+    .prof-password-section { scroll-margin-top: 90px; }
+    .prof-password-section .prof-input { padding-left: 14px; }
     .prof-input-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
     .prof-edit-actions { display: flex; gap: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--prof-border); }
 
@@ -678,7 +712,8 @@
 </div>
 
 <script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2"></script>
-<script src="/js/profile.js?v=20260925-customer-save-v1"></script>
+<script src="/js/profile.js?v=20261009-name-policy"></script>
+<script src="/js/customer-profile-password.js?v=20261009-visible-password"></script>
 <script>
   // Tab switching (client-side)
   window.profSwitchTab = function(tab) {

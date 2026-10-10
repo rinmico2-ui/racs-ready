@@ -3,23 +3,23 @@
 <main class="cp-page cp-simple" data-customer-performance data-customer-id="<%= profileId %>">
   <header class="cp-hero">
     <div>
-      <a id="cpBack" class="cp-back" href="<%= profileId ? '/admin/reports/customers' : '/admin/reports' %>"><i class="bi bi-arrow-left" aria-hidden="true"></i> <%= profileId ? 'Customer Performance' : 'Report Center' %></a>
+      <a id="cpBack" class="cp-back" href="<%= profileId ? '/admin/reports/customers' : '/admin/reports' %>"><i class="bi bi-arrow-left" aria-hidden="true"></i> <%= profileId ? 'Customer Activity' : 'Report Center' %></a>
       <span class="cp-eyebrow">Reports / Customers</span>
-      <h1 id="cpPageTitle"><%= profileId ? 'Customer Records' : 'Customer Performance' %></h1>
+      <h1 id="cpPageTitle"><%= profileId ? 'Customer Records' : 'Customer Activity' %></h1>
       <p><%= profileId ? 'See what this customer books and buys, with the records behind every total.' : 'Find frequent customers, understand what they book and buy, and review customers with little or no recent activity.' %></p>
     </div>
     <a href="/admin/customers/privileges" class="cp-secondary"><i class="bi bi-award" aria-hidden="true"></i> Loyalty rules</a>
   </header>
 
   <form class="cp-period-form" id="cpPeriodForm">
-    <div class="cp-filter-intro"><strong>Analysis period</strong><span>Successful completed bookings and orders</span></div>
+    <div class="cp-filter-intro"><strong>Report dates</strong><span>Successful completed bookings and orders</span></div>
     <label>Period<select name="range" id="cpRange"><option value="all">All time</option><option value="month">This month</option><option value="3months">Last 3 months</option><option value="6months">Last 6 months</option><option value="year">This year</option><option value="custom">Custom date range</option></select></label>
     <label class="cp-custom">From<input type="date" name="from" id="cpFrom"></label>
     <label class="cp-custom">To<input type="date" name="to" id="cpTo"></label>
     <label>Inactive after<select name="inactiveDays" id="cpInactiveDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label>
     <button type="submit" class="cp-primary">Apply period</button>
   </form>
-  <div class="cp-period-note"><span id="cpPeriodLabel">Preparing report…</span><span>Period totals and lifetime totals are labeled separately.</span></div>
+  <div class="cp-period-note"><span id="cpPeriodLabel">Preparing report…</span><span>Totals for these dates and for all time are shown separately.</span></div>
   <div id="cpState" class="cp-state" role="status" aria-live="polite">Loading customer performance…</div>
   <button type="button" class="cp-secondary" id="cpRetry" hidden>Retry loading report</button>
 
@@ -28,53 +28,53 @@
   <nav class="cp-view-nav" aria-label="Customer performance views">
     <button type="button" data-cp-view="frequent" aria-pressed="true">Frequent Customers</button>
     <button type="button" data-cp-view="records" aria-pressed="false">Customer Records</button>
-    <button type="button" data-cp-view="lowest" aria-pressed="false">Lowest Engagement</button>
+    <button type="button" data-cp-view="lowest" aria-pressed="false">Less Active Customers</button>
   </nav>
   <section class="cp-section cp-customer-section" aria-labelledby="cpTableTitle">
-    <div class="cp-section-head"><div><h2 id="cpTableTitle">Frequent Customers</h2></div><p id="cpTableDescription">Ranked by successful completed transactions in the selected period.</p></div>
+    <div class="cp-section-head"><div><h2 id="cpTableTitle">Frequent Customers</h2></div><p id="cpTableDescription">Ranked by completed bookings and orders in the selected dates.</p></div>
     <form id="cpTableFilters" class="cp-table-filters">
       <label>Search customers<input type="search" name="search" placeholder="Customer name or email" maxlength="100"></label>
-      <label>Activity<select name="segment"><option value="all">All in this view</option><option value="frequent">5+ period transactions</option><option value="service">Booked services in period</option><option value="product">Ordered products in period</option><option value="both">Booked and ordered in period</option><option value="never">Never engaged</option><option value="veryLow">Only 1–2 lifetime transactions</option><option value="rareBookings">0–1 lifetime bookings</option><option value="rareOrders">0–1 lifetime orders</option><option value="inactive">No recent completed activity</option><option value="previous">Previously active, now inactive</option><option value="active">Recent completed activity</option></select></label>
-      <label>Sort by<select name="sort"><option value="transactions">Most transactions</option><option value="bookings">Most bookings</option><option value="orders">Most orders</option><option value="spending">Highest spending</option><option value="last">Most recent activity</option><option value="least">Fewest lifetime transactions</option><option value="days">Longest time since activity</option></select></label>
+      <label>Activity<select name="segment"><option value="all">All in this view</option><option value="frequent">5+ bookings and orders in these dates</option><option value="service">Booked services in these dates</option><option value="product">Ordered products in these dates</option><option value="both">Booked and ordered in these dates</option><option value="never">No completed bookings or orders</option><option value="veryLow">Only 1–2 all-time bookings and orders</option><option value="rareBookings">0–1 lifetime bookings</option><option value="rareOrders">0–1 lifetime orders</option><option value="inactive">No recent completed bookings or orders</option><option value="previous">Previously active, now inactive</option><option value="active">Recent completed bookings or orders</option></select></label>
+      <label>Sort by<select name="sort"><option value="transactions">Most bookings and orders</option><option value="bookings">Most bookings</option><option value="orders">Most orders</option><option value="spending">Highest spending</option><option value="last">Most recent activity</option><option value="least">Fewest all-time bookings and orders</option><option value="days">Longest time since activity</option></select></label>
       <button type="submit" class="cp-primary">Apply filters</button>
       <button type="button" class="cp-secondary" id="cpClearFilters">Clear filters</button>
     </form>
-    <div class="cp-table-wrap"><table><caption class="visually-hidden" id="cpTableCaption">Customer performance for the selected period</caption><thead id="cpCustomerHead"></thead><tbody id="cpCustomerRows"><tr><td class="cp-empty">Loading customers…</td></tr></tbody></table></div>
+    <div class="cp-table-wrap"><table><caption class="visually-hidden" id="cpTableCaption">Customer performance for the selected dates</caption><thead id="cpCustomerHead"></thead><tbody id="cpCustomerRows"><tr><td class="cp-empty">Loading customers…</td></tr></tbody></table></div>
     <div class="cp-pagination"><span id="cpTableCount" role="status" aria-live="polite"></span><div><button type="button" id="cpPrevious" class="cp-secondary" disabled>Previous</button><button type="button" id="cpNext" class="cp-secondary" disabled>Next</button></div></div>
   </section>
-  <details class="cp-method"><summary>How these numbers are calculated</summary><p id="cpMethod"></p><p>Frequent means 5 or more successful transactions in the selected period. Lowest Engagement includes customers with fewer than 5 lifetime transactions or no completion in the inactivity window. Previously active means at least 5 lifetime transactions. Recent customers with 1–2 lifetime transactions have very low engagement; 3–4 have low engagement. New accounts are labeled so they can be reviewed separately.</p></details>
+  <details class="cp-method"><summary>How these numbers are calculated</summary><p id="cpMethod"></p><p>Frequent customers have at least 5 completed bookings and orders for these dates. Less active customers have fewer than 5 lifetime, or no recent completion. Previously active customers had at least 5 lifetime. Activity levels show 1–2 or 3–4 completed bookings and orders. New accounts have their own label.</p></details>
   <% } else { %>
   <section class="cp-section" aria-labelledby="cpProfileTitle">
     <header class="cp-profile-header"><div><span class="cp-eyebrow">Customer record</span><h2 id="cpProfileTitle">Loading customer…</h2><p id="cpProfileMeta"></p></div><div id="cpProfileStatus"></div></header>
     <div class="cp-profile-grid">
-      <article class="cp-panel"><header><h3>Selected period</h3></header><dl class="cp-summary-list" id="cpSelectedSummary"></dl></article>
-      <article class="cp-panel"><header><h3>Lifetime</h3></header><dl class="cp-summary-list" id="cpLifetimeSummary"></dl></article>
+      <article class="cp-panel"><header><h3>Selected dates</h3></header><dl class="cp-summary-list" id="cpSelectedSummary"></dl></article>
+      <article class="cp-panel"><header><h3>All time</h3></header><dl class="cp-summary-list" id="cpLifetimeSummary"></dl></article>
     </div>
     <p class="cp-note" id="cpOtherStates"></p>
   </section>
   <nav class="cp-record-nav" aria-label="Customer record sections"><a href="#cpBookings">Bookings &amp; services</a><a href="#cpOrders">Orders &amp; products</a><a href="#cpSpendingTitle">Spending</a><a href="#cpLoyaltyTitle">Loyalty</a></nav>
   <section class="cp-section" aria-labelledby="cpHistoryTitle">
-    <div class="cp-section-head"><div><h2 id="cpHistoryTitle">Transaction records</h2></div><p>Defaults to successful completions. Other statuses remain available for review.</p></div>
+    <div class="cp-section-head"><div><h2 id="cpHistoryTitle">Booking and order records</h2></div><p>Shows completed records without a full refund by default. Choose another status to see other records.</p></div>
     <form id="cpHistoryFilters" class="cp-table-filters">
-      <label>Booking status<select name="bookingStatus"><option value="successful">Successful completions</option><option value="all">All statuses</option><option value="refunded">Fully refunded completions</option><option value="completed">Completed status (including refunds)</option><option value="repair_completed">Repair completed</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option><option value="no-show">No-show</option><option value="pending">Pending</option><option value="re-scheduled">Rescheduled</option></select></label>
-      <label>Order status<select name="orderStatus"><option value="successful">Successful completions</option><option value="all">All statuses</option><option value="refunded">Fully refunded completions</option><option value="completed">Completed status (including refunds)</option><option value="cancelled">Cancelled</option><option value="pending_payment">Pending payment</option><option value="preparing_unit">Preparing unit</option></select></label>
+      <label>Booking status<select name="bookingStatus"><option value="successful">Completed without a full refund</option><option value="all">All statuses</option><option value="refunded">Completed with a full refund</option><option value="completed">Completed, including refunded records</option><option value="repair_completed">Repair completed</option><option value="closed">Closed</option><option value="cancelled">Cancelled</option><option value="no-show">No-show</option><option value="pending">Pending</option><option value="re-scheduled">Rescheduled</option></select></label>
+      <label>Order status<select name="orderStatus"><option value="successful">Completed without a full refund</option><option value="all">All statuses</option><option value="refunded">Completed with a full refund</option><option value="completed">Completed, including refunded records</option><option value="cancelled">Cancelled</option><option value="pending_payment">Pending payment</option><option value="preparing_unit">Preparing unit</option></select></label>
       <label>History from<input type="date" name="fromDate"></label><label>History to<input type="date" name="toDate"></label>
       <label>Sort<select name="historySort"><option value="recent">Newest first</option><option value="oldest">Oldest first</option></select></label>
       <button type="submit" class="cp-secondary">Apply history filters</button><button type="button" id="cpClearHistory" class="cp-secondary">Reset history</button>
     </form>
-    <p class="cp-note">History dates use completion dates for completed records and request dates for other statuses. Empty dates use the analysis period. These filters change the record lists only.</p>
+    <p class="cp-note">Finished records use their completion date. Other records use the request date. Leave dates empty to use the report dates. These filters only change the lists below.</p>
   </section>
   <section class="cp-section" id="cpBookings" aria-labelledby="cpBookingTitle">
     <div class="cp-section-head"><div><h2 id="cpBookingTitle">Service Booking History</h2></div><p id="cpBookingCount" role="status" aria-live="polite"></p></div>
-    <div class="cp-record-layout"><article class="cp-panel"><div id="cpBookingHistory" class="cp-history-list"></div><div class="cp-pagination"><button type="button" id="cpBookingPrevious" class="cp-secondary" disabled>Previous bookings</button><button type="button" id="cpBookingNext" class="cp-secondary" disabled>Next bookings</button></div></article><aside class="cp-panel"><header><h3>Most Booked Services</h3></header><div id="cpServicePreferences"></div><p class="cp-note">Top 20 in the analysis period. Each booking counts once per service, regardless of unit quantity.</p></aside></div>
+    <div class="cp-record-layout"><article class="cp-panel"><div id="cpBookingHistory" class="cp-history-list"></div><div class="cp-pagination"><button type="button" id="cpBookingPrevious" class="cp-secondary" disabled>Previous bookings</button><button type="button" id="cpBookingNext" class="cp-secondary" disabled>Next bookings</button></div></article><aside class="cp-panel"><header><h3>Most Booked Services</h3></header><div id="cpServicePreferences"></div><p class="cp-note">Top 20 for these dates. Each booking counts once per service, even if it includes several units.</p></aside></div>
   </section>
   <section class="cp-section" id="cpOrders" aria-labelledby="cpOrderTitle">
     <div class="cp-section-head"><div><h2 id="cpOrderTitle">Order History</h2></div><p id="cpOrderCount" role="status" aria-live="polite"></p></div>
-    <div class="cp-record-layout"><article class="cp-panel"><div id="cpOrderHistory" class="cp-history-list"></div><div class="cp-pagination"><button type="button" id="cpOrderPrevious" class="cp-secondary" disabled>Previous orders</button><button type="button" id="cpOrderNext" class="cp-secondary" disabled>Next orders</button></div></article><aside class="cp-panel"><header><h3>Most Purchased Products</h3></header><div id="cpProductPreferences"></div><p class="cp-note">Top 20 by quantity in successful completed orders during the analysis period. Anonymous sales are not attributed to an account.</p></aside></div>
+    <div class="cp-record-layout"><article class="cp-panel"><div id="cpOrderHistory" class="cp-history-list"></div><div class="cp-pagination"><button type="button" id="cpOrderPrevious" class="cp-secondary" disabled>Previous orders</button><button type="button" id="cpOrderNext" class="cp-secondary" disabled>Next orders</button></div></article><aside class="cp-panel"><header><h3>Most Purchased Products</h3></header><div id="cpProductPreferences"></div><p class="cp-note">Top 20 by quantity in successful completed orders during the report dates. Walk-in sales without a named customer are not added to an account.</p></aside></div>
   </section>
-  <section class="cp-section" aria-labelledby="cpSpendingTitle"><div class="cp-section-head"><div><h2 id="cpSpendingTitle">Spending Summary</h2></div><p>Selected period. Refunds adjust the original completed transaction.</p></div><article class="cp-panel"><dl class="cp-summary-list" id="cpSpending"></dl><details class="cp-cash-details"><summary>Payment collections for this period</summary><p class="cp-note">Collections follow payment and refund event dates and can differ from completed transaction spending.</p><dl class="cp-summary-list" id="cpCash"></dl></details></article></section>
-  <section class="cp-section" aria-labelledby="cpLoyaltyTitle"><div class="cp-section-head"><div><h2 id="cpLoyaltyTitle">Loyalty Status</h2></div><p>Existing Customer Privileges rules and qualifying lifetime completions</p></div><article class="cp-panel" id="cpLoyalty"></article></section>
+  <section class="cp-section" aria-labelledby="cpSpendingTitle"><div class="cp-section-head"><div><h2 id="cpSpendingTitle">Spending Summary</h2></div><p>Selected dates. Refunds adjust the original completed transaction.</p></div><article class="cp-panel"><dl class="cp-summary-list" id="cpSpending"></dl><details class="cp-cash-details"><summary>Payment collections for this period</summary><p class="cp-note">Payments and refunds use the dates the money was received or returned. These totals can differ from sales completed during these dates.</p><dl class="cp-summary-list" id="cpCash"></dl></details></article></section>
+  <section class="cp-section" aria-labelledby="cpLoyaltyTitle"><div class="cp-section-head"><div><h2 id="cpLoyaltyTitle">Loyalty Status</h2></div><p>Existing Customer Privileges rules and all-time completed bookings and orders that meet the reward rules</p></div><article class="cp-panel" id="cpLoyalty"></article></section>
   <details class="cp-method"><summary>Data and counting rules</summary><p id="cpProfileNote"></p></details>
   <% } %>
 </main>
-<script src="/js/customer-performance.js?v=20261009-simple" defer></script>
+<script src="/js/customer-performance.js?v=20261009-plain-words" defer></script>

@@ -29,30 +29,30 @@ function servicePortfolioDecision(service, { periodDays = 0, portfolioBookings =
   const prior = Number(service.priorBookings) || 0;
   const share = portfolioBookings ? (bookings / portfolioBookings) * 100 : 0;
   if (!portfolioComplete) return {
-    label: 'Review in full portfolio',
-    reason: 'Filtered or historical bookings cannot establish the current service mix; compare all services in a recent period.',
+    label: 'Compare all services',
+    reason: 'These filters or older records cannot show which services are popular now. Compare all services using recent dates.',
   };
   if (periodDays < 14 || portfolioBookings < 10) return {
-    label: 'Collect more evidence',
-    reason: `${bookings} bookings in scope; this window is too small for a service mix decision.`,
+    label: 'Check more bookings first',
+    reason: `${bookings} bookings shown. There are too few records to suggest a service change.`,
   };
   if (bookings >= 5 && completed / bookings < 0.6) return {
-    label: 'Review delivery pipeline',
+    label: 'Check unfinished jobs',
     reason: `${completed} of ${bookings} bookings are currently completed; inspect open jobs, cancellation reasons, and timing before promoting.`,
   };
   if (periodDays >= 30 && prior >= 3 && recent === 0) return {
-    label: 'Investigate demand drop',
-    reason: `${prior} bookings in the first half and none in the second; check visibility, pricing, and seasonality.`,
+    label: 'Check why bookings stopped',
+    reason: `${prior} bookings in the first half and none in the second; check whether customers can find the service, its price, and the time of year.`,
   };
   if (bookings >= 5 && share >= 20 && completed / bookings >= 0.6) return {
-    label: 'Protect capacity',
-    reason: `${bookings} bookings represent ${share.toFixed(0)}% of service demand; keep qualified staff and appointment slots available.`,
+    label: 'Keep enough technicians and open times',
+    reason: `${bookings} bookings represent ${share.toFixed(0)}% of service demand; keep enough trained technicians and open times.`,
   };
   if (periodDays >= 30 && bookings <= 2) return {
     label: 'Test demand before expanding',
-    reason: `Only ${bookings} booking${bookings === 1 ? '' : 's'} in this period; test placement or an offer before assigning more capacity.`,
+    reason: `Only ${bookings} booking${bookings === 1 ? '' : 's'} in this period; test placement or an offer before assigning more technicians.`,
   };
-  return { label: 'Monitor service', reason: `${bookings} bookings, ${completed} completed; keep tracking demand and completion.` };
+  return { label: 'Keep checking this service', reason: `${bookings} bookings, ${completed} completed; keep tracking demand and completion.` };
 }
 
 module.exports = { leastSoldProducts, leastBookedServices, servicePortfolioDecision };

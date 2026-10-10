@@ -202,14 +202,22 @@ async function authoritativeDeliveryQuote({ origin, destination, farePerKm, http
 
   let distanceKm;
   let durationMin;
-  let geometry = null;
+  let geometry = { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] };
   let source = "estimated";
   try {
     const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
-    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
+    const base = String(process.env.OSRM_BASE_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
+    const url = `${base}/route/v1/driving/${coords}?overview=full&geometries=geojson&alternatives=false&steps=false`;
     const response = await httpClient.get(url, { timeout: 5000 });
     const route = response?.data?.routes?.[0];
-    if (!route || !Number.isFinite(Number(route.distance)) || !Number.isFinite(Number(route.duration))) {
+    if (!route || (response.data.code && response.data.code !== "Ok") ||
+        !Number.isFinite(Number(route.distance)) || Number(route.distance) < 0 ||
+        !Number.isFinite(Number(route.duration)) || Number(route.duration) < 0 ||
+        route.geometry?.type !== "LineString" || !Array.isArray(route.geometry.coordinates) ||
+        route.geometry.coordinates.length < 2 ||
+        !route.geometry.coordinates.every(point => Array.isArray(point) && point.length >= 2 &&
+          Number.isFinite(point[0]) && point[0] >= -180 && point[0] <= 180 &&
+          Number.isFinite(point[1]) && point[1] >= -90 && point[1] <= 90)) {
       throw new Error("Routing provider returned no usable route");
     }
     distanceKm = Number(route.distance) / 1000;
@@ -229,6 +237,8 @@ async function authoritativeDeliveryQuote({ origin, destination, farePerKm, http
     farePerKm: rate,
     source,
     geometry,
+    origin: from,
+    destination: to,
   };
 }
 

@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { comparePassword, fakeHash, hashPassword } = require("../utils/passwordHashing");
 const User = require("../models/User");
 const { isAccountEnabled } = require("../middleware/accountState");
+const { isSessionCurrent } = require("../utils/sessionPasswordPolicy");
 const rateLimiter = require("../middleware/loginRateLimiter");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
@@ -1305,8 +1306,8 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
-// Complete a staff-provisioned walk-in customer invitation. The invitation
-// token proves email control; the customer chooses the only usable password.
+// Complete an account invitation. The recipient proves email control and
+// chooses the only usable password, including newly invited technicians.
 exports.activateInvitedAccount = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -1329,19 +1330,27 @@ exports.activateInvitedAccount = async (req, res, next) => {
       invitationTokenHash: hashInvitationToken(token),
       accountStatus: "invited",
       emailVerified: false,
+      role: { $in: ["customer", "technician", "secretary"] },
     }).select("+invitationTokenHash +invitationExpiresAt");
-    if (!user || !user.invitationExpiresAt || user.invitationExpiresAt.getTime() <= Date.now()) {
+    if (!user || user.active === false || user.blocked === true || user.archivedAt || !user.invitationExpiresAt || user.invitationExpiresAt.getTime() <= Date.now()) {
       return res.status(400).json({ error: "This activation link is invalid or has expired. Ask CALIDRO RACS to resend it." });
     }
 
+    // Consume exactly this token. Concurrent activation, resend, or archive
+    // must not overwrite the winning password or revive an archived account.
+    user.$where = {
+      invitationTokenHash: hashInvitationToken(token), accountStatus: "invited",
+      invitationExpiresAt: { $gt: new Date() }, active: { $ne: false },
+      blocked: { $ne: true }, archivedAt: null,
+    };
     await user.setPassword(password);
     user.emailVerified = true;
     user.emailVerifiedAt = new Date();
     user.accountStatus = "active";
     user.invitationActivatedAt = new Date();
-    const activationDestination = user.accountOrigin === "walk_in_service"
-      ? "/book-history"
-      : "/my-orders";
+    const activationDestination = user.role === "technician" ? "/technician"
+      : user.role === "secretary" ? "/secretary"
+        : user.accountOrigin === "walk_in_service" ? "/book-history" : "/my-orders";
     user.clearAccountInvitation();
     user.currentSessionId = undefined;
     await user.save();
@@ -1349,12 +1358,12 @@ exports.activateInvitedAccount = async (req, res, next) => {
     await audit.logEvent({
       actor: user._id,
       target: user._id,
-      action: "CUSTOMER_INVITATION_ACTIVATED",
+      action: user.role === "customer" ? "CUSTOMER_INVITATION_ACTIVATED" : "STAFF_INVITATION_ACTIVATED",
       module: "auth",
       req,
       entityId: user._id,
       entityType: "User",
-      actorRole: "customer",
+      actorRole: user.role,
       actorName: user.email,
       outcome: "success",
       details: { origin: user.accountOrigin, emailVerified: true, sessionsRevoked: true },
@@ -1366,6 +1375,9 @@ exports.activateInvitedAccount = async (req, res, next) => {
       redirect: `/login?activated=1&returnTo=${encodeURIComponent(activationDestination)}`,
     });
   } catch (error) {
+    if (error.name === "DocumentNotFoundError") {
+      return res.status(400).json({ error: "This activation link was already used or replaced. Ask CALIDRO RACS to resend it." });
+    }
     next(error);
   }
 };
@@ -1638,7 +1650,7 @@ exports.verify = async (req, res) => {
 
     if (req.session?.userId) {
       const sessionUser = await User.findById(req.session.userId).select("-passwordHash");
-      if (isAccountEnabled(sessionUser)) {
+      if (isAccountEnabled(sessionUser) && isSessionCurrent(req.session, sessionUser)) {
         req.user = sessionUser;
         return res.json({ user: sessionUser });
       }

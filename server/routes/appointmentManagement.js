@@ -20,6 +20,7 @@ const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
+const { normalizeLifecycleReason } = require('../utils/dataLifecycle');
 const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime, strictManilaDateKey } = require('../utils/bookingDateTime');
 const { assertCompanyCapacity } = require('../utils/bookingPolicy');
 const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
@@ -1060,15 +1061,20 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
       return res.status(400).json({ error: `Cannot cancel booking in "${booking.status}" status` });
     }
 
+    const cancellationReason = normalizeLifecycleReason(reason, 'Cancellation', { fallback: 'Cancelled by admin' });
     booking.status = BookingStatus.CANCELLED;
-    booking.cancellationReason = reason || 'Cancelled by admin';
+    booking.cancellationReason = cancellationReason;
     await booking.save();
 
     console.log(`ðŸš« Booking ${booking.bookingReference} cancelled`);
     res.json({ success: true, booking });
   } catch (error) {
-    console.error('âŒ Error cancelling booking:', error);
-    res.status(500).json({ error: 'Failed to cancel booking' });
+    const status = Number(error.status || error.statusCode) || 500;
+    if (status >= 500) console.error('Error cancelling booking:', error);
+    res.status(status).json({
+      error: status < 500 ? error.message : 'Failed to cancel booking',
+      ...(status < 500 && error.code ? { code: error.code } : {}),
+    });
   }
 });
 
@@ -1761,7 +1767,7 @@ router.get('/:id/photos', requireRole(['admin', 'secretary']), async (req, res) 
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'Invalid booking reference.' });
     const booking = await BookingService.findById(req.params.id)
-      .select(['assignmentId', ...BOOKING_PHOTO_FIELDS].join(' ')).maxTimeMS(8000).lean();
+      .select(['assignmentId', '+paymentProofFileId', ...BOOKING_PHOTO_FIELDS].join(' ')).maxTimeMS(8000).lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     const [assignment, payments] = await Promise.all([
       currentAssignment(Assignment, booking, ASSIGNMENT_PHOTO_FIELDS.join(' '), false),

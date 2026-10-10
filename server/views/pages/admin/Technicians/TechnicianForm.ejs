@@ -1,4 +1,9 @@
-<% const isEdit = !!technician; %>
+<% const isEdit = !!technician;
+   const account = isEdit && technician.user && typeof technician.user === 'object' ? technician.user : null;
+   const linked = !!(isEdit && technician.user);
+   const loginState = account ? (account.emailVerified === false ? 'invited' : 'ready') : 'missing';
+   const emailLocked = linked && loginState !== 'invited';
+%>
 <div class="container-fluid py-4 px-4 inventory-premium" style="max-width:960px;">
   <!-- Header -->
   <div class="d-flex align-items-center justify-content-between mb-4">
@@ -14,23 +19,38 @@
   <!-- Form Card -->
   <div class="card border-0 shadow-sm" style="border-radius:16px;">
     <div class="card-body p-4">
-      <form id="techForm" novalidate>
+      <div class="border rounded-3 p-3 mb-4 bg-light" id="techAccountPanel">
+        <h6 class="fw-bold mb-2"><i class="bi bi-shield-check me-1"></i> Sign-in account</h6>
+        <p class="small text-muted mb-0" id="techAccountHelp"><%= !isEdit
+          ? 'We will email a setup link to the technician. They confirm their email and choose their own password before signing in.'
+          : loginState === 'ready' ? 'This technician has a sign-in account. If they forgot their password, use Forgot password on the sign-in page.'
+          : loginState === 'invited' ? 'Waiting for email confirmation. The technician must open the setup email and choose a password before signing in.'
+          : 'This technician has no sign-in account yet. Save a valid email and phone number, then send the setup email.' %></p>
+        <% if (isEdit && loginState !== 'ready') { %>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-3" id="techSendInvite">Send setup email</button>
+        <% } %>
+      </div>
+      <div id="techFormMessage" class="alert d-none" role="status" aria-live="polite"></div>
+      <form id="techForm" novalidate data-edit="<%= isEdit %>" data-tech-id="<%= isEdit ? technician._id : '' %>" data-email-locked="<%= emailLocked %>">
         <!-- Basic Information -->
         <div class="mb-4">
           <h6 class="fw-bold text-muted small text-uppercase mb-3" style="letter-spacing:0.05em;"><i class="bi bi-person me-1"></i> Basic Information</h6>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label small fw-semibold">Full Name *</label>
-              <input type="text" class="form-control" id="techName" name="name" required placeholder="e.g. Juan Dela Cruz" value="<%= isEdit ? (technician.name || '') : '' %>">
-              <div class="invalid-feedback">Name is required.</div>
+              <label class="form-label small fw-semibold" for="techName">Full Name *</label>
+              <input type="text" class="form-control" id="techName" name="name" required maxlength="200" placeholder="e.g. Juan Dela Cruz" value="<%= isEdit ? (technician.name || '') : '' %>">
+              <div class="invalid-feedback">Enter the first and last name.</div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small fw-semibold">Email</label>
-              <input type="email" class="form-control" id="techEmail" name="userEmail" placeholder="technician@example.com" value="<%= isEdit ? (technician.userEmail || '') : '' %>">
+              <label class="form-label small fw-semibold" for="techEmail">Email *</label>
+              <input type="email" class="form-control" id="techEmail" name="userEmail" required maxlength="254" autocomplete="email" aria-describedby="techEmailHelp" <%= emailLocked ? 'readonly' : '' %> placeholder="technician@gmail.com" value="<%= isEdit ? (account?.email || technician.userEmail || '') : '' %>">
+              <div class="invalid-feedback">Enter a valid email address.</div>
+              <div class="form-text" id="techEmailHelp"><%= emailLocked ? 'This is the confirmed sign-in email.' : linked ? 'Correcting this email sends a new setup link and cancels the old one.' : 'Use an email the technician can open. We confirm it through the setup link.' %></div>
             </div>
             <div class="col-md-6">
-              <label class="form-label small fw-semibold">Phone</label>
-              <input type="text" class="form-control" id="techPhone" name="phone" placeholder="09XXXXXXXXX" value="<%= isEdit ? (technician.phone || '') : '' %>">
+              <label class="form-label small fw-semibold" for="techPhone">Phone *</label>
+              <input type="tel" class="form-control" id="techPhone" name="phone" required maxlength="25" autocomplete="tel" placeholder="09XXXXXXXXX" value="<%= isEdit ? (technician.phone || '') : '' %>">
+              <div class="invalid-feedback">Enter a phone number with 10 to 15 digits.</div>
             </div>
           </div>
         </div>
@@ -40,8 +60,8 @@
           <h6 class="fw-bold text-muted small text-uppercase mb-3" style="letter-spacing:0.05em;"><i class="bi bi-geo-alt me-1"></i> Location</h6>
           <div class="row g-3">
             <div class="col-12">
-              <label class="form-label small fw-semibold">Address / Location</label>
-              <input type="text" class="form-control" id="techLocation" name="locationText" placeholder="e.g. Quezon City, Metro Manila" value="<%= isEdit ? (technician.locationText || '') : '' %>">
+              <label class="form-label small fw-semibold" for="techLocation">Address / Location</label>
+              <input type="text" class="form-control" id="techLocation" name="locationText" maxlength="500" placeholder="e.g. Quezon City, Metro Manila" value="<%= isEdit ? (technician.locationText || '') : '' %>">
             </div>
           </div>
         </div>
@@ -54,58 +74,19 @@
           </button>
         </div>
       </form>
+      <div id="techCreatedActions" class="d-none mt-3 d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-primary" id="techRetryInvite">Send setup email again</button>
+        <a href="/admin/technicians" class="btn btn-primary">Back to technicians</a>
+      </div>
     </div>
   </div>
 </div>
 
 <style>
+  #techFormMessage { overflow-wrap: anywhere; }
   .form-control, .form-select { border-radius:10px; border:1.5px solid #e2e8f0; padding:10px 14px; font-size:0.88rem; transition: all 0.2s; }
   .form-control:focus, .form-select:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.1); }
   .form-label { font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; color:#64748b; margin-bottom:6px; }
 </style>
 
-<script>
-(function() {
-  const isEdit = <%= isEdit ? 'true' : 'false' %>;
-  const techId = '<%= isEdit && technician ? technician._id : "" %>';
-  const form = document.getElementById('techForm');
-  const btnSubmit = document.getElementById('btnSubmit');
-
-  form.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    form.classList.add('was-validated');
-
-    const name = document.getElementById('techName').value.trim();
-    if (!name) { document.getElementById('techName').focus(); return; }
-
-    const payload = {
-      name: name,
-      userEmail: document.getElementById('techEmail').value.trim() || undefined,
-      phone: document.getElementById('techPhone').value.trim() || undefined,
-      locationText: document.getElementById('techLocation').value.trim() || undefined,
-    };
-
-    btnSubmit.disabled = true;
-    btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
-
-    try {
-      const url = isEdit ? '/api/admin/technicians/' + techId : '/api/admin/technicians';
-      const method = isEdit ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to save technician');
-
-      window.location.href = '/admin/technicians';
-    } catch(err) {
-      alert(err.message || 'Something went wrong');
-      btnSubmit.disabled = false;
-      btnSubmit.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (isEdit ? 'Save Changes' : 'Add Technician');
-    }
-  });
-})();
-</script>
+<script src="/js/admin-technician-account.js?v=20261010-account-setup"></script>

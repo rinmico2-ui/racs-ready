@@ -1,0 +1,26 @@
+<link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
+<link rel="stylesheet" href="/css/order-resolution-schedule.css?v=20261010">
+<main class="order-schedule-page" id="orderResolutionSchedule" data-order-id="<%= order._id %>" data-fulfillment="<%= order.fulfillmentType %>">
+  <a class="order-schedule-back" href="/my-orders">&larr; My orders</a>
+  <header><span class="order-schedule-reference"><%= order.orderReference || 'Aircon order' %></span><h1>Choose a new <%= order.fulfillmentType === 'customer_pickup' ? 'pickup date' : 'order schedule' %></h1><p>Our team has invited you to choose a replacement schedule. Check the date before saving.</p></header>
+  <% if (scheduleError) { %>
+    <div class="order-schedule-message is-error" role="alert"><%= scheduleError %></div>
+  <% } else { %>
+    <section class="order-schedule-panel">
+      <div id="orderScheduleMessage" class="order-schedule-message" role="status" aria-live="polite" hidden></div>
+      <p id="orderScheduleLoading" role="status">Loading available schedules…</p>
+      <button id="orderScheduleRetry" type="button" class="order-schedule-secondary" hidden>Retry</button>
+      <form id="orderScheduleForm" hidden>
+        <p id="orderScheduleGuide"></p>
+        <div id="orderSchedulePicker">
+          <div id="calendarGrid"></div><div id="timeSelection" class="mt-3 d-none"><div id="timeSlots"></div></div><div id="projectPrefs" class="mt-3 d-none"></div>
+        </div>
+        <div id="orderPickupField" hidden><label for="orderPickupDate">New pickup date</label><input id="orderPickupDate" type="date"><p>Choose a date when the store is open.</p></div>
+        <label for="orderScheduleReason">Note (optional)</label><textarea id="orderScheduleReason" rows="2" maxlength="500" placeholder="Anything our team needs to know"></textarea>
+        <div class="order-schedule-actions"><a href="/my-orders" class="order-schedule-secondary">Back to orders</a><button id="orderScheduleSave" type="submit">Save new schedule</button></div>
+      </form>
+    </section>
+    <script src="/js/enterprise-calendar.js?v=20261010-order-invitation" defer></script>
+    <script src="/js/order-resolution-schedule.js?v=20261010" defer></script>
+  <% } %>
+</main>

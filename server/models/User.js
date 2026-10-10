@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
   // Customer profile fields
   firstName: { type: String, trim: true, required: true },
   lastName: { type: String, trim: true, required: true },
+  profileNameChangedAt: { type: Date, default: null },
   phone: {
     type: String,
     trim: true,

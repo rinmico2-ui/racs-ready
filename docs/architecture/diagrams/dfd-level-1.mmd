@@ -1,0 +1,97 @@
+flowchart TB
+  actor0["Customer / staff"]
+  p1(["1.0 Identity and access"])
+  D1[("D1. Identity and access")]
+  actor1["Customer / administrator"]
+  p2(["2.0 Catalog and pricing"])
+  D2[("D2. Service and product catalog")]
+  actor2["Customer / dispatch / technician"]
+  p3(["3.0 Booking and dispatch"])
+  D3[("D3. Bookings and dispatch")]
+  actor3["Administrator / secretary / technician"]
+  p4(["4.0 Inventory and field resources"])
+  D4[("D4. Stock and field equipment")]
+  actor4["Administrator / secretary / technician"]
+  p5(["5.0 Project delivery"])
+  D5[("D5. Projects and work orders")]
+  actor5["Customer / administrator / secretary"]
+  p6(["6.0 Sales and fulfillment"])
+  D6[("D6. Sales and carts")]
+  actor6["Customer / staff"]
+  p7(["7.0 Finance and payroll"])
+  D7[("D7. Finance and compensation")]
+  actor7["Customer / staff"]
+  p8(["8.0 Aftercare and feedback"])
+  D8[("D8. Aftercare and feedback")]
+  actor8["Technician / secretary / administrator"]
+  p9(["9.0 Attendance and leave"])
+  D9[("D9. Attendance and leave")]
+  actor9["Customer / staff"]
+  p10(["10.0 Reports, settings and assistance"])
+  D10[("D10. Configuration and communication")]
+  identity1["Google OAuth / reCAPTCHA"]
+  cloud1["Cloudinary"]
+  geo1["Maps / addresses / calendars<br/>PSGC, Geoapify, Nominatim, OSRM<br/>Esri, Google, Nager.Date"]
+  gateway1["PayMongo retained gateway"]
+  ai1["Gemini / Groq / OpenRouter<br/>Tavily search"]
+  mail1["Brevo API / SMTP"]
+  d11[("D11 GridFS proofs<br/>paymentProofs / completionProofs")]
+  d12[("D12 Runtime / local storage<br/>Chat history, caches, temp uploads<br/>Legacy files, logs")]
+  actor0 -->|"Credentials, OTP, OAuth response"| p1
+  p1 -->|"Access result, profile, session"| actor0
+  D1 -->|"Stored records"| p1
+  p1 -->|"New / changed records"| D1
+  actor1 -->|"Catalog query, catalog changes"| p2
+  p2 -->|"Service / product details, prices"| actor1
+  D2 -->|"Stored records"| p2
+  p2 -->|"New / changed records"| D2
+  actor2 -->|"Booking, quote choice, job response"| p3
+  p3 -->|"Availability, quote, assignment, status"| actor2
+  D3 -->|"Stored records"| p3
+  p3 -->|"New / changed records"| D3
+  actor3 -->|"Stock entry, kit, usage, return"| p4
+  p4 -->|"Stock, reservations, equipment ledger"| actor3
+  D4 -->|"Stored records"| p4
+  p4 -->|"New / changed records"| D4
+  actor4 -->|"Project plan, materials, work report"| p5
+  p5 -->|"Work orders, resource plan, progress"| actor4
+  D5 -->|"Stored records"| p5
+  p5 -->|"New / changed records"| D5
+  actor5 -->|"Cart, checkout, POS, delivery update"| p6
+  p6 -->|"Order, receipt, fulfillment status"| actor5
+  D6 -->|"Stored records"| p6
+  p6 -->|"New / changed records"| D6
+  actor6 -->|"Proof, payment review, remittance"| p7
+  p7 -->|"Payment result, refund, payroll result"| actor6
+  D7 -->|"Stored records"| p7
+  p7 -->|"New / changed records"| D7
+  actor7 -->|"Asset, maintenance, warranty, return, rating"| p8
+  p8 -->|"Coverage, follow-up, claim / return result"| actor7
+  D8 -->|"Stored records"| p8
+  p8 -->|"New / changed records"| D8
+  actor8 -->|"Attendance, leave, approval"| p9
+  p9 -->|"Attendance / leave result"| actor8
+  D9 -->|"Stored records"| p9
+  p9 -->|"New / changed records"| D9
+  actor9 -->|"Report query, settings, chat question"| p10
+  p10 -->|"Report, settings result, AI answer, alerts"| actor9
+  D10 -->|"Stored records"| p10
+  p10 -->|"New / changed records"| D10
+  p1 -->|"OAuth / challenge request"| identity1
+  identity1 -->|"Identity / verification result"| p1
+  p2 -->|"Product image / deletion"| cloud1
+  cloud1 -->|"Image URL / upload result"| p2
+  p3 -->|"Address / route / event query"| geo1
+  geo1 -->|"Location / route / calendar data"| p3
+  p7 -->|"Optional source charge"| gateway1
+  gateway1 -->|"Signed payment event"| p7
+  p10 -->|"Question / search terms"| ai1
+  ai1 -->|"Answer / search result"| p10
+  p10 -->|"Transactional email"| mail1
+  mail1 -->|"Delivery result"| p10
+  p3 -->|"Completion images"| d11
+  d11 -->|"Authorized completion evidence"| p3
+  p7 -->|"Payment proof images"| d11
+  d11 -->|"Authorized payment evidence"| p7
+  p10 -->|"Chat / cache state and logs"| d12
+  d12 -->|"Cached data / chat context"| p10

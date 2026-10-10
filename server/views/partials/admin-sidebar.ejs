@@ -93,7 +93,7 @@
         <div class="collapse<%= inventoryGroupOpen ? ' show' : '' %>" id="inventory-collapse" data-default-open="<%= inventoryGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
             <li><a href="/admin/inventory/pos" class="nav-link nav-link-featured"><i class="bi bi-shop nav-icon"></i><span class="nav-label">Point of Sale</span></a></li>
-            <li><a href="/admin/inventory" class="nav-link"><i class="bi bi-list-check nav-icon"></i><span class="nav-label">Inventory List</span></a></li>
+            <li><a href="/admin/inventory" class="nav-link"><i class="bi bi-list-check nav-icon"></i><span class="nav-label">Aircons</span></a></li>
             <li><a href="/admin/inventory/repair-parts" class="nav-link"><i class="bi bi-boxes nav-icon"></i><span class="nav-label">Repair Parts</span></a></li>
             <li><a href="/admin/inventory/technician-tools" class="nav-link"><i class="bi bi-briefcase nav-icon"></i><span class="nav-label">Technician Tools</span></a></li>
             <li><a href="/admin/inventory/equipment-returns" class="nav-link"><i class="bi bi-arrow-return-left nav-icon"></i><span class="nav-label">Equipment Returns</span></a></li>
@@ -136,16 +136,16 @@
 
       <li class="nav-item nav-group<%= analyticsGroupOpen ? ' expanded' : '' %>">
         <button class="btn btn-toggle nav-link<%= analyticsGroupOpen ? ' active' : ' collapsed' %>" type="button" data-bs-toggle="collapse" data-bs-target="#analytics-collapse" aria-controls="analytics-collapse" aria-expanded="<%= analyticsGroupOpen ? 'true' : 'false' %>">
-          <i class="bi bi-bar-chart-line nav-icon"></i><span class="nav-label">Analytics</span><i class="bi bi-chevron-down nav-chevron"></i>
+          <i class="bi bi-bar-chart-line nav-icon"></i><span class="nav-label">Reports and Ratings</span><i class="bi bi-chevron-down nav-chevron"></i>
         </button>
         <div class="collapse<%= analyticsGroupOpen ? ' show' : '' %>" id="analytics-collapse" data-default-open="<%= analyticsGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
             <li><a href="/admin/reports" class="nav-link"><i class="bi bi-grid-1x2 nav-icon"></i><span class="nav-label">Report Center</span></a></li>
-            <li><a href="/admin/reports/revenue" class="nav-link"><i class="bi bi-graph-up-arrow nav-icon"></i><span class="nav-label">Revenue</span></a></li>
+            <li><a href="/admin/reports/revenue" class="nav-link"><i class="bi bi-graph-up-arrow nav-icon"></i><span class="nav-label">Sales and Payments</span></a></li>
             <li><a href="/admin/reports/service" class="nav-link"><i class="bi bi-wrench-adjustable nav-icon"></i><span class="nav-label">Service Reports</span></a></li>
             <li><a href="/admin/reports/orders" class="nav-link"><i class="bi bi-bag-check nav-icon"></i><span class="nav-label">Order Reports</span></a></li>
-            <li><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Inventory Reports</span></a></li>
-            <li><a href="/admin/reports/customers" class="nav-link"><i class="bi bi-people nav-icon"></i><span class="nav-label">Customer Performance</span></a></li>
+            <li><a href="/admin/reports/inventory" class="nav-link"><i class="bi bi-clipboard-data nav-icon"></i><span class="nav-label">Stock Reports</span></a></li>
+            <li><a href="/admin/reports/customers" class="nav-link"><i class="bi bi-people nav-icon"></i><span class="nav-label">Customer Activity</span></a></li>
             <li><a href="/admin/ratings/service" class="nav-link"><i class="bi bi-star-half nav-icon"></i><span class="nav-label">Customer Ratings</span></a></li>
             <li><a href="/admin/ratings/technicians" class="nav-link"><i class="bi bi-award nav-icon"></i><span class="nav-label">Technician Ratings</span></a></li>
           </ul>

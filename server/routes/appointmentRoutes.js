@@ -37,6 +37,7 @@ const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity")
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
 const { parseOperationsCalendarRange } = require("../utils/operationsCalendarRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
+const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const {
   attachMissingCustomerProjectStatuses,
@@ -2805,7 +2806,7 @@ router.post(
       const cancellation = cancelBookingRecord(appt, {
         actorId: req.user._id,
         actorName: req.user.name || req.user.email || req.user.role,
-        reason: reason || (isCustomer ? "Cancelled by customer request" : "Cancelled by administrator"),
+        reason,
       });
       await appt.save();
 
@@ -2865,8 +2866,12 @@ router.post(
       });
       return res.json({ message: "Appointment cancelled", appointment: appt });
     } catch (err) {
-      console.error("cancel error", err);
-      return res.status(500).json({ error: "Failed to cancel appointment" });
+      const status = Number(err.status || err.statusCode) || 500;
+      if (status >= 500) console.error("cancel error", err);
+      return res.status(status).json({
+        error: status < 500 ? err.message : "Failed to cancel appointment",
+        ...(status < 500 && err.code ? { code: err.code } : {}),
+      });
     }
   },
 );
@@ -5571,12 +5576,10 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
     if (!['accept', 'request_new', 'cancel'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action. Must be accept, request_new, or cancel.' });
     }
-    const normalizedReason = String(reason || '').trim();
+    const normalizedReason = action === 'cancel'
+      ? normalizeLifecycleReason(reason, 'Cancellation') : String(reason || '').trim();
     if (normalizedReason.length > 500) {
       return res.status(400).json({ error: 'Reason must be 500 characters or fewer.' });
-    }
-    if (action === 'cancel' && !normalizedReason) {
-      return res.status(400).json({ error: 'A cancellation reason is required.' });
     }
 
     const booking = await BookingService.findById(req.params.id);
@@ -5872,7 +5875,7 @@ router.post('/:id/reschedule-action', auth.authenticate, async (req, res) => {
       return res.json({ success: true, message: 'Booking cancelled and downpayment refunded if applicable.', booking });
     }
   } catch (error) {
-    console.error('Reschedule action error:', error);
+    if (!error.status || error.status >= 500) console.error('Reschedule action error:', error);
     res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to process reschedule action' });
   }
 });

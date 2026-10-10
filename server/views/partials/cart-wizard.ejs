@@ -939,7 +939,7 @@
                   Address</label>
                 <div class="input-group input-group-sm">
                   <input type="text" class="form-control rounded-start-3 py-2" id="wizardAddress"
-                    placeholder="Enter full street address..." autocomplete="street-address" maxlength="500">
+                    placeholder="Start typing your street, barangay, or city…" autocomplete="off" maxlength="500">
                   <button class="btn btn-outline-primary border-start-0 rounded-end-3 px-3" type="button"
                     id="searchAddressBtn" aria-label="Search delivery address">
                     <i class="bi bi-search"></i>
@@ -1003,6 +1003,7 @@
                 </div>
 
                 <!-- ── Route Details Panel ───────────────────── -->
+                <p id="orderRouteStatus" class="small text-muted mt-2 mb-0" role="status" aria-live="polite">Choose a location to see the delivery route.</p>
                 <div class="route-info-panel" id="routeInfoPanel">
                   <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="fw-bold" style="font-size:0.8rem;color:#1e293b;"><i class="bi bi-signpost-2 me-1" style="color:#6366f1;"></i> Delivery fee details</span>
@@ -1272,6 +1273,7 @@
 <script src="/js/checkout-calendar.js?v=20260929-single-payment-action"></script>
 <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
 <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
+<script src="/js/order-route-map.js?v=20261009-visible-route"></script>
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
 
@@ -1345,7 +1347,6 @@
     let leafletMarker = null;
     let fpDateDelivery = null;
     let fpDatePickup = null;
-    let addressSearchTimeout = null;
     let checkoutCalendar = null;
     let _routeDistanceKm = 0;
     let _routeDurationMin = 0;
@@ -2451,6 +2452,12 @@
 
     function calcTransportFare(custLat, custLng) {
       var routeRequestId = ++_routeRequestId;
+      window.OrderRouteMap.clear(leafletMap, window._routeLayer);
+      window._routeLayer = null;
+      _routeDistanceKm = NaN; _routeDurationMin = 0; _transportFee = 0;
+      document.getElementById('routeInfoPanel')?.classList.remove('has-route');
+      var status = document.getElementById('orderRouteStatus');
+      if (status) status.textContent = 'Checking the road route from CALIDRO RACS to your location…';
       var spinner = document.getElementById('mapLocatingSpinner');
       var spinnerLabel = document.getElementById('mapSpinnerLabel');
       if (spinnerLabel) spinnerLabel.textContent = 'Calculating route...';
@@ -2469,13 +2476,16 @@
         _routeDurationMin = Number(quote.durationMin);
         _transportFee = Number(quote.transportationFee);
         window._farePerKm = Number(quote.farePerKm) || window._farePerKm;
-        if (leafletMap && quote.geometry) {
-          if (window._routeLayer) leafletMap.removeLayer(window._routeLayer);
-          window._routeLayer = L.geoJSON(quote.geometry, {
-            style: { color: '#6366f1', weight: 5, opacity: 0.85 }
-          }).addTo(leafletMap);
-          leafletMap.fitBounds(window._routeLayer.getBounds(), { padding: [40, 40] });
-        }
+        if (!Number.isFinite(_routeDistanceKm) || !Number.isFinite(_routeDurationMin) || !Number.isFinite(_transportFee)) throw new Error('The delivery quote is incomplete. Select your location again.');
+        const origin = window.OrderRouteMap.point(quote.origin);
+        if (origin && window._companyMarker) window._companyMarker.setLatLng([origin.lat, origin.lng]);
+        window._routeLayer = window.OrderRouteMap.draw({
+          map:leafletMap, leaflet:typeof L === 'undefined' ? null : L, quote,
+          origin:window._companyBaseLocation, destination:{ lat:custLat, lng:custLng }
+        });
+        if (status) status.textContent = quote.source === 'road'
+          ? 'Road route shown from CALIDRO RACS to your location.'
+          : 'Road routing is unavailable. The dashed line shows an estimated connection; the delivery fee is estimated.';
         updateRoutePanel(
           _routeDistanceKm,
           _routeDurationMin,
@@ -2490,6 +2500,7 @@
         _routeDurationMin = 0;
         _transportFee = 0;
         _routeQuoteError = error.message || 'Unable to calculate the delivery route.';
+        if (status) status.textContent = _routeQuoteError + ' Select your location again to retry.';
       }).finally(function() {
         if (routeRequestId === _routeRequestId && spinner) spinner.classList.remove('show');
       });
@@ -2640,7 +2651,7 @@
     function reverseGeocodeDeliveryPoint(lat, lng, source) {
       var requestId = ++_reverseGeocodeRequestId;
       var addressInput = document.getElementById('wizardAddress');
-      return fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&zoom=18&lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lng))
+      return fetch('/api/geocoding/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lng))
         .then(function(response) { return response.json(); })
         .then(function(data) {
           if (requestId !== _reverseGeocodeRequestId) return '';
@@ -2729,8 +2740,9 @@
       leafletMarker.setOpacity(hasSavedLocation ? 1 : 0);
       leafletMarker.bindTooltip('Delivery location', { direction:'top', offset:[0,-34] });
 
+      const activeMap = leafletMap;
       window._companyBaseLocationPromise.then(function(base) {
-        if (!base || !Number(base.lat) || !Number(base.lng) || !leafletMap) return;
+        if (!base || !Number(base.lat) || !Number(base.lng) || leafletMap !== activeMap) return;
         const companyIcon = L.divIcon({ className:'custom-map-pin tech-pin', iconSize:[40,40], iconAnchor:[20,40], popupAnchor:[0,-38], html:'<div class="pin-body bg-primary border-primary"><i class="bi bi-building text-white" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);"></i></div>' });
         window._companyMarker = L.marker([Number(base.lat),Number(base.lng)], { icon:companyIcon, zIndexOffset:-100, keyboard:true, title:'CALIDRO RACS' }).addTo(leafletMap);
         window._companyMarker.bindTooltip('CALIDRO RACS', { direction:'top', offset:[0,-34] });
@@ -2810,63 +2822,32 @@
       setTimeout(function() { if (leafletMap) leafletMap.invalidateSize(); }, 280);
     };
 
-    // Address Search
+    // Live address suggestions also power the explicit Search button.
     const addrInput = document.getElementById('wizardAddress');
     const suggestBox = document.getElementById('addressSuggestions');
     const searchBtn = document.getElementById('searchAddressBtn');
-
-    if (addrInput) {
-      addrInput.addEventListener('input', function () {
-        clearTimeout(addressSearchTimeout);
-        const q = this.value.trim();
-        const preview = document.getElementById('mapAddressPreview');
-        if (_customerLocationSelected && preview && q) preview.textContent = q;
-        if (q.length < 3) { suggestBox.style.display = 'none'; return; }
-        addressSearchTimeout = setTimeout(() => searchAddress(q), 500);
-      });
-      addrInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); searchAddress(addrInput.value); } });
-    }
-    if (searchBtn) { searchBtn.onclick = () => searchAddress(addrInput.value); }
-
-    async function searchAddress(q) {
-      if (!q) return;
-      if (searchBtn) {
-        searchBtn.disabled = true;
-        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
-      }
-      try {
-        const res = await fetch(`/api/services/geocode-suggest?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        if (data.suggestions && data.suggestions.length > 0) {
-          suggestBox.innerHTML = '';
-          data.suggestions.forEach(function(suggestion) {
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'list-group-item list-group-item-action border-0 py-2 small text-start d-flex align-items-start gap-2';
-            var icon = document.createElement('i');
-            icon.className = 'bi bi-geo-alt-fill text-primary mt-1';
-            var text = document.createElement('span');
-            text.textContent = suggestion.display_name;
-            button.appendChild(icon);
-            button.appendChild(text);
-            button.addEventListener('click', function() { selectSuggestion(suggestion.lat, suggestion.lon, suggestion.display_name); });
-            suggestBox.appendChild(button);
-          });
-          suggestBox.style.display = 'block';
-        } else {
-          suggestBox.innerHTML = '<div class="list-group-item border-0 py-3 small text-secondary"><i class="bi bi-search me-2"></i>No matching address found. Add a municipality or province.</div>';
-          suggestBox.style.display = 'block';
-        }
-      } catch (e) {
-        suggestBox.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the location on the map.</div>';
-        suggestBox.style.display = 'block';
-      } finally {
-        if (searchBtn) {
-          searchBtn.disabled = false;
-          searchBtn.innerHTML = '<i class="bi bi-search"></i>';
-        }
-      }
-    }
+    window.AddressAutocomplete.create({
+      input:addrInput, list:suggestBox, searchButton:searchBtn,
+      onInput:function(q) {
+        if (!_customerLocationSelected) return;
+        _customerLocationSelected = false;
+        ++_routeRequestId; ++_reverseGeocodeRequestId;
+        _routeDistanceKm = NaN; _routeDurationMin = 0; _transportFee = 0;
+        _routeQuoteError = 'Choose an address suggestion or confirm a new map pin.';
+        document.getElementById('wizardLat').value = '';
+        document.getElementById('wizardLng').value = '';
+        document.getElementById('mapSelectionPanel')?.classList.remove('has-location');
+        const status = document.getElementById('mapSelectionStatus'); if (status) status.textContent = 'Choose your delivery location';
+        const preview = document.getElementById('mapAddressPreview'); if (preview) preview.textContent = q || 'Search for an address or place the pin.';
+        const fit = document.getElementById('fitRouteBtn'); if (fit) fit.disabled = true;
+        document.getElementById('mapLocatingSpinner')?.classList.remove('show');
+        if (leafletMarker) leafletMarker.setOpacity(.35);
+        if (leafletMap && window._routeLayer) { leafletMap.removeLayer(window._routeLayer); window._routeLayer = null; }
+        document.getElementById('routeInfoPanel')?.classList.remove('has-route');
+        const routeStatus = document.getElementById('orderRouteStatus'); if (routeStatus) routeStatus.textContent = 'Choose an address suggestion or pin a location to see the route.';
+      },
+      onSelect:function(suggestion) { window.selectSuggestion(suggestion.lat,suggestion.lon,suggestion.display_name); }
+    });
 
     window.selectSuggestion = function (lat, lon, name) {
       addrInput.value = name;
@@ -2881,7 +2862,6 @@
       focusCheckoutControl('#checkoutCalendarContainer', 550);
     }
 
-    document.addEventListener('click', (e) => { if (suggestBox && !suggestBox.contains(e.target) && e.target !== addrInput) { suggestBox.style.display = 'none'; } });
 
     async function showCartOrderFailure(data, status, loadingStartedAt) {
       await waitForOrderLoadingMinimum(loadingStartedAt, 450);
@@ -3080,4 +3060,4 @@
     window.addEventListener('racs:logout', closeCartCheckoutAfterLogout);
   })();
 </script>
-<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20260914-motion-v2">
+<link rel="stylesheet" href="/css/racs-loading-motion.css?v=20261010-single-card">

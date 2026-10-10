@@ -139,7 +139,7 @@ test("delivery quote ignores client claims and uses the routing result", async (
     origin: { lat: 15, lng: 121 },
     destination: { lat: 15.1, lng: 121.2 },
     farePerKm: 40,
-    httpClient: { get: async () => ({ data: { routes: [{ distance: 12500, duration: 1800, geometry: { type: "LineString", coordinates: [] } }] } }) },
+    httpClient: { get: async () => ({ data: { routes: [{ distance: 12500, duration: 1800, geometry: { type: "LineString", coordinates: [[121,15],[121.2,15.1]] } }] } }) },
   });
   assert.deepEqual({ distanceKm: quote.distanceKm, durationMin: quote.durationMin, transportationFee: quote.transportationFee, source: quote.source }, {
     distanceKm: 12.5, durationMin: 30, transportationFee: 500, source: "road",

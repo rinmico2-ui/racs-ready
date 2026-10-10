@@ -1,0 +1,30 @@
+#addStaffModal .staff-form-label { display:block;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin-bottom:.25rem; }
+#addStaffModal .staff-form-control { width:100%;border-radius:8px;border:1px solid #e2e8f0;padding:.55rem .7rem;font-size:.85rem;color:#1e293b;background:#f8fafc; }
+#addStaffModal .staff-form-control:focus { outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1);background:#fff; }
+#addStaffModal .staff-form-control.is-invalid { border-color:#ef4444; }
+#addStaffModal .staff-btn-primary { border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:0;color:#fff;font-weight:600;font-size:.82rem;padding:.5rem 1.5rem; }
+#addStaffModal button:disabled { opacity:.6;cursor:wait; }
+#addStaffModal .wizard-step { display:flex;align-items:center;gap:6px; }
+#addStaffModal .wizard-step-circle { width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.7rem;font-weight:700;background:#e2e8f0;color:#94a3b8; }
+#addStaffModal .wizard-step.active .wizard-step-circle { background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.3); }
+#addStaffModal .wizard-step.completed .wizard-step-circle { background:#10b981;color:#fff; }
+#addStaffModal .wizard-step-label { font-size:.72rem;font-weight:500;color:#94a3b8; }
+#addStaffModal .wizard-step.active .wizard-step-label { color:#0f172a;font-weight:600; }
+#addStaffModal .wizard-step-line { flex:1;height:2px;background:#e2e8f0;margin:0 4px;border-radius:1px; }
+#addStaffModal .wizard-step.completed + .wizard-step-line { background:#10b981; }
+#addStaffModal .wizard-panel { display:none; }
+#addStaffModal .wizard-panel.active { display:block; }
+#addStaffModal .role-option { flex:1;display:flex;align-items:center;gap:.6rem;padding:.7rem .85rem;border-radius:10px;border:2px solid #e2e8f0;background:#f8fafc;text-align:left; }
+#addStaffModal .role-option.active { border-color:#3b82f6;background:#eff6ff;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
+#addStaffModal .role-option i { color:#2563eb; }
+#addStaffModal .wiz-error { font-size:.72rem;color:#dc2626;margin-top:.2rem;min-height:.8rem; }
+#addStaffModal .wiz-hint { font-size:.72rem;color:#64748b;margin-top:.2rem; }
+#addStaffModal .staff-setup-info { padding:12px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;color:#1e40af;font-size:.78rem;line-height:1.6; }
+#addStaffModal .staff-setup-result { margin:0 1.75rem 1rem;padding:12px 14px;border-radius:10px;background:#ecfdf5;color:#047857;font-size:.8rem;overflow-wrap:anywhere; }
+#addStaffModal .staff-setup-result.error { background:#fef2f2;color:#b91c1c; }
+#addStaffModal .staff-setup-result.warning { background:#fffbeb;color:#92400e; }
+#addStaffModal #wizardPanel3 { overflow-wrap:anywhere; }
+@media(max-width:400px) {
+  #addStaffModal .role-option { flex-direction:column;align-items:flex-start;padding:.6rem; }
+  #addStaffModal #wizResendBtn { max-width:140px;white-space:normal; }
+}

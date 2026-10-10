@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
 const HVACProduct = require("../models/HVACProduct");
+const { normalizeHvacPrices } = require("../utils/hvacPricing");
 const Brand = require("../models/Brand");
 const Category = require("../models/Category");
 const auth = require("../middleware/authenticate");
@@ -340,7 +341,7 @@ router.post("/hvac", productImageUpload, async (req, res, next) => {
       });
     }
 
-    variants = normalizeProductVariantSerialNumbers(variants);
+    variants = normalizeProductVariantSerialNumbers(variants.map(normalizeHvacPrices));
     await assertSerialNumbersAvailable(variants);
 
     if (req.file) {
@@ -492,7 +493,7 @@ router.patch("/hvac/:id", productImageUpload, async (req, res, next) => {
             : variantData.serialNumbers,
         };
       });
-      const normalizedVariants = normalizeProductVariantSerialNumbers(variantsWithExistingSerials);
+      const normalizedVariants = normalizeProductVariantSerialNumbers(variantsWithExistingSerials.map(normalizeHvacPrices));
       await assertSerialNumbersAvailable(normalizedVariants, product._id);
       product.variants = normalizedVariants.map(v => ({
         ...v,
@@ -546,7 +547,7 @@ router.post("/hvac/:id/variants", async (req, res, next) => {
       return res.status(409).json({ error: "Restore this product before adding variants.", code: "HVAC_PRODUCT_ARCHIVED" });
     }
 
-    const variantData = req.body.variant || {};
+    const variantData = normalizeHvacPrices(req.body.variant || {});
     const { capacity, btu, sellingPrice, costPrice, quantity, minStockLevel } = variantData;
 
     if (!capacity || sellingPrice === undefined || sellingPrice === null || sellingPrice === '') {
@@ -625,7 +626,7 @@ router.patch("/hvac/:id/variants/:variantId", async (req, res, next) => {
       return res.status(404).json({ error: "Variant not found" });
     }
 
-    const variantData = req.body.variant || {};
+    const variantData = normalizeHvacPrices(req.body.variant || {});
     const { capacity, btu, sellingPrice, costPrice, quantity, minStockLevel } = variantData;
 
     if (capacity !== undefined) variant.capacity = String(capacity);

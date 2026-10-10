@@ -1,4 +1,5 @@
-<div class="admin-dashboard container-fluid py-4 inventory-premium">
+<div class="admin-dashboard container-fluid py-4 inventory-premium aircon-inventory">
+  <link rel="stylesheet" href="/css/admin-aircon-inventory.css?v=20261010-kpi-accent" />
   <%- include('../../../partials/dashboard-styles') %>
   <style>
     /* ── Enterprise KPI Card Styles (matching Appointments page) ── */
@@ -90,123 +91,106 @@
     .inv-confirm-delete:hover { background: #b91c1c; }
   </style>
   
-  <!-- Standard Hero Header (match stock history) -->
-  <div class="au-hero mb-4">
+  <header class="au-hero mb-4">
     <div class="au-hero-inner">
       <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-bar-chart-line"></i></div>
-        <div>
-          <h1>Inventory Management</h1>
-          <p>Track and manage stock movement, tools, and product inventory details</p>
-        </div>
+        <div class="au-hero-icon"><i class="bi bi-snow2" aria-hidden="true"></i></div>
+        <div><span class="inv-eyebrow">Inventory / Aircons</span><h1>Aircons</h1><p>Your aircon models, prices, and stock in one place.</p></div>
+      </div>
+      <div class="inv-page-actions">
+        <a class="btn inv-report-link" href="/<%= typeof inventoryApiBase === 'string' && inventoryApiBase.includes('/secretary/') ? 'secretary' : 'admin' %>/reports/orders"><i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>Sales &amp; profit</a>
+        <button class="btn inv-add-button" type="button" id="openAddItemBtn"><i class="bi bi-plus-lg me-2" aria-hidden="true"></i>Add aircon</button>
       </div>
     </div>
-  </div>
+  </header>
 
   <!-- KPI Cards -->
-  <div class="row g-3 mb-4">
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="0">
+  <div class="row g-3 mb-4 inv-kpi-grid">
+    <div class="col-lg col-md-6 col-6">
+      <div class="dash-card h-100 inv-kpi-card" data-tone="blue">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Total Items</div>
+            <div class="kpi-title">Units in stock</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiTotalItems">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
-              <span class="badge inv-kpi-pill bg-primary-subtle text-primary">All</span>
             </div>
-            <span class="inv-kpi-sub">SKUs in catalog</span>
+            <span class="inv-kpi-sub">Available across all HP sizes</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
             <i class="bi bi-box-seam-fill"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiTotalSpark"></canvas></div>
       </div>
     </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="100">
+    <div class="col-lg col-md-6 col-6">
+      <div class="dash-card h-100 inv-kpi-card" data-tone="amber">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Low Stock Items</div>
+            <div class="kpi-title">Stock to review</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiLowStock">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
-              <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Alert</span>
             </div>
-            <span class="inv-kpi-sub">Below threshold</span>
+            <span class="inv-kpi-sub">HP sizes that need restocking</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
             <i class="bi bi-exclamation-triangle-fill"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiLowStockSpark"></canvas></div>
       </div>
     </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="200">
+    <div class="col-lg col-md-6 col-6">
+      <div class="dash-card h-100 inv-kpi-card" data-tone="teal">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Total Value</div>
+            <div class="kpi-title">Stock bought value</div>
             <div class="d-flex align-items-start gap-1">
               <span class="inv-kpi-currency">₱</span>
               <span class="inv-kpi-value mb-0" id="kpiTotalValue">0.00</span>
             </div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
-              <span class="badge inv-kpi-pill bg-success-subtle text-success">Value</span>
-            </div>
-            <span class="inv-kpi-sub">Inventory worth</span>
+            <span class="inv-kpi-sub">Bought price × units in stock</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
             <span class="inv-peso-mark" aria-label="Philippine pesos">₱</span>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiTotalValueSpark"></canvas></div>
       </div>
     </div>
-    <div class="col-lg col-md-6">
-      <div class="dash-card h-100" data-aos="fade-up" data-aos-delay="300">
+    <div class="col-lg col-md-6 col-6">
+      <div class="dash-card h-100 inv-kpi-card" data-tone="violet">
         <div class="d-flex justify-content-between align-items-start mb-2">
           <div>
-            <div class="kpi-title">Assigned to Techs</div>
+            <div class="kpi-title">Potential profit</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiAssigned">0</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>0%</span>
-              <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Assigned</span>
             </div>
-            <span class="inv-kpi-sub">Units dispatched</span>
+            <span class="inv-kpi-sub">Before delivery, labor, and other costs</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <i class="bi bi-people-fill"></i>
+            <i class="bi bi-graph-up-arrow"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="kpiAssignedSpark"></canvas></div>
       </div>
     </div>
   </div>
-  <!-- Inventory Header -->
-  <div class="mb-3" style="border-bottom:2px solid rgba(37,99,235,0.15); padding-bottom: 0.5rem;">
-    <h5 class="text-primary mb-0"><i class="bi bi-snow2 me-2"></i>Aircon Products</h5>
-  </div>
+  <div class="inv-pricing-note mb-4"><i class="bi bi-info-circle" aria-hidden="true"></i><p id="inventoryCostNote" aria-live="polite">Profit per unit = selling price − bought price. Stock totals cover the full list.</p></div>
 
   <div class="tab-content">
     <!-- ── AIRCON SECTION ───────────────────────────────────── -->
     <div class="tab-pane fade show active" id="pane-aircon" role="tabpanel">
 
   <!-- Premium Filters -->
-  <div class="rp-toolbar">
+  <div class="rp-toolbar" role="search" aria-label="Find aircons">
     <div class="rp-filter-group search">
       <label class="rp-filter-label" for="airconSearchInput"><i class="bi bi-search me-1"></i>Search Aircon</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" class="form-control" id="airconSearchInput" placeholder="Model, SKU, serial, or brand..." />
+        <input type="text" class="form-control" id="airconSearchInput" placeholder="Search model, brand, SKU, or serial…" />
       </div>
     </div>
     <div class="rp-filter-group">
       <label class="rp-filter-label" for="airconStatusFilter"><i class="bi bi-funnel me-1"></i>Status</label>
       <select class="form-select rp-filter-input" id="airconStatusFilter" style="height:42px;">
-        <option value="all">All Status</option>
+        <option value="all">All stock levels</option>
         <option value="in_stock">In Stock</option>
         <option value="low_stock">Low Stock</option>
         <option value="out_of_stock">Out of Stock</option>
@@ -222,44 +206,17 @@
         <option value="-createdAt">Newest</option>
       </select>
     </div>
-    <button class="btn btn-primary rp-filter-btn" type="button" id="airconFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Filter</button>
+    <button class="btn btn-primary rp-filter-btn" type="button" id="airconFilterBtn" title="Apply filters"><i class="bi bi-funnel-fill me-2"></i>Apply</button>
   </div>
 
   <!-- Aircon Table -->
   <div class="inv-table-card">
     <div class="inv-table-header">
-      <h6><i class="bi bi-snow2"></i> Aircon Product Stock</h6>
-      <div class="inv-table-actions">
-        <button class="inv-btn-icon" title="Export"><i class="bi bi-download"></i></button>
-        <button class="inv-btn-icon" title="Print"><i class="bi bi-printer"></i></button>
-      </div>
+      <div><span class="inv-section-eyebrow">Aircon catalog</span><h2>Models &amp; HP sizes <span id="inventoryModelCount" class="inv-model-count">0 models</span></h2><p>Compare bought prices, selling prices, and available units.</p></div>
+      <span class="inv-price-caption"><span aria-hidden="true">₱</span> All prices are per unit</span>
     </div>
-    <div class="table-responsive">
-      <table class="table inv-table">
-        <thead>
-          <tr>
-            <th class="ps-4" style="min-width: 220px;"><i class="bi bi-box-seam me-2"></i> Product Details</th>
-            <th style="min-width: 100px;"><i class="bi bi-info-circle me-2"></i> Specs</th>
-            <th style="min-width: 250px;"><i class="bi bi-cpu me-2"></i> HP Price &amp; Stock</th>
-            <th style="min-width: 140px;"><span class="me-2" aria-hidden="true">₱</span> Price Range</th>
-            <th style="min-width: 100px;"><i class="bi bi-graph-up me-2"></i> Total Stock</th>
-            <th style="min-width: 90px;"><i class="bi bi-activity me-2"></i> Status</th>
-            <th class="text-center" style="min-width: 110px;"><i class="bi bi-gear-wide-connected me-2"></i> Actions</th>
-          </tr>
-        </thead>
-        <tbody id="inventoryTableBody">
-          <tr>
-            <td colspan="9" class="inv-loading-cell" id="loadingRow">
-              <div class="inv-spinner">
-                <div class="inv-spinner-ring"></div>
-                <div class="inv-spinner-ring"></div>
-                <div class="inv-spinner-ring"></div>
-              </div>
-              <span>Loading aircon products...</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="inv-model-list" id="inventoryTableBody" role="list" aria-label="Aircon models" aria-busy="true">
+      <div class="inv-list-state" id="loadingRow" role="status"><div class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></div><span>Loading aircons…</span></div>
     </div>
     <div class="inv-table-footer">
       <div class="inv-summary" id="inventorySummary">&nbsp;</div>
@@ -394,6 +351,11 @@
                 <i class="bi bi-shield-check inv-input-icon"></i>
                 <input type="text" id="invWarranty" class="inv-input" placeholder="e.g. 5 Years Compressor, 1 Year Parts" />
               </div>
+            </div>
+            <div class="col-md-6">
+              <label class="inv-field-label" for="invSupplier">Bought from</label>
+              <input type="text" class="inv-input" id="invSupplier" maxlength="200" placeholder="e.g. Midea" />
+              <div class="inv-field-hint">The company or supplier you bought these aircons from.</div>
             </div>
             <!-- Description -->
             <div class="col-12">
@@ -1348,51 +1310,19 @@
       const quantity = Math.max(0, Number(variant.quantity) || 0);
       const low = quantity > 0 && quantity <= (Number(variant.minStockLevel) || 0);
       const inactive = variant.active === false;
-      const unitText = `${quantity} unit${quantity === 1 ? '' : 's'}`;
-      const stockText = inactive ? `${unitText} · inactive` : quantity === 0 ? 'Out of stock' : low ? `${unitText} · low stock` : `${unitText} in stock`;
+      const unitText = quantity + ' unit' + (quantity === 1 ? '' : 's');
+      const stockText = inactive ? unitText + ' · inactive' : quantity === 0 ? 'Out of stock' : low ? unitText + ' · low stock' : unitText + ' in stock';
+      const cost = Number(variant.costPrice) || 0;
+      const selling = Number(variant.sellingPrice) || 0;
+      const profit = selling - cost;
       return '<div class="inv-variant-pill ' + (inactive || quantity === 0 ? 'is-out' : low ? 'is-low' : '') + '">' +
-        '<div class="inv-variant-top"><strong>' + escapeInventoryText(variant.capacity || 'N/A') + ' HP</strong><span class="inv-variant-price">' + fmtPrice(variant.sellingPrice) + '</span></div>' +
-        '<div class="inv-variant-bottom"><span class="inv-variant-stock">' + stockText + '</span>' +
+        '<div class="inv-capacity"><strong>' + escapeInventoryText(variant.capacity || 'N/A') + ' ' + escapeInventoryText(variant.capacityUnit || 'HP') + '</strong>' +
         (variant.btu ? '<small>' + escapeInventoryText(variant.btu) + ' BTU</small>' : '') + '</div>' +
-        variantSerialSummary(variant) + '</div>';
-    }
-
-    function makeSparkData(count) {
-      const c = Math.max(0, count || 0);
-      if (c === 0) return [0,0,0,0,0,0,0];
-      return [Math.max(0, c-3), Math.max(0, c-2), Math.max(0, c-1), c-1, c, c, Math.max(0, c-1)];
-    }
-
-    const _invSparkCharts = {};
-
-    async function waitForChart(timeout = 10000) {
-      if (typeof Chart !== 'undefined') return;
-      if (!document.querySelector('script[src*="chart.js"]')) {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
-        s.async = true;
-        document.head.appendChild(s);
-      }
-      const start = Date.now();
-      while (typeof Chart === 'undefined' && Date.now() - start < timeout) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-    }
-
-    function drawSpark(id, data, color) {
-      if (typeof Chart === 'undefined') return;
-      const canvas = document.getElementById(id);
-      if (!canvas) return;
-      if (_invSparkCharts[id]) { _invSparkCharts[id].destroy(); delete _invSparkCharts[id]; }
-      const h = canvas.height || 40;
-      const g = canvas.getContext('2d').createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, color);
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      _invSparkCharts[id] = new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: { labels: data.map((_, i) => i + 1), datasets: [{ data: data, borderColor: color, backgroundColor: g, fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 600 }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
-      });
+        '<div class="inv-price-cell"><small>Bought</small><strong>' + (cost > 0 ? fmtPrice(cost) : '<span class="inv-cost-missing">Not set</span>') + '</strong></div>' +
+        '<div class="inv-price-cell"><small>Selling</small><strong>' + fmtPrice(selling) + '</strong></div>' +
+        '<div class="inv-price-cell"><small>Profit / unit</small><strong class="' + (cost <= 0 ? 'text-muted' : profit < 0 ? 'text-danger' : 'text-success') + '">' + (cost > 0 ? fmtPrice(profit) : '—') + '</strong>' +
+        (cost > 0 && selling > 0 ? '<small>' + ((profit / selling) * 100).toFixed(1) + '% of selling price</small>' : '') + '</div>' +
+        '<div class="inv-stock-cell"><span class="inv-variant-stock">' + stockText + '</span>' + variantSerialSummary(variant) + '</div></div>';
     }
 
     const TYPE_LABELS = {
@@ -1474,8 +1404,9 @@
       tbody.innerHTML = '';
 
       if (slice.length === 0 && inventoryData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted text-micro">No aircon products found.</td></tr>';
-        summary.innerText = '0 entries';
+        tbody.innerHTML = '<div class="inv-list-state" role="status"><i class="bi bi-search" aria-hidden="true"></i><strong>No aircons found</strong><span>Try another search or stock filter.</span></div>';
+        tbody.setAttribute('aria-busy', 'false');
+        summary.innerText = '0 models';
         document.getElementById('inventory-pagination').innerHTML = '';
         return;
       }
@@ -1485,96 +1416,33 @@
         const modelName = product.modelLine || 'Unknown';
         const variants = (product.variants || []).slice().sort((a, b) => Number.parseFloat(a.capacity) - Number.parseFloat(b.capacity));
         const activeVariants = variants.filter(v => v.active !== false);
-        const totalQuantity = activeVariants.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0);
-        const inStockVariants = activeVariants.filter(v => Number(v.quantity) > 0).length;
-        const stockCoverage = activeVariants.length ? Math.round((inStockVariants / activeVariants.length) * 100) : 0;
-        const pricedVariants = activeVariants.length ? activeVariants : variants;
-        const priceRange = pricedVariants.length > 0 ? {
-          min: Math.min(...pricedVariants.map(v => Number(v.sellingPrice) || 0)),
-          max: Math.max(...pricedVariants.map(v => Number(v.sellingPrice) || 0))
-        } : { min: 0, max: 0 };
-
-        const row = document.createElement('tr');
-        row.innerHTML = 
-          '<td class="ps-4">' +
-            '<div class="inv-product-shell">' +
-              '<div class="inv-product-media">' +
-                (product.imageUrl && product.imageUrl !== '/images/products/default.png' ? 
-                  '<img src="' + product.imageUrl + '" alt="' + modelName + '" class="img-fluid rounded" style="width:60px;height:60px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<i class=\\\'bi bi-snow2 fs-3 text-primary d-flex align-items-center justify-content-center\\\' style=\\\'width:60px;height:60px;background:#f8f9fa;border-radius:8px;\\\'></i>\';">' :
-                  '<div class="d-flex align-items-center justify-content-center" style="width:60px;height:60px;background:#f8f9fa;border-radius:8px;"><i class="bi bi-snow2 fs-3 text-primary"></i></div>'
-                ) +
-              '</div>' +
-              '<div class="flex-grow-1">' +
-                '<div class="fw-bold text-dark mb-1" style="font-size:0.95rem;">' + modelName + '</div>' +
-                '<div class="text-muted inv-meta-row">' +
-                  '<span class="badge bg-light text-dark border" style="font-size:0.75rem;"><i class="bi bi-building me-1"></i>' + brandName + '</span>' +
-                  '<span class="text-muted" style="font-size:0.8rem;">' + variants.length + ' HP Options</span>' +
-                '</div>' +
-                '<div class="d-flex flex-wrap gap-1">' +
-                  (product.inverter ? '<span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.7rem;"><i class="bi bi-lightning-charge-fill me-1"></i>Inverter</span>' : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:0.7rem;"><i class="bi bi-lightning me-1"></i>Standard</span>') +
-                  '<span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size:0.7rem;"><i class="bi bi-tag me-1"></i>' + (product.type || 'Split Type') + '</span>' +
-                '</div>' +
-              '</div>' +
-            '</div>' +
-          '</td>' +
-          '<td>' +
-            '<div class="text-muted small mb-1">Type: <strong>' + (product.type || 'Split Type') + '</strong></div>' +
-            '<div class="text-muted small">Technology: <strong>' + (product.inverter ? 'Inverter' : 'Non-Inverter') + '</strong></div>' +
-            ((product.specifications?.warranty || product.warranty) ? '<div class="text-muted small">Warranty: <strong>' + escapeInventoryText(product.specifications?.warranty || product.warranty) + '</strong></div>' : '') +
-          '</td>' +
-          '<td>' +
-            '<div class="inv-variant-grid">' +
-              variants.map(renderHpPriceStock).join('') +
-            '</div>' +
-          '</td>' +
-          '<td>' +
-            '<div class="fw-bold text-primary mb-1" style="font-size:0.95rem;">' +
-              (priceRange.min === priceRange.max ? fmtPrice(priceRange.min) : fmtPrice(priceRange.min) + ' – ' + fmtPrice(priceRange.max)) +
-            '</div>' +
-            '<div class="text-muted small">' + 
-              (variants.length === 1 ? 'Single Price' : variants.length + ' Price Points') +
-            '</div>' +
-          '</td>' +
-          '<td>' +
-            '<div class="inv-stock-value">' +
-              '<div class="fw-bold ' + (totalQuantity > 10 ? 'text-success' : totalQuantity > 5 ? 'text-warning' : 'text-danger') + '" style="font-size:1.1rem;">' + totalQuantity + '</div>' +
-              '<div class="text-muted small">units</div>' +
-            '</div>' +
-            '<div class="progress" style="height:6px;">' +
-              '<div class="progress-bar ' + (inStockVariants === activeVariants.length ? 'bg-success' : inStockVariants > 0 ? 'bg-warning' : 'bg-danger') + '" style="width:' + stockCoverage + '%"></div>' +
-            '</div>' +
-            '<div class="text-muted small mt-1">' + inStockVariants + '/' + activeVariants.length + ' HP options in stock</div>' +
-          '</td>' +
-          '<td>' +
-            (totalQuantity > 0 ? 
-              '<div class="d-flex align-items-center gap-2"><span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>In Stock</span></div>' : 
-              '<div class="d-flex align-items-center gap-2"><span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Out of Stock</span></div>'
-            ) +
-            (totalQuantity <= 5 && totalQuantity > 0 ? '<div class="text-warning small mt-1"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock</div>' : '') +
-          '</td>' +
-          '<td class="text-center">' +
-            '<div class="inv-actions-stack">' +
-              '<button class="btn btn-outline-primary btn-sm edit-grouped" ' +
-                      'data-model="' + modelName + '" data-brand="' + brandName + '" title="Edit product details">' +
-                '<i class="bi bi-pencil"></i>' +
-              '</button>' +
-              '<button class="btn btn-outline-info btn-sm manage-variants" ' +
-                      'data-model="' + modelName + '" data-brand="' + brandName + '" title="Manage HP variants">' +
-                '<i class="bi bi-layers"></i>' +
-              '</button>' +
-              '<button class="btn btn-outline-danger btn-sm delete-inventory" ' +
-                      'data-id="' + product._id + '" title="Archive product">' +
-                '<i class="bi bi-archive"></i>' +
-              '</button>' +
-            '</div>' +
-          '</td>';
+        const totalQuantity = activeVariants.reduce((sum,v) => sum + (Number(v.quantity) || 0),0);
+        const row = document.createElement('article');
+        row.className = 'inv-model-card';
+        row.setAttribute('role', 'listitem');
+        row.innerHTML = '<div class="inv-model-cell"><div class="inv-product-shell">' +
+          '<div class="inv-product-media"><svg class="inv-product-symbol" viewBox="0 0 80 64" fill="none" aria-hidden="true"><rect x="8" y="8" width="64" height="30" rx="6" stroke="currentColor" stroke-width="2"/><path d="M16 28h48M18 33h44M22 45v7m18-7v11m18-11v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="63" cy="17" r="2" fill="currentColor"/></svg>' +
+          (product.imageUrl && product.imageUrl !== '/images/products/default.png' ? '<img src="' + escapeInventoryText(product.imageUrl) + '" alt="' + escapeInventoryText(modelName) + '" loading="lazy" onerror="this.hidden=true">' : '') + '</div>' +
+          '<div class="inv-model-info"><strong class="inv-model-name">' + escapeInventoryText(modelName) + '</strong>' +
+          '<span class="inv-model-brand">' + escapeInventoryText(brandName) + '<span class="inv-model-dot">·</span>' + escapeInventoryText(TYPE_LABELS[product.type] || product.type || 'Split Type') + '</span>' +
+          '<div class="inv-model-tags"><span class="inv-tech-tag">' + (product.inverter ? 'Inverter' : 'Non-inverter') + '</span><span>' + totalQuantity + ' units in stock</span><span>' + variants.length + ' HP size' + (variants.length === 1 ? '' : 's') + '</span></div>' +
+          (product.supplier ? '<small class="inv-supplier">Bought from ' + escapeInventoryText(product.supplier) + '</small>' : '') +
+          ((product.specifications?.warranty || product.warranty) ? '<small class="inv-warranty">Warranty: ' + escapeInventoryText(product.specifications?.warranty || product.warranty) + '</small>' : '') +
+          '</div></div></div>' +
+          '<div class="inv-pricing-cell"><div class="inv-pricing-heading"><span>HP Price &amp; Stock</span><small>Bought · selling · profit per unit</small></div><div class="inv-variant-grid">' + variants.map(renderHpPriceStock).join('') + '</div></div>' +
+          '<div class="inv-manage-cell"><div class="inv-actions-stack">' +
+          '<button class="btn btn-outline-primary btn-sm edit-grouped" data-model="' + escapeInventoryText(modelName) + '" data-brand="' + escapeInventoryText(brandName) + '"><i class="bi bi-pencil me-1"></i>Edit details</button>' +
+          '<button class="btn btn-outline-primary btn-sm manage-variants" data-model="' + escapeInventoryText(modelName) + '" data-brand="' + escapeInventoryText(brandName) + '"><i class="bi bi-layers me-1"></i>HP &amp; prices</button>' +
+          '<button class="btn btn-outline-secondary btn-sm delete-inventory" data-id="' + escapeInventoryText(product._id) + '"><i class="bi bi-archive me-1"></i>Archive</button>' +
+          '</div></div>';
         tbody.appendChild(row);
       });
 
+      tbody.setAttribute('aria-busy', 'false');
       const total = inventoryData.length;
       const from = start + 1;
       const to = Math.min(start + invPageSize, total);
-      summary.innerText = `Showing ${from}–${to} of ${total} entries`;
+      summary.innerText = `Showing ${from}–${to} of ${total} models`;
 
       // Pagination
       const pages = Math.ceil(total / invPageSize);
@@ -1599,7 +1467,7 @@
     // ── Aircon Filter / Sort ───────────────────────────────────────────────────
     let filterTimeout;
     function applyAirconFilters() {
-      if (!allInventoryData.length) return;
+      // Render the empty state after deleting or filtering the last model.
       const q = (airconSearchInput.value || '').toLowerCase().trim();
       const status = airconStatusFilter.value;
       const sort = airconSort.value;
@@ -1610,7 +1478,12 @@
         const skuMatch = (product.variants || []).some(v => (v.sku || '').toLowerCase().includes(q));
         const serialMatch = (product.variants || []).some(v => (v.serialNumbers || []).some(serial => String(serial).toLowerCase().includes(q)));
         const textMatch = q ? (modelName.includes(q) || brandName.includes(q) || skuMatch || serialMatch) : true;
-        const statusMatch = status === 'all' || (product.variants || []).some(v => v.status === status);
+        const statusMatch = status === 'all' || (product.variants || []).some(v => {
+          if (v.active === false) return false;
+          const qty = Number(v.quantity) || 0;
+          const stock = qty === 0 ? 'out_of_stock' : qty <= (Number(v.minStockLevel) || 0) ? 'low_stock' : 'in_stock';
+          return stock === status;
+        });
         return textMatch && statusMatch;
       });
 
@@ -1628,6 +1501,7 @@
       });
 
       inventoryData = list;
+      document.getElementById('inventoryModelCount').textContent = list.length + ' model' + (list.length === 1 ? '' : 's');
       invCurrentPage = 1;
       renderItemsPage(invCurrentPage);
     }
@@ -1643,45 +1517,46 @@
     // ── KPI Rendering ──────────────────────────────────────────────────────────
     async function renderItems(items) {
       allInventoryData = items;
-      let totalValue = 0, lowCount = 0, totalVariants = 0;
-      
-      items.forEach((product) => {
-        const activeVariants = (product.variants || []).filter(variant => variant.active !== false);
-        totalVariants += activeVariants.length;
-        activeVariants.forEach(variant => {
-          const quantity = Number(variant.quantity) || 0;
-          totalValue += (Number(variant.sellingPrice) || 0) * quantity;
-          if (quantity <= (Number(variant.minStockLevel) || 0)) lowCount++;
-        });
-      });
-      
-      const assignedCount = 0; // place-holder until dispatch data available
-      kpiTotal.innerText = totalVariants; // Total variants instead of items
+      document.getElementById('inventoryModelCount').textContent = items.length + ' model' + (items.length === 1 ? '' : 's');
+      let stockCost = 0, stockProfit = 0, totalUnits = 0, lowCount = 0, missingCostUnits = 0;
+      items.forEach(product => (product.variants || []).filter(v => v.active !== false).forEach(variant => {
+        const quantity = Math.max(0, Number(variant.quantity) || 0);
+        const cost = Number(variant.costPrice) || 0;
+        totalUnits += quantity;
+        if (quantity <= (Number(variant.minStockLevel) || 0)) lowCount++;
+        if (cost > 0) {
+          stockCost += cost * quantity;
+          stockProfit += ((Number(variant.sellingPrice) || 0) - cost) * quantity;
+        } else missingCostUnits += quantity;
+      }));
+      kpiTotal.innerText = totalUnits;
       kpiLow.innerText = lowCount;
-      kpiValue.innerText = Number(totalValue).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      kpiAssigned.innerText = assignedCount;
-
+      kpiValue.innerText = Number(stockCost).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+      kpiAssigned.innerText = fmtPrice(stockProfit);
+      kpiAssigned.classList.toggle('text-danger', stockProfit < 0);
+      document.getElementById('inventoryCostNote').textContent = 'Profit per unit = selling price − bought price. ' +
+        (missingCostUnits ? missingCostUnits + ' unit(s) have no bought price. They are excluded from bought value and potential profit.' : 'Potential profit is for unsold stock, before delivery, labor, and other costs.');
       applyAirconFilters();
-      // Charts are decorative: render usable rows before waiting on the CDN.
-      waitForChart().then(() => {
-        if (allInventoryData !== items) return;
-        drawSpark('kpiTotalSpark', makeSparkData(totalVariants), '#3b82f6');
-        drawSpark('kpiLowStockSpark', makeSparkData(lowCount), '#ef4444');
-        drawSpark('kpiTotalValueSpark', makeSparkData(Math.round(totalValue / 1000)), '#10b981');
-        drawSpark('kpiAssignedSpark', makeSparkData(assignedCount), '#f59e0b');
-      }).catch(error => console.warn('Inventory charts unavailable:', error.message));
     }
 
     // ── Data Fetch ─────────────────────────────────────────────────────────────
     async function loadInventory() {
       try {
-        const r = await fetch(inventoryApiBase + '?limit=500');
-        if (!r.ok) throw new Error('fail');
-        const j = await r.json();
-        await renderItems(j.products || []);
+        const products = [];
+        let page = 1, pages = 1;
+        do {
+          const r = await fetch(inventoryApiBase + '?limit=100&page=' + page);
+          if (!r.ok) throw new Error('Could not load aircons');
+          const j = await r.json();
+          products.push(...(j.products || []));
+          pages = Number(j.pagination?.pages) || 1;
+          page++;
+        } while (page <= pages);
+        await renderItems(products);
       } catch (e) {
         console.error(e);
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 small text-muted text-danger">Failed to load</td></tr>';
+        tbody.innerHTML = '<div class="inv-list-state" role="alert"><strong>Aircons could not be loaded</strong><span>Refresh this page to try again.</span></div>';
+        tbody.setAttribute('aria-busy', 'false');
       }
     }
     loadInventory();
@@ -1765,7 +1640,7 @@
           <div class="row g-3">
             <div class="col-md-3">
               <label class="inv-field-label small">Capacity (HP) <span class="text-danger">*</span></label>
-              <input type="number" class="inv-input" step="0.5" min="0.5" max="5" placeholder="1.0" data-field="capacity" value="${variantData?.capacity || ''}" required />
+              <input type="number" class="inv-input" step="0.25" min="0.25" placeholder="1.0" data-field="capacity" value="${variantData?.capacity || ''}" required />
             </div>
             <div class="col-md-3">
               <label class="inv-field-label small">BTU Rating</label>
@@ -1776,8 +1651,9 @@
               <input type="number" class="inv-input" step="0.01" min="0" placeholder="15000" data-field="sellingPrice" value="${variantData?.sellingPrice || ''}" required />
             </div>
             <div class="col-md-3">
-              <label class="inv-field-label small">Cost Price (₱)</label>
+              <label class="inv-field-label small">Bought Price (₱)</label>
               <input type="number" class="inv-input" step="0.01" min="0" placeholder="12000" data-field="costPrice" value="${variantData?.costPrice || ''}" />
+              <div class="form-text">Price paid to the supplier for one unit.</div>
             </div>
             <div class="col-md-4">
               <label class="inv-field-label small">Stock Quantity <span class="text-danger">*</span></label>
@@ -2033,6 +1909,7 @@
           const statusEl = document.getElementById('invStatus');
           if (statusEl) statusEl.value = item.status || '';
           
+          document.getElementById('invSupplier').value = item.supplier || '';
           const warrantyEl = document.getElementById('invWarranty');
           if (warrantyEl) warrantyEl.value = item.specifications?.warranty || item.warranty || '';
           
@@ -2225,14 +2102,15 @@
             <div class="rp-form-card-header"><div class="rp-form-card-icon"><i class="bi bi-cash-coin"></i></div>Pricing &amp; Stock</div>
             <div class="mb-3">
               <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Selling Price (₱) <span class="text-danger">*</span></label>
-              <input type="number" class="form-control" data-field="sellingPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" required />
+              <input type="number" class="form-control" data-field="sellingPrice" data-variant-id="${variantId}" placeholder="0" step="0.01" min="0" required />
             </div>
             <div class="mb-3">
-              <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Cost Price (₱)</label>
-              <input type="number" class="form-control" data-field="costPrice" data-variant-id="${variantId}" placeholder="0" step="1" min="0" />
+              <label class="rp-form-label"><i class="bi bi-cash-stack"></i>Bought Price (₱)</label>
+              <input type="number" class="form-control" data-field="costPrice" data-variant-id="${variantId}" placeholder="0" step="0.01" min="0" />
+              <div class="form-text">Price paid to the supplier for one unit. Leave blank if not known.</div>
             </div>
             <div class="mb-3">
-              <label class="rp-form-label"><i class="bi bi-graph-up-arrow"></i>Margin</label>
+              <label class="rp-form-label"><i class="bi bi-graph-up-arrow"></i>Profit per unit</label>
               <div class="form-control d-flex align-items-center" id="variantMargin_${variantId}" style="background:#f8fafc;color:#16a34a;font-weight:700;">₱0 (0%)</div>
             </div>
             <div class="mb-3">
@@ -2308,8 +2186,9 @@
       const selling = parseFloat(sellingInput.value) || 0;
       const cost = parseFloat(costInput.value) || 0;
       const margin = selling - cost;
-      const pct = cost ? ((margin / cost) * 100).toFixed(1) : 0;
-      marginEl.textContent = `₱${margin.toLocaleString()} (${pct}%)`;
+      const pct = selling > 0 ? ((margin / selling) * 100).toFixed(1) : '0.0';
+      marginEl.textContent = cost > 0 ? fmtPrice(margin) + ' (' + pct + '% of selling price)' : 'Set a bought price to see profit';
+      marginEl.style.color = cost <= 0 ? '#64748b' : margin < 0 ? '#dc2626' : '#15803d';
     }
 
     // Event delegation for variants modal
@@ -2343,6 +2222,7 @@
         const variantRow = document.getElementById(`variant2_${variantId}`);
         if (!variantRow) return;
         
+        if (Array.from(variantRow.querySelectorAll('input, select')).some(input => !input.reportValidity())) return;
         // Get variant data from form fields
         const variantData = { _id: variantId };
         variantRow.querySelectorAll('[data-field]').forEach(input => {
@@ -2571,6 +2451,7 @@
       const status = document.getElementById('invStatus').value || undefined;
       const warranty = document.getElementById('invWarranty').value.trim();
       const description = document.getElementById('invDescription').value.trim();
+      const supplier = document.getElementById('invSupplier').value.trim();
 
       // Validation
       if (!modelLine) return showFormAlert('warning', 'Model Line is required.');
@@ -2578,6 +2459,8 @@
       if (!category) return showFormAlert('warning', 'Category is required.');
       if (!type) return showFormAlert('warning', 'Type is required.');
 
+      const form = document.getElementById('invModelLine').closest('form');
+      if (form && !form.reportValidity()) return;
       // Get variants data
       const variants = getVariantsData();
       if (variants.length === 0) {
@@ -2592,7 +2475,7 @@
 
       const data = {
         modelLine, brand, category, type, inverter,
-        warranty, description,
+        warranty, description, supplier,
         salesChannel: 'both',
         variants
       };

@@ -8,7 +8,7 @@ function resolveCoreServicePricing(catalog, selection) {
   let tier = null;
   let selectedType = null;
   if (pricedByHp) {
-    if (!String(selection.brand || '').trim()) throw new Error('Enter a brand or choose I don\'t know.');
+    if (!String(selection.brand || '').trim() || ['__other__','__unknown__'].includes(String(selection.brand).trim())) throw new Error('Enter a brand or choose I don\'t know.');
     const hp = Number(selection.hp);
     if (!Number.isFinite(hp) || hp <= 0) throw new Error('Aircon HP must be identified before booking.');
     if (types.length) {

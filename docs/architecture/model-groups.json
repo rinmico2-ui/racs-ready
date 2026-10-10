@@ -1,0 +1,125 @@
+[
+  {
+    "id": "D1",
+    "name": "Identity and access",
+    "models": [
+      "User",
+      "Role",
+      "AuthSession",
+      "TrustedDevice",
+      "LoginHistory",
+      "FailedLoginAttempt",
+      "Technician",
+      "Secretary"
+    ]
+  },
+  {
+    "id": "D2",
+    "name": "Service and product catalog",
+    "models": [
+      "CoreService",
+      "RepairService",
+      "Service",
+      "ServiceCategory",
+      "HVACProduct",
+      "Brand",
+      "Category"
+    ]
+  },
+  {
+    "id": "D3",
+    "name": "Bookings and dispatch",
+    "models": [
+      "BookingService",
+      "Assignment",
+      "TechnicianSchedule",
+      "NonWorkingDay",
+      "UnitAssistanceRequest",
+      "RelocationRequest",
+      "ServiceReport"
+    ]
+  },
+  {
+    "id": "D4",
+    "name": "Stock and field equipment",
+    "models": [
+      "Inventory",
+      "Tool",
+      "ToolAssignment",
+      "StockReservation",
+      "StockAdjustment",
+      "ServiceToolUsage",
+      "EquipmentAssignment",
+      "EquipmentUsageLog",
+      "DailyKit",
+      "PartsRequest"
+    ]
+  },
+  {
+    "id": "D5",
+    "name": "Projects and work orders",
+    "models": [
+      "Project",
+      "WorkOrder",
+      "DailyAssignment",
+      "ProjectMaterial",
+      "ProjectIssue",
+      "ProjectResourcePurchase",
+      "ProjectWorkSubmission"
+    ]
+  },
+  {
+    "id": "D6",
+    "name": "Sales and carts",
+    "models": [
+      "AirconCart",
+      "Order",
+      "Purchase",
+      "WalkInSale"
+    ]
+  },
+  {
+    "id": "D7",
+    "name": "Finance and compensation",
+    "models": [
+      "Payment",
+      "Payroll",
+      "Expense",
+      "EmployeeCompensation"
+    ]
+  },
+  {
+    "id": "D8",
+    "name": "Aftercare and feedback",
+    "models": [
+      "CustomerAsset",
+      "MaintenanceSchedule",
+      "WarrantyClaim",
+      "ProductReturn",
+      "ProductRefund",
+      "ProductReturnMovement",
+      "Rating"
+    ]
+  },
+  {
+    "id": "D9",
+    "name": "Attendance and leave",
+    "models": [
+      "TechnicianAttendance",
+      "SecretaryAttendance",
+      "LeaveRequest"
+    ]
+  },
+  {
+    "id": "D10",
+    "name": "Configuration and communication",
+    "models": [
+      "SiteSetting",
+      "ActivityLog",
+      "Notification",
+      "EmailOutbox",
+      "EmailDeliveryLog",
+      "OperationLock"
+    ]
+  }
+]

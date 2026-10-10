@@ -1,0 +1,146 @@
+{
+  "scope": "Isolated current-code execution with in-memory model doubles; no live writes",
+  "reproduced": 13,
+  "scenarios": [
+    {
+      "key": "A01",
+      "description": "Single-item Notify Admin crashes before saving or notifying",
+      "reproduced": true,
+      "observed": {
+        "httpStatus": 500,
+        "kitSaved": false,
+        "response": {
+          "error": "Server error"
+        }
+      }
+    },
+    {
+      "key": "A02",
+      "description": "Repeating a daily equipment return adds stock twice",
+      "reproduced": true,
+      "observed": {
+        "issued": 1,
+        "stockAfterTwoReturns": 2,
+        "secondHttpStatus": 200
+      }
+    },
+    {
+      "key": "A03",
+      "description": "Failed kit confirmation keeps earlier stock deductions; retry deducts again",
+      "reproduced": true,
+      "observed": {
+        "initialStock": 5,
+        "afterTwoFailedAttempts": 3,
+        "savedKitConfirmations": 0
+      }
+    },
+    {
+      "key": "A04",
+      "description": "Order departure accepts a confirmed kit with unconfirmed additions",
+      "reproduced": true,
+      "observed": {
+        "hasDelta": true,
+        "additionalItemsIssued": false,
+        "departureAllowed": true,
+        "emptyDeltaDepartureAllowed": true
+      }
+    },
+    {
+      "key": "A05",
+      "description": "Admin issue list omits unavailable additions to a confirmed kit",
+      "reproduced": true,
+      "observed": {
+        "issueFilterChecksRegularItems": true,
+        "issueFilterChecksAdditionalItems": false,
+        "httpStatus": 200
+      }
+    },
+    {
+      "key": "A06",
+      "description": "Admin Reschedule Job returns success without changing a booking date",
+      "reproduced": true,
+      "observed": {
+        "reportsSuccess": true,
+        "bookingDateWrites": 0,
+        "savedResolution": "rescheduled"
+      }
+    },
+    {
+      "key": "A07",
+      "description": "Core batch completion finishes a booking without photo or material usage",
+      "reproduced": true,
+      "observed": {
+        "httpStatus": 200,
+        "bookingStatus": "completed",
+        "assignmentComplete": true,
+        "completionPhoto": null
+      }
+    },
+    {
+      "key": "A08",
+      "description": "Repair status route completes unpaid work without completion proof",
+      "reproduced": true,
+      "observed": {
+        "httpStatus": 200,
+        "bookingStatus": "repair_completed",
+        "unpaidBalance": 1000,
+        "completionPhoto": null
+      }
+    },
+    {
+      "key": "A09",
+      "description": "Order material usage repeated after a failed completion is recorded twice",
+      "reproduced": true,
+      "observed": {
+        "completionAttemptsWithSameUsage": 2,
+        "usageRows": 2,
+        "quantityUsed": 2
+      }
+    },
+    {
+      "key": "A10",
+      "description": "Equipment return from Tools leaves the shared kit marked checked out",
+      "reproduced": true,
+      "observed": {
+        "httpStatus": 200,
+        "custodyStatus": "returned",
+        "sharedKitWrites": 0
+      }
+    },
+    {
+      "key": "A11",
+      "description": "Two service collection requests can both record the full final payment",
+      "reproduced": true,
+      "observed": {
+        "outstandingBalance": 1000,
+        "paymentRows": 2,
+        "totalRecorded": 2000,
+        "httpStatuses": [
+          201,
+          201
+        ]
+      }
+    },
+    {
+      "key": "A12",
+      "description": "Kit refresh drops an admin-assigned replacement tool",
+      "reproduced": true,
+      "observed": {
+        "replacementKept": false,
+        "refreshedCheckoutStatus": "unavailable",
+        "resolutionKept": false
+      }
+    },
+    {
+      "key": "A13",
+      "description": "Admin kit update is sent to a user-id room instead of the technician-id room",
+      "reproduced": true,
+      "observed": {
+        "httpStatus": 200,
+        "eventUsesUserId": true,
+        "connectedRoomUsesTechnicianId": true,
+        "roomsMatch": false
+      }
+    }
+  ]
+}

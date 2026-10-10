@@ -27,6 +27,7 @@
 
     var menuTrigger = document.getElementById("racsMenuTrigger");
     var triggerCartBadge = document.getElementById("racsTriggerCartBadge");
+    var navbarCartBadge = document.getElementById('globalCartCount');
     var closeBtn = document.getElementById("closeSidebar");
     var backdrop = document.getElementById("authSidebarBackdrop");
     var userWrap = document.getElementById("racsSidebarUser");
@@ -57,6 +58,17 @@
       if (!node) return;
 
       var value = Number(rawValue) || 0;
+      if (key === 'cart' && navbarCartBadge) {
+        navbarCartBadge.textContent = value > 99 ? '99+' : String(value);
+        navbarCartBadge.style.display = value > 0 ? 'inline-flex' : 'none';
+        navbarCartBadge.setAttribute('aria-label', BADGE_LABELS.cart(value));
+      }
+      if (key === "cart" && triggerCartBadge) {
+        triggerCartBadge.textContent = value > 99 ? "99+" : (value > 0 ? String(value) : "");
+        triggerCartBadge.hidden = value <= 0;
+        if (value > 0) triggerCartBadge.setAttribute("aria-label", BADGE_LABELS.cart(value));
+        else triggerCartBadge.removeAttribute("aria-label");
+      }
       if (value <= 0) {
         // No badge at all when there is nothing worth showing.
         node.textContent = "";
@@ -73,15 +85,11 @@
       node.setAttribute("aria-label", label);
       node.setAttribute("title", label);
 
-      // Mirror the cart count onto the mobile menu button.
-      if (key === "cart" && triggerCartBadge) {
-        triggerCartBadge.textContent = node.textContent;
-        triggerCartBadge.hidden = false;
-        triggerCartBadge.setAttribute("aria-label", label);
-      }
     }
 
+    var badgeGeneration = 0;
     function loadBadges() {
+      var generation = ++badgeGeneration;
       fetch("/api/customer/nav-summary", {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
@@ -91,7 +99,7 @@
           return res.ok ? res.json() : null;
         })
         .then(function (data) {
-          if (!data) return;
+          if (!data || generation !== badgeGeneration) return;
           setBadge("cart", data.cart);
           setBadge("bookings", data.bookings);
           setBadge("orders", data.orders);
@@ -132,6 +140,7 @@
     }
 
     function openDrawer() {
+      loadBadges();
       lastFocused = document.activeElement;
       sidebar.classList.add("is-open");
       sidebar.removeAttribute("inert");
@@ -323,6 +332,12 @@
     // Re-read counts when the customer returns to the tab, so badges stay fresh.
     document.addEventListener("visibilitychange", function () {
       if (!document.hidden) loadBadges();
+    });
+    window.addEventListener('pageshow', loadBadges);
+    window.setInterval(function () { if (!document.hidden) loadBadges(); }, 30000);
+    ['cart:updated', 'booking:updated', 'orders:reschedule-submitted', 'notification:new'].forEach(function (name) {
+      document.addEventListener(name, loadBadges);
+      window.addEventListener(name, loadBadges);
     });
   }
 })();

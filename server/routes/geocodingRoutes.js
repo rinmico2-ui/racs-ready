@@ -1,10 +1,9 @@
 const express = require('express');
 const axios = require('axios');
-const rateLimit = require('../utils/boundedRateLimit');
 const router = express.Router();
 const { positiveLimit } = require('../utils/boundedWindow');
-const { busyError, createWorkLimiter } = require('../utils/workLimiter');
-const autocompleteWork = createWorkLimiter({ limit: 8 });
+const { busyError } = require('../utils/workLimiter');
+const { provider, suggestionLimiter, handleSuggestions } = require('../utils/addressSuggestions');
 
 /**
  * Backend proxy for the OpenStreetMap Nominatim API.
@@ -27,57 +26,11 @@ let providerQueue = Promise.resolve();
 let queuedProviderRequests = 0;
 const MAX_PROVIDER_QUEUE = positiveLimit(process.env.GEOCODING_MAX_PENDING_REQUESTS, 8);
 const MAX_PROVIDER_WAIT_MS = positiveLimit(process.env.GEOCODING_MAX_QUEUE_WAIT_MS, 5000);
-const autocompleteLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  limit: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many address suggestions. Wait a minute or use Search.' }
-});
-
 router.get('/autocomplete/status', (_req, res) => {
-  res.json({ enabled: Boolean(String(process.env.GEOAPIFY_API_KEY || '').trim()) });
+  res.json({ enabled:true,provider:provider() });
 });
 
-router.get('/autocomplete', autocompleteLimiter, async (req, res) => {
-  const apiKey = String(process.env.GEOAPIFY_API_KEY || '').trim();
-  if (!apiKey) return res.status(503).json({ error: 'Live suggestions are not configured. Press Search instead.' });
-
-  const query = typeof req.query.q === 'string' ? req.query.q.trim().replace(/\s+/g, ' ') : '';
-  if (query.length < 3 || query.length > 250) {
-    return res.status(400).json({ error: 'Enter 3 to 250 characters for suggestions.' });
-  }
-
-  try {
-    const response = await autocompleteWork.run('geoapify', () => axios.get('https://api.geoapify.com/v1/geocode/autocomplete', {
-      params: { text: query, format: 'json', filter: 'countrycode:ph', limit: 5, lang: 'en', apiKey },
-      timeout: 7000
-    }));
-    const suggestions = (Array.isArray(response.data?.results) ? response.data.results : [])
-      .filter(place => String(place.country_code || '').toLowerCase() === 'ph')
-      .filter(place => Number(place.lat) >= 4.5 && Number(place.lat) <= 21.5 &&
-        Number(place.lon) >= 116 && Number(place.lon) <= 127)
-      .slice(0, 5)
-      .map(place => ({
-        display_name: String(place.formatted || place.address_line1 || place.name || '').trim(),
-        lat: Number(place.lat),
-        lon: Number(place.lon),
-        address: { country_code: 'ph' },
-        match_level: 'suggestion',
-        source: 'geoapify'
-      }))
-      .filter(place => place.display_name);
-    return res.json({ suggestions });
-  } catch (error) {
-    if (error.code === 'WORK_CAPACITY_EXCEEDED') return sendGeocodingError(res, error, 'Address suggestions');
-    const status = error.response?.status === 429 ? 429 : 502;
-    console.error('Address autocomplete provider unavailable:', status);
-    return res.status(status).json({ error: status === 429
-      ? 'Live suggestions are busy. Wait a moment or use Search.'
-      : 'Live suggestions are unavailable. Press Search instead.' });
-  }
-});
-
+router.get('/autocomplete', suggestionLimiter, handleSuggestions);
 function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

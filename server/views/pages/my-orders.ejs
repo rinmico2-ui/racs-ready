@@ -1,939 +1,93 @@
-<!-- My Orders — Customer Order Tracking Page -->
-<section class="my-orders-page position-relative" style="overflow:hidden;background:#f0f4f8;min-height:100vh;">
-  <!-- Hero Header -->
-  <div class="position-relative py-5" style="overflow:hidden;">
-    <div class="position-absolute top-0 start-0 w-100 h-100" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%);z-index:0;"></div>
-    <div class="position-absolute" style="width:600px;height:600px;background:radial-gradient(circle,rgba(59,130,246,0.15) 0%,transparent 70%);top:-250px;right:-250px;z-index:0;pointer-events:none;"></div>
-    <div class="position-absolute" style="width:400px;height:400px;background:radial-gradient(circle,rgba(139,92,246,0.1) 0%,transparent 70%);bottom:-150px;left:-100px;z-index:0;pointer-events:none;"></div>
-    <div class="container position-relative text-center" style="z-index:2;max-width:700px;">
-      <div style="width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;border:1px solid rgba(255,255,255,0.15);">
-        <i class="bi bi-bag-check" style="font-size:1.8rem;color:#60a5fa;"></i>
-      </div>
-      <h2 class="display-5 fw-bold mb-2" style="color:#fff;letter-spacing:-1px;">My <span style="background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Orders</span></h2>
-      <p class="fs-6 mx-auto" style="max-width:480px;color:rgba(219,234,254,0.6);">Track your aircon purchases, deliveries, and installations in real-time.</p>
-      <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
-        <a href="/aircon-cart" class="btn btn-light rounded-pill px-4 fw-semibold">
-          <i class="bi bi-cart3 me-2"></i>View Cart
-        </a>
-        <a href="/products" class="btn btn-outline-light rounded-pill px-4 fw-semibold">
-          <i class="bi bi-plus-lg me-2"></i>Start New Order
-        </a>
-        <a href="/maintenance" class="btn btn-outline-light rounded-pill px-4 fw-semibold">
-          <i class="bi bi-calendar2-check me-2"></i>My Maintenance
-        </a>
-      </div>
+<link rel="stylesheet" href="/css/customer-orders.css?v=20261009-mobile-workspace">
+<%
+  const orderList = typeof orders !== 'undefined' && Array.isArray(orders) ? orders : [];
+  const statusLabels = { pending_payment:'Pending payment', preparing_unit:'Preparing unit', ready_for_pickup:'Ready for pickup', technician_assigned:'Technician assigned', technician_accepted:'Technician confirmed', technician_declined:'Reassigning technician', out_for_delivery:'Out for delivery', arrived:'Arrived', installing:'Installing', completed:'Completed', cancelled:'Cancelled' };
+  const fulfillLabels = { delivery_only:'Delivery', delivery_installation:'Delivery + installation', customer_pickup:'Store pickup' };
+  const statusGuidance = { pending_payment:'We will prepare your unit once payment is confirmed.', preparing_unit:'Your unit is being checked and prepared.', ready_for_pickup:'Your unit is ready. Visit the store during posted opening hours.', technician_assigned:'Your technician is reviewing the assignment.', technician_accepted:'Your technician has confirmed. We will notify you when they are on the way.', technician_declined:'We are arranging a replacement technician.', out_for_delivery:'Your order is on the way. View details for live tracking.', arrived:'Your technician has arrived at the delivery address.', installing:'Installation is in progress.', completed:'Your order has been completed.', cancelled:'This order is cancelled.' };
+  const money = value => Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const dateLabel = value => value && !Number.isNaN(new Date(value).getTime()) ? new Date(value).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', year:'numeric', month:'short', day:'numeric' }) : 'To be confirmed';
+  const timeLabel = value => { const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/); return match ? `${Number(match[1]) % 12 || 12}:${match[2]} ${Number(match[1]) >= 12 ? 'PM' : 'AM'}` : value; };
+  const activeCount = orderList.filter(order => !['completed','cancelled'].includes(order.status)).length;
+  const completedCount = orderList.filter(order => order.status === 'completed').length;
+  const cancelledCount = orderList.filter(order => order.status === 'cancelled').length;
+%>
+<section class="my-orders-page">
+  <div class="orders-container">
+    <header class="orders-header">
+      <div><div class="orders-eyebrow">Your account / Orders</div><h1>My orders</h1><p>Manage your purchases, delivery schedules, and installations.</p></div>
+      <div class="orders-header-actions"><a href="/aircon-cart" class="ord-secondary-btn"><i class="bi bi-cart3" aria-hidden="true"></i> View cart</a><a href="/products" class="ord-track-btn"><i class="bi bi-plus-lg" aria-hidden="true"></i> New order</a></div>
+    </header>
+    <div class="orders-summary" aria-label="Order summary">
+      <div><span>Total orders</span><strong><%= orderList.length %></strong><i class="bi bi-receipt" aria-hidden="true"></i></div>
+      <div><span>In progress</span><strong><%= activeCount %></strong><i class="bi bi-box-seam" aria-hidden="true"></i></div>
+      <div><span>Completed</span><strong><%= completedCount %></strong><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
     </div>
-  </div>
-
-  <style>
-    /* ═══ Order Card ═══ */
-    .ord-card {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      overflow: hidden;
-      transition: all 0.3s ease;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-      margin-bottom: 16px;
-    }
-    .ord-card:hover {
-      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
-      border-color: #cbd5e1;
-      transform: translateY(-2px);
-    }
-    .ord-card-header {
-      padding: 16px 20px;
-      background: linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%);
-      border-bottom: 1px solid #e2e8f0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .ord-ref {
-      font-weight: 800;
-      color: #1e40af;
-      font-size: 0.88rem;
-      letter-spacing: 0.5px;
-      font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
-    }
-    .ord-date {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      font-weight: 500;
-    }
-    .ord-card-body {
-      padding: 20px;
-    }
-
-    /* ═══ Status Badges ═══ */
-    .ord-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 5px 12px;
-      border-radius: 20px;
-      font-size: 0.68rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .ord-status.pending_payment { background:#fef3c7; color:#92400e; }
-    .ord-status.preparing_unit { background:#dbeafe; color:#1e40af; }
-    .ord-status.technician_assigned { background:#ede9fe; color:#5b21b6; }
-    .ord-status.technician_accepted { background:#e0f2fe; color:#075985; }
-    .ord-status.technician_declined { background:#fff7ed; color:#9a3412; }
-    .ord-status.out_for_delivery { background:#ffedd5; color:#9a3412; }
-    .ord-status.arrived { background:#cffafe; color:#155e75; }
-    .ord-status.installing { background:#fce7f3; color:#9d174d; }
-    .ord-status.completed { background:#dcfce7; color:#166534; }
-    .ord-status.cancelled { background:#fee2e2; color:#991b1b; }
-
-    /* ═══ Fulfillment Badge ═══ */
-    .ord-fulfill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      background: #f1f5f9;
-      color: #475569;
-      border: 1px solid #e2e8f0;
-    }
-
-    /* ═══ Product Item ═══ */
-    .ord-product {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 12px;
-      background: #f8fafc;
-      border-radius: 12px;
-      border: 1px solid #f1f5f9;
-      margin-bottom: 10px;
-      transition: all 0.2s ease;
-    }
-    .ord-product:hover {
-      background: #f1f5f9;
-      border-color: #e2e8f0;
-    }
-    .ord-product:last-child {
-      margin-bottom: 0;
-    }
-    .ord-product-img {
-      width: 60px;
-      height: 60px;
-      object-fit: cover;
-      border-radius: 10px;
-      border: 2px solid #e2e8f0;
-      flex-shrink: 0;
-    }
-    .ord-product-name {
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: #0f172a;
-      margin-bottom: 2px;
-    }
-    .ord-product-meta {
-      font-size: 0.75rem;
-      color: #64748b;
-    }
-    .ord-product-price {
-      font-weight: 800;
-      font-size: 0.95rem;
-      color: #1e40af;
-      margin-left: auto;
-      flex-shrink: 0;
-    }
-
-    /* ═══ Info Row ═══ */
-    .ord-info-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 0.8rem;
-      margin-top: 10px;
-    }
-    .ord-info-row i {
-      font-size: 0.9rem;
-      flex-shrink: 0;
-    }
-
-    /* ═══ Total Row ═══ */
-    .ord-total-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 14px 0 0;
-      margin-top: 14px;
-      border-top: 2px solid #f1f5f9;
-    }
-    .ord-total-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .ord-total-value {
-      font-size: 1.2rem;
-      font-weight: 800;
-      color: #1e40af;
-    }
-
-    /* ═══ Timeline ═══ */
-    .ord-timeline {
-      position: relative;
-      padding-left: 24px;
-      margin-top: 14px;
-    }
-    .ord-timeline::before {
-      content: '';
-      position: absolute;
-      left: 6px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: linear-gradient(to bottom,#e2e8f0,#f1f5f9);
-    }
-    .ord-timeline-item {
-      position: relative;
-      padding-bottom: 16px;
-    }
-    .ord-timeline-item:last-child {
-      padding-bottom: 0;
-    }
-    .ord-timeline-dot {
-      position: absolute;
-      left: -24px;
-      top: 2px;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      border: 2px solid #e2e8f0;
-      background: #fff;
-      z-index: 1;
-    }
-    .ord-timeline-dot.active {
-      background: #3b82f6;
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
-    }
-    .ord-timeline-dot.completed {
-      background: #22c55e;
-      border-color: #22c55e;
-    }
-    .ord-timeline-status {
-      font-weight: 700;
-      font-size: 0.82rem;
-      color: #0f172a;
-    }
-    .ord-timeline-time {
-      font-size: 0.7rem;
-      color: #94a3b8;
-      margin-top: 1px;
-    }
-    .ord-timeline-note {
-      font-size: 0.75rem;
-      color: #64748b;
-      margin-top: 2px;
-    }
-
-    /* ═══ Tracking Button ═══ */
-    .ord-track-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      background: #fff;
-      color: #3b82f6;
-      text-decoration: none;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      margin-top: 14px;
-    }
-    .ord-track-btn:hover {
-      background: #eff6ff;
-      border-color: #bfdbfe;
-      color: #1d4ed8;
-      text-decoration: none;
-    }
-    .ord-track-btn .ord-view-chevron {
-      margin-left: auto;
-      transition: transform .2s ease;
-    }
-    .ord-track-btn[aria-expanded="true"] .ord-view-chevron {
-      transform: rotate(90deg);
-    }
-    .ord-detail-panel {
-      margin-top: 14px;
-      padding: 16px;
-      border: 1px solid #dbeafe;
-      border-radius: 12px;
-      background: linear-gradient(180deg,#f8fbff 0%,#fff 100%);
-    }
-    .ord-detail-heading {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    .ord-detail-heading strong {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      color: #1e3a8a;
-      font-size: .85rem;
-    }
-    .ord-detail-grid {
-      display: grid;
-      grid-template-columns: repeat(2,minmax(0,1fr));
-      gap: 9px;
-    }
-    .ord-detail-item {
-      min-width: 0;
-      padding: 10px 12px;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      background: #fff;
-    }
-    .ord-detail-item.wide { grid-column: 1 / -1; }
-    .ord-detail-label {
-      display: block;
-      margin-bottom: 3px;
-      color: #94a3b8;
-      font-size: .62rem;
-      font-weight: 750;
-      letter-spacing: .45px;
-      text-transform: uppercase;
-    }
-    .ord-detail-value {
-      color: #334155;
-      font-size: .78rem;
-      font-weight: 650;
-      line-height: 1.45;
-      overflow-wrap: anywhere;
-    }
-    .ord-cost-list {
-      display: grid;
-      gap: 5px;
-    }
-    .ord-cost-line {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      color: #64748b;
-      font-size: .75rem;
-    }
-    .ord-cost-line.total {
-      margin-top: 3px;
-      padding-top: 6px;
-      border-top: 1px solid #e2e8f0;
-      color: #1e40af;
-      font-weight: 800;
-    }
-
-    /* Refined order controls */
-    .ord-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 12px;
-      margin-bottom: 20px;
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 14px;
-      box-shadow: 0 1px 3px rgba(15,23,42,0.04);
-    }
-    .ord-filter-list { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-    .ord-filter-btn {
-      display:inline-flex; align-items:center; gap:6px; padding:8px 12px;
-      border:0; border-radius:9px; background:transparent; color:#64748b;
-      font-size:.76rem; font-weight:700; transition:background .2s ease,color .2s ease;
-    }
-    .ord-filter-btn:hover { background:#f1f5f9; color:#1e40af; }
-    .ord-filter-btn.active { background:#eff6ff; color:#1d4ed8; }
-    .ord-filter-count {
-      min-width:20px; padding:1px 6px; border-radius:999px;
-      background:rgba(148,163,184,.16); font-size:.68rem; text-align:center;
-    }
-    .ord-search-wrap { position:relative; flex:0 1 240px; }
-    .ord-search-wrap i {
-      position:absolute; left:11px; top:50%; transform:translateY(-50%);
-      color:#94a3b8; pointer-events:none;
-    }
-    .ord-search {
-      width:100%; min-height:38px; padding:8px 12px 8px 34px;
-      border:1px solid #e2e8f0; border-radius:9px; color:#334155;
-      font-size:.78rem; outline:none;
-    }
-    .ord-search:focus { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(59,130,246,.1); }
-    .ord-next-step {
-      display:flex; align-items:flex-start; gap:10px; margin:14px 0; padding:11px 13px;
-      border:1px solid #dbeafe; border-radius:10px; background:#f8fbff; color:#334155;
-    }
-    .ord-next-step > i { color:#2563eb; margin-top:1px; }
-    .ord-next-step strong { display:block; font-size:.78rem; color:#1e3a8a; }
-    .ord-next-step span { display:block; margin-top:2px; font-size:.75rem; color:#64748b; line-height:1.45; }
-    .ord-progress-head {
-      display:flex; justify-content:space-between; gap:10px; margin-bottom:7px;
-      font-size:.68rem; font-weight:700; color:#64748b;
-    }
-    .ord-progress-track { height:6px; overflow:hidden; border-radius:999px; background:#e2e8f0; }
-    .ord-progress-fill { height:100%; border-radius:inherit; background:linear-gradient(90deg,#3b82f6,#2563eb); }
-    .ord-action-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
-    .ord-action-row .ord-track-btn { width:auto; flex:1 1 180px; margin-top:0; }
-    .ord-secondary-btn, .ord-danger-btn {
-      display:inline-flex; align-items:center; justify-content:center; gap:6px;
-      min-height:38px; padding:8px 12px; border-radius:9px; background:#fff;
-      font-size:.76rem; font-weight:700; transition:all .2s ease;
-    }
-    .ord-secondary-btn { border:1px solid #bfdbfe; color:#1d4ed8; text-decoration:none; }
-    .ord-secondary-btn:hover { background:#eff6ff; }
-    .ord-danger-btn { border:1px solid #fecaca; color:#dc2626; }
-    .ord-danger-btn:hover { background:#fef2f2; }
-    .ord-request-note {
-      display:inline-flex; align-items:center; gap:6px; margin-top:12px; padding:7px 10px;
-      border-radius:8px; background:#fffbeb; color:#92400e; font-size:.73rem; font-weight:600;
-    }
-    .ord-no-results { display:none; text-align:center; padding:50px 20px; color:#64748b; }
-    .ord-no-results i { display:block; margin-bottom:10px; color:#94a3b8; font-size:2rem; }
-
-    /* Rescheduling uses the same calendar-then-time pattern as product checkout. */
-    .ord-rs-picker { border:1px solid #dbe3ee; border-radius:14px; overflow:hidden; background:#fff; }
-    .ord-rs-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; background:#0f172a; border-bottom:1px solid #e2e8f0; }
-    .ord-rs-head strong { color:#fff; font-size:.9rem; }
-    .ord-rs-nav { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid rgba(255,255,255,.25); border-radius:9px; background:rgba(255,255,255,.08); color:#fff; }
-    .ord-rs-nav:hover:not(:disabled) { background:rgba(255,255,255,.2); }
-    .ord-rs-nav:disabled { opacity:.35; cursor:not-allowed; }
-    .ord-rs-hint { margin:0; padding:10px 15px; font-size:.76rem; color:#475569; background:#eff6ff; }
-    .ord-rs-weekdays,.ord-rs-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:5px; padding:5px 13px; }
-    .ord-rs-weekdays { padding-top:13px; }
-    .ord-rs-weekdays span { text-align:center; font-size:.66rem; font-weight:800; color:#64748b; }
-    .ord-rs-grid { padding-bottom:14px; }
-    .ord-rs-day { min-height:58px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; color:#94a3b8; font-size:.84rem; font-weight:700; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:3px; }
-    .ord-rs-day small { font-size:.57rem; line-height:1; }
-    .ord-rs-day.is-open { background:#ecfdf5; border-color:#a7f3d0; color:#065f46; cursor:pointer; }
-    .ord-rs-day.is-open:hover { background:#d1fae5; }
-    .ord-rs-day.is-limited { background:#fffbeb; border-color:#fcd34d; color:#92400e; cursor:pointer; }
-    .ord-rs-day.is-limited:hover { background:#fef3c7; }
-    .ord-rs-day.is-selected { background:#0f172a; border-color:#0f172a; color:#fff; }
-    .ord-rs-day:disabled { cursor:not-allowed; }
-    .ord-rs-day:focus-visible,.ord-rs-time:focus-visible,.ord-rs-nav:focus-visible { outline:3px solid #93c5fd; outline-offset:2px; }
-    .ord-rs-empty { min-height:46px; }
-    .ord-rs-legend { display:flex; gap:16px; padding:0 16px 15px; color:#64748b; font-size:.71rem; }
-    .ord-rs-legend span::before { content:''; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; background:#d1fae5; border:1px solid #a7f3d0; }
-    .ord-rs-legend span:nth-child(2)::before { background:#fffbeb; border-color:#fcd34d; }
-    .ord-rs-legend span:nth-child(3)::before { background:#f8fafc; border-color:#e2e8f0; }
-    .ord-rs-time-section { padding:15px; border-top:1px solid #e2e8f0; }
-    .ord-rs-time-section[hidden] { display:none; }
-    .ord-rs-time-head { display:flex; justify-content:space-between; flex-wrap:wrap; gap:4px; margin-bottom:10px; color:#334155; font-size:.8rem; }
-    .ord-rs-time-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
-    .ord-rs-time { min-height:52px; border:1px solid #e2e8f0; border-radius:9px; background:#fafafa; color:#0f172a; font-size:.82rem; font-weight:700; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; gap:3px; padding:8px 12px; }
-    .ord-rs-time small { font-size:.58rem; color:#065f46; text-transform:uppercase; }
-    .ord-rs-time:hover { background:#f1f5f9; }
-    .ord-rs-time.is-selected { background:#0f172a; border-color:#0f172a; color:#fff; }
-    .ord-rs-time.is-selected small { color:#fff; }
-    .ord-rs-selection { margin-top:12px; padding:11px 12px; border:1px solid #bfdbfe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:.8rem; font-weight:700; }
-    .ord-rs-selection[hidden] { display:none; }
-    @media (max-width:575px) { .ord-rs-weekdays,.ord-rs-grid { gap:3px; padding-left:8px; padding-right:8px; } .ord-rs-day { min-height:44px; } .ord-rs-day small { font-size:.48rem; } .ord-rs-time-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-
-    /* ═══ Rating Button ═══ */
-    .ord-rate-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 7px 16px;
-      border: 1.5px solid #f59e0b;
-      border-radius: 20px;
-      background: transparent;
-      color: #d97706;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      margin-top: 12px;
-    }
-    .ord-rate-btn:hover {
-      background: #fffbeb;
-      border-color: #f59e0b;
-    }
-
-    /* ═══ Rating Stars ═══ */
-    .rating-star-btn {
-      background: none;
-      border: none;
-      font-size: 2.2rem;
-      color: #d1d5db;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      padding: 4px;
-    }
-    .rating-star-btn:hover, .rating-star-btn.active {
-      color: #f59e0b;
-      transform: scale(1.2);
-    }
-
-    /* ═══ Empty State ═══ */
-    .ord-empty {
-      text-align: center;
-      padding: 60px 20px;
-    }
-    .ord-empty-icon {
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      background: linear-gradient(135deg,#e2e8f0,#f1f5f9);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 16px;
-    }
-    .ord-empty-icon i {
-      font-size: 2rem;
-      color: #94a3b8;
-    }
-
-    /* ═══ Responsive ═══ */
-    @media (max-width: 576px) {
-      .ord-toolbar { align-items:stretch; flex-direction:column; }
-      .ord-filter-list { display:grid; grid-template-columns:repeat(2,1fr); }
-      .ord-filter-btn { justify-content:center; }
-      .ord-search-wrap { flex-basis:auto; }
-      .ord-card-header {
-        padding: 12px 16px;
-        align-items:flex-start;
-      }
-      .ord-card-body {
-        padding: 16px;
-      }
-      .ord-product {
-        padding: 10px;
-      }
-      .ord-product-img {
-        width: 50px;
-        height: 50px;
-      }
-      .ord-product-price { font-size:.82rem; }
-      .ord-action-row > * { width:100% !important; flex-basis:100% !important; }
-      .ord-detail-grid { grid-template-columns:1fr; }
-      .ord-detail-item.wide { grid-column:auto; }
-    }
-  </style>
-
-  <div class="py-5" style="min-height:60vh;">
-    <div class="container" style="max-width:760px;">
-      <% const orderList = (typeof orders !== 'undefined' && Array.isArray(orders)) ? orders : []; %>
-      <% 
-        const statusLabels = {
-          pending_payment: 'Pending Payment', preparing_unit: 'Preparing Unit', ready_for_pickup: 'Ready for Pickup', technician_assigned: 'Technician Assigned', technician_accepted: 'Technician Confirmed', technician_declined: 'Reassigning Technician', out_for_delivery: 'Out for Delivery', arrived: 'Arrived', installing: 'Installing', completed: 'Completed', cancelled: 'Cancelled'
-        };
-        const statusIcons = {
-          pending_payment: 'bi-clock', preparing_unit: 'bi-box-seam', ready_for_pickup: 'bi-bag-check', technician_assigned: 'bi-person-gear', technician_accepted: 'bi-person-check-fill', technician_declined: 'bi-person-x', out_for_delivery: 'bi-truck', arrived: 'bi-geo-alt', installing: 'bi-tools', completed: 'bi-check-circle-fill', cancelled: 'bi-x-circle'
-        };
-        const fulfillLabels = {
-          delivery_only: 'Delivery Only', delivery_installation: 'Delivery + Installation', customer_pickup: 'Pickup'
-        };
-        const paymentMethodLabels = {
-          cash_onsite: 'Cash at store pickup', gcash: 'GCash', gcash_downpayment: 'GCash downpayment', paymongo: 'PayMongo', cash: 'Cash', downpayment: 'Downpayment', other: 'Other'
-        };
-        const paymentChannelLabels = { card: 'Card at RACS store', gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank Transfer', other: 'Other Transfer' };
-        const orderPaymentLabel = order => order.paymentMethod === 'cod'
-          ? `Downpayment via ${paymentChannelLabels[order.paymentChannel] || 'selected method'}; balance at handover`
-          : order.paymentMethod === 'gcash_full'
-            ? `Full payment via ${paymentChannelLabels[order.paymentChannel] || 'selected method'}`
-            : (paymentMethodLabels[order.paymentMethod] || order.paymentMethod || 'Not specified');
-        const paymentStatusLabels = {
-          pending: 'Pending', payment_collected: 'Payment collected', waiting_for_remittance: 'Waiting for remittance', remitted: 'Remitted', verified: 'Verified', rejected: 'Rejected', refunded: 'Refunded', paid: 'Paid', failed: 'Failed', partial: 'Partially paid'
-        };
-        const statusGuidance = {
-          pending_payment: 'Complete or wait for payment verification. We will prepare the unit once payment is confirmed.',
-          preparing_unit: 'Your unit is being checked and prepared. We will assign a technician or delivery schedule next.',
-          ready_for_pickup: 'Your unit is ready for pickup! Please visit our store at your earliest convenience to collect it.',
-          technician_assigned: 'A technician has been selected and is reviewing the assignment.',
-          technician_accepted: 'Your technician has confirmed the assignment. We will notify you when they are on the way.',
-          technician_declined: 'We are assigning another available technician. No action is needed from you.',
-          out_for_delivery: 'Your order is on the way. Open tracking below for the latest location and ETA.',
-          arrived: 'Your technician has arrived at the service location.',
-          installing: 'Installation is currently in progress.',
-          completed: 'Your order is complete. You can leave a rating about your experience below.',
-          cancelled: 'This order was cancelled and will no longer be processed.'
-        };
-        const stageMap = { pending_payment:0, preparing_unit:1, ready_for_pickup:2, technician_assigned:2, technician_accepted:2, technician_declined:2, out_for_delivery:3, arrived:4, installing:4, completed:5 };
-        const activeCount = orderList.filter(function(o){ return o.status !== 'completed' && o.status !== 'cancelled'; }).length;
-        const completedCount = orderList.filter(function(o){ return o.status === 'completed'; }).length;
-        const cancelledCount = orderList.filter(function(o){ return o.status === 'cancelled'; }).length;
-      %>
-
-      <% if (orderList.length > 0) { %>
+    <div class="orders-workspace">
+      <div class="orders-section-heading"><div><h2>Order history</h2><p>Your latest purchases, all in one place.</p></div><a href="/maintenance"><i class="bi bi-calendar2-check" aria-hidden="true"></i> My maintenance</a></div>
+      <% if (orderList.length) { %>
         <div class="ord-toolbar" aria-label="Order filters">
           <div class="ord-filter-list" role="group" aria-label="Filter orders by status">
-            <button type="button" class="ord-filter-btn active" data-filter="all">All <span class="ord-filter-count"><%= orderList.length %></span></button>
-            <button type="button" class="ord-filter-btn" data-filter="active">Active <span class="ord-filter-count"><%= activeCount %></span></button>
-            <button type="button" class="ord-filter-btn" data-filter="completed">Completed <span class="ord-filter-count"><%= completedCount %></span></button>
-            <button type="button" class="ord-filter-btn" data-filter="cancelled">Cancelled <span class="ord-filter-count"><%= cancelledCount %></span></button>
-          </div>
-          <label class="ord-search-wrap">
-            <span class="visually-hidden">Search orders</span>
-            <i class="bi bi-search"></i>
-            <input class="ord-search" id="orderSearch" type="search" placeholder="Search order or product" autocomplete="off">
-          </label>
-        </div>
-      <% } %>
-
-      <% if (orderList.length === 0) { %>
-        <div class="ord-empty">
-          <div class="ord-empty-icon"><i class="bi bi-bag-x"></i></div>
-          <h5 class="fw-bold" style="color:#334155;">No Orders Yet</h5>
-          <p style="color:#94a3b8;max-width:320px;margin:0 auto;">Browse our <a href="/products" style="color:#3b82f6;font-weight:600;">aircon catalog</a> to get started!</p>
-        </div>
-      <% } %>
-
-      <% orderList.forEach((order) => { %>
-        <%
-          const orderGroup = order.status === 'completed' ? 'completed' : (order.status === 'cancelled' ? 'cancelled' : 'active');
-          const currentStage = stageMap[order.status] === undefined ? 0 : stageMap[order.status];
-          const progressWidth = Math.round(((currentStage + 1) / 6) * 100);
-          const orderSearch = [order.orderReference || order._id].concat((order.items || []).map(function(item){ return [item.brand, item.modelLine, item.capacity].filter(Boolean).join(' '); })).join(' ').toLowerCase();
-          const canManage = ['pending_payment', 'preparing_unit', 'technician_assigned'].includes(order.status);
-          const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
-          const payableTotal = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0)) + Number(order.transportationFee || 0);
-          const isDownpaymentPlan = order.paymentMethod === 'cod';
-          const plannedPaymentAmount = isDownpaymentPlan
-            ? Math.round(payableTotal * Number(order.downpaymentPercentage || 10) / 100)
-            : (order.paymentMethod === 'gcash_full' ? payableTotal : Math.min(payableTotal, Number(order.downpaymentAmount || 0)));
-          const plannedBalanceAmount = isDownpaymentPlan
-            ? Math.max(0, payableTotal - plannedPaymentAmount)
-            : (order.paymentMethod === 'gcash_full' ? 0 : Math.min(payableTotal, Number(order.balanceAmount || 0)));
-          const orderGuidance = order.fulfillmentType === 'customer_pickup' && order.status === 'preparing_unit'
-            ? 'Your unit is being prepared for store pickup. We will notify you when it is ready.'
-            : order.status === 'pending_payment' && order.paymentChannel === 'card'
-              ? 'Pay by credit or debit card at the RACS store so we can begin preparing your order.'
-              : statusGuidance[order.status];
-        %>
-        <div class="ord-card" data-order-group="<%= orderGroup %>" data-order-search="<%= orderSearch %>">
-          <!-- Header -->
-          <div class="ord-card-header">
-            <div>
-              <span class="ord-ref"><%= order.orderReference || order._id %></span>
-              <span class="ord-date ms-2"><%= new Date(order.createdAt).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %></span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="ord-fulfill">
-                <i class="bi <%= order.fulfillmentType === 'customer_pickup' ? 'bi-shop' : 'bi-truck' %>"></i>
-                <%= fulfillLabels[order.fulfillmentType] || order.fulfillmentType %>
-              </span>
-              <span class="ord-status <%= order.status %>">
-                <i class="bi <%= statusIcons[order.status] || 'bi-circle' %>"></i>
-                <%= statusLabels[order.status] || order.status %>
-              </span>
-            </div>
-          </div>
-
-          <!-- Body -->
-          <div class="ord-card-body">
-            <!-- Products -->
-            <% (order.items || []).forEach((item) => { %>
-              <div class="ord-product">
-                <img src="<%= item.imageUrl || '/images/products/default.png' %>" alt="<%= [item.brand, item.modelLine].filter(Boolean).join(' ') || 'Ordered aircon unit' %>" class="ord-product-img" loading="lazy">
-                <div style="min-width:0;">
-                  <div class="ord-product-name"><%= item.brand ? item.brand + ' ' : '' %><%= item.modelLine || 'Aircon Unit' %></div>
-                  <div class="ord-product-meta"><%= item.capacity || '' %> <%= item.capacity ? (item.capacityUnit || 'HP') : '' %> &middot; Qty: <%= item.quantity || 1 %></div>
-                </div>
-                <div class="ord-product-price">&#8369;<%= (item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))).toLocaleString() %></div>
-              </div>
+            <% [['all','All orders',orderList.length],['active','In progress',activeCount],['completed','Completed',completedCount],['cancelled','Cancelled',cancelledCount]].forEach(([filter,label,count]) => { %>
+              <button type="button" class="ord-filter-btn <%= filter === 'all' ? 'active' : '' %>" data-filter="<%= filter %>" aria-pressed="<%= filter === 'all' %>"><%= label %><span class="ord-filter-count"><%= count %></span></button>
             <% }) %>
-
-            <% if (order.status !== 'cancelled') { %>
-              <div class="ord-progress" aria-label="Order progress">
-                <div class="ord-progress-head"><span>Order progress</span><span>Step <%= currentStage + 1 %> of 6</span></div>
-                <div class="ord-progress-track"><div class="ord-progress-fill" style="width:<%= progressWidth %>%"></div></div>
-              </div>
-            <% } %>
-
-            <div class="ord-next-step">
-              <i class="bi <%= statusIcons[order.status] || 'bi-info-circle' %>"></i>
-              <div>
-                <strong><%= order.status === 'completed' || order.status === 'cancelled' ? 'Order update' : 'What happens next' %></strong>
-                <span><%= orderGuidance || 'We will update this order as it moves to the next step.' %></span>
-              </div>
-            </div>
-
-            <% if (order.status === 'completed' && order.maintenanceAssets && order.maintenanceAssets.length) { const nextMaint = order.maintenanceAssets.map(function(asset){ return asset.maintenanceSchedule; }).filter(Boolean).sort(function(a,b){ return new Date(a.dueDate) - new Date(b.dueDate); })[0]; %>
-              <div class="ord-info-row" style="background:#ecfeff;color:#155e75;">
-                <i class="bi bi-calendar2-check"></i>
-                <span><strong>Maintenance:</strong> <%= nextMaint ? ('Next due ' + new Date(nextMaint.dueDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' })) : 'Installation date required' %></span>
-                <a href="/maintenance" class="btn btn-sm btn-outline-info ms-auto">View</a>
-              </div>
-            <% } %>
-
-            <!-- Delivery Info -->
-            <% if (order.delivery && order.delivery.address) { %>
-              <div class="ord-info-row" style="background:#eff6ff;color:#1e40af;">
-                <i class="bi bi-geo-alt-fill"></i>
-                <span><%= order.delivery.address %><% if (order.delivery.preferredDate) { %> · <i class="bi bi-calendar3 ms-1"></i> <%= new Date(order.delivery.preferredDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %><% } %></span>
-              </div>
-            <% } else if (order.fulfillmentType === 'customer_pickup' && order.pickupDate) { %>
-              <div class="ord-info-row" style="background:#f0fdf4;color:#166534;">
-                <i class="bi bi-shop"></i>
-                <span><strong>Store pickup:</strong> <%= new Date(order.pickupDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) %> during posted store hours</span>
-              </div>
-            <% } %>
-
-            <!-- Technician -->
-            <% if (order.technician && order.technician.name) { %>
-              <div class="ord-info-row" style="background:#f5f3ff;color:#6d28d9;">
-                <i class="bi bi-person-badge-fill"></i>
-                <span><strong><%= order.technician.name %></strong><% if (order.technician.phone) { %> · <i class="bi bi-telephone ms-1"></i> <%= order.technician.phone %><% } %></span>
-              </div>
-            <% } %>
-
-            <!-- Total -->
-            <div class="ord-total-row">
-              <span class="ord-total-label">Total payable</span>
-              <span class="ord-total-value">&#8369;<%= (order.total || 0).toLocaleString() %></span>
-            </div>
-            <% if (Number(order.downpaymentAmount || 0) > 0) { %>
-              <div class="ord-info-row mt-2" style="background:#fffbeb;color:#92400e;">
-                <i class="bi bi-wallet2"></i>
-                <span><strong><%= order.paymentMethod === 'gcash_full' ? 'Full payment' : `${order.downpaymentPercentage || 10}% downpayment` %>:</strong> &#8369;<%= Number(order.downpaymentAmount).toLocaleString() %> &middot; <strong>Remaining:</strong> &#8369;<%= Number(order.balanceAmount || 0).toLocaleString() %></span>
-              </div>
-            <% } %>
-            <% if (order.refundStatus && order.refundStatus !== 'none') { %>
-              <div class="ord-info-row mt-2" style="background:<%= order.refundStatus === 'completed' ? '#ecfdf5' : '#fff7ed' %>;color:<%= order.refundStatus === 'completed' ? '#047857' : '#9a3412' %>;">
-                <i class="bi bi-arrow-counterclockwise"></i>
-                <span><strong>Refund <%= order.refundStatus %>:</strong> &#8369;<%= Number(order.refundAmount || 0).toLocaleString() %><%= order.refundStatus === 'pending' ? ' is awaiting administrator processing.' : '' %></span>
-              </div>
-            <% } else if (order.status === 'cancelled' && order.refundReviewRequestedAt) { %>
-              <div class="ord-info-row mt-2" style="background:#eff6ff;color:#1d4ed8;">
-                <i class="bi bi-hourglass-split"></i>
-                <span><strong>Payment review requested.</strong> Staff must verify the receipt before any refund can be approved. No refund amount is confirmed yet.</span>
-              </div>
-            <% } else if (order.status === 'cancelled' && order.paymentStatus !== 'refunded') { %>
-              <div class="ord-info-row mt-2" style="background:#fff7ed;color:#9a3412;">
-                <i class="bi bi-info-circle"></i>
-                <span>Already paid? Request a refund below. If your receipt is not verified yet, staff will review it first. Requests do not automatically transfer money.</span>
-              </div>
-            <% } %>
-
-            <!-- Rating Section -->
-            <% if (order.status === 'completed') { %>
-              <div class="mt-3">
-                <% if (order.customerRating) { %>
-                  <div class="d-flex align-items-center gap-2">
-                    <span class="small fw-semibold" style="color:#64748b;">Your Rating:</span>
-                    <div class="d-flex gap-1">
-                      <% for(let i = 1; i <= 5; i++) { %>
-                        <i class="bi bi-star<%= i <= Math.floor(order.customerRating) ? '-fill' : '' %>" style="color:<%= i <= Math.floor(order.customerRating) ? '#f59e0b' : '#d1d5db' %>;font-size:0.9rem;"></i>
-                      <% } %>
-                    </div>
-                    <% if (order.customerRatingComment) { %>
-                      <span class="small text-muted fst-italic">"<%= order.customerRatingComment %>"</span>
-                    <% } %>
-                  </div>
-                <% } else { %>
-                  <button class="ord-rate-btn" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech="<%= order.technician && order.technician.name ? order.technician.name : 'Technician' %>">
-                    <i class="bi bi-star"></i> Rate This Order
-                  </button>
-                <% } %>
-              </div>
-            <% } %>
-
-            <% if (pendingReschedule) { %>
-              <div class="ord-request-note"><i class="bi bi-hourglass-split"></i> Reschedule request under review</div>
-            <% } %>
-
-            <!-- Primary order actions -->
-            <div class="ord-action-row">
-              <a class="ord-track-btn" href="/my-orders/<%= order._id %>" aria-label="View details for order <%= order.orderReference || order._id %>">
-                <i class="bi bi-info-circle"></i> View Details
-                <i class="bi bi-chevron-right ord-view-chevron" aria-hidden="true"></i>
-              </a>
-              <% if (order.status === 'completed') { %>
-                <a class="ord-secondary-btn" href="/my-orders/<%= order._id %>#orderProductReturns"><i class="bi bi-arrow-return-left"></i> Return a Product</a>
-              <% } %>
-              <% if (order.status === 'cancelled' && (order.items || []).length) { %>
-                <button class="ord-secondary-btn" type="button" data-order-reorder="<%= order._id %>" aria-label="Reorder products from <%= order.orderReference || order._id %>">
-                  <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reorder
-                </button>
-              <% } %>
-              <% if (order.status === 'cancelled' && (!order.refundStatus || order.refundStatus === 'none') && !order.refundReviewRequestedAt && order.paymentStatus !== 'refunded') { %>
-                <button class="ord-secondary-btn" type="button" data-order-refund="<%= order._id %>" aria-label="Request refund for <%= order.orderReference || order._id %>">
-                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Request Refund
-                </button>
-              <% } %>
-              <% if (canManage && !pendingReschedule) { %>
-                <button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-fulfillment="<%= order.fulfillmentType %>" data-quantity="<%= order.fulfillmentType === 'delivery_installation' ? Math.max(1, (order.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0)) : 1 %>" data-travel-time="<%= Math.max(0, Number(order.routeDurationMin) || 30) %>">
-                  <i class="bi bi-calendar-event"></i> Reschedule
-                </button>
-              <% } %>
-              <% if (canManage) { %>
-                <button class="ord-danger-btn ord-cancel-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>">
-                  <i class="bi bi-x-circle"></i> Cancel order
-                </button>
-              <% } %>
-            </div>
-
-            <div class="collapse" id="tracking-<%= order._id %>">
-              <div class="ord-detail-panel">
-                <div class="ord-detail-heading">
-                  <strong><i class="bi bi-receipt"></i> Order Details</strong>
-                  <span class="ord-status <%= order.status %>"><%= statusLabels[order.status] || order.status %></span>
-                </div>
-                <div class="ord-detail-grid">
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Customer</span>
-                    <div class="ord-detail-value"><%= (order.customer && order.customer.name) || 'Not provided' %></div>
-                  </div>
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Contact</span>
-                    <div class="ord-detail-value">
-                      <%= (order.customer && order.customer.phone) || (order.delivery && order.delivery.contactNumber) || 'No phone provided' %>
-                      <% if (order.customer && order.customer.email) { %><br><%= order.customer.email %><% } %>
-                    </div>
-                  </div>
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Fulfillment</span>
-                    <div class="ord-detail-value"><%= fulfillLabels[order.fulfillmentType] || order.fulfillmentType || 'Not specified' %></div>
-                  </div>
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Schedule</span>
-                    <div class="ord-detail-value">
-                      <% const orderScheduleDate = order.fulfillmentType === 'customer_pickup' ? order.pickupDate : (order.delivery && order.delivery.preferredDate); %>
-                      <%= orderScheduleDate ? new Date(orderScheduleDate).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) : 'To be confirmed' %>
-                      <% if (order.timeSlot) { %> at <%= order.timeSlot %><% } %>
-                    </div>
-                  </div>
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Payment</span>
-                    <div class="ord-detail-value"><%= orderPaymentLabel(order) %> &middot; <%= paymentStatusLabels[order.paymentStatus] || order.paymentStatus || 'Pending' %></div>
-                  </div>
-                  <div class="ord-detail-item">
-                    <span class="ord-detail-label">Technician</span>
-                    <div class="ord-detail-value"><%= (order.technician && order.technician.name) || 'To be assigned' %><% if (order.technician && order.technician.phone) { %><br><%= order.technician.phone %><% } %></div>
-                  </div>
-                  <div class="ord-detail-item wide">
-                    <span class="ord-detail-label"><%= order.fulfillmentType === 'customer_pickup' ? 'Pickup location' : 'Delivery address' %></span>
-                    <div class="ord-detail-value"><%= order.fulfillmentType === 'customer_pickup' ? (order.pickupLocation || 'CALIDRO RACS Store') : ((order.delivery && order.delivery.address) || 'Address not provided') %></div>
-                  </div>
-                  <% if (order.delivery && order.delivery.notes) { %>
-                    <div class="ord-detail-item wide">
-                      <span class="ord-detail-label">Delivery notes</span>
-                      <div class="ord-detail-value"><%= order.delivery.notes %></div>
-                    </div>
-                  <% } %>
-                  <% if (order.cancellationReason) { %>
-                    <div class="ord-detail-item wide">
-                      <span class="ord-detail-label">Cancellation reason</span>
-                      <div class="ord-detail-value"><%= order.cancellationReason %></div>
-                    </div>
-                  <% } %>
-                  <div class="ord-detail-item wide">
-                    <span class="ord-detail-label">Payment summary</span>
-                    <div class="ord-cost-list">
-                      <div class="ord-cost-line"><span>Aircon product price</span><strong>&#8369;<%= Number(order.subtotal || 0).toLocaleString() %></strong></div>
-                      <% if (Number(order.deliveryFee || 0) > 0) { %><div class="ord-cost-line"><span>Delivery fee</span><strong>&#8369;<%= Number(order.deliveryFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.installationFee || 0) > 0) { %><div class="ord-cost-line"><span>Installation service <small class="text-muted">(not included)</small></span><strong>&#8369;<%= Number(order.installationFee).toLocaleString() %></strong></div><% } %>
-                      <% if (Number(order.transportationFee || 0) > 0) { %><div class="ord-cost-line"><span>Transportation service</span><strong>&#8369;<%= Number(order.transportationFee).toLocaleString() %></strong></div><% } %>
-                      <% if (plannedPaymentAmount > 0) { %><div class="ord-cost-line"><span><%= isDownpaymentPlan ? 'Downpayment' : 'Full payment' %></span><strong>&#8369;<%= plannedPaymentAmount.toLocaleString() %></strong></div><% } %>
-                      <% if (plannedBalanceAmount > 0) { %><div class="ord-cost-line"><span>Remaining balance</span><strong>&#8369;<%= plannedBalanceAmount.toLocaleString() %></strong></div><% } %>
-                      <div class="ord-cost-line total"><span>Total payable</span><strong>&#8369;<%= payableTotal.toLocaleString() %></strong></div>
-                      <div class="small text-muted mt-2">The total payable includes only the aircon products and transportation. Installation is not included.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-                <div class="row mt-3">
-                  <!-- Timeline -->
-                  <div class="col-md-5">
-                    <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Order Timeline</div>
-                    <% if (order.statusHistory && order.statusHistory.length > 0) { %>
-                      <div class="ord-timeline">
-                        <% order.statusHistory.slice().reverse().forEach((h, hIdx) => { %>
-                          <div class="ord-timeline-item">
-                            <div class="ord-timeline-dot <%= hIdx === 0 ? 'active' : 'completed' %>"></div>
-                            <div class="ord-timeline-status"><%= statusLabels[h.status] || h.status %></div>
-                            <div class="ord-timeline-time"><%= new Date(h.timestamp).toLocaleString('en-PH') %></div>
-                            <% if (h.note) { %>
-                              <div class="ord-timeline-note"><%= h.note %></div>
-                            <% } %>
-                          </div>
-                        <% }) %>
-                      </div>
-                    <% } else { %>
-                      <div class="small text-muted">No timeline updates are available yet.</div>
-                    <% } %>
-                  </div>
-                  <!-- Map -->
-                  <div class="col-md-7">
-                    <div style="font-size:0.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;margin-top:14px;">Live Tracking</div>
-                    <% var hasCoords = order.delivery && order.delivery.coordinates && Array.isArray(order.delivery.coordinates.coordinates) && order.delivery.coordinates.coordinates.length === 2; %>
-                    <% var isTrackable = ['technician_assigned', 'technician_accepted', 'out_for_delivery', 'arrived', 'installing'].includes(order.status); %>
-                    <% if (hasCoords && isTrackable && order.technician) { %>
-                      <div class="ord-track-map rounded-3 border" id="map-<%= order._id %>" style="height:280px;width:100%;z-index:1;border-radius:12px !important;" data-order-id="<%= order._id %>" data-lat="<%= order.delivery.coordinates.coordinates[1] %>" data-lng="<%= order.delivery.coordinates.coordinates[0] %>" data-tech-id="<%= order.technician._id || order.technicianId || order.technician %>"></div>
-                      <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded-2" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                        <button class="btn btn-sm py-1 px-2" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;" id="btn-focus-cust-<%= order._id %>">
-                          <i class="bi bi-geo-alt-fill text-danger me-1" style="font-size:0.7rem;"></i><span style="font-size:0.72rem;font-weight:600;">Customer</span>
-                        </button>
-                        <span id="eta-info-<%= order._id %>" class="fw-bold text-primary text-center px-2" style="font-size:0.82rem;line-height:1.2;">
-                          <i class="bi bi-arrow-repeat spin-anim"></i> Calculating...
-                        </span>
-                        <button class="btn btn-sm py-1 px-2" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;" id="btn-focus-tech-<%= order._id %>" disabled>
-                          <i class="bi bi-person-badge-fill text-primary me-1" style="font-size:0.7rem;"></i><span style="font-size:0.72rem;font-weight:600;">Technician</span>
-                        </button>
-                      </div>
-                    <% } else if (order.status === 'completed') { %>
-                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#f0fdf4;border:1px solid #bbf7d0;">
-                        <i class="bi bi-check2-circle fs-2 mb-2" style="color:#22c55e;"></i>
-                        <h6 class="mb-0 fw-bold" style="color:#166534;">Order Completed</h6>
-                        <p class="small mb-0" style="color:#16a34a;">Tracking is no longer active.</p>
-                      </div>
-                    <% } else if (order.status === 'cancelled') { %>
-                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#fef2f2;border:1px solid #fecaca;">
-                        <i class="bi bi-x-circle fs-2 mb-2" style="color:#dc2626;"></i>
-                        <h6 class="mb-0 fw-bold" style="color:#991b1b;">Order Cancelled</h6>
-                      </div>
-                    <% } else { %>
-                      <div class="d-flex flex-column align-items-center justify-content-center p-4 text-center rounded-3" style="background:#f8fafc;border:1px solid #e2e8f0;">
-                        <i class="bi bi-box-seam fs-2 mb-2" style="color:#94a3b8;"></i>
-                        <h6 class="mb-0 fw-bold" style="color:#475569;">Preparing for Delivery</h6>
-                        <p class="small mb-0" style="color:#94a3b8;">Check back once a technician is assigned.</p>
-                      </div>
-                    <% } %>
-                  </div>
-                </div>
-            </div>
           </div>
+          <div class="orders-search-controls"><label class="ord-search-wrap"><span class="visually-hidden">Search by order reference or product</span><i class="bi bi-search" aria-hidden="true"></i><input class="ord-search" id="orderSearch" type="search" placeholder="Search orders" autocomplete="off"></label><label><span class="visually-hidden">Sort orders</span><select id="orderSort" class="orders-sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label></div>
         </div>
-      <% }) %>
-      <div class="ord-no-results" id="orderNoResults">
-        <i class="bi bi-search"></i>
-        <strong>No matching orders</strong>
-        <div class="small mt-1">Try another search or status filter.</div>
+        <p class="orders-results" id="orderResults" role="status" aria-live="polite"></p>
+      <% } else { %>
+        <div class="ord-empty"><div class="ord-empty-icon"><i class="bi bi-bag" aria-hidden="true"></i></div><h2>No Orders Yet</h2><p>Your purchases will appear here with their latest status and schedule.</p><a href="/products" class="ord-track-btn">Browse aircon products <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+      <% } %>
+      <div class="orders-list" id="ordersList">
+        <% orderList.forEach(order => {
+          const orderGroup = order.status === 'completed' ? 'completed' : order.status === 'cancelled' ? 'cancelled' : 'active';
+          const items = order.items || [];
+          const orderSearch = [order.orderReference || order._id].concat(items.map(item => [item.brand,item.modelLine,item.capacity].filter(Boolean).join(' '))).join(' ').toLowerCase();
+          const canManage = ['pending_payment','preparing_unit','technician_assigned'].includes(order.status);
+          const pendingReschedule = order.rescheduleRequest && order.rescheduleRequest.requested && order.rescheduleRequest.status === 'pending';
+          const invitedSchedule = order.rescheduleInvitation?.status === 'allowed' && new Date(order.rescheduleInvitation.expiresAt) > new Date() && ['pending_payment','preparing_unit','technician_assigned','technician_accepted','technician_declined','ready_for_pickup'].includes(order.status);
+          const orderScheduleDate = order.fulfillmentType === 'customer_pickup' ? order.pickupDate : order.delivery && order.delivery.preferredDate;
+          const payableTotal = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0)) + Number(order.transportationFee || 0);
+          const orderGuidance = order.status === 'pending_payment' && order.paymentChannel === 'card' ? 'Pay by credit or debit card at the RACS store so we can begin preparing your order.' : order.fulfillmentType === 'customer_pickup' && order.status === 'preparing_unit' ? 'Your unit is being prepared for store pickup.' : statusGuidance[order.status];
+        %>
+          <article class="ord-card" data-order-id="<%= order._id %>" data-order-group="<%= orderGroup %>" data-order-search="<%= orderSearch %>" data-order-created="<%= new Date(order.createdAt).getTime() || 0 %>" aria-label="Order <%= order.orderReference || order._id %>">
+            <div class="ord-card-header"><div class="orders-reference"><a class="ord-ref" href="/my-orders/<%= order._id %>"><%= order.orderReference || order._id %></a><span class="ord-date">Placed <%= dateLabel(order.createdAt) %></span></div><span class="ord-status <%= order.status %>"><span class="orders-status-dot" aria-hidden="true"></span><%= statusLabels[order.status] || order.status %></span></div>
+            <div class="ord-card-body">
+              <div class="orders-products">
+                <% items.slice(0,2).forEach(item => { %><div class="ord-product"><img src="<%= item.imageUrl || '/images/order-product-placeholder.svg' %>" alt="" class="ord-product-img" loading="lazy" width="56" height="56"><div><div class="ord-product-name"><%= item.brand ? item.brand + ' ' : '' %><%= item.modelLine || 'Aircon unit' %></div><div class="ord-product-meta"><%= item.capacity || '' %><%= item.capacity ? ' ' + (item.capacityUnit || 'HP') + ' · ' : '' %>Qty <%= item.quantity || 1 %></div></div></div><% }) %>
+                <% if (!items.length) { %><span class="ord-product-meta">See order details for product information.</span><% } %>
+                <% if (items.length > 2) { %><a class="orders-more-products" href="/my-orders/<%= order._id %>">+<%= items.length - 2 %> more products</a><% } %>
+              </div>
+              <div class="orders-schedule"><span class="orders-field-label"><i class="bi <%= order.fulfillmentType === 'customer_pickup' ? 'bi-shop' : 'bi-truck' %>" aria-hidden="true"></i> <%= fulfillLabels[order.fulfillmentType] || 'Fulfillment' %></span><strong><%= dateLabel(orderScheduleDate) %></strong><span><%= order.fulfillmentType === 'customer_pickup' ? 'During store hours' : timeLabel(order.timeSlot) || 'Time to be confirmed' %></span><% if (order.technician && order.technician.name) { %><span class="orders-technician"><%= order.technician.name %></span><% } %></div>
+              <div class="orders-payment"><span class="orders-field-label">Total payable</span><strong class="ord-total-value">&#8369;<%= money(payableTotal) %></strong><span class="orders-payment-state"><%= order.paymentStatus === 'paid' || order.paymentStatus === 'verified' ? 'Payment confirmed' : order.paymentStatus === 'refunded' ? 'Payment refunded' : 'Payment ' + (order.paymentStatus || 'pending').replace(/_/g,' ') %></span>
+                <% if (Number(order.downpaymentAmount || 0) > 0) { %><div class="orders-payment-breakdown"><strong><%= order.paymentMethod === 'gcash_full' ? 'Full payment' : `${order.downpaymentPercentage || 10}% downpayment` %>:</strong> &#8369;<%= Number(order.downpaymentAmount).toLocaleString() %> &middot; <strong>Remaining:</strong> &#8369;<%= Number(order.balanceAmount || 0).toLocaleString() %></div><% } %>
+              </div>
+            </div>
+            <div class="orders-update"><i class="bi bi-info-circle" aria-hidden="true"></i><span><%= orderGuidance || 'View details for the latest order updates.' %></span></div>
+            <% if (invitedSchedule) { %><div class="ord-request-note"><i class="bi bi-calendar-event" aria-hidden="true"></i><span>Our team invited you to choose a new schedule. <a href="/my-orders/<%= order._id %>/reschedule">Choose a new <%= order.fulfillmentType === 'customer_pickup' ? 'pickup date' : 'schedule' %></a>.</span></div><% } %>
+            <% if (pendingReschedule) { %><div class="ord-request-note"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Reschedule request under review &middot; <%= dateLabel(order.rescheduleRequest.requestedDate) %><%= order.rescheduleRequest.requestedTime ? ' at ' + timeLabel(order.rescheduleRequest.requestedTime) : '' %>. Your current schedule stays in place until approval.</span></div><% } %>
+            <% if (order.refundStatus && order.refundStatus !== 'none') { %><div class="orders-notice"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Refund <%= order.refundStatus %>: &#8369;<%= money(order.refundAmount) %></div><% } else if (order.status === 'cancelled' && order.refundReviewRequestedAt) { %><div class="orders-notice">Payment review requested. Staff will verify your receipt before confirming a refund.</div><% } else if (order.status === 'cancelled' && order.paymentStatus !== 'refunded') { %><div class="orders-notice">Already paid? Request a refund for staff to review your payment.</div><% } %>
+            <% if (order.status === 'completed' && order.maintenanceAssets && order.maintenanceAssets.length) { %><div class="orders-notice"><i class="bi bi-calendar2-check" aria-hidden="true"></i><a href="/maintenance">View maintenance for your installed units</a></div><% } %>
+            <div class="ord-action-row"><div class="orders-secondary-actions">
+              <% if (canManage && !pendingReschedule && !invitedSchedule) { %><button class="ord-secondary-btn ord-reschedule-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-fulfillment="<%= order.fulfillmentType %>" data-quantity="<%= order.fulfillmentType === 'delivery_installation' ? Math.max(1, items.reduce((sum,item) => sum + (Number(item.quantity) || 1),0)) : 1 %>" data-travel-time="<%= Math.max(0,Number(order.routeDurationMin) || 30) %>" data-current-schedule="<%= dateLabel(orderScheduleDate) %><%= order.fulfillmentType !== 'customer_pickup' && order.timeSlot ? ' at ' + timeLabel(order.timeSlot) : '' %>"><i class="bi bi-calendar-event" aria-hidden="true"></i> Reschedule</button><% } %>
+              <% if (canManage) { %><button class="ord-danger-btn ord-cancel-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>">Cancel order</button><% } %>
+              <% if (order.status === 'completed') { %><a class="ord-secondary-btn" href="/my-orders/<%= order._id %>#orderProductReturns">Return a product</a><% if (!order.customerRating) { %><button class="ord-secondary-btn ord-rate-btn" type="button" data-id="<%= order._id %>" data-ref="<%= order.orderReference || order._id %>" data-tech="<%= order.technician && order.technician.name || 'RACS team' %>"><i class="bi bi-star" aria-hidden="true"></i> Rate order</button><% } else { %><span class="orders-rating"><i class="bi bi-star-fill" aria-hidden="true"></i> <%= order.customerRating %>/5</span><% } %><% } %>
+              <% if (order.status === 'cancelled' && items.length) { %><button class="ord-secondary-btn" type="button" data-order-reorder="<%= order._id %>"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Reorder</button><% } %>
+              <% if (order.status === 'cancelled' && (!order.refundStatus || order.refundStatus === 'none') && !order.refundReviewRequestedAt && order.paymentStatus !== 'refunded') { %><button class="ord-secondary-btn" type="button" data-order-refund="<%= order._id %>">Request refund</button><% } %>
+            </div><a class="ord-track-btn" href="/my-orders/<%= order._id %>" aria-label="View details for order <%= order.orderReference || order._id %>">View details <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+          </article>
+        <% }) %>
       </div>
+      <div class="ord-no-results" id="orderNoResults" hidden><i class="bi bi-search" aria-hidden="true"></i><h3>No matching orders</h3><p>Try a different product, order reference, or status.</p><button type="button" id="resetOrderFilters" class="ord-secondary-btn">Clear filters</button></div>
+      <% if (orderList.length) { %><nav class="orders-pagination" aria-label="Order list pages"><span id="orderPageSummary"></span><div><button type="button" id="orderPrev" class="ord-secondary-btn" disabled><i class="bi bi-chevron-left" aria-hidden="true"></i> Previous</button><button type="button" id="orderNext" class="ord-secondary-btn">Next <i class="bi bi-chevron-right" aria-hidden="true"></i></button></div></nav><% } %>
     </div>
   </div>
-
   <!-- Compact reschedule flow -->
-  <div class="modal fade" id="orderRescheduleModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+  <div class="modal fade" id="orderRescheduleModal" tabindex="-1" aria-hidden="true" aria-labelledby="rescheduleTitle">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
       <div class="modal-content" style="border:0;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(15,23,42,.2);">
         <div class="modal-header" style="padding:20px 22px;border-bottom:1px solid #e2e8f0;">
           <div>
-            <h5 class="modal-title fw-bold mb-1" style="font-size:1rem;color:#0f172a;">Request a new schedule</h5>
+            <h5 id="rescheduleTitle" class="modal-title fw-bold mb-1" style="font-size:1rem;color:#0f172a;">Request a new schedule</h5>
             <div id="rescheduleOrderRef" style="font-size:.75rem;color:#64748b;"></div>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -942,14 +96,14 @@
           <div id="rescheduleLoading" class="text-center py-4 text-muted">
             <span class="spinner-border spinner-border-sm me-2"></span>Loading available schedules...
           </div>
-          <div id="rescheduleError" class="alert alert-danger d-none mb-0"></div>
+          <div id="rescheduleError" class="alert alert-danger d-none" role="alert" tabindex="-1"></div><button type="button" id="rescheduleRetry" class="btn btn-outline-secondary d-none mb-3">Retry loading schedules</button>
           <div id="rescheduleFields" class="d-none">
-            <div id="rescheduleCalendar" class="ord-rs-picker" aria-label="Choose an available reschedule date and time"></div>
+            <p class="orders-current-schedule">Current schedule: <strong id="rescheduleCurrentSchedule"></strong></p><div id="rescheduleCalendar" class="ord-rs-picker" aria-label="Choose an available reschedule date and time"></div>
             <input type="hidden" id="rescheduleDate">
             <input type="hidden" id="rescheduleTime">
-            <label for="rescheduleReason" class="form-label fw-semibold mt-3" style="font-size:.8rem;">Reason</label>
-            <textarea id="rescheduleReason" class="form-control" rows="3" maxlength="500" placeholder="Tell us why you need a new schedule" style="font-size:.85rem;resize:none;"></textarea>
-            <p class="mb-0 mt-3" style="font-size:.72rem;color:#64748b;"><i class="bi bi-info-circle me-1"></i>Your request will be reviewed before the schedule changes.</p>
+            <label for="rescheduleReason" class="form-label fw-semibold mt-3" style="font-size:.8rem;">Reason for rescheduling <span class="text-muted">(required)</span></label>
+            <textarea id="rescheduleReason" class="form-control" rows="3" maxlength="500" required aria-describedby="rescheduleHelp" placeholder="Tell us why you need a new schedule" style="font-size:.85rem;resize:none;"></textarea>
+            <p id="rescheduleHelp" class="mb-0 mt-3" style="font-size:.72rem;color:#64748b;"><i class="bi bi-info-circle me-1"></i>Your request will be reviewed before the schedule changes.</p>
           </div>
         </div>
         <div class="modal-footer" style="padding:14px 22px;border-top:1px solid #e2e8f0;">
@@ -960,343 +114,12 @@
     </div>
   </div>
 
-  <!-- Leaflet already loaded by main layout -->
-  <script src="/socket.io/socket.io.js"></script>
-
-  <style>
-    .custom-customer-icon { background:none; border:none; }
-    .custom-customer-icon i { font-size:32px; color:#dc3545; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
-    .custom-tech-icon { background:none; border:none; }
-    .custom-tech-icon i { font-size:32px; color:#0d6efd; filter:drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
-    .map-tooltip { background:white; border:1px solid rgba(0,0,0,0.1); box-shadow:0 4px 12px rgba(0,0,0,0.15); font-weight:600; font-size:0.75rem; color:#334155; padding:4px 8px; border-radius:6px; }
-    @keyframes spin { 100% { transform:rotate(360deg); } }
-    .spin-anim { display:inline-block; animation:spin 1s linear infinite; }
-  </style>
-
-  <script src="/js/customer-order-reorder.js?v=20260930-reorder-v1" defer></script>
-  <script src="/js/customer-order-refund.js?v=20260930-refund-review-v2" defer></script>
-  <script src="/js/order-reschedule-picker.js?v=20260930-capacity-v2" defer></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const cards = Array.from(document.querySelectorAll('.ord-card'));
-      const filterButtons = document.querySelectorAll('.ord-filter-btn');
-      const searchInput = document.getElementById('orderSearch');
-      const noResults = document.getElementById('orderNoResults');
-      let activeFilter = 'all';
-
-      if (typeof window.io === 'function') {
-        const orderSocket = window.io({ path:'/socket.io' });
-        let refreshTimer = null;
-        orderSocket.on('order:status-change', function(update) {
-          clearTimeout(refreshTimer);
-          refreshTimer = setTimeout(function() {
-            if (window.Swal) {
-              Swal.fire({ toast:true, position:'top-end', icon:'info', title:'Order updated', text:'Refreshing the latest order status…', showConfirmButton:false, timer:900 });
-            }
-            setTimeout(function() { window.location.reload(); }, 500);
-          }, 250);
-        });
-      }
-
-      const pageParams = new URLSearchParams(window.location.search);
-      if (pageParams.get('payment') === 'success') {
-        const paidOrder = pageParams.get('orderId');
-        const message = paidOrder ? 'Payment received for your order. You can follow its progress here.' : 'Payment received. You can follow your order progress here.';
-        if (window.Swal) Swal.fire({ icon:'success', title:'Payment successful', text:message, confirmButtonColor:'#2563eb' });
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-
-      function applyOrderFilters() {
-        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-        let visibleCount = 0;
-        cards.forEach(function (card) {
-          const matchesStatus = activeFilter === 'all' || card.dataset.orderGroup === activeFilter;
-          const matchesSearch = !query || (card.dataset.orderSearch || '').includes(query);
-          const visible = matchesStatus && matchesSearch;
-          card.style.display = visible ? '' : 'none';
-          if (visible) visibleCount += 1;
-        });
-        if (noResults) noResults.style.display = cards.length && visibleCount === 0 ? 'block' : 'none';
-      }
-
-      filterButtons.forEach(function (button) {
-        button.addEventListener('click', function () {
-          activeFilter = button.dataset.filter || 'all';
-          filterButtons.forEach(function (item) { item.classList.toggle('active', item === button); });
-          applyOrderFilters();
-        });
-      });
-      if (searchInput) searchInput.addEventListener('input', applyOrderFilters);
-
-      async function showResult(icon, title, text) {
-        if (window.Swal) return Swal.fire({ icon: icon, title: title, text: text, confirmButtonColor: '#2563eb' });
-        alert([title, text].filter(Boolean).join('\n'));
-      }
-
-      document.querySelectorAll('.ord-cancel-btn').forEach(function (button) {
-        button.addEventListener('click', async function () {
-          const orderRef = button.dataset.ref;
-          let reason = '';
-
-          if (window.Swal) {
-            const result = await Swal.fire({
-              icon: 'warning',
-              title: 'Cancel this order?',
-              text: orderRef + ' will stop being processed. This action cannot be undone.',
-              input: 'textarea',
-              inputLabel: 'Reason for cancellation',
-              inputPlaceholder: 'Briefly tell us why you are cancelling',
-              inputAttributes: { maxlength: 500, 'aria-label': 'Reason for cancellation' },
-              showCancelButton: true,
-              confirmButtonText: 'Cancel order',
-              cancelButtonText: 'Keep order',
-              confirmButtonColor: '#dc2626',
-              reverseButtons: true,
-              inputValidator: function (value) { return value && value.trim() ? undefined : 'Please provide a cancellation reason.'; }
-            });
-            if (!result.isConfirmed) return;
-            reason = result.value.trim();
-          } else {
-            reason = (prompt('Reason for cancelling ' + orderRef + ':') || '').trim();
-            if (!reason) return;
-            if (!confirm('Cancel ' + orderRef + '? This cannot be undone.')) return;
-          }
-
-          const originalHtml = button.innerHTML;
-          button.disabled = true;
-          button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cancelling';
-          try {
-            const response = await fetch('/api/orders/' + encodeURIComponent(button.dataset.id) + '/cancel', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ reason: reason })
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Unable to cancel this order.');
-            await showResult('success', 'Order cancelled', data.message || 'Your order status has been updated.');
-            window.location.reload();
-          } catch (error) {
-            button.disabled = false;
-            button.innerHTML = originalHtml;
-            showResult('error', 'Cancellation failed', error.message);
-          }
-        });
-      });
-
-      const rescheduleModalElement = document.getElementById('orderRescheduleModal');
-      const rescheduleModal = rescheduleModalElement ? new bootstrap.Modal(rescheduleModalElement) : null;
-      const loading = document.getElementById('rescheduleLoading');
-      const errorBox = document.getElementById('rescheduleError');
-      const fields = document.getElementById('rescheduleFields');
-      const dateSelect = document.getElementById('rescheduleDate');
-      const timeSelect = document.getElementById('rescheduleTime');
-      const reasonInput = document.getElementById('rescheduleReason');
-      const submitButton = document.getElementById('submitReschedule');
-      let currentOrderId = '';
-      let currentScheduleParams = null;
-      let scheduleRequestGeneration = 0;
-      let scheduleRequestController = null;
-      const reschedulePicker = new window.OrderReschedulePicker(
-        document.getElementById('rescheduleCalendar'), dateSelect, timeSelect, updateRescheduleSubmit,
-        async function (date) {
-          if (currentScheduleParams?.fulfillment === 'customer_pickup') return [{ time: 'store_hours', label: 'During store hours' }];
-          if (!currentScheduleParams) throw new Error('Schedule is no longer active.');
-          const params = new URLSearchParams({
-            date: date, duration: '60', quantity: currentScheduleParams.quantity,
-            travelTime: currentScheduleParams.travelTime
-          });
-          const response = await fetch('/api/schedule/time-slots?' + params.toString(), { cache: 'no-store' });
-          const data = await response.json();
-          if (!response.ok || data.blocked) throw new Error(data.message || data.error || 'Unable to load available times.');
-          return Array.isArray(data.timeSlots) ? data.timeSlots : [];
-        }
-      );
-
-      function updateRescheduleSubmit() {
-        if (submitButton) submitButton.disabled = !(dateSelect.value && timeSelect.value && reasonInput.value.trim());
-      }
-
-      if (reasonInput) reasonInput.addEventListener('input', updateRescheduleSubmit);
-      if (rescheduleModalElement) rescheduleModalElement.addEventListener('hidden.bs.modal', function () {
-        scheduleRequestGeneration++;
-        if (scheduleRequestController) scheduleRequestController.abort();
-        scheduleRequestController = null;
-        currentScheduleParams = null;
-        reschedulePicker.reset();
-      });
-
-      document.querySelectorAll('.ord-reschedule-btn').forEach(function (button) {
-        button.addEventListener('click', async function () {
-          currentOrderId = button.dataset.id;
-          currentScheduleParams = {
-            fulfillment: button.dataset.fulfillment,
-            quantity: button.dataset.quantity || '1',
-            travelTime: button.dataset.travelTime || '30'
-          };
-          const requestGeneration = ++scheduleRequestGeneration;
-          if (scheduleRequestController) scheduleRequestController.abort();
-          scheduleRequestController = new AbortController();
-          document.getElementById('rescheduleOrderRef').textContent = 'Order ' + button.dataset.ref;
-          reschedulePicker.reset();
-          reasonInput.value = '';
-          submitButton.disabled = true;
-          loading.classList.remove('d-none');
-          errorBox.classList.add('d-none');
-          fields.classList.add('d-none');
-          rescheduleModal.show();
-
-          try {
-            let availableDates;
-            if (button.dataset.fulfillment === 'customer_pickup') {
-              const response = await fetch('/api/public/company/store-open-hours', { cache: 'no-store', signal: scheduleRequestController.signal });
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error || 'Unable to load store hours.');
-              const hours = Array.isArray(data.hours) ? data.hours : [];
-              const today = new Date(); today.setHours(0,0,0,0);
-              availableDates = [];
-              for (let offset = 1; offset <= 30; offset++) {
-                const date = new Date(today); date.setDate(today.getDate() + offset);
-                const day = hours.find(function(row) { return Number(row.dayOfWeek) === date.getDay(); });
-                if (!day || !day.open || Number(day.endMinutes) <= Number(day.startMinutes)) continue;
-                const key = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
-                availableDates.push({ date:key, available:true, timeSlots:[{ time:'store_hours', label:'During store hours' }] });
-              }
-            } else {
-              const params = new URLSearchParams({ duration: '60', quantity: currentScheduleParams.quantity, travelTime: currentScheduleParams.travelTime, mode: 'manual' });
-              const response = await fetch('/api/schedule/available-dates?' + params.toString(), { cache: 'no-store', signal: scheduleRequestController.signal });
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error || 'Unable to load available schedules.');
-              if (data.blocked) throw new Error(data.message || 'This order needs project scheduling. Please contact us.');
-              availableDates = data.availableDates || [];
-            }
-            if (requestGeneration !== scheduleRequestGeneration) return;
-            if (!reschedulePicker.setDates(availableDates)) throw new Error('No open schedules are available. Please contact us for help.');
-            loading.classList.add('d-none');
-            fields.classList.remove('d-none');
-          } catch (error) {
-            if (requestGeneration !== scheduleRequestGeneration || error.name === 'AbortError') return;
-            loading.classList.add('d-none');
-            errorBox.textContent = error.message;
-            errorBox.classList.remove('d-none');
-          } finally {
-            if (requestGeneration === scheduleRequestGeneration) scheduleRequestController = null;
-          }
-        });
-      });
-
-      if (submitButton) submitButton.addEventListener('click', async function () {
-        if (submitButton.disabled || !currentOrderId) return;
-        const requestedDate = dateSelect.value;
-        const requestedTime = timeSelect.value;
-        const originalHtml = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting';
-        try {
-          if (currentScheduleParams?.fulfillment !== 'customer_pickup') {
-            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Checking availability';
-            const availableSlots = await reschedulePicker.loadTimeSlots(requestedDate);
-            if (dateSelect.value !== requestedDate || timeSelect.value !== requestedTime) throw new Error('Your schedule selection changed. Please review it and submit again.');
-            const stillAvailable = availableSlots.some(slot => slot.available === true && slot.isPast !== true && String(slot.startTime || slot.time).trim() === requestedTime);
-            if (!stillAvailable) {
-              reschedulePicker.selectDate(requestedDate);
-              throw new Error('That start time is no longer available. Please select another time.');
-            }
-            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting';
-          }
-          const response = await fetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/reschedule-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestedDate: requestedDate, requestedTime: requestedTime, reason: reasonInput.value.trim() })
-          });
-          const data = await response.json();
-          if (!response.ok) {
-            if (data.refreshSlots) reschedulePicker.selectDate(requestedDate);
-            throw new Error(data.error || 'Unable to submit the request.');
-          }
-          rescheduleModal.hide();
-          await showResult('success', 'Request submitted', 'We will notify you after the new schedule is reviewed.');
-          window.location.reload();
-        } catch (error) {
-          submitButton.innerHTML = originalHtml;
-          updateRescheduleSubmit();
-          showResult('error', 'Request failed', error.message);
-        }
-      });
-    });
-  </script>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Tracking is rendered only on the dedicated order details page.
-      const mapElements = [];
-      const customerIcon = L.divIcon({ html:'<i class="bi bi-geo-alt-fill"></i>', className:'custom-customer-icon', iconSize:[32,32], iconAnchor:[16,32] });
-      const techIcon = L.divIcon({ html:'<i class="bi bi-person-badge-fill"></i>', className:'custom-tech-icon', iconSize:[32,32], iconAnchor:[16,32] });
-
-      mapElements.forEach(el => {
-        const orderId = el.dataset.orderId;
-        const custLat = parseFloat(el.dataset.lat);
-        const custLng = parseFloat(el.dataset.lng);
-        const techId = el.dataset.techId;
-        if (isNaN(custLat) || isNaN(custLng)) return;
-
-        const map = L.map(el.id).setView([custLat, custLng], 14);
-        window.createEsriHybridLayer().addTo(map);
-        L.marker([custLat, custLng], { icon:customerIcon }).addTo(map).bindTooltip('Delivery Location', { permanent:true, direction:'top', offset:[0,-28], className:'map-tooltip' });
-
-        const btnCust = document.getElementById(`btn-focus-cust-${orderId}`);
-        if (btnCust) btnCust.addEventListener('click', () => map.flyTo([custLat, custLng], 16, { duration:1 }));
-
-        let techMarker = null, routeLayer = null, currentTechLat = null, currentTechLng = null;
-        const btnTech = document.getElementById(`btn-focus-tech-${orderId}`);
-        if (btnTech) btnTech.addEventListener('click', () => { if (currentTechLat !== null) map.flyTo([currentTechLat, currentTechLng], 16, { duration:1 }); });
-
-        async function fetchTechLocation() {
-          if (!techId) return;
-          try {
-            const res = await fetch(`/api/services/technician-location?id=${techId}`);
-            if (!res.ok) throw new Error('API Error');
-            const data = await res.json();
-            if (data && data.lat !== undefined && data.lng !== undefined) {
-              const techLat = parseFloat(data.lat), techLng = parseFloat(data.lng);
-              currentTechLat = techLat; currentTechLng = techLng;
-              if (btnTech) btnTech.disabled = false;
-              if (techMarker) { techMarker.setLatLng([techLat, techLng]); }
-              else { techMarker = L.marker([techLat, techLng], { icon:techIcon }).addTo(map).bindTooltip('Technician', { permanent:true, direction:'bottom', offset:[0,4], className:'map-tooltip text-primary' }); }
-              try {
-                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${techLng},${techLat};${custLng},${custLat}?overview=full&geometries=geojson`;
-                const routeRes = await fetch(osrmUrl);
-                const routeData = await routeRes.json();
-                if (routeData && routeData.routes && routeData.routes.length > 0) {
-                  const route = routeData.routes[0];
-                  const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-                  if (routeLayer) map.removeLayer(routeLayer);
-                  routeLayer = L.polyline(coords, { color:'#3b82f6', weight:4, dashArray:'8,8', opacity:0.8 }).addTo(map);
-                  const distanceKm = (route.distance / 1000).toFixed(1);
-                  const durationMin = Math.ceil(route.duration / 60);
-                  const etaInfo = document.getElementById(`eta-info-${orderId}`);
-                  if (etaInfo) etaInfo.innerHTML = `Duration: <strong>${durationMin} mins</strong><br><span class="text-secondary fw-normal" style="font-size:0.75rem;">(${distanceKm} km away)</span>`;
-                }
-              } catch (routeErr) { console.error('Routing failed:', routeErr); }
-              const group = new L.featureGroup([L.marker([custLat, custLng]), L.marker([techLat, techLng])]);
-              map.fitBounds(group.getBounds(), { padding:[50,50] });
-            }
-          } catch (e) { console.error('Failed to fetch tech location:', e); }
-        }
-        fetchTechLocation();
-        setInterval(fetchTechLocation, 10000);
-
-        const collapseEl = document.getElementById(`tracking-${orderId}`);
-        if (collapseEl) collapseEl.addEventListener('shown.bs.collapse', () => setTimeout(() => map.invalidateSize(), 100));
-      });
-    });
-  </script>
-
   <!-- Rating Modal -->
   <div class="modal fade" id="orderRatingModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content" style="border:none;border-radius:20px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,0.25);">
         <!-- Header -->
-        <div style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:24px 28px;color:#fff;">
+        <div class="modal-header d-block" style="background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:24px 28px;color:#fff;">
           <div class="d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center gap-3">
               <div style="width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:1.3rem;backdrop-filter:blur(10px);">
@@ -1307,11 +130,11 @@
                 <small style="opacity:0.7;font-size:0.78rem;" id="ratingModalSubtitle">How was your experience?</small>
               </div>
             </div>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close rating"></button>
           </div>
         </div>
         <!-- Body -->
-        <div style="padding:28px;background:#f8fafc;">
+        <div class="modal-body" style="padding:28px;background:#f8fafc;">
           <!-- Technician Info -->
           <div class="text-center mb-4">
             <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#2563eb);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;box-shadow:0 4px 12px rgba(59,130,246,0.3);margin-bottom:10px;">
@@ -1338,7 +161,7 @@
           </div>
         </div>
         <!-- Footer -->
-        <div style="border-top:1px solid #e2e8f0;padding:16px 28px;background:#fff;display:flex;justify-content:flex-end;gap:10px;">
+        <div class="modal-footer" style="border-top:1px solid #e2e8f0;padding:16px 28px;background:#fff;display:flex;justify-content:flex-end;gap:10px;">
           <button type="button" class="btn" data-bs-dismiss="modal" style="border-radius:10px;padding:8px 20px;background:#f1f5f9;color:#475569;font-weight:600;font-size:0.85rem;">Cancel</button>
           <button type="button" class="btn" id="submitOrderRating" style="border-radius:10px;padding:8px 24px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:600;font-size:0.85rem;box-shadow:0 2px 8px rgba(59,130,246,0.3);">
             <i class="bi bi-check-circle me-1"></i>Submit
@@ -1405,4 +228,11 @@
       });
     });
   </script>
+
+<script src="/socket.io/socket.io.js" defer></script>
+<script src="/js/customer-order-reorder.js?v=20260930-reorder-v1" defer></script>
+<script src="/js/customer-order-refund.js?v=20260930-refund-review-v2" defer></script>
+<script src="/js/order-reschedule-picker.js?v=20261009-submit" defer></script>
+<script src="/js/customer-order-reschedule.js?v=20261009-submit" defer></script>
+<script src="/js/customer-orders.js?v=20261009-orders" defer></script>
 </section>

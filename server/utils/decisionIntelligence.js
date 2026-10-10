@@ -15,7 +15,7 @@ const { remember } = require('./reportCache');
 
 const completedBookingStatuses = ['completed', 'repair_completed', 'closed'];
 const cancelledBookingStatuses = ['cancelled', 'rejected', 'repair_declined', 'no-show'];
-const productActionPriority = { 'Restock now': 0, 'Restock soon': 1, 'Hold purchasing': 2, 'Promote before restocking': 3, 'Review margin': 4, 'Consider promotion': 5 };
+const productActionPriority = { 'Restock now': 0, 'Restock soon': 1, 'Hold purchasing': 2, 'Promote before restocking': 3, 'Review margin': 4, 'Consider a special offer': 5 };
 const number = value => Math.max(0, Number(value) || 0);
 const round = value => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -72,11 +72,11 @@ function serviceDemandLabel(row, totals, days) {
 
 function decision(row) {
   if (row.demand === 'Insufficient data') return 'Continue monitoring';
-  if (row.demand === 'No demand') return 'Review visibility';
-  if (row.costCoverage < 1) return row.demand === 'High demand' ? 'Review capacity and cost data' : 'Complete cost data';
+  if (row.demand === 'No demand') return 'Check if customers can find it';
+  if (row.costCoverage < 1) return row.demand === 'High demand' ? 'Check technician availability and cost data' : 'Complete cost data';
   if (row.margin < 15 && row.demand === 'High demand') return 'Review pricing';
   if (row.margin >= 25 && row.demand === 'High demand') return 'Keep and promote';
-  if (row.margin >= 25 && row.demand === 'Low demand') return 'Consider promotion';
+  if (row.margin >= 25 && row.demand === 'Low demand') return 'Consider a special offer';
   if (row.margin < 15 && row.demand === 'Low demand') return 'Review offering';
   return 'Monitor';
 }
@@ -92,10 +92,10 @@ function productDecision(row) {
     const stockRisk = stock <= number(reorder) || (stockCoverDays !== null && stockCoverDays < 15);
     if (stockRisk) return type === 'part' || type === 'consumable' ? (stockCoverDays !== null && stockCoverDays <= 7 ? 'Restock now' : 'Restock soon') : 'Restock soon';
   }
-  if (observed === 0) return stock === null ? 'Check stock and demand' : 'Review visibility';
+  if (observed === 0) return stock === null ? 'Check stock and demand' : 'Check if customers can find it';
   if (costCoverage < 1 && number(units) > 0) return 'Complete cost data';
   if (margin !== null && margin < 15 && demand === 'High demand') return 'Review margin';
-  if (margin !== null && margin >= 25 && demand === 'Low demand') return 'Consider promotion';
+  if (margin !== null && margin >= 25 && demand === 'Low demand') return 'Consider a special offer';
   return 'Monitor';
 }
 
@@ -125,7 +125,7 @@ function mergeProductRows(list) {
 
 // The service cohort is based on booking creation. Its monetary column is the
 // completed booking's recorded service price, not cash collections or the
-// authoritative finance report's project-aware recognized revenue.
+// authoritative finance report's project-aware completed sales.
 async function serviceDemand(period) {
   const midpoint = new Date((period.start.getTime() + period.end.getTime()) / 2);
   const [rows, coreCatalog, repairCatalog] = await Promise.all([BookingService.aggregate([
@@ -286,7 +286,7 @@ async function productDemand(period) {
     }).sort((a, b) => b.units + (b.consumed || 0) - a.units - (a.consumed || 0));
     return ranked;
   };
-  return { aircon: decorate(allAircon), tools: decorate(toolsSold), parts: decorate(partsSold), refundTotal: round(refundTotal), caveat: 'Items without an inventory ID cannot be assigned to a SKU and are excluded from this ranking. Order unit costs use the current catalog because historical order items lack cost snapshots. Completed item refunds are shown in aggregate and are not allocated to item contribution. Stock cover uses observed sales plus completed-service consumption at the selected period run rate; it is a planning signal, not a forecast.' };
+  return { aircon: decorate(allAircon), tools: decorate(toolsSold), parts: decorate(partsSold), refundTotal: round(refundTotal), caveat: 'Items without an item ID are left out of this list. Older orders do not save the original product cost, so current stock costs are used. Item refunds are shown as a total and are not split between items. Days of stock left uses the average sold or used per day during these dates. It is an estimate.' };
 }
 
 async function customerDemand(period, policy) {
@@ -341,7 +341,7 @@ async function customerDemand(period, policy) {
   const mostActive = [...rows].sort((a, b) => (b.completedBookings + b.completedOrders) - (a.completedBookings + a.completedOrders)).find(row => row.completedBookings + row.completedOrders > 0) || null;
   const followUp = rows.filter(row => row.lifetimeTransactions > 0 && row.inactivityDays > 90).sort((a, b) => a.inactivityDays - b.inactivityDays || b.lifetimeTransactions - a.lifetimeTransactions).slice(0, 30);
   const crossService = rows.filter(row => row.lifetimeTransactions > 0 && (row.neverBooked || row.neverPurchased)).sort((a, b) => b.lifetimeTransactions - a.lifetimeTransactions).slice(0, 30);
-  return { top: [...rows].sort((a, b) => b.score - a.score || b.spend - a.spend).slice(0, 30), followUp, crossService, followUpTotal: rows.filter(row => row.lifetimeTransactions > 0 && row.inactivityDays > 90).length, crossServiceTotal: rows.filter(row => row.lifetimeTransactions > 0 && (row.neverBooked || row.neverPurchased)).length, mostActive, segments: rows.reduce((summary, row) => { summary[row.segment] = (summary[row.segment] || 0) + 1; return summary; }, {}), totalCustomers: rows.length, customerCatalogCapped: users.length >= 10000, qualifiedCount: qualified.length, approachingCount: approaching.length, qualified: qualified.sort((a, b) => b.loyalty.progress.value - a.loyalty.progress.value).slice(0, 20), approaching: approaching.sort((a, b) => b.loyalty.progress.percent - a.loyalty.progress.percent).slice(0, 20), scoring: 'Recency: 0–3 points (last completion within 30/90/180 days of today); frequency: 0–3 points (1/3/5 completed transactions in the selected creation cohort); monetary: 0–3 points (positive/20,000/50,000 PHP completed cohort value). Scores are cohort indicators, not lifetime value.' };
+  return { top: [...rows].sort((a, b) => b.score - a.score || b.spend - a.spend).slice(0, 30), followUp, crossService, followUpTotal: rows.filter(row => row.lifetimeTransactions > 0 && row.inactivityDays > 90).length, crossServiceTotal: rows.filter(row => row.lifetimeTransactions > 0 && (row.neverBooked || row.neverPurchased)).length, mostActive, segments: rows.reduce((summary, row) => { summary[row.segment] = (summary[row.segment] || 0) + 1; return summary; }, {}), totalCustomers: rows.length, customerCatalogCapped: users.length >= 10000, qualifiedCount: qualified.length, approachingCount: approaching.length, qualified: qualified.sort((a, b) => b.loyalty.progress.value - a.loyalty.progress.value).slice(0, 20), approaching: approaching.sort((a, b) => b.loyalty.progress.percent - a.loyalty.progress.percent).slice(0, 20), scoring: 'Scores add 0-3 points each for recent activity, completed bookings and orders, and spending. Recent activity checks the last 30, 90, and 180 days. Counts check 1, 3, and 5 completions for these records. Spending checks amounts above 0, PHP 20,000, and PHP 50,000. These scores describe the records in this report, not total spending in all time.' };
 }
 
 async function compute(period) {
@@ -354,29 +354,29 @@ async function compute(period) {
   const periodDays = Math.max(1, Math.ceil((period.end - period.start) / 86400000));
   if (serviceSample >= 10) {
     const busiest = services.find(row => row.demand === 'High demand');
-    if (busiest) actions.push({ kind: 'service', name: busiest.name, action: 'Review capacity', evidence: `${busiest.bookings} bookings and ${busiest.completed} completed in this cohort` });
+    if (busiest) actions.push({ kind: 'service', name: busiest.name, action: 'Check technician availability', evidence: `${busiest.bookings} bookings and ${busiest.completed} completed for these dates` });
     const rare = [...services].reverse().find(row => row.demand === 'Low demand');
-    if (rare) actions.push({ kind: 'service', name: rare.name, action: 'Consider promotion', evidence: `${rare.bookings} bookings across ${periodDays} days` });
+    if (rare) actions.push({ kind: 'service', name: rare.name, action: 'Consider a special offer', evidence: `${rare.bookings} bookings across ${periodDays} days` });
   }
   if (serviceSample >= 20 && periodDays >= 30) {
     const unused = services.find(row => row.demand === 'No demand');
-    if (unused) actions.push({ kind: 'service', name: unused.name, action: 'Review visibility', evidence: `No bookings across ${periodDays} days; confirm service availability before changing the offering` });
+    if (unused) actions.push({ kind: 'service', name: unused.name, action: 'Check if customers can find it', evidence: `No bookings across ${periodDays} days; confirm service availability before changing the offering` });
   }
   const completedServiceRows = services.filter(row => row.completed > 0);
   if (completedServiceRows.length >= 4) {
     const prices = completedServiceRows.map(row => row.averageCompletedValue).sort((a, b) => a - b);
     const medianPrice = prices[Math.floor(prices.length / 2)];
     const highValueNiche = completedServiceRows.filter(row => row.bookings <= 2 && row.averageCompletedValue > medianPrice).sort((a, b) => b.averageCompletedValue - a.averageCompletedValue)[0];
-    if (highValueNiche) actions.push({ kind: 'service', name: highValueNiche.name, action: 'Consider promotion', evidence: `${highValueNiche.bookings} bookings; ${round(highValueNiche.averageCompletedValue).toLocaleString('en-PH')} PHP average completed cohort value` });
+    if (highValueNiche) actions.push({ kind: 'service', name: highValueNiche.name, action: 'Consider a special offer', evidence: `${highValueNiche.bookings} bookings; ${round(highValueNiche.averageCompletedValue).toLocaleString('en-PH')} PHP average value of completed records` });
     const busyLowValue = completedServiceRows.filter(row => row.demand === 'High demand' && row.averageCompletedValue < medianPrice).sort((a, b) => b.bookings - a.bookings)[0];
-    if (busyLowValue) actions.push({ kind: 'service', name: busyLowValue.name, action: 'Review price mix', evidence: `${busyLowValue.bookings} bookings; average completed value is below the service median. Verify direct costs before repricing.` });
+    if (busyLowValue) actions.push({ kind: 'service', name: busyLowValue.name, action: 'Check service prices', evidence: `${busyLowValue.bookings} bookings; average completed value is below the service median. Verify direct costs before repricing.` });
   }
   for (const [kind, list] of [['aircon', products.aircon], ['tool', products.tools], ['repair part', products.parts]]) {
     for (const row of list.filter(item => Object.hasOwn(productActionPriority, item.action)).sort((a, b) => productActionPriority[a.action] - productActionPriority[b.action] || b.units + b.consumed - a.units - a.consumed).slice(0, 3)) {
-      actions.push({ kind, name: row.name, action: row.action, evidence: `${row.units} sold${row.consumed ? `, ${row.consumed} used in ${row.completedServices} completed services` : ''}; ${row.stock === null ? 'stock unavailable' : `${row.stock} in stock${row.stockCoverDays === null ? '' : `, about ${row.stockCoverDays} days cover`}`}; provisional margin ${row.margin === null ? 'unavailable' : `${row.margin}%`}` });
+      actions.push({ kind, name: row.name, action: row.action, evidence: `${row.units} sold${row.consumed ? `, ${row.consumed} used in ${row.completedServices} completed services` : ''}; ${row.stock === null ? 'stock unavailable' : `${row.stock} in stock${row.stockCoverDays === null ? '' : `, about ${row.stockCoverDays} days of stock left`}`}; estimated profit ${row.margin === null ? 'unavailable' : `${row.margin}%`}` });
     }
   }
-  return { period: { range: period.range, from: period.start, to: period.end }, services, products, customers, loyaltyPolicy: policy, leaders, actions, asOf: new Date(), methodology: 'Service demand uses booking creation date and excludes order-linked installation bookings. Completed value is the selected booking cohort’s stored price, not recognized financial revenue. Product sales use completed orders and completed POS transactions. Parts usage counts non-voided records linked to completed services and never adds sales revenue. Stock cover uses the selected period run rate, not a forecast. Item contribution is provisional and excludes unallocated refunds. Anonymous counter sales cannot be linked reliably to a customer account. Loyalty qualification uses lifetime completed activity and active Customer Privileges rules. Discounts apply at eligible customer checkout and remain recorded on the transaction. Use Revenue Intelligence for authoritative revenue, collection, and refund totals.' };
+  return { period: { range: period.range, from: period.start, to: period.end }, services, products, customers, loyaltyPolicy: policy, leaders, actions, asOf: new Date(), methodology: 'Service bookings use the request date and exclude installations linked to product orders. Completed booking values use saved prices. Product sales use completed orders and walk-in sales. Parts used in finished jobs are counted separately from sales. Days of stock left uses the average sold or used per day during these dates. Profit estimates use saved costs; some refunds cannot be linked to a specific item. Walk-in sales without a named customer do not go to a customer account. Rewards use all-time finished bookings and orders that meet the Customer Privileges rules. Checkout checks which items can get a discount. See Sales and Payments for completed sales, payments, and refund totals.' };
 }
 
 function buildDecisionIntelligence(query, now = new Date()) {

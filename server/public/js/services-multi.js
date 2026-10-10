@@ -444,7 +444,7 @@ let reverseGeocodeAbortController = null;
 let addressSuggestionRequestToken = 0;
 let addressSuggestionAbortController = null;
 let addressAutocompleteDebounceTimer = null;
-let addressAutocompleteEnabled = false;
+let addressAutocompleteEnabled = true;
 let addressAutocompleteStatusLoaded = false;
 const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
@@ -497,7 +497,8 @@ function reconcileBookingScheduleAfterServiceChange() {
   scheduleBookingProgressSave();
 }
 function remainingBookingUnits() {
-  return Math.max(0, MAX_BOOKING_UNITS - selectedUnitTotal());
+  const edited = BookingState.selectedServices.find(item => item.id === BookingState.editingServiceId);
+  return Math.max(0, MAX_BOOKING_UNITS - selectedUnitTotal() + (Number(edited?.quantity) || 0));
 }
 function selectedHpsTotalExcluding(hpValue, typeName) {
   const target = parseFloat(hpValue);
@@ -2193,6 +2194,15 @@ function closeAddressSuggestions() {
   document.getElementById('locationInput')?.setAttribute('aria-expanded', 'false');
 }
 
+function cancelServiceAddressSuggestions() {
+  clearTimeout(addressAutocompleteDebounceTimer);
+  ++addressSuggestionRequestToken;
+  addressSuggestionAbortController?.abort();
+  closeAddressSuggestions();
+  const button = document.getElementById('serviceAddressSearchBtn');
+  if (button) { button.disabled = false; button.innerHTML = '<i class="bi bi-search"></i>'; }
+}
+
 function getTypedServiceAddressForPin() {
   const typed = document.getElementById('locationInput')?.value.trim() || '';
   if (!typed) return '';
@@ -2268,13 +2278,12 @@ function fetchLiveAddressSuggestions(query) {
     .catch(error => {
       if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
       closeAddressSuggestions();
-      if (error.status === 429 || error.status === 503) addressAutocompleteEnabled = false;
       const status = document.getElementById('locationStatus');
       if (status) status.textContent = 'Live suggestions are unavailable. Press Enter or Search to find the address.';
     });
 }
 
-/** Live suggestions use Geoapify only when configured; manual Search uses Nominatim. */
+/** Live suggestions work with the configured provider or the key-free Photon provider. */
 function setupAddressAutocomplete(input) {
   const suggestContainer = document.getElementById('locationSuggest');
   if (!suggestContainer) return;
@@ -2282,17 +2291,16 @@ function setupAddressAutocomplete(input) {
   if (!addressAutocompleteStatusLoaded) {
     addressAutocompleteStatusLoaded = true;
     fetch('/api/geocoding/autocomplete/status')
-      .then(response => response.ok ? response.json() : { enabled: false })
+      .then(response => response.ok ? response.json() : { enabled:true })
       .then(data => {
-        addressAutocompleteEnabled = data.enabled === true;
-        document.getElementById('geoapifyAttribution')?.classList.toggle('d-none', !addressAutocompleteEnabled);
+        addressAutocompleteEnabled = data.enabled !== false;
         if (addressAutocompleteEnabled && !input.value.trim()) {
           const status = document.getElementById('locationStatus');
           if (status) status.textContent = 'Start typing to see Philippine address suggestions. You can also enter the full address and press Search.';
         }
         if (addressAutocompleteEnabled && document.activeElement === input) scheduleLiveAddressSuggestions(input.value.trim());
       })
-      .catch(() => { addressAutocompleteEnabled = false; });
+      .catch(() => { addressAutocompleteEnabled = true; });
   }
 
   input.addEventListener('input', function (e) {
@@ -2333,7 +2341,7 @@ function setupAddressAutocomplete(input) {
       if (first) { event.preventDefault(); first.focus(); }
       return;
     }
-    if (event.key === 'Escape') { closeAddressSuggestions(); return; }
+    if (event.key === 'Escape') { cancelServiceAddressSuggestions(); return; }
     if (event.key !== 'Enter') return;
     event.preventDefault();
     clearTimeout(addressAutocompleteDebounceTimer);
@@ -2347,8 +2355,8 @@ function setupAddressAutocomplete(input) {
 
   // Hide suggestions when clicking outside
   document.addEventListener('click', function (e) {
-    if (!input.contains(e.target) && !suggestContainer.contains(e.target)) {
-      closeAddressSuggestions();
+    if (!input.contains(e.target) && !suggestContainer.contains(e.target) && !document.getElementById('serviceAddressSearchBtn')?.contains(e.target)) {
+      cancelServiceAddressSuggestions();
     }
   });
 }
@@ -2485,6 +2493,7 @@ function displaySuggestions(suggestions) {
 
   suggestContainer.classList.remove('d-none');
   locationInput.setAttribute('aria-expanded', 'true');
+  window.AddressAutocomplete?.appendAttribution(suggestContainer, suggestions[0]?.source);
 
 }
 
@@ -2530,12 +2539,12 @@ function resetServiceLocationForTypedAddress(query) {
   if (panel) panel.classList.remove('has-location');
   panel?.classList.remove('needs-confirmation');
   if (selectionStatus) selectionStatus.textContent = 'Search required';
-  if (selectionAddress) selectionAddress.textContent = 'Press Enter or tap Search to pin this typed address.';
+  if (selectionAddress) selectionAddress.textContent = 'Choose an address suggestion or place a new pin.';
   if (coordinates) coordinates.textContent = 'Not selected';
   if (source) source.textContent = 'Typed address not yet pinned';
   if (locationStatus) {
     locationStatus.hidden = false;
-    locationStatus.innerHTML = '<i class="bi bi-search me-1"></i>Press Enter or tap Search, then check the pin.';
+    locationStatus.innerHTML = '<i class="bi bi-search me-1"></i>Choose a suggested address below, then check the pin.';
   }
   if (distance) {
     distance.textContent = '—';
@@ -7212,7 +7221,7 @@ function showCombinedQuantityHpModal(service) {
               <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
             </div>
           `);
-          service.hpPricing.forEach((hpOption, index) => {
+          pricedHpOptions(service.hpPricing).forEach((hpOption, index) => {
             const hpCard = createProfessionalHpCard(hpOption, index);
             hpContainer.appendChild(hpCard);
           });
@@ -7222,6 +7231,12 @@ function showCombinedQuantityHpModal(service) {
           unknownHp.textContent = "I don't know the HP";
           unknownHp.addEventListener('click', () => showUnitAssistancePanel(3));
           hpContainer.appendChild(unknownHp);
+          const otherHp = document.createElement('button');
+          otherHp.type = 'button';
+          otherHp.className = 'btn btn-outline-secondary mt-3 ms-2';
+          otherHp.textContent = 'Other HP / request a price';
+          otherHp.addEventListener('click', () => showUnitAssistancePanel(3, 'hp_quote'));
+          hpContainer.appendChild(otherHp);
           // No appliance-type cards in legacy mode — show brand directly.
           showBrandSection(service);
         }
@@ -7293,6 +7308,15 @@ function showCombinedQuantityHpModal(service) {
 /**
  * Render aircon type selection section
  */
+function pricedHpOptions(rows) {
+  const seen = new Set();
+  return (Array.isArray(rows) ? rows : []).filter(row => {
+    const hp = Number(row?.hp), price = Number(row?.price);
+    if (!Number.isFinite(hp) || hp <= 0 || row?.price == null || String(row.price).trim() === '' || !Number.isFinite(price) || price < 0 || seen.has(hp)) return false;
+    seen.add(hp); return true;
+  }).map(row => ({ ...row, hp:Number(row.hp), price:Number(row.price) })).sort((a,b) => a.hp - b.hp);
+}
+
 function renderAirconTypeSelection(airconTypes, container) {
 
   // Create type selection section
@@ -7346,12 +7370,13 @@ function renderAirconTypeSelection(airconTypes, container) {
     typeCard.dataset.type = type.type;
     typeCard.dataset.index = index;
     typeCard.setAttribute('aria-pressed', 'false');
-    typeCard.setAttribute('aria-label', `${type.name}, ${type.hpPricing.length} available na HP option`);
+    const tiers = pricedHpOptions(type.hpPricing);
+    typeCard.setAttribute('aria-label', `${type.name}, ${tiers.length} HP options`);
 
     // Get price range for this type
-    const minPrice = Math.min(...type.hpPricing.map(hp => hp.price));
-    const maxPrice = Math.max(...type.hpPricing.map(hp => hp.price));
-    const hpCount = type.hpPricing.length;
+    const minPrice = Math.min(...tiers.map(hp => hp.price));
+    const maxPrice = Math.max(...tiers.map(hp => hp.price));
+    const hpCount = tiers.length;
 
     typeCard.innerHTML = `
       <div class="card-body cfg-type-card-body">
@@ -7363,7 +7388,7 @@ function renderAirconTypeSelection(airconTypes, container) {
           </span>
         </div>
         <div class="cfg-type-card-bottom">
-          <span class="cfg-type-price">₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}</span>
+          <span class="cfg-type-price">${hpCount ? `₱${minPrice.toLocaleString()} - ₱${maxPrice.toLocaleString()}` : 'Price after staff review'}</span>
           <span class="cfg-type-count">${hpCount} HP option <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
         </div>
       </div>
@@ -7382,13 +7407,12 @@ function renderAirconTypeSelection(airconTypes, container) {
       typeCard.classList.add('selected');
       typeCard.setAttribute('aria-pressed', 'true');
 
-      // Store selected type
+      // Keep quantities when revisiting the same type; changing type starts a new selection.
+      if (BookingState.selectedAirconType?.type !== type.type) BookingState.selectedHps = [];
       BookingState.selectedAirconType = type;
       // Record appliance type (customer-facing) for this booking
       BookingState.applianceType = type.type;
       BookingState.applianceTypeName = type.name;
-      BookingState.selectedHps = [];
-
       // Show HP options for this type
       renderHpOptionsForType(type, container);
       if (isAirconRelocationService(BookingState.currentService) && document.getElementById('relocationAsset')?.value) {
@@ -7431,7 +7455,7 @@ function renderAirconTypeSelection(airconTypes, container) {
       <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
     </div>
     <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
-    <button type="button" class="btn btn-outline-primary mt-3" id="cfgUnknownHpBtn">I don't know the HP</button>
+    <div class="d-flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-outline-primary" id="cfgUnknownHpBtn">I don't know the HP</button><button type="button" class="btn btn-outline-secondary" id="cfgOtherHpBtn">Other HP / request a price</button></div>
   `;
   container.appendChild(hpSectionDiv);
 
@@ -7461,6 +7485,7 @@ function renderAirconTypeSelection(airconTypes, container) {
   }
   if (changeButton) changeButton.addEventListener('click', () => showAirconTypeStep(container));
   hpSectionDiv.querySelector('#cfgUnknownHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3));
+  hpSectionDiv.querySelector('#cfgOtherHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3, 'hp_quote'));
 }
 
 function notifyServiceConfigurationStep(step, complete = false) {
@@ -7472,13 +7497,20 @@ function notifyServiceConfigurationStep(step, complete = false) {
   }));
 }
 
-function showUnitAssistancePanel(returnStep) {
+function showUnitAssistancePanel(returnStep, kind = 'identification') {
   BookingState.unitAssistanceMode = true;
+  BookingState.unitAssistanceKind = kind;
   BookingState.unitAssistanceReturnStep = returnStep;
   document.getElementById('brandSection').style.display = 'none';
   document.getElementById('airconTypeSection')?.classList.add('d-none');
   document.getElementById('hpSelectionForType')?.classList.add('d-none');
   document.getElementById('unitAssistancePanel')?.classList.remove('d-none');
+  const hpField = document.getElementById('unitAssistanceHpSection');
+  if (hpField) hpField.classList.toggle('d-none', kind !== 'hp_quote');
+  const hpInput = document.getElementById('unitAssistanceHp');
+  if (hpInput) { hpInput.value = ''; hpInput.oninput = syncConfigurationPrimaryAction; }
+  const title = document.getElementById('unitAssistanceTitle');
+  if (title) title.textContent = kind === 'hp_quote' ? 'Request a price for another HP size' : 'Let us identify your aircon';
   const quantityRow = document.getElementById('quantityModalInput')?.closest('.cfg-qty-row');
   if (quantityRow) quantityRow.style.display = 'flex';
   const backButton = document.getElementById('cfgBackToType');
@@ -7523,13 +7555,16 @@ function showUnitAssistancePanel(returnStep) {
 
 async function submitUnitAssistanceRequest(service, done) {
   const button = document.getElementById('confirmQuantitySelection');
+  const controls = Array.from(DOM.quantityModal?.querySelectorAll('input, select, textarea, button') || []);
+  const disabledStates = controls.map(control => control.disabled);
+  controls.forEach(control => { control.disabled = true; });
   if (button) button.disabled = true;
   try {
     const quantity = Number(document.getElementById('quantityModalInput')?.value || 1);
     const payload = {
-      serviceId: service._id, brand: BookingState.selectedBrand || "I don't know",
-      airconType: BookingState.selectedAirconType?.type || '',
-      hp: null, quantity,
+      serviceId: service._id, brand: configuredServiceBrand() || "I don't know",
+      airconType: BookingState.unitAssistanceReturnStep === 2 ? '' : BookingState.selectedAirconType?.type || '',
+      hp: BookingState.unitAssistanceKind === 'hp_quote' ? Number(document.getElementById('unitAssistanceHp')?.value) : null, quantity,
       notes: document.getElementById('unitAssistanceNotes')?.value || '',
     };
     if (isAirconRelocationService(service)) payload.relocation = {
@@ -7540,17 +7575,27 @@ async function submitUnitAssistanceRequest(service, done) {
       model: document.getElementById('relocationSameModel')?.value.trim() || '',
       serialNumber: document.getElementById('relocationSameSerial')?.value.trim() || '',
     };
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > remainingBookingUnits()) throw new Error('Choose a valid quantity within the remaining booking unit limit.');
+    if (BookingState.unitAssistanceKind === 'hp_quote' && (!Number.isFinite(payload.hp) || payload.hp <= 0)) throw new Error('Enter the HP shown on your aircon label.');
+    const fingerprint = JSON.stringify(payload);
+    if (BookingState.unitAssistanceFingerprint !== fingerprint) {
+      BookingState.unitAssistanceFingerprint = fingerprint;
+      BookingState.unitAssistanceRequestId = window.crypto?.randomUUID?.() || 'unit-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    }
+    payload.clientRequestId = BookingState.unitAssistanceRequestId;
+    if (button) button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Sending request';
     const response = await fetch('/api/unit-assistance', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not send the request.');
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.id) throw new Error(response.status === 401 ? 'Sign in again before requesting unit help.' : result?.error || 'Could not send the request. Please try again.');
     window.location.assign('/unit-assistance');
   } catch (error) {
+    controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
     showModalError(error.message);
-    if (button) button.disabled = false;
     done();
+    syncConfigurationPrimaryAction();
   }
 }
 
@@ -7720,6 +7765,14 @@ function usesAirconTypeWizard(service = BookingState.currentService) {
   return Boolean(service?.isAirconService && Array.isArray(service.airconTypes) && service.airconTypes.length);
 }
 
+function configuredServiceBrand() {
+  const select = document.getElementById('brandInput');
+  const value = String(select?.value || '').trim();
+  if (value === '__other__') return String(document.getElementById('brandInputCustom')?.value || '').trim();
+  if (value === '__unknown__') return "I don't know";
+  return value || String(BookingState.selectedBrand || '').trim();
+}
+
 function advanceFromBrandSelection() {
   if (!usesAirconTypeWizard() || !String(BookingState.selectedBrand || '').trim()) return false;
   const container = activeAirconConfigurationContainer();
@@ -7766,19 +7819,8 @@ function showBrandConfigurationStep(container = activeAirconConfigurationContain
     backButton.classList.add('d-none');
     backButton.style.setProperty('display', 'none', 'important');
   }
-  const brandSelect = document.getElementById('brandInput');
-  const customBrand = document.getElementById('brandInputCustom');
-  if (brandSelect) brandSelect.value = '';
-  if (customBrand) {
-    customBrand.value = '';
-    customBrand.classList.add('d-none');
-  }
-  BookingState.selectedBrand = '';
+  BookingState.selectedBrand = configuredServiceBrand();
   BookingState.configurationStep = 1;
-  BookingState.selectedAirconType = null;
-  BookingState.applianceType = '';
-  BookingState.applianceTypeName = '';
-  BookingState.selectedHps = [];
   updateCombinedPrice();
   clearModalError();
   notifyServiceConfigurationStep(1);
@@ -7791,6 +7833,10 @@ function syncConfigurationPrimaryAction() {
   const button = document.getElementById('confirmQuantitySelection');
   const service = BookingState.currentService;
   if (!button || !service) return;
+  if (confirmQuantitySelection._isProcessing) {
+    button.disabled = true;
+    return;
+  }
   if (isAirconRelocationService(service)) {
     const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
     const priceLabel = document.getElementById('priceLabel');
@@ -7810,8 +7856,10 @@ function syncConfigurationPrimaryAction() {
     }
   }
   if (BookingState.unitAssistanceMode) {
-    button.disabled = false;
-    button.innerHTML = '<i class="bi bi-send me-2"></i>Request unit identification';
+    const needsHp = BookingState.unitAssistanceKind === 'hp_quote';
+    const hp = Number(document.getElementById('unitAssistanceHp')?.value);
+    button.disabled = needsHp && (!Number.isFinite(hp) || hp <= 0);
+    button.innerHTML = needsHp ? '<i class="bi bi-send me-2"></i>Request HP price' : '<i class="bi bi-send me-2"></i>Request unit identification';
     button.style.setProperty('opacity', '1', 'important');
     button.style.setProperty('cursor', 'pointer', 'important');
     return;
@@ -7832,6 +7880,19 @@ function syncConfigurationPrimaryAction() {
     || Boolean(BookingState.selectedAirconType);
   const hasBrand = Boolean(String(BookingState.selectedBrand || '').trim());
   const hasHp = Array.isArray(BookingState.selectedHps) && BookingState.selectedHps.length > 0;
+  if (usesAirconTypeWizard() && BookingState.configurationStep <= 2) {
+    const brandStep = BookingState.configurationStep === 1;
+    const canContinue = brandStep ? hasBrand : hasType;
+    button.disabled = !canContinue;
+    button.innerHTML = brandStep
+      ? '<i class="bi bi-arrow-right me-2"></i>Next: Aircon Type'
+      : canContinue
+        ? '<i class="bi bi-arrow-right me-2"></i>Next: HP'
+        : '<i class="bi bi-columns-gap me-2"></i>Choose aircon type';
+    button.style.setProperty('opacity', canContinue ? '1' : '0.58', 'important');
+    button.style.setProperty('cursor', canContinue ? 'pointer' : 'not-allowed', 'important');
+    return;
+  }
   const ready = hasType && hasBrand && hasHp;
   button.disabled = !ready;
   button.innerHTML = ready
@@ -7866,13 +7927,10 @@ function showAirconTypeStep(container) {
     if (label) label.textContent = 'Back to Brand';
   }
   container?.querySelectorAll('.aircon-type-card').forEach(card => {
-    card.classList.remove('selected');
-    card.setAttribute('aria-pressed', 'false');
+    const selected = card.dataset.type === BookingState.selectedAirconType?.type;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-pressed', String(selected));
   });
-  BookingState.selectedAirconType = null;
-  BookingState.applianceType = '';
-  BookingState.applianceTypeName = '';
-  BookingState.selectedHps = [];
   BookingState.configurationStep = 2;
   updateCombinedPrice();
   clearModalError();
@@ -7900,10 +7958,10 @@ function showBrandSection(service) {
   if (custom) { custom.value = ''; custom.classList.add('d-none'); }
 
   const brands = (service && Array.isArray(service.brands)) ? service.brands : [];
-  select.innerHTML = '<option value="">Choose a brand…</option>' +
-    brands.map(b => `<option value="${String(b).replace(/"/g, '&quot;')}">${b}</option>`).join('') +
-    '<option value="__other__">Other brand</option>' +
-    '<option value="__unknown__">I don\'t know the unit details</option>';
+  select.replaceChildren(new Option('Choose a brand…', ''));
+  [...new Set(brands.map(brand => String(brand || '').trim()).filter(Boolean))].forEach(brand => select.add(new Option(brand, brand)));
+  select.add(new Option('Other (type your brand)', '__other__'));
+  select.add(new Option("I don't know the unit details", '__unknown__'));
 
   // Restore previous selection if it is still valid
   if (prevBrand) {
@@ -7969,7 +8027,6 @@ function showBrandSection(service) {
         BookingState.selectedBrand = select.value;
       }
       syncConfigurationPrimaryAction();
-      if (select.value && select.value !== '__other__' && advanceFromBrandSelection()) return;
       notifyServiceConfigurationStep(1, false);
     });
     if (custom) {
@@ -7979,15 +8036,11 @@ function showBrandSection(service) {
         notifyServiceConfigurationStep(1, false);
         syncConfigurationPrimaryAction();
       });
-      const finishCustomBrand = () => {
-        BookingState.selectedBrand = custom.value.trim();
-        if (BookingState.selectedBrand) advanceFromBrandSelection();
-      };
-      custom.addEventListener('blur', finishCustomBrand);
       custom.addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
-        finishCustomBrand();
+        const primary = document.getElementById('confirmQuantitySelection');
+        if (primary && !primary.disabled) primary.click();
       });
     }
   }
@@ -8038,11 +8091,18 @@ function renderHpOptionsForType(airconType, container) {
   hpContainer.innerHTML = '';
 
   // Render HP options for this type
-  airconType.hpPricing.forEach((hpOption, index) => {
+  pricedHpOptions(airconType.hpPricing).forEach((hpOption, index) => {
 
     // Create HP card with type context
     const hpCard = createProfessionalHpCardForType(hpOption, index, airconType);
     hpContainer.appendChild(hpCard);
+    const saved = BookingState.selectedHps.find(selection => Number(selection.hp) === Number(hpOption.hp) && selection.airconType === airconType.type);
+    if (saved?.quantity > 0) {
+      hpCard.querySelector('.hp-quantity-input').value = saved.quantity;
+      const checkbox = hpCard.querySelector('.hp-checkbox');
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles:true }));
+    }
   });
 
   notifyServiceConfigurationStep(3, false);
@@ -8197,7 +8257,7 @@ function addHpCardEventListenersForType(card, hpOption, airconType) {
       // Add to selected HPs with type info
       const newHpSelection = {
         hp: parseFloat(hpOption.hp),
-        price: parseInt(hpOption.price),
+        price: Number(hpOption.price),
         quantity: selectedQuantity,
         description: hpOption.description,
         durationMinutes: Number(hpOption.durationMinutes) || 60,
@@ -8438,7 +8498,7 @@ function addHpCardEventListeners(card, hpOption) {
       // Add to selected HPs
       const newHpSelection = {
         hp: parseFloat(hpOption.hp),
-        price: parseInt(hpOption.price),
+        price: Number(hpOption.price),
         quantity: selectedQuantity,
         description: hpOption.description,
         durationMinutes: Number(hpOption.durationMinutes) || 60
@@ -8627,6 +8687,7 @@ function resetModalState(modalElement) {
  * Reset modal for next use - call this when modal is closed without adding
  */
 function resetModalForNextUse() {
+  if (BookingState.unitAssistanceMode && confirmQuantitySelection._isProcessing) return;
 
   // Reset the Add to Cart button - COMPLETELY
   const confirmBtn = document.getElementById('confirmQuantitySelection');
@@ -8673,7 +8734,58 @@ function resetModalForNextUse() {
 /**
  * Show enterprise-level modal with proper cleanup
  */
+function handleServiceConfigurationPrimaryAction() {
+  const customRelocationQuote = isAirconRelocationService(BookingState.currentService)
+    && document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
+  if (usesAirconTypeWizard() && !BookingState.unitAssistanceMode && !customRelocationQuote) {
+    if (BookingState.configurationStep === 1) {
+      BookingState.selectedBrand = configuredServiceBrand();
+      if (BookingState.selectedBrand) advanceFromBrandSelection();
+      return;
+    }
+    if (BookingState.configurationStep === 2) {
+      if (BookingState.selectedAirconType) {
+        renderHpOptionsForType(BookingState.selectedAirconType, activeAirconConfigurationContainer());
+        updateCombinedPrice();
+      }
+      return;
+    }
+  }
+  confirmQuantitySelection();
+}
+
+function showServiceConfigurationModal(modalElement) {
+  if (typeof bootstrap === 'undefined') return showModalError('The booking dialog could not load. Refresh this page and try again.');
+  document.body.appendChild(modalElement);
+  // Keep showing/hiding synchronous while selection state is committed.
+  modalElement.classList.remove('fade', 'hide');
+  modalElement.style.removeProperty('visibility');
+  modalElement.style.removeProperty('opacity');
+  const button = modalElement.querySelector('#confirmQuantitySelection');
+  if (button && !button.dataset.configurationBound) {
+    button.dataset.configurationBound = 'true';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      if (button.disabled) return;
+      try { handleServiceConfigurationPrimaryAction(); }
+      catch (error) { confirmQuantitySelection._isProcessing = false; showModalError('Could not add this service. Review your selections and try again.'); syncConfigurationPrimaryAction(); }
+    });
+  }
+  if (!modalElement.dataset.configurationLifecycleBound) {
+    modalElement.dataset.configurationLifecycleBound = 'true';
+    modalElement.addEventListener('hide.bs.modal', event => {
+      if (BookingState.unitAssistanceMode && confirmQuantitySelection._isProcessing) event.preventDefault();
+    });
+    modalElement.addEventListener('hidden.bs.modal', resetModalForNextUse);
+  }
+  const instance = bootstrap.Modal.getOrCreateInstance(modalElement, { backdrop:'static', keyboard:true });
+  BookingState.ui.modals.quantity = instance;
+  instance.show();
+  syncConfigurationPrimaryAction();
+}
+
 function showEnterpriseModal(modalElement) {
+  if (modalElement?.id === 'quantitySelectionModal') return showServiceConfigurationModal(modalElement);
 
   if (!modalElement) {
     showError('Modal element not found');
@@ -9365,7 +9477,7 @@ function setupHpCardQuantityOverrides(modalElement) {
 
 
     // Get HP pricing data
-    const hpPrice = parseInt(card.dataset.price) || 0;
+    const hpPrice = Number(card.dataset.price) || 0;
 
     // Setup decrease button
     const newDecreaseBtn = decreaseBtn.cloneNode(true);
@@ -10043,7 +10155,7 @@ function confirmHpSelection() {
 
   const hpData = {
     hp: parseFloat(selectedHpCard.dataset.hp),
-    price: parseInt(selectedHpCard.dataset.price),
+    price: Number(selectedHpCard.dataset.price),
     description: selectedHpCard.dataset.description,
     durationMinutes: Number(selectedHpCard.dataset.durationMinutes) || 60
   };
@@ -10063,14 +10175,8 @@ function confirmHpSelection() {
  */
 function confirmQuantitySelection() {
 
-  // PREVENT DUPLICATE EXECUTION - But with a timeout fail-safe
-  if (confirmQuantitySelection._isProcessing) {
-    const timeSinceStart = Date.now() - (confirmQuantitySelection._processingStartTime || 0);
-    if (timeSinceStart < 1000) { // If it's been less than 1 second, it's a duplicate click
-      return;
-    } else {
-    }
-  }
+  // Keep the lock until the request or local confirmation finishes.
+  if (confirmQuantitySelection._isProcessing) return;
 
   confirmQuantitySelection._isProcessing = true;
   confirmQuantitySelection._processingStartTime = Date.now();
@@ -10178,12 +10284,7 @@ function confirmQuantitySelection() {
   } else if (isAirconService) {
 
     // Refresh selected brand from the DOM (select or custom input)
-    const brandSelect = document.getElementById('brandInput');
-    const brandCustom = document.getElementById('brandInputCustom');
-    const brandFromDom = (brandCustom && !brandCustom.classList.contains('d-none') && brandCustom.value.trim())
-      ? brandCustom.value.trim()
-      : (brandSelect ? brandSelect.value.trim() : '');
-    BookingState.selectedBrand = brandFromDom;
+    BookingState.selectedBrand = configuredServiceBrand();
     if (!BookingState.selectedBrand) {
       const brandSection = document.getElementById('brandSection');
       if (brandSection) {
@@ -10220,7 +10321,7 @@ function confirmQuantitySelection() {
           const card = checkbox.closest('.hp-selection-card');
           if (card) {
             const hp = parseFloat(checkbox.value);
-            const price = parseInt(checkbox.dataset.price);
+            const price = Number(checkbox.dataset.price);
             const type = checkbox.dataset.type || 'split';
             const typeName = card.dataset.typeName || 'Aircon';
             const quantityInput = card.querySelector('.hp-quantity-input');
@@ -10270,7 +10371,7 @@ function confirmQuantitySelection() {
       resetProcessingFlag();
       return;
     }
-    if (selectedUnitTotal() + hpTotalUnits > MAX_BOOKING_UNITS) {
+    if (hpTotalUnits > remainingBookingUnits()) {
       showError(`You can add up to ${MAX_BOOKING_UNITS} units.`);
       resetProcessingFlag();
       return;
@@ -10316,15 +10417,15 @@ function confirmQuantitySelection() {
       return;
     }
 
-    const quantity = parseInt(DOM.quantityModalInput.value);
+    const quantity = Number(DOM.quantityModalInput.value);
 
-    if (isNaN(quantity) || quantity < 1) {
+    if (!Number.isInteger(quantity) || quantity < 1) {
       showError('Enter a valid number of units.');
       resetProcessingFlag();
       return;
     }
 
-    if (quantity > MAX_BOOKING_UNITS) {
+    if (quantity > remainingBookingUnits()) {
       showError(`You can add up to ${MAX_BOOKING_UNITS} units.`);
       resetProcessingFlag();
       return;
@@ -10394,18 +10495,6 @@ function confirmQuantitySelection() {
       }
     } catch (e) {}
 
-    DOM.quantityModal.style.display = 'none';
-    DOM.quantityModal.style.visibility = 'hidden';
-    DOM.quantityModal.style.opacity = '0';
-    DOM.quantityModal.classList.remove('show');
-    DOM.quantityModal.classList.add('hide');
-    DOM.quantityModal.removeAttribute('aria-modal');
-    DOM.quantityModal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
-    resetModalForNextUse();
   }
 
   if (customRelocationQuote) {
@@ -10421,6 +10510,10 @@ function confirmQuantitySelection() {
  * Hide modal without backdrop and clean up properly
  */
 function hideModalWithoutBackdrop(modalElement) {
+  if (modalElement?.id === 'quantitySelectionModal' && typeof bootstrap !== 'undefined') {
+    bootstrap.Modal.getInstance(modalElement)?.hide();
+    return;
+  }
 
   if (!modalElement) {
     return;
@@ -10474,7 +10567,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     showError('Finish or remove the selected relocation before adding another service.');
     return;
   }
-  if (selectedUnitTotal() + Number(quantity || 1) > MAX_BOOKING_UNITS) {
+  if (Number(quantity || 1) > remainingBookingUnits()) {
     showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     return;
   }

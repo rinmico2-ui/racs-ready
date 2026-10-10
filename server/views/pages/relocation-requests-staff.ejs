@@ -1,14 +1,29 @@
 <link rel="stylesheet" href="/css/relocation-requests.css?v=20261007-v1">
+<link rel="stylesheet" href="/css/relocation-requests-staff.css?v=20261010-modern">
 <main class="rr-page rr-staff">
   <header class="rr-head">
-    <div><span class="rr-eyebrow">Customer service operations</span><h1>Aircon relocation requests</h1><p>Review both locations, verify the unit, and send a clear itemized quote before payment and assignment.</p></div>
-    <a class="rr-button rr-button-light" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>"><i class="bi bi-calendar3"></i> Appointments</a>
+    <div class="rr-head-content"><span class="rr-eyebrow">Services / Relocation</span><h1>Aircon relocation requests</h1><p>Review the move, check the aircon details, and prepare a clear quote.</p></div>
+    <a class="rr-button rr-button-light" href="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>"><i class="bi bi-calendar3" aria-hidden="true"></i> View bookings</a>
   </header>
-  <div class="rr-steps" aria-label="Relocation process"><span>Review request</span><span>Assess if needed</span><span>Send quote</span><span>Customer pays</span><span>Assign technician</span></div>
+  <section class="rr-stats" aria-label="Summary of loaded requests">
+    <article class="rr-stat is-review"><span class="rr-stat-icon"><i class="bi bi-inbox" aria-hidden="true"></i></span><div><span class="rr-stat-label">Needs review</span><strong id="relocationReviewCount">—</strong><small>Review or site check</small></div></article>
+    <article class="rr-stat is-quoted"><span class="rr-stat-icon"><i class="bi bi-send" aria-hidden="true"></i></span><div><span class="rr-stat-label">Quotes sent</span><strong id="relocationQuotedCount">—</strong><small>Waiting for customer</small></div></article>
+    <article class="rr-stat is-accepted"><span class="rr-stat-icon"><i class="bi bi-check2-circle" aria-hidden="true"></i></span><div><span class="rr-stat-label">Quotes accepted</span><strong id="relocationAcceptedCount">—</strong><small>Next: booking and payment</small></div></article>
+    <article class="rr-stat is-booked"><span class="rr-stat-icon"><i class="bi bi-calendar2-check" aria-hidden="true"></i></span><div><span class="rr-stat-label">Bookings submitted</span><strong id="relocationBookedCount">—</strong><small>Next: payment review</small></div></article>
+  </section>
+  <ol class="rr-steps" aria-label="Relocation process"><li><span>1</span> Review request</li><li><span>2</span> Check site if needed</li><li><span>3</span> Send quote</li><li><span>4</span> Customer pays</li><li><span>5</span> Assign technician</li></ol>
   <div id="relocationMessage" class="rr-message" role="status" aria-live="polite" hidden></div>
   <section class="rr-panel" aria-labelledby="relocationTitle">
-    <div class="rr-section-head"><div><h2 id="relocationTitle">Review queue</h2><p>Requests here do not reserve technician capacity.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
-    <div id="relocationList" class="rr-list" aria-live="polite"><p class="rr-muted">Loading requests…</p></div>
+    <div class="rr-section-head"><div><span class="rr-panel-eyebrow">Request workspace</span><h2 id="relocationTitle">Review queue</h2><p>Compare both locations before preparing a quote.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button></div>
+    <div class="rr-toolbar">
+      <label class="rr-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" id="relocationSearch" placeholder="Search customer, location or aircon…" aria-label="Search relocation requests" autocomplete="off"></label>
+      <select id="relocationStatus" aria-label="Filter requests by status"><option value="">All statuses</option><option value="pending_review">Needs review</option><option value="assessment_needed">Site check needed</option><option value="quoted">Quote sent</option><option value="accepted">Quote accepted</option><option value="converted">Booking submitted</option></select>
+      <select id="relocationSort" aria-label="Sort relocation requests"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="preferred">Preferred date first</option></select>
+      <button class="rr-button rr-button-light" type="button" id="relocationClear">Clear</button>
+    </div>
+    <div class="rr-list-meta"><span id="relocationResultCount" aria-live="polite">Loading requests…</span><span>Showing up to 100 recent requests</span></div>
+    <div id="relocationList" class="rr-list" aria-busy="true"><div class="rr-loading" role="status"><span class="rr-loading-spinner" aria-hidden="true"></span>Loading relocation requests…</div></div>
+    <div id="relocationFilteredEmpty" class="rr-empty" hidden><i class="bi bi-search" aria-hidden="true"></i><strong>No matching requests</strong><p>Try another name, location or status.</p><button class="rr-button rr-button-light" type="button" id="relocationResetFilters">Clear filters</button></div>
   </section>
 </main>
-<script src="/js/relocation-requests.js?v=20261007-v1" defer></script>
+<script src="/js/relocation-requests.js?v=20261010-staff-design" defer></script>

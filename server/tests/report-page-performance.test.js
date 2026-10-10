@@ -114,6 +114,6 @@ test('completed walk-in sales use completion time and refresh revenue immediatel
   assert.ok((posRoutes.match(/clearReportCache\("revenue-analytics"\)/g) || []).length >= 3);
   assert.match(analytics, /order\.salesChannel === "walk_in"/);
   assert.match(analytics, /walkInOrderRevenue/);
-  assert.match(template, /Walk-in Counter \/ POS Sales/);
+  assert.match(template, /Walk-in sales/);
   assert.match(template, /A\.walkInOrderRevenue/);
 });

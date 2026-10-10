@@ -602,7 +602,7 @@
     <nav class="pd-breadcrumb">
       <a href="/">Home</a>
       <i class="bi bi-chevron-right"></i>
-      <a href="/products">Products</a>
+      <a href="/products">Aircons</a>
       <i class="bi bi-chevron-right"></i>
       <span><%= p.modelLine %></span>
     </nav>
@@ -807,7 +807,7 @@
     <!-- Related Products -->
     <% if (related.length) { %>
     <div class="pd-related">
-      <h4 class="pd-related-title"><i class="bi bi-grid"></i>Related Products</h4>
+      <h4 class="pd-related-title"><i class="bi bi-grid"></i>Related Aircons</h4>
       <div class="row g-3">
         <% related.forEach(function(r) { %>
         <div class="col-6 col-md-3">
@@ -944,6 +944,7 @@
           body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
         if (!res.ok) throw new Error('Failed');
+        document.dispatchEvent(new CustomEvent('cart:updated'));
         await Swal.fire({
           title: 'Added to Cart!',
           text: requestQty + ' x ' + requestVariant.capacity + ' ' + requestVariant.capacityUnit + ' added to your cart.',
@@ -976,6 +977,7 @@
           body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
         if (!res.ok) throw new Error('Failed');
+        document.dispatchEvent(new CustomEvent('cart:updated'));
         var cartRes = await fetch('/api/aircon-cart');
         if (!cartRes.ok) throw new Error('Failed');
         var cartData = await cartRes.json();

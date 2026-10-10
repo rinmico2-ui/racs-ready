@@ -1,0 +1,33 @@
+flowchart TB
+  customer["Customer / POS staff"]
+  review["Administrator / secretary"]
+  tech["Technician / collection staff"]
+  p61(["6.1 Select cart / POS items"])
+  p62(["6.2 Commit order and stock"])
+  p71(["7.1 Store / review payment"])
+  p72(["7.2 Collect and reconcile"])
+  catalog[("D2 HVACProduct / D4 Inventory")]
+  sales[("D6 AirconCart / Order / WalkInSale")]
+  ledger[("D7 Payment")]
+  proof[("D11 GridFS paymentProofs")]
+  gateway["PayMongo signed webhook"]
+  notice(["10.0 Receipt / notification"])
+  refund(["8.0 Return / refund workflow"])
+  customer -->|"Selected items / quantities"| p61
+  catalog -->|"Product, variant, price, availability"| p61
+  p61 -->|"Validated checkout and request ID"| p62
+  p62 -->|"Conditional stock decrement"| catalog
+  p62 -->|"Order and cart changes"| sales
+  p62 -->|"Order-linked pending payment"| p71
+  customer -->|"Proof / reference / chosen method"| p71
+  review -->|"Verification / rejection"| p71
+  p71 -->|"Payment state and event history"| ledger
+  p71 -->|"Validated receipt image"| proof
+  tech -->|"Collection / remittance details"| p72
+  gateway -->|"Verified provider event"| p72
+  p72 -->|"Financial event / reconciliation"| ledger
+  p72 -->|"Paid / preparing-unit state"| sales
+  p72 -->|"Receipt / status message"| notice
+  notice -->|"Order / payment outcome"| customer
+  refund -->|"Refund accounting updates"| ledger
+  ledger -->|"Original payment evidence"| refund

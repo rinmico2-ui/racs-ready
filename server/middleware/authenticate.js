@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { isAccountEnabled } = require("./accountState");
+const { isSessionCurrent } = require("../utils/sessionPasswordPolicy");
 const { hasPermission, requiredPermissionForRequest } = require("./requirePermission");
 
 // Sliding session: keep relatively short expiry and rotate on activity
@@ -65,6 +66,7 @@ module.exports = {
           user = await User.findById(req.session.userId).select(
             "-passwordHash",
           );
+          if (!isSessionCurrent(req.session, user)) user = null;
         } catch (e) {
           user = null;
         }

@@ -5,7 +5,7 @@ const test = require("node:test");
 const express = require("express");
 const axios = require("axios");
 
-test("optional live suggestions are private, Philippines-only, and leave manual search available", async t => {
+test("live suggestions work without a key, stay Philippines-only, and keep configured keys private", async t => {
   const routePath = require.resolve("../routes/geocodingRoutes");
   const previousKey = process.env.GEOAPIFY_API_KEY;
   const originalGet = axios.get;
@@ -26,12 +26,30 @@ test("optional live suggestions are private, Philippines-only, and leave manual 
   });
 
   const base = `http://127.0.0.1:${server.address().port}/api/geocoding`;
+  const requests = [];
+  axios.get = async (url, options) => {
+    requests.push({ url, params: options.params });
+    return { data:{ features:[
+      { geometry:{ type:'Point',coordinates:[120.9671,15.4863] },properties:{ name:'Cabanatuan',state:'Nueva Ecija',country:'Philippines',countrycode:'PH' } },
+      { geometry:{ type:'Point',coordinates:[120,4] },properties:{ name:'Foreign place',countrycode:'MY' } },
+    ] } };
+  };
   const offStatus = await (await fetch(`${base}/autocomplete/status`)).json();
-  assert.equal(offStatus.enabled, false);
-  assert.equal((await fetch(`${base}/autocomplete?q=Quezon%20City`)).status, 503);
+  assert.equal(offStatus.enabled, true);
+  assert.equal(offStatus.provider,'photon');
+  const noKeyResponse = await fetch(`${base}/autocomplete?q=Cabanatuan`);
+  const noKeyBody = await noKeyResponse.json();
+  assert.equal(noKeyResponse.status,200);
+  assert.equal(requests[0].url,'https://photon.komoot.io/api/');
+  assert.equal(requests[0].params.countrycode,'PH');
+  assert.equal(requests[0].params.bbox,'116,4.5,127,21.5');
+  assert.deepEqual(noKeyBody.suggestions.map(item => item.display_name),['Cabanatuan, Nueva Ecija, Philippines']);
+  await fetch(`${base}/autocomplete?q=cabanatuan`);
+  assert.equal(requests.length,1,'case-insensitive results use the same bounded cache');
+  assert.equal((await fetch(`${base}/autocomplete?q=ab`)).status,400);
 
   process.env.GEOAPIFY_API_KEY = "test-private-key";
-  const requests = [];
+  requests.length = 0;
   axios.get = async (url, options) => {
     requests.push({ url, params: options.params });
     return { data: { results: [
@@ -50,4 +68,11 @@ test("optional live suggestions are private, Philippines-only, and leave manual 
   assert.equal(requests[0].params.apiKey, "test-private-key");
   assert.deepEqual(body.suggestions.map(item => item.display_name), ["Quezon City, Metro Manila, Philippines"]);
   assert.equal(JSON.stringify(body).includes("test-private-key"), false);
+  axios.get = async (url) => {
+    if (url.includes('geoapify')) throw { response:{ status:429 } };
+    return { data:{ features:[{ geometry:{ type:'Point',coordinates:[120.95,15.3] },properties:{ name:'Gapan',countrycode:'PH' } }] } };
+  };
+  const fallback = await fetch(`${base}/autocomplete?q=Gapan`);
+  assert.equal(fallback.status,200);
+  assert.equal((await fallback.json()).suggestions[0].source,'photon');
 });

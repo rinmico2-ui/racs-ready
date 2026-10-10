@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const schema = new mongoose.Schema({
+  clientRequestId: { type:String, trim:true, maxlength:100 },
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'CoreService', required: true },
   existingBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'BookingService', default: null },
@@ -48,5 +49,6 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 
 schema.index({ customerId: 1, createdAt: -1 });
+schema.index({ customerId:1, clientRequestId:1 }, { unique:true, partialFilterExpression:{ clientRequestId:{ $type:'string' } } });
 schema.index({ status: 1, createdAt: -1 });
 module.exports = mongoose.model('UnitAssistanceRequest', schema);

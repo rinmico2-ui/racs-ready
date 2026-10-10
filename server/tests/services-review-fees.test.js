@@ -53,6 +53,8 @@ function renderReview(selectedServices, travelFare = 45) {
     getProjectReviewInfo: () => ({ isProject: false }),
     bookingDebug() {},
     bookingTravelFare: () => Number(state.travelFare ?? state.fare ?? 0),
+    currentBookingReward: () => ({ discount:0 }),
+    bookingLoyaltyError: '',
     window: {},
     console: { log() {}, error() {} }
   };

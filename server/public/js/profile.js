@@ -13,6 +13,8 @@
   var alertEl = qs("profileAlert");
   var firstInput = qs("profileFirstName");
   var lastInput = qs("profileLastName");
+  var namePolicyHint = qs("profileNamePolicy");
+  var saving = false;
   if (!editBtn || !editForm || !form) return;
 
   [qs("profilePhone"), qs("profile-addressPostal")].forEach(function (input) {
@@ -49,7 +51,8 @@
     editForm.classList.remove("d-none");
     alertEl && alertEl.classList.add("d-none");
     editForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    firstInput && firstInput.focus();
+    var firstEditable = firstInput && !firstInput.readOnly ? firstInput : qs("profilePhone");
+    firstEditable && firstEditable.focus({ preventScroll: true });
   });
 
   // rating buttons on profile page
@@ -90,6 +93,7 @@
 
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
+    if (saving) return;
     var firstName = firstInput.value.trim().replace(/\s+/g, " ");
     var lastName = lastInput.value.trim().replace(/\s+/g, " ");
     var phoneInput = qs("profilePhone");
@@ -134,6 +138,7 @@
       return;
     }
 
+    saving = true;
     saveBtn.disabled = true;
     saveBtn.setAttribute("aria-busy", "true");
     saveBtn.textContent = "Saving...";
@@ -155,6 +160,18 @@
           window.location.assign("/login");
           return;
         }
+        if (result.nameChangePolicy && result.user) {
+          firstInput.value = result.user.firstName;
+          lastInput.value = result.user.lastName;
+          firstInput.readOnly = lastInput.readOnly = !result.nameChangePolicy.canChangeName;
+          if (namePolicyHint) {
+            var nextDate = result.nameChangePolicy.nextNameChangeAt;
+            namePolicyHint.dataset.nextChangeAt = nextDate || "";
+            namePolicyHint.textContent = result.nameChangePolicy.canChangeName
+              ? "You can change your name once every " + result.nameChangePolicy.cooldownDays + " days. Check the spelling before saving."
+              : "Your next name change is available on " + new Date(nextDate).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Manila" }) + " (Philippine time). You can still update your phone and address.";
+          }
+        }
         throw new Error(result.error || "Your changes could not be saved. Please try again.");
       }
       try { localStorage.removeItem("profile_ui_overrides"); } catch (storageError) {}
@@ -163,6 +180,7 @@
     } catch (error) {
       showAlert("error", error.message || "Your changes could not be saved. Please try again.");
     } finally {
+      saving = false;
       saveBtn.disabled = false;
       saveBtn.removeAttribute("aria-busy");
       saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';

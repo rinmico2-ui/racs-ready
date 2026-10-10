@@ -316,6 +316,7 @@
   padding-top: 20px !important;
   background: transparent !important;
   color: var(--cal-ink);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 .appointments-calendar .cal-command-header {
@@ -514,39 +515,39 @@
 
 .appointments-calendar .cal-summary-grid {
   margin: 0 0 16px;
-  gap: 10px;
-  overflow: hidden;
-  border: 1px solid var(--cal-line);
-  border-radius: 15px;
-  background: var(--cal-panel);
-  box-shadow: 0 5px 18px rgba(16, 24, 40, 0.045);
+  gap: 14px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .appointments-calendar .cal-summary-card {
   position: relative;
-  min-height: 96px;
-  padding: 16px 18px;
+  min-height: 112px;
+  padding: 18px;
   gap: 13px;
-  border: 0;
-  border-right: 1px solid var(--cal-line-soft);
-  border-radius: 0;
-  box-shadow: none;
+  overflow: hidden;
+  border: 1px solid var(--cal-line);
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(16, 24, 40, 0.04);
 }
 
 .appointments-calendar .cal-summary-card:last-child {
-  border-right: 0;
+  border-right: 1px solid var(--cal-line);
 }
 
 .appointments-calendar .cal-summary-card::before {
   position: absolute;
   top: 0;
-  right: 18px;
-  left: 18px;
-  height: 2px;
+  right: 0;
+  left: 0;
+  height: 3px;
   content: "";
-  border-radius: 0 0 4px 4px;
+  border-radius: 0;
   background: var(--metric-color);
-  opacity: 0;
+  opacity: 1;
 }
 
 .appointments-calendar .cal-summary-card.is-bookings { --metric-color: #2457d6; --metric-bg: #edf3ff; }
@@ -564,32 +565,34 @@
 
 .appointments-calendar .cal-summary-content {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: end;
-  column-gap: 9px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
 }
 
 .appointments-calendar .cal-summary-label {
   grid-column: 1 / -1;
-  margin: 0 0 3px;
+  margin: 0;
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.3;
   color: #475467;
-  font-size: 0.7rem;
+  font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.015em;
 }
 
 .appointments-calendar .cal-summary-value {
   color: var(--cal-ink);
-  font-size: 1.45rem;
+  font-size: 1.8rem;
   line-height: 1;
 }
 
 .appointments-calendar .cal-summary-caption {
   padding-bottom: 1px;
-  color: #98a2b3;
-  font-size: 0.62rem;
+  color: #667085;
+  font-size: 0.67rem;
   font-weight: 550;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .appointments-calendar .page-shell {
@@ -636,7 +639,7 @@
   margin: 0;
   color: var(--cal-ink);
   font-family: "Outfit", "Inter", sans-serif;
-  font-size: 1rem;
+  font-size: 1.12rem;
   font-weight: 750;
 }
 
@@ -674,7 +677,7 @@
 .appointments-calendar .cal-filter-bar {
   padding: 11px 14px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 10px 14px;
   border-bottom: 1px solid var(--cal-line);
@@ -739,11 +742,14 @@
 }
 
 .appointments-calendar .filter-controls {
-  gap: 7px;
+  gap: 10px;
+  width: 100%;
+  margin-left: 0;
 }
 
 .appointments-calendar .cal-search {
-  width: min(285px, 24vw);
+  width: auto;
+  flex: 1;
   min-width: 210px;
 }
 
@@ -798,8 +804,8 @@
 }
 
 .appointments-calendar #adminAppointmentsCalendar .fc-toolbar {
-  min-height: 42px;
-  margin: 0 0 11px !important;
+  min-height: 48px;
+  margin: 0 0 14px !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -859,6 +865,7 @@
   color: #526072 !important;
   font-size: 0.74rem !important;
   font-weight: 650 !important;
+  text-decoration: none !important;
 }
 
 .appointments-calendar #adminAppointmentsCalendar .fc-day-today .fc-daygrid-day-number {
@@ -902,7 +909,7 @@
   min-height: 86px;
   padding: 15px 16px;
   border-bottom: 1px solid var(--cal-line);
-  background: #fbfcfe;
+  background: linear-gradient(120deg, #edf3ff, #f8faff);
 }
 
 .appointments-calendar .list-head-main {
@@ -926,11 +933,11 @@
 
 .appointments-calendar .list-head h5 {
   overflow: hidden;
-  color: var(--cal-ink);
-  font-size: 0.84rem;
+  color: #193f8d;
+  font-size: 0.9rem;
   font-weight: 750;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .appointments-calendar .list-head small {
@@ -978,7 +985,7 @@
 }
 
 .appointments-calendar .appt-body {
-  padding: 10px;
+  padding: 12px 10px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -994,12 +1001,12 @@
 
 .appointments-calendar .appt-name {
   color: #253044;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 
 .appointments-calendar .appt-time,
 .appointments-calendar .appt-row2 {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
 }
 
 .appointments-calendar .appt-status-label {
@@ -1033,6 +1040,182 @@
 .appointments-calendar .ent-modal-header {
   padding: 16px 20px;
   background: linear-gradient(125deg, #14213e, #2457d6) !important;
+}
+
+/* A steady month grid makes daily totals easy to compare. */
+.appointments-calendar #adminAppointmentsCalendar .fc-toolbar-title {
+  display: block !important;
+  color: var(--cal-ink);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-toolbar-chunk {
+  min-width: 0;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-button-group {
+  gap: 4px;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-button-group .fc-button {
+  border: 1px solid #dfe5ee !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-col-header-cell {
+  background: var(--cal-primary) !important;
+  border-bottom-color: var(--cal-primary-dark) !important;
+  color: #fff !important;
+  font-size: 0.7rem !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-col-header-cell a,
+.appointments-calendar #adminAppointmentsCalendar .fc-col-header-cell a:hover {
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day-frame {
+  min-height: 104px;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day-top {
+  flex-direction: row !important;
+  align-items: center;
+  padding: 10px 10px 4px !important;
+  gap: 6px;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day-number {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 50% !important;
+  font-size: 0.8rem !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-day-today .fc-daygrid-day-top::after {
+  content: "Today";
+  color: var(--cal-primary-dark);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-day-sat:not(.cal-selected-day),
+.appointments-calendar #adminAppointmentsCalendar .fc-day-sun:not(.cal-selected-day) {
+  background: #fafbfe;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-day-other:not(.cal-selected-day) {
+  background: #f5f7fa;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day.cal-has-jobs:not(.cal-selected-day) {
+  background: #f5f8ff;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day.cal-selected-day {
+  background: #edf3ff !important;
+  box-shadow: inset 0 0 0 2px var(--cal-primary);
+}
+
+.appointments-calendar #adminAppointmentsCalendar .cal-day-summary {
+  padding: 8px 10px 12px;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .cal-day-count {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid #d3dff9;
+  border-radius: 8px;
+  background: #e9f0ff;
+  color: #214ca8;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .cal-day-count::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .cal-day-count:hover {
+  background: #dce8ff;
+  border-color: #a9c2f5;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .cal-selected-day .cal-day-count {
+  border-color: var(--cal-primary);
+  background: var(--cal-primary);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(36, 87, 214, 0.18);
+}
+
+.appointments-calendar .cal-calendar-guide {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 14px;
+  color: var(--cal-muted-ink);
+  font-size: 0.7rem;
+}
+
+.appointments-calendar .cal-calendar-guide > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.appointments-calendar .cal-guide-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--cal-primary);
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-day-cushion {
+  padding: 12px;
+  background: #edf2fa;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-day-text,
+.appointments-calendar #adminAppointmentsCalendar .fc-list-day-side-text,
+.appointments-calendar #adminAppointmentsCalendar .fc-list-event-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-event td {
+  padding: 12px 8px;
+  background: #fff !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-event:hover td {
+  background: #f5f8ff !important;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-event-title .event-time {
+  display: none;
+}
+
+.appointments-calendar #adminAppointmentsCalendar .fc-list-event-time {
+  width: 80px;
+  white-space: nowrap;
 }
 
 @media (max-width: 1399.98px) {
@@ -1138,22 +1321,21 @@
 
   .appointments-calendar .cal-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0;
+    gap: 10px;
   }
 
   .appointments-calendar .cal-summary-card {
     min-height: 88px;
     padding: 13px;
-    border-right: 1px solid var(--cal-line-soft);
-    border-bottom: 1px solid var(--cal-line-soft);
+    border: 1px solid var(--cal-line);
   }
 
   .appointments-calendar .cal-summary-card:nth-child(2n) {
-    border-right: 0;
+    border-right: 1px solid var(--cal-line);
   }
 
   .appointments-calendar .cal-summary-card:nth-last-child(-n + 2) {
-    border-bottom: 0;
+    border-bottom: 1px solid var(--cal-line);
   }
 
   .appointments-calendar .cal-summary-icon {
@@ -1239,6 +1421,41 @@
     border: 1px solid var(--cal-line);
     border-radius: 9px;
     overflow: hidden;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .fc-toolbar-title {
+    font-size: 0.88rem;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day-frame {
+    min-height: 84px;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .fc-daygrid-day-top {
+    padding: 6px 2px 2px !important;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .fc-day-today .fc-daygrid-day-top::after {
+    display: none;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .cal-day-summary {
+    padding: 6px 3px;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .cal-day-count {
+    justify-content: center;
+    padding: 5px 1px;
+    font-size: 0.61rem;
+  }
+
+  .appointments-calendar #adminAppointmentsCalendar .cal-day-count::before {
+    display: none;
   }
 
   .appointments-calendar .list-head {

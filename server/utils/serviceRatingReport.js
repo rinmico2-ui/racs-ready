@@ -286,12 +286,12 @@ function buildAnalytics(currentRows, previousRows, filters) {
     totalReviews: percentChange(stats.totalReviews, previous.totalReviews),
   } : { overallRating: 0, satisfactionRate: 0, fiveStarCount: 0, totalReviews: 0 };
   const insights = [];
-  if (stats.lowRatingCount) insights.push({ tone: "danger", icon: "bi-exclamation-triangle", title: "Service recovery needed", text: `${stats.lowRatingCount} review${stats.lowRatingCount === 1 ? "" : "s"} rated the service 1–2 stars in this period.` });
+  if (stats.lowRatingCount) insights.push({ tone: "danger", icon: "bi-exclamation-triangle", title: "Low ratings need a follow-up", text: `${stats.lowRatingCount} review${stats.lowRatingCount === 1 ? "" : "s"} rated the service 1–2 stars in this period.` });
   const weakest = services.filter(service => service.count >= 2).sort((a, b) => a.rating - b.rating)[0];
-  if (weakest && weakest.rating < 4) insights.push({ tone: "warning", icon: "bi-tools", title: "Quality variance", text: `${weakest.name} averages ${weakest.rating.toFixed(1)} across ${weakest.count} reviews.` });
-  if (changes.overallRating < -0.2) insights.push({ tone: "danger", icon: "bi-graph-down-arrow", title: "Rating decline", text: `Average rating is ${Math.abs(changes.overallRating).toFixed(2)} stars below the preceding period.` });
-  if (stats.commentRate < 40 && stats.totalReviews) insights.push({ tone: "info", icon: "bi-chat-left-text", title: "Limited review context", text: `Only ${stats.commentRate.toFixed(0)}% of reviews include written feedback.` });
-  if (!insights.length) insights.push({ tone: "success", icon: "bi-check2-circle", title: "Healthy customer sentiment", text: "No material low-rating concentration or negative period movement is visible." });
+  if (weakest && weakest.rating < 4) insights.push({ tone: "warning", icon: "bi-tools", title: "Service with a lower rating", text: `${weakest.name} averages ${weakest.rating.toFixed(1)} across ${weakest.count} reviews.` });
+  if (changes.overallRating < -0.2) insights.push({ tone: "danger", icon: "bi-graph-down-arrow", title: "Ratings went down", text: `Average rating is ${Math.abs(changes.overallRating).toFixed(2)} stars below the previous dates.` });
+  if (stats.commentRate < 40 && stats.totalReviews) insights.push({ tone: "info", icon: "bi-chat-left-text", title: "Few reviews have comments", text: `Only ${stats.commentRate.toFixed(0)}% of reviews include written feedback.` });
+  if (!insights.length) insights.push({ tone: "success", icon: "bi-check2-circle", title: "Customer ratings look good", text: "No clear increase in low ratings was found for these dates." });
   return {
     stats,
     previous,

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // SHARED REVENUE ANALYTICS ENGINE
-// Single source of truth for the Revenue Intelligence report. Used by both the
+// Single source of truth for the Sales and Payments report. Used by both the
 // SSR page render (routes/pages.js → /admin/reports/revenue) and the filtered
 // AJAX endpoint (routes/adminApi.js → /api/admin/reports/revenue) so the two
 // entry points can never drift out of sync with each other.
@@ -34,6 +34,7 @@ const {
   localDateKey,
   netPaymentsThrough,
   orderCompletionDate,
+  orderItemCost,
   paymentAmounts,
   parseReportDate,
   refundDate,
@@ -47,7 +48,7 @@ const {
 // out of the reporting queries prevents base64 receipts and completion photos
 // from being transferred repeatedly for bookings, orders, and payments.
 const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
-const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice items.discountAmount total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
+const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
 const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
 const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod";
 const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.quantity items.totalPrice items.costPrice";
@@ -90,7 +91,7 @@ function resolveDateRange({ from, to, period }) {
 }
 
 /**
- * Build the full Revenue Intelligence analytics payload for the given filter
+ * Build the full Sales and Payments analytics payload for the given filter
  * set. This is the ONLY place this computation should live — both routes
  * that render the revenue report must call this function.
  *
@@ -663,6 +664,7 @@ async function computeRevenueAnalytics(query = {}) {
           businessCategoryLabel: "Aircon Products",
           channel: "walk_in_order",
           quantity: 0,
+          costedUnits: 0,
           revenue: 0,
           cost: 0,
           profit: 0,
@@ -672,7 +674,10 @@ async function computeRevenueAnalytics(query = {}) {
       const quantity = Number(item.quantity || 0);
       row.quantity += quantity;
       row.revenue += netLineValue(order, item);
-      row.cost += Number(orderCostByInventoryId.get(String(item.inventoryId || "")) || 0) * quantity;
+      const unitCost = orderItemCost(item, orderCostByInventoryId);
+      row.cost += unitCost * quantity;
+      if (unitCost > 0) row.costedUnits += quantity;
+      row.costComplete = row.costedUnits >= row.quantity;
       row.profit = row.revenue - row.cost;
     });
   });
@@ -695,6 +700,7 @@ async function computeRevenueAnalytics(query = {}) {
       revenue,
       cost,
       profit,
+      costComplete: products.every(product => product.costComplete !== false),
       margin: revenue > 0 ? (profit / revenue) * 100 : 0,
     };
   };
@@ -707,40 +713,13 @@ async function computeRevenueAnalytics(query = {}) {
   ];
 
   // ── Order products (online / pickup HVAC units) ──
-  const orderProductMap = {};
-  const orderBrandMap = {};
-  const orderCapacityMap = {};
+  const { productMap: orderProductMap, topProducts: topOrderProducts, brands: orderBrandAnalysis, capacities: orderCapacityAnalysis } =
+    require('./airconSalesAnalytics').buildAirconProductSales(recognizedOrders, orderCostCatalog);
   const orderFulfillmentMap = { delivery_only: { count: 0, revenue: 0 }, delivery_installation: { count: 0, revenue: 0 }, customer_pickup: { count: 0, revenue: 0 } };
-  orders.forEach((o) => {
-    const fulfillment = o.fulfillmentType || "delivery_only";
-    if (orderFulfillmentMap[fulfillment]) {
-      orderFulfillmentMap[fulfillment].count++;
-      orderFulfillmentMap[fulfillment].revenue += Number(o.total || 0);
-    }
-    (o.items || []).forEach((item) => {
-      const name = item.modelLine || item.brand || "Unknown Unit";
-      const brand = item.brand || "Unknown Brand";
-      const capacity = item.capacity ? `${item.capacity}${item.capacityUnit || "HP"}` : "N/A";
-      if (!orderProductMap[name]) orderProductMap[name] = { name, brand, capacity, channel: "order", quantity: 0, revenue: 0, avgUnitPrice: 0, orders: 0 };
-      const row = orderProductMap[name];
-      const netRevenue = netLineValue(o, item);
-      row.quantity += Number(item.quantity || 0);
-      row.revenue += netRevenue;
-      row.orders++;
-      row.avgUnitPrice = row.quantity > 0 ? row.revenue / row.quantity : 0;
-      if (!orderBrandMap[brand]) orderBrandMap[brand] = { brand, quantity: 0, revenue: 0, models: new Set() };
-      orderBrandMap[brand].quantity += Number(item.quantity || 0);
-      orderBrandMap[brand].revenue += netRevenue;
-      orderBrandMap[brand].models.add(name);
-      if (!orderCapacityMap[capacity]) orderCapacityMap[capacity] = { capacity, quantity: 0, revenue: 0, orders: 0 };
-      orderCapacityMap[capacity].quantity += Number(item.quantity || 0);
-      orderCapacityMap[capacity].revenue += netRevenue;
-      orderCapacityMap[capacity].orders++;
-    });
+  orders.forEach(order => {
+    const row = orderFulfillmentMap[order.fulfillmentType || 'delivery_only'];
+    if (row) { row.count++; row.revenue += Number(order.total || 0); }
   });
-  const topOrderProducts = Object.values(orderProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 15);
-  const orderBrandAnalysis = Object.values(orderBrandMap).map((b) => ({ ...b, models: b.models.size })).sort((a, b) => b.revenue - a.revenue);
-  const orderCapacityAnalysis = Object.values(orderCapacityMap).sort((a, b) => b.revenue - a.revenue);
 
   // ── Combined product intelligence ──
   const allProductsMap = {};
@@ -749,21 +728,21 @@ async function computeRevenueAnalytics(query = {}) {
     allProductsMap[key] = { name: p.name, category: p.category || "POS", channel: "POS", quantity: p.quantity, revenue: p.revenue, cost: p.cost, profit: p.profit, orders: 1 };
   });
   Object.values(orderProductMap).forEach((p) => {
-    const key = `order:${p.name}`;
+    const key = `${p.channel}:${p.brand}:${p.name}:${p.capacity}`;
     if (allProductsMap[key]) {
       allProductsMap[key].quantity += p.quantity;
       allProductsMap[key].revenue += p.revenue;
       allProductsMap[key].orders += p.orders;
     } else {
-      allProductsMap[key] = { name: p.name, category: p.brand || "Aircon", channel: "Online Order", quantity: p.quantity, revenue: p.revenue, cost: 0, profit: 0, orders: p.orders };
+      allProductsMap[key] = { name: p.name, category: [p.brand, p.capacity].filter(Boolean).join(" · ") || "Aircon", channel: p.channel === "walk_in_order" ? "Walk-in Aircon" : "Online Order", quantity: p.quantity, revenue: p.revenue, cost: p.cost, profit: p.profit, costComplete: p.costComplete, orders: p.orders };
     }
   });
   const allProducts = Object.values(allProductsMap);
   const combinedTopProducts = allProducts.sort((a, b) => b.revenue - a.revenue).slice(0, 20);
   const totalProductUnits = allProducts.reduce((s, p) => s + p.quantity, 0);
   const totalProductRevenue = allProducts.reduce((s, p) => s + p.revenue, 0);
-  const onlineOrderProductUnits = Object.values(orderProductMap).reduce((s, p) => s + p.quantity, 0);
-  const onlineOrderProductRevenue = Object.values(orderProductMap).reduce((s, p) => s + p.revenue, 0);
+  const onlineOrderProductUnits = Object.values(orderProductMap).filter(p => p.channel === "order").reduce((s, p) => s + p.quantity, 0);
+  const onlineOrderProductRevenue = Object.values(orderProductMap).filter(p => p.channel === "order").reduce((s, p) => s + p.revenue, 0);
   const posProductRevenue = Object.values(posProductMap).reduce((s, p) => s + p.revenue, 0);
 
   // ── Payment status counts ──
@@ -855,48 +834,48 @@ async function computeRevenueAnalytics(query = {}) {
   // ── Executive insights (strategic call-outs shown at the top of the report) ──
   const executiveInsights = [];
   if (growthRate >= 10) {
-    executiveInsights.push({ tone: "success", title: "Revenue momentum", text: `Combined service, online-order, and POS revenue increased ${growthRate.toFixed(1)}% between the first and second half of this period.` });
+    executiveInsights.push({ tone: "success", title: "Sales increased", text: `Combined service, online-order, and POS revenue increased ${growthRate.toFixed(1)}% between the first and second half of these dates.` });
   } else if (growthRate <= -10) {
-    executiveInsights.push({ tone: "danger", title: "Revenue contraction", text: `Combined revenue declined ${Math.abs(growthRate).toFixed(1)}% between the first and second half of this period.` });
+    executiveInsights.push({ tone: "danger", title: "Sales decreased", text: `Combined revenue declined ${Math.abs(growthRate).toFixed(1)}% between the first and second half of these dates.` });
   }
   if (collectionRate < 70 && outstandingValue > 0) {
-    executiveInsights.push({ tone: "warning", title: "Collection exposure", text: `${outstandingValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} of approved booked value is not represented by an accepted payment record.` });
+    executiveInsights.push({ tone: "warning", title: "Unpaid amounts", text: `${outstandingValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} of approved work value does not have a confirmed payment.` });
   }
   if (refunds > 0) {
-    executiveInsights.push({ tone: refundRate >= 5 ? "warning" : "info", title: "Refund activity", text: `${refunds.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} was refunded in this period (${refundRate.toFixed(1)}% of gross collections).` });
+    executiveInsights.push({ tone: refundRate >= 5 ? "warning" : "info", title: "Refund activity", text: `${refunds.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} was refunded in this period (${refundRate.toFixed(1)}% of payments received).` });
   }
   if (costDataCoverage < 95) {
-    executiveInsights.push({ tone: "warning", title: "Incomplete cost basis", text: `Known cost coverage is ${costDataCoverage.toFixed(1)}%. Online orders without catalog cost are excluded from margin until their cost data is completed.` });
+    executiveInsights.push({ tone: "warning", title: "Some cost details are missing", text: `Sales with saved cost details is ${costDataCoverage.toFixed(1)}%. Online orders without catalog cost are excluded from margin until their cost data is completed.` });
   }
   const leadingChannel = [
     { name: "Services", share: serviceShare },
     { name: "Online orders", share: orderShare },
     { name: "POS", share: posShare },
   ].sort((a, b) => b.share - a.share)[0];
-  executiveInsights.push({ tone: leadingChannel.share >= 70 ? "warning" : "info", title: "Revenue concentration", text: `${leadingChannel.name} contribute ${leadingChannel.share.toFixed(1)}% of combined revenue across the three commercial channels in this period.` });
+  executiveInsights.push({ tone: leadingChannel.share >= 70 ? "warning" : "info", title: "Most sales come from one source", text: `${leadingChannel.name} contribute ${leadingChannel.share.toFixed(1)}% of combined revenue across services, orders, and walk-in sales for these dates.` });
   if (grossProfit < 0) {
-    executiveInsights.push({ tone: "danger", title: "Negative contribution", text: `Known direct costs (${totalPartsCost.toLocaleString("en-PH", { style: "currency", currency: "PHP" })}) exceed total revenue for this period — review parts, consumables, and labor costs.` });
+    executiveInsights.push({ tone: "danger", title: "Saved job costs are higher than sales", text: `Saved job and product costs (${totalPartsCost.toLocaleString("en-PH", { style: "currency", currency: "PHP" })}) are higher than sales for these dates. Check parts, job supplies, and labor costs.` });
   }
   if (grossProfit >= 0 && operatingProfit < 0) {
-    executiveInsights.push({ tone: "danger", title: "Operating loss", text: `Contribution is positive, but approved expenses and payroll produce an operating loss of ${Math.abs(operatingProfit).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}.` });
+    executiveInsights.push({ tone: "danger", title: "Costs are higher than sales", text: `Saved job costs are below sales, but approved expenses and payroll lead to a loss of ${Math.abs(operatingProfit).toLocaleString("en-PH", { style: "currency", currency: "PHP" })}.` });
   }
   if (atRiskServiceBookings > 0) {
-    executiveInsights.push({ tone: "danger", title: "Service pipeline intervention", text: `${atRiskServiceBookings} active service booking${atRiskServiceBookings === 1 ? " requires" : "s require"} reassignment or rescheduling before booked value can progress toward completion.` });
+    executiveInsights.push({ tone: "danger", title: "Bookings need a schedule change", text: `${atRiskServiceBookings} active service booking${atRiskServiceBookings === 1 ? " requires" : "s require"} reassignment or rescheduling before booking value can progress toward completion.` });
   }
   if (paymentExceptionCount > 0) {
-    executiveInsights.push({ tone: "danger", title: "Payment control exception", text: `${paymentExceptionCount} payment record${paymentExceptionCount === 1 ? "" : "s"} totaling ${paymentExceptionValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} ${paymentExceptionCount === 1 ? "is" : "are"} unaccounted, rejected, or failed.` });
+    executiveInsights.push({ tone: "danger", title: "Payment records need checking", text: `${paymentExceptionCount} payment record${paymentExceptionCount === 1 ? "" : "s"} totaling ${paymentExceptionValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} ${paymentExceptionCount === 1 ? "is" : "are"} unaccounted, rejected, or failed.` });
   }
   if (pendingExpenseCount + draftPayrollCount > 0) {
-    executiveInsights.push({ tone: "warning", title: "Financial close backlog", text: `${pendingExpenseCount} pending expense${pendingExpenseCount === 1 ? "" : "s"} and ${draftPayrollCount} draft payroll${draftPayrollCount === 1 ? "" : "s"} are excluded from operating profit until approved.` });
+    executiveInsights.push({ tone: "warning", title: "Costs waiting for approval", text: `${pendingExpenseCount} pending expense${pendingExpenseCount === 1 ? "" : "s"} and ${draftPayrollCount} draft payroll${draftPayrollCount === 1 ? "" : "s"} are excluded from profit after expenses until approved.` });
   }
   if (serviceProfitability.leastProfitable && serviceProfitability.leastProfitable.grossProfitMargin < 15) {
     const weakest = serviceProfitability.leastProfitable;
-    executiveInsights.push({ tone: weakest.grossProfit < 0 ? "danger" : "warning", title: "Service margin intervention", text: `${weakest.serviceName} is the lowest service contributor at ${weakest.grossProfitMargin.toFixed(1)}% known gross margin. ${weakest.action.detail}` });
+    executiveInsights.push({ tone: weakest.grossProfit < 0 ? "danger" : "warning", title: "Service profit needs checking", text: `${weakest.serviceName} is the lowest service contributor at ${weakest.grossProfitMargin.toFixed(1)}% recorded profit %. ${weakest.action.detail}` });
   }
   if (salesForecast.projectedGrowthPercent !== null && Math.abs(salesForecast.projectedGrowthPercent) >= 10) {
-    executiveInsights.push({ tone: salesForecast.projectedGrowthPercent > 0 ? "success" : "warning", title: "30-day sales outlook", text: `Approved booked value is projected to ${salesForecast.projectedGrowthPercent > 0 ? "increase" : "decrease"} ${Math.abs(salesForecast.projectedGrowthPercent).toFixed(1)}% versus the latest comparable ${salesForecast.horizonDays}-day period (${salesForecast.confidence} confidence).` });
+    executiveInsights.push({ tone: salesForecast.projectedGrowthPercent > 0 ? "success" : "warning", title: "30-day sales outlook", text: `Approved work value is projected to ${salesForecast.projectedGrowthPercent > 0 ? "increase" : "decrease"} ${Math.abs(salesForecast.projectedGrowthPercent).toFixed(1)}% compared with the previous ${salesForecast.horizonDays}-day period (${salesForecast.confidence} confidence).` });
   }
-  if (!executiveInsights.length) executiveInsights.push({ tone: "info", title: "Stable performance", text: "No material revenue or collection exception was detected in this period." });
+  if (!executiveInsights.length) executiveInsights.push({ tone: "info", title: "Stable performance", text: "No major sales or payment issues were found during these dates." });
 
   // ── Technicians for filter dropdown ──
   return {

@@ -1,0 +1,184 @@
+<link rel="stylesheet" href="/css/staff-account-modal.css?v=20261010-shared">
+<div class="modal fade" id="addStaffModal" tabindex="-1" aria-hidden="true" aria-labelledby="addStaffTitle" data-bs-backdrop="static" data-default-role="<%= defaultRole %>">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:560px;">
+    <div class="modal-content" style="border-radius:16px;border:none;overflow:hidden;box-shadow:0 24px 64px rgba(15,23,42,0.18);">
+
+      <!-- Header -->
+      <div style="padding:1.5rem 1.75rem 0;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;box-shadow:0 4px 14px rgba(59,130,246,0.25);">
+            <i class="bi bi-person-plus-fill"></i>
+          </div>
+          <div>
+            <h6 id="addStaffTitle" style="margin:0;font-weight:700;font-size:1rem;color:#0f172a;">Add New Staff</h6>
+            <p style="margin:0;font-size:0.72rem;color:#94a3b8;">Create a new team member account</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <!-- Step Indicators -->
+      <div style="padding:1.25rem 1.75rem 0;">
+        <div style="display:flex;align-items:center;gap:0;" id="wizardSteps">
+          <div class="wizard-step active" data-step="1">
+            <div class="wizard-step-circle">1</div>
+            <span class="wizard-step-label">Account</span>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="2">
+            <div class="wizard-step-circle">2</div>
+            <span class="wizard-step-label">Details</span>
+          </div>
+          <div class="wizard-step-line"></div>
+          <div class="wizard-step" data-step="3">
+            <div class="wizard-step-circle">3</div>
+            <span class="wizard-step-label">Confirm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Body -->
+      <div class="modal-body" style="padding:1.25rem 1.75rem 1rem;">
+
+        <!-- STEP 1: Account Setup -->
+        <div class="wizard-panel active" id="wizardPanel1">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Account Setup</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Choose the role and enter an email the staff member can open.</div>
+          </div>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="staff-form-label">Role *</label>
+              <div style="display:flex;gap:0.5rem;" id="roleSelector">
+                <button type="button" class="role-option active" data-role="technician">
+                  <i class="bi bi-wrench" style="font-size:1.1rem;"></i>
+                  <div>
+                    <div style="font-weight:600;font-size:0.82rem;">Technician</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;">Field service staff</div>
+                  </div>
+                </button>
+                <button type="button" class="role-option" data-role="secretary">
+                  <i class="bi bi-headset" style="font-size:1.1rem;"></i>
+                  <div>
+                    <div style="font-weight:600;font-size:0.82rem;">Secretary</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;">Office staff</div>
+                  </div>
+                </button>
+              </div>
+              <input type="hidden" id="wizRole" value="technician" />
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label" for="wizEmail">Email Address *</label>
+              <div style="position:relative;">
+                <i class="bi bi-envelope" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizEmail" class="staff-form-control" type="email" maxlength="254" autocomplete="email" aria-describedby="wizEmailError wizEmailHint" required placeholder="juan.santos@example.com" style="padding-left:2rem;" />
+              </div>
+              <div class="wiz-error" id="wizEmailError" aria-live="polite"></div><div class="wiz-hint" id="wizEmailHint">Email access is confirmed through the setup link.</div>
+            </div>
+            <div class="col-12">
+              <div class="staff-setup-info"><strong>How do they get a password?</strong><br>We email a setup link. They confirm their email and choose their own password before signing in.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Personal Details -->
+        <div class="wizard-panel" id="wizardPanel2">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Personal Information</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Enter the staff member's personal details.</div>
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="staff-form-label" for="wizFirst">First Name *</label>
+              <input id="wizFirst" class="staff-form-control" maxlength="100" placeholder="Juan" required />
+              <div class="wiz-error" id="wizFirstError"></div>
+            </div>
+            <div class="col-6">
+              <label class="staff-form-label" for="wizLast">Last Name *</label>
+              <input id="wizLast" class="staff-form-control" maxlength="100" placeholder="Santos" required />
+              <div class="wiz-error" id="wizLastError"></div>
+            </div>
+            <div class="col-12">
+              <label class="staff-form-label" for="wizPhone">Phone Number *</label>
+              <div style="position:relative;">
+                <i class="bi bi-phone" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizPhone" class="staff-form-control" type="tel" required maxlength="25" autocomplete="tel" placeholder="09171234567" style="padding-left:2rem;" />
+              </div>
+              <div class="wiz-error" id="wizPhoneError"></div>
+            </div>
+            <div class="col-12" id="wizTechFields">
+              <label class="staff-form-label" for="wizLocation">Work Location</label>
+              <div style="position:relative;">
+                <i class="bi bi-geo-alt" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;"></i>
+                <input id="wizLocation" class="staff-form-control" maxlength="500" placeholder="Office address or area e.g. Makati, Taguig" style="padding-left:2rem;padding-right:7rem;" />
+                <button id="wizBtnUseLocation" type="button" style="position:absolute;right:4px;top:50%;transform:translateY(-50%);border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;font-size:0.72rem;padding:0.3rem 0.6rem;color:#475569;cursor:pointer;transition:all 0.2s;white-space:nowrap;">Use GPS</button>
+              </div>
+              <input type="hidden" id="wizLocationGeo" />
+              <div style="font-size:0.68rem;color:#94a3b8;margin-top:0.25rem;">Optional. Used for dispatching and scheduling.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: Confirmation -->
+        <div class="wizard-panel" id="wizardPanel3">
+          <div style="margin-bottom:1rem;">
+            <div style="font-size:0.85rem;font-weight:700;color:#0f172a;margin-bottom:0.25rem;">Review & Confirm</div>
+            <div style="font-size:0.72rem;color:#94a3b8;">Verify all details before creating the account.</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:12px;padding:1rem 1.25rem;border:1px solid #e2e8f0;">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;padding-bottom:0.75rem;border-bottom:1px solid #e2e8f0;">
+              <div id="confirmAvatar" style="width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.1);"></div>
+              <div>
+                <div id="confirmName" style="font-weight:700;font-size:0.95rem;color:#0f172a;"></div>
+                <div id="confirmRole" style="font-size:0.72rem;color:#94a3b8;"></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Email</div>
+                <div id="confirmEmail" style="font-size:0.8rem;color:#0f172a;word-break:break-all;"></div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Phone</div>
+                <div id="confirmPhone" style="font-size:0.8rem;color:#0f172a;">—</div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Location</div>
+                <div id="confirmLocation" style="font-size:0.8rem;color:#0f172a;">—</div>
+              </div>
+              <div style="background:#fff;border-radius:8px;padding:0.6rem 0.8rem;border:1px solid #f1f5f9;">
+                <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#94a3b8;">Password setup</div>
+                <div style="font-size:0.8rem;color:#0f172a;">Staff chooses through email</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:0.75rem;padding:0.6rem 0.8rem;background:rgba(59,130,246,0.06);border-radius:8px;border:1px solid rgba(59,130,246,0.12);">
+            <div style="font-size:0.72rem;color:#2563eb;display:flex;align-items:flex-start;gap:6px;">
+              <i class="bi bi-info-circle" style="margin-top:2px;flex-shrink:0;"></i>
+              <span id="confirmNote">A technician account will be added to the scheduling roster automatically.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="wizResult" class="staff-setup-result d-none" role="status" aria-live="polite"></div>
+      <!-- Footer Actions -->
+      <div style="padding:0 1.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;">
+        <button type="button" id="wizBackBtn" class="btn" style="border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:0.82rem;padding:0.5rem 1.25rem;color:#475569;display:none;transition:all 0.2s;">
+          <i class="bi bi-arrow-left me-1"></i>Back
+        </button>
+        <button type="button" id="wizResendBtn" class="btn btn-outline-primary btn-sm d-none">Send setup email again</button>
+        <div style="flex:1;"></div>
+        <button type="button" id="wizDoneBtn" class="staff-btn-primary d-none" data-bs-dismiss="modal">Done</button>
+        <button type="button" id="wizNextBtn" class="staff-btn-primary" style="padding:0.5rem 1.5rem;">
+          Next<i class="bi bi-arrow-right ms-1"></i>
+        </button>
+        <button type="button" id="wizCreateBtn" class="staff-btn-primary" style="padding:0.5rem 1.5rem;display:none;background:linear-gradient(135deg,#059669,#10b981);">
+          <i class="bi bi-check-lg me-1"></i>Create Account
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/staff-account-modal.js?v=20261010-shared" defer></script>

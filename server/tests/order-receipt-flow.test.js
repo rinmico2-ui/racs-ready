@@ -11,6 +11,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const paymentPolicy = require("../utils/paymentPolicy");
 const checkoutPolicy = require("../utils/orderCheckoutPolicy");
+const loyaltyRewards = require("../utils/loyaltyRewards");
 
 // A real multipart HTTP upload and real order route, with isolated records
 // and storage. No production credentials, DB writes, emails, or stock changes.
@@ -44,6 +45,10 @@ test("customer delivery receipt upload survives temporary-file removal and reach
   class Payment {
     constructor(data) { Object.assign(this, data); this._id = new mongoose.Types.ObjectId(); }
     async save() { payments.push(this); }
+    static find(filter) {
+      return { select() { return this; }, maxTimeMS() { return this; },
+        lean: async () => payments.filter(payment => String(payment.orderId) === String(filter.orderId)) };
+    }
   }
   const inventory = {
     findById: id => ({ populate() { return this; }, lean: async () => ({ _id: id, active: true,
@@ -102,6 +107,8 @@ test("customer delivery receipt upload survives temporary-file removal and reach
     "../utils/orderCheckoutSettings": { getOrderCheckoutSettings: async () => ({ farePerKm: 10,
       companyLocation: { lat: 15, lng: 120 }, storeHours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, open: true, startMinutes: 480, endMinutes: 1080 })) }) },
     "../utils/orderCheckoutPolicy": { ...checkoutPolicy, authoritativeDeliveryQuote: async () => ({ distanceKm: 2, durationMin: 5, transportationFee: 20 }) },
+    // This receipt fixture represents checkout with automatic loyalty disabled.
+    "../utils/loyaltyRewards": { ...loyaltyRewards, rewardFor: async () => null, assertQuote() {} },
     "../utils/enterpriseSchedulingEngine": { isLargeProject: async () => false },
     "../utils/operationLock": { bookingCapacityLockKey: date => `booking-capacity:${String(date).slice(0, 10)}`, withOperationLock: async (_key, work) => work() },
     "./scheduleRoutes": { getTimeSlotsForQuery: async () => ({ statusCode: 200, payload: { timeSlots: [{ startTime: "09:00 AM" }] } }) },

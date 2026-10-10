@@ -66,8 +66,8 @@
       cell(tr, integer.format(r.units), r.salesDemand + ' · ' + r.salesPer30Days + '/30 days');
       cell(tr, r.consumed ? integer.format(r.consumed) : '—', r.consumptionDemand + (r.consumed ? ' · ' + r.consumptionPer30Days + '/30 days · ' + r.completedServices + ' completed services' : ''));
       cell(tr, peso.format(r.revenue));
-      cell(tr, r.contribution === null ? 'Cost data incomplete' : peso.format(r.contribution), r.margin === null ? '' : r.margin + '% provisional margin');
-      cell(tr, r.stock === null ? 'Unknown' : integer.format(r.stock), r.stockCoverDays === null ? (r.lowStock ? 'At or below reorder level' : 'No observed run rate') : r.stockCoverDays + ' days cover' + (r.lowStock ? ' · at/below reorder level' : ''));
+      cell(tr, r.contribution === null ? 'Some costs are missing' : peso.format(r.contribution), r.margin === null ? '' : r.margin + '% estimated profit');
+      cell(tr, r.stock === null ? 'Unknown' : integer.format(r.stock), r.stockCoverDays === null ? (r.lowStock ? 'At or below reorder level' : 'No observed run rate') : r.stockCoverDays + ' days of stock left' + (r.lowStock ? ' · at/below reorder level' : ''));
       cell(tr, r.lastRecordedSale ? new Date(r.lastRecordedSale).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) : 'No recorded sale', r.lastRecordedSale ? (r.daysSinceLastSale === 0 ? 'Today' : `${r.daysSinceLastSale} days ago`) : 'Check catalog age and service use');
       badge(tr, r.action);
     }, 9);
@@ -103,7 +103,7 @@
       serviceLink.title = 'Inspect matching service records'; serviceCell.firstChild.replaceWith(serviceLink);
       badge(tr, r.demand); cell(tr, integer.format(r.bookings), r.frequencyPer30Days + '/30 days · ' + r.recentBookings + ' in recent half');
       cell(tr, integer.format(r.completed)); cell(tr, integer.format(r.cancelled)); cell(tr, peso.format(r.completedValue), r.completed ? peso.format(r.averageCompletedValue) + ' average' : '');
-      badge(tr, r.demand === 'High demand' ? 'Review capacity' : r.demand === 'Low demand' ? 'Consider promotion' : r.bookings === 0 ? 'Review visibility' : 'Monitor');
+      badge(tr, r.demand === 'High demand' ? 'Check technician availability' : r.demand === 'Low demand' ? 'Consider a special offer' : r.bookings === 0 ? 'Check if customers can find it' : 'Monitor');
     }, 7);
   }
   function renderCustomers() {
@@ -138,7 +138,7 @@
       ['Top tool', data.leaders.tool?.name || 'No data', data.leaders.tool ? data.leaders.tool.units + ' sold' : ''],
       ['Top repair part sold', data.leaders.part?.name || 'No data', data.leaders.part ? data.leaders.part.units + ' sold' : ''],
       ['Most used service part', data.leaders.consumedPart?.name || 'No data', data.leaders.consumedPart ? data.leaders.consumedPart.consumed + ' used in completed services' : ''],
-      ['Highest provisional item contribution', data.leaders.contribution?.name || 'Cost data incomplete', data.leaders.contribution ? peso.format(data.leaders.contribution.contribution) + ' before item refunds' : ''],
+      ['Item with the highest estimated profit', data.leaders.contribution?.name || 'Some costs are missing', data.leaders.contribution ? peso.format(data.leaders.contribution.contribution) + ' before item refunds' : ''],
       ['Most active customer', data.leaders.customer?.name || 'No data', data.leaders.customer ? (data.leaders.customer.completedBookings + data.leaders.customer.completedOrders) + ' completed transactions' : ''],
     ];
     const answerHost = document.getElementById('diAnswers'); answerHost.replaceChildren();
@@ -159,14 +159,14 @@
     });
     renderServices();
     renderProducts();
-    document.getElementById('diProductCaveat').textContent = data.products.caveat + ' Completed item refunds in period: ' + peso.format(data.products.refundTotal) + '.';
+    document.getElementById('diProductCaveat').textContent = data.products.caveat + ' Completed item refunds in these dates: ' + peso.format(data.products.refundTotal) + '.';
     const segments = document.getElementById('diSegments'); segments.replaceChildren();
     Object.entries(data.customers.segments).forEach(([name, count]) => {
       const item = document.createElement('div'); item.className = 'di-segment'; item.textContent = name + ' ';
       const strong = document.createElement('strong'); strong.textContent = integer.format(count); item.append(strong); segments.append(item);
     });
     renderCustomers();
-    document.getElementById('diScoring').textContent = data.customers.scoring + (data.customers.customerCatalogCapped ? ' Customer cohort is capped at 10,000 accounts; use customer records for the complete directory.' : '');
+    document.getElementById('diScoring').textContent = data.customers.scoring + (data.customers.customerCatalogCapped ? ' This list shows up to 10,000 accounts. Open Customer Records to see all accounts.' : '');
     document.getElementById('diMethod').textContent = data.methodology;
     renderLoyalty(data);
   }
@@ -174,7 +174,7 @@
     if (requestController) requestController.abort();
     const controller = new AbortController();
     requestController = controller;
-    state.textContent = 'Loading decision intelligence…';
+    state.textContent = 'Loading suggested actions…';
     try {
       const params = new URLSearchParams(new FormData(form));
       if (params.get('range') !== 'custom') { params.delete('from'); params.delete('to'); }

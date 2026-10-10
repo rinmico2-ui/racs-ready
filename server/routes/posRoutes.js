@@ -478,6 +478,7 @@ async function checkoutAirconOrder(req, res) {
         quantity: requestedItem.quantity,
         unitPrice,
         totalPrice: unitPrice * requestedItem.quantity,
+        costPrice: Number(variant.costPrice) > 0 ? Number(variant.costPrice) : null,
         imageUrl: product.imageUrl || "/images/products/default.png",
         isHvac: true,
         parentHvacId: product._id,

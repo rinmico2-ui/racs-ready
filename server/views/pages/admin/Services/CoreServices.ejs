@@ -1364,9 +1364,9 @@
         ac.hpPricing.forEach((hpObj, j) => {
           hpRows += `
                 <tr>
-                  <td><input type="number" step="0.1" class="form-control form-control-sm" placeholder="1.0" value="${hpObj.hp||''}" oninput="updateHP(${i}, ${j}, 'hp', this.value)"></td>
-                  <td><div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" step="0.01" class="form-control form-control-sm" placeholder="0.00" value="${hpObj.price||''}" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div></td>
-                  <td><div class="input-group input-group-sm"><input type="number" class="form-control form-control-sm" placeholder="Min" value="${hpObj.durationMinutes||''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div></td>
+                  <td><input type="number" min="0.01" step="any" required class="form-control form-control-sm" placeholder="e.g. 0.75" value="${hpObj.hp ?? ''}" aria-label="Horsepower" oninput="updateHP(${i}, ${j}, 'hp', this.value)"></td>
+                  <td><div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" min="0" step="0.01" required class="form-control form-control-sm" placeholder="0.00" value="${hpObj.price ?? ''}" aria-label="Price per unit" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div></td>
+                  <td><div class="input-group input-group-sm"><input type="number" min="1" step="1" class="form-control form-control-sm" placeholder="Min" value="${hpObj.durationMinutes ?? ''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div></td>
                   <td><input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)"></td>
                   <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHP(${i}, ${j})" aria-label="Remove HP tier"><i class="bi bi-trash3"></i></button></td>
                 </tr>`;
@@ -1555,12 +1555,12 @@
         hpPricing: ac.hpPricing.filter(hp => hp.hp !== '' && hp.price !== '').map(hp => ({
           hp: parseFloat(hp.hp),
           price: parseFloat(hp.price),
-          durationMinutes: hp.durationMinutes ? parseInt(hp.durationMinutes) : undefined,
+          durationMinutes: hp.durationMinutes !== '' && hp.durationMinutes != null ? Number(hp.durationMinutes) : undefined,
           description: String(hp.description || '').trim()
         }))
       }));
 
-      const invalidTier = cleanAirconTypes.some(ac => ac.hpPricing.some(hp => !Number.isFinite(hp.hp) || hp.hp <= 0 || !Number.isFinite(hp.price) || hp.price < 0 || (hp.durationMinutes !== undefined && (!Number.isInteger(hp.durationMinutes) || hp.durationMinutes < 1))));
+      const invalidTier = cleanAirconTypes.some(ac => ac.hpPricing.some(hp => !Number.isFinite(hp.hp) || hp.hp <= 0 || !Number.isFinite(hp.price) || hp.price < 0 || (hp.durationMinutes !== undefined && (!Number.isInteger(hp.durationMinutes) || hp.durationMinutes < 1))) || new Set(ac.hpPricing.map(hp => hp.hp)).size !== ac.hpPricing.length);
       if (invalidTier) {
         await Swal.fire({ icon:'warning', title:'Check HP pricing', text:'Each HP tier needs a valid capacity, non-negative price, and a positive duration when provided.' });
         return;

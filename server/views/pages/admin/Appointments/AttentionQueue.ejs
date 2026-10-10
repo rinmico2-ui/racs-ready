@@ -7,6 +7,7 @@
   const resolutionShowsOrders = typeof resolutionCanViewOrders === 'boolean' ? resolutionCanViewOrders : true;
 %>
 <link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
+<link rel="stylesheet" href="/css/resolution-center-dialogs.css?v=20261010-payment-review">
 <style>
   .attention-card { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
   .attention-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
@@ -76,6 +77,13 @@
   .rc-case-meta { display:flex; flex-wrap:wrap; gap:7px 16px; margin-top:7px; color:#64748b; font-size:.72rem; }
   .rc-case-meta span { display:inline-flex; align-items:center; gap:5px; }
   .rc-reason { margin-top:10px; padding:9px 11px; color:#7c2d12; background:#fff7ed; border-left:3px solid #f97316; border-radius:6px; font-size:.73rem; line-height:1.45; }
+  .rc-more-issues { margin-top:10px; color:#475569; font-size:.73rem; }
+  .rc-more-issues summary { cursor:pointer; color:#1d4ed8; font-weight:700; }
+  .rc-more-issues ul { margin:8px 0 0; padding-left:18px; }
+  .rc-more-issues li + li { margin-top:8px; }
+  .rc-issue-actions { display:flex; flex-wrap:wrap; gap:7px; width:100%; }
+  .rc-action-issue-label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0; color:#475569; font-size:.72rem; font-weight:700; }
+  .rc-action-issue-label select { width:auto; max-width:100%; font-size:.72rem; border-color:#dbe3ed; border-radius:8px; }
   .rc-sla { min-width:112px; text-align:right; }
   .rc-sla strong { display:block; color:#b91c1c; font-size:.82rem; }
   .rc-sla span { color:#64748b; font-size:.65rem; }
@@ -157,7 +165,7 @@
       </section>
 
       <section class="rc-kpis" aria-label="Resolution summary">
-        <div class="rc-kpi"><span class="rc-kpi-icon"><i class="bi bi-inboxes"></i></span><div class="rc-kpi-label">Open cases</div><div class="rc-kpi-value" id="resolutionTotal">—</div><div class="rc-kpi-meta">Across bookings and orders</div></div>
+        <div class="rc-kpi"><span class="rc-kpi-icon"><i class="bi bi-inboxes"></i></span><div class="rc-kpi-label">Open cases</div><div class="rc-kpi-value" id="resolutionTotal">—</div><div class="rc-kpi-meta">Each booking or order is counted once</div></div>
         <div class="rc-kpi danger"><span class="rc-kpi-icon"><i class="bi bi-exclamation-octagon"></i></span><div class="rc-kpi-label">Critical / high</div><div class="rc-kpi-value" id="resolutionPriority">—</div><div class="rc-kpi-meta"><span id="resolutionPastDue">—</span> past scheduled time</div></div>
         <div class="rc-kpi booking"><span class="rc-kpi-icon"><i class="bi bi-calendar2-check"></i></span><div class="rc-kpi-label">Booking cases</div><div class="rc-kpi-value" id="resolutionBookings">—</div><div class="rc-kpi-meta">Service visit decisions</div></div>
         <% if (resolutionShowsOrders) { %><div class="rc-kpi order"><span class="rc-kpi-icon"><i class="bi bi-box-seam"></i></span><div class="rc-kpi-label">Order cases</div><div class="rc-kpi-value" id="resolutionOrders">—</div><div class="rc-kpi-meta">Delivery, installation, and pickup</div></div><% } %>
@@ -180,6 +188,10 @@
           <button class="btn btn-outline-secondary btn-sm px-3" id="resolutionClear" type="button"><i class="bi bi-x-circle me-1"></i>Clear</button>
         </div>
         <div class="rc-results-head"><div class="rc-results-title" id="resolutionResultsTitle">Open operational cases</div><div class="rc-results-meta" id="resolutionResultsMeta">Loading current queue…</div></div>
+        <div id="resolutionFocusNotice" class="alert alert-info mx-3 mt-3 mb-0 d-none" role="status">
+          <span id="resolutionFocusMessage"></span>
+          <button type="button" class="btn btn-sm btn-outline-primary ms-2" id="resolutionShowAll">View all cases</button>
+        </div>
         <div id="attentionList" class="rc-list"><div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary"></div><p class="mt-2 mb-0">Loading resolution cases…</p></div></div>
         <div id="emptyState" class="rc-empty d-none"><i class="bi bi-check2"></i><strong class="d-block text-dark">No cases match this view</strong><span class="small">The selected queue is clear, or you can adjust the filters.</span></div>
         <div class="rc-pagination" id="resolutionPagination" hidden></div>
@@ -189,7 +201,7 @@
 </div>
 
 <!-- Booking Details Modal -->
-<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade rc-modal" id="detailModal" tabindex="-1" aria-hidden="true" aria-labelledby="detailModalTitle">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content ent-modal-content">
       <div class="modal-header ent-modal-header info">
@@ -200,24 +212,31 @@
         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
       </div>
       <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f1f5f9;">
+        <div id="detailPaymentReview" class="w-100 d-none">
+          <p id="detailPaymentSummary" class="small mb-2" role="status">Loading the submitted payment...</p>
+          <label class="d-flex align-items-start gap-2 small"><input id="detailPaymentChecked" type="checkbox" class="form-check-input mt-1" disabled><span>I checked the receipt and confirmed that the payment was received.</span></label>
+          <p id="detailPaymentError" class="small text-danger mt-2 mb-0" role="alert" hidden></p>
+        </div>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button>
+        <button type="button" id="detailPaymentVerify" class="btn btn-success d-none" disabled onclick="confirmResolutionPaymentReview()"><i class="bi bi-shield-check me-1"></i>Verify payment</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Reschedule Modal — EnterpriseCalendar (same as core services page) -->
-<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade rc-modal" id="rescheduleModal" tabindex="-1" aria-hidden="true" aria-labelledby="rescheduleModalTitle">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content ent-modal-content">
       <div class="modal-header ent-modal-header">
-        <h5 class="modal-title ent-modal-title"><i class="bi bi-calendar-event" style="font-size:1.2rem;"></i>Propose Reschedule</h5>
+        <h5 class="modal-title ent-modal-title" id="rescheduleModalTitle"><i class="bi bi-calendar-event" style="font-size:1.2rem;"></i>Propose Reschedule</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" id="rescheduleBody" style="background:#fff;max-height:70vh;overflow-y:auto;">
         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
       </div>
       <div class="modal-footer" style="background:#fafbfc;border-top:1px solid #f1f5f9;">
+        <button type="button" id="rescheduleSave" class="btn btn-primary" onclick="rschSubmitProposal()" disabled>Save new schedule</button>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Close</button>
       </div>
     </div>
@@ -225,11 +244,11 @@
 </div>
 
 <!-- Resolve Menu Modal (3-option decision) -->
-<div class="modal fade" id="resolveMenuModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade rc-modal" id="resolveMenuModal" tabindex="-1" aria-hidden="true" aria-labelledby="resolveMenuTitle">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius:12px;border:none;overflow:hidden;">
       <div class="modal-header" style="background:linear-gradient(135deg,#4A5568 0%,#2D3748 100%);color:#fff;border-bottom:none;padding:16px 20px;">
-        <h6 class="modal-title fw-bold" style="font-size:1rem;"><i class="bi bi-gear me-2"></i>Resolve Past-Date Booking</h6>
+        <h6 class="modal-title fw-bold" id="resolveMenuTitle" style="font-size:1rem;"><i class="bi bi-gear me-2"></i>Resolve Past-Date Booking</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body p-4">
@@ -241,25 +260,16 @@
         </div>
         <div class="d-flex flex-column gap-3">
           <!-- Option 1: Customer chooses -->
-          <button class="btn text-start p-3" style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;transition:all 0.2s;" onmouseover="this.style.borderColor='#3B82F6';this.style.background='#EFF6FF'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'" onclick="handleResolveAction('send_link')">
-            <div class="d-flex align-items-center gap-3">
-              <div style="width:42px;height:42px;border-radius:50%;background:#DBEAFE;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-link-45deg text-primary" style="font-size:1.1rem;"></i></div>
-              <div><div class="fw-bold text-dark" style="font-size:0.9rem;">Customer Chooses Schedule</div><div class="small text-muted mb-0" style="font-size:0.8rem;">Send a reschedule link to the customer so they pick a new date and time.</div></div>
-            </div>
+          <button type="button" class="rc-resolution-option is-customer" onclick="handleResolveAction('send_link')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span><span><strong>Customer chooses schedule</strong><small>Send a schedule link so the customer can choose a new date.</small></span>
           </button>
           <!-- Option 2: Admin schedules -->
-          <button class="btn text-start p-3" style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;transition:all 0.2s;" onmouseover="this.style.borderColor='#10B981';this.style.background='#ECFDF5'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'" onclick="handleResolveAction('admin_schedule')">
-            <div class="d-flex align-items-center gap-3">
-              <div style="width:42px;height:42px;border-radius:50%;background:#D1FAE5;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-calendar-check text-success" style="font-size:1.1rem;"></i></div>
-              <div><div class="fw-bold text-dark" style="font-size:0.9rem;">Admin Schedules on Behalf</div><div class="small text-muted mb-0" style="font-size:0.8rem;">Pick a new date and time yourself using the calendar.</div></div>
-            </div>
+          <button type="button" class="rc-resolution-option is-staff" onclick="handleResolveAction('admin_schedule')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span><span><strong>Staff chooses schedule</strong><small>Agree on a date with the customer, then choose it in the calendar.</small></span>
           </button>
           <!-- Option 3: Cancel -->
-          <button class="btn text-start p-3" style="border:2px solid #e2e8f0;border-radius:10px;background:#f8fafc;transition:all 0.2s;" onmouseover="this.style.borderColor='#EF4444';this.style.background='#FEF2F2'" onmouseout="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'" onclick="handleResolveAction('cancel')">
-            <div class="d-flex align-items-center gap-3">
-              <div style="width:42px;height:42px;border-radius:50%;background:#FEE2E2;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="bi bi-x-circle text-danger" style="font-size:1.1rem;"></i></div>
-              <div><div class="fw-bold text-dark" style="font-size:0.9rem;">Cancel Booking</div><div class="small text-muted mb-0" style="font-size:0.8rem;">Cancel the booking entirely. You can process a refund if applicable.</div></div>
-            </div>
+          <button type="button" class="rc-resolution-option is-cancel" onclick="handleResolveAction('cancel')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-x-circle"></i></span><span><strong>Cancel booking</strong><small>Cancel this booking and review any payment that needs a refund.</small></span>
           </button>
         </div>
       </div>
@@ -270,13 +280,46 @@
   </div>
 </div>
 
+<!-- Review the customer and order before changing its schedule. -->
+<div class="modal fade rc-modal" id="orderResolveMenuModal" tabindex="-1" aria-hidden="true" aria-labelledby="orderResolveMenuTitle" aria-describedby="orderResolveMenuIntro">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title fw-bold" id="orderResolveMenuTitle"><i class="bi bi-gear me-2" aria-hidden="true"></i>Resolve Past-Date Order</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <div class="rc-order-review-meta"><strong id="orderResolveReference"></strong><span id="orderResolveType" class="rc-pill rc-source-order"></span></div>
+        <p id="orderResolveMenuIntro" class="small text-muted">Contact the customer to agree on a new schedule before continuing.</p>
+        <section class="rc-order-review-contact" aria-labelledby="orderResolveContactTitle">
+          <h3 id="orderResolveContactTitle">Customer contact</h3>
+          <strong id="orderResolveCustomer"></strong>
+          <p id="orderResolveContactDetails"></p>
+          <div id="orderResolveContactActions" class="d-flex flex-wrap gap-2"></div>
+        </section>
+        <p id="orderResolveReason" class="small text-muted"></p>
+        <div class="d-flex flex-column gap-3">
+          <button type="button" class="rc-resolution-option is-customer" id="orderResolveCustomerSchedule" onclick="handleOrderResolveAction('send_link')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span><span><strong>Customer chooses schedule</strong><small>Send a schedule link so the customer can choose a new date.</small></span>
+          </button>
+          <button type="button" class="rc-resolution-option is-staff" id="orderResolveSchedule" onclick="handleOrderResolveAction('reschedule')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span><span><strong id="orderResolveScheduleTitle">Staff chooses schedule</strong><small id="orderResolveScheduleHint"></small></span>
+          </button>
+          <button type="button" class="rc-resolution-option is-cancel" id="orderResolveCancel" onclick="handleOrderResolveAction('cancel')">
+            <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-x-circle"></i></span><span><strong>Cancel order</strong><small>Cancel this order and send any verified payment to refund review.</small></span>
+          </button>
+        </div>
+        <div class="mt-3 pt-3 border-top d-none" id="orderResolvePayment"><button type="button" class="btn btn-outline-success" onclick="handleOrderResolveAction('verify_payment')"><i class="bi bi-receipt me-1" aria-hidden="true"></i>Review payment</button></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1" aria-hidden="true"></i>Close</button></div>
+    </div>
+  </div>
+</div>
+
 <!-- Cancel with Refund Modal -->
-<div class="modal fade" id="cancelRefundModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade rc-modal" id="cancelRefundModal" tabindex="-1" aria-hidden="true" aria-labelledby="cancelRefundTitle">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content refund-modal-content">
       <div class="modal-header refund-modal-header">
         <div>
-          <h6 class="modal-title fw-bold" style="font-size:1rem;"><i class="bi bi-x-circle me-2"></i>Cancel Booking &amp; Refund</h6>
+          <h6 class="modal-title fw-bold" id="cancelRefundTitle" style="font-size:1rem;"><i class="bi bi-x-circle me-2"></i>Cancel Booking &amp; Refund</h6>
           <p class="refund-modal-subtitle">Review payment status before recording the cancellation.</p>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -386,7 +429,9 @@
 </div>
 
 <script src="/js/enterprise-calendar.js"></script>
+<script src="/js/resolution-evidence.js?v=20261009"></script>
 <script>
+  document.querySelectorAll('.rc-modal').forEach(modal => document.body.appendChild(modal));
   const RESOLUTION_WORKSPACE_ROLE = <%- JSON.stringify(resolutionRole).replace(/</g, '\\u003c') %>;
   const RESOLUTION_API_BASE = <%- JSON.stringify(resolutionApi).replace(/</g, '\\u003c') %>;
   const RESOLUTION_APPOINTMENTS_API = <%- JSON.stringify(resolutionAppointmentsApi).replace(/</g, '\\u003c') %>;
@@ -415,6 +460,8 @@
   const requestedFocus = String(queryParams.get('focus') || '').trim();
   const requestedOpenAction = queryParams.get('open') === 'resolve' ? 'resolve' : '';
   let requestedFocusHandled = false;
+  let currentFocus = requestedFocus;
+  let resolvedFocus = requestedFocus;
   let queueRequest = 0;
   let allResolutionCases = [];
   let rescheduleBookingId = null;
@@ -440,7 +487,7 @@
     no_technician: { label:'No Technician', icon:'bi-person-x', color:'#c2410c', background:'#fff7ed' },
     technician_issue: { label:'Technician Issue', icon:'bi-person-gear', color:'#7c3aed', background:'#f5f3ff' },
     schedule_conflict: { label:'Schedule Conflict', icon:'bi-calendar-x', color:'#be123c', background:'#fff1f2' },
-    customer_reschedule: { label:'Customer Reschedule', icon:'bi-calendar2-week', color:'#0369a1', background:'#f0f9ff' },
+    customer_reschedule: { label:'Schedule change', icon:'bi-calendar2-week', color:'#0369a1', background:'#f0f9ff' },
     payment_review_overdue: { label:'Payment Review Overdue', icon:'bi-credit-card-2-front', color:'#b45309', background:'#fffbeb' },
     assignment_overdue: { label:'Assignment Overdue', icon:'bi-person-x', color:'#c2410c', background:'#fff7ed' },
     dispatch_overdue: { label:'Dispatch Overdue', icon:'bi-truck-front', color:'#b91c1c', background:'#fef2f2' },
@@ -458,6 +505,7 @@
   async function loadQueue() {
     const requestId = ++queueRequest;
     const params = new URLSearchParams({ page: String(currentPage), perPage: '25' });
+    if (currentFocus) params.set('focus', currentFocus);
     if (currentSource) params.set('source', currentSource);
     if (currentFilter) params.set('issue', currentFilter);
     if (currentSeverity) params.set('severity', currentSeverity);
@@ -469,6 +517,29 @@
       if (!res.ok) throw new Error(data.error || 'Failed to load resolution center');
       if (requestId !== queueRequest) return;
       allResolutionCases = data.cases || [];
+      if (data.focus) {
+        resolvedFocus = data.focus.source + ':' + data.focus.id;
+        currentSource = data.focus.source;
+        currentFilter = ''; currentSeverity = ''; currentSearch = ''; currentPage = 1;
+        document.getElementById('resolutionIssue').value = '';
+        document.getElementById('resolutionSeverity').value = '';
+        document.getElementById('resolutionSearch').value = '';
+        document.querySelectorAll('.rc-domain-tab').forEach(tab => {
+          const selected = tab.dataset.source === currentSource;
+          tab.classList.toggle('active', selected);
+          tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+        });
+        const label = data.focus.source === 'order' ? 'Order' : 'Booking';
+        const reference = data.focus.reference || label.toLowerCase();
+        const message = data.focus.state === 'open'
+          ? (resolvedFocus !== currentFocus ? 'This visit belongs to aircon order ' + reference + '. Showing its open case.' : 'Showing the open case for ' + reference + '.')
+          : data.focus.state === 'no_active_case'
+            ? label + ' ' + reference + ' was found, but it has no open issue. Its schedule or status may have changed, or the issue was already cleared.'
+            : label + ' was not found. It may have been removed or is no longer available.';
+        document.getElementById('resolutionFocusMessage').textContent = message;
+        document.getElementById('resolutionFocusNotice').classList.remove('d-none');
+        if (data.focus.state !== 'open') requestedFocusHandled = true;
+      }
       window.dispatchEvent(new CustomEvent('resolution:counts', { detail: data.summary }));
       document.getElementById('resolutionTotal').textContent = data.summary?.total || 0;
       document.getElementById('resolutionPastDue').textContent = data.summary?.pastDue || 0;
@@ -483,6 +554,7 @@
       const end = Math.min(pagination.total, pagination.page * pagination.perPage);
       document.getElementById('resolutionResultsMeta').textContent = pagination.total ? `Showing ${start}–${end} of ${pagination.total} matching cases` : '0 matching cases';
       renderQueue(allResolutionCases);
+      if (data.focus && !allResolutionCases.length) document.getElementById('emptyState').classList.add('d-none');
       renderResolutionPagination(pagination);
       focusRequestedResolutionCase();
       syncResolutionUrl();
@@ -558,9 +630,18 @@
       const date = scheduled ? new Date(scheduled).toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }) : 'Schedule not recorded';
       const encodedReference = encodeURIComponent(String(item.reference || 'Booking'));
       const source = item.sourceType === 'order' ? 'order' : 'booking';
-      const sourceLabel = source === 'order' ? 'Order' : 'Booking';
-      const actions = source === 'order' ? renderOrderActions(item) : renderBookingActions(item, encodedReference);
+      const sourceLabel = source === 'order' ? 'Order' : (item.isProject ? 'Large-scale project' : 'Standard booking');
+      const issues = item.issues?.length ? item.issues : [item];
+      const otherIssues = issues.filter(entry => entry.issueType !== item.issueType);
+      const otherIssuesHtml = otherIssues.length ? '<details class="rc-more-issues"><summary>' + otherIssues.length + ' other issue' + (otherIssues.length === 1 ? '' : 's') + '</summary><ul>' + otherIssues.map(entry => '<li><strong>' + escapeHtml(ISSUE_BADGES[entry.issueType]?.label || niceLabel(entry.issueType)) + '</strong>: ' + escapeHtml(entry.reason || '') + '</li>').join('') + '</ul></details>' : '';
+      const actionSelector = issues.length > 1 ? '<label class="rc-action-issue-label" title="Choose an issue to see its available actions.">Issue to review<select class="form-select form-select-sm" onchange="selectResolutionIssue(this)">' + issues.map(entry => '<option value="' + escapeHtml(entry.issueType) + '"' + (entry.issueType === item.issueType ? ' selected' : '') + '>' + escapeHtml(ISSUE_BADGES[entry.issueType]?.label || niceLabel(entry.issueType)) + '</option>').join('') + '</select></label>' : '';
+      const actions = actionSelector + issues.map(entry => {
+        const issueItem = { ...item, ...entry };
+        const buttons = source === 'order' ? renderOrderActions(issueItem) : renderBookingActions(issueItem, encodedReference);
+        return '<div class="rc-issue-actions' + (entry.issueType === item.issueType ? '' : ' d-none') + '" data-issue-type="' + escapeHtml(entry.issueType) + '">' + buttons + '</div>';
+      }).join('');
       const noShowEvidence = item.issueType === 'no_show' ? renderNoShowEvidence(item) : '';
+      const proposalMessage = resolutionProposalText(item);
       return `
         <article class="rc-case" data-source="${source}" data-record-id="${escapeHtml(item.id)}" data-case-id="${escapeHtml(item.caseId || `${source}:${item.id}:${item.issueType || ''}`)}">
           <div class="rc-case-main">
@@ -583,22 +664,29 @@
                 ${source === 'order' && item.fulfillmentType === 'delivery_installation' ? `<span><i class="bi bi-tools"></i>Daily Kit: ${escapeHtml(niceLabel(item.preparation?.installation?.status || 'pending'))}</span>` : ''}
               </div>
               <div class="rc-reason"><i class="bi bi-info-circle me-1"></i>${escapeHtml(item.reason)}</div>
-              ${item.proposedReschedule?.status === 'pending' ? `<div class="alert alert-info py-2 px-3 small mt-2 mb-0"><i class="bi bi-hourglass-split me-1"></i>New visit proposed for ${escapeHtml(item.proposedReschedule.dateLabel || '')} ${escapeHtml(item.proposedReschedule.timeLabel || item.proposedReschedule.time || '')}; awaiting customer confirmation.</div>` : ''}
+              ${proposalMessage ? `<div class="alert alert-info py-2 px-3 small mt-2 mb-0"><i class="bi bi-hourglass-split me-1"></i>${escapeHtml(proposalMessage)}</div>` : ''}
               ${noShowEvidence}
+              ${otherIssuesHtml}
             </div>
-            <div class="rc-sla"><strong>${item.isPastDate ? `${escapeHtml(item.daysPast)} day${item.daysPast === 1 ? '' : 's'} overdue` : 'Decision required'}</strong><span>${item.isPastDate ? 'Past requested schedule' : 'Open operational exception'}</span></div>
+            <div class="rc-sla"><strong>${item.status === 'cancelled' ? 'Review cancellation' : item.isPastDate ? `${escapeHtml(item.daysPast)} day${item.daysPast === 1 ? '' : 's'} overdue` : 'Needs review'}</strong><span>${item.status === 'cancelled' ? 'This booking is cancelled' : item.isPastDate ? 'Past requested schedule' : 'Choose the next action'}</span></div>
           </div>
           <div class="rc-actions">${actions}</div>
         </article>`;
     }).join('');
   }
 
+  function selectResolutionIssue(select) {
+    select.closest('.rc-case')?.querySelectorAll('.rc-issue-actions').forEach(actions => {
+      actions.classList.toggle('d-none', actions.dataset.issueType !== select.value);
+    });
+  }
+
   function focusRequestedResolutionCase() {
     if (requestedFocusHandled || !requestedFocus) return;
-    const separator = requestedFocus.indexOf(':');
+    const separator = resolvedFocus.indexOf(':');
     if (separator < 1) return;
-    const source = requestedFocus.slice(0, separator);
-    const recordId = requestedFocus.slice(separator + 1);
+    const source = resolvedFocus.slice(0, separator);
+    const recordId = resolvedFocus.slice(separator + 1);
     const item = allResolutionCases.find(entry => {
       const entrySource = entry.sourceType === 'order' ? 'order' : 'booking';
       return entrySource === source && String(entry.id) === recordId;
@@ -624,7 +712,7 @@
           openResolveMenuForCase(item.id);
           return;
         }
-        openReschedule(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60, 'standard', item.issueType || '');
+        openReschedule(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60, item.issueType === 'no_show' ? 'no-show-review' : 'standard', item.issueType || '');
       }, 420);
     }
   }
@@ -645,38 +733,156 @@
   }
 
   function renderBookingActions(item, encodedReference) {
+    const allowed = new Set(item.allowedActions || []);
+    const viewAction = `<button class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View booking</button>`;
+    const closeAction = allowed.has('close') ? `<button class="btn btn-outline-dark" onclick="closeCase('${item.id}','${item.issueType}')"><i class="bi bi-check2-circle me-1"></i>Close case</button>` : '';
+    if (item.status === 'cancelled' || item.issueType === 'cancelled') return viewAction + closeAction + contactActions(item);
+    const canSchedule = allowed.has('reschedule');
+    const paymentAction = item.allowedActions?.includes('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('booking','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : '';
     if (item.issueType === 'no_show') {
       const customerChoice = item.awaitingCustomerSchedule
         ? ''
         : `<button class="btn btn-outline-danger" onclick="confirmNoShow('${item.id}',false,this)"><i class="bi bi-person-check me-1"></i>Confirm &amp; close</button><button class="btn btn-success" onclick="confirmNoShow('${item.id}',true,this)"><i class="bi bi-send-check me-1"></i>Customer chooses</button>`;
-      return `<button class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View booking</button>${customerChoice}<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'no-show-review','no_show',${item.capacityQuantity || 1})"><i class="bi bi-calendar-event me-1"></i>Schedule visit</button>${contactActions(item)}`;
+      return `${viewAction}${paymentAction}${customerChoice}${canSchedule ? `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'no-show-review','no_show',${item.capacityQuantity || 1})"><i class="bi bi-calendar-event me-1"></i>Schedule visit</button>` : ''}${contactActions(item)}`;
     }
-    return `<button class="btn btn-outline-secondary" onclick="viewDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View booking</button><button class="btn btn-outline-dark" onclick="closeCase('${item.id}','${item.issueType}')"><i class="bi bi-check2-circle me-1"></i>Close case</button>${item.issueType === 'past_date' ? `<button class="btn btn-primary" onclick="openResolveMenuForCase('${item.id}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'standard','${item.issueType}')"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>`}${item.canReassign ? `<button class="btn btn-outline-success" onclick="reassignCase('${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>Reassign</button>` : ''}${contactActions(item)}`;
+    return `${viewAction}${paymentAction}${closeAction}${canSchedule ? item.issueType === 'past_date' ? `<button class="btn btn-primary" onclick="openResolveMenuForCase('${item.id}','${item.issueType}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : `<button class="btn btn-primary" onclick="openReschedule('${item.id}',decodeURIComponent('${encodedReference}'),${item.serviceDurationMinutes || 60},'standard','${item.issueType}')"><i class="bi bi-calendar-event me-1"></i>Reschedule</button>` : ''}${item.canReassign && allowed.has('reassign') ? `<button class="btn btn-outline-success" onclick="reassignCase('${item.id}','${item.issueType}')"><i class="bi bi-person-plus me-1"></i>Reassign</button>` : ''}${contactActions(item)}`;
+  }
+
+  function resolutionProposalText(booking) {
+    if (['cancelled', 'completed', 'closed', 'repair_completed'].includes(booking.status)) return '';
+    const proposal = booking.proposedReschedule;
+    if (proposal?.status !== 'pending' || !proposal.date || Number.isNaN(new Date(proposal.date).getTime())) return '';
+    const date = proposal.dateLabel || new Date(proposal.date).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', year:'numeric', month:'short', day:'numeric' });
+    const time = proposal.timeLabel || proposal.time;
+    return `Suggested schedule: ${date}${time ? ` at ${time}` : ''}. Waiting for the customer to confirm.`;
   }
 
   function renderOrderActions(item) {
     const allowed = new Set(item.allowedActions || []);
-    return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button class="btn btn-success" onclick="verifyOrderPayment('${item.id}')"><i class="bi bi-check2-circle me-1"></i>Verify payment</button>` : ''}${allowed.has('reschedule') ? `<button class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}')"><i class="bi bi-calendar2-week me-1"></i>Set future schedule</button>` : ''}${contactActions(item)}`;
+    return `<button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail('${item.id}')"><i class="bi bi-eye me-1"></i>View order</button>${allowed.has('verify_payment') ? `<button type="button" class="btn btn-outline-success" onclick="openResolutionPaymentReview('order','${item.id}')"><i class="bi bi-receipt me-1"></i>Review payment</button>` : ''}${['reschedule','send_link','cancel'].some(action => allowed.has(action)) ? `<button type="button" class="btn btn-primary" onclick="openOrderResolutionForCase('${item.id}','${escapeHtml(item.issueType)}')"><i class="bi bi-signpost-split me-1"></i>Resolve case</button>` : ''}`;
   }
 
-  function findResolutionCase(source, id) {
-    return allResolutionCases.find(item => (item.sourceType === 'order' ? 'order' : 'booking') === source && String(item.id) === String(id));
+  function findResolutionCase(source, id, issueType = '') {
+    const item = allResolutionCases.find(item => (item.sourceType === 'order' ? 'order' : 'booking') === source && String(item.id) === String(id));
+    const issue = item?.issues?.find(entry => entry.issueType === issueType);
+    return issue ? { ...item, ...issue } : item;
   }
 
-  function openResolveMenuForCase(id) {
-    const item = findResolutionCase('booking', id);
+  function openResolveMenuForCase(id, issueType = '') {
+    const item = findResolutionCase('booking', id, issueType);
     if (!item) { showToast('error', 'The booking resolution case is no longer available. Refresh the queue.'); return; }
+    if (item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) { showToast('info', 'This booking is not available for rescheduling.'); return; }
     openResolveMenu(item.id, item.reference || 'Booking', item.serviceDurationMinutes || 60, item.servicePrice || 0, item.amountPaid || 0, item.issueType, item.phone || '', item.email || '', item.customer || 'Customer');
   }
 
-  function openOrderResolutionForCase(id) {
-    const item = findResolutionCase('order', id);
+  let orderResolutionSelection = null;
+  let orderResolutionActionPending = false;
+
+  function openOrderResolutionForCase(id, issueType = '') {
+    if (orderResolutionActionPending) return;
+    const item = findResolutionCase('order', id, issueType);
     if (!item) { showToast('error', 'The order resolution case is no longer available. Refresh the queue.'); return; }
-    if (item.fulfillmentType === 'customer_pickup') {
-      reschedulePickupOrder(item);
-    } else {
-      rescheduleDeliveryOrder(item);
+    const allowed = new Set(item.allowedActions || []);
+    if (!['reschedule','verify_payment','send_link','cancel'].some(action => allowed.has(action))) { showToast('info', 'No action is available for this case.'); return; }
+    const pickup = item.fulfillmentType === 'customer_pickup';
+    const installation = item.fulfillmentType === 'delivery_installation';
+    orderResolutionSelection = { id: item.id, issueType: item.issueType };
+    document.getElementById('orderResolveReference').textContent = item.reference || 'Aircon order';
+    document.getElementById('orderResolveType').textContent = pickup ? 'Pickup' : installation ? 'Delivery + installation' : 'Delivery';
+    document.getElementById('orderResolveMenuIntro').textContent = allowed.has('reschedule')
+      ? 'Contact the customer to agree on a new schedule before continuing.'
+      : 'Review the order and contact the customer if payment details need checking.';
+    document.getElementById('orderResolveCustomer').textContent = item.customer || 'Customer';
+    const contacts = [contactPhoneHref(item.phone) ? item.phone : '', contactEmailHref(item.email) ? item.email : ''].filter(Boolean);
+    document.getElementById('orderResolveContactDetails').textContent = contacts.join(' · ') || 'No phone number or email saved. Check the customer details before continuing.';
+    document.getElementById('orderResolveContactActions').innerHTML = `${contactPhoneHref(item.phone) ? '<button type="button" class="btn btn-outline-success" onclick="contactOrderResolutionCustomer(\'call\')"><i class="bi bi-telephone me-1" aria-hidden="true"></i>Call</button>' : ''}${contactEmailHref(item.email) ? '<button type="button" class="btn btn-outline-secondary" onclick="contactOrderResolutionCustomer(\'email\')"><i class="bi bi-envelope me-1" aria-hidden="true"></i>Email</button>' : ''}`;
+    document.getElementById('orderResolveReason').textContent = [item.reason, item.awaitingCustomerSchedule ? 'Schedule link sent. Waiting for the customer to choose a new schedule.' : ''].filter(Boolean).join(' ');
+    document.getElementById('orderResolveSchedule').classList.toggle('d-none', !allowed.has('reschedule'));
+    document.getElementById('orderResolveCustomerSchedule').classList.toggle('d-none', !allowed.has('send_link'));
+    document.getElementById('orderResolveCancel').classList.toggle('d-none', !allowed.has('cancel'));
+    document.getElementById('orderResolvePayment').classList.toggle('d-none', !allowed.has('verify_payment'));
+    document.getElementById('orderResolveScheduleTitle').textContent = 'Staff chooses schedule';
+    document.getElementById('orderResolveScheduleHint').textContent = pickup
+      ? 'Choose a date when the store is open. Technician scheduling is not needed.'
+      : 'Choose an available date and time. Large installations use a start date and finish-by date.';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('orderResolveMenuModal')).show();
+  }
+
+  async function hideOrderResolutionMenu() {
+    const modalEl = document.getElementById('orderResolveMenuModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal._isTransitioning) await new Promise(resolve => modalEl.addEventListener('shown.bs.modal', resolve, { once: true }));
+    await new Promise(resolve => { modalEl.addEventListener('hidden.bs.modal', resolve, { once: true }); modal.hide(); });
+  }
+
+  async function contactOrderResolutionCustomer(method) {
+    if (orderResolutionActionPending || !orderResolutionSelection || !document.getElementById('orderResolveMenuModal').classList.contains('show')) return;
+    const item = findResolutionCase('order', orderResolutionSelection.id, orderResolutionSelection.issueType);
+    if (!item || !['call', 'email'].includes(method)) return;
+    orderResolutionActionPending = true;
+    try {
+      // Close the Bootstrap dialog before opening the contact dialog so focus stays in the active form.
+      await hideOrderResolutionMenu();
+      if (method === 'call') await openCustomerCall(item.phone, item.customer, item.reference);
+      else await openCustomerEmail(item.email, item.customer, item.reference);
+    } catch (error) {
+      showToast('error', escapeHtml(error.message || 'Could not open the customer contact options. Please try again.'));
+    } finally {
+      orderResolutionActionPending = false;
+      if (findResolutionCase('order', item.id, item.issueType)) openOrderResolutionForCase(item.id, item.issueType);
     }
+  }
+
+  async function handleOrderResolveAction(action) {
+    const modalEl = document.getElementById('orderResolveMenuModal');
+    if (orderResolutionActionPending || !orderResolutionSelection || !modalEl.classList.contains('show')) return;
+    const item = findResolutionCase('order', orderResolutionSelection.id, orderResolutionSelection.issueType);
+    if (!['reschedule', 'verify_payment', 'send_link', 'cancel'].includes(action) || !item?.allowedActions?.includes(action)) {
+      showToast('error', 'This action is no longer available. Refresh the queue.');
+      return;
+    }
+    orderResolutionActionPending = true;
+    try {
+      await hideOrderResolutionMenu();
+      if (action === 'verify_payment') await verifyOrderPayment(item.id);
+      else if (action === 'send_link') await sendOrderRescheduleLink(item);
+      else if (action === 'cancel') await cancelResolutionOrder(item);
+      else if (item.fulfillmentType === 'customer_pickup') await reschedulePickupOrder(item);
+      else await rescheduleDeliveryOrder(item);
+    } catch (error) {
+      showToast('error', escapeHtml(error.message || 'Could not open the selected action. Please try again.'));
+    } finally {
+      orderResolutionActionPending = false;
+    }
+  }
+
+  async function sendOrderRescheduleLink(item) {
+    const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/reschedule-invitation`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not send the schedule link. Please try again.');
+    showToast('success', data.message || 'Schedule link sent to the customer.');
+    await loadQueue();
+  }
+
+  async function cancelResolutionOrder(item) {
+    if (!window.Swal) throw new Error('The cancellation form is unavailable. Reload the page and try again.');
+    const result = await Swal.fire({ title:`Cancel order · ${escapeHtml(item.reference || 'Aircon order')}`,
+      customClass:{ popup:'rc-dialog', confirmButton:'racs-enterprise-danger' }, icon:'warning',
+      text:'This stops the order. Any verified payment will be queued for refund review.',
+      input:'textarea', inputLabel:'Reason for cancellation', inputAttributes:{ maxlength:1000 },
+      showCancelButton:true, confirmButtonText:'Cancel order', cancelButtonText:'Keep order', confirmButtonColor:'#b91c1c',
+      showLoaderOnConfirm:true, allowOutsideClick:() => !Swal.isLoading(),
+      preConfirm:async reason => {
+        if (!String(reason || '').trim()) { Swal.showValidationMessage('Enter a cancellation reason.'); return false; }
+        try {
+          const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/cancel`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ reason:String(reason).trim() }) });
+          const data = await response.json();
+          if (!response.ok) { Swal.showValidationMessage(data.error || 'Could not cancel the order. Please try again.'); return false; }
+          return data;
+        } catch (_) { Swal.showValidationMessage('Could not reach the server. Your cancellation has not been confirmed. Please try again.'); return false; }
+      },
+    });
+    if (result.isConfirmed) { showToast('success', result.value?.message || 'Order cancelled.'); await loadQueue(); }
   }
 
   function contactPhoneHref(value) {
@@ -737,6 +943,7 @@
     }
     const result = await Swal.fire({
       title: `Call ${name}`,
+      customClass: { popup: 'rc-dialog rc-dialog-contact', denyButton: 'rc-dialog-secondary' },
       html: `<div class="text-start"><div class="fw-bold fs-5 mb-2">${escapeHtml(phone)}</div>${ref ? `<div class="small text-muted mb-3">Reference: ${escapeHtml(ref)}</div>` : ''}<div class="small text-muted">Opening the dialer is free. Your phone carrier may still charge for the call. On a desktop, Windows Phone Link or another registered calling app is required.</div></div>`,
       icon: 'info',
       showCancelButton: true,
@@ -777,6 +984,7 @@
     }
     const result = await Swal.fire({
       title: `Email ${String(customer || 'customer').trim()}`,
+      customClass: { popup: 'rc-dialog rc-dialog-contact', denyButton: 'rc-dialog-secondary' },
       html: `<div class="text-start"><div class="fw-bold mb-2">${escapeHtml(normalizedEmail)}</div><div class="small text-muted">Choose Gmail Web if this computer has no default email application. Both options open a prefilled draft for an administrator to review before sending.</div></div>`,
       icon: 'info',
       showCancelButton: true,
@@ -812,7 +1020,14 @@
     target.innerHTML = `<span class="small text-muted">Page ${pagination.page} of ${pagination.pages}</span><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary" type="button" ${pagination.page <= 1 ? 'disabled' : ''} onclick="goResolutionPage(${pagination.page - 1})"><i class="bi bi-chevron-left me-1"></i>Previous</button><button class="btn btn-outline-secondary" type="button" ${pagination.page >= pagination.pages ? 'disabled' : ''} onclick="goResolutionPage(${pagination.page + 1})">Next<i class="bi bi-chevron-right ms-1"></i></button></div>`;
   }
 
+  function clearResolutionFocus() {
+    currentFocus = '';
+    requestedFocusHandled = true;
+    document.getElementById('resolutionFocusNotice').classList.add('d-none');
+  }
+
   function goResolutionPage(page) {
+    clearResolutionFocus();
     currentPage = Math.max(1, Number(page) || 1);
     loadQueue();
     document.querySelector('.rc-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -820,7 +1035,8 @@
 
   function syncResolutionUrl() {
     const url = new URL(window.location.href);
-    ['source', 'issue', 'severity', 'q', 'page', 'status'].forEach(key => url.searchParams.delete(key));
+    ['source', 'issue', 'severity', 'q', 'page', 'status', 'focus', 'open'].forEach(key => url.searchParams.delete(key));
+    if (currentFocus) url.searchParams.set('focus', currentFocus);
     if (currentSource) url.searchParams.set('source', currentSource);
     if (currentFilter) url.searchParams.set('issue', currentFilter);
     if (currentSeverity) url.searchParams.set('severity', currentSeverity);
@@ -830,86 +1046,98 @@
   }
 
   async function verifyOrderPayment(orderId) {
-    const accepted = window.Swal
-      ? (await Swal.fire({ title:'Verify order payment?', text:'Confirm only after matching the submitted proof or collected amount to the payment record.', icon:'question', showCancelButton:true, confirmButtonText:'Verify payment', confirmButtonColor:'#059669' })).isConfirmed
-      : confirm('Verify this order payment?');
-    if (!accepted) return;
-    try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ paymentStatus:'paid', note:'Payment verified from the Resolution Center' }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Payment verification failed');
-      showToast('success', 'Order payment verified. The case will be recalculated.');
-      await loadQueue();
-    } catch (error) {
-      showToast('error', escapeHtml(error.message || 'Payment verification failed'));
-    }
+    return openResolutionPaymentReview('order', orderId);
   }
 
+  let openingOrderSchedule = false;
   async function rescheduleDeliveryOrder(item) {
     if (!window.Swal || !window.EnterpriseCalendar) {
       showToast('error', 'The scheduling calendar is unavailable. Reload the page and try again.');
       return;
     }
-    const customerContact = contactActions(item);
-    const result = await Swal.fire({
-      title:`Set future schedule · ${escapeHtml(item.reference || 'Order')}`,
-      width:'min(900px, calc(100vw - 24px))',
-      html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}<p class="small text-muted mb-3">Choose an available delivery date and start time. Capacity and advance-notice rules match customer booking.</p><div id="rcOrderCalendar"><div id="calendarGrid"></div><div id="timeSelection" class="mt-3 d-none"><div id="timeSlots"></div></div></div><label for="rcOrderReason" class="form-label small fw-bold mt-3">Resolution note (optional)</label><textarea id="rcOrderReason" class="form-control" rows="2" maxlength="500" placeholder="Customer contacted; replacement schedule confirmed"></textarea></div>`,
-      showCancelButton:true,
-      confirmButtonText:'Save future schedule',
-      confirmButtonColor:'#2563eb',
-      focusConfirm:false,
-      showLoaderOnConfirm:true,
-      allowOutsideClick:() => !Swal.isLoading(),
-      didOpen:() => {
-        EnterpriseCalendar.init({
-          root:Swal.getHtmlContainer(), syncGlobalState:false, resetSelection:true,
-          duration:60,
-          quantity:item.fulfillmentType === 'delivery_installation' ? Math.max(1, Number(item.itemCount) || 1) : 1,
-          travelTime:Math.max(1, Number(item.routeDurationMin) || 30),
-          mode:'appointment',
-          onSelect:() => {},
-        }).catch(error => {
-          console.error('Order calendar failed to load:', error);
-          Swal.showValidationMessage('Could not load availability. Close this window and try again.');
-        });
-      },
-      preConfirm:async () => {
-        const date = EnterpriseCalendar.getSelectedDate();
-        const slot = EnterpriseCalendar.getSelectedSlot();
-        if (!date || !slot?.startTime) {
-          Swal.showValidationMessage('Choose an available date and start time.');
-          return false;
-        }
-        try {
-          const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/admin-reschedule`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-              scheduledDate:EnterpriseCalendar.formatDateKey(date),
-              timeSlot:slot.startTime,
-              reason:Swal.getHtmlContainer().querySelector('#rcOrderReason').value.trim(),
-            }),
+    if (openingOrderSchedule) return;
+    openingOrderSchedule = true;
+    try {
+      const availabilityUrl = `/api/orders/${encodeURIComponent(item.id)}/admin-reschedule-availability`;
+      const availability = await fetch(availabilityUrl, { cache:'no-store' });
+      const context = await availability.json();
+      if (!availability.ok) throw new Error(context.error || 'Could not load scheduling details.');
+      const workload = context.scheduling;
+      if (!workload) throw new Error('Scheduling details are unavailable. Reload the page and try again.');
+      const isProject = workload.isProject === true;
+      const customerContact = contactActions(item);
+      const result = await Swal.fire({
+        title:`${isProject ? 'Reschedule large-scale installation' : item.fulfillmentType === 'delivery_installation' ? 'Reschedule delivery and installation' : 'Reschedule delivery'} · ${escapeHtml(item.reference || 'Order')}`,
+        customClass:{ popup:'rc-dialog rc-dialog-schedule' },
+        width:'min(900px, calc(100vw - 24px))',
+        html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}
+          <div class="small fw-semibold mb-2">${isProject ? 'Large-scale installation' : 'Standard delivery'} &middot; ${workload.totalUnits} unit${workload.totalUnits === 1 ? '' : 's'} &middot; ${Math.round(workload.totalEstimatedMinutes / 6) / 10} estimated work hours</div>
+          <p class="small text-muted mb-3">${isProject ? 'Choose a start date and finish-by date, just like customer services. Operations will confirm the final multi-day installation schedule.' : 'Choose an available delivery date and start time. Capacity and advance-notice rules match customer booking.'}</p>
+          <div id="rcOrderCalendar"><div id="calendarGrid"></div><div id="timeSelection" class="mt-3 d-none"><div id="timeSlots"></div></div><div id="projectPrefs" class="mt-3 d-none"></div></div>
+          <label for="rcOrderReason" class="form-label small fw-bold mt-3">Resolution note (optional)</label><textarea id="rcOrderReason" class="form-control" rows="2" maxlength="500" placeholder="Customer contacted; replacement schedule confirmed"></textarea></div>`,
+        showCancelButton:true,
+        confirmButtonText:isProject ? 'Save project window' : 'Save schedule',
+        confirmButtonColor:'#2563eb', focusConfirm:false, showLoaderOnConfirm:true,
+        allowOutsideClick:() => !Swal.isLoading(),
+        didOpen:() => {
+          EnterpriseCalendar.init({
+            root:Swal.getHtmlContainer(), syncGlobalState:false, resetSelection:true,
+            duration:isProject ? Math.ceil(workload.totalEstimatedMinutes / workload.totalUnits) : workload.totalEstimatedMinutes,
+            quantity:isProject ? workload.totalUnits : 1,
+            totalEstimatedMinutes:workload.totalEstimatedMinutes,
+            travelTime:Math.max(1, Number(item.routeDurationMin) || 30),
+            mode:isProject ? 'project' : 'appointment', autoDetectProject:false,
+            availabilityUrl,
+            projectAvailabilityUrl:`/api/orders/${encodeURIComponent(item.id)}/admin-project-window-availability`,
+            showStartDatePrompt:false,
+            projectPreferences:context.projectScheduling ? {
+              workingDays:context.projectScheduling.preferredWorkingDays,
+              preferredWorkingHours:context.projectScheduling.preferredWorkingHours?.start,
+            } : null,
+            onSelect:() => {},
+          }).catch(error => {
+            console.error('Order calendar failed to load:', error);
+            Swal.showValidationMessage('Could not load availability. Close this window and try again.');
           });
-          const data = await response.json();
-          if (!response.ok) {
-            Swal.showValidationMessage(data.error || 'Order reschedule failed. Choose another slot.');
-            if (data.refreshSlots) {
-              EnterpriseCalendar.resetRange();
-              await EnterpriseCalendar.refresh();
-            }
+        },
+        preConfirm:async () => {
+          const date = EnterpriseCalendar.getSelectedDate();
+          const slot = EnterpriseCalendar.getSelectedSlot();
+          if (!date || (isProject ? !(EnterpriseCalendar.getSelectedEndDate() && EnterpriseCalendar.getWindowVerdict()?.sufficient === true) : !slot?.startTime)) {
+            Swal.showValidationMessage(isProject ? 'Choose a start date and finish-by date with enough capacity.' : 'Choose an available date and start time.');
             return false;
           }
-          return data;
-        } catch (error) {
-          Swal.showValidationMessage(error.message || 'Could not save the schedule. Try again.');
-          return false;
-        }
-      },
-    });
-    if (result.isConfirmed) {
-      showToast('success', 'Order schedule updated. The overdue case is now resolved.');
-      await loadQueue();
-    }
+          const payload = {
+            scheduledDate:EnterpriseCalendar.formatDateKey(date),
+            reason:Swal.getHtmlContainer().querySelector('#rcOrderReason').value.trim(),
+          };
+          if (isProject) {
+            const selection = EnterpriseCalendar.getProjectSelection();
+            payload.endDate = EnterpriseCalendar.formatDateKey(selection.endDate);
+            payload.projectScheduling = { preferredStartDate:payload.scheduledDate, preferredCompletionDeadline:payload.endDate,
+              preferredWorkingDays:selection.preferences.workingDays,
+              preferredWorkingHours:{ start:selection.preferences.preferredWorkingHours, end:'' } };
+          } else payload.timeSlot = slot.startTime;
+          try {
+            const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/admin-reschedule`, {
+              method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              Swal.showValidationMessage(data.error || 'Could not save the schedule. Choose another available schedule.');
+              if (data.refreshSlots) await EnterpriseCalendar.refresh({ invalidateSelection:true });
+              return false;
+            }
+            return data;
+          } catch (error) { Swal.showValidationMessage(error.message || 'Could not save the schedule. Try again.'); return false; }
+        },
+      });
+      if (result.isConfirmed) {
+        showToast('success', result.value?.message || 'Order schedule updated.');
+        await loadQueue();
+      }
+    } catch (error) { showToast('error', escapeHtml(error.message || 'Could not open the schedule form.')); }
+    finally { openingOrderSchedule = false; }
   }
 
   async function reschedulePickupOrder(item) {
@@ -925,9 +1153,10 @@
     const customerContact = contactActions(item);
     const result = await Swal.fire({
       title:`Set pickup date · ${escapeHtml(item.reference || 'Order')}`,
+      customClass:{ popup:'rc-dialog rc-dialog-pickup' },
       html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}<label for="rcOrderDate" class="form-label small fw-bold">New pickup date</label><input id="rcOrderDate" type="date" min="${minDate}" class="form-control mb-2"><p class="small text-muted">Choose a future date when the store is open.</p><label for="rcOrderReason" class="form-label small fw-bold mt-2">Resolution note (optional)</label><textarea id="rcOrderReason" class="form-control" rows="2" maxlength="500"></textarea></div>`,
       showCancelButton:true,
-      confirmButtonText:'Save future schedule',
+      confirmButtonText:'Save pickup date',
       confirmButtonColor:'#2563eb',
       focusConfirm:false,
       showLoaderOnConfirm:true,
@@ -1009,17 +1238,129 @@
     }).join('');
   }
 
+  let resolutionDetailRequestId = 0;
+  let resolutionPaymentSelection = null;
+  let resolutionPaymentBusy = false;
+  function resetResolutionPaymentReview() {
+    resolutionPaymentSelection = null;
+    document.getElementById('detailBody').classList.remove('rc-payment-detail');
+    document.getElementById('detailPaymentReview').classList.add('d-none');
+    document.getElementById('detailPaymentVerify').classList.add('d-none');
+    document.getElementById('detailPaymentVerify').disabled = true;
+    const checkbox = document.getElementById('detailPaymentChecked');
+    checkbox.checked = false; checkbox.disabled = true;
+    document.getElementById('detailPaymentError').hidden = true;
+  }
+  document.getElementById('detailPaymentChecked').addEventListener('change', event => {
+    document.getElementById('detailPaymentVerify').disabled = !event.target.checked || !resolutionPaymentSelection || resolutionPaymentBusy;
+  });
+  document.getElementById('detailModal').addEventListener('hide.bs.modal', event => {
+    if (resolutionPaymentBusy) event.preventDefault();
+  });
+  document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => {
+    resolutionDetailRequestId++;
+    resetResolutionPaymentReview();
+    window.ResolutionEvidence?.cancel();
+  });
+
+  async function openResolutionPaymentReview(source, id) {
+    if (resolutionPaymentBusy) return;
+    const item = findResolutionCase(source, id);
+    if (!item || ![item, ...(item.issues || [])].some(issue => issue.allowedActions?.includes('verify_payment'))) {
+      showToast('info', 'This payment no longer needs review. Refresh the list.'); return;
+    }
+    const record = await (source === 'order' ? viewOrderDetail(id) : viewDetail(id));
+    if (!record) return;
+    const requestId = resolutionDetailRequestId;
+    const detailBody = document.getElementById('detailBody');
+    detailBody.classList.add('rc-payment-detail');
+    const evidence = detailBody.querySelector('.rc-evidence');
+    if (evidence) detailBody.prepend(evidence);
+    const panel = document.getElementById('detailPaymentReview'), button = document.getElementById('detailPaymentVerify');
+    const summary = document.getElementById('detailPaymentSummary');
+    panel.classList.remove('d-none'); button.classList.remove('d-none');
+    summary.textContent = 'Loading the submitted payment...';
+    document.querySelector('#detailModalTitle span').textContent = source === 'order' ? 'Review order payment' : 'Review booking payment';
+    try {
+      const endpoint = source === 'order' ? `/api/orders/${encodeURIComponent(id)}/payment-review`
+        : `${RESOLUTION_API_BASE}/resolution-center/${encodeURIComponent(id)}/payment-summary`;
+      const response = await fetch(endpoint, { credentials:'same-origin', cache:'no-store' });
+      const data = await response.json();
+      if (requestId !== resolutionDetailRequestId) return;
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Could not load the submitted payment.');
+      const payment = data.pendingPayment;
+      if (!payment || !(Number(payment.amount) > 0)) { summary.textContent = 'No payment is waiting for review. Ask the customer to submit their payment receipt if they have already paid.'; return; }
+      summary.textContent = `Submitted payment: ₱${Number(payment.amount).toLocaleString('en-PH', { minimumFractionDigits:2, maximumFractionDigits:2 })}${payment.reference ? ` · Reference: ${payment.reference}` : ''}. Check the receipt above before verifying. A new schedule is still needed if the old date has passed.`;
+      resolutionPaymentSelection = { source, id, requestId };
+      document.getElementById('detailPaymentChecked').disabled = false;
+    } catch (error) {
+      if (requestId !== resolutionDetailRequestId) return;
+      summary.textContent = error.message || 'Could not load the submitted payment. Close and try again.';
+    }
+  }
+
+  async function confirmResolutionPaymentReview() {
+    const selection = resolutionPaymentSelection;
+    if (resolutionPaymentBusy || !selection || !document.getElementById('detailPaymentChecked').checked) return;
+    resolutionPaymentBusy = true;
+    const button = document.getElementById('detailPaymentVerify'), checkbox = document.getElementById('detailPaymentChecked');
+    const errorElement = document.getElementById('detailPaymentError');
+    button.disabled = true; button.textContent = 'Verifying...'; checkbox.disabled = true; errorElement.hidden = true;
+    try {
+      const endpoint = selection.source === 'order' ? `/api/orders/${encodeURIComponent(selection.id)}/payment`
+        : `${RESOLUTION_API_BASE}/resolution-center/${encodeURIComponent(selection.id)}/verify-pending-payment`;
+      const response = await fetch(endpoint, { method:selection.source === 'order' ? 'PATCH' : 'POST', credentials:'same-origin',
+        headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ paymentStatus:'paid', note:'Payment verified from the Resolution Center' }) });
+      const data = await response.json();
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Payment verification failed.');
+      resolutionPaymentSelection = null;
+      const modalElement = document.getElementById('detailModal');
+      const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+      if (modal._isTransitioning) await new Promise(resolve => modalElement.addEventListener('shown.bs.modal', resolve, { once:true }));
+      resolutionPaymentBusy = false;
+      modal.hide();
+      showToast('success', 'Payment verified. Review the schedule to continue with this case.');
+      await loadQueue();
+    } catch (error) {
+      errorElement.textContent = error.message || 'Payment verification failed. Please try again.'; errorElement.hidden = false;
+    } finally {
+      resolutionPaymentBusy = false; button.textContent = 'Verify payment'; checkbox.disabled = !resolutionPaymentSelection;
+      button.disabled = !resolutionPaymentSelection || !checkbox.checked;
+    }
+  }
+
+  function mountResolutionEvidence(endpoint) {
+    const host = document.createElement('section');
+    host.className = 'rc-evidence';
+    host.setAttribute('aria-label', 'Proof photos and receipts');
+    document.getElementById('detailBody').append(host);
+    if (window.ResolutionEvidence) void ResolutionEvidence.mount(host, endpoint);
+    else host.textContent = 'Photo preview is unavailable. Reload the page and try again.';
+  }
+
+  function escapeResolutionRecord(value) {
+    if (typeof value === 'string') return escapeHtml(value);
+    if (Array.isArray(value)) return value.map(escapeResolutionRecord);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, escapeResolutionRecord(item)]));
+    return value;
+  }
+
   async function viewDetail(id) {
-    const modal = new bootstrap.Modal(document.getElementById('detailModal'));
+    if (resolutionPaymentBusy) return;
+    resetResolutionPaymentReview();
+    const requestId = ++resolutionDetailRequestId;
+    window.ResolutionEvidence?.cancel();
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
     const body = document.getElementById('detailBody');
     document.querySelector('#detailModalTitle span').textContent = 'Booking Details';
     body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
     modal.show();
     try {
-      const res = await fetch(`${RESOLUTION_APPOINTMENTS_API}/${id}`);
+      const res = await fetch(`${RESOLUTION_APPOINTMENTS_API}/${encodeURIComponent(id)}?view=modal`, { credentials:'same-origin' });
       const data = await res.json();
-      if (!data.booking) throw new Error('Booking not found');
-      const b = data.booking;
+      if (requestId !== resolutionDetailRequestId) return;
+      if (!res.ok || !data.booking) throw new Error(data.error || 'Booking not found');
+      const b = escapeResolutionRecord(data.booking);
       const date = b.bookingDate ? new Date(b.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBD';
       const phone = b.customer?.phone || b.customer?.mobile || '';
       body.innerHTML = `
@@ -1101,23 +1442,30 @@
             <div class="ent-detail-card-icon" style="background:#fef3c7;color:#b45309;"><i class="bi bi-info-circle"></i></div>
             <div class="ent-detail-card-content"><div class="ent-detail-card-label">Attention Reason</div><div class="ent-detail-card-value" style="color:#b45309;">${b.rescheduleReason}</div></div>
           </div>` : ''}
-          ${b.proposedReschedule?.status === 'pending' ? `
+          ${resolutionProposalText(data.booking) ? `
           <div class="ent-detail-card ent-detail-card-wide" style="background:#eff6ff;border-color:#bfdbfe;">
             <div class="ent-detail-card-icon" style="background:#dbeafe;color:#1d4ed8;"><i class="bi bi-calendar-check"></i></div>
-            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Proposed Reschedule</div><div class="ent-detail-card-value" style="color:#1d4ed8;">${b.proposedReschedule.dateLabel || new Date(b.proposedReschedule.date).toLocaleDateString('en-PH')} at ${b.proposedReschedule.timeLabel || b.proposedReschedule.time} — awaiting customer confirmation</div></div>
+            <div class="ent-detail-card-content"><div class="ent-detail-card-label">Suggested schedule</div><div class="ent-detail-card-value" style="color:#1d4ed8;">${escapeHtml(resolutionProposalText(data.booking))}</div></div>
           </div>` : ''}
-          ${b.proposedReschedule?.status === 'new_requested' ? `
+          ${b.status !== 'cancelled' && b.proposedReschedule?.status === 'new_requested' ? `
           <div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;">
             <div class="ent-detail-card-icon" style="background:#fef3c7;color:#b45309;"><i class="bi bi-calendar-event"></i></div>
             <div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer Requests New Schedule</div><div class="ent-detail-card-value" style="color:#b45309;">${b.rescheduleRequest?.requestedDate} at ${b.rescheduleRequest?.requestedTime}${b.rescheduleRequest?.reason ? ' — ' + b.rescheduleRequest.reason : ''}</div></div>
           </div>` : ''}
         </div>`;
+      mountResolutionEvidence(`${RESOLUTION_APPOINTMENTS_API}/${encodeURIComponent(id)}/photos`);
+      return data.booking;
     } catch (e) {
-      body.innerHTML = `<div class="text-center text-danger py-4">${e.message || 'Failed to load details'}</div>`;
+      if (requestId !== resolutionDetailRequestId) return;
+      body.innerHTML = `<div class="text-center text-danger py-4">${escapeHtml(e.message || 'Failed to load details')}</div>`;
     }
   }
 
   async function viewOrderDetail(id) {
+    if (resolutionPaymentBusy) return;
+    resetResolutionPaymentReview();
+    const requestId = ++resolutionDetailRequestId;
+    window.ResolutionEvidence?.cancel();
     const modalElement = document.getElementById('detailModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     const body = document.getElementById('detailBody');
@@ -1127,6 +1475,7 @@
     try {
       const response = await fetch(`/api/orders/${encodeURIComponent(id)}?view=modal`, { headers:{ Accept:'application/json' }, credentials:'same-origin' });
       const data = await response.json().catch(() => ({}));
+      if (requestId !== resolutionDetailRequestId) return;
       if (!response.ok || !data.order) throw new Error(data.error || 'Order not found');
       const order = data.order;
       const customer = order.customer || {};
@@ -1150,7 +1499,10 @@
         <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Delivery / pickup location</div><div class="ent-detail-card-value">${escapeHtml(address)}</div></div></div>
         ${delivery.notes ? `<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fffbeb;color:#b45309;"><i class="bi bi-sticky"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer note</div><div class="ent-detail-card-value">${escapeHtml(delivery.notes)}</div></div></div>` : ''}
       </div>`;
+      mountResolutionEvidence(`/api/orders/${encodeURIComponent(id)}/photos`);
+      return order;
     } catch (error) {
+      if (requestId !== resolutionDetailRequestId) return;
       body.innerHTML = `<div class="text-center py-5"><i class="bi bi-exclamation-triangle text-danger fs-2"></i><h6 class="mt-3">Unable to load this order</h6><p class="text-muted small mb-3">${escapeHtml(error.message || 'Please try again.')}</p><button type="button" class="btn btn-outline-primary btn-sm" onclick="viewOrderDetail('${escapeHtml(id)}')"><i class="bi bi-arrow-clockwise me-1"></i>Try again</button></div>`;
     }
   }
@@ -1430,80 +1782,116 @@
      RESCHEDULE — EnterpriseCalendar (same as core services page)
      ══════════════════════════════════════════════════════════════════════════ */
 
+  let rescheduleSaving = false;
+
   async function openReschedule(id, ref, duration, mode = 'standard', issueType = '', quantity = 1) {
+    const item = findResolutionCase('booking', id, issueType);
+    if (!item || item.status === 'cancelled' || !item.allowedActions?.includes('reschedule')) { showToast('info', 'This booking is not available for rescheduling.'); return; }
     rescheduleBookingId = id;
     rescheduleRef = ref;
     rescheduleMode = mode;
     rescheduleIssueType = issueType;
-
+    rescheduleSaving = false;
+    const totalMinutes = Number(item.totalEstimatedMinutes) || Number(duration || 60) * Math.max(1, Number(quantity) || 1);
+    const totalUnits = Math.max(1, Number(item.totalUnits || item.quantity) || 1);
+    const isProject = item.isProject === true;
     const modalEl = document.getElementById('rescheduleModal');
-    const body = document.getElementById('rescheduleBody');
-
-    // Build the container structure that EnterpriseCalendar renders into
-    body.innerHTML = `
+    document.getElementById('rescheduleModalTitle').textContent = isProject ? 'Reschedule large-scale project' : 'Reschedule standard booking';
+    document.getElementById('rescheduleSave').textContent = isProject ? 'Save project window' : 'Save new schedule';
+    document.getElementById('rescheduleSave').disabled = true;
+    document.getElementById('rescheduleBody').innerHTML = `
       <div class="rsch-booking-info">
-        <strong>Booking:</strong> ${escapeHtml(ref)} &nbsp;|&nbsp;
-        <small>${issueType ? escapeHtml(ISSUE_BADGES[issueType]?.label || issueType) + ' &mdash; ' : ''}pick a future date and time for the new visit</small>
+        <strong>${escapeHtml(ref)}</strong>
+        <div class="small mt-1">${isProject ? 'Large-scale project' : 'Standard booking'} &middot; ${totalUnits} unit${totalUnits === 1 ? '' : 's'} &middot; ${Math.round(totalMinutes / 6) / 10} estimated work hours</div>
+        <p class="small text-muted mb-0 mt-2">${isProject
+          ? 'Choose a start date and finish-by date, just like customer services. Operations will confirm the final multi-day schedule.'
+          : 'Choose a future date, then an available time for the new visit.'}</p>
       </div>
+      <div id="rescheduleError" class="alert alert-danger small d-none" role="alert"></div>
       <div id="calendarGrid"></div>
-      <div id="timeSelection" class="mt-3 d-none">
-        <div id="timeSlots"></div>
-      </div>
-    `;
-
-    new bootstrap.Modal(modalEl).show();
-
-    // Initialize EnterpriseCalendar — same as core services page
+      <div id="timeSelection" class="mt-3 d-none"><div id="timeSlots"></div></div>
+      <div id="projectPrefs" class="mt-3 d-none"></div>`;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
     try {
       await EnterpriseCalendar.init({
-        duration: duration || 60,
-        quantity: Math.max(1, Number(quantity) || 1),
-        mode: 'appointment',
-        onSelect: rschOnCalendarSelect,
+        root: modalEl, syncGlobalState: false, resetSelection: true,
+        duration: isProject ? Math.ceil(totalMinutes / totalUnits) : totalMinutes,
+        quantity: isProject ? totalUnits : 1,
+        totalEstimatedMinutes: totalMinutes,
+        mode: isProject ? 'project' : 'appointment', autoDetectProject: false,
+        availabilityUrl: `${RESOLUTION_API_BASE}/resolution-center/${id}/schedule-availability`,
+        projectAvailabilityUrl: `${RESOLUTION_API_BASE}/resolution-center/${id}/window-availability`,
+        showStartDatePrompt: false,
+        projectPreferences: item.projectScheduling ? {
+          workingDays: item.projectScheduling.preferredWorkingDays,
+          preferredWorkingHours: item.projectScheduling.preferredWorkingHours?.start,
+        } : null,
+        onSelect: rschOnCalendarSelect, onStateChange: rschOnCalendarSelect,
       });
-    } catch (e) {
-      console.error('EnterpriseCalendar init failed:', e);
+    } catch (error) { rschShowError('Could not load scheduling availability. Please try again.'); }
+  }
+
+  function rschOnCalendarSelect() {
+    const calendar = window.EnterpriseCalendar;
+    const button = document.getElementById('rescheduleSave');
+    if (!calendar || !button) return;
+    button.disabled = rescheduleSaving || (calendar.isProjectMode()
+      ? !(calendar.getSelectedDate() && calendar.getSelectedEndDate() && calendar.getWindowVerdict()?.sufficient === true)
+      : !(calendar.getSelectedDate() && calendar.getSelectedSlot()?.startTime));
+  }
+
+  function rschShowError(message) {
+    const error = document.getElementById('rescheduleError');
+    if (error) { error.textContent = message; error.classList.remove('d-none'); error.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  async function rschSubmitProposal() {
+    if (rescheduleSaving) return;
+    const calendar = window.EnterpriseCalendar;
+    const selectedDate = calendar.getSelectedDate();
+    const isProject = calendar.isProjectMode();
+    const slot = calendar.getSelectedSlot();
+    if (!selectedDate || (isProject
+      ? !(calendar.getSelectedEndDate() && calendar.getWindowVerdict()?.sufficient === true)
+      : !slot?.startTime)) {
+      rschShowError(isProject ? 'Choose a start date and a finish-by date with enough capacity.' : 'Choose an available date and time.');
+      rschOnCalendarSelect();
+      return;
     }
-  }
-
-  function rschOnCalendarSelect({ date, slot }) {
-    if (!date || !slot) return;
-    const dateStr = EnterpriseCalendar.formatDateKey(date);
-    const timeLabel = slot.label || slot.startTime;
-    const startTime = slot.startTime || slot.label;
-
-    const actionLabel = rescheduleMode === 'no-show-review' ? 'Schedule the new visit' : 'Propose reschedule';
-    if (!confirm(`${actionLabel} for ${date.toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at ${timeLabel}?`)) return;
-
-    rschSubmitProposal(dateStr, startTime, timeLabel);
-  }
-
-  async function rschSubmitProposal(dateStr, startTime, timeLabel) {
+    const dateStr = calendar.formatDateKey(selectedDate);
+    const startTime = isProject ? '' : slot.startTime;
+    const payload = rescheduleMode === 'no-show-review'
+      ? { newDate: dateStr, newTime: startTime }
+      : { date: dateStr, time: startTime, reason: 'Schedule updated from Booking Resolution Center', issueType: rescheduleIssueType };
+    if (isProject) {
+      const selection = calendar.getProjectSelection();
+      payload.endDate = calendar.formatDateKey(selection.endDate);
+      payload.projectScheduling = {
+        preferredStartDate: dateStr,
+        preferredCompletionDeadline: payload.endDate,
+        preferredWorkingDays: selection.preferences.workingDays,
+        preferredWorkingHours: { start: selection.preferences.preferredWorkingHours, end: '' },
+      };
+    }
+    rescheduleSaving = true;
+    rschOnCalendarSelect();
+    document.getElementById('rescheduleError').classList.add('d-none');
     try {
       const endpoint = rescheduleMode === 'no-show-review'
         ? `${RESOLUTION_API_BASE}/no-show-review/${rescheduleBookingId}/reschedule`
         : `${RESOLUTION_API_BASE}/review-reschedule/${rescheduleBookingId}/reschedule`;
-      const payload = rescheduleMode === 'no-show-review'
-        ? { newDate: dateStr, newTime: startTime }
-        : { date: dateStr, time: startTime, reason: 'New visit scheduled from Booking Resolution Center', issueType: rescheduleIssueType };
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) {
-        if (data.refreshSlots && window.EnterpriseCalendar) await EnterpriseCalendar.refresh();
+        if (data.refreshSlots) await calendar.refresh({ invalidateSelection: true });
         throw new Error(data.error || 'Reschedule failed');
       }
       bootstrap.Modal.getInstance(document.getElementById('rescheduleModal')).hide();
-      alert(data.message || (rescheduleMode === 'no-show-review'
-        ? 'No-show report resolved. The new visit is ready for technician assignment.'
-        : 'Reschedule proposed. The customer has been notified via email and must confirm before a technician is assigned.'));
-      loadQueue();
-    } catch (e) {
-      alert(e.message || 'Reschedule failed');
-    }
+      alert(data.message || (isProject ? 'Project window updated. Operations will confirm the final schedule.' : 'Booking rescheduled. The customer has been notified.'));
+      await loadQueue();
+      if (window.updateSidebarBadges) window.updateSidebarBadges();
+    } catch (error) { rschShowError(error.message || 'Reschedule failed'); }
+    finally { rescheduleSaving = false; rschOnCalendarSelect(); }
   }
 
   async function confirmNoShow(id, allowCustomerReschedule, button) {
@@ -1624,6 +2012,7 @@
     tab.classList.toggle('active', selected);
     tab.setAttribute('aria-selected', selected ? 'true' : 'false');
     tab.addEventListener('click', () => {
+      clearResolutionFocus();
       currentSource = tab.dataset.source || '';
       currentPage = 1;
       document.querySelectorAll('.rc-domain-tab').forEach(item => { item.classList.remove('active'); item.setAttribute('aria-selected','false'); });
@@ -1632,16 +2021,18 @@
       loadQueue();
     });
   });
-  document.getElementById('resolutionIssue').addEventListener('change', event => { currentFilter = event.target.value; currentPage = 1; loadQueue(); });
-  document.getElementById('resolutionSeverity').addEventListener('change', event => { currentSeverity = event.target.value; currentPage = 1; loadQueue(); });
+  document.getElementById('resolutionIssue').addEventListener('change', event => { clearResolutionFocus(); currentFilter = event.target.value; currentPage = 1; loadQueue(); });
+  document.getElementById('resolutionSeverity').addEventListener('change', event => { clearResolutionFocus(); currentSeverity = event.target.value; currentPage = 1; loadQueue(); });
   let searchTimer;
   document.getElementById('resolutionSearch').addEventListener('input', event => {
+    clearResolutionFocus();
     currentSearch = event.target.value;
     currentPage = 1;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(loadQueue, 350);
   });
   document.getElementById('resolutionClear').addEventListener('click', () => {
+    clearResolutionFocus();
     currentSource = ''; currentFilter = ''; currentSeverity = ''; currentSearch = ''; currentPage = 1;
     document.getElementById('resolutionIssue').value = '';
     document.getElementById('resolutionSeverity').value = '';
@@ -1649,6 +2040,7 @@
     document.querySelectorAll('.rc-domain-tab').forEach(tab => { const selected = !tab.dataset.source; tab.classList.toggle('active', selected); tab.setAttribute('aria-selected', selected ? 'true' : 'false'); });
     loadQueue();
   });
+  document.getElementById('resolutionShowAll').addEventListener('click', () => document.getElementById('resolutionClear').click());
   document.getElementById('resolutionRefresh').addEventListener('click', loadQueue);
   loadQueue();
 </script>

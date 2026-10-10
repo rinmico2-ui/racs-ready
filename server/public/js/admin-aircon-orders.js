@@ -422,11 +422,9 @@ document.addEventListener("DOMContentLoaded", function () {
   function resolutionUrl(o) {
     const params = new URLSearchParams({
       source: 'order',
-      q: orderRef(o),
       focus: `order:${String(o._id || '')}`,
       open: 'resolve',
     });
-    if (o.attentionType) params.set('issue', o.attentionType);
     return `${resolutionPath}?${params.toString()}`;
   }
   function resolutionBtn(o) {
