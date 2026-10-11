@@ -2168,10 +2168,15 @@ router.get(
 // ── Technician Enterprise Dashboard Pages ─────────────────────────────────────
 
 // My Assignments
-router.get('/technician/relocation-work-order/:bookingId', pageAuth.requireRole('technician'), (req, res) => {
-  res.render('pages/technician/relocation-work-order', {
-    title: 'Relocation work order', layout: 'layouts/technician', bookingId: req.params.bookingId,
-  });
+router.get('/technician/relocation-work-order/:bookingId', pageAuth.requireRole('technician'), async (req, res, next) => {
+  try {
+    const Technician = require('../models/Technician');
+    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    res.render('pages/technician/relocation-work-order', {
+      title: 'Relocation work order', layout: 'layouts/technician', bookingId: req.params.bookingId,
+      technician: tech || {},
+    });
+  } catch (error) { next(error); }
 });
 router.get(
   "/technician/assignments",

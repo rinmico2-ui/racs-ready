@@ -210,7 +210,7 @@
         timeout: 10000
       });
       // Join technician room for targeted notifications
-      <% if (technician && technician._id) { %>
+      <% if (typeof technician !== 'undefined' && technician && technician._id) { %>
         window.socket.emit('tech:join', '<%= technician._id %>');
       <% } %>
     </script>
