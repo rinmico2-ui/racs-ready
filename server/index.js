@@ -232,27 +232,10 @@ app.set('trust proxy', process.env.TRUST_PROXY_HOPS !== undefined
   && Number.isSafeInteger(configuredProxyHops) && configuredProxyHops >= 0 && configuredProxyHops <= 10
   ? configuredProxyHops : process.env.NODE_ENV === "production" ? 1 : false);
 
-// Customer contact, location, and payment metadata must never cross the public
-// network over plaintext HTTP. The reverse proxy supplies req.secure through
-// X-Forwarded-Proto because trust proxy is enabled above.
-if (process.env.NODE_ENV === "production") {
-  app.use((req, res, next) => {
-    if (req.secure) return next();
-    let origin = null;
-    try {
-      const configured = new URL(process.env.APP_URL || process.env.APP_BASE_URL || "");
-      if (configured.protocol === "https:") origin = configured.origin;
-    } catch (_error) {}
-    if (!origin) {
-      return res.status(400).json({ error: "HTTPS is required" });
-    }
-    return res.redirect(308, `${origin}${req.originalUrl}`);
-  });
-}
-
 // Lightweight platform probes. Liveness never performs a database query;
 // readiness only reports whether the already-established shared connection can
-// accept work, so probes cannot amplify an outage.
+// accept work, so probes cannot amplify an outage. Container checks use HTTP
+// directly, so these public status routes must precede the HTTPS redirect.
 app.get("/health", (_req, res) => {
   res.set("Cache-Control", "no-store");
   return res.status(200).json({
@@ -270,6 +253,24 @@ app.get("/ready", (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Customer contact, location, and payment metadata must never cross the public
+// network over plaintext HTTP. The reverse proxy supplies req.secure through
+// X-Forwarded-Proto because trust proxy is enabled above.
+if (process.env.NODE_ENV === "production") {
+  app.use((req, res, next) => {
+    if (req.secure) return next();
+    let origin = null;
+    try {
+      const configured = new URL(process.env.APP_URL || process.env.APP_BASE_URL || "");
+      if (configured.protocol === "https:") origin = configured.origin;
+    } catch (_error) {}
+    if (!origin) {
+      return res.status(400).json({ error: "HTTPS is required" });
+    }
+    return res.redirect(308, `${origin}${req.originalUrl}`);
+  });
+}
 
 // Public assets and platform probes do not read sessions or query MongoDB.
 app.use(require('./middleware/publicAssets')(path.join(__dirname, 'public')));
