@@ -27,6 +27,7 @@ function toSecretaryNotificationLink(link) {
   }
 
   const prefixMappings = [
+    ["/admin/maintenance", "/secretary/maintenance"],
     ["/admin/appointments/orders", "/secretary/inventory/ordered-products"],
     ["/admin/inventory/ordered-products", "/secretary/inventory/ordered-products"],
     ["/admin/inventory/aircon-orders", "/secretary/inventory/ordered-products"],

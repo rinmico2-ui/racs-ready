@@ -7,6 +7,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 const { BookingStatus } = require("../models/BookingStatus");
 const BookingService = require("../models/BookingService");
+const { attachMaintenanceCancellation } = require("../utils/maintenanceCancellation");
 const {
   attachMissingCustomerProjectStatuses,
   hasRecordedBookingStatus,
@@ -167,6 +168,7 @@ for (const lookupFails of [false, true]) {
       buildCalendarBookingDateRange: () => null,
       enrichCustomerBooking: value => value,
       presentCustomerBooking,
+      attachMaintenanceCancellation,
       presentTechnicianBooking: value => value,
       attachMissingCustomerProjectStatuses: bookings => attachMissingCustomerProjectStatuses(bookings, {
         find(filter) {

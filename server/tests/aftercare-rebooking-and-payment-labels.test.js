@@ -12,8 +12,9 @@ const read = file => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 test("aftercare creates a repeat booking for on-site collection without a deposit", () => {
   const aftercare = read("public/js/maintenance-customer.js");
   const routes = read("routes/maintenanceRoutes.js");
-  assert.match(aftercare, /if \(bookButton\) return bookMaintenance\(bookButton\)/);
-  assert.match(aftercare, /\/api\/maintenance\/schedules\/\$\{encodeURIComponent\(button\.dataset\.scheduleId\)\}\/book/);
+  assert.match(aftercare, /if \(bookButton\) return reviewMaintenance\(bookButton\)/);
+  assert.match(aftercare, /\$\("aftercareBookingSubmit"\)\.addEventListener\("click", bookMaintenance\)/);
+  assert.match(aftercare, /\/api\/maintenance\/schedules\/\$\{encodeURIComponent\(bookingRequest\.scheduleId\)\}\/book/);
   assert.match(routes, /router\.post\("\/schedules\/:id\/book", auth\.requireRole\("customer"\)/);
   assert.match(routes, /await linkScheduleToBooking\(/);
   assert.match(routes, /paymentStatus: "pending"/);

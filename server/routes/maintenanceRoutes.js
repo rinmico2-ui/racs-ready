@@ -10,15 +10,17 @@ const CoreService = require("../models/CoreService");
 const Order = require("../models/Order");
 const { ensureSchedule, clampIntervalDays, effectiveScheduleStatus, addDays } = require("../utils/maintenanceLifecycle");
 const { getAftercarePolicy } = require("../utils/aftercarePolicy");
-const { getDownpaymentPercentage, calculatePaymentBreakdown } = require("../utils/paymentPolicy");
 const { createNotification } = require("../utils/notify");
 const audit = require("../utils/audit");
 const { escapeRegex } = require("../utils/stringSecurity");
 const SiteSetting = require("../models/SiteSetting");
-const { authoritativeDeliveryQuote } = require("../utils/orderCheckoutPolicy");
+const { authoritativeDeliveryQuote, parseDateOnly } = require("../utils/orderCheckoutPolicy");
 const { linkScheduleToBooking } = require("../utils/maintenanceLifecycle");
 const { manilaDateKey, firstMaintenanceSlot } = require("../utils/maintenanceBooking");
 const { maintenanceSummary: summaryFor } = require("../utils/maintenanceSummary");
+const { resolveMaintenanceLocation, requireServiceLocation, normalizeServiceLocation } = require("../utils/maintenanceLocation");
+const { reopenScheduleAfterBookingCancellation } = require("../utils/maintenanceLifecycle");
+const { attachMaintenanceCancellation } = require("../utils/maintenanceCancellation");
 
 router.use(auth.authenticate);
 
@@ -71,21 +73,26 @@ function maintenanceServiceQuote(service, asset) {
   };
 }
 
-async function maintenanceLocation(asset) {
-  if (asset.originType === "booking") {
-    const source = await BookingService.findById(asset.originId).select("location customer").lean();
-    return source?.location || { address: asset.serviceAddress || source?.customer?.address || "" };
+async function maintenanceLocationDetails(asset) {
+  if (normalizeServiceLocation(asset.serviceLocation).lat !== undefined) {
+    const saved = resolveMaintenanceLocation(asset);
+    if (saved.lat !== undefined) return { location: saved, missingLocationReason: null };
   }
-  const source = await Order.findById(asset.originId).select("delivery customer").lean();
-  const coordinates = source?.delivery?.coordinates?.coordinates;
-  return {
-    address: asset.serviceAddress || source?.delivery?.address || source?.customer?.address || "",
-    ...(Array.isArray(coordinates) && coordinates.length >= 2 ? {
-      lat: Number(coordinates[1]),
-      lng: Number(coordinates[0]),
-      coordinates: { type: "Point", coordinates: [Number(coordinates[0]), Number(coordinates[1])] },
-    } : {}),
-  };
+  let source;
+  if (asset.originType === "booking") {
+    source = await BookingService.findById(asset.originId).select("location customer services._id services.serviceId services.relocation.to").lean();
+  } else {
+    source = await Order.findById(asset.originId).select("delivery customer fulfillmentType").lean();
+  }
+  const location = resolveMaintenanceLocation(asset, source);
+  const missingLocationReason = location.lat !== undefined && location.address.length >= 5 ? null
+    : asset.originType === "order" && source?.fulfillmentType === "customer_pickup" ? "store_pickup"
+    : "missing_service_location";
+  return { location, missingLocationReason };
+}
+
+async function maintenanceLocation(asset) {
+  return (await maintenanceLocationDetails(asset)).location;
 }
 
 async function uniqueMaintenanceReference() {
@@ -98,9 +105,45 @@ async function uniqueMaintenanceReference() {
   throw Object.assign(new Error("Unable to generate a unique maintenance booking reference."), { status: 503 });
 }
 
-function requireAdmin(req, res, next) {
-  if (req.user?.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+function requireStaff(req, res, next) {
+  if (!["admin", "secretary"].includes(req.user?.role)) return res.status(403).json({ error: "Forbidden" });
   next();
+}
+
+// Staff previews and submissions use the same authoritative location and quote.
+async function staffMaintenanceQuote(schedule, service, body) {
+  if (!schedule?.assetId || schedule.assetId.status !== "active") {
+    throw Object.assign(new Error("This aircon is not ready for maintenance."), { status: 409 });
+  }
+  if (!service || !isMaintenanceService(service)) {
+    throw Object.assign(new Error("Select a maintenance or cleaning service."), { status: 400 });
+  }
+  const quote = maintenanceServiceQuote(service, schedule.assetId);
+  if (quote.price <= 0) throw Object.assign(new Error("Set a price for this aircon type and HP before booking."), { status: 409 });
+  const location = requireServiceLocation(body?.location !== undefined ? body.location : await maintenanceLocation(schedule.assetId));
+  // Older clients must never attach a changed address to an unrelated saved pin.
+  if (body?.address && String(body.address).trim() !== location.address) {
+    throw Object.assign(new Error("Choose an address suggestion or map pin for the new address."), { status: 400 });
+  }
+  const settings = await SiteSetting.find({ key: { $in: ["companyLocationLat", "companyLocationLng", "farePerKm"] } }).lean();
+  const values = Object.fromEntries(settings.map(row => [row.key, row.value]));
+  if (values.companyLocationLat == null || values.companyLocationLng == null) {
+    throw Object.assign(new Error("Set the company map location before booking maintenance."), { status: 503 });
+  }
+  const travel = await authoritativeDeliveryQuote({
+    origin: { lat: Number(values.companyLocationLat), lng: Number(values.companyLocationLng) },
+    destination: { lat: location.lat, lng: location.lng },
+    farePerKm: values.farePerKm == null ? 40 : Number(values.farePerKm),
+  });
+  return { ...quote, location, travel, total: quote.price + travel.transportationFee };
+}
+
+function maintenanceDate(value) {
+  const date = parseDateOnly(String(value || "").trim());
+  if (!date || date.toISOString().slice(0, 10) < manilaDateKey(new Date())) {
+    throw Object.assign(new Error("Choose a valid service date for today or later."), { status: 400 });
+  }
+  return date;
 }
 
 function customerId(req) {
@@ -127,7 +170,7 @@ async function refreshDueStates(now = new Date()) {
 router.get("/badge", async (req, res, next) => {
   try {
     const filter = req.user.role === "customer" ? { customerId: customerId(req) } : {};
-    if (!["admin", "customer"].includes(req.user.role)) return res.status(403).json({ error: "Forbidden" });
+    if (!["admin", "secretary", "customer"].includes(req.user.role)) return res.status(403).json({ error: "Forbidden" });
     res.json(await summaryFor(filter));
   } catch (error) { next(error); }
 });
@@ -138,10 +181,28 @@ router.get("/customer", auth.requireRole("customer"), async (req, res, next) => 
     const assets = await CustomerAsset.find({ customerId: customerId(req), status: { $ne: "retired" } })
       .sort({ updatedAt: -1 })
       .lean();
-    const schedules = await MaintenanceSchedule.find({ customerId: customerId(req) })
+    const readSchedules = () => MaintenanceSchedule.find({ customerId: customerId(req) })
       .sort({ dueDate: 1, createdAt: -1 })
-      .populate("bookingId", "bookingReference status bookingDate startTime maintenance.paymentOnSite")
+      .populate("bookingId", "bookingReference customerId status bookingDate startTime maintenance paymentNotes amountPaid paymentStatus paymentVerifiedAt balanceCollected paymentProof paymentReference technicianId assignmentId assignedAt services.status services.technicianId services.assignmentId")
       .lean();
+    let schedules = await readSchedules();
+    let reopened = false;
+    // Staff cancellations made in other screens are reflected on this visit.
+    for (const schedule of schedules) {
+      if (schedule.status === "scheduled" && ["cancelled", "repair_declined"].includes(schedule.bookingId?.status)) {
+        if (await reopenScheduleAfterBookingCancellation(schedule.bookingId)) reopened = true;
+      }
+    }
+    if (reopened) schedules = await readSchedules();
+    const bookings = await attachMaintenanceCancellation(schedules.map(schedule => schedule.bookingId).filter(Boolean));
+    const bookingFlags = new Map(bookings.map(booking => [String(booking._id), booking.customerCanCancelMaintenance]));
+    // Expose only the visit summary, never payment proofs or staff fields.
+    schedules = schedules.map(schedule => ({ ...schedule, bookingId: schedule.bookingId ? {
+      _id: schedule.bookingId._id, bookingReference: schedule.bookingId.bookingReference,
+      status: schedule.bookingId.status, bookingDate: schedule.bookingId.bookingDate,
+      startTime: schedule.bookingId.startTime, maintenance: { paymentOnSite: schedule.bookingId.maintenance?.paymentOnSite },
+      customerCanCancelMaintenance: bookingFlags.get(String(schedule.bookingId._id)) === true,
+    } : null }));
     const schedulesByAsset = new Map();
     schedules.forEach((schedule) => {
       const key = String(schedule.assetId);
@@ -155,7 +216,7 @@ router.get("/customer", auth.requireRole("customer"), async (req, res, next) => 
   } catch (error) { next(error); }
 });
 
-router.get("/admin/overview", requireAdmin, async (req, res, next) => {
+router.get("/admin/overview", requireStaff, async (req, res, next) => {
   try {
     await refreshDueStates();
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -210,7 +271,7 @@ router.get("/admin/overview", requireAdmin, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get("/admin/booking-options", requireAdmin, async (req, res, next) => {
+router.get("/admin/booking-options", requireStaff, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.query?.scheduleId)) return res.status(400).json({ error: "Invalid maintenance schedule." });
     const schedule = await MaintenanceSchedule.findById(req.query.scheduleId).populate("assetId").lean();
@@ -230,11 +291,15 @@ router.get("/admin/booking-options", requireAdmin, async (req, res, next) => {
           durationMinutes: quote.durationMinutes,
         };
       });
-    return res.json({ services });
+    const details = await maintenanceLocationDetails(schedule.assetId);
+    const settings = await SiteSetting.find({ key: { $in: ["companyLocationLat", "companyLocationLng", "companyLocationAddress"] } }).lean();
+    const values = Object.fromEntries(settings.map(row => [row.key, row.value]));
+    const companyLocation = normalizeServiceLocation({ address: values.companyLocationAddress, lat: values.companyLocationLat, lng: values.companyLocationLng });
+    return res.json({ services: services.filter(service => service.price > 0), ...details, companyLocation });
   } catch (error) { return next(error); }
 });
 
-router.patch("/admin/schedules/:id/outreach", requireAdmin, async (req, res, next) => {
+router.patch("/admin/schedules/:id/outreach", requireStaff, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid schedule id" });
     const status = String(req.body?.status || "").trim();
@@ -252,7 +317,7 @@ router.patch("/admin/schedules/:id/outreach", requireAdmin, async (req, res, nex
     const now = new Date();
     const actorName = req.user.name || req.user.email || "Administrator";
     const schedule = await MaintenanceSchedule.findOneAndUpdate(
-      { _id: req.params.id, status: { $in: ACTIVE_DUE_STATUSES } },
+      { _id: req.params.id, status: { $in: ACTIVE_DUE_STATUSES }, bookingId: null },
       {
         $set: {
           "outreach.status": status,
@@ -290,17 +355,35 @@ router.patch("/admin/schedules/:id/outreach", requireAdmin, async (req, res, nex
   } catch (error) { return next(error); }
 });
 
-router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) => {
+router.post("/admin/schedules/:id/booking-preview", requireStaff, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.body?.serviceId)) {
+      return res.status(400).json({ error: "Choose a maintenance schedule and service." });
+    }
+    const schedule = await MaintenanceSchedule.findOne({ _id: req.params.id, status: { $in: ACTIVE_DUE_STATUSES }, bookingId: null }).populate("assetId").lean();
+    if (!schedule) return res.status(409).json({ error: "This maintenance cycle is already booked or unavailable." });
+    const service = await CoreService.findOne({ _id: req.body.serviceId, active: { $ne: false } }).lean();
+    const quote = await staffMaintenanceQuote(schedule, service, req.body);
+    let timeSlots = [];
+    if (req.body.date) {
+      const date = maintenanceDate(req.body.date).toISOString().slice(0, 10);
+      const result = await require("./scheduleRoutes").getTimeSlotsForQuery({ date, duration: String(quote.durationMinutes), quantity: "1", travelTime: String(quote.travel.durationMin) });
+      if (result.statusCode >= 400) return res.status(result.statusCode).json({ error: result.payload?.error || result.payload?.message || "Unable to load available times." });
+      timeSlots = result.payload?.timeSlots || [];
+    }
+    return res.json({ servicePrice: quote.price, travelFare: quote.travel.transportationFee, total: quote.total,
+      durationMinutes: quote.durationMinutes, travelTime: quote.travel.durationMin, timeSlots });
+  } catch (error) { return next(error); }
+});
+
+router.post("/admin/schedules/:id/book", requireStaff, async (req, res, next) => {
   let session = null;
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid schedule id" });
+    if (req.body?.customerConfirmed !== true) return res.status(400).json({ error: "Confirm that the customer agreed to this visit and payment after service." });
     if (!mongoose.isValidObjectId(req.body?.serviceId)) return res.status(400).json({ error: "Choose a maintenance service." });
     const dateText = String(req.body?.date || "").trim();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return res.status(400).json({ error: "Choose a valid service date." });
-    const bookingDate = new Date(`${dateText}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (Number.isNaN(bookingDate.getTime()) || bookingDate < today) return res.status(400).json({ error: "Maintenance must be booked for today or a future date." });
+    const bookingDate = maintenanceDate(dateText);
     const startTime = String(req.body?.startTime || "").trim();
     const startMinutes = parseTimeMinutes(startTime);
     if (!Number.isFinite(startMinutes)) return res.status(400).json({ error: "Choose an available service time." });
@@ -311,20 +394,22 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
     const [schedule, service] = await Promise.all([
       MaintenanceSchedule.findOne({
         _id: req.params.id,
-        status: { $in: ACTIVE_DUE_STATUSES },
-        bookingId: null,
       }).populate("assetId").populate("customerId", "firstName lastName name email phone address").lean(),
       CoreService.findOne({ _id: req.body.serviceId, active: { $ne: false } }).lean(),
     ]);
-    if (!schedule?.assetId) return res.status(409).json({ error: "This maintenance cycle is already booked or unavailable." });
-    if (!service || !isMaintenanceService(service)) return res.status(400).json({ error: "Select a maintenance or cleaning service." });
-    const quote = maintenanceServiceQuote(service, schedule.assetId);
+    if (schedule?.bookingId) {
+      const existing = await BookingService.findOne({ _id: schedule.bookingId, customerId: schedule.customerId?._id })
+        .select("_id bookingReference bookingDate startTime status").lean();
+      if (existing) return res.json({ booking: existing, alreadyBooked: true });
+    }
+    if (!schedule?.assetId || !ACTIVE_DUE_STATUSES.includes(schedule.status)) return res.status(409).json({ error: "This maintenance cycle is already booked or unavailable." });
+    const quote = await staffMaintenanceQuote(schedule, service, req.body);
     const durationMinutes = quote.durationMinutes;
     const slotResult = await require("./scheduleRoutes").getTimeSlotsForQuery({
       date: dateText,
       duration: String(durationMinutes),
       quantity: "1",
-      travelTime: "0",
+      travelTime: String(quote.travel.durationMin),
     });
     const slotAvailable = slotResult.statusCode < 400
       && Array.isArray(slotResult.payload?.timeSlots)
@@ -334,15 +419,10 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
     const customer = schedule.customerId;
     if (!customer?._id || !customer.email) return res.status(409).json({ error: "The customer account is incomplete." });
     const asset = schedule.assetId;
-    const location = await maintenanceLocation(asset);
-    const requestedAddress = String(req.body?.address || "").trim().slice(0, 500);
-    location.address = requestedAddress || location.address || asset.serviceAddress || "";
-    if (location.address.length < 5) return res.status(400).json({ error: "Record a complete service address." });
+    const { location, travel, total } = quote;
 
     const servicePrice = quote.price;
     if (servicePrice <= 0) return res.status(409).json({ error: "Configure a valid price for this maintenance service before booking." });
-    const percentage = await getDownpaymentPercentage();
-    const payment = calculatePaymentBreakdown(servicePrice, percentage);
     const bookingReference = await uniqueMaintenanceReference();
     const customerName = customer.name || [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.email;
     const endTime = minutesLabel(startMinutes + durationMinutes);
@@ -362,6 +442,10 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
       service: { _id: service._id, name: service.name || service.title, description: service.description || "", basePrice: servicePrice },
       servicePrice,
       serviceDurationMinutes: durationMinutes,
+      brand: asset.equipment?.brand || "",
+      applianceType: asset.equipment?.applianceType || "",
+      applianceTypeName: asset.equipment?.applianceTypeName || "",
+      hp: Number(asset.equipment?.capacity) || undefined,
       services: [{
         serviceId: service._id,
         name: service.name || service.title,
@@ -380,8 +464,12 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
         schedule: { date: bookingDate, startTime: minutesLabel(startMinutes), endTime, durationMinutes, kind: "service" },
       }],
       quantity: 1,
-      totalPrice: servicePrice,
-      estimatedFee: servicePrice,
+      totalPrice: total,
+      estimatedFee: total,
+      travelFare: travel.transportationFee,
+      travelTime: travel.durationMin,
+      travelDurationMinutes: travel.durationMin,
+      distanceKm: travel.distanceKm,
       bookingDate,
       startTime: minutesLabel(startMinutes),
       endTime,
@@ -390,12 +478,13 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
       status: "awaiting_assignment",
       paymentMethod: "cod",
       paymentStatus: "pending",
-      downpaymentPercentage: payment.downpaymentPercentage,
-      downpaymentAmount: Math.max(1, payment.downpaymentAmount),
+      downpaymentAmount: 0,
       amountPaid: 0,
-      balanceAmount: payment.total,
+      balanceAmount: total,
+      paymentNotes: "Maintenance confirmed with staff. Full payment will be collected on site after service.",
       maintenance: {
         isMaintenance: true,
+        paymentOnSite: true,
         assetId: asset._id,
         scheduleId: schedule._id,
         nextRecommendedDays: schedule.intervalDays,
@@ -405,7 +494,7 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
         changedBy: req.user._id,
         changedByModel: "User",
         changedByName: req.user.name || req.user.email || "Administrator",
-        reason: "Customer confirmed maintenance during admin outreach",
+        reason: "Customer confirmed maintenance with staff",
       }],
     });
 
@@ -416,12 +505,14 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
       servicePrice,
       serviceDurationMinutes: durationMinutes,
       "service.basePrice": servicePrice,
-      estimatedFee: servicePrice,
+      estimatedFee: total,
     } }, { session });
     const linked = await require("../utils/maintenanceLifecycle").linkScheduleToBooking({
       scheduleId: schedule._id,
       bookingId: booking._id,
       customerId: customer._id,
+      actorId: req.user._id,
+      actorName: req.user.name || req.user.email || "Staff",
       session,
     });
     await MaintenanceSchedule.updateOne(
@@ -429,6 +520,7 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
       {
         $set: {
           "outreach.status": "interested",
+          "outreach.method": outreachMethod,
           "outreach.lastContactedAt": new Date(),
           "outreach.notes": String(req.body?.notes || "Customer confirmed maintenance booking.").trim().slice(0, 1000),
           "customerResponse.acknowledgedAt": new Date(),
@@ -438,7 +530,7 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
           "outreach.history": {
             status: "interested",
             method: outreachMethod,
-            notes: `Maintenance booking ${bookingReference} created by administrator.`,
+            notes: `Maintenance booking ${bookingReference} confirmed with staff.`,
             changedBy: req.user._id,
             changedByName: req.user.name || req.user.email || "Administrator",
           },
@@ -446,13 +538,16 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
       },
       { session },
     );
+    await CustomerAsset.updateOne({ _id: asset._id, customerId: customer._id }, {
+      $set: { serviceAddress: location.address, serviceLocation: location },
+    }, { session, runValidators: true });
     await session.commitTransaction();
 
-    await Promise.all([
+    const followUps = await Promise.allSettled([
       createNotification({
         type: "maintenance_scheduled",
         title: "Maintenance Visit Scheduled",
-        message: `${service.name || service.title} is scheduled for ${bookingDate.toLocaleDateString("en-PH")} at ${startTime}.`,
+        message: `${service.name || service.title} is scheduled for ${dateText} at ${startTime}. No downpayment is needed; pay after service, including the travel fee.`,
         userId: customer._id,
         referenceId: schedule._id,
         referenceModel: "MaintenanceSchedule",
@@ -467,15 +562,36 @@ router.post("/admin/schedules/:id/book", requireAdmin, async (req, res, next) =>
         module: "maintenance",
         req,
         details: { bookingId: booking._id, bookingReference, serviceId: service._id, date: dateText, startTime },
-      }).catch(() => {}),
+      }),
     ]);
-    return res.status(201).json({ booking, schedule: linked });
+    followUps.forEach((result, index) => { if (result.status === "rejected") console.warn("Maintenance booking follow-up failed", { bookingId: String(booking._id), task: index }); });
+    return res.status(201).json({ booking: { _id: booking._id, bookingReference, bookingDate, startTime: booking.startTime, status: booking.status }, schedule: linked, alreadyBooked: false });
   } catch (error) {
     if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
+    if (session && mongoose.isValidObjectId(req.params.id)) {
+      const cycle = await MaintenanceSchedule.findOne({ _id: req.params.id, bookingId: { $ne: null } }).select("bookingId customerId").lean().catch(() => null);
+      if (cycle?.bookingId) {
+        const existing = await BookingService.findOne({ _id: cycle.bookingId, customerId: cycle.customerId }).select("_id bookingReference bookingDate startTime status").lean().catch(() => null);
+        if (existing) return res.json({ booking: existing, alreadyBooked: true });
+      }
+    }
     return next(error);
   } finally {
     if (session) await session.endSession();
   }
+});
+
+router.get("/schedules/:id/booking-location", auth.requireRole("customer"), async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid maintenance schedule." });
+    const schedule = await MaintenanceSchedule.findOne({ _id: req.params.id, customerId: customerId(req) }).populate("assetId").lean();
+    if (!schedule?.assetId) return res.status(404).json({ error: "Maintenance equipment was not found." });
+    const { location, missingLocationReason } = await maintenanceLocationDetails(schedule.assetId);
+    const settings = await SiteSetting.find({ key: { $in: ["companyLocationLat", "companyLocationLng", "companyLocationAddress"] } }).lean();
+    const values = Object.fromEntries(settings.map(row => [row.key, row.value]));
+    const companyLocation = normalizeServiceLocation({ address: values.companyLocationAddress, lat: values.companyLocationLat, lng: values.companyLocationLng });
+    return res.json({ location, companyLocation, missingLocationReason });
+  } catch (error) { return next(error); }
 });
 
 router.post("/schedules/:id/book", auth.requireRole("customer"), async (req, res, next) => {
@@ -496,13 +612,10 @@ router.post("/schedules/:id/book", auth.requireRole("customer"), async (req, res
 
     const asset = schedule.assetId;
     const customer = schedule.customerId;
+    if (asset.status !== "active") return res.status(409).json({ error: "This aircon is not ready for maintenance." });
     if (!customer?._id || !customer.email) return res.status(409).json({ error: "Your account needs an email address before we can book maintenance." });
-    const location = await maintenanceLocation(asset);
-    const lat = Number(location?.lat ?? location?.coordinates?.coordinates?.[1]);
-    const lng = Number(location?.lng ?? location?.coordinates?.coordinates?.[0]);
-    if (!String(location?.address || "").trim() || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return res.status(409).json({ error: "Your saved service address has no map pin. Please contact us to update it before booking again." });
-    }
+    const location = requireServiceLocation(req.body?.location !== undefined ? req.body.location : await maintenanceLocation(asset));
+    const { lat, lng } = location;
     const settings = await SiteSetting.find({ key: { $in: ["companyLocationLat", "companyLocationLng", "farePerKm"] } }).lean();
     const setting = Object.fromEntries(settings.map((row) => [row.key, row.value]));
     if (setting.companyLocationLat == null || setting.companyLocationLng == null) {
@@ -597,6 +710,9 @@ router.post("/schedules/:id/book", auth.requireRole("customer"), async (req, res
       estimatedFee: total,
     } }, { session });
     await linkScheduleToBooking({ scheduleId: schedule._id, bookingId: booking._id, customerId: customer._id, session });
+    await CustomerAsset.updateOne({ _id: asset._id, customerId: customer._id }, {
+      $set: { serviceAddress: location.address, serviceLocation: location },
+    }, { session, runValidators: true });
     await session.commitTransaction();
     await Promise.allSettled([
       createNotification({
@@ -741,7 +857,7 @@ router.get("/schedules/:id/booking-intent", auth.requireRole("customer"), async 
 
 router.patch("/assets/:id/installation-date", async (req, res, next) => {
   try {
-    if (!["admin", "customer"].includes(req.user.role)) return res.status(403).json({ error: "Forbidden" });
+    if (!["admin", "secretary", "customer"].includes(req.user.role)) return res.status(403).json({ error: "Forbidden" });
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid asset id" });
     const installationDate = new Date(req.body?.installationDate);
     if (Number.isNaN(installationDate.getTime())) return res.status(400).json({ error: "A valid installation date is required." });
@@ -785,11 +901,15 @@ router.patch("/assets/:id/installation-date", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.patch("/admin/schedules/:id", requireAdmin, async (req, res, next) => {
+router.patch("/admin/schedules/:id", requireStaff, async (req, res, next) => {
+  let session = null;
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid schedule id" });
     const schedule = await MaintenanceSchedule.findById(req.params.id);
     if (!schedule) return res.status(404).json({ error: "Maintenance schedule not found" });
+    if (["scheduled", "completed"].includes(schedule.status) || schedule.bookingId) {
+      return res.status(409).json({ error: "A scheduled or completed cycle cannot be manually rewritten." });
+    }
     const updates = {};
     if (req.body?.dueDate) {
       const dueDate = new Date(req.body.dueDate);
@@ -800,24 +920,24 @@ router.patch("/admin/schedules/:id", requireAdmin, async (req, res, next) => {
     if (req.body?.status) {
       const allowed = ["upcoming", "due", "overdue", "paused", "cancelled"];
       if (!allowed.includes(req.body.status)) return res.status(400).json({ error: "Invalid maintenance status transition" });
-      if (["scheduled", "completed"].includes(schedule.status)) {
-        return res.status(409).json({ error: "A scheduled or completed cycle cannot be manually rewritten." });
-      }
       updates.status = req.body.status;
       if (req.body.status === "paused") {
         updates.pausedAt = new Date();
         updates.pausedReason = String(req.body.reason || "Paused by administrator").slice(0, 500);
       }
     }
-    Object.assign(schedule, updates);
-    schedule.history.push({
-      status: schedule.status,
-      changedBy: req.user._id,
-      changedByName: req.user.name || req.user.email || "Administrator",
+    session = await mongoose.startSession();
+    session.startTransaction();
+    const updated = await MaintenanceSchedule.findOneAndUpdate({ _id: schedule._id,
+      status: schedule.status, bookingId: null, updatedAt: schedule.updatedAt,
+    }, { $set: updates, $push: { history: {
+      status: updates.status || schedule.status, changedBy: req.user._id,
+      changedByName: req.user.name || req.user.email || "Staff",
       reason: String(req.body?.reason || "Maintenance schedule updated").slice(0, 500),
-    });
-    await schedule.save();
-    if (updates.intervalDays) await CustomerAsset.findByIdAndUpdate(schedule.assetId, { maintenanceIntervalDays: updates.intervalDays });
+    } } }, { returnDocument: "after", runValidators: true, session });
+    if (!updated) throw Object.assign(new Error("This schedule changed. Refresh before editing it."), { status: 409 });
+    if (updates.intervalDays) await CustomerAsset.findByIdAndUpdate(schedule.assetId, { maintenanceIntervalDays: updates.intervalDays }, { session });
+    await session.commitTransaction();
     await audit.logEvent({
       actor: req.user._id,
       target: schedule._id,
@@ -826,8 +946,11 @@ router.patch("/admin/schedules/:id", requireAdmin, async (req, res, next) => {
       req,
       details: updates,
     }).catch(() => {});
-    res.json({ schedule });
-  } catch (error) { next(error); }
+    res.json({ schedule: updated });
+  } catch (error) {
+    if (session?.inTransaction()) await session.abortTransaction().catch(() => {});
+    next(error);
+  } finally { if (session) await session.endSession(); }
 });
 
 router.get("/technician/bookings/:bookingId", auth.requireRole("technician"), async (req, res, next) => {

@@ -215,6 +215,12 @@ function requiredPermissionForRequest(user, req) {
   const read = isReadRequest(req);
 
   if (user.role === "secretary") {
+    if (path === "/secretary/maintenance" || path === "/api/maintenance/badge") return "appointments.view";
+    if (path.startsWith("/api/maintenance/admin/")) {
+      const preview = /^\/api\/maintenance\/admin\/schedules\/[^/]+\/booking-preview$/.test(path) && req.method === "POST";
+      return read || preview ? "appointments.view" : "appointments.manage";
+    }
+    if (/^\/api\/maintenance\/assets\/[^/]+\/installation-date$/.test(path)) return "appointments.manage";
     if (path === "/secretary" || path.startsWith("/secretary/overview")) return "dashboard.view";
     if (path.startsWith("/secretary/profile") || path.startsWith("/secretary/settings")) return null;
     if (path.startsWith("/secretary/attendance")) return "attendance.self.manage";

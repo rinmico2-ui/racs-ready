@@ -9,6 +9,9 @@ const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const { normalizeInvitationEmail } = require("../utils/customerAccountInvitation");
 const { isEmail } = require("validator");
+const { persistStaffAccount } = require("../utils/staffAccountCreation");
+const { isUnsupportedMongoWriteFeature } = require("../utils/mongoWriteSupport");
+const logger = require("../utils/logger").create("staffAccounts");
 
 function fail(message, status = 400, code = "TECHNICIAN_INVALID") {
   return Object.assign(new Error(message), { status, code });
@@ -53,6 +56,8 @@ function createController(deps = {}) {
   const startSession = deps.startSession || (() => mongoose.startSession());
   const sendMail = deps.sendMail || (payload => mailer.sendMail(payload));
   const logEvent = deps.logEvent || (payload => audit.logEvent(payload));
+  const connection = deps.connection || mongoose.connection;
+  const reportError = deps.reportError || (details => logger.error("Staff account operation failed", details));
 
   async function transaction(work) {
     const session = await startSession();
@@ -66,7 +71,7 @@ function createController(deps = {}) {
     if (user || tech) throw fail("This email is already used by another account or technician. Use a different email.", 409, "TECHNICIAN_EMAIL_EXISTS");
   }
 
-  async function makeUser(data, req, session) {
+  async function makeUser(data, req, session, save = true) {
     const user = new Users({
       email: data.email, firstName: data.firstName, lastName: data.lastName,
       phone: data.phone, role: data.role || "technician", active: true,
@@ -77,7 +82,7 @@ function createController(deps = {}) {
     // No usable default password. Only the email recipient can set one.
     await user.setPassword(crypto.randomBytes(32).toString("base64url"));
     const token = user.createAccountInvitationToken();
-    await user.save({ session });
+    if (save) await user.save({ session });
     return { user, token };
   }
 
@@ -104,6 +109,14 @@ function createController(deps = {}) {
 
   function respondError(res, error) {
     if (error.code === 11000) return res.status(409).json({ error: "This email or technician account is already in use.", code: "TECHNICIAN_EMAIL_EXISTS" });
+    if (!error.status || error.status >= 500) {
+      // Database errors can contain credentials, document values and invitation
+      // hashes. Log only diagnostic identifiers, never the raw error/body.
+      reportError({ errorName: error.name, errorCode: error.code, transactionsUnsupported: isUnsupportedMongoWriteFeature(error) });
+    }
+    if (isUnsupportedMongoWriteFeature(error)) return res.status(503).json({
+      error: "This action needs a database setup update. Ask the administrator to check the server logs.", code: "STAFF_DATABASE_SETUP_REQUIRED",
+    });
     return res.status(error.status || (error.name === "ValidationError" ? 400 : 500)).json({
       error: error.status ? error.message : "Could not save the staff account. Please try again.", code: error.status ? error.code : "TECHNICIAN_SAVE_FAILED",
     });
@@ -113,15 +126,16 @@ function createController(deps = {}) {
     async createStaff(req, res) {
       try {
         const data = staffDetails(req.body || {});
-        const result = await transaction(async session => {
-          await ensureEmailFree(data.email, session);
-          const account = await makeUser(data, req, session);
-          const profile = data.role === "technician"
-            ? new Techs({ user: account.user._id, name: data.name, userEmail: data.email, phone: data.phone, locationText: data.locationText, ...(data.location ? { location: data.location } : {}), active: true })
-            : new Secretaries({ user: account.user._id, phone: data.phone, extension: "", shift: "", notes: "" });
-          await profile.save({ session });
-          return { ...account, profile };
+        await ensureEmailFree(data.email, null);
+        const account = await makeUser(data, req, null, false);
+        const Profiles = data.role === "technician" ? Techs : Secretaries;
+        const profile = data.role === "technician"
+          ? new Techs({ user: account.user._id, name: data.name, userEmail: data.email, phone: data.phone, locationText: data.locationText, ...(data.location ? { location: data.location } : {}), active: true })
+          : new Secretaries({ user: account.user._id, phone: data.phone, extension: "", shift: "", notes: "" });
+        const saved = await persistStaffAccount({
+          connection, startSession, Users, Profiles, user: account.user, profile, ensureEmailFree,
         });
+        const result = { ...saved, token: account.token };
         const invitation = await deliver(req, result.user, result.token);
         await record(req, result.user, "staff.create");
         return res.status(201).json({ success: true, message: "Staff account created", user: { id: result.user._id, email: result.user.email, role: result.user.role }, technician: data.role === "technician" ? result.profile : null, invitation, accountStatus: "invited" });
@@ -131,23 +145,33 @@ function createController(deps = {}) {
     async inviteStaff(req, res) {
       try {
         if (!mongoose.isValidObjectId(req.params.id)) throw fail("Invalid staff id.");
-        const result = await transaction(async session => {
-          const user = await Users.findById(req.params.id).select("+invitationTokenHash +invitationExpiresAt").session(session);
-          if (!user || !["technician", "secretary"].includes(user.role)) throw fail("Staff account not found.", 404);
-          if (user.active === false || user.blocked || user.archivedAt) throw fail("Restore or enable this staff account before sending a setup email.", 409);
-          if (user.emailVerified !== false || user.accountStatus !== "invited") throw fail("This account is already set up. Use Forgot password on the sign-in page.", 409);
-          if (user.role === "technician") {
-            const tech = await Techs.findOne({ user: user._id }).session(session);
-            if (!tech || tech.active === false || tech.archivedAt) throw fail("The linked technician record is unavailable.", 409);
-          }
-          if (user.invitationLastSentAt && Date.now() - new Date(user.invitationLastSentAt).getTime() < 60_000) throw fail("Wait one minute before sending another setup email.", 429);
-          user.invitationLastSentAt = new Date();
-          const token = user.createAccountInvitationToken();
-          await user.save({ session });
-          return { user, token };
-        });
-        const invitation = await deliver(req, result.user, result.token);
-        await record(req, result.user, "staff.invitation.resend");
+        // Resending changes only the User. A conditional update protects the
+        // cooldown and account state without requiring a database transaction.
+        const user = await Users.findById(req.params.id).select("+invitationTokenHash +invitationExpiresAt");
+        if (!user || !["technician", "secretary"].includes(user.role)) throw fail("Staff account not found.", 404);
+        if (user.active === false || user.blocked || user.archivedAt) throw fail("Restore or enable this staff account before sending a setup email.", 409);
+        if (user.emailVerified !== false || user.accountStatus !== "invited") throw fail("This account is already set up. Use Forgot password on the sign-in page.", 409);
+        if (user.role === "technician") {
+          const tech = await Techs.findOne({ user: user._id });
+          if (!tech || tech.active === false || tech.archivedAt) throw fail("The linked technician record is unavailable.", 409);
+        }
+        if (user.invitationLastSentAt && Date.now() - new Date(user.invitationLastSentAt).getTime() < 60_000) throw fail("Wait one minute before sending another setup email.", 429);
+        const previousSentAt = user.invitationLastSentAt || null;
+        const invitationState = new Users(user.toObject({ transform: false }));
+        const token = invitationState.createAccountInvitationToken();
+        const saved = await Users.findOneAndUpdate({
+          _id: user._id, role: user.role, email: user.email, accountStatus: "invited", emailVerified: false,
+          active: { $ne: false }, blocked: { $ne: true }, archivedAt: null,
+          invitationLastSentAt: previousSentAt,
+          invitationTokenHash: user.invitationTokenHash,
+        }, { $set: {
+          invitationLastSentAt: new Date(),
+          invitationTokenHash: invitationState.invitationTokenHash,
+          invitationExpiresAt: invitationState.invitationExpiresAt,
+        } }, { returnDocument: "after", runValidators: true }).select("+invitationTokenHash +invitationExpiresAt");
+        if (!saved) throw fail("The account changed or another setup email was already requested. Refresh the staff list.", 409, "STAFF_INVITATION_CHANGED");
+        const invitation = await deliver(req, saved, token);
+        await record(req, saved, "staff.invitation.resend");
         return res.json({ success: true, invitation, accountStatus: "invited" });
       } catch (error) { return respondError(res, error); }
     },
@@ -198,13 +222,13 @@ function createController(deps = {}) {
     async create(req, res) {
       try {
         const data = details(req.body || {});
-        const result = await transaction(async session => {
-          await ensureEmailFree(data.email, session);
-          const account = await makeUser(data, req, session);
-          const tech = new Techs({ user: account.user._id, name: data.name, userEmail: data.email, phone: data.phone, locationText: data.locationText, active: true });
-          await tech.save({ session });
-          return { ...account, tech };
+        await ensureEmailFree(data.email, null);
+        const account = await makeUser(data, req, null, false);
+        const tech = new Techs({ user: account.user._id, name: data.name, userEmail: data.email, phone: data.phone, locationText: data.locationText, active: true });
+        const saved = await persistStaffAccount({
+          connection, startSession, Users, Profiles: Techs, user: account.user, profile: tech, ensureEmailFree,
         });
+        const result = { ...saved, token: account.token, tech: saved.profile };
         const invitation = await deliver(req, result.user, result.token);
         await record(req, result.tech, "technician.account.create");
         return res.status(201).json({ success: true, technician: result.tech, invitation, accountStatus: "invited" });

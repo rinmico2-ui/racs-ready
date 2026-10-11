@@ -5,6 +5,7 @@
   const isStaff = document.querySelector('.rr-page')?.classList.contains('rr-staff');
   let requests = [];
   let loadSequence = 0;
+  let customerReady = false;
   const money = value => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   const date = value => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
@@ -19,6 +20,7 @@
   function quoteMarkup(request) {
     if (!request.quote?.total) return '';
     const rows = (request.quote.lines || []).map(line => `<div class="rr-quote-row"><span>${esc(line.label)}</span><strong>${money(line.amount)}</strong></div>`).join('');
+    if (!isStaff) return `<aside class="rr-quote" aria-label="Relocation quote"><span class="rr-quote-title">Your relocation quote</span><strong class="rr-quote-price">${money(request.quote.total)}</strong><p class="rr-details">${request.quote.expiresAt ? `Valid until ${date(request.quote.expiresAt)}` : 'Review the price before you continue.'}</p><details class="rr-quote-breakdown"><summary>View price breakdown<i class="bi bi-chevron-down" aria-hidden="true"></i></summary>${rows}<div class="rr-quote-total"><span>Total</span><span>${money(request.quote.total)}</span></div><p class="rr-details">Estimated work: ${esc(request.quote.durationMinutes || '\u2014')} minutes &middot; Quote version ${Number(request.quote.version || 0)}${request.quote.notes ? `<br>${esc(request.quote.notes)}` : ''}</p></details></aside>`;
     const content = `<div class="rr-quote"><p class="rr-quote-title">Itemized quote · version ${Number(request.quote.version || 0)}</p>${rows}<div class="rr-quote-total"><span>Total</span><span>${money(request.quote.total)}</span></div><p class="rr-details">Estimated work: ${esc(request.quote.durationMinutes || '—')} minutes${request.quote.expiresAt ? ` · Valid until ${date(request.quote.expiresAt)}` : ''}${request.quote.notes ? ` · ${esc(request.quote.notes)}` : ''}</p></div>`;
     return isStaff ? `<details class="rr-sent-quote"><summary><span>Current quote · ${money(request.quote.total)}</span></summary>${content}</details>` : content;
   }
@@ -113,34 +115,59 @@
 
   function card(request) {
     if (isStaff) return staffCard(request);
-    const person = request.customerId && typeof request.customerId === 'object' ? request.customerId : null;
-    const customer = person ? `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.email : '';
-    return `<article class="rr-card">
-      <div class="rr-card-head"><div><h3>${isStaff ? esc(customer || 'Customer') : 'Aircon Relocation'}</h3><small>Requested ${date(request.createdAt)} · Preferred ${date(request.preferredDate)}${isStaff && person?.email ? ` · ${esc(person.email)}` : ''}</small></div><span class="rr-badge is-${esc(request.status)}">${esc(label(request.status))}</span></div>
-      <div class="rr-route"><div class="rr-location"><span>From · current location</span><strong>${esc(request.from?.address)}</strong>${request.from?.details ? `<small>${esc(request.from.details)}</small>` : ''}</div><div class="rr-location"><span>To · new location</span><strong>${esc(request.to?.address)}</strong>${request.to?.details ? `<small>${esc(request.to.details)}</small>` : ''}</div></div>
-      <div class="rr-details">Unit: ${esc(request.unit?.brand || 'Brand to verify')} · ${esc(request.unit?.airconType || 'Type to verify')} · ${request.unit?.hp ? `${esc(request.unit.hp)} HP` : 'HP to verify'}${request.unit?.model ? ` · Model ${esc(request.unit.model)}` : ''}${request.unit?.serialNumber ? ` · Serial ${esc(request.unit.serialNumber)}` : ''}</div>
-      ${request.notes ? `<p class="rr-details">Customer notes: ${esc(request.notes)}</p>` : ''}
-      ${request.assessmentNotes ? `<p class="rr-details">Assessment: ${esc(request.assessmentNotes)}</p>` : ''}
-      ${quoteMarkup(request)}${isStaff ? staffActions(request) : customerActions(request)}
+    const type = typeOptions.find(([value]) => value === request.unit?.airconType)?.[1] || 'Type to check';
+    const unit = [request.unit?.brand || 'Brand to check', type, request.unit?.hp ? `${request.unit.hp} HP` : 'HP to check'].join(' \u00b7 ');
+    const details = [request.unit?.model ? `Model: ${request.unit.model}` : '', request.unit?.serialNumber ? `Serial: ${request.unit.serialNumber}` : ''].filter(Boolean).join(' \u00b7 ');
+    const actions = customerActions(request);
+    return `<article class="rr-card${request.quote?.total ? ' rr-card-with-quote' : ''}" data-request-id="${esc(request._id)}" data-request-status="${esc(request.status)}">
+      <div class="rr-card-head"><div><span class="rr-request-id">REQUEST #${esc(String(request._id).slice(-8).toUpperCase())}</span><h3>Aircon relocation</h3><small>Requested ${date(request.createdAt)} &middot; Preferred ${date(request.preferredDate)}</small></div><span class="rr-badge is-${esc(request.status)}">${esc(label(request.status))}</span></div>
+      <div class="rr-card-body">
+        <div class="rr-move-details">
+        <div class="rr-route"><div class="rr-location"><span>Current location</span><strong>${esc(request.from?.address || 'Address not provided')}</strong>${request.from?.details ? `<small>${esc(request.from.details)}</small>` : ''}</div><div class="rr-location"><span>New location</span><strong>${esc(request.to?.address || 'Address not provided')}</strong>${request.to?.details ? `<small>${esc(request.to.details)}</small>` : ''}</div></div>
+        <div class="rr-unit-summary"><i class="bi bi-snow2" aria-hidden="true"></i><div><strong>${esc(unit)}</strong>${details ? `<small>${esc(details)}</small>` : ''}</div></div>
+        ${request.notes ? `<p class="rr-details"><strong>Your note:</strong> ${esc(request.notes)}</p>` : ''}
+        ${request.assessmentNotes ? `<p class="rr-details"><strong>Staff note:</strong> ${esc(request.assessmentNotes)}</p>` : ''}
+        </div>${quoteMarkup(request)}
+      </div>
+      ${actions ? `<footer class="rr-card-footer">${actions}</footer>` : ['pending_review', 'assessment_needed'].includes(request.status) ? `<footer class="rr-card-footer rr-next-step"><i class="bi bi-clock" aria-hidden="true"></i><span>${request.status === 'assessment_needed' ? 'Staff will contact you about a site check.' : 'Staff will review your request and send the next step.'}</span></footer>` : ''}
     </article>`;
+  }
+  function applyCustomerFilters() {
+    const search = document.getElementById('relocationCustomerSearch');
+    if (isStaff || !search || !customerReady) return;
+    const query = search.value.trim().toLowerCase();
+    const status = document.getElementById('relocationCustomerStatus').value;
+    let visible = 0;
+    for (const card of list.querySelectorAll('[data-request-id]')) {
+      card.hidden = Boolean(status && card.dataset.requestStatus !== status || query && !card.textContent.toLowerCase().includes(query));
+      if (!card.hidden) visible++;
+    }
+    document.getElementById('relocationCustomerCount').textContent = `${visible} of ${requests.length} request${requests.length === 1 ? '' : 's'}`;
+    document.getElementById('relocationCustomerFilteredEmpty').hidden = visible > 0 || requests.length === 0;
   }
   async function load() {
     const sequence = ++loadSequence;
+    customerReady = false;
+    const customerCount = document.getElementById('relocationCustomerCount');
+    if (!isStaff && customerCount) customerCount.textContent = 'Loading requests...';
     if (message.dataset.loadError === 'true') { message.hidden = true; delete message.dataset.loadError; }
     list.setAttribute('aria-busy', 'true');
     const refresh = document.getElementById('relocationRefresh');
     if (refresh) refresh.disabled = true;
     if (isStaff) document.getElementById('relocationFilteredEmpty').hidden = true;
+    else if (document.getElementById('relocationCustomerFilteredEmpty')) document.getElementById('relocationCustomerFilteredEmpty').hidden = true;
     list.innerHTML = '<div class="rr-loading" role="status"><span class="rr-loading-spinner" aria-hidden="true"></span>Loading requests…</div>';
     try {
       const data = await api(`/api/relocations/${isStaff ? 'staff' : 'mine'}`);
       if (sequence !== loadSequence) return;
       requests = data.requests || [];
+      customerReady = true;
       list.innerHTML = requests.length ? requests.map(card).join('') : isStaff
         ? '<div class="rr-empty"><i class="bi bi-inbox" aria-hidden="true"></i><strong>No relocation requests yet</strong><p>New customer requests will appear here for review.</p></div>'
-        : '<div class="rr-empty">No relocation requests yet. Choose Aircon Relocation from Services to get started.</div>';
+        : '<div class="rr-empty"><i class="bi bi-geo-alt" aria-hidden="true"></i><strong>No relocation requests yet</strong><p>Choose Aircon Relocation from Services to request a move.</p><a class="rr-button" href="/services">Browse services</a></div>';
       list.setAttribute('aria-busy', 'false');
       if (isStaff) { updateStaffCounts(); applyStaffFilters(); }
+      else applyCustomerFilters();
     } catch (error) {
       if (sequence !== loadSequence) return;
       list.innerHTML = '<div class="rr-empty"><strong>Requests could not load</strong><p>Please try again.</p><button class="rr-button rr-button-light" type="button" data-retry-load>Retry</button></div>';
@@ -148,6 +175,7 @@
         document.getElementById('relocationResultCount').textContent = 'Requests unavailable';
         for (const id of ['relocationReviewCount', 'relocationQuotedCount', 'relocationAcceptedCount', 'relocationBookedCount']) document.getElementById(id).textContent = '—';
       }
+      if (!isStaff && document.getElementById('relocationCustomerCount')) document.getElementById('relocationCustomerCount').textContent = 'Requests unavailable';
       show(error.message, true);
       message.dataset.loadError = 'true';
     } finally {
@@ -155,6 +183,11 @@
     }
   }
   document.getElementById('relocationRefresh')?.addEventListener('click', load);
+  if (!isStaff) {
+    document.getElementById('relocationCustomerSearch')?.addEventListener('input', applyCustomerFilters);
+    document.getElementById('relocationCustomerStatus')?.addEventListener('change', applyCustomerFilters);
+    document.getElementById('relocationCustomerClear')?.addEventListener('click', () => { document.getElementById('relocationCustomerSearch').value = ''; document.getElementById('relocationCustomerStatus').value = ''; applyCustomerFilters(); });
+  }
   if (isStaff) {
     document.getElementById('relocationSearch').addEventListener('input', applyStaffFilters);
     for (const id of ['relocationStatus', 'relocationSort']) document.getElementById(id).addEventListener('change', applyStaffFilters);

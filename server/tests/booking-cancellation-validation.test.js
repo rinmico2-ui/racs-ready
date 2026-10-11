@@ -7,6 +7,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
+const { isAftercareBooking } = require("../utils/maintenanceCancellation");
 
 const read = file => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
 const client = read("public/js/book-history.js");
@@ -40,6 +41,8 @@ function routeFixture(kind = "customer", overrides = {}) {
     Payment: { exists: async () => false },
     BookingStatus: { COMPLETED: "completed", CANCELLED: "cancelled" },
     cancelBookingRecord, normalizeLifecycleReason,
+    isAftercareBooking,
+    async reopenScheduleAfterBookingCancellation() {},
     async releaseReservedEquipment({ reason }) { normalizeLifecycleReason(reason, "Release"); releases++; },
     require() { return { async updateMany() { assignmentUpdates++; } }; },
     googleCalendarSync: { isConfigured: () => false }, audit: { logEvent: async () => undefined },
@@ -102,6 +105,33 @@ test("cancellation retains ownership and paid-booking protections", async () => 
   assert.equal(held.statusCode, 409);
   assert.equal(held.body.code, "REFUND_DECISION_REQUIRED");
   assert.equal(paid.saves, 0);
+});
+
+test("the shared customer endpoint delegates linked maintenance to the guarded transaction", async () => {
+  const f = routeFixture("customer", { status: "awaiting_assignment", maintenance: {
+    isMaintenance: true, paymentOnSite: true, assetId: "asset", scheduleId: "schedule",
+  } });
+  let transactions = 0;
+  f.context.cancelCustomerMaintenance = async values => {
+    transactions++;
+    assert.equal(values.customerId, "owner-test");
+    const cancellation = cancelBookingRecord(f.booking, { actorId: values.customerId, actorName: values.actorName, reason: values.reason });
+    return { booking: f.booking, cancellation };
+  };
+  const res = response();
+  await f.handler(request("Changed my plans today"), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(transactions, 1);
+  assert.equal(f.saves, 0, "the route must not save the transaction's booking again");
+  assert.equal(f.assignmentUpdates, 1);
+  assert.equal(f.releases, 1);
+});
+
+test("ordinary awaiting-assignment bookings keep their existing customer cancellation limit", async () => {
+  const f = routeFixture("customer", { status: "awaiting_assignment" }), res = response();
+  await f.handler(request("Changed my plans today"), res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(f.saves, 0);
 });
 
 test("completed-booking conflict returns 409 and infrastructure failures remain generic 500", async () => {

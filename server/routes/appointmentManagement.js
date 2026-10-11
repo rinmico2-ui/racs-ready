@@ -18,6 +18,7 @@ const { BookingStatus, PaymentStatus, FlowStages } = require('../models/BookingS
 const { generateAssistantReport } = require('../utils/aiTechnicianAssistant');
 const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
+const { isUnpaidAftercareMaintenance } = require('../utils/customerBookingPresentation');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
 const { normalizeLifecycleReason } = require('../utils/dataLifecycle');
@@ -1051,9 +1052,10 @@ router.post('/:id/reject', requireRole(["admin", "secretary"]), async (req, res)
  * Cancel a booking at any stage
  */
 router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res) => {
+  let maintenanceCancellationSession = null;
   try {
     const { reason } = req.body;
-    const booking = await BookingService.findById(req.params.id);
+    let booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
     const terminalStatuses = [BookingStatus.COMPLETED, BookingStatus.CANCELLED];
@@ -1062,6 +1064,31 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
     }
 
     const cancellationReason = normalizeLifecycleReason(reason, 'Cancellation', { fallback: 'Cancelled by admin' });
+    if (booking.maintenance?.isMaintenance && booking.maintenance?.scheduleId) {
+      const { cancelBookingRecord } = require('../utils/bookingLifecycle');
+      const { reopenScheduleAfterBookingCancellation } = require('../utils/maintenanceLifecycle');
+      maintenanceCancellationSession = await mongoose.startSession();
+      await maintenanceCancellationSession.withTransaction(async () => {
+        booking = await BookingService.findById(req.params.id).session(maintenanceCancellationSession);
+        cancelBookingRecord(booking, { actorId: req.user._id, actorName: req.user.name || req.user.email || 'Staff', reason: cancellationReason });
+        await booking.save({ session: maintenanceCancellationSession });
+        await Assignment.updateMany({ bookingId: booking._id,
+          status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] },
+        }, { $set: { status: 'cancelled', cancelledAt: new Date() } }, { session: maintenanceCancellationSession });
+        await reopenScheduleAfterBookingCancellation(booking, { session: maintenanceCancellationSession,
+          actorId: req.user._id, actorName: req.user.name || req.user.email || 'Staff' });
+      });
+      const results = await Promise.allSettled([
+        releaseReservedEquipment({ filter: { bookingId: booking._id }, actorId: req.user._id,
+          reason: cancellationReason, moduleName: 'maintenance' }),
+        require('../utils/notify').createNotification({ type: 'booking_cancelled', title: 'Maintenance visit cancelled',
+          message: `Your maintenance visit ${booking.bookingReference || ''} was cancelled. Your aircon and maintenance reminder are still available in Aftercare.`,
+          userId: booking.customerId, referenceId: booking._id, referenceModel: 'BookingService',
+          link: '/aftercare', priority: 'normal', io: req.app.get('io') }),
+      ]);
+      results.forEach((result, index) => { if (result.status === 'rejected') console.warn('Maintenance cancellation follow-up failed', { bookingId: String(booking._id), task: index }); });
+      return res.json({ success: true, booking });
+    }
     booking.status = BookingStatus.CANCELLED;
     booking.cancellationReason = cancellationReason;
     await booking.save();
@@ -1075,7 +1102,7 @@ router.post('/:id/cancel', requireRole(["admin", "secretary"]), async (req, res)
       error: status < 500 ? error.message : 'Failed to cancel booking',
       ...(status < 500 && error.code ? { code: error.code } : {}),
     });
-  }
+  } finally { if (maintenanceCancellationSession) await maintenanceCancellationSession.endSession(); }
 });
 
 /**
@@ -1678,7 +1705,7 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
     const windowEnd = new Date(now.getTime() + verifyHours * 3600 * 1000);
     const queueStatuses = ['awaiting_assignment', 'assigned', 'pending_reassignment'];
 
-    const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus autoReschedulePending autoRescheduleAt';
+    const select = 'bookingDate startTime bookingReference customer serviceName service status paymentStatus autoReschedulePending autoRescheduleAt maintenance paymentNotes amountPaid';
 
     // An overdue booking cannot be scheduled after now. The verification
     // window only spans today (and possibly tomorrow) in Manila time.
@@ -1722,7 +1749,7 @@ router.get('/verification-warnings', requireRole(['admin', 'secretary']), async 
       const sched = parseBookingDateTime(b.bookingDate, b.startTime);
       if (!sched || sched <= now || sched > windowEnd) continue;
       const issues = [];
-      if (b.status === 'pending' || ['pending', 'failed', 'partial'].includes(b.paymentStatus)) {
+      if (!isUnpaidAftercareMaintenance(b) && (b.status === 'pending' || ['pending', 'failed', 'partial'].includes(b.paymentStatus))) {
         issues.push('payment');
       }
       if (queueStatuses.includes(b.status)) {

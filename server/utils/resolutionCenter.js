@@ -1,5 +1,6 @@
 const { orderAttentionState } = require("./orderAttention");
 const { bookingReviewState } = require("./bookingReview");
+const { isUnpaidAftercareMaintenance } = require("./customerBookingPresentation");
 const { assignmentTimingState, parseAppointmentTime, manilaDateTime } = require("./bookingDateTime");
 
 const RECOVERY_BOOKING_STATUSES = Object.freeze([
@@ -76,6 +77,7 @@ function normalizeText(value) {
 function resolutionPaymentNeedsReview(record, source = 'booking') {
   if (!record || ['cancelled', 'completed', 'closed'].includes(record.status)) return false;
   if (source === 'order' && record.paymentMethod === 'cash_onsite') return false;
+  if (source === 'booking' && isUnpaidAftercareMaintenance(record)) return false;
   const status = normalizeText(record.paymentStatus) ||
     (['pending', 'pending_project_scheduling', 'pending_payment'].includes(record.status) ? 'pending' : '');
   return status === 'pending';

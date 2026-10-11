@@ -8,6 +8,7 @@ const {
   effectiveScheduleStatus,
   syncMaintenanceFromBooking,
   syncMaintenanceFromOrder,
+  reopenScheduleAfterBookingCancellation,
 } = require("./maintenanceLifecycle");
 const { DEFAULT_AFTERCARE_POLICY, getAftercarePolicy } = require("./aftercarePolicy");
 
@@ -218,11 +219,11 @@ async function reconcileMaintenanceBookings(now = new Date()) {
       continue;
     }
     if (!booking || ["cancelled", "repair_declined"].includes(String(booking.status))) {
-      const status = effectiveScheduleStatus({ dueDate: schedule.dueDate, status: "upcoming" }, now);
-      schedule.bookingId = null;
-      schedule.status = status;
-      schedule.history.push({ status, changedByName: "Maintenance Monitor", reason: "Linked booking was cancelled; maintenance cycle reopened" });
-      await schedule.save();
+      const bookingId = booking?._id || schedule.populated("bookingId");
+      await reopenScheduleAfterBookingCancellation(booking || {
+        _id: bookingId, status: "cancelled", customerId: schedule.customerId,
+        maintenance: { scheduleId: schedule._id },
+      }, { now });
     }
   }
 }

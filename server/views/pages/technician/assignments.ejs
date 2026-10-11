@@ -1381,6 +1381,7 @@
       </div>
       <div class="modal-body" style="padding:1.5rem;background:#f8fafc;">
         <!-- Inspection Findings (fetched from booking) -->
+        <div class="alert alert-success small d-none" id="maintenancePaymentHint">Maintenance has no downpayment. Collect the full service amount and travel fee after finishing the work, then submit the completion photo.</div>
         <div id="paymentInspectionBox" class="mb-3" style="display:none;">
           <div class="d-flex align-items-center gap-2 mb-2">
             <i class="bi bi-clipboard-check" style="color:#059669;"></i>
@@ -10754,6 +10755,7 @@ function preparationEscapeHtml(value) {
 
       // Use getOrCreateInstance to prevent duplicate modal instances
       const modalEl = document.getElementById('collectPaymentModal');
+      document.getElementById('maintenancePaymentHint').classList.toggle('d-none', !(collectTargetAssignment?.paymentOnSite || collectTargetAssignment?.bookingId?.maintenance?.paymentOnSite));
       bootstrap.Modal.getOrCreateInstance(modalEl).show();
     };
 

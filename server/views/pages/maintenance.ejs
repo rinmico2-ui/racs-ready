@@ -1,50 +1,54 @@
 <link rel="stylesheet" href="/css/maintenance.css?v=20261008-modern-ui">
+<link rel="stylesheet" href="/css/customer-service-workspace.css?v=20261011-maintenance-cancellation">
 
-<section class="container py-4 maintenance-shell aftercare-customer" id="maintenanceCustomerApp" style="max-width:1180px;min-height:65vh;">
-  <header class="maintenance-head aftercare-head">
-    <div class="d-flex align-items-center gap-3">
-      <div class="maintenance-head-icon"><i class="bi bi-shield-check"></i></div>
-      <div><h1>Aftercare Center</h1><p>Maintenance schedules, warranty coverage, and service follow-up in one place.</p></div>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a href="/book-history" class="btn btn-sm btn-outline-secondary"><i class="bi bi-clock-history me-1"></i>Bookings</a>
-      <a href="/my-orders" class="btn btn-sm btn-outline-secondary"><i class="bi bi-receipt me-1"></i>Orders</a>
-    </div>
+<section class="maintenance-shell aftercare-customer customer-workspace" id="maintenanceCustomerApp">
+  <header class="cw-header">
+    <div class="cw-header-copy"><span class="cw-header-icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span><div><span class="cw-eyebrow">CUSTOMER SERVICES</span><h1>Aftercare Center</h1><p>Your next service, warranty coverage, and support for your aircons.</p></div></div>
+    <div class="cw-header-actions"><a href="/my-orders" class="cw-button cw-button-secondary"><i class="bi bi-receipt" aria-hidden="true"></i>My orders</a></div>
   </header>
+  <nav class="cw-page-nav" aria-label="Customer services"><a href="/book-history">My bookings</a><a href="/unit-assistance">Unit requests</a><a href="/relocation-requests">Relocation requests</a><a href="/aftercare" aria-current="page">Maintenance</a></nav>
 
   <div class="aftercare-alert d-none" id="aftercareAlert" role="status" aria-live="polite"></div>
 
   <div class="maintenance-kpis aftercare-kpis">
     <button class="maintenance-kpi aftercare-kpi-button" type="button" data-aftercare-tab="maintenance">
-      <div class="maintenance-kpi-label">Registered equipment</div><div class="maintenance-kpi-value" id="customerAssetCount">0</div>
+      <span class="cw-stat-icon cw-blue"><i class="bi bi-snow2" aria-hidden="true"></i></span><div class="maintenance-kpi-label">Your aircons</div><div class="maintenance-kpi-value" id="customerAssetCount">&mdash;</div>
     </button>
     <button class="maintenance-kpi warning aftercare-kpi-button" type="button" data-aftercare-tab="maintenance">
-      <div class="maintenance-kpi-label">Maintenance due</div><div class="maintenance-kpi-value" id="customerDueTotal">0</div>
+      <span class="cw-stat-icon cw-amber"><i class="bi bi-calendar2-check" aria-hidden="true"></i></span><div class="maintenance-kpi-label">Maintenance due</div><div class="maintenance-kpi-value" id="customerDueTotal">&mdash;</div>
     </button>
     <button class="maintenance-kpi aftercare-kpi-button" type="button" data-aftercare-tab="warranty">
-      <div class="maintenance-kpi-label">Active coverages</div><div class="maintenance-kpi-value" id="customerActiveCoverage">0</div>
+      <span class="cw-stat-icon cw-green"><i class="bi bi-shield-check" aria-hidden="true"></i></span><div class="maintenance-kpi-label">Active warranties</div><div class="maintenance-kpi-value" id="customerActiveCoverage">&mdash;</div>
     </button>
     <button class="maintenance-kpi danger aftercare-kpi-button" type="button" data-aftercare-tab="warranty">
-      <div class="maintenance-kpi-label">Open claims</div><div class="maintenance-kpi-value" id="customerActiveClaims">0</div>
+      <span class="cw-stat-icon cw-purple"><i class="bi bi-chat-square-text" aria-hidden="true"></i></span><div class="maintenance-kpi-label">Open claims</div><div class="maintenance-kpi-value" id="customerActiveClaims">&mdash;</div>
     </button>
   </div>
 
-  <nav class="aftercare-tabs" aria-label="Aftercare sections">
-    <button class="aftercare-tab active" type="button" data-aftercare-tab="maintenance"><i class="bi bi-calendar2-check"></i>Maintenance</button>
-    <button class="aftercare-tab" type="button" data-aftercare-tab="warranty"><i class="bi bi-shield-check"></i>Warranty &amp; claims</button>
+  <section class="aftercare-workspace">
+  <div class="aftercare-workspace-head">
+  <nav class="aftercare-tabs" role="tablist" aria-label="Aftercare sections">
+    <button class="aftercare-tab active" id="aftercareMaintenanceTab" role="tab" aria-selected="true" aria-controls="aftercareMaintenancePanel" type="button" data-aftercare-tab="maintenance"><i class="bi bi-calendar2-check"></i>Maintenance</button>
+    <button class="aftercare-tab" id="aftercareWarrantyTab" role="tab" aria-selected="false" aria-controls="aftercareWarrantyPanel" tabindex="-1" type="button" data-aftercare-tab="warranty"><i class="bi bi-shield-check"></i>Warranty &amp; claims</button>
   </nav>
+  <button class="cw-button cw-button-secondary" type="button" id="aftercareRefresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button>
+  </div>
+  <div id="aftercareLoading" class="cw-empty" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><p>Loading your aircon care records...</p></div>
+  <div id="aftercareLoadError" class="cw-empty d-none"><i class="bi bi-wifi-off" aria-hidden="true"></i><h3>Your records could not be loaded</h3><p>Please try again.</p><button class="cw-button cw-button-secondary" id="aftercareRetry" type="button">Try again</button></div>
 
-  <section class="aftercare-panel" data-aftercare-panel="maintenance">
-    <div class="aftercare-section-head"><div><h2>Equipment care</h2><p>Current service cycles and customer responses.</p></div></div>
+  <section class="aftercare-panel" id="aftercareMaintenancePanel" role="tabpanel" aria-labelledby="aftercareMaintenanceTab" data-aftercare-panel="maintenance">
+    <div class="aftercare-section-head"><div><h2>Aircon maintenance</h2><p>See your next service date and choose how to continue.</p></div></div>
+    <div class="cw-empty d-none" id="aftercareMaintenanceError" role="status"><h3>Maintenance records could not load</h3><p>Your warranty records may still be available.</p><button class="cw-button cw-button-secondary js-aftercare-retry" type="button">Try again</button></div>
     <div class="asset-grid" id="customerAssetGrid"></div>
     <div class="maintenance-empty d-none" id="customerMaintenanceEmpty">
       <i class="bi bi-calendar2-check fs-3 d-block mb-2"></i>
-      No maintainable equipment is registered yet.
+      Your aircons will appear here once their details are registered.
     </div>
   </section>
 
-  <section class="aftercare-panel d-none" data-aftercare-panel="warranty">
-    <div class="aftercare-section-head"><div><h2>Coverage &amp; claims</h2><p>Coverage is preserved from the terms active when each service or order was completed.</p></div></div>
+  <section class="aftercare-panel d-none" id="aftercareWarrantyPanel" role="tabpanel" aria-labelledby="aftercareWarrantyTab" data-aftercare-panel="warranty">
+    <div class="aftercare-section-head"><div><h2>Warranty and claims</h2><p>Review the warranty from your completed services and aircon orders.</p></div></div>
+    <div class="cw-empty d-none" id="aftercareWarrantyError" role="status"><h3>Warranty records could not load</h3><p>You can still use maintenance if its records are available.</p><button class="cw-button cw-button-secondary js-aftercare-retry" type="button">Try again</button></div>
     <div class="warranty-records" id="customerWarrantyRecords"></div>
     <div class="maintenance-empty d-none" id="customerWarrantyEmpty">
       <i class="bi bi-shield fs-3 d-block mb-2"></i>
@@ -52,19 +56,42 @@
     </div>
   </section>
 </section>
+</section>
 
-<div class="modal fade" id="installationDateModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="aftercareBookingModal" tabindex="-1" aria-labelledby="aftercareBookingTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><div><h5 class="modal-title" id="aftercareBookingTitle">Request maintenance</h5><p class="small text-muted mb-0 mt-2">Check your aircon and address before sending.</p></div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="cw-form-error d-none" id="aftercareBookingError" role="alert"></div>
+      <dl class="aftercare-booking-summary"><div><dt>Aircon</dt><dd id="aftercareBookingEquipment"></dd></div><div><dt>Recommended service date</dt><dd id="aftercareBookingDue"></dd></div></dl>
+      <div class="aftercare-saved-location" id="aftercareBookingSavedLocation"><div><span>Service address</span><strong id="aftercareBookingSavedAddress">Loading your saved address...</strong><p>We use the location saved for this aircon.</p></div><button class="btn btn-outline-secondary" type="button" id="aftercareBookingChangeLocation" disabled>Change location</button></div>
+      <div id="aftercareBookingLocationEditor" hidden>
+      <div class="aftercare-location-explanation" id="aftercareBookingLocationExplanation" hidden><strong>Add your service location once</strong><p id="aftercareBookingLocationExplanationText"></p></div>
+      <div class="aftercare-location-field"><label class="form-label" for="aftercareBookingAddress">Service address</label><input class="form-control" id="aftercareBookingAddress" type="text" maxlength="500" autocomplete="off" placeholder="Search for your street, barangay, or city"><div id="aftercareBookingSuggestions" class="list-group d-none"></div></div>
+      <p id="aftercareBookingLocationStatus" class="aftercare-location-status" role="status" aria-live="polite">Loading your saved location...</p>
+      <div id="aftercareBookingMap" class="aftercare-location-map" aria-label="Service location map"></div>
+      <button class="btn btn-outline-secondary mt-3" type="button" id="aftercareBookingUseSavedLocation" hidden>Keep saved location</button>
+      </div>
+      <div class="aftercare-booking-note"><strong>We choose the next available time</strong><p>The visit will be on or after your recommended service date. Staff will assign a technician. You can review the requested date and time in My bookings.</p><p>Payment is due after service, including any travel fee. No payment is taken now.</p></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Go back</button><button class="btn btn-primary" type="button" id="aftercareBookingSubmit">Request next available</button></div>
+  </div></div>
+</div>
+
+<div class="modal fade" id="installationDateModal" tabindex="-1" aria-labelledby="installationDateTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Record Installation Date</h5><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-    <div class="modal-body"><label class="form-label" for="assetInstallationDate">Installation date</label><input class="form-control" id="assetInstallationDate" type="date"><div class="form-text">Maintenance reminders begin from the actual installation date.</div></div>
+    <div class="modal-header"><h5 class="modal-title" id="installationDateTitle">Add installation date</h5><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="cw-form-error d-none" id="installationDateError" role="alert"></div><label class="form-label" for="assetInstallationDate">Installation date</label><input class="form-control" id="assetInstallationDate" type="date"><div class="form-text">Maintenance reminders begin from the actual installation date.</div></div>
     <div class="modal-footer"><button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" id="saveInstallationDateBtn">Save date</button></div>
   </div></div>
 </div>
 
-<div class="modal fade" id="aftercareResponseModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="aftercareResponseModal" tabindex="-1" aria-labelledby="aftercareResponseTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="aftercareResponseForm">
     <div class="modal-header"><div><h5 class="modal-title" id="aftercareResponseTitle">Request a callback</h5><div class="small text-muted" id="aftercareResponseEquipment"></div></div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body">
+      <div class="cw-form-error d-none" id="aftercareResponseError" role="alert"></div>
+      <div class="aftercare-booking-note mb-3" id="aftercareResponseHelp" hidden><strong>You can request maintenance later</strong><p>We will save that you are not booking this maintenance now. Your aircon details, address, and warranty stay available.</p></div>
       <input id="aftercareResponseScheduleId" type="hidden">
       <input id="aftercareResponseStatus" type="hidden">
       <div id="aftercareResponseDateGroup"><label class="form-label" for="aftercareResponseDate" id="aftercareResponseDateLabel">Preferred contact date</label><input class="form-control" id="aftercareResponseDate" type="datetime-local"></div>
@@ -75,4 +102,20 @@
   </form></div>
 </div>
 
-<script src="/js/maintenance-customer.js?v=20260925-pay-onsite-2"></script>
+<div class="modal fade" id="aftercareCancelModal" tabindex="-1" aria-labelledby="aftercareCancelTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" id="aftercareCancelForm" novalidate>
+    <div class="modal-header"><div><h5 class="modal-title" id="aftercareCancelTitle">Cancel maintenance visit?</h5><p class="small text-muted mb-0 mt-2" id="aftercareCancelReference"></p></div><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="cw-form-error d-none" id="aftercareCancelError" role="alert"></div>
+      <dl class="aftercare-booking-summary"><div><dt>Aircon</dt><dd id="aftercareCancelEquipment"></dd></div></dl>
+      <div class="aftercare-booking-note"><strong>Only this visit will be cancelled</strong><p>Your aircon details, saved address, and warranty stay available. You can request maintenance again later.</p></div>
+      <label class="form-label mt-3" for="aftercareCancelReason">Why are you cancelling?</label>
+      <textarea class="form-control" id="aftercareCancelReason" rows="3" minlength="10" maxlength="500" required aria-describedby="aftercareCancelReasonHelp" placeholder="For example, I will not be home on the visit date."></textarea>
+      <div class="form-text" id="aftercareCancelReasonHelp">Enter 10 to 500 characters.</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Keep visit</button><button class="btn btn-danger" id="aftercareCancelSubmit" type="submit">Cancel visit</button></div>
+  </form></div>
+</div>
+
+<!-- Leaflet for selecting a service map pin is loaded by the main layout. -->
+<script src="/js/maintenance-customer.js?v=20261011-aftercare-not-now" defer></script>

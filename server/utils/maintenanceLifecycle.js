@@ -3,6 +3,7 @@ const CustomerAsset = require("../models/CustomerAsset");
 const RelocationRequest = require("../models/RelocationRequest");
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
 const { getAftercarePolicy } = require("./aftercarePolicy");
+const { normalizeServiceLocation } = require("./maintenanceLocation");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_INTERVAL_DAYS = 90;
@@ -75,6 +76,7 @@ function bookingAssetSeeds(booking) {
           unitLabel: item.units?.[unitIndex - 1]?.label || `Unit ${unitIndex}`,
         },
         serviceAddress: item.relocation?.to?.address || booking.location?.address || booking.customer?.address || "",
+        serviceLocation: normalizeServiceLocation(item.relocation?.to || booking.location),
       });
     }
   });
@@ -110,6 +112,7 @@ function orderAssetSeeds(order) {
           unitLabel: `Unit ${unitIndex}`,
         },
         serviceAddress: order.delivery?.address || "",
+        serviceLocation: normalizeServiceLocation(order.delivery),
       });
     }
   });
@@ -160,7 +163,6 @@ async function upsertAsset(seed, values) {
     {
       $set: {
         equipment: seed.equipment,
-        serviceAddress: seed.serviceAddress,
       },
       $setOnInsert: {
         customerId: seed.customerId,
@@ -169,6 +171,8 @@ async function upsertAsset(seed, values) {
         originId: seed.originId,
         originReference: seed.originReference,
         originItemKey: seed.originItemKey,
+        serviceAddress: seed.serviceAddress,
+        serviceLocation: seed.serviceLocation,
         lastServiceDate: values.lastServiceDate || null,
         installationDate: values.installationDate || null,
         maintenanceIntervalDays: values.intervalDays,
@@ -185,7 +189,7 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
   const maintenanceRule = policy.maintenance;
   const completedAt = booking.completedAt || booking.repairCompletion?.completedAt || new Date();
   const recommendedInterval = maintenanceRule.allowTechnicianRecommendation
-    ? options.intervalDays
+    ? (options.intervalDays ?? booking.maintenance?.nextRecommendedDays)
     : null;
   const intervalDays = clampIntervalDays(recommendedInterval || maintenanceRule.bookingIntervalDays);
   const recommendation = {
@@ -215,7 +219,7 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
         _id: move.assetId, customerId: customerIdOf(booking),
         "serviceHistory.bookingId": { $ne: booking._id },
       }, {
-        $set: { serviceAddress: move.to?.address || "", lastServiceDate: completedAt, status: "active" },
+        $set: { serviceAddress: move.to?.address || "", serviceLocation: normalizeServiceLocation(move.to), lastServiceDate: completedAt, status: "active" },
         $push: { serviceHistory: event },
       }, { returnDocument: "after" });
       const asset = updated || await CustomerAsset.findOne({ _id: move.assetId, customerId: customerIdOf(booking) });
@@ -240,7 +244,9 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
     );
     const asset = await CustomerAsset.findByIdAndUpdate(
       booking.maintenance.assetId,
-      { lastServiceDate: completedAt, maintenanceIntervalDays: intervalDays, status: "active" },
+      { lastServiceDate: completedAt, maintenanceIntervalDays: intervalDays, status: "active",
+        ...(booking.location?.address ? { serviceAddress: booking.location.address, serviceLocation: normalizeServiceLocation(booking.location) } : {}),
+      },
       { returnDocument: "after" },
     );
     if (asset && maintenanceRule.bookingsEnabled) {
@@ -292,7 +298,7 @@ async function syncMaintenanceFromOrder(order, options = {}) {
   return assets;
 }
 
-async function linkScheduleToBooking({ scheduleId, bookingId, customerId, session = null }) {
+async function linkScheduleToBooking({ scheduleId, bookingId, customerId, session = null, actorId = customerId, actorName = "Customer" }) {
   const schedule = await MaintenanceSchedule.findOneAndUpdate(
     {
       _id: scheduleId,
@@ -305,9 +311,9 @@ async function linkScheduleToBooking({ scheduleId, bookingId, customerId, sessio
         bookingId,
         status: "scheduled",
         "customerResponse.acknowledgedAt": new Date(),
-        "customerResponse.acknowledgedBy": customerId,
+        "customerResponse.acknowledgedBy": actorId,
       },
-      $push: { history: { status: "scheduled", changedBy: customerId, changedByName: "Customer", reason: "Customer created maintenance booking" } },
+      $push: { history: { status: "scheduled", changedBy: actorId, changedByName: actorName, reason: "Maintenance booking created" } },
     },
     { returnDocument: "after", ...(session ? { session } : {}) },
   ).populate("assetId");
@@ -317,6 +323,25 @@ async function linkScheduleToBooking({ scheduleId, bookingId, customerId, sessio
     throw error;
   }
   return schedule;
+}
+
+async function reopenScheduleAfterBookingCancellation(booking, { session = null, actorId = null,
+  actorName = "Maintenance Monitor", now = new Date(), Schedule = MaintenanceSchedule } = {}) {
+  if (!booking?._id || !["cancelled", "repair_declined"].includes(booking.status)) return null;
+  const filter = { bookingId: booking._id, status: "scheduled",
+    ...(booking.customerId ? { customerId: booking.customerId } : {}),
+    ...(booking.maintenance?.scheduleId ? { _id: booking.maintenance.scheduleId } : {}) };
+  const query = Schedule.findOne(filter).select("_id dueDate");
+  if (session) query.session(session);
+  const schedule = await query.lean();
+  if (!schedule) return null;
+  const status = effectiveScheduleStatus({ dueDate: schedule.dueDate, status: "upcoming" }, now);
+  return Schedule.findOneAndUpdate({ ...filter, _id: schedule._id }, {
+    $set: { bookingId: null, status, "customerResponse.status": "none",
+      "customerResponse.remindAt": null, "customerResponse.reminderSentAt": null },
+    $push: { history: { status, changedBy: actorId, changedByName: actorName,
+      reason: `Maintenance visit cancelled; reminder reopened${booking.cancellationReason ? `: ${booking.cancellationReason}` : ""}` } },
+  }, { returnDocument: "after", ...(session ? { session } : {}) });
 }
 
 module.exports = {
@@ -330,4 +355,5 @@ module.exports = {
   syncMaintenanceFromBooking,
   syncMaintenanceFromOrder,
   linkScheduleToBooking,
+  reopenScheduleAfterBookingCancellation,
 };

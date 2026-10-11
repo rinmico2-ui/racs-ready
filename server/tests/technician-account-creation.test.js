@@ -24,7 +24,7 @@ function response() {
 function fixture(options = {}) {
   let users = new Map(), techs = new Map(), secretaries = new Map();
   let sessions = 0, rollbacks = 0, ended = 0;
-  const emails = [], events = [];
+  const emails = [], events = [], errors = [], deletions = [];
   const query = value => ({ session() { return this; }, select() { return this; }, then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); } });
   const matches = (doc, filter) => Object.entries(filter).every(([key, value]) => value && typeof value === "object" && "$ne" in value ? String(doc[key]) !== String(value.$ne) : String(doc[key]) === String(value));
   class FakeUsers {
@@ -41,7 +41,20 @@ function fixture(options = {}) {
     }
     static findOne(filter) { return query([...users.values()].find(doc => matches(doc, filter)) || null); }
     static findById(id) { return query(users.get(String(id)) || null); }
+    static findOneAndUpdate(filter, update) {
+      if (options.invitationUpdateConflict) return query(null);
+      const doc = [...users.values()].find(doc => matches(doc, filter));
+      if (doc) Object.assign(doc, update.$set);
+      return query(doc || null);
+    }
     static exists(filter) { return query([...users.values()].some(doc => matches(doc, filter))); }
+    static async deleteOne(filter) {
+      deletions.push({ model: "User", filter });
+      if (options.cleanupError) throw options.cleanupError;
+      const doc = [...users.values()].find(doc => matches(doc, filter));
+      if (doc) users.delete(String(doc._id));
+      return { deletedCount: doc ? 1 : 0 };
+    }
   }
   class FakeTechs {
     constructor(values) {
@@ -57,6 +70,13 @@ function fixture(options = {}) {
     static findOne(filter) { return query([...techs.values()].find(doc => matches(doc, filter)) || null); }
     static findById(id) { return query(techs.get(String(id)) || null); }
     static exists(filter) { return query([...techs.values()].some(doc => matches(doc, filter))); }
+    static async deleteOne(filter) {
+      deletions.push({ model: "Technician", filter });
+      if (options.profileCleanupError) throw options.profileCleanupError;
+      const doc = [...techs.values()].find(doc => matches(doc, filter));
+      if (doc) techs.delete(String(doc._id));
+      return { deletedCount: doc ? 1 : 0 };
+    }
   }
   class FakeSecretaries {
     constructor(values) {
@@ -70,13 +90,23 @@ function fixture(options = {}) {
       return doc;
     }
     static findOne(filter) { return query([...secretaries.values()].find(doc => matches(doc, filter)) || null); }
+    static async deleteOne(filter) {
+      deletions.push({ model: "Secretary", filter });
+      if (options.profileCleanupError) throw options.profileCleanupError;
+      const doc = [...secretaries.values()].find(doc => matches(doc, filter));
+      if (doc) secretaries.delete(String(doc._id));
+      return { deletedCount: doc ? 1 : 0 };
+    }
   }
   const controller = createController({
     User: FakeUsers, Technician: FakeTechs, Secretary: FakeSecretaries,
+    connection: options.standalone ? { getClient: () => ({ topology: { description: { servers: new Map([["db", { type: "Standalone" }]]) } } }) } : {},
+    reportError: error => errors.push(error),
     startSession: async () => {
       sessions++;
       return {
         async withTransaction(work) {
+          if (options.transactionError) throw options.transactionError;
           const beforeUsers = [...users.values()].map(doc => doc.toObject());
           const beforeTechs = [...techs.values()].map(doc => doc.toObject());
           const beforeSecretaries = [...secretaries.values()].map(doc => doc.toObject());
@@ -95,7 +125,7 @@ function fixture(options = {}) {
     sendMail: async mail => { emails.push(mail); if (options.mailFails) throw new Error("SMTP unavailable"); return options.queued ? { queued: true } : { messageId: "accepted" }; },
     logEvent: async event => { events.push(event); },
   });
-  return { controller, emails, events, options, get users() { return [...users.values()]; }, get techs() { return [...techs.values()]; }, get secretaries() { return [...secretaries.values()]; }, get sessions() { return sessions; }, get ended() { return ended; }, get rollbacks() { return rollbacks; },
+  return { controller, emails, events, errors, deletions, options, get users() { return [...users.values()]; }, get techs() { return [...techs.values()]; }, get secretaries() { return [...secretaries.values()]; }, get sessions() { return sessions; }, get ended() { return ended; }, get rollbacks() { return rollbacks; },
     async seedUser(values) { const user = new FakeUsers({ firstName: "Existing", lastName: "Person", phone: "09171234567", passwordHash: "existing", ...values }); await user.save(); return user; },
     async seedTech(values) { const tech = new FakeTechs({ name: "Juan Dela Cruz", userEmail: "tech@gmail.com", phone: "09171234567", ...values }); await tech.save(); return tech; },
   };
@@ -347,6 +377,122 @@ test("new and existing technician forms explain password setup and expose recove
 });
 
 const staffPayload = { role: "technician", firstName: "Juan Miguel", lastName: "Dela Cruz", email: "staff@gmail.com", phone: "09171234567", locationText: "Quezon City" };
+
+for (const role of ["technician", "secretary"]) {
+  for (const mode of ["known standalone", "unsupported transaction"]) {
+    test(`${role} creation works with ${mode}, keeping one linked profile and a usable invitation`, async () => {
+      const f = fixture(mode === "known standalone" ? { standalone: true } : {
+        transactionError: Object.assign(new Error("Transaction numbers are only allowed on a replica set member or mongos"), { code: 20 }),
+      }), res = response();
+      await f.controller.createStaff(request({ ...staffPayload, role }), res);
+      assert.equal(res.statusCode, 201);
+      assert.equal(f.users.length, 1);
+      assert.equal(f.techs.length + f.secretaries.length, 1);
+      assert.equal(f.sessions, mode === "known standalone" ? 0 : 1);
+      assert.equal(f.ended, f.sessions);
+      const profile = role === "technician" ? f.techs[0] : f.secretaries[0];
+      assert.equal(String(profile.user), String(f.users[0]._id));
+      const token = f.emails[0].text.match(/token=([a-f0-9]{64})/)[1];
+      assert.equal(f.users[0].invitationTokenHash, hashInvitationToken(token));
+      assert.equal(await f.users[0].comparePassword("Password1!"), false);
+      assert.equal(isAccountEnabled(f.users[0]), false);
+      const repeated = response();
+      await f.controller.createStaff(request({ ...staffPayload, role }), repeated);
+      assert.equal(repeated.statusCode, 409);
+      assert.equal(f.emails.length, 1);
+      assert.equal(f.deletions.length, 0);
+    });
+  }
+
+  test(`${role} standalone profile failure cleans only its own invitation account`, async () => {
+    const f = fixture({ standalone: true, [role === "technician" ? "techSaveError" : "secretarySaveError"]: new Error("profile write failed") });
+    const unrelated = await f.seedUser({ email: "existing@gmail.com", role: "customer" }), res = response();
+    await f.controller.createStaff(request({ ...staffPayload, role }), res);
+    assert.equal(res.statusCode, 500);
+    assert.equal(f.users.length, 1);
+    assert.equal(String(f.users[0]._id), String(unrelated._id));
+    assert.equal(f.techs.length + f.secretaries.length, 0);
+    assert.equal(f.emails.length, 0);
+    assert.equal(f.deletions[0].model, role === "technician" ? "Technician" : "Secretary");
+    const filter = f.deletions[1].filter;
+    assert.equal(filter.email, "staff@gmail.com");
+    assert.equal(filter.role, role);
+    assert.equal(filter.accountStatus, "invited");
+    assert.equal(filter.emailVerified, false);
+    assert.ok(filter.invitationTokenHash);
+    assert.equal(String(filter._id), String(f.deletions[0].filter.user));
+  });
+}
+
+test("legacy technician creation also supports standalone MongoDB", async () => {
+  const f = fixture({ standalone: true }), res = response();
+  await f.controller.create(request(), res);
+  assert.equal(res.statusCode, 201);
+  assert.equal(f.techs.length, 1);
+  assert.equal(f.users.length, 1);
+  assert.equal(f.sessions, 0);
+});
+
+test("staff creation never retries arbitrary transaction failures as ordinary writes", async () => {
+  const f = fixture({ transactionError: Object.assign(new Error("connection lost mongodb://secret:password@server"), { code: 91 }) }), res = response();
+  await f.controller.createStaff(request(staffPayload), res);
+  assert.equal(res.statusCode, 500);
+  assert.equal(f.users.length, 0);
+  assert.equal(f.emails.length, 0);
+  assert.equal(f.deletions.length, 0);
+  assert.equal(f.errors[0].errorCode, 91);
+  assert.doesNotMatch(JSON.stringify(f.errors) + JSON.stringify(res.body), /secret|password|connection lost/);
+});
+
+test("failed standalone cleanup returns a reviewable uncertain result instead of inviting a partial account", async () => {
+  const f = fixture({ standalone: true, secretarySaveError: new Error("profile failed"), cleanupError: new Error("delete failed") }), res = response();
+  await f.controller.createStaff(request({ ...staffPayload, role: "secretary" }), res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.code, "STAFF_CREATION_UNCERTAIN");
+  assert.match(res.body.error, /Check the staff list/);
+  assert.equal(f.users.length, 1);
+  assert.equal(f.emails.length, 0);
+});
+
+for (const role of ["technician", "secretary"]) {
+  test(`${role} setup email resend works on standalone without a transaction and guards concurrent changes`, async () => {
+    const f = fixture({ standalone: true }), created = response();
+    await f.controller.createStaff(request({ ...staffPayload, role }), created);
+    f.users[0].invitationLastSentAt = new Date(Date.now() - 61_000);
+    const id = String(f.users[0]._id), previousHash = f.users[0].invitationTokenHash;
+    f.options.invitationUpdateConflict = true;
+    const conflict = response();
+    await f.controller.inviteStaff(request({}, id), conflict);
+    assert.equal(conflict.statusCode, 409);
+    assert.equal(conflict.body.code, "STAFF_INVITATION_CHANGED");
+    assert.equal(f.emails.length, 1);
+    assert.equal(f.users[0].invitationTokenHash, previousHash);
+    f.options.invitationUpdateConflict = false;
+    const resent = response();
+    await f.controller.inviteStaff(request({}, id), resent);
+    assert.equal(resent.statusCode, 200);
+    assert.equal(f.emails.length, 2);
+    assert.equal(f.users.length, 1);
+    assert.notEqual(f.users[0].invitationTokenHash, previousHash);
+    assert.equal(f.sessions, 0);
+    const limited = response();
+    await f.controller.inviteStaff(request({}, id), limited);
+    assert.equal(limited.statusCode, 429);
+    assert.equal(f.emails.length, 2);
+  });
+}
+
+test("standalone duplicate-key races never clean an existing account or send an invitation", async () => {
+  const f = fixture({ standalone: true });
+  const unrelated = await f.seedUser({ email: "existing@gmail.com", role: "customer" });
+  f.options.userSaveError = Object.assign(new Error("duplicate email race"), { code: 11000 });
+  const res = response();
+  await f.controller.createStaff(request(staffPayload), res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(f.users.length, 1);
+  assert.equal(String(f.users[0]._id), String(unrelated._id));
+  assert.equal(f.emails.length, 0);
+});
 
 test("staff creation accepts only explicit staff roles and validates location before writes", async () => {
   for (const change of [{ role: "admin" }, { role: "customer" }, { role: "" }, { firstName: {} }, { email: "not-email" }, { phone: "" }, { location: { type: "Point", coordinates: [190, 14] } }]) {

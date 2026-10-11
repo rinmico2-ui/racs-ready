@@ -15,6 +15,7 @@ const audit = require("../utils/audit");
 const EquipmentAssignment = require("../models/EquipmentAssignment");
 const Tool = require("../models/Tool");
 const EquipmentUsageLog = require("../models/EquipmentUsageLog");
+const technicianToolsService = require("../utils/technicianToolsService").createService();
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const { buildServicePreparation } = require('../utils/servicePreparation');
 const {
@@ -5061,6 +5062,7 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
  * Only allowed for COD bookings with remaining balance.
  */
 router.post("/assignments/:id/collect-payment", async (req, res, next) => {
+  let maintenancePaymentSession = null;
   try {
     const Assignment = require("../models/Assignment");
     const BookingService = require("../models/BookingService");
@@ -5075,9 +5077,22 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     if (!["in_progress", "completed"].includes(assignment.status)) {
       return res.status(400).json({ error: "Payment can only be collected after work has started." });
     }
-    const booking = await BookingService.findById(assignment.bookingId);
+    let booking = await BookingService.findById(assignment.bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
-    const existingPayments = await Payment.find({ bookingId: booking._id }).lean();
+    if (booking.maintenance?.isMaintenance && booking.maintenance?.paymentOnSite) {
+      maintenancePaymentSession = await mongoose.startSession();
+      maintenancePaymentSession.startTransaction();
+      booking = await BookingService.findById(assignment.bookingId).session(maintenancePaymentSession);
+      if (!booking || ["cancelled", "repair_declined"].includes(booking.status)) {
+        return res.status(409).json({ error: "This maintenance visit can no longer receive payment." });
+      }
+      const activeAssignment = await Assignment.findOne({ _id: id, technicianId: tech._id,
+        status: { $in: ["in_progress", "completed"] }, bookingId: booking._id }).session(maintenancePaymentSession);
+      if (!activeAssignment) return res.status(409).json({ error: "The assignment changed. Refresh before collecting payment." });
+    }
+    const paymentQuery = Payment.find({ bookingId: booking._id });
+    if (maintenancePaymentSession) paymentQuery.session(maintenancePaymentSession);
+    const existingPayments = await paymentQuery.lean();
     const { reconcileBookingPayments } = require("../utils/paymentSummary");
     const reconciliation = reconcileBookingPayments(booking, existingPayments);
     const hasTraceableMismatch = reconciliation.hasLedgerMismatch && existingPayments.length > 0;
@@ -5122,7 +5137,7 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
       });
     }
     const now = new Date();
-    const payment = await Payment.create({
+    const paymentData = {
       bookingId: booking._id, amount: value, method: paymentMethod, type: due > value ? "downpayment" : "final",
       gateway: paymentMethod === "cash" ? "cod" : paymentMethod, status: "waiting_for_remittance",
       reference: String(reference || "").trim() || undefined, proofUrl: proofUrl || undefined,
@@ -5133,7 +5148,10 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
         { status: "payment_collected", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now, metadata: { method: paymentMethod, reference: reference || null } },
         { status: "waiting_for_remittance", actor: req.user._id, actorName: tech.name, actorRole: "technician", at: now }
       ]
-    });
+    };
+    const payment = maintenancePaymentSession
+      ? (await Payment.create([paymentData], { session: maintenancePaymentSession }))[0]
+      : await Payment.create(paymentData);
     booking.amountPaid = (hasTraceableMismatch ? reconciliation.ledgerCollected : Number(booking.amountPaid || 0)) + value;
     booking.balanceAmount = Math.max(0, due - value);
     booking.balanceCollected = booking.balanceAmount === 0;
@@ -5157,7 +5175,8 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     }
     booking.paymentStatus = "waiting_for_remittance";
     booking.statusHistory.push({ toStatus: booking.status, changedBy: tech._id, changedByModel: "Technician", changedByName: tech.name, reason: "Payment Collected", notes: `Waiting for Remittance (${paymentMethod})`, timestamp: now, metadata: { paymentId: payment._id, paymentStatus: "waiting_for_remittance" } });
-    await booking.save();
+    await booking.save(maintenancePaymentSession ? { session: maintenancePaymentSession } : undefined);
+    if (maintenancePaymentSession) await maintenancePaymentSession.commitTransaction();
     return res.status(201).json({
       message: "Payment recorded. Waiting for admin remittance verification.",
       paymentId: payment._id,
@@ -5168,7 +5187,16 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
       repairPaymentAmount: booking.repairPaymentAmount,
       amountPaid: booking.amountPaid,
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (maintenancePaymentSession?.inTransaction()) await maintenancePaymentSession.abortTransaction().catch(() => {});
+    if (maintenancePaymentSession && (err.code === 112 || err.hasErrorLabel?.("TransientTransactionError"))) {
+      return res.status(409).json({ error: "The payment changed while saving. Refresh to check it before trying again." });
+    }
+    next(err);
+  } finally {
+    if (maintenancePaymentSession?.inTransaction()) await maintenancePaymentSession.abortTransaction().catch(() => {});
+    if (maintenancePaymentSession) await maintenancePaymentSession.endSession();
+  }
 });
 
 router.post("/assignments/:id/collect-payment-legacy", async (req, res, next) => {
@@ -6125,67 +6153,63 @@ router.get("/tools/assigned/history", async (req, res, next) => {
 
 router.get("/equipment-usage", async (req, res, next) => {
   try {
-    const tech = await Technician.findOne({ user: req.user._id }).lean();
-    if (!tech) return res.json({ items: [] });
-
-    const filter = { technicianId: tech._id };
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: "Technician profile not found." });
+    const filter = { technicianId: { $in: technicianIds } };
     if (req.query.from || req.query.to) {
       filter.date = {};
-      if (req.query.from) filter.date.$gte = new Date(req.query.from);
-      if (req.query.to) { const to = new Date(req.query.to); to.setHours(23, 59, 59, 999); filter.date.$lte = to; }
+      for (const [key, operator] of [["from", "$gte"], ["to", "$lte"]]) {
+        if (!req.query[key]) continue;
+        const date = new Date(req.query[key]);
+        if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "Choose valid dates for the usage log." });
+        if (key === "to") date.setHours(23, 59, 59, 999);
+        filter.date[operator] = date;
+      }
     }
-
-    const items = await EquipmentUsageLog.find(filter)
-      .populate("equipmentId", "itemName assetCode category specification")
-      .sort({ date: -1, createdAt: -1 })
-      .limit(200)
-      .lean();
-
-    res.json({ items, count: items.length });
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const { start, end } = require("../utils/technicianToolsService").usageDay(today);
+    const [items, todayCount] = await Promise.all([
+      EquipmentUsageLog.find(filter).populate("equipmentId", "itemName assetCode").sort({ date: -1, createdAt: -1 }).limit(200).lean(),
+      EquipmentUsageLog.countDocuments({ ...filter, date: { $gte: start, $lt: end } }),
+    ]);
+    return res.json({ items, count: items.length, todayCount });
   } catch (err) { next(err); }
+});
+
+router.get("/tools/usage-options", async (req, res, next) => {
+  try {
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: "Technician profile not found." });
+    const items = await technicianToolsService.usageOptions(technicianIds, req.query.date);
+    return res.json({ items });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.post("/equipment-usage", async (req, res, next) => {
   try {
-    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
     if (!tech) return res.status(404).json({ error: "Technician profile not found." });
-
-    const { equipmentId, date, notes } = req.body;
-    if (!equipmentId) return res.status(400).json({ error: "Select an equipment item." });
-    if (!date) return res.status(400).json({ error: "Select a date." });
-
-    const equipment = await Tool.findById(equipmentId).lean();
-    if (!equipment) return res.status(404).json({ error: "Equipment not found." });
-
-    const logDate = new Date(date);
-    logDate.setHours(0, 0, 0, 0);
-
-    const log = await EquipmentUsageLog.create({
-      technicianId: tech._id,
-      equipmentId: equipment._id,
-      equipmentName: equipment.itemName,
-      equipmentCode: equipment.assetCode || "",
-      date: logDate,
-      notes: String(notes || "").trim().slice(0, 500),
-      createdBy: req.user._id,
-    });
-
-    res.status(201).json({ message: "Equipment usage logged.", item: log });
-  } catch (err) { next(err); }
+    const item = await technicianToolsService.logUsage({ ...req.body, technicianId: tech._id, technicianIds, userId: req.user._id });
+    return res.status(201).json({ message: "Equipment use saved.", item });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.delete("/equipment-usage/:id", async (req, res, next) => {
   try {
-    const tech = await Technician.findOne({ user: req.user._id }).lean();
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Choose a valid usage record." });
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
     if (!tech) return res.status(404).json({ error: "Technician profile not found." });
-
-    const log = await EquipmentUsageLog.findOneAndDelete({ _id: req.params.id, technicianId: tech._id });
-    if (!log) return res.status(404).json({ error: "Log not found." });
-
-    res.json({ message: "Log deleted." });
+    const log = await EquipmentUsageLog.findOneAndDelete({ _id: req.params.id, technicianId: { $in: technicianIds } });
+    if (!log) return res.status(404).json({ error: "Usage record not found." });
+    return res.json({ message: "Usage record deleted." });
   } catch (err) { next(err); }
 });
-
 // ═════════════════════════════════════════════════════════════════════════════
 // LIVE TRACKING — Location Feed
 // ═════════════════════════════════════════════════════════════════════════════
@@ -10375,67 +10399,20 @@ router.post("/daily-kit/consume", async (req, res, next) => {
 router.post("/daily-kit/return", async (req, res, next) => {
   try {
     const DailyKit = require("../models/DailyKit");
-    const EquipmentAssignment = require("../models/EquipmentAssignment");
-    const Tool = require("../models/Tool");
-
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const { itemName } = req.body;
-    if (!itemName) return res.status(400).json({ error: "itemName required" });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const kit = await DailyKit.findOne({
-      technicianId: tech._id,
-      workDate: { $gte: today, $lt: nextDay },
-    });
-
-    if (!kit) return res.status(404).json({ error: "No daily kit found for today" });
-
-    const item = kit.items.find(i => i.name === itemName && i.category === "equipment");
-    if (!item) return res.status(404).json({ error: "Equipment item not found in kit" });
-
-    // Return equipment assignments
-    const eqAssignments = await EquipmentAssignment.find({
-      technicianId: tech._id,
-      equipmentName: itemName,
-      status: { $in: ["checked_out", "in_use"] },
-      $or: [
-        { dailyKitId: kit._id },
-        { _id: { $in: item.custodyAssignmentIds || [] } },
-      ],
-    });
-
-    const now = new Date();
-    for (const eq of eqAssignments) {
-      eq.status = "returned";
-      eq.returnedAt = now;
-      await eq.save();
-    }
-
-    // Return to inventory
-    if (item.toolId) {
-      const tool = await Tool.findById(item.toolId);
-      if (tool) {
-        tool.quantity = Number(tool.quantity || 0) + item.quantity;
-        tool.checkedOutQuantity = Math.max(0, Number(tool.checkedOutQuantity || 0) - item.quantity);
-        tool.assetStatus = tool.checkedOutQuantity > 0 ? "checked_out" : "available";
-        await tool.save();
-      }
-    }
-
-    item.checkoutStatus = "returned";
-    item.returnedAt = now;
-    await kit.save();
-
-    return res.json({ success: true, item });
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: "Technician record not found." });
+    const { start, end } = dailyKitDayBounds(req.body.date || new Date());
+    const kit = await DailyKit.findOne({ technicianId: tech._id, workDate: { $gte: start, $lt: end } }).lean();
+    if (!kit) return res.status(404).json({ error: "No Daily Kit found for this date." });
+    const item = [...(kit.items || []), ...(kit.deltaItems || [])].find(row => row.name === req.body.itemName && row.category === "equipment");
+    if (!item) return res.status(404).json({ error: "Equipment item not found in the kit." });
+    const records = await EquipmentAssignment.find({ technicianId: { $in: technicianIds }, equipmentId: item.toolId, consumable: { $ne: true }, status: { $in: ["checked_out", "in_use"] }, $or: [{ dailyKitId: kit._id }, { _id: { $in: item.custodyAssignmentIds || [] } }] }).select("_id").lean();
+    if (!records.length) return res.status(409).json({ error: "This equipment was already returned or was not issued from company stock." });
+    await technicianToolsService.returnEquipment({ assignmentIds: records.map(row => row._id), technicianIds, userId: req.user._id, condition: "good" });
+    return res.json({ success: true, item: { ...item, checkoutStatus: "returned" } });
   } catch (err) {
-    console.error("Daily kit return error:", err);
-    return res.status(500).json({ error: "Server error" });
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
   }
 });
 
@@ -11353,16 +11330,21 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
 router.get("/equipment", async (req, res, next) => {
   try {
     const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-    const items = await EquipmentAssignment.find({ technicianId: { $in: technicianIds.map(id => new mongoose.Types.ObjectId(id)) } })
-      .populate("bookingId", "bookingReference customer service bookingDate")
-      .populate("equipmentId", "itemName barcode quantity status")
-      .sort({ createdAt: -1 })
-      .lean();
-    res.json({ items });
+    if (!tech) return res.status(404).json({ error: "Technician record not found." });
+    const populate = query => query
+      .populate({ path: "bookingId", select: "bookingReference workOrderNumber customerId service bookingDate status", populate: [{ path: "customerId", select: "name" }, { path: "service", select: "name" }] })
+      .populate("orderIds", "orderReference orderNumber status")
+      .populate({ path: "projectId", select: "bookingId service.name customer.name", populate: { path: "bookingId", select: "bookingReference workOrderNumber" } })
+      .populate("dailyKitId", "workDate")
+      .populate("equipmentId", "itemName barcode assetCode");
+    const base = { technicianId: { $in: technicianIds }, consumable: { $ne: true } };
+    const [active, history] = await Promise.all([
+      populate(EquipmentAssignment.find({ ...base, status: { $in: ["reserved", "checked_out", "in_use"] } })).sort({ createdAt: -1 }).lean(),
+      populate(EquipmentAssignment.find({ ...base, status: { $nin: ["reserved", "checked_out", "in_use"] } })).sort({ returnedAt: -1, createdAt: -1 }).limit(200).lean(),
+    ]);
+    return res.json({ items: [...active, ...history], historyLimit: 200 });
   } catch (err) { next(err); }
 });
-
 /**
  * GET /api/technician/equipment/:bookingId
  * List equipment assigned to a booking for the authenticated technician.
@@ -11436,55 +11418,15 @@ router.post("/equipment/:assignmentId/checkout", async (req, res, next) => {
  */
 router.post("/equipment/:assignmentId/return", async (req, res, next) => {
   try {
-    const { assignmentId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(assignmentId)) return res.status(400).json({ error: "Invalid id" });
     const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const { condition = "good", damageDescription = "", damagePhoto = "" } = req.body;
-    const allowedConditions = ["good", "fair", "damaged", "lost"];
-    if (!allowedConditions.includes(condition)) return res.status(400).json({ error: "Invalid condition" });
-
-    const assignment = await EquipmentAssignment.findById(assignmentId);
-    if (!assignment) return res.status(404).json({ error: "Equipment assignment not found" });
-    if (!technicianIds.includes(String(assignment.technicianId || ""))) {
-      return res.status(403).json({ error: "Not assigned to you" });
-    }
-    if (assignment.status !== "checked_out" && assignment.status !== "in_use") {
-      return res.status(400).json({ error: "Equipment is not checked out" });
-    }
-
-    const tool = await Tool.findById(assignment.equipmentId);
-    assignment.condition = condition;
-    assignment.damageDescription = damageDescription;
-    assignment.damagePhoto = damagePhoto;
-    assignment.returnedAt = new Date();
-    assignment.returnedTo = String(req.user._id);
-
-    if (condition === "good" || condition === "fair") {
-      if (tool) {
-        tool.quantity += assignment.quantity;
-        tool.checkedOutQuantity = Math.max(0, (tool.checkedOutQuantity || 0) - assignment.quantity);
-        tool.assetCondition = condition;
-        tool.assetStatus = tool.checkedOutQuantity > 0 ? 'checked_out' : 'available';
-      }
-      assignment.status = "returned";
-    } else if (condition === "damaged" || condition === "lost") {
-      assignment.status = condition;
-      if (tool) {
-        tool.checkedOutQuantity = Math.max(0, (tool.checkedOutQuantity || 0) - assignment.quantity);
-        tool.assetCondition = 'damaged';
-        tool.assetStatus = condition === 'damaged' ? 'damaged' : 'retired';
-        tool.assignable = false;
-      }
-    }
-
-    if (tool) await tool.save();
-    await assignment.save();
-    res.json({ success: true, assignment });
-  } catch (err) { next(err); }
+    if (!tech) return res.status(404).json({ error: "Technician record not found." });
+    const [assignment] = await technicianToolsService.returnEquipment({ assignmentIds: [req.params.assignmentId], technicianIds, userId: req.user._id, condition: req.body.condition || "good", damageDescription: req.body.damageDescription || "" });
+    return res.json({ success: true, assignment });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
-
 // ═════════════════════════════════════════════════════════════════════════════
 // Repair-part reservations (technician initiated)
 // ═════════════════════════════════════════════════════════════════════════════

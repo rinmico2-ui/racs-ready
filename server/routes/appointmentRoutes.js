@@ -37,6 +37,8 @@ const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity")
 const { buildCalendarBookingDateRange } = require("../utils/calendarDateRange");
 const { parseOperationsCalendarRange } = require("../utils/operationsCalendarRange");
 const { cancelBookingRecord } = require("../utils/bookingLifecycle");
+const { isAftercareBooking, cancelCustomerMaintenance, attachMaintenanceCancellation } = require("../utils/maintenanceCancellation");
+const { reopenScheduleAfterBookingCancellation } = require("../utils/maintenanceLifecycle");
 const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
 const { releaseReservedEquipment } = require("../utils/equipmentAssignmentLifecycle");
 const {
@@ -806,6 +808,7 @@ router.get("/", auth.authenticate, async (req, res) => {
         console.warn("Customer booking project-status lookup unavailable");
       }
     }
+    if (req.user.role === "customer") customerItems = await attachMaintenanceCancellation(customerItems);
     const items = customerItems.map(presenter);
     return res.json({
       items,
@@ -2396,7 +2399,7 @@ router.post(
 router.get("/:id", auth.authenticate, async (req, res) => {
   try {
     const id = req.params.id;
-    const appt = await BookingService.findById(id)
+    let appt = await BookingService.findById(id)
       .populate("serviceId")
       .populate("customerId", "firstName lastName email phone mobile address")
       .populate("technicianId", "firstName lastName phone location availabilityStatus")
@@ -2548,6 +2551,7 @@ router.get("/:id", auth.authenticate, async (req, res) => {
       }
     }
 
+    if (req.user.role === "customer") [appt] = await attachMaintenanceCancellation([appt]);
     const appointment = req.user.role === "customer"
       ? presentCustomerBooking(appt)
       : req.user.role === "technician"
@@ -2764,7 +2768,7 @@ router.post(
     try {
       const id = req.params.id;
       const { reason } = req.body;
-      const appt = await BookingService.findById(id);
+      let appt = await BookingService.findById(id);
       if (!appt)
         return res.status(404).json({ error: "Appointment not found" });
 
@@ -2778,6 +2782,7 @@ router.post(
         String(appt.customer) === String(req.user.email)
       );
 
+      const customerMaintenance = !isAdmin && !isSecretary && isAftercareBooking(appt);
       // Only allow cancellation if:
       // 1. User is admin or secretary, OR
       // 2. User is the customer AND appointment is pending
@@ -2785,7 +2790,7 @@ router.post(
         if (!isCustomer) {
           return res.status(403).json({ error: "You can only cancel your own appointments" });
         }
-        if (appt.status !== "pending") {
+        if (!customerMaintenance && appt.status !== "pending") {
           return res.status(400).json({ error: "Only pending appointments can be cancelled" });
         }
       }
@@ -2803,12 +2808,24 @@ router.post(
         }
       }
 
-      const cancellation = cancelBookingRecord(appt, {
-        actorId: req.user._id,
-        actorName: req.user.name || req.user.email || req.user.role,
-        reason,
-      });
-      await appt.save();
+      let cancellation;
+      if (customerMaintenance) {
+        if (req.user.role !== "customer") return res.status(403).json({ error: "Forbidden" });
+        const result = await cancelCustomerMaintenance({ bookingId: id, customerId: req.user._id,
+          actorName: req.user.name || "Customer", reason });
+        appt = result.booking;
+        cancellation = result.cancellation;
+      } else {
+        cancellation = cancelBookingRecord(appt, {
+          actorId: req.user._id,
+          actorName: req.user.name || req.user.email || req.user.role,
+          reason,
+        });
+        await appt.save();
+        await reopenScheduleAfterBookingCancellation(appt, {
+          actorId: req.user._id, actorName: req.user.name || req.user.role,
+        });
+      }
 
       if (cancellation.changed) {
         const Assignment = require("../models/Assignment");

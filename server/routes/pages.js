@@ -4010,6 +4010,17 @@ router.get("/admin/maintenance", pageAuth.requireRole("admin"), (req, res) => {
   res.render("pages/admin/Maintenance/Maintenance", {
     title: "Maintenance Management",
     layout: "layouts/admin",
+    maintenanceStaffRole: "admin",
+    maintenanceCanManage: true,
+  });
+});
+
+router.get("/secretary/maintenance", pageAuth.requireRole("secretary"), (req, res) => {
+  res.render("pages/admin/Maintenance/Maintenance", {
+    title: "Maintenance Management",
+    layout: "layouts/secretary",
+    maintenanceStaffRole: "secretary",
+    maintenanceCanManage: (res.locals.effectivePermissions || []).includes("appointments.manage"),
   });
 });
 

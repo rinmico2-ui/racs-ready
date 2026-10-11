@@ -1,14 +1,21 @@
 <link rel="stylesheet" href="/css/relocation-requests.css?v=20261007-v1">
-<main class="rr-page">
-  <header class="rr-head">
-    <div><span class="rr-eyebrow">Customer services</span><h1>Aircon relocation</h1><p>Track a move between addresses, review the quote, then continue to booking and payment.</p></div>
-    <a class="rr-button rr-button-light" href="/services"><i class="bi bi-arrow-left"></i> Browse services</a>
+<link rel="stylesheet" href="/css/customer-service-workspace.css?v=20261010-customer-care-v2">
+<section class="rr-page rr-customer customer-workspace">
+  <header class="cw-header">
+    <div class="cw-header-copy"><span class="cw-header-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span><div><span class="cw-eyebrow">CUSTOMER SERVICES</span><h1>Relocation requests</h1><p>Review your quote and follow your aircon move from one address to another.</p></div></div>
+    <div class="cw-header-actions"><a class="cw-button cw-button-primary" href="/services"><i class="bi bi-plus-lg" aria-hidden="true"></i>Browse services</a></div>
   </header>
-  <div class="rr-steps" aria-label="Relocation process"><span>1. Staff reviews locations</span><span>2. You approve the quote</span><span>3. Pay and book</span><span>4. Technician completes the move</span></div>
+  <nav class="cw-page-nav" aria-label="Customer services"><a href="/book-history">My bookings</a><a href="/unit-assistance">Unit requests</a><a href="/relocation-requests" aria-current="page">Relocation requests</a><a href="/aftercare">Maintenance</a></nav>
+  <details class="rr-guide"><summary><span><i class="bi bi-info-circle" aria-hidden="true"></i>How an aircon move works</span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+  <ol class="rr-process" aria-label="How relocation works"><li><span>1</span><div><strong>Staff reviews</strong><small>We check your locations</small></div></li><li><span>2</span><div><strong>Review your quote</strong><small>See the price before booking</small></div></li><li><span>3</span><div><strong>Book and pay</strong><small>Choose your schedule</small></div></li><li><span>4</span><div><strong>We move your aircon</strong><small>Your technician completes the move</small></div></li></ol>
+  </details>
   <div id="relocationMessage" class="rr-message" role="status" aria-live="polite" hidden></div>
   <section class="rr-panel" aria-labelledby="relocationTitle">
-    <div class="rr-section-head"><div><h2 id="relocationTitle">Your requests</h2><p>The same-property estimate applies only to nearby moves at one address.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button></div>
-    <div id="relocationList" class="rr-list" aria-live="polite"><p class="rr-muted">Loading requests…</p></div>
+    <div class="rr-section-head"><div><h2 id="relocationTitle">Your requests</h2><p>Quotes, locations, and the next step for each move.</p></div><button class="rr-button rr-button-light" type="button" id="relocationRefresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button></div>
+    <div class="cw-toolbar"><label class="cw-search"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search relocation requests</span><input id="relocationCustomerSearch" type="search" placeholder="Search request or address" autocomplete="off"></label><label class="cw-filter"><span class="visually-hidden">Request status</span><select id="relocationCustomerStatus"><option value="">All requests</option><option value="pending_review">Needs review</option><option value="assessment_needed">Site check needed</option><option value="quoted">Waiting for your decision</option><option value="accepted">Quote accepted</option><option value="converted">Booking submitted</option><option value="completed">Completed</option><option value="declined">Declined</option><option value="cancelled">Cancelled</option></select></label></div>
+    <p class="cw-result-count" id="relocationCustomerCount" aria-live="polite">Loading requests...</p>
+    <div id="relocationList" class="rr-list" aria-live="polite" aria-busy="true"><div class="cw-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><p>Loading your requests...</p></div></div>
+    <div class="cw-empty" id="relocationCustomerFilteredEmpty" hidden><i class="bi bi-search" aria-hidden="true"></i><h3>No matching requests</h3><p>Try another name, address, or status.</p><button class="cw-button cw-button-secondary" id="relocationCustomerClear" type="button">Clear filters</button></div>
   </section>
-</main>
-<script src="/js/relocation-requests.js?v=20261007-v1" defer></script>
+</section>
+<script src="/js/relocation-requests.js?v=20261010-customer-care-v2" defer></script>

@@ -1035,7 +1035,7 @@
         'amber',
         hasPendingReschedule,
       ));
-      if (status === 'pending') actions.push(actionButton('cancel', 'bi-x-circle', 'Cancel Booking', 'Cancel this request and provide a reason.', 'red'));
+      if (b.customerCanCancelMaintenance === true || (status === 'pending' && b.customerCanCancelMaintenance !== false)) actions.push(actionButton('cancel', 'bi-x-circle', 'Cancel Booking', 'Cancel this request and provide a reason.', 'red'));
       if (status === 'repair_approved') actions.push(actionButton('schedule-repair', 'bi-calendar-plus', 'Schedule Repair', 'Choose preferred repair dates.', 'purple'));
       if (b.maintenanceSummary || b.maintenance?.isMaintenance) {
         actions.push(`<a class="bh-modal-action bh-modal-action--green" href="/maintenance"><span class="bh-modal-action-icon"><i class="bi bi-calendar2-check"></i></span><span class="bh-modal-action-copy"><strong>View Maintenance</strong><small>Open your maintenance schedule.</small></span><i class="bi bi-chevron-right bh-modal-action-arrow"></i></a>`);

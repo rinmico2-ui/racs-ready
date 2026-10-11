@@ -1,0 +1,11 @@
+.maintenance-location-summary { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem; border:1px solid #dce5e0; border-radius:12px; background:#f8faf9; }
+.maintenance-address-search { position:relative; }
+#maintenanceAddressSuggestions { position:absolute; top:100%; left:0; right:0; z-index:1100; max-height:220px; overflow:auto; margin-top:4px; border:1px solid #dce5e0; border-radius:10px; box-shadow:0 8px 24px #142b1f14; }
+#maintenanceBookingMap { height:220px; border:1px solid #dce5e0; border-radius:12px; z-index:0; }
+.maintenance-payment-summary { padding:1rem; border:1px solid #cce3d6; border-radius:12px; background:#f1faf5; color:#24583d; font-size:.875rem; }
+.maintenance-payment-summary strong { font-size:1.1rem; }
+.maintenance-pin { display:block; width:22px; height:22px; background:#198754; border:3px solid #fff; border-radius:50% 50% 50% 0; transform:rotate(-45deg); box-shadow:0 2px 6px #0004; }
+#maintenanceBookingModal .modal-footer { gap:.5rem; }
+#maintenanceBookingModal .modal-footer .btn { margin:0; }
+#maintenanceBookingModal #maintenanceBookingCustomer { color:#cbd5e1 !important; }
+@media(max-width:575.98px) { .maintenance-location-summary { align-items:flex-start; flex-direction:column; } #maintenanceBookingModal .modal-footer .btn { flex:1 1 100%; } }

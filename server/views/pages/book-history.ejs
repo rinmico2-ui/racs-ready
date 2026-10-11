@@ -6,22 +6,17 @@
   data-aos="fade-up"
   data-aos-duration="800"
 >
-  <!-- Premium Header -->
-  <div class="bh-header-premium mb-4" data-aos="fade-up" data-aos-duration="800">
-    <div class="bh-header-glow"></div>
-    <div class="d-flex justify-content-between align-items-center position-relative" style="z-index:2;">
-      <div class="d-flex align-items-center gap-3">
-        <div class="bh-avatar-premium">
-          <i class="bi bi-calendar-check-fill"></i>
-        </div>
-        <div>
-          <h1 class="bh-title">My Bookings</h1>
-          <p class="bh-subtitle">Track active services, review history, and manage available next steps</p>
-        </div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap"><a href="/unit-assistance" class="btn btn-sm btn-light">Unit Requests</a><a href="/relocation-requests" class="btn btn-sm btn-light"><i class="bi bi-geo-alt me-1"></i>Relocation Requests</a><a href="/maintenance" class="btn btn-sm btn-light"><i class="bi bi-calendar2-check me-1"></i>My Maintenance</a></div>
+  <header class="bh-header-premium mb-4">
+    <div class="bh-header-copy">
+      <div class="bh-avatar-premium"><i class="bi bi-calendar-check-fill" aria-hidden="true"></i></div>
+      <div><h1 class="bh-title">My Bookings</h1><p class="bh-subtitle">Track your services and manage your next steps.</p></div>
     </div>
-  </div>
+    <nav class="bh-quick-links" aria-label="More customer services">
+      <a href="/unit-assistance" class="bh-quick-link"><span class="bh-quick-icon"><i class="bi bi-snow2" aria-hidden="true"></i></span><span><strong>Unit requests</strong><small>Get help with your aircon</small></span><i class="bi bi-chevron-right bh-quick-arrow" aria-hidden="true"></i></a>
+      <a href="/relocation-requests" class="bh-quick-link"><span class="bh-quick-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span><span><strong>Relocation requests</strong><small>Track your aircon move</small></span><i class="bi bi-chevron-right bh-quick-arrow" aria-hidden="true"></i></a>
+      <a href="/aftercare" class="bh-quick-link"><span class="bh-quick-icon"><i class="bi bi-calendar2-check" aria-hidden="true"></i></span><span><strong>My maintenance</strong><small>Service care and warranty</small></span><i class="bi bi-chevron-right bh-quick-arrow" aria-hidden="true"></i></a>
+    </nav>
+  </header>
 
   <!-- Premium Filter Card -->
   <div class="bh-filter-card mb-4" data-aos="fade-up" data-aos-duration="800" data-aos-delay="100">
@@ -3062,5 +3057,6 @@
     }
   </style>
 
+<link rel="stylesheet" href="/css/customer-service-workspace.css?v=20261010-customer-care-v2">
 <script src="/js/enterprise-calendar.js?v=20261001-project-date-guide-v1"></script>
-<script src="/js/book-history.js?v=20261010-cancellation-validation"></script>
+<script src="/js/book-history.js?v=20261011-maintenance-cancellation"></script>

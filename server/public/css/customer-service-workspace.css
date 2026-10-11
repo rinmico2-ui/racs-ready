@@ -1,0 +1,1730 @@
+/* Shared customer service pages and booking shortcuts. */
+.cw-form-error {
+  border:1px solid #fecaca;
+  border-radius:8px;
+  padding:11px 13px;
+  background:#fff1f2;
+  color:#b91c1c;
+  font-size:12px;
+  line-height:1.6;
+  margin-bottom:16px;
+}
+.customer-workspace {
+  --cw-ink:#172b4d;
+  --cw-muted:#64748b;
+  --cw-border:#e3e9f1;
+  max-width:1180px;
+  margin:0 auto;
+  padding:36px 24px 64px;
+  color:var(--cw-ink);
+  min-height:65vh;
+}
+.customer-workspace [hidden] {
+  display:none!important;
+}
+.cw-header {
+  background:transparent;
+  border-radius:0;
+  padding:0 0 26px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+  color:#172b4d;
+  margin-bottom:0;
+  box-shadow:none;
+}
+.cw-header-copy {
+  display:flex;
+  align-items:center;
+  gap:16px;
+  min-width:0;
+}
+.cw-header-icon {
+  width:56px;
+  height:56px;
+  display:grid;
+  place-items:center;
+  background:#e9f5ef;
+  border:1px solid #d7ebdf;
+  border-radius:16px;
+  flex-shrink:0;
+  font-size:25px;
+  color:#15803d;
+}
+.cw-eyebrow {
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.12em;
+  color:#15803d;
+}
+.cw-header h1 {
+  font-size:30px;
+  font-weight:750;
+  letter-spacing:-.8px;
+  line-height:1.25;
+  color:#172b4d;
+  margin:5px 0 8px;
+}
+.cw-header p {
+  font-size:14px;
+  color:#64748b;
+  line-height:1.7;
+  margin:0;
+  max-width:600px;
+}
+.cw-header-actions {
+  display:flex;
+  gap:9px;
+  flex-wrap:wrap;
+  flex-shrink:0;
+}
+.cw-button {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:11px 16px;
+  border:1px solid transparent;
+  border-radius:8px;
+  font-size:13px;
+  font-weight:650;
+  min-height:44px;
+  text-decoration:none;
+  line-height:1.5;
+  cursor:pointer;
+  transition:background .15s,border-color .15s;
+}
+.cw-button-primary {
+  background:#15803d;
+  color:white;
+  border-color:#15803d;
+}
+.cw-button-primary:hover {
+  background:#116b33;
+  color:white;
+}
+.cw-button-secondary {
+  background:white;
+  color:#42526b;
+  border-color:#dce4ef;
+}
+.cw-button-secondary:hover {
+  background:#f5f8fc;
+  color:#172b4d;
+}
+.cw-button-ghost {
+  background:#ffffff0d;
+  border-color:#ffffff35;
+  color:white;
+}
+.cw-button-ghost:hover {
+  background:#ffffff1a;
+  color:white;
+}
+.cw-button:disabled {
+  opacity:.6;
+  cursor:wait;
+}
+.customer-workspace :where(button,a,input,select,textarea,summary):focus-visible,.bh-quick-link:focus-visible {
+  outline:3px solid #93c5fd;
+  outline-offset:3px;
+}
+.book-history-premium .bh-header-copy {
+  display:flex;
+  align-items:center;
+  gap:18px;
+  position:relative;
+  min-width:0;
+}
+.book-history-premium .bh-quick-links {
+  position:relative;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-top:26px;
+  padding-top:22px;
+  border-top:1px solid #e3e9f1;
+}
+.book-history-premium .bh-quick-link {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:68px;
+  padding:13px 16px;
+  background:#f8fafc;
+  border:1px solid #e3e9f1;
+  border-radius:10px;
+  color:#172b4d;
+  text-decoration:none;
+  box-shadow:none;
+  transition:background .15s,border-color .15s;
+}
+.book-history-premium .bh-quick-link:hover {
+  background:#eef7f1;
+  border-color:#b4d6c1;
+  box-shadow:none;
+}
+.bh-quick-icon {
+  display:grid;
+  place-items:center;
+  flex:0 0 38px;
+  width:38px;
+  height:38px;
+  border-radius:10px;
+  background:#e9f5ef;
+  color:#15803d;
+  font-size:19px;
+}
+.bh-quick-link>span:nth-child(2) {
+  min-width:0;
+  flex:1;
+}
+.bh-quick-link strong {
+  display:block;
+  font-size:13px;
+  line-height:1.5;
+  font-weight:650;
+}
+.bh-quick-link small {
+  display:block;
+  font-size:11px;
+  line-height:1.6;
+  margin-top:2px;
+  color:#64748b;
+}
+.bh-quick-arrow {
+  font-size:10px;
+  color:#94a3b8;
+}
+.cw-toolbar {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:18px 22px;
+  background:white;
+}
+.cw-search {
+  position:relative;
+  flex:1;
+  max-width:460px;
+  margin:0;
+}
+.cw-search>i {
+  position:absolute;
+  left:13px;
+  top:13px;
+  color:#94a3b8;
+  font-size:14px;
+}
+.cw-search input,.cw-filter select {
+  height:42px;
+  border:1px solid #dce4ef;
+  border-radius:8px;
+  font-size:13px;
+  background:white;
+  color:#42526b;
+  width:100%;
+}
+.cw-search input {
+  padding:10px 13px 10px 37px;
+}
+.cw-search input::placeholder {
+  color:#94a3b8;
+}
+.cw-filter {
+  margin:0 0 0 auto;
+  min-width:180px;
+}
+.cw-filter select {
+  padding:9px 12px;
+}
+.cw-result-count {
+  font-size:12px;
+  color:#64748b;
+  margin:0;
+  padding:0 22px 18px;
+  background:white;
+}
+.cw-empty {
+  padding:48px 22px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  color:#8090a6;
+  min-height:220px;
+  background:white;
+  border-radius:12px;
+}
+.cw-empty>i {
+  font-size:25px;
+  background:#f3f6fa;
+  border-radius:14px;
+  padding:17px;
+  margin-bottom:15px;
+}
+.cw-empty h3 {
+  font-size:15px;
+  font-weight:650;
+  color:#42526b;
+  margin:0 0 8px;
+}
+.cw-empty p {
+  font-size:12px;
+  max-width:420px;
+  line-height:1.7;
+  margin:8px 0 17px;
+}
+.rr-customer .rr-process {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  list-style:none;
+  margin:0;
+  padding:0 20px 20px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  gap:20px;
+}
+.rr-process li {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  min-width:0;
+}
+.rr-process li>span {
+  display:grid;
+  place-items:center;
+  width:28px;
+  height:28px;
+  flex-shrink:0;
+  background:#eff5ff;
+  color:#2563eb;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:700;
+}
+.rr-process strong {
+  font-size:12px;
+  color:#42526b;
+  display:block;
+  line-height:1.5;
+  font-weight:650;
+}
+.rr-process small {
+  display:block;
+  font-size:11px;
+  line-height:1.6;
+  margin-top:3px;
+  color:#64748b;
+}
+.rr-customer .rr-panel {
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+}
+.rr-customer .rr-section-head {
+  background:white;
+  border:1px solid #e3e9f1;
+  border-bottom:1px solid #edf1f6;
+  border-radius:13px 13px 0 0;
+  margin:0;
+  padding:21px 22px;
+}
+.rr-customer .rr-section-head h2 {
+  font-size:19px;
+  letter-spacing:-.3px;
+  color:#243651;
+  margin:0 0 5px;
+}
+.rr-customer .rr-section-head p {
+  font-size:13px;
+  color:#64748b;
+  margin:0;
+}
+.rr-customer .cw-toolbar,.rr-customer .cw-result-count {
+  border-inline:1px solid #e3e9f1;
+}
+.rr-customer .cw-result-count {
+  border-bottom:1px solid #e3e9f1;
+  border-radius:0 0 13px 13px;
+}
+.rr-customer .rr-list {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:18px;
+  margin-top:24px;
+}
+.rr-customer .rr-card {
+  padding:0;
+  border:1px solid #e3e9f1;
+  border-radius:14px;
+  overflow:hidden;
+  background:white;
+  box-shadow:0 2px 4px #172b4d04;
+  display:flex;
+  flex-direction:column;
+}
+.rr-customer .rr-card-head {
+  padding:22px 24px;
+  margin:0;
+  border-bottom:1px solid #edf1f6;
+  gap:16px;
+  align-items:center;
+}
+.rr-customer .rr-card h3 {
+  font-size:17px;
+  line-height:1.5;
+  font-weight:650;
+  color:#243651;
+  margin:4px 0;
+}
+.rr-customer .rr-request-id {
+  display:block;
+  color:#64748b;
+  font-size:11px;
+  font-weight:650;
+  letter-spacing:.04em;
+}
+.rr-customer .rr-card-head small {
+  font-size:12px;
+  line-height:1.6;
+  color:#64748b;
+}
+.rr-customer .rr-badge {
+  border:1px solid transparent;
+  border-radius:20px;
+  padding:6px 11px;
+  font-size:11px;
+  font-weight:600;
+  white-space:normal;
+  max-width:190px;
+  line-height:1.5;
+  flex-shrink:0;
+  background:#eff5ff;
+  color:#2563eb;
+}
+.rr-customer .rr-badge.is-pending_review,.rr-customer .rr-badge.is-assessment_needed,.rr-customer .rr-badge.is-quoted {
+  background:#fff7e8;
+  color:#a16207;
+}
+.rr-customer .rr-badge.is-accepted,.rr-customer .rr-badge.is-converted,.rr-customer .rr-badge.is-completed {
+  background:#edf8f0;
+  color:#15803d;
+}
+.rr-customer .rr-badge.is-declined,.rr-customer .rr-badge.is-cancelled {
+  background:#f3f5f8;
+  color:#718198;
+}
+.rr-customer .rr-card-body {
+  padding:24px;
+  flex:1;
+  min-width:0;
+}
+.rr-customer .rr-route {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:24px;
+  margin:0 0 22px;
+  position:relative;
+}
+.rr-customer .rr-location {
+  position:relative;
+  padding:0 0 0 20px;
+  background:none;
+  border:0;
+  border-radius:0;
+  min-width:0;
+}
+.rr-customer .rr-location:last-child {
+  padding-bottom:0;
+}
+.rr-customer .rr-location:before {
+  content:'';
+  position:absolute;
+  width:9px;
+  height:9px;
+  left:0;
+  top:5px;
+  border:2px solid #2563eb;
+  border-radius:50%;
+  background:white;
+  z-index:1;
+}
+.rr-customer .rr-location:first-child:after {
+  display:none;
+}
+.rr-customer .rr-location:last-child:before {
+  border-color:#15803d;
+  background:#15803d;
+}
+.rr-customer .rr-location span {
+  font-size:11px;
+  font-weight:600;
+  text-transform:none;
+  letter-spacing:0;
+  color:#64748b;
+  margin:0 0 6px;
+}
+.rr-customer .rr-location strong {
+  font-size:13px;
+  line-height:1.7;
+  font-weight:600;
+  color:#334155;
+  overflow-wrap:anywhere;
+}
+.rr-customer .rr-location small {
+  font-size:12px;
+  line-height:1.6;
+  color:#64748b;
+  display:block;
+  margin-top:4px;
+  overflow-wrap:anywhere;
+}
+.rr-customer .rr-unit-summary {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:0;
+  background:none;
+  border:0;
+  border-radius:0;
+  margin-bottom:13px;
+}
+.rr-unit-summary>i {
+  color:#6483a9;
+  line-height:1.6;
+}
+.rr-unit-summary strong {
+  display:block;
+  font-size:13px;
+  line-height:1.7;
+  font-weight:600;
+  color:#42526b;
+}
+.rr-unit-summary small {
+  display:block;
+  color:#64748b;
+  font-size:11px;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.rr-customer .rr-details {
+  font-size:12px;
+  line-height:1.7;
+  color:#64748b;
+  margin:8px 0 0;
+  overflow-wrap:anywhere;
+}
+.rr-customer .rr-quote {
+  padding:20px;
+  background:#f4f9f6;
+  border:1px solid #dfece4;
+  margin:0;
+  border-radius:10px;
+  align-self:start;
+  min-width:0;
+}
+.rr-customer .rr-quote-title {
+  display:block;
+  font-size:12px;
+  font-weight:650;
+  color:#52647c;
+  margin-bottom:7px;
+}
+.rr-customer .rr-quote-row {
+  font-size:12px;
+  line-height:1.6;
+  border-color:#e8edf4;
+  padding:7px 0;
+  color:#64748b;
+}
+.rr-customer .rr-quote-row strong {
+  font-weight:600;
+  color:#42526b;
+}
+.rr-customer .rr-quote-total {
+  font-size:15px;
+  color:#172b4d;
+  padding-top:12px;
+  gap:12px;
+}
+.rr-customer .rr-card-footer {
+  padding:17px 24px;
+  background:#fcfdfe;
+  border-top:1px solid #edf1f6;
+}
+.rr-customer .rr-card-footer .rr-actions {
+  margin-top:0;
+}
+.rr-customer .rr-card-footer>.rr-details+.rr-actions {
+  margin-top:12px;
+}
+.rr-customer .rr-card-footer:empty {
+  display:none;
+}
+.rr-customer .rr-button {
+  border-radius:8px;
+  font-size:13px;
+  font-weight:600;
+  min-height:44px;
+  white-space:normal;
+  line-height:1.5;
+  background:#15803d;
+  border-color:#15803d;
+  padding:10px 16px;
+}
+.rr-customer .rr-button:hover {
+  background:#116b33;
+}
+.rr-customer .rr-button-light {
+  color:#52647c;
+  background:white;
+  border-color:#dce4ef;
+}
+.rr-customer .rr-button-light:hover {
+  background:#f5f8fc;
+  color:#243651;
+}
+.rr-customer .rr-empty {
+  grid-column:1/-1;
+  border:1px solid #e3e9f1;
+  padding:48px 24px;
+  border-radius:13px;
+  font-size:12px;
+  line-height:1.7;
+  background:white;
+}
+.rr-customer .rr-empty strong {
+  display:block;
+  color:#42526b;
+  font-size:15px;
+  margin-bottom:8px;
+}
+.rr-customer .rr-empty p {
+  color:#7d8ba0;
+}
+.rr-customer .rr-empty>i {
+  font-size:25px;
+  display:block;
+  margin-bottom:12px;
+  color:#94a3b8;
+}
+.rr-customer .rr-loading {
+  grid-column:1/-1;
+  padding:45px;
+  text-align:center;
+  background:white;
+  border:1px solid #e3e9f1;
+  border-radius:13px;
+  font-size:12px;
+  color:#7d8ba0;
+}
+.rr-loading-spinner {
+  display:inline-block;
+  width:16px;
+  height:16px;
+  border:2px solid #dce7f5;
+  border-top-color:#2563eb;
+  border-radius:50%;
+  vertical-align:middle;
+  margin-right:9px;
+  animation:cw-spin .8s linear infinite;
+}
+.rr-customer .rr-message {
+  font-size:12px;
+  line-height:1.6;
+  border-radius:9px;
+}
+.aftercare-customer .aftercare-kpis {
+  gap:14px;
+  margin:0 0 28px;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.aftercare-customer .maintenance-kpi {
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  column-gap:14px;
+  row-gap:5px;
+  align-items:center;
+  padding:20px;
+  border-color:#e3e9f1;
+  border-radius:12px;
+  min-height:104px;
+  box-shadow:none;
+}
+.aftercare-customer .maintenance-kpi:before {
+  display:none;
+}
+.aftercare-customer .maintenance-kpi:hover {
+  transform:none;
+  border-color:#b7c9e2;
+  box-shadow:0 3px 10px #172b4d07;
+}
+.cw-stat-icon {
+  display:grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  border-radius:11px;
+  font-size:19px;
+  margin:0;
+  grid-row:1/3;
+}
+.cw-blue {
+  color:#2563eb;
+  background:#eff5ff;
+}
+.cw-green {
+  color:#15803d;
+  background:#edf8f0;
+}
+.cw-amber {
+  color:#a16207;
+  background:#fff7e8;
+}
+.cw-purple {
+  color:#7c3aed;
+  background:#f4f0ff;
+}
+.aftercare-customer .maintenance-kpi-label {
+  font-size:12px;
+  letter-spacing:0;
+  text-transform:none;
+  font-weight:500;
+  color:#64748b;
+  line-height:1.5;
+}
+.aftercare-customer .maintenance-kpi-value {
+  font-size:27px;
+  font-weight:750;
+  line-height:1.2;
+  margin:0;
+  color:#172b4d;
+  grid-column:2;
+}
+.aftercare-workspace {
+  background:transparent;
+  border:0;
+  border-radius:0;
+  overflow:visible;
+  box-shadow:none;
+}
+.aftercare-workspace-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:0 0 20px;
+  border-bottom:1px solid #e3e9f1;
+  gap:12px;
+}
+.aftercare-customer .aftercare-tabs {
+  margin:0;
+  border:1px solid #e3e9f1;
+  padding:4px;
+  background:#eef2f6;
+  gap:4px;
+  border-radius:10px;
+  width:auto;
+}
+.aftercare-customer .aftercare-tab {
+  position:relative;
+  border-radius:7px;
+  min-height:40px;
+  padding:10px 16px;
+  box-shadow:none;
+  background:transparent;
+  color:#64748b;
+  font-weight:600;
+  font-size:13px;
+  gap:8px;
+}
+.aftercare-customer .aftercare-tab.active {
+  background:white;
+  color:#15803d;
+  box-shadow:0 1px 3px #172b4d12;
+}
+.aftercare-customer .aftercare-tab.active:after {
+  display:none;
+}
+.aftercare-customer .aftercare-panel {
+  padding:26px 0;
+}
+.aftercare-customer .aftercare-section-head {
+  margin-bottom:20px;
+}
+.aftercare-customer .aftercare-section-head h2 {
+  font-size:19px;
+  font-weight:650;
+  color:#243651;
+}
+.aftercare-customer .aftercare-section-head p {
+  font-size:13px;
+  line-height:1.7;
+  margin:6px 0 0;
+  color:#64748b;
+}
+.aftercare-customer .asset-grid,.aftercare-customer .warranty-records {
+  gap:17px;
+}
+.aftercare-customer .asset-card,.aftercare-customer .warranty-record {
+  border:1px solid #e3e9f1;
+  border-radius:14px;
+  box-shadow:0 2px 4px #172b4d04;
+  overflow:hidden;
+  min-width:0;
+}
+.aftercare-customer .asset-card-head {
+  padding:22px;
+  gap:13px;
+  background:white;
+  align-items:flex-start;
+  border-bottom:1px solid #edf1f6;
+}
+.aftercare-customer .asset-icon {
+  display:grid;
+  place-items:center;
+  background:#e9f5ef;
+  color:#15803d;
+  box-shadow:none;
+  border-radius:12px;
+  width:42px;
+  height:42px;
+  flex-shrink:0;
+}
+.aftercare-customer .maintenance-primary {
+  font-size:15px;
+  font-weight:650;
+  color:#243651;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.aftercare-customer .maintenance-secondary {
+  font-size:12px;
+  color:#64748b;
+  line-height:1.7;
+  margin-top:5px;
+  overflow-wrap:anywhere;
+}
+.aftercare-customer .maintenance-status {
+  border-radius:20px;
+  border:0;
+  font-weight:600;
+  font-size:10px;
+  padding:5px 9px;
+  line-height:1.5;
+  white-space:normal;
+  max-width:125px;
+  flex-shrink:0;
+}
+.aftercare-customer .asset-card-body {
+  padding:22px;
+}
+.aftercare-customer .asset-meta {
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px;
+  margin:18px 0 0;
+}
+.aftercare-customer .asset-meta>div:last-child {
+  grid-column:1/-1;
+}
+.aftercare-customer .asset-meta-label {
+  font-size:11px;
+  text-transform:none;
+  letter-spacing:0;
+  font-weight:500;
+  color:#64748b;
+  margin-bottom:5px;
+}
+.aftercare-customer .asset-meta-value {
+  font-size:12px;
+  line-height:1.7;
+  color:#42526b;
+  font-weight:500;
+  overflow-wrap:anywhere;
+}
+.aftercare-customer .maintenance-cycle {
+  border:0;
+  border-radius:0;
+  background:none;
+  padding:0;
+  margin:0;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:18px;
+}
+.aftercare-customer .maintenance-cycle-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-start;
+}
+.aftercare-customer .maintenance-cycle-actions .btn {
+  border-radius:8px;
+  min-height:42px;
+  font-size:12px;
+  font-weight:600;
+  padding:9px 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1.5;
+  white-space:normal;
+  margin:0!important;
+}
+.aftercare-customer .btn-primary {
+  background:#15803d;
+  border-color:#15803d;
+}
+.aftercare-customer .btn-primary:hover {
+  background:#116b33;
+  border-color:#116b33;
+}
+.aftercare-customer .btn-outline-primary {
+  background:white;
+  color:#42526b;
+  border-color:#dce4ef;
+}
+.aftercare-customer .btn-outline-primary:hover {
+  background:#edf5ff;
+  color:#243651;
+  border-color:#b7c9e2;
+}
+.aftercare-customer .btn.btn-outline-primary.btn-sm {
+  border:1px solid #dce4ef;
+  color:#42526b;
+  box-shadow:none;
+  transition:background .15s,border-color .15s;
+}
+.aftercare-customer .btn.btn-outline-primary.btn-sm:hover {
+  border-color:#b7c9e2;
+  background:#edf5ff;
+  color:#243651;
+  box-shadow:none;
+  transform:none;
+}
+.aftercare-customer .maintenance-status.installation_date_required {
+  background:#fff7e8;
+  color:#a16207;
+}
+.aftercare-customer .btn-outline-secondary {
+  color:#718198;
+  background:white;
+  border-color:#dce4ef;
+}
+.aftercare-customer .btn-outline-secondary:hover {
+  background:#f1f5f9;
+  color:#42526b;
+}
+.aftercare-customer .aftercare-response-state {
+  font-size:10px;
+  padding:8px 10px;
+  border-radius:7px;
+  line-height:1.6;
+  margin-top:10px;
+}
+.aftercare-customer .warranty-record>header {
+  padding:18px;
+  border-bottom:1px solid #edf1f6;
+  gap:12px;
+  align-items:flex-start;
+  background:white;
+}
+.aftercare-customer .warranty-record h3 {
+  font-size:16px;
+  line-height:1.6;
+  margin:4px 0;
+  color:#243651;
+  overflow-wrap:anywhere;
+}
+.aftercare-customer .warranty-record header p {
+  font-size:12px;
+  color:#64748b;
+  margin:0;
+}
+.aftercare-customer .aftercare-record-type {
+  font-size:11px;
+  color:#64748b;
+  letter-spacing:.05em;
+}
+.aftercare-customer .warranty-record-body {
+  padding:8px 18px 18px;
+}
+.aftercare-customer .warranty-coverage-row,.aftercare-customer .warranty-claim-row {
+  gap:14px;
+  padding:13px 0;
+  border-color:#edf1f6;
+}
+.aftercare-customer .warranty-coverage-row strong,.aftercare-customer .warranty-claim-row strong {
+  font-size:13px;
+  font-weight:600;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.aftercare-customer .warranty-coverage-row span:not(.maintenance-status),.aftercare-customer .warranty-claim-row span:not(.maintenance-status) {
+  font-size:12px;
+  line-height:1.7;
+  color:#64748b;
+}
+.aftercare-customer .warranty-record>footer {
+  padding:13px 18px;
+  gap:12px;
+  background:#fcfdfe;
+  border-color:#edf1f6;
+}
+.aftercare-customer .warranty-record footer .btn {
+  min-height:38px;
+  white-space:normal;
+  border-radius:8px;
+  font-size:11px;
+}
+.aftercare-customer .maintenance-empty {
+  border:0;
+  border-radius:0;
+  padding:42px 20px;
+  background:white;
+  font-size:12px;
+  line-height:1.7;
+  color:#7d8ba0;
+}
+.aftercare-customer .aftercare-alert {
+  font-size:12px;
+  font-weight:500;
+  line-height:1.7;
+  flex-wrap:wrap;
+  border-radius:9px;
+}
+#installationDateModal .modal-content,#aftercareResponseModal .modal-content,#aftercareBookingModal .modal-content,#aftercareCancelModal .modal-content {
+  border:1px solid #e3e9f1;
+  border-radius:15px;
+  box-shadow:0 20px 65px #172b4d22;
+  overflow:hidden;
+}
+#installationDateModal .modal-header,#aftercareResponseModal .modal-header,#aftercareBookingModal .modal-header,#aftercareCancelModal .modal-header {
+  padding:22px;
+  border-bottom:1px solid #edf1f6;
+  align-items:flex-start;
+}
+#installationDateModal .modal-title,#aftercareResponseModal .modal-title,#aftercareBookingModal .modal-title,#aftercareCancelModal .modal-title {
+  font-size:19px;
+  font-weight:700;
+  color:#243651;
+}
+#installationDateModal .modal-body,#aftercareResponseModal .modal-body,#aftercareBookingModal .modal-body,#aftercareCancelModal .modal-body {
+  padding:22px;
+}
+#installationDateModal .form-label,#aftercareResponseModal .form-label,#aftercareBookingModal .form-label,#aftercareCancelModal .form-label {
+  font-size:12px;
+  color:#52647c;
+  font-weight:600;
+}
+#installationDateModal .form-control,#aftercareResponseModal .form-control,#aftercareBookingModal .form-control,#aftercareCancelModal .form-control {
+  font-size:14px;
+  min-height:44px;
+  border-color:#dce4ef;
+  border-radius:8px;
+}
+#installationDateModal .modal-footer,#aftercareResponseModal .modal-footer,#aftercareBookingModal .modal-footer,#aftercareCancelModal .modal-footer {
+  padding:15px 22px;
+  background:#fbfcfe;
+  border-color:#edf1f6;
+}
+#installationDateModal .btn,#aftercareResponseModal .btn,#aftercareBookingModal .btn,#aftercareCancelModal .btn {
+  font-size:12px;
+  min-height:42px;
+  border-radius:8px;
+  font-weight:600;
+}
+#installationDateModal .btn-primary,#aftercareResponseModal .btn-primary,#aftercareBookingModal .btn-primary,#aftercareCancelModal .btn-primary {
+  background:#15803d;
+  border-color:#15803d;
+}
+#installationDateModal .btn-outline-secondary,#aftercareResponseModal .btn-outline-secondary,#aftercareBookingModal .btn-outline-secondary,#aftercareCancelModal .btn-outline-secondary {
+  color:#52647c;
+  background:white;
+  border-color:#dce4ef;
+}
+@keyframes cw-spin {
+  to {
+    transform:rotate(360deg);
+  }
+}
+
+
+.aftercare-more-options {
+  flex:1 1 100%;
+  border-top:1px solid #edf1f6;
+  margin-top:6px;
+  padding-top:12px;
+}
+.aftercare-more-options>summary {
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  min-height:44px;
+  gap:12px;
+  color:#64748b;
+  font-size:12px;
+  cursor:pointer;
+}
+.aftercare-more-options>summary::-webkit-details-marker {
+  display:none;
+}
+.aftercare-more-options[open]>summary i {
+  transform:rotate(180deg);
+}
+.aftercare-extra-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding-top:8px;
+}
+.aftercare-booking-summary {
+  display:grid;
+  gap:18px;
+  margin:0 0 22px;
+}
+.aftercare-booking-summary dt {
+  font-size:12px;
+  color:#64748b;
+  font-weight:500;
+  margin-bottom:5px;
+}
+.aftercare-booking-summary dd {
+  font-size:14px;
+  color:#243651;
+  line-height:1.7;
+  margin:0;
+  overflow-wrap:anywhere;
+}
+.aftercare-booking-note {
+  padding:16px;
+  background:#f4f9f6;
+  border:1px solid #dfece4;
+  border-radius:10px;
+}
+.aftercare-location-field {
+  position:relative;
+  margin-bottom:14px;
+}
+.aftercare-location-explanation {
+  padding:14px 16px;
+  background:#f0f5f9;
+  border:1px solid #dfe7ef;
+  border-radius:10px;
+  margin-bottom:18px;
+}
+.aftercare-location-explanation strong {
+  font-size:13px;
+  color:#243651;
+}
+.aftercare-location-explanation p {
+  font-size:12px;
+  line-height:1.7;
+  color:#52647c;
+  margin:7px 0 0;
+}
+#aftercareBookingModal [hidden] {
+  display:none!important;
+}
+.aftercare-saved-location {
+  padding:16px;
+  border:1px solid #dfece4;
+  border-radius:10px;
+  background:#f4f9f6;
+  margin-bottom:20px;
+}
+.aftercare-saved-location span {
+  font-size:12px;
+  color:#64748b;
+}
+.aftercare-saved-location strong {
+  display:block;
+  font-size:14px;
+  line-height:1.7;
+  color:#243651;
+  margin:5px 0;
+  overflow-wrap:anywhere;
+}
+.aftercare-saved-location p {
+  font-size:12px;
+  color:#52647c;
+  line-height:1.7;
+  margin-bottom:12px;
+}
+#aftercareBookingSuggestions {
+  position:absolute;
+  top:100%;
+  left:0;
+  right:0;
+  z-index:1100;
+  max-height:220px;
+  overflow-y:auto;
+  border:1px solid #dce4ef;
+  border-radius:8px;
+  background:white;
+  box-shadow:0 10px 25px #172b4d18;
+}
+.aftercare-location-map {
+  height:220px;
+  border:1px solid #e3e9f1;
+  border-radius:10px;
+  background:#f1f5f9;
+}
+.aftercare-location-status {
+  font-size:12px;
+  color:#52647c;
+  line-height:1.7;
+  margin:12px 0 20px;
+}
+.aftercare-map-pin {
+  display:block;
+  width:24px;
+  height:24px;
+  background:#15803d;
+  border:2px solid white;
+  border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);
+  box-shadow:0 2px 8px #172b4d35;
+}
+.aftercare-map-pin:after {
+  content:"";
+  display:block;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:white;
+  margin:7px;
+}
+#aftercareBookingModal .modal-dialog {
+  max-width:600px;
+}
+.aftercare-booking-note strong {
+  font-size:13px;
+  color:#166534;
+}
+.aftercare-booking-note p {
+  font-size:12px;
+  line-height:1.7;
+  color:#52647c;
+  margin:8px 0 0;
+}
+#aftercareBookingModal :where(button):focus-visible {
+  outline:3px solid #93c5fd;
+  outline-offset:3px;
+}
+
+/* Navigation and progressive detail keep the main action easy to find. */
+.cw-page-nav {
+  display:flex;
+  gap:26px;
+  border-bottom:1px solid #dfe6ee;
+  margin-bottom:28px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.cw-page-nav a {
+  flex-shrink:0;
+  padding:14px 0;
+  color:#64748b;
+  text-decoration:none;
+  font-size:13px;
+  font-weight:600;
+  border-bottom:2px solid transparent;
+}
+.cw-page-nav a:hover {
+  color:#15803d;
+}
+.cw-page-nav a[aria-current="page"] {
+  color:#15803d;
+  border-bottom-color:#15803d;
+}
+.rr-guide {
+  background:#f0f5f9;
+  border:1px solid #dfe7ef;
+  border-radius:10px;
+  margin-bottom:28px;
+}
+.rr-guide>summary {
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:15px 20px;
+  font-size:13px;
+  font-weight:600;
+  color:#52647c;
+  cursor:pointer;
+}
+.rr-guide>summary span {
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.rr-guide>summary::-webkit-details-marker,.asset-history>summary::-webkit-details-marker,.rr-quote-breakdown>summary::-webkit-details-marker {
+  display:none;
+}
+.rr-guide[open]>summary>i,.asset-history[open]>summary>i,.rr-quote-breakdown[open]>summary>i {
+  transform:rotate(180deg);
+}
+.rr-customer .rr-card-with-quote .rr-card-body {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 290px;
+  gap:32px;
+}
+.rr-customer .rr-move-details {
+  min-width:0;
+}
+.rr-customer .rr-card-with-quote .rr-route {
+  grid-template-columns:1fr;
+  gap:18px;
+}
+.rr-customer .rr-quote-price {
+  display:block;
+  color:#166534;
+  font-size:29px;
+  line-height:1.4;
+  letter-spacing:-.7px;
+  font-weight:750;
+  overflow-wrap:anywhere;
+}
+.rr-quote-breakdown {
+  margin-top:17px;
+  border-top:1px solid #dbe8df;
+}
+.rr-quote-breakdown>summary {
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 0 0;
+  font-size:12px;
+  font-weight:600;
+  color:#166534;
+  cursor:pointer;
+}
+.rr-quote-breakdown[open]>summary {
+  padding-bottom:12px;
+}
+.rr-customer .rr-next-step {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  color:#64748b;
+  font-size:12px;
+  line-height:1.6;
+}
+.book-history-premium .bh-header-premium {
+  background:white;
+  border:1px solid #e3e9f1;
+  border-radius:16px;
+  padding:28px;
+  box-shadow:0 2px 4px #172b4d04;
+}
+.book-history-premium .bh-header-premium:before,.book-history-premium .bh-header-premium:after {
+  display:none;
+}
+.book-history-premium .bh-header-copy .bh-avatar-premium {
+  background:#e9f5ef;
+  border:1px solid #d7ebdf;
+  color:#15803d;
+  box-shadow:none;
+  width:56px;
+  height:56px;
+  border-radius:14px;
+}
+.book-history-premium .bh-header-copy .bh-title {
+  color:#172b4d;
+  font-size:29px;
+  text-shadow:none;
+}
+.book-history-premium .bh-header-copy .bh-subtitle {
+  color:#64748b;
+  font-size:13px;
+  text-shadow:none;
+}
+.aftercare-customer .asset-card:hover,.aftercare-customer .warranty-record:hover {
+  transform:none;
+  box-shadow:0 2px 4px #172b4d04;
+}
+.aftercare-customer .asset-needs-service {
+  border-color:#d7e5dc;
+}
+.aftercare-customer .aftercare-cycle .maintenance-primary {
+  font-size:21px;
+  letter-spacing:-.3px;
+  margin:5px 0;
+}
+.aftercare-customer .aftercare-cycle .maintenance-primary .maintenance-status {
+  display:inline-block;
+  vertical-align:middle;
+  letter-spacing:0;
+}
+.aftercare-customer .maintenance-cycle-actions .js-aftercare-book {
+  flex:1 1 100%;
+  min-height:44px;
+}
+.aftercare-customer .maintenance-cycle-actions .js-aftercare-decline {
+  border-color:transparent;
+  background:transparent;
+}
+.aftercare-customer .asset-history {
+  margin-top:22px;
+  border-top:1px solid #edf1f6;
+}
+.asset-history>summary {
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding-top:16px;
+  color:#64748b;
+  font-size:12px;
+  font-weight:500;
+  cursor:pointer;
+}
+.asset-history>summary span {
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.aftercare-customer .warranty-record>footer {
+  font-size:12px;
+  color:#64748b;
+}
+@media(max-width:1000px) {
+  .cw-header {
+    align-items:flex-start;
+    flex-direction:column;
+    gap:18px;
+  }
+  .aftercare-customer .aftercare-kpis {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .aftercare-customer .asset-grid,.aftercare-customer .warranty-records {
+    grid-template-columns:1fr;
+  }
+  .rr-customer .rr-process {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:767.98px) {
+  .customer-workspace {
+    padding:26px 16px 44px;
+  }
+  .cw-header {
+    padding-bottom:18px;
+    gap:16px;
+  }
+  .cw-header-copy {
+    gap:12px;
+    align-items:flex-start;
+  }
+  .cw-header-icon {
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    font-size:20px;
+  }
+  .cw-header h1 {
+    font-size:24px;
+    letter-spacing:-.5px;
+  }
+  .cw-header p {
+    font-size:13px;
+  }
+  .cw-header-actions {
+    width:100%;
+  }
+  .cw-button {
+    min-height:44px;
+    font-size:12px;
+  }
+  .cw-page-nav {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+    margin-bottom:22px;
+    padding:0 0 18px;
+    overflow:visible;
+  }
+  .cw-page-nav a {
+    font-size:12px;
+    padding:10px 12px;
+    border:1px solid #e3e9f1;
+    border-radius:8px;
+    background:white;
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+  }
+  .cw-page-nav a[aria-current="page"] {
+    border-color:#b4d6c1;
+    background:#e9f5ef;
+  }
+  .book-history-premium .bh-header-premium {
+    padding:20px 16px;
+  }
+  .book-history-premium .bh-header-copy {
+    gap:12px;
+  }
+  .book-history-premium .bh-header-copy .bh-avatar-premium {
+    width:44px;
+    height:44px;
+    flex-shrink:0;
+    border-radius:12px;
+  }
+  .book-history-premium .bh-header-copy .bh-title {
+    font-size:24px;
+  }
+  .book-history-premium .bh-header-copy .bh-subtitle {
+    display:block;
+    font-size:12px;
+    line-height:1.6;
+  }
+  .book-history-premium .bh-quick-links {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+    margin-top:20px;
+    padding-top:16px;
+  }
+  .book-history-premium .bh-quick-link {
+    flex-direction:column;
+    justify-content:flex-start;
+    min-height:86px;
+    padding:10px 6px;
+    gap:7px;
+    text-align:center;
+  }
+  .bh-quick-icon {
+    width:34px;
+    height:34px;
+    flex-basis:34px;
+  }
+  .bh-quick-link strong {
+    font-size:11px;
+  }
+  .bh-quick-link small,.bh-quick-arrow {
+    display:none;
+  }
+  .rr-guide {
+    margin-bottom:22px;
+  }
+  .rr-guide>summary {
+    padding:14px 16px;
+    font-size:12px;
+  }
+  .rr-customer .rr-process {
+    gap:18px;
+    padding:0 16px 18px;
+  }
+  .rr-process strong {
+    font-size:11px;
+  }
+  .rr-process small {
+    font-size:10px;
+  }
+  .rr-customer .rr-section-head {
+    flex-direction:row;
+    align-items:flex-start;
+    padding:18px 16px;
+    gap:10px;
+  }
+  .rr-customer .rr-section-head h2 {
+    font-size:17px;
+  }
+  .rr-customer .rr-section-head p {
+    font-size:12px;
+  }
+  .rr-customer .rr-section-head .rr-button {
+    padding:9px 10px;
+    font-size:11px;
+    flex-shrink:0;
+  }
+  .cw-toolbar {
+    padding:16px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .cw-search {
+    max-width:none;
+    flex:1 1 100%;
+  }
+  .cw-search input,.cw-filter select {
+    font-size:16px;
+    min-height:44px;
+  }
+  .cw-filter {
+    margin-left:0;
+    min-width:0;
+    width:100%;
+  }
+  .cw-result-count {
+    padding:0 16px 16px;
+  }
+  .rr-customer .rr-card-head {
+    padding:18px 16px;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .rr-customer .rr-card-body {
+    padding:20px 16px;
+  }
+  .rr-customer .rr-card-with-quote .rr-card-body {
+    grid-template-columns:minmax(0,1fr);
+    gap:22px;
+  }
+  .rr-customer .rr-route {
+    grid-template-columns:1fr;
+    gap:18px;
+  }
+  .rr-customer .rr-card h3 {
+    font-size:16px;
+  }
+  .rr-customer .rr-card-head small {
+    font-size:11px;
+  }
+  .rr-customer .rr-card-footer {
+    padding:16px;
+  }
+  .rr-customer .rr-actions .rr-button {
+    flex:1;
+    min-height:44px;
+    font-size:12px;
+  }
+  .aftercare-customer .aftercare-kpis {
+    gap:10px;
+    margin-bottom:24px;
+  }
+  .aftercare-customer .maintenance-kpi {
+    grid-template-columns:1fr;
+    grid-template-rows:auto auto;
+    padding:16px;
+    min-height:92px;
+    gap:7px;
+  }
+  .aftercare-customer .maintenance-kpi .cw-stat-icon {
+    display:none;
+  }
+  .aftercare-customer .maintenance-kpi-label {
+    font-size:11px;
+  }
+  .aftercare-customer .maintenance-kpi-value {
+    grid-column:1;
+    font-size:26px;
+  }
+  .aftercare-workspace-head {
+    padding-bottom:18px;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .aftercare-customer .aftercare-tabs {
+    width:100%;
+    gap:4px;
+  }
+  .aftercare-customer .aftercare-tab {
+    flex:1;
+    justify-content:center;
+    font-size:12px;
+    padding:10px 8px;
+    white-space:normal;
+  }
+  .aftercare-workspace-head>.cw-button {
+    min-height:40px;
+    padding:8px 12px;
+    font-size:12px;
+  }
+  .aftercare-customer .aftercare-panel {
+    padding:22px 0;
+  }
+  .aftercare-customer .aftercare-section-head h2 {
+    font-size:18px;
+  }
+  .aftercare-customer .aftercare-section-head p {
+    font-size:12px;
+  }
+  .aftercare-customer .asset-card-head {
+    flex-wrap:wrap;
+    padding:18px 16px;
+    gap:10px;
+  }
+  .aftercare-customer .asset-card-head>.min-width-0 {
+    min-width:0;
+    flex-basis:calc(100% - 54px);
+  }
+  .aftercare-customer .asset-card-head>.maintenance-status {
+    margin-left:52px;
+    max-width:none;
+  }
+  .aftercare-customer .asset-card-body {
+    padding:20px 16px;
+  }
+  .aftercare-customer .aftercare-cycle .maintenance-primary {
+    font-size:20px;
+  }
+  .aftercare-customer .maintenance-cycle-actions .btn {
+    min-height:44px;
+    flex:1 1 calc(50% - 8px);
+    font-size:11px;
+  }
+  .aftercare-customer .maintenance-cycle-actions .js-aftercare-book {
+    flex-basis:100%;
+  }
+  .aftercare-customer .warranty-record>header {
+    flex-wrap:wrap;
+    padding:18px 16px;
+  }
+  .aftercare-customer .warranty-record-body {
+    padding-inline:16px;
+  }
+  .aftercare-customer .warranty-record>footer {
+    flex-wrap:wrap;
+    padding:16px;
+  }
+  .aftercare-customer .warranty-coverage-row,.aftercare-customer .warranty-claim-row {
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  #installationDateModal .modal-dialog,#aftercareResponseModal .modal-dialog,#aftercareBookingModal .modal-dialog,#aftercareCancelModal .modal-dialog {
+    margin:10px;
+  }
+  #installationDateModal .form-control,#aftercareResponseModal .form-control,#aftercareBookingModal .form-control,#aftercareCancelModal .form-control {
+    font-size:16px;
+  }
+  #installationDateModal .modal-footer .btn,#aftercareResponseModal .modal-footer .btn,#aftercareBookingModal .modal-footer .btn,#aftercareCancelModal .modal-footer .btn {
+    flex:1;
+    min-height:44px;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .customer-workspace *, .bh-quick-link {
+    transition:none!important;
+    animation:none!important;
+  }
+}
+
+.aftercare-cancel-help {
+  max-width:220px;
+  font-size:12px;
+  line-height:1.5;
+  color:#64748b;
+}
+#aftercareCancelModal .btn-danger {
+  background:#b91c1c;
+  border-color:#b91c1c;
+}
+#aftercareCancelModal .btn-danger:hover {
+  background:#991b1b;
+  border-color:#991b1b;
+}

@@ -30,6 +30,12 @@ const customerAssetSchema = new mongoose.Schema(
       unitLabel: { type: String, trim: true, default: "Unit 1" },
     },
     serviceAddress: { type: String, trim: true, default: "" },
+    serviceLocation: {
+      address: { type: String, trim: true, maxlength: 500 },
+      lat: Number,
+      lng: Number,
+      coordinates: { type: { type: String, default: "Point" }, coordinates: [Number] },
+    },
     installationDate: { type: Date, default: null },
     lastServiceDate: { type: Date, default: null },
     maintenanceIntervalDays: { type: Number, min: 30, max: 730, default: 90 },

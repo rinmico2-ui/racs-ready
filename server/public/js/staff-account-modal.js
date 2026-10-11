@@ -6,6 +6,31 @@
   const el = id => modal.querySelector("#" + id);
   let step = 1, busy = false, advancing = false, created = false, userId = "", emailSequence = 0, locationSequence = 0;
 
+  async function requestJson(url, options = {}) {
+    const saving = options.method === "POST";
+    let response;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        response = await fetch(url, { credentials: "same-origin", ...options, signal: controller.signal });
+      } finally { clearTimeout(timeout); }
+    } catch (_) {
+      throw new Error(saving
+        ? "The server did not confirm the result. Check the staff list before trying again."
+        : "Could not reach the server. Check your connection and try again.");
+    }
+    if (response.status === 401) throw new Error("Your sign-in has expired. Sign in again before adding staff.");
+    let data;
+    try { data = await response.json(); } catch (_) {
+      throw new Error(saving
+        ? "The server did not confirm the result. Check the staff list before trying again."
+        : "Could not check the email. Refresh the page and try again.");
+    }
+    if (!response.ok) throw new Error(data.error || "Could not complete this action. Refresh the page and try again.");
+    return data;
+  }
+
   function showResult(text, type = "") {
     el("wizResult").textContent = text;
     el("wizResult").className = "staff-setup-result " + type;
@@ -64,10 +89,8 @@
     const value = el("wizEmail").value.trim(), sequence = ++emailSequence;
     el("wizEmailHint").textContent = "Checking whether the email is already used...";
     try {
-      const response = await fetch("/api/admin/staff/check-email?email=" + encodeURIComponent(value), { credentials: "same-origin", cache: "no-store" });
-      const data = await response.json();
+      const data = await requestJson("/api/admin/staff/check-email?email=" + encodeURIComponent(value), { cache: "no-store" });
       if (sequence !== emailSequence || value !== el("wizEmail").value.trim()) return false;
-      if (!response.ok) throw new Error(data.error || "Could not check the email. Please try again.");
       error("wizEmail", data.available ? "" : "This email is already used. Enter a different email.");
       el("wizEmailHint").textContent = data.available ? "This email is not used in the system. The staff member still needs to confirm it through the setup link." : "Use an email that is not already linked to another account.";
       return data.available === true;
@@ -109,9 +132,7 @@
     if (button.disabled) return;
     button.disabled = true;
     try {
-      const response = await fetch("/api/admin/staff/" + encodeURIComponent(id) + "/account-invitation", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not send the setup email.");
+      const data = await requestJson("/api/admin/staff/" + encodeURIComponent(id) + "/account-invitation", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       if (button.id === "wizResendBtn") describeInvitation(data.invitation, "Account created and waiting for email confirmation.");
       else if (data.invitation.delivery === "failed") window.notify?.error("The setup email could not be sent. Check email settings and try again after one minute.");
       else window.notify?.success("Setup email " + (data.invitation.delivery === "queued" ? "queued" : "accepted for sending") + " to " + data.invitation.email);
@@ -146,10 +167,10 @@
       if (el("wizLocationGeo").value) payload.location = JSON.parse(el("wizLocationGeo").value);
     }
     busy = true; emailSequence++; locationSequence++; ui();
+    showResult("Creating the staff account...");
     try {
-      const response = await fetch("/api/admin/staff", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not create the staff account.");
+      const data = await requestJson("/api/admin/staff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!data.user?.id || !data.invitation) throw new Error("The server did not confirm the result. Check the staff list before trying again.");
       created = true; userId = data.user.id;
       describeInvitation(data.invitation, "Staff account created.");
       document.dispatchEvent(new CustomEvent("staff:created", { detail: { role: payload.role } }));
