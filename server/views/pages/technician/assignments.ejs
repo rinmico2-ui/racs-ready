@@ -6663,6 +6663,7 @@
     };
 
     let currentFilter = 'today';
+    window.getAssignmentFilter = () => currentFilter;
     let currentPage = 1;
     let allItems = [];
 
@@ -9721,25 +9722,32 @@ ${isRepair ? `
     // Actions
     window.acceptAssign = async function (id, btn) {
       if (!confirm('Accept this assignment?')) return;
+      let acceptanceSaved = false;
       const doAccept = async () => {
         const res = await fetch(`/api/technician/assignments/${id}/accept`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
-        const data = await res.json();
-        if (res.ok) {
-          showNotification({ type: 'success', title: 'Assignment Accepted', message: 'Use the Daily Preparation bar above to prepare equipment and consumables for all of today\'s jobs.', duration: 5000 });
-          loadAssignments(currentFilter, currentPage);
-          loadPreparation();
-          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-            showDetail(window._currentDetailId);
-          }
-          // Late-accepted booking: surface new Daily Kit requirements immediately
-          if (data.preparationReview && data.preparationReview.hasDelta) {
-            setTimeout(() => openDailyKitModal(), 600);
-          }
-        } else {
-          showNotification({ type: 'error', title: 'Accept Failed', message: data.error || 'Failed to accept assignment', duration: 5000 });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success !== true) {
+          showNotification({ type: 'error', title: 'Accept Failed', message: data.error || 'Could not accept this assignment. Refresh your jobs and try again.', duration: 5000 });
+          if (res.status === 409) await loadAssignments(currentFilter, currentPage);
+          return;
         }
+        acceptanceSaved = true;
+        showNotification({ type: 'success', title: data.alreadyAccepted ? 'Already Accepted' : 'Assignment Accepted',
+          message: data.preparationPending ? 'Your acceptance is saved. Refresh Daily Preparation to load your checklist.' : 'Your acceptance is saved. Review Daily Preparation before going to the customer.', duration: 5000 });
+        await Promise.allSettled([loadAssignments(currentFilter, currentPage), loadPreparation(), window._updateWorkKpis?.()]);
+        if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
+          showDetail(window._currentDetailId);
+        }
+        if (data.preparationReview?.hasDelta) setTimeout(() => openDailyKitModal(), 600);
       };
-      if (btn && window._btnLoading) window._btnLoading(btn, doAccept); else await doAccept();
+      try {
+        if (btn && window._btnLoading) await window._btnLoading(btn, doAccept);
+        else await doAccept();
+      } catch (error) {
+        showNotification({ type: acceptanceSaved ? 'warning' : 'error', title: acceptanceSaved ? 'Acceptance Saved' : 'Could Not Connect',
+          message: acceptanceSaved ? 'Your acceptance is saved, but the page could not refresh. Refresh your jobs.'
+            : 'The server could not confirm your acceptance. Refresh your jobs before retrying.', duration: 5000 });
+      }
     };
 
     let _standardPreparationAssignmentId = null;
@@ -13607,7 +13615,7 @@ function preparationEscapeHtml(value) {
         animateKpiValue(document.getElementById('kpiTotal'), kpi.total, '');
         animateKpiValue(document.getElementById('kpiCompleted'), kpi.completed, '');
         animateKpiValue(document.getElementById('kpiPending'), kpi.pending, '');
-        const visibleTodayCount = currentFilter === 'today' && Number.isFinite(window._visibleTodayWorkOrderCount)
+        const visibleTodayCount = window.getAssignmentFilter?.() === 'today' && Number.isFinite(window._visibleTodayWorkOrderCount)
           ? window._visibleTodayWorkOrderCount
           : (kpi.today || 0);
         animateKpiValue(document.getElementById('kpiToday'), visibleTodayCount, '');

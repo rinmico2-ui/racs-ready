@@ -3207,272 +3207,98 @@ router.get("/assignments/:id", async (req, res, next) => {
  */
 router.post("/assignments/:id/accept", async (req, res, next) => {
   try {
-    const Assignment = require("../models/Assignment");
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id });
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-    if (assignment.status !== "pending_acceptance") {
-      return res.status(400).json({ error: "Assignment is not pending acceptance." });
-    }
-
-    if (assertNotMissedSchedule(assignment)) {
-      return res.status(409).json({
-        error: "The scheduled time for this assignment has passed. It can no longer be accepted — an administrator will reschedule it.",
-        code: "SCHEDULE_MISSED",
-      });
-    }
-
+    const { acceptAssignment } = require("../utils/assignmentAcceptance");
+    const { assignment, booking, alreadyAccepted } = await acceptAssignment({ assignmentId: id,
+      technician: tech, user: req.user, isScheduleMissed: assertNotMissedSchedule });
+    const io = req.app.get("io") || global.io;
     const isRepair = assignment.serviceType === "repair";
-    assignment.status = "accepted";
-    assignment.acceptedAt = new Date();
-    assignment.notes.push({
-      text: "Assignment accepted by technician",
-      by: req.user._id,
-      byName: tech.name,
-      createdAt: new Date(),
-    });
-    await assignment.save();
-
-    // ── Sync Booking Status ──────────────────────────────────────────────
-    const BookingService = require("../models/BookingService");
-    if (!isRepair) {
-      const bookingUpdate = await BookingService.findById(assignment.bookingId);
-      if (bookingUpdate) {
-        bookingUpdate.status = "confirmed";
-        bookingUpdate.notes = `[Technician Accepted] ${tech.name} accepted the assignment`;
-        for (const item of bookingUpdate.services || []) {
-          item.technicianId = tech._id;
-          item.technicianName = tech.name;
-          item.assignmentId = assignment._id;
-          if (["pending", "awaiting_assignment", "assigned"].includes(item.status)) {
-            item.status = "accepted";
-          }
-        }
-        await bookingUpdate.save();
-      }
-    } else {
-      // A walk-in repair remains `assigned` until this explicit acceptance.
-      // At acceptance it can enter the inspection workflow. Existing repair
-      // assignments that are already inspection-scheduled remain unchanged.
-      const bookingUpdate = await BookingService.findById(assignment.bookingId);
-      if (bookingUpdate) {
-        if (bookingUpdate.status === "assigned") {
-          bookingUpdate.status = "inspection_scheduled";
-        }
-        bookingUpdate.notes = `[Technician Accepted] ${tech.name} accepted the repair assignment`;
-        for (const item of bookingUpdate.services || []) {
-          if (item.type !== "repair") continue;
-          item.technicianId = tech._id;
-          item.technicianName = tech.name;
-          item.assignmentId = assignment._id;
-          if (["pending", "accepted"].includes(item.status)) {
-            item.status = "inspection_scheduled";
-            item.phase = "repair_phase_1";
-          }
-        }
-        await bookingUpdate.save();
-        // Socket notify: customer that tech accepted
-        try {
-          if (global.io) {
-            global.io.to(`customer:${bookingUpdate.customerId}`).emit("booking:updated", {
-              bookingId: assignment.bookingId,
-              status: bookingUpdate.status,
-              message: `Technician ${tech.name} has accepted your repair! They will arrive on the scheduled date.`,
-            });
-          }
-        } catch (e) { /* non-critical */ }
+    const isProject = assignment.serviceType === "project" || booking.isProject;
+    const workLabel = isProject ? "Project" : isRepair ? "Repair" : "Service";
+    const warnings = [];
+    // These tasks run only after the acceptance transaction commits. A failed
+    // notification or checklist must not report that the saved acceptance failed.
+    async function followUp(label, work) {
+      try { return await work(); }
+      catch (error) {
+        console.warn("[ACCEPT] " + label + " failed:", error.message);
+        warnings.push(label);
+        return null;
       }
     }
-
-    // ── Auto-reserve resources for this booking ─────────────────────────────
-    await syncMixedVisitItems(assignment.bookingId, "accepted", tech);
-
-    let reservationResult = { reserved: [], issues: [], preparationStatus: 'pending' };
-    // Acceptance only unlocks review. It must not reserve inventory or force a
-    // technician away from their current booking to collect resources.
-    assignment.resourcesReserved = false;
-    assignment.preparationStatus = 'pending';
-    assignment.preparationIssue = '';
-    await assignment.save();
-
-    // ── Notify admin if reservation has issues ──────────────────────────────
-    if (reservationResult && reservationResult.issues && reservationResult.issues.length > 0) {
-      try {
-        const { createNotification } = require('../utils/notify');
-        const io = req.app.get('io');
-        const issueList = reservationResult.issues.map(i => `${i.name}: ${i.reason}`).join('\n• ');
-        await createNotification({
-          type: 'resource_issue',
-          title: 'Resource Reservation Issue',
-          message: `Technician ${tech.name} accepted ${assignment.serviceType === 'repair' ? 'repair' : 'service'} assignment but some resources could not be reserved:\n• ${issueList}`,
-          role: 'admin',
-          referenceId: assignment._id,
-          referenceModel: 'Assignment',
-          link: '/admin/appointments/active',
-          io,
-        });
-      } catch (notifErr) {
-        console.warn('[ACCEPT] Admin notification for reservation issue failed:', notifErr.message);
-      }
-    }
-
-    // Update technician availability
-    tech.availabilityStatus = "Assigned";
-    await tech.save();
-
-    await audit.logEvent({
-      actor: req.user._id,
-      target: tech._id,
-      action: "assignment.accept",
-      module: "technician",
-      req,
-      details: { assignmentId: id, bookingId: assignment.bookingId, serviceType: assignment.serviceType },
-    }).catch(() => { });
-
-    // ── Sync Project teamStatus (if this assignment belongs to a project) ────
-    // When a technician accepts a project assignment, mark them as
-    // "acknowledged" in the project's team roster so the admin sees
-    // real-time acceptance progress.
-    try {
-      const Project = require("../models/Project");
-      const project = await Project.findOne({
-        "assignedTechnicians._id": tech._id,
+    if (!alreadyAccepted) {
+      await followUp("Availability update", async () => {
+        const { resolveAvailabilityStatus } = require("../utils/availability");
+        await resolveAvailabilityStatus(tech, null, null, { syncDb: true });
       });
-      if (project) {
-        const ts = project.teamStatus || [];
-        let entry = ts.find((t) => t._id && t._id.toString() === tech._id.toString());
-        if (!entry) {
-          entry = { _id: tech._id, name: tech.name, status: "acknowledged", acknowledgedAt: new Date() };
-          ts.push(entry);
-        } else {
-          entry.status = "acknowledged";
-          entry.acknowledgedAt = new Date();
-          entry.declinedReason = "";
-        }
-        project.teamStatus = ts;
+      await followUp("Acceptance audit", () => audit.logEvent({ actor: req.user._id, target: tech._id,
+        action: "assignment.accept", module: "technician", req,
+        details: { assignmentId: id, bookingId: assignment.bookingId, serviceType: assignment.serviceType } }));
+      if (isProject) await followUp("Project acknowledgement", async () => {
+        const Project = require("../models/Project");
+        const project = await Project.findOne({ bookingId: assignment.bookingId, "assignedTechnicians._id": tech._id });
+        if (!project) return;
+        const entries = project.teamStatus || [];
+        const entry = entries.find(row => String(row._id) === String(tech._id));
+        if (entry) { entry.status = "acknowledged"; entry.acknowledgedAt = assignment.acceptedAt; entry.declinedReason = ""; }
+        else entries.push({ _id: tech._id, name: tech.name, status: "acknowledged", acknowledgedAt: assignment.acceptedAt });
+        project.teamStatus = entries;
         await project.save();
-
-        // Notify admin room in real-time so the project detail page refreshes.
-        const ioProject = req.app.get("io");
-        if (ioProject) {
-          ioProject.to("admin-room").emit("project:team-status", {
-            projectId: project._id,
-            teamStatus: project.teamStatus,
-            techName: tech.name,
-            action: "accepted",
-          });
-        }
-      }
-    } catch (projErr) {
-      // Non-critical — don't block assignment acceptance.
-      console.warn("Project teamStatus sync skipped:", projErr.message);
-    }
-
-    // Create notification for admins
-    const { createNotification } = require('../utils/notify');
-    const io = req.app.get('io');
-    const BookingServiceForNotif = require('../models/BookingService');
-    const bookingForNotif = await BookingServiceForNotif.findById(assignment.bookingId).lean();
-    const isProjectAssignment = assignment.serviceType === "project";
-    await createNotification({
-      type: 'assignment_accepted',
-      title: isProjectAssignment ? 'Project Assignment Accepted' : 'Repair Assignment Accepted',
-      message: `${tech.name} accepted the ${isProjectAssignment ? 'project' : 'repair'} assignment for ${bookingForNotif?.workOrderNumber || bookingForNotif?.bookingReference || 'a service request'}.`,
-      role: 'admin',
-      referenceId: assignment._id,
-      referenceModel: 'Assignment',
-      link: '/admin/appointments/active',
-      io,
-    });
-
-    // Socket: notify admins in real-time
-    if (io) {
-      io.to("admin-room").emit("assignment:accepted", {
-        assignmentId: assignment._id,
-        bookingId: assignment.bookingId,
-        technicianName: tech.name,
-        serviceName: bookingForNotif?.service?.name || "Repair Service",
-        customerName: assignment.customerName,
-        bookingDate: assignment.bookingDate,
+        io?.to("admin-room").emit("project:team-status", { projectId: project._id, teamStatus: project.teamStatus,
+          techName: tech.name, action: "accepted" });
+      });
+      await followUp("Staff notification", async () => {
+        const { createNotification } = require("../utils/notify");
+        await createNotification({ type: "assignment_accepted", title: workLabel + " Assignment Accepted",
+          message: tech.name + " accepted the " + workLabel.toLowerCase() + " assignment for " + (booking.workOrderNumber || booking.bookingReference || "a service request") + ".",
+          role: "admin", referenceId: assignment._id, referenceModel: "Assignment", link: "/admin/appointments/active", io });
+      });
+      await followUp("Customer email", async () => {
+        const { sendBookingAcceptedEmail } = require("../utils/mailer");
+        const customerEmail = booking.customer?.email;
+        if (!customerEmail) return;
+        await sendBookingAcceptedEmail({ to: customerEmail, customerName: booking.customer?.name || "Customer",
+          bookingReference: booking.workOrderNumber || booking.bookingReference || String(booking._id),
+          serviceName: isRepair ? "Repair Service" : (booking.service?.name || "Service"), technicianName: tech.name,
+          dateLabel: booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString("en-PH", { timeZone: "Asia/Manila" }) : "TBD",
+          timeLabel: booking.startTime || "TBD", locationAddress: booking.location?.address || "" });
+      });
+      await followUp("Staff email", async () => {
+        const { sendEmail } = require("../utils/mailer");
+        const adminEmail = process.env.ADMIN_EMAIL || (await require("../models/User").findOne({ role: "admin" }).select("email").lean())?.email;
+        if (!adminEmail) return;
+        const reference = booking.workOrderNumber || booking.bookingReference || String(booking._id);
+        await sendEmail(adminEmail, "Technician Accepted " + workLabel + " - " + reference + " | CALIDRO RACS",
+          tech.name + " accepted the " + workLabel.toLowerCase() + " assignment for " + reference + ".");
       });
     }
-
-    // ── Email: Notify Customer that Booking was Accepted ─────────────────
-    try {
-      const { sendBookingAcceptedEmail } = require("../utils/mailer");
-      const booking = await BookingService.findById(assignment.bookingId).lean();
-      const customerEmail = booking?.customer?.email;
-      if (customerEmail) {
-        const dateLabel = booking.bookingDate ? new Date(booking.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'TBD';
-        const timeLabel = booking.startTime || 'TBD';
-        const techFullName = ((tech.firstName || '') + ' ' + (tech.lastName || '')).trim() || tech.name || 'Your technician';
-        sendBookingAcceptedEmail({
-          to: customerEmail,
-          customerName: booking.customer?.name || 'Customer',
-          bookingReference: booking.workOrderNumber || booking.bookingReference || `#${String(booking._id).slice(-6).toUpperCase()}`,
-          serviceName: isRepair ? "Repair Service" : (booking.service?.name || 'Service'),
-          technicianName: techFullName,
-          dateLabel,
-          timeLabel,
-          locationAddress: booking.location?.address || '',
-        }).catch(err => console.error('[MAILER] Failed to send acceptance email:', err.message));
-      }
-    } catch (mailErr) {
-      console.error('[MAILER] Acceptance email error:', mailErr.message);
-    }
-
-    // ── Email: Notify admin that technician accepted ─────────────────────
-    try {
-      const { sendEmail } = require("../utils/mailer");
-      const adminEmail = process.env.ADMIN_EMAIL || (await require("../models/User").findOne({ role: "admin" }).select("email").lean())?.email;
-      if (adminEmail) {
-        const workOrderNum = bookingForNotif?.workOrderNumber || bookingForNotif?.bookingReference || `#${String(assignment.bookingId).slice(-6).toUpperCase()}`;
-        sendEmail(
-          adminEmail,
-          `Technician Accepted Repair – ${workOrderNum} | CALIDRO RACS`,
-          `Technician ${tech.name} has accepted the repair assignment for ${workOrderNum}. Scheduled on ${bookingForNotif?.bookingDate ? new Date(bookingForNotif.bookingDate).toLocaleDateString('en-PH') : 'TBD'} at ${bookingForNotif?.startTime || 'TBD'}.`
-        ).catch(err => console.error('[MAILER] Failed to send admin acceptance email:', err.message));
-      }
-    } catch (mailErr) {
-      console.error('[MAILER] Admin acceptance email error:', mailErr.message);
-    }
-
-    // ── Preparation review: detect new Daily Kit requirements ─────────────
-    // If this booking was accepted after the technician already confirmed
-    // their Daily Kit, re-sync the kit for that date and surface any new
-    // requirements so the technician can decide per item before En Route.
+    await followUp("Status update", async () => {
+      if (!io) return;
+      io.to("admin-room").emit("assignment:accepted", { assignmentId: assignment._id, bookingId: assignment.bookingId,
+        technicianName: tech.name, serviceName: booking.service?.name || workLabel + " Service",
+        customerName: assignment.customerName, bookingDate: assignment.bookingDate });
+      const customerId = booking.customerId?._id || booking.customerId;
+      if (customerId) io.to("customer:" + customerId).emit("booking:status-change", {
+        bookingId: booking._id, status: booking.status, technicianName: tech.name, timestamp: Date.now() });
+    });
     let preparationReview = null;
-    if (!isProjectAssignment && assignment.bookingDate) {
-      try {
-        const { syncDailyKit } = require("../utils/dailyKitService");
-        const syncedKit = await syncDailyKit(tech._id, assignment.bookingDate);
-        const undecidedDelta = (syncedKit.hasDelta && Array.isArray(syncedKit.deltaItems) ? syncedKit.deltaItems : [])
-          .filter(i => !i.resolution?.status)
-          .map(i => ({
-            name: i.name,
-            category: i.category,
-            quantity: i.quantity,
-            unit: i.unit,
-            checkoutStatus: i.checkoutStatus,
-            conflictMessage: i.conflict?.message || null,
-          }));
-        if (undecidedDelta.length) {
-          preparationReview = { hasDelta: true, deltaItems: undecidedDelta };
-        }
-      } catch (kitErr) {
-        console.warn('[ACCEPT] Daily kit preparation review skipped:', kitErr.message);
-      }
+    if (!isProject && assignment.bookingDate && assignment.status === "accepted") {
+      preparationReview = await followUp("Daily Preparation", async () => {
+        const kit = await syncDailyKit(tech._id, assignment.bookingDate);
+        return kit.hasDelta ? { hasDelta: true, deltaItems: (kit.deltaItems || []).map(item => ({
+          name: item.name, category: item.category, quantity: item.quantity, unit: item.unit,
+          checkoutStatus: item.checkoutStatus, conflictMessage: item.conflict?.message || null })) } : null;
+      });
     }
-
-    return res.json({ message: "Assignment accepted.", assignment, preparationReview });
-  } catch (err) {
-    next(err);
+    return res.json({ success: true, message: alreadyAccepted ? "Assignment already accepted." : "Assignment accepted.",
+      assignment, alreadyAccepted, preparationReview, preparationPending: warnings.includes("Daily Preparation") });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
+    console.error("[ACCEPT] Acceptance transaction failed:", error);
+    return res.status(500).json({ error: "We could not save your acceptance. Refresh your jobs and try again.", code: "ASSIGNMENT_ACCEPT_FAILED" });
   }
 });
 
