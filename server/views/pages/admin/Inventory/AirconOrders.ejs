@@ -540,6 +540,9 @@
   canResolve: <%- JSON.stringify(ordersResolutionEnabled) %>,
   resolutionPath: <%- JSON.stringify(ordersResolutionUrl).replace(/</g, '\\u003c') %>,
   resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
-};</script>
+};
+// Keep Socket.io available for live preparation and technician updates.
+window.RACSOrdersSocket = window.socket || (typeof window.io === 'function' ? window.io() : null);
+</script>
 <script src="/js/operations-request.js?v=20260926"></script>
-<script src="/js/admin-aircon-orders.js?v=20261010-resolution-record-link"></script>
+<script src="/js/admin-aircon-orders.js?v=20261011-preparation-handoff"></script>

@@ -235,7 +235,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const context = document.getElementById("aoScopeContext");
     if (context) context.innerHTML = currentFulfillmentScope === "pickup"
       ? '<i class="bi bi-info-circle-fill" style="color:#7c3aed"></i><span>Showing customer pickup orders only. Technician assignment, dispatch, travel, and installation controls are intentionally excluded.</span>'
-      : '<i class="bi bi-info-circle-fill text-primary"></i><span>Showing delivery and installation orders. Pickup-only actions are kept in the Pickup Orders workspace. Legacy delivery-only records remain available here.</span>';
+      : '<i class="bi bi-info-circle-fill text-primary"></i><span>Assign a technician while the aircon is being prepared. Admin or secretary confirms the aircon is ready; the technician confirms the installation kit. Both are required before departure.</span>';
     syncScopeSpecificFilters();
 
     const url = new URL(window.location.href);
@@ -368,12 +368,15 @@ document.addEventListener("DOMContentLoaded", function () {
     const departureReady = dispatchStatus === 'ready' && (o.fulfillmentType !== 'delivery_installation' || kitStatus === 'confirmed' || kitStatus === 'completed');
     const prepBadge = o.fulfillmentType === 'customer_pickup' ? ''
       : departureReady
-        ? '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Ready</span>'
+        ? '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Ready for departure</span>'
+        : dispatchStatus !== 'ready'
+          ? '<span class="badge bg-warning text-dark"><i class="bi bi-box-seam me-1"></i>Aircon not prepared</span>'
         : kitStatus === 'blocked'
           ? '<span class="badge bg-danger"><i class="bi bi-exclamation-octagon me-1"></i>Kit Blocked</span>'
-          : '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Prep Pending</span>';
+          : '<span class="badge bg-warning text-dark"><i class="bi bi-tools me-1"></i>Aircon ready · Kit pending</span>';
 
     return `<div class="ao-order-card workflow-record-card" data-order-id="${esc(o._id)}">
+      ${o.unitPreparationDueSoon && !o.isPastDate ? `<div class="alert alert-warning py-2 mb-2 small" role="status"><i class="bi bi-box-seam me-1"></i><strong>${esc(o.unitPreparationDueLabel)}'s delivery: aircon not prepared.</strong> Admin or secretary must check it and confirm preparation.</div>` : ''}
       <div class="ao-order-header workflow-record-head">
         <div>
           <div class="ao-order-ref workflow-record-ref">${esc(ref)}</div>
@@ -675,7 +678,7 @@ document.addEventListener("DOMContentLoaded", function () {
       ? '<span class="badge bg-danger"><i class="bi bi-arrow-repeat me-1"></i>Needs Reassignment</span>'
       : '<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Awaiting Assignment</span>';
     const dispatchIcon = dispatchReady ? "ready" : "pending";
-    const dispatchCopy = dispatchReady ? "Unit preparation confirmed" : "Admin confirmation still pending";
+    const dispatchCopy = dispatchReady ? "Admin or secretary confirmed preparation" : "Admin or secretary prepares and confirms";
     const kitIcon = !isInstallation || kitReady ? "ready" : kitBlocked ? "blocked" : "pending";
     const kitTitle = isInstallation ? "Technician Daily Kit" : "Daily Kit";
     const kitCopy = !isInstallation
@@ -724,6 +727,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <button class="btn btn-sm btn-outline-secondary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
         ${o.isPastDate ? resolutionBtn(o) : unitPreparedBtn(o)+assignBtn(o)}
       </div>
+      <p class="small text-muted mb-0 mt-2">Assignment reserves a technician. The aircon and installation kit must be ready before departure.</p>
     </div>`;
   }
 
@@ -1060,6 +1064,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       setText("aoTabActiveBadge", orders.length);
       renderStats("aoActiveStats", [
+        { icon: "bi-box-seam", color: "amber", value: orders.filter(o=>o.status==="technician_accepted" && o.preparation?.dispatch?.status !== "ready").length, label: "Aircons Not Prepared", sub: "Admin or secretary confirms" },
         { icon: "bi-check-circle-fill", color: "green", tone: "accepted", value: orders.filter(o=>o.status==="technician_accepted").length, label: "Accepted", sub: "Technician confirmed" },
         { icon: "bi-truck", color: "amber", value: orders.filter(o=>o.status==="out_for_delivery").length, label: "En Route", sub: "Heading to customer" },
         { icon: "bi-geo-alt", color: "cyan", value: orders.filter(o=>o.status==="arrived").length, label: "Arrived", sub: "On site" },
@@ -1259,6 +1264,9 @@ document.addEventListener("DOMContentLoaded", function () {
             <div class="pm-card-head"><div class="pm-icon" style="background:#ecfeff;color:#0e7490;"><i class="bi bi-clipboard2-check"></i></div><h3 class="pm-card-title">Unit Preparation</h3></div>
             <div class="pm-card-body">
               <div class="pm-row"><span class="pm-lbl">Ordered Unit</span><span class="pm-val"><span class="badge ${prepBadgeClass(dispatchPrep.status)}">${dispatchPrep.status === 'ready' ? 'PREPARED' : 'PENDING'}</span></span></div>
+              <div class="pm-row"><span class="pm-lbl">Who confirms</span><span class="pm-val">Admin or secretary</span></div>
+              ${dispatchPrep.readyAt ? `<div class="pm-row"><span class="pm-lbl">Confirmed at</span><span class="pm-val">${esc(fmtManilaDateTime(dispatchPrep.readyAt))}</span></div>` : ''}
+              ${dispatchPrep.note ? `<div class="pm-row"><span class="pm-lbl">Preparation note</span><span class="pm-val">${esc(dispatchPrep.note)}</span></div>` : ''}
               ${o.fulfillmentType === 'delivery_installation' ? `<div class="pm-row"><span class="pm-lbl">Installation Daily Kit</span><span class="pm-val"><span class="badge ${prepBadgeClass(installPrep.status)}">${esc(String(installPrep.status||'pending').replace(/_/g,' ').toUpperCase())}</span></span></div><div class="pm-row"><span class="pm-lbl">Required Items</span><span class="pm-val">${(installPrep.requiredItems||[]).length}</span></div>` : ''}
               ${(installPrep.blockers||[]).length ? `<div class="alert alert-warning small py-2 mt-2 mb-0">${installPrep.blockers.map(esc).join('<br>')}</div>` : ''}
             </div>
@@ -1320,6 +1328,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (canAssign(o)) {
         footerBtns += assignBtn(o);
       }
+      if (!o.isPastDate) footerBtns += unitPreparedBtn(o);
       if (isAdminWorkspace && o.customerAccount?.state === 'invited' && o.customerAccount?.canManageInvitation) {
         footerBtns += `<button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="window._aoResendCustomerActivation('${esc(o._id)}')"><i class="bi bi-envelope-arrow-up me-1"></i>Resend Activation</button>`;
       }
@@ -1481,7 +1490,8 @@ document.addEventListener("DOMContentLoaded", function () {
       const res=await fetch(`/api/orders/${encodeURIComponent(orderId)}/dispatch-ready`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(result.value)});
       const data=await res.json();
       if(!res.ok) throw new Error(data.error||'Could not confirm unit preparation');
-      Swal.fire({title:'Unit Prepared',text:'The ordered unit is now cleared for technician departure.',icon:'success',timer:1800,showConfirmButton:false});
+      const message = 'Aircon preparation is confirmed.' + (data.technicianNotified ? ' The assigned technician has a notification.' : '') + (data.order?.fulfillmentType === 'delivery_installation' ? ' Installation kit checks are still required before departure.' : '');
+      Swal.fire({title:'Unit Prepared',text:message,icon:'success',timer:1800,showConfirmButton:false});
       loadTab(currentTab);
       if (modalEl?.classList.contains("show") && viewedOrderId === String(orderId)) window._aoViewOrder(orderId);
     } catch(error) { Swal.fire({title:'Update Failed',text:error.message,icon:'error'}); }
@@ -1867,6 +1877,28 @@ document.addEventListener("DOMContentLoaded", function () {
   function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
   // ═══ INITIAL LOAD ════════════════════════════════════════════════════════════
+  let liveOrderRefreshTimer;
+  function refreshLiveOrders() {
+    window.clearTimeout(liveOrderRefreshTimer);
+    liveOrderRefreshTimer = window.setTimeout(() => {
+      if (document.hidden) return;
+      if (window.Swal?.isVisible?.()) {
+        liveOrderRefreshTimer = window.setTimeout(refreshLiveOrders, 500);
+        return;
+      }
+      if (currentTab === 'overview') loadOverview(currentPage);
+      else loadTab(currentTab);
+      if (viewedOrderId && modalEl?.classList.contains('show')) window._aoViewOrder(viewedOrderId);
+    }, 300);
+  }
+  const orderSocket = window.RACSOrdersSocket || window.socket;
+  if (orderSocket) {
+    orderSocket.on('order:status-change', refreshLiveOrders);
+    orderSocket.on('connect', refreshLiveOrders);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshLiveOrders();
+  });
   setFulfillmentScope(initialScope, { load: false });
   loadOverview(1);
   const linkedOrderId = new URLSearchParams(window.location.search).get("order");

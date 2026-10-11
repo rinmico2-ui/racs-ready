@@ -387,10 +387,10 @@ async function syncOrderPreparationSummaries(kit, orderIds) {
   const now = new Date();
   await Promise.all(orders.map(async (order) => {
     if (order.fulfillmentType !== "delivery_installation") return;
+    const previousReadiness = order.preparation?.installation?.status;
     const readiness = orderInstallationReadiness(order, kit);
-    order.preparation = order.preparation || {};
-    order.preparation.installation = {
-      ...(order.preparation.installation?.toObject?.() || order.preparation.installation || {}),
+    const installation = {
+      ...(order.preparation?.installation?.toObject?.() || order.preparation?.installation || {}),
       status: order.status === "cancelled" ? "cancelled"
         : order.status === "completed" ? "completed"
         : readiness.status,
@@ -400,7 +400,18 @@ async function syncOrderPreparationSummaries(kit, orderIds) {
       lastSyncedAt: now,
       confirmedAt: readiness.confirmedAt,
     };
-    await order.save();
+    // A staff member may prepare the aircon while this kit is being confirmed.
+    // Saving the preparation parent would replace their newer dispatch record.
+    const updated = await Order.findOneAndUpdate({
+      _id: order._id, status: order.status, technicianId: order.technicianId,
+      "delivery.preferredDate": order.delivery?.preferredDate,
+    }, { $set: { "preparation.installation": installation } }, { new: true, runValidators: true });
+    if (!updated) return; // Schedule/assignment changed; its next kit sync will recalculate.
+    if (previousReadiness !== installation.status && global.io) {
+      const update = { orderId: updated._id, status: updated.status, preparationUpdated: true, timestamp: Date.now() };
+      global.io.to("admin-room").emit("order:status-change", update);
+      if (updated.technicianId) global.io.to(`tech:${updated.technicianId}`).emit("order:status-change", update);
+    }
   }));
 }
 

@@ -115,7 +115,7 @@ test("supported payment review saves both records in the same transaction before
       t.mock.method(Order, "findById", () => ({ session: async value => { assert.equal(value, session); return order; } }));
       t.mock.method(Payment, "findById", () => ({ session: async value => { assert.equal(value, session); return payment; } }));
       const req = { params: { id }, body: { paymentStatus: "paid" }, user: { _id: userId, role: "admin" },
-        app: { get: () => ({ to: () => ({ emit() { calls.push("notify"); } }) }) } };
+        app: { get: () => ({ to: room => ({ emit() { calls.push(`notify:${room}`); } }) }) } };
       const res = response();
       await route("/:id/payment", "patch").stack.at(-1).handle(req, res);
       assert.equal(res.statusCode, 200);
@@ -125,7 +125,7 @@ test("supported payment review saves both records in the same transaction before
       assert.equal(order.paymentStatus, expectedStatus);
       assert.equal(payment.status, expectedStatus);
       assert.equal(payment.verifiedBy, userId);
-      assert.deepEqual(calls, ["start", "save-order", "save-payment", "commit", "notify", "end"]);
+      assert.deepEqual(calls, ["start", "save-order", "save-payment", "commit", `notify:customer:${userId}`, "notify:admin-room", "end"]);
     });
   }
 });

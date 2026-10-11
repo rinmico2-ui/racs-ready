@@ -1739,7 +1739,6 @@
         </div>
       </div>
       <div class="td-footer-actions">
-        <button class="td-btn td-btn-primary" id="tdBtnEnroute" onclick="markEnRoute()" style="display:none;"><i class="bi bi-truck me-1"></i>Mark En Route</button>
         <button class="td-btn td-btn-outline" onclick="refreshTracking()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
         <button class="td-btn td-btn-ghost" onclick="openInFullMap()"><i class="bi bi-box-arrow-up-right me-1"></i>Open Maps</button>
       </div>
@@ -4046,9 +4045,8 @@
       }).join('')+'</div>';
       body.innerHTML=trackerHTML+body.innerHTML;
       var footer=document.createElement('div');footer.className='pm-footer';
-      var enrouteHTML=(['confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="btn btn-primary btn-sm fw-semibold" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){window.trackingBookingId=\''+b._id+'\';if(window.markEnRoute)markEnRoute();},300);"><i class="bi bi-truck me-1"></i>Mark En Route</button>':'');
       var trackHTML=(['in-progress','on-the-way','arrived','confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="au-btn au-btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);},300);"><i class="bi bi-geo-alt-fill me-1"></i>Track on Map</button>':'');
-      footer.innerHTML=enrouteHTML+trackHTML+'<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
+      footer.innerHTML=trackHTML+'<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
       body.appendChild(footer);
     });
   };
@@ -4184,9 +4182,6 @@
       document.getElementById('tdInfoRef').textContent=ref;
       _updateProgressBar(b.status);
 
-      var enrouteBtn=document.getElementById('tdBtnEnroute');
-      if(['confirmed','scheduled','assigned'].indexOf(b.status)!==-1){enrouteBtn.style.display='inline-flex';enrouteBtn.dataset.id=b._id;}
-      else enrouteBtn.style.display='none';
 
       AU.Active._ensureLeaflet().then(function(){
         _trackInitMap(custLoc,techLoc,custName,techName,serviceAddr);
@@ -4494,25 +4489,7 @@ function startTrackingRefresh(){
 function refreshTracking(){
   if(window.trackingBookingId){showNotification({type:'info',title:'Refreshing',message:'Updating tracking data...',duration:2000});AU.Active.trackOnMap(window.trackingBookingId);}
 }
-function markEnRoute(){
-  var btn=document.getElementById('tdBtnEnroute');
-  var id=btn?btn.dataset.id:(window.trackingBookingId||'');
-  if(!id)return;
-  btn.disabled=true;
-  btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Setting...';
-  fetch('/api/appointments/'+id+'/on-the-way',{method:'POST'}).then(function(r){if(!r.ok)throw new Error('Failed');return r.json();}).then(function(){
-    showNotification({type:'success',title:'En Route',message:'Technician marked as en route',duration:4000});
-    AU.Active.trackOnMap(id);
-    if(window.startTrackingRefresh)startTrackingRefresh();
-    if(typeof AU.Active.load==='function')AU.Active.load();
-    else{if(document.querySelector('.aj-refresh-btn'))document.querySelector('.aj-refresh-btn').click();}
-  }).catch(function(e){
-    showNotification({type:'error',title:'Error',message:e.message,duration:4000});
-  }).finally(function(){
-    btn.disabled=false;
-    btn.innerHTML='<i class="bi bi-truck me-1"></i>Mark En Route';
-  });
-}
+
 function openInFullMap(){
   if(window.trackingData&&window.trackingData.booking){
     var b=window.trackingData.booking;

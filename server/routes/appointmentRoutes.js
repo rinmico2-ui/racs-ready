@@ -2417,7 +2417,7 @@ router.get("/:id", auth.authenticate, async (req, res) => {
         const amt = Number((p && (p.amount || p.paidAmount)) || 0);
         const st = String(p && p.status || "").toLowerCase();
         // count only payments that are marked paid/paid-like
-        if (!isNaN(amt) && amt > 0 && (st === "paid" || st === "succeeded" || st === "completed" || st === "verified")) return s + amt;
+        if (!isNaN(amt) && amt > 0 && ["paid", "partial", "succeeded", "completed", "verified"].includes(st)) return s + amt;
         // also include payments with no explicit status (legacy)
         if (!st && !isNaN(amt) && amt > 0) return s + amt;
         return s;
@@ -3424,97 +3424,15 @@ router.post(
   },
 );
 
-// Mark appointment as completed (admin/secretary/technician)
+// Legacy progress shortcuts now require the validated assignment workflow.
 router.post(
   "/:id/on-the-way",
   auth.authenticate,
   auth.requireRole(["admin", "secretary", "technician"]),
-  async (req, res) => {
-    try {
-      const id = req.params.id;
-      const appt = await BookingService.findById(id);
-      if (!appt)
-        return res.status(404).json({ error: "Appointment not found" });
-      // cannot set on-the-way if already completed or cancelled
-      if (appt.status === "cancelled") {
-        return res
-          .status(400)
-          .json({ error: "Cannot update a cancelled appointment" });
-      }
-      if (appt.status === "completed") {
-        return res.status(400).json({ error: "Appointment already finished" });
-      }
-      if (appt.status !== "scheduled" && appt.status !== "confirmed") {
-        return res
-          .status(400)
-          .json({ error: "Only scheduled/confirmed appointments may be marked on-the-way" });
-      }
-      if (isBookingPast(appt)) {
-        return res
-          .status(400)
-          .json({ error: "Cannot mark as on-the-way — the scheduled time has passed. Please reschedule." });
-      }
-      appt.status = "on-the-way";
-      await appt.save();
-
-      // Set technician availability → On The Way
-      if (appt.technicianId) {
-        try {
-          const Technician = require("../models/Technician");
-          const { resolveAvailabilityStatus } = require("../utils/availability");
-          const tech = await Technician.findById(appt.technicianId);
-          if (tech) {
-            const newStatus = await resolveAvailabilityStatus(tech, null, null, { syncDb: false });
-            // Only allow On The Way if tech is checked in
-            tech.availabilityStatus = newStatus === "Offline" ? "Offline" : "On The Way";
-            await tech.save();
-          }
-        } catch (e) {
-          console.warn("availability → On The Way failed", e && e.message);
-        }
-      }
-
-      // ── Email: Notify Customer that Technician is On The Way ──────────
-      try {
-        const customerEmail = appt.customer?.email;
-        if (customerEmail) {
-          const Technician = require("../models/Technician");
-          const tech = await Technician.findById(appt.technicianId).lean();
-          const techFullName = tech?.name || appt.technician?.name || "Your technician";
-          const dateLabel = appt.bookingDate
-            ? new Date(appt.bookingDate).toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
-            : "TBD";
-          const timeLabel = appt.startTime || "TBD";
-          sendTechArrivalNotificationEmail({
-            to: customerEmail,
-            customerName: appt.customer?.name || "Customer",
-            bookingReference: appt.bookingReference || `#${String(appt._id).slice(-6).toUpperCase()}`,
-            techName: techFullName,
-            serviceName: appt.service?.name || "Service",
-            dateLabel,
-            timeLabel,
-            locationAddress: appt.location?.address || "",
-          }).catch(err => console.error("[MAILER] Failed to send on-the-way email:", err.message));
-        }
-      } catch (mailErr) {
-        console.error("[MAILER] On-the-way email error:", mailErr.message);
-      }
-
-      // audit log
-      await audit.logEvent({
-        actor: req.user && req.user._id,
-        target: appt.customerId || appt.customer,
-        action: "appointment.on_the_way",
-        module: "appointments",
-        req,
-        details: { appointmentId: id },
-      });
-      return res.json({ message: "Appointment status updated", appointment: appt });
-    } catch (err) {
-      console.error("on-the-way error", err);
-      return res.status(500).json({ error: "Failed to update appointment" });
-    }
-  },
+  (req, res) => res.status(409).json({
+    code: "ASSIGNMENT_WORKFLOW_REQUIRED",
+    error: "Update this job from the technician assignment page. Complete its preparation, payment and proof steps there.",
+  }),
 );
 
 // Mark appointment as in-progress — technician has arrived and started service
@@ -3522,62 +3440,10 @@ router.post(
   "/:id/in-progress",
   auth.authenticate,
   auth.requireRole(["admin", "secretary", "technician"]),
-  async (req, res) => {
-    try {
-      const id = req.params.id;
-      const appt = await BookingService.findById(id);
-      if (!appt)
-        return res.status(404).json({ error: "Appointment not found" });
-      if (appt.status === "cancelled") {
-        return res.status(400).json({ error: "Cannot update a cancelled appointment" });
-      }
-      if (appt.status === "completed") {
-        return res.status(400).json({ error: "Appointment already finished" });
-      }
-      if (appt.status !== "on-the-way" && appt.status !== "scheduled" && appt.status !== "confirmed") {
-        return res
-          .status(400)
-          .json({ error: "Appointment must be on-the-way, scheduled, or confirmed to start service" });
-      }
-      if (isBookingPast(appt)) {
-        return res
-          .status(400)
-          .json({ error: "Cannot start service — the scheduled time has passed. Please reschedule." });
-      }
-      appt.status = "in-progress";
-      await appt.save();
-
-      // Set technician availability → In Progress
-      if (appt.technicianId) {
-        try {
-          const Technician = require("../models/Technician");
-          const { resolveAvailabilityStatus } = require("../utils/availability");
-          const tech = await Technician.findById(appt.technicianId);
-          if (tech) {
-            const newStatus = await resolveAvailabilityStatus(tech, null, null, { syncDb: false });
-            tech.availabilityStatus = newStatus === "Offline" ? "Offline" : "In Progress";
-            await tech.save();
-          }
-        } catch (e) {
-          console.warn("availability → In Progress failed", e && e.message);
-        }
-      }
-
-      // audit log
-      await audit.logEvent({
-        actor: req.user && req.user._id,
-        target: appt.customerId || appt.customer,
-        action: "appointment.in_progress",
-        module: "appointments",
-        req,
-        details: { appointmentId: id },
-      });
-      return res.json({ message: "Service started", appointment: appt });
-    } catch (err) {
-      console.error("in-progress error", err);
-      return res.status(500).json({ error: "Failed to start service" });
-    }
-  },
+  (req, res) => res.status(409).json({
+    code: "ASSIGNMENT_WORKFLOW_REQUIRED",
+    error: "Update this job from the technician assignment page. Complete its preparation, payment and proof steps there.",
+  }),
 );
 
 // Mark appointment as completed (admin/secretary/technician)
@@ -3585,200 +3451,21 @@ router.post(
   "/:id/complete",
   auth.authenticate,
   auth.requireRole(["admin", "secretary", "technician"]),
-  async (req, res) => {
-    try {
-      const id = req.params.id;
-      const appt = await BookingService.findById(id);
-      if (!appt)
-        return res.status(404).json({ error: "Appointment not found" });
-      // only allow completion once and only for non-cancelled bookings
-      if (appt.status === "cancelled") {
-        return res
-          .status(400)
-          .json({ error: "Cannot complete a cancelled appointment" });
-      }
-      if (appt.status === "completed") {
-        return res
-          .status(400)
-          .json({ error: "Appointment is already completed" });
-      }
-      appt.status = "completed";
-      await appt.save();
-
-      // Set technician availability → Available after service completion
-      if (appt.technicianId) {
-        try {
-          const Technician = require("../models/Technician");
-          const { resolveAvailabilityStatus } = require("../utils/availability");
-          const tech = await Technician.findById(appt.technicianId);
-          if (tech && ["Assigned", "On The Way", "In Progress"].includes(tech.availabilityStatus)) {
-            // Use centralized resolver to determine correct post-completion status
-            const newStatus = await resolveAvailabilityStatus(tech, null, null, { syncDb: true });
-            tech.availabilityStatus = newStatus;
-            await tech.save();
-          }
-        } catch (e) {
-          console.warn("availability → Available on complete failed", e && e.message);
-        }
-      }
-
-      // audit log
-      await audit.logEvent({
-        actor: req.user && req.user._id,
-        target: appt.customerId || appt.customer,
-        action: "appointment.complete",
-        module: "appointments",
-        req,
-        details: { appointmentId: id },
-      });
-
-      // Send completion email to customer (safe — non-blocking)
-      try {
-        const { sendBookingCompletedEmail } = require("../utils/mailer");
-        const BookingService = require("../models/BookingService");
-        const freshAppt = await BookingService.findById(id).populate("customerId", "name email").populate("technicianId", "name firstName lastName").lean();
-        const customerEmail = freshAppt?.customerId?.email;
-        if (customerEmail) {
-          const dateLabel = new Date().toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-          const techName = freshAppt?.technicianId?.name || ((freshAppt?.technicianId?.firstName || "") + " " + (freshAppt?.technicianId?.lastName || "")).trim() || "Your technician";
-          sendBookingCompletedEmail({
-            to: customerEmail,
-            customerName: freshAppt?.customerId?.name || "Customer",
-            bookingReference: freshAppt?.bookingReference || `#${String(freshAppt._id).slice(-6).toUpperCase()}`,
-            serviceName: freshAppt?.serviceName || "Service",
-            technicianName: techName,
-            dateLabel,
-          }).catch(err => console.error("[MAILER] Failed to send completion email:", err.message));
-        }
-      } catch (mailErr) {
-        console.error("[MAILER] Completion email error:", mailErr.message);
-      }
-
-      return res.json({
-        message: "Appointment marked completed",
-        appointment: appt,
-      });
-    } catch (err) {
-      console.error("complete error", err);
-      return res
-        .status(500)
-        .json({ error: "Failed to mark appointment completed" });
-    }
-  },
+  (req, res) => res.status(409).json({
+    code: "ASSIGNMENT_WORKFLOW_REQUIRED",
+    error: "Update this job from the technician assignment page. Complete its preparation, payment and proof steps there.",
+  }),
 );
 
-// Mark COD payment as collected by technician (paid/completed update)
-// Supports body: { markComplete: true } to simultaneously flip the booking to completed
+// Payment collection must create the ledger entry in the assignment workflow.
 router.post(
   "/:id/mark-paid",
   auth.authenticate,
   auth.requireRole(["admin", "secretary", "technician"]),
-  async (req, res) => {
-    try {
-      const id = req.params.id;
-      const appt = await BookingService.findById(id);
-      if (!appt)
-        return res.status(404).json({ error: "Appointment not found" });
-
-      if (appt.status === "cancelled") {
-        return res
-          .status(400)
-          .json({ error: "Cannot update a cancelled appointment" });
-      }
-
-      const markComplete =
-        req.body.markComplete === true || req.body.markComplete === "true";
-
-      appt.paymentStatus = "paid";
-      if (!markComplete && appt.status === "confirmed") {
-        // full payment collected after prior confirmation → scheduled
-        appt.status = "scheduled";
-      }
-      if (markComplete && appt.status !== "completed") {
-        appt.status = "completed";
-      }
-      await appt.save();
-
-      // Set technician availability → Available when service is completed via mark-paid
-      if (markComplete && appt.technicianId) {
-        try {
-          const Technician = require("../models/Technician");
-          const { resolveAvailabilityStatus } = require("../utils/availability");
-          const tech = await Technician.findById(appt.technicianId);
-          if (tech && ["Assigned", "On The Way", "In Progress"].includes(tech.availabilityStatus)) {
-            const newStatus = await resolveAvailabilityStatus(tech, null, null, { syncDb: true });
-            tech.availabilityStatus = newStatus;
-            await tech.save();
-          }
-        } catch (e) {
-          console.warn("availability → Available on mark-paid+complete failed", e && e.message);
-        }
-      }
-
-      // Keep associated Payment record in sync
-      try {
-        const pay = await Payment.findOne({ bookingId: appt._id }).sort({
-          createdAt: -1,
-        });
-        if (pay && String(pay.status || "").toLowerCase() !== "paid") {
-          pay.status = "paid";
-          pay.paidAt = pay.paidAt || new Date();
-          pay.completedAt = pay.completedAt || new Date();
-          pay.notes = pay.notes
-            ? pay.notes + "\nMarked paid by technician/staff."
-            : "Marked paid by technician/staff.";
-          await pay.save();
-        }
-      } catch (payErr) {
-        console.warn(
-          "mark-paid: payment record sync failed",
-          payErr && payErr.message,
-        );
-      }
-
-      await audit.logEvent({
-        actor: req.user && req.user._id,
-        target: appt.customerId || appt.customer,
-        action: "appointment.mark_paid",
-        module: "appointments",
-        req,
-        details: { appointmentId: id, markComplete },
-      });
-
-      // Send completion email if markComplete (safe — non-blocking)
-      if (markComplete) {
-        try {
-          const { sendBookingCompletedEmail } = require("../utils/mailer");
-          const freshAppt = await BookingService.findById(id).populate("customerId", "name email").populate("technicianId", "name firstName lastName").lean();
-          const customerEmail = freshAppt?.customerId?.email;
-          if (customerEmail) {
-            const dateLabel = new Date().toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-            const techName = freshAppt?.technicianId?.name || ((freshAppt?.technicianId?.firstName || "") + " " + (freshAppt?.technicianId?.lastName || "")).trim() || "Your technician";
-            sendBookingCompletedEmail({
-              to: customerEmail,
-              customerName: freshAppt?.customerId?.name || "Customer",
-              bookingReference: freshAppt?.bookingReference || `#${String(freshAppt._id).slice(-6).toUpperCase()}`,
-              serviceName: freshAppt?.serviceName || "Service",
-              technicianName: techName,
-              dateLabel,
-            }).catch(err => console.error("[MAILER] Failed to send completion email:", err.message));
-          }
-        } catch (mailErr) {
-          console.error("[MAILER] Completion email error:", mailErr.message);
-        }
-      }
-
-      return res.json({
-        message: markComplete
-          ? "Payment collected and appointment completed"
-          : "Payment marked as collected",
-        appointment: appt,
-      });
-    } catch (err) {
-      console.error("mark-paid error", err);
-      return res.status(500).json({ error: "Failed to mark payment" });
-    }
-  },
+  (req, res) => res.status(409).json({
+    code: "ASSIGNMENT_WORKFLOW_REQUIRED",
+    error: "Update this job from the technician assignment page. Complete its preparation, payment and proof steps there.",
+  }),
 );
 
 // Create appointment / booking request

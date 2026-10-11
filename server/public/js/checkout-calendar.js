@@ -38,6 +38,13 @@ class CheckoutCalendar {
     }
 
     _injectStyles() {
+        if (!document.getElementById('calendar-date-colors')) {
+            const colors = document.createElement('link');
+            colors.rel = 'stylesheet';
+            colors.href = '/css/calendar-date-colors.css?v=20261011-date-colors';
+            colors.id = 'calendar-date-colors';
+            document.head.appendChild(colors);
+        }
         if (document.getElementById('checkout-ent-calendar-style')) return;
         const style = document.createElement('style');
         style.id = 'checkout-ent-calendar-style';
@@ -174,10 +181,9 @@ class CheckoutCalendar {
                 .co-cal-date { font-size: 0.76rem; }
                 .co-cal-slots { font-size: 0.46rem; }
                 .co-cal-reason { font-size: .44rem; }
-                .co-cal-legend { flex-wrap: nowrap; justify-content: center; gap: 10px; padding: 6px 8px; }
+                .co-cal-legend { flex-wrap: wrap; justify-content: flex-start; gap: 8px 12px; padding: 8px 12px; }
                 .co-cal-legend-item { font-size: 0.6rem; }
                 .co-cal-legend-dot { width: 10px; height: 10px; }
-                .co-cal-legend-item:nth-child(n+4) { display: none; }
                 .co-cal-header { padding: 10px 12px; }
                 .co-cal-mode { padding: 7px 12px; font-size: .66rem; }
                 .co-cal-days { padding-left: 8px; padding-right: 8px; }
@@ -210,11 +216,11 @@ class CheckoutCalendar {
                 </div>
                 <p class="co-cal-mode"><span class="mode-dot"></span><span>Choose an open date, then pick a start time.</span></p>
                 <div class="co-cal-legend">
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot available"></span>Open</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot limited"></span>Few left</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot full"></span>Full</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot holiday"></span>Holiday</div>
-                    <div class="co-cal-legend-item"><span class="co-cal-legend-dot non-working"></span>Non-Working</div>
+                    <div class="co-cal-legend-item available"><span class="co-cal-legend-dot available" aria-hidden="true"></span>Available</div>
+                    <div class="co-cal-legend-item limited"><span class="co-cal-legend-dot limited" aria-hidden="true"></span>Few times left</div>
+                    <div class="co-cal-legend-item full"><span class="co-cal-legend-dot full" aria-hidden="true"></span>Fully booked</div>
+                    <div class="co-cal-legend-item holiday"><span class="co-cal-legend-dot holiday" aria-hidden="true"></span>Holiday</div>
+                    <div class="co-cal-legend-item non-working"><span class="co-cal-legend-dot non-working" aria-hidden="true"></span>No service</div>
                 </div>
                 <div class="co-cal-days">${DAYS_SHORT.map(d => `<div class="co-cal-day-name">${d}</div>`).join('')}</div>
                 <div class="co-cal-grid" id="coCalGrid"></div>
@@ -434,15 +440,15 @@ class CheckoutCalendar {
                         reasonText = 'Closed Today';
                         tooltipText = 'Booking window for today has passed';
                     } else {
-                        cellClass += ' limited';
+                        cellClass += availInfo.availableSlots <= 3 ? ' limited' : ' available';
                         clickable = true;
                         const count = availInfo.availableSlots;
                         slotsText = count <= 3 ? 'Few left' : 'Open';
                         tooltipText = 'Open for booking today';
                     }
                 } else if (availInfo && availInfo.availableSlots === 0) {
-                    cellClass += ' non-working';
-                    reasonText = 'No Slots Today';
+                    cellClass += ' full';
+                    reasonText = 'Fully booked';
                     tooltipText = 'All slots for today are booked';
                 } else if (holInfo) {
                     cellClass += ' non-working';

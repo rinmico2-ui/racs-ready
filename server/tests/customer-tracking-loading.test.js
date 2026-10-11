@@ -18,7 +18,7 @@ test("My Schedule renders a shell before its owned data query", () => {
   assert.doesNotMatch(shell, /BookingService\.find|Project\.find/);
   assert.match(feed, /pageAuth\.requireRole\("customer"\)/);
   assert.match(feed, /customerId: req\.user\._id/);
-  assert.match(feed, /\.select\("_id customerId customer technicianId/);
+  assert.match(feed, /\.select\("_id customerId sourceOrderId customer technicianId/);
   assert.match(feed, /\.sort\(\{ bookingDate: -1 \}\)/);
   assert.match(feed, /res\.json\(\{ bookings: items, currentBookingId:/);
 });

@@ -23,7 +23,7 @@ const {
   recordOrderConsumableUsage,
   syncDailyKit,
 } = require("../utils/dailyKitService");
-const { orderDepartureReadiness } = require("../utils/orderPreparation");
+const { orderDepartureReadiness, orderUnitPreparationAttention } = require("../utils/orderPreparation");
 const {
   getDownpaymentPercentage,
   getGcashRecipientNumber,
@@ -131,7 +131,7 @@ function withPayableOrderPricing(order) {
 }
 
 function withOrderPresentation(order) {
-  return withOrderAttentionState(withPayableOrderPricing(order));
+  return { ...withOrderAttentionState(withPayableOrderPricing(order)), ...orderUnitPreparationAttention(order) };
 }
 
 function presentOrderForRequest(req, order) {
@@ -1122,15 +1122,19 @@ function checkoutErrorResponse(res, error, { action, isStaff = false } = {}) {
 
 function emitOrderStatus(req, order, extra = {}) {
   const io = req?.app?.get?.("io") || global.io;
-  if (!io || !order?.userId) return;
-  io.to(`customer:${order.userId}`).emit("order:status-change", {
+  if (!io || !order?._id) return;
+  const payload = {
     orderId: order._id,
     status: order.status,
     paymentStatus: order.paymentStatus,
     refundStatus: order.refundStatus,
     timestamp: Date.now(),
     ...extra,
-  });
+  };
+  if (order.userId) io.to(`customer:${order.userId}`).emit("order:status-change", payload);
+  io.to("admin-room").emit("order:status-change", payload);
+  const technicianId = order.technicianId?._id || order.technicianId;
+  if (technicianId) io.to(`tech:${technicianId}`).emit("order:status-change", payload);
 }
 
 function orderKitTarget(order) {
@@ -1475,28 +1479,61 @@ router.get("/:id", authenticate, async (req, res) => {
 /** Operations confirms that the sellable units/accessories are physically ready. */
 router.post("/:id/dispatch-ready", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order ID" });
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (order.fulfillmentType === "customer_pickup") {
       return res.status(400).json({ error: "Customer pickup uses the Ready for Pickup workflow." });
     }
-    if (["completed", "cancelled"].includes(order.status)) {
+    const preparationStatuses = ["pending_payment", "preparing_unit", "technician_assigned", "technician_accepted", "technician_declined"];
+    if (!preparationStatuses.includes(order.status)) {
       return res.status(409).json({ error: `Unit preparation cannot be confirmed while the order is ${order.status}.` });
     }
-    order.preparation = order.preparation || {};
-    order.preparation.dispatch = {
+    if (order.preparation?.dispatch?.status === "ready") {
+      return res.json({ success: true, alreadyReady: true, order: presentOrderForRequest(req, order) });
+    }
+    const dispatch = {
       status: "ready",
       readyAt: new Date(),
       readyBy: req.user._id,
       note: String(req.body?.note || "Ordered units and included delivery accessories physically verified").slice(0, 500),
     };
-    order.pushStatus(order.status, "Physical unit preparation confirmed by operations.", {
-      actor: req.user._id,
-      actorRole: req.user.role,
-      actorName: req.user.name || req.user.email || "Operations",
-    });
-    await order.save();
-    return res.json({ success: true, order: presentOrderForRequest(req, order) });
+    // Update only unit preparation. A concurrent assignment or kit confirmation
+    // must never be overwritten by an older order document.
+    const preparedOrder = await Order.findOneAndUpdate({
+      _id: order._id,
+      status: order.status,
+      fulfillmentType: order.fulfillmentType,
+      "preparation.dispatch.status": { $ne: "ready" },
+    }, {
+      $set: { "preparation.dispatch": dispatch },
+      $push: { statusHistory: { status: order.status, timestamp: dispatch.readyAt, note: "Aircon and included accessories prepared by staff." } },
+    }, { new: true, runValidators: true });
+    if (!preparedOrder) {
+      const current = await Order.findById(order._id);
+      if (current?.preparation?.dispatch?.status === "ready" && preparationStatuses.includes(current.status)) {
+        return res.json({ success: true, alreadyReady: true, order: presentOrderForRequest(req, current) });
+      }
+      return res.status(409).json({ error: "The order changed. Refresh it before confirming preparation." });
+    }
+    const io = req.app?.get?.("io") || global.io;
+    await require("../utils/audit").logEvent({
+      actor: req.user._id, action: "order.unit_preparation_confirmed", module: "Order",
+      details: { orderId: String(order._id), orderReference: order.orderReference, actorRole: req.user.role, note: dispatch.note },
+    }).catch(error => console.warn("[orders] Preparation audit failed:", error.message));
+    let technicianNotified = false;
+    if (preparedOrder.technicianId) {
+      const notification = await require("../utils/notify").createNotification({
+        type: "assignment_update", title: "Aircon ready for delivery",
+        message: `${preparedOrder.orderReference || "Your assigned order"}: staff confirmed the aircon and included accessories are prepared.${preparedOrder.fulfillmentType === "delivery_installation" ? " Your installation kit must also be confirmed before departure." : " Check the delivery schedule before departure."}`,
+        userId: preparedOrder.technicianId, role: "technician",
+        referenceId: preparedOrder._id, referenceModel: "Order",
+        link: `/technician/orders?order=${preparedOrder._id}`, io,
+      }).catch(error => console.warn("[orders] Preparation notification failed:", error.message));
+      technicianNotified = Boolean(notification);
+    }
+    emitOrderStatus(req, preparedOrder, { preparationUpdated: true });
+    return res.json({ success: true, technicianNotified, order: presentOrderForRequest(req, preparedOrder) });
   } catch (err) {
     return res.status(500).json({ error: err.message || "Failed to confirm unit preparation" });
   }
@@ -1822,15 +1859,9 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     if (wasCancelled || wasCompleted) await syncAffectedOrderKits(kitTarget);
 
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`customer:${order.userId}`).emit("order:status-change", {
-        orderId: order._id,
-        status: order.status,
-        technicianName: tech?.name || order.technician?.name || "Technician",
-        timestamp: Date.now(),
-      });
-    }
+    emitOrderStatus(req, order, {
+      technicianName: tech?.name || order.technician?.name || "Technician",
+    });
 
     res.json({ success: true, order: presentOrderForRequest(req, order) });
   } catch (err) {

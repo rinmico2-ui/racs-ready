@@ -160,6 +160,13 @@ const EnterpriseCalendar = (() => {
   }
 
   function injectStyles() {
+    if (!document.getElementById('calendar-date-colors')) {
+      const colors = document.createElement('link');
+      colors.rel = 'stylesheet';
+      colors.href = '/css/calendar-date-colors.css?v=20261011-date-colors';
+      colors.id = 'calendar-date-colors';
+      document.head.appendChild(colors);
+    }
     if (document.getElementById('ent-calendar-styles')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -479,12 +486,12 @@ const EnterpriseCalendar = (() => {
         <span>${_mode === 'preferred' ? 'Choose a preferred day. Staff will confirm availability after reviewing your request.' : 'Tap a green or orange date to see its available times.'}</span>
       </div>
       <div class="ent-cal-legend">
-        ${_mode === 'preferred' ? '<div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Preferred date</div><div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday / closed</div>' : `
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Few times left</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>Fully booked</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>No service</div>`}
+        ${_mode === 'preferred' ? '<div class="ent-cal-legend-item available"><span class="ent-cal-legend-dot available" aria-hidden="true"></span>Preferred date</div><div class="ent-cal-legend-item holiday"><span class="ent-cal-legend-dot holiday" aria-hidden="true"></span>Holiday / closed</div>' : `
+        <div class="ent-cal-legend-item available"><span class="ent-cal-legend-dot available" aria-hidden="true"></span>Available</div>
+        <div class="ent-cal-legend-item limited"><span class="ent-cal-legend-dot limited" aria-hidden="true"></span>Few times left</div>
+        <div class="ent-cal-legend-item full"><span class="ent-cal-legend-dot full" aria-hidden="true"></span>Fully booked</div>
+        <div class="ent-cal-legend-item holiday"><span class="ent-cal-legend-dot holiday" aria-hidden="true"></span>Holiday</div>
+        <div class="ent-cal-legend-item non-working"><span class="ent-cal-legend-dot non-working" aria-hidden="true"></span>No service</div>`}
       </div>
       <div class="ent-cal-days">
         ${DAYS_SHORT.map(d => `<div class="ent-cal-day-name">${d}</div>`).join('')}
@@ -543,13 +550,13 @@ const EnterpriseCalendar = (() => {
             reasonText = 'Closed Today';
             tooltipText = 'Booking window for today has passed';
           } else {
-            cellClass += ' limited';
+            cellClass += availInfo.availableSlots <= 3 ? ' limited' : ' available';
             clickable = true;
             const count = availInfo.availableSlots;
             tooltipText = `${count} start time${count !== 1 ? 's' : ''} available today`;
           }
         } else if (availInfo && availInfo.availableSlots === 0) {
-          cellClass += ' non-working';
+          cellClass += ' full';
           reasonText = 'Fully booked';
           tooltipText = 'No start times available today';
         } else if (holInfo) {
@@ -1034,14 +1041,14 @@ const EnterpriseCalendar = (() => {
         </button>
       </div>
       <div class="ent-cal-legend">
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot available"></span>Available</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot limited"></span>Limited Capacity</div>
+        <div class="ent-cal-legend-item available"><span class="ent-cal-legend-dot available" aria-hidden="true"></span>Available</div>
+        <div class="ent-cal-legend-item limited"><span class="ent-cal-legend-dot limited" aria-hidden="true"></span>Limited Capacity</div>
         ${startSelected && !endSelected ? '<div class="ent-cal-legend-item"><span class="ent-cal-legend-dot too-soon"></span>Too soon to finish</div>' : ''}
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot full"></span>No Project Capacity</div>
+        <div class="ent-cal-legend-item full"><span class="ent-cal-legend-dot full" aria-hidden="true"></span>No Project Capacity</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot selected"></span>Selected</div>
         <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot in-range"></span>In Preferred Window</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot holiday"></span>Holiday</div>
-        <div class="ent-cal-legend-item"><span class="ent-cal-legend-dot non-working"></span>Non-Working</div>
+        <div class="ent-cal-legend-item holiday"><span class="ent-cal-legend-dot holiday" aria-hidden="true"></span>Holiday</div>
+        <div class="ent-cal-legend-item non-working"><span class="ent-cal-legend-dot non-working" aria-hidden="true"></span>Non-Working</div>
       </div>
       <div class="ent-cal-days">
         ${DAYS_SHORT.map(d => `<div class="ent-cal-day-name">${d}</div>`).join('')}

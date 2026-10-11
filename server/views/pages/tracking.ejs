@@ -1631,6 +1631,7 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
 <script src="/js/enterprise-calendar.js"></script>
 <script src="/socket.io/socket.io.js"></script>
+<script src="/js/customer-workflow-refresh.js?v=20261011-workflow"></script>
 <script id="customerTrackInitialBookings" type="application/json"><%- JSON.stringify(initialBookings || []) %></script>
 <script id="customerTrackInitialBooking" type="application/json"><%- JSON.stringify(initialBooking || null) %></script>
 <script>
@@ -1778,7 +1779,23 @@
   function normalizeStatus(status) {
     const s = String(status || "").toLowerCase();
     if (s === "approved") return "confirmed";
+    if (s === "accepted") return "confirmed";
     return s || "pending";
+  }
+
+  function scheduleStatusLabel(status) {
+    const labels = { pending: 'Awaiting review', payment_verified: 'Payment checked',
+      awaiting_assignment: 'Waiting for a technician', assigned: 'Technician assigned',
+      pending_reassignment: 'Finding a new technician', 'reschedule-required': 'New schedule needed',
+      pending_project_scheduling: 'Project schedule being planned', inspection_scheduled: 'Inspection scheduled',
+      inspection_in_progress: 'Inspection in progress', inspection_completed: 'Inspection completed',
+      awaiting_approval: 'Waiting for your approval', repair_requested: 'Repair requested',
+      repair_approved: 'Repair approved', repair_declined: 'Repair declined', waiting_parts: 'Waiting for parts',
+      parts_reserved: 'Parts reserved', ready_for_repair: 'Ready for repair', repair_scheduled: 'Repair scheduled',
+      repair_in_progress: 'Repair in progress', repair_completed: 'Repair completed',
+      'on-the-way': 'On the way', 're-scheduled': 'Schedule changed' };
+    const value = normalizeStatus(status);
+    return labels[value] || value.replace(/[-_]/g, ' ');
   }
 
   function statusBadgeClass(status) {
@@ -1792,6 +1809,10 @@
     if (s === "on-the-way") return "on-the-way";
     if (s === "in-progress") return "in-progress";
     if (s === "scheduled") return "scheduled";
+    if (completedStatuses.includes(s)) return "completed";
+    if (activeStatuses.includes(s)) return "in-progress";
+    if (upcomingStatuses.includes(s)) return "scheduled";
+    if (['rejected', 'repair_declined', 'closed'].includes(s)) return "cancelled";
     return "pending";
   }
 
@@ -1943,8 +1964,9 @@
   // Active = technician is en route or working (on-the-way, in-progress, arrived)
   const activeStatuses = ['on-the-way', 'in-progress', 'arrived'];
   // Upcoming = confirmed/scheduled but not yet started
-  const upcomingStatuses = ['confirmed', 'scheduled'];
-  const completedStatuses = ['completed'];
+  activeStatuses.push('inspection_in_progress', 'repair_in_progress', 'waiting-for-customer');
+  const upcomingStatuses = ['confirmed', 'scheduled', 'assigned', 're-scheduled', 'inspection_scheduled', 'repair_scheduled'];
+  const completedStatuses = ['completed', 'repair_completed'];
 
   function updateScheduleStats() {
     if (bookingsLoading) {
@@ -1959,7 +1981,7 @@
     document.getElementById('trkActiveCount').textContent = bookings.filter(b => activeStatuses.includes(normalizeStatus(b.status))).length;
     document.getElementById('trkUpcomingCount').textContent = bookings.filter(b => {
       const status = normalizeStatus(b.status);
-      return status !== 'completed' && status !== 'cancelled';
+      return upcomingStatuses.includes(status);
     }).length;
   }
   updateScheduleStats();
@@ -1968,9 +1990,9 @@
   function bookingMatchesFilter(b, filter) {
     const s = normalizeStatus(b.status);
     if (filter === 'all') return true;
-    if (filter === 'active') return ['on-the-way', 'in-progress', 'arrived'].includes(s);
-    if (filter === 'upcoming') return ['confirmed', 'scheduled'].includes(s);
-    if (filter === 'completed') return s === 'completed';
+    if (filter === 'active') return activeStatuses.includes(s);
+    if (filter === 'upcoming') return upcomingStatuses.includes(s);
+    if (filter === 'completed') return completedStatuses.includes(s);
     return true;
   }
 
@@ -2033,7 +2055,7 @@
           <div class="trk-bc-main">
             <div class="trk-bc-top">
               <div class="trk-bc-service">${getServiceName(b)} ${b.isProject ? '<span class="badge rounded-pill text-bg-primary ms-1" style="font-size:.58rem;vertical-align:middle;">LARGE-SCALE PROJECT</span>' : ''}</div>
-              <span class="trk-status-pill ${statusBadgeClass(status)}">${status.replace(/-/g, ' ')}</span>
+              <span class="trk-status-pill ${statusBadgeClass(status)}">${scheduleStatusLabel(status)}</span>
               ${b.status === 're-scheduled' && b.proposedReschedule && b.proposedReschedule.status === 'pending' ? `<span class="trk-status-pill" style="background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe;"><i class="bi bi-calendar-check me-1"></i>Proposed</span>` : ''}
             </div>
             <div class="trk-bc-meta">
@@ -2253,12 +2275,12 @@
     }
   });
 
-  async function trkLoadBooking(id) {
+  async function trkLoadBooking(id, options = {}) {
     // Show a loading state in the detail view
     const detailBody = document.getElementById('trkDetailInner');
-    if (detailBody) detailBody.style.opacity = '0.45';
+    if (detailBody && !options.quiet) detailBody.style.opacity = '0.45';
     const statusEl = document.getElementById('trkMapStatus');
-    if (statusEl) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Loading booking details…';
+    if (statusEl && !options.quiet) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Loading booking details…';
 
     try {
       const resp = await fetch('/api/appointments/' + encodeURIComponent(id), { credentials: 'include' });
@@ -2270,12 +2292,12 @@
       const idx = bookings.findIndex(b => String(b._id || b.id) === String(id));
       if (idx >= 0) bookings[idx] = Object.assign({}, bookings[idx], normalized);
       else bookings.push(normalized);
-      currentBookingId = String(id);
-      refreshSelected();
+      if (String(currentBookingId) === String(id) && !isRatingModalOpen
+        && !document.querySelector('.modal.show')) refreshSelected();
     } catch (err) {
-      if (statusEl) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Could not load details';
+      if (statusEl && !options.quiet) statusEl.innerHTML = '<span class="trk-pulse-dot"></span> Could not load details';
     } finally {
-      if (detailBody) detailBody.style.opacity = '';
+      if (detailBody && !options.quiet) detailBody.style.opacity = '';
     }
   }
 
@@ -2310,7 +2332,7 @@
 
     const status = normalizeStatus(b.status);
     const pill = document.getElementById('trkStatusPill');
-    pill.textContent = status.replace(/-/g, ' ');
+    pill.textContent = scheduleStatusLabel(status);
     pill.className = 'trk-status-pill ' + statusBadgeClass(status);
 
     const address = getCustomerAddressFromBooking(b) || 'No address provided';
@@ -2328,17 +2350,13 @@
     const total = Number(b.totalPrice || b.totalFinalCost || b.estimatedFee || 0);
     const serviceFee = Math.max(0, total - travelFee);
     const downpayment = Number(b.downpaymentAmount || 0);
-    // `amountPaid` comes from Payment records (may not count a pending
-    // downpayment). The downpayment is collected at booking, so include it
-    // in the paid total when it isn't already reflected.
-    const payments = Array.isArray(b.payments) ? b.payments : [];
-    const dpCounted = payments.some(p => String(p.type || '').toLowerCase() === 'downpayment' && ['', 'paid', 'succeeded', 'completed', 'verified'].includes(String(p.status || '').toLowerCase()));
-    let paid = Number(b.amountPaid != null ? b.amountPaid : 0);
-    if (!b.isProject && downpayment > 0 && !dpCounted) paid += downpayment;
+    // Required downpayment is a price rule, not evidence of received money.
+    // The server includes verified partial payments in amountPaid.
+    const paid = Math.max(0, Number(b.amountPaid || 0));
     const balance = Math.max(0, total - paid);
     const payMethod = (b.paymentMethod || '—').replace(/_/g, ' ');
     const isFullyPaid = balance <= 0;
-    const showPayment = total > 0;
+    const showPayment = total > 0 && !b.sourceOrderId;
     const quantity = Number(b.quantity)
       || (Array.isArray(b.services) ? b.services.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0) : 0)
       || 1;
@@ -2483,6 +2501,7 @@
           <div class="trk-detail-value">${techName}${b.technicianPhone ? ` <a href="tel:${b.technicianPhone}" class="trk-tech-call" title="Call technician"><i class="bi bi-telephone-fill"></i></a>` : ''}</div>
         </div>
       </div>` : ''}` : ''}
+      ${b.sourceOrderId ? `<div class="trk-payment-summary"><div class="trk-payment-meta">Delivery and installation are part of your aircon order. <a href="/my-orders/${encodeURIComponent(String(b.sourceOrderId))}">View its payment and balance</a>.</div></div>` : ''}
       ${showPayment ? `
       <div class="trk-payment-summary">
         ${isRepair ? `
@@ -2496,7 +2515,7 @@
         ${serviceFee > 0 ? `<div class="trk-payment-line"><span>${b.isProject ? 'Project Service Charge' : 'Service Fee'}</span><span>₱${serviceFee.toLocaleString()}</span></div>` : ''}
         ${travelFee > 0 ? `<div class="trk-payment-line"><span>${b.isProject ? `Travel (${Number(b.project?.pricing?.travelFarePerDay || travelFee).toLocaleString()} × ${Number(b.project?.pricing?.daysWorked || 1)} productive day${Number(b.project?.pricing?.daysWorked || 1) === 1 ? '' : 's'})` : 'Travel Fee'}</span><span>₱${travelFee.toLocaleString()}</span></div>` : ''}
         <div class="trk-payment-line trk-payment-total"><span>${b.isProject ? 'Project Total' : 'Total Service Fee'}</span><span>₱${total.toLocaleString()}</span></div>
-        ${!b.isProject && downpayment > 0 ? `<div class="trk-payment-line"><span>Downpayment Paid</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
+        ${!b.isProject && downpayment > 0 ? `<div class="trk-payment-line"><span>Required downpayment</span><span>₱${downpayment.toLocaleString()}</span></div>` : ''}
         <div class="trk-payment-line"><span>${b.isProject ? 'Already Paid' : 'Amount Paid'}</span><span>₱${paid.toLocaleString()}</span></div>
         ${isFullyPaid ? `
         <div class="trk-payment-line ok"><span>Status</span><span>Fully Paid</span></div>
@@ -3756,9 +3775,14 @@
 
   // ── Greeting ──────────────────────────────────────────────────────────
   let scheduleDataRequest = null;
-  function loadScheduleData() {
-    if (scheduleDataRequest) return scheduleDataRequest;
-    bookingsLoading = true;
+  let scheduleDataNeedsRefresh = false;
+  function loadScheduleData(options = {}) {
+    if (scheduleDataRequest) {
+      if (options.quiet === true) scheduleDataNeedsRefresh = true;
+      return scheduleDataRequest;
+    }
+    const quiet = options.quiet === true;
+    if (!quiet) bookingsLoading = true;
     bookingsLoadError = false;
     renderScheduleList();
     const request = window.customerSchedulePrefetch
@@ -3769,31 +3793,44 @@
         if (!response.ok) throw new Error(`Schedule request failed: ${response.status}`);
         return response.json();
       })
-      .then(data => {
+      .then(async data => {
         if (!Array.isArray(data.bookings)) throw new Error('Invalid schedule response');
         bookings.splice(0, bookings.length, ...data.bookings);
         bookings.sort((a, b) => new Date(a.bookingDate || 0) - new Date(b.bookingDate || 0));
         const active = bookings.find(booking => ['on-the-way', 'in-progress', 'arrived'].includes(normalizeStatus(booking.status)));
-        currentBookingId = String(active?._id || data.currentBookingId || bookings[0]?._id || '');
+        const selected = bookings.find(booking => String(booking._id || booking.id) === String(currentBookingId));
+        currentBookingId = String(selected?._id || active?._id || data.currentBookingId || bookings[0]?._id || '');
         bookingsLoading = false;
         bookingsLoadError = false;
         updateScheduleStats();
         renderScheduleList();
         calendar.removeAllEvents();
         calendar.addEventSource(bookings.map(bookingToEvent).filter(Boolean));
+        if (selected && detailViewEl.style.display !== 'none' && !isRatingModalOpen) {
+          await trkLoadBooking(currentBookingId, { quiet: true });
+        }
         const customerId = getBookingCustomerId(bookings[0]);
         if (socket.connected && customerId) socket.emit('customer:join', customerId);
       })
       .catch(error => {
         console.error('Failed to load customer schedule:', error);
         bookingsLoading = false;
-        bookingsLoadError = true;
+        bookingsLoadError = !quiet;
         renderScheduleList();
       })
-      .finally(() => { scheduleDataRequest = null; });
+      .finally(() => {
+        scheduleDataRequest = null;
+        if (scheduleDataNeedsRefresh) {
+          scheduleDataNeedsRefresh = false;
+          loadScheduleData({ quiet: true });
+        }
+      });
     return scheduleDataRequest;
   }
   loadScheduleData();
+  window.CustomerWorkflowRefresh?.bindWorkflowRefresh({ window, document, socket,
+    refresh: () => loadScheduleData({ quiet: true }), isBusy: () => isRatingModalOpen,
+  });
 
   const hour = new Date().getHours();
   let greeting = 'Good evening';

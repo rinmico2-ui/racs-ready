@@ -1,14 +1,13 @@
 "use strict";
+const { manilaDateTime } = require("./bookingDateTime");
 
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
 const { getAftercarePolicy } = require("./aftercarePolicy");
 const ACTIVE = ["upcoming", "due", "overdue"];
 
 function summaryPipeline(filter, now, firstReminderDays) {
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = manilaDateTime(now, 0);
+  const tomorrow = new Date(today.getTime() + 86400000);
   const cutoff = new Date(now.getTime() + firstReminderDays * 86400000);
   const response = { $and: [
     { $in: ["$effectiveStatus", ACTIVE] },

@@ -96,6 +96,25 @@ test("unresolved unavailable equipment blocks installation departure", () => {
   assert.match(readiness.blockers.join(" "), /another technician/);
 });
 
+test("a resolved additional item still needs checkout and confirmation before departure", () => {
+  for (const decision of ['assigned_from_stock', 'procured', 'not_required']) {
+    const kit = confirmedKit({ hasDelta: true, deltaItems: [{ name: 'Copper tube', category: 'consumable',
+      orderIds: [orderId], checkoutStatus: 'pending', resolution: { status: decision } }] });
+    const result = orderDepartureReadiness(installationOrder(), kit);
+    assert.equal(result.ready, false);
+    assert.match(result.blockers.join(' '), /Prepare and confirm/);
+    kit.hasDelta = false;
+    kit.deltaItems = [];
+    assert.equal(orderDepartureReadiness(installationOrder(), kit).ready, true);
+  }
+});
+
+test("changed job coverage needs confirmation even without additional stock", () => {
+  const result = orderDepartureReadiness(installationOrder(), confirmedKit({ hasDelta: true }));
+  assert.equal(result.ready, false);
+  assert.match(result.blockers.join(' '), /updated Daily Kit/);
+});
+
 test("installation consumable multiplier uses total ordered unit quantity", () => {
   assert.equal(orderUnitCount({ items: [{ quantity: 2 }, { quantity: 3 }] }), 5);
   assert.equal(orderUnitCount({ items: [] }), 1);

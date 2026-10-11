@@ -61,6 +61,7 @@ test("delivery order details open before fetching and retain an on-demand receip
     fmtDate: () => "2026-09-29", fmtTime: value => value, fmtManilaDateTime: () => "2026-09-29",
     niceStatus: value => value, orderStatusLabel: order => order.status, paymentLabel: () => "GCash",
     FULFILL_LABELS: { delivery_only: "Delivery Only" }, canAssign: () => false,
+    unitPreparedBtn: () => '',
     isAdminWorkspace: true, canResolveOrders: true,
     operationsFetchJson: async (url, options) => {
       assert.equal(f.details.classList.contains("show"), true);
@@ -77,6 +78,34 @@ test("delivery order details open before fetching and retain an on-demand receip
   assert.match(body.innerHTML, /Payment Receipt[\s\S]*_aoLoadPhotos\('order-1',this,'receipt'\)/);
   assert.match(body.innerHTML, /View photos and receipts/);
   assert.doesNotMatch(body.innerHTML, /data:image/);
+});
+
+test("admin and secretary order details offer preparation after technician acceptance", async () => {
+  for (const role of ['admin', 'secretary']) {
+    const f = fixture();
+    const body = new f.Element(), footer = new f.Element();
+    const context = {
+      window: f.window, document: f.document, modal: { show() { f.details.classList.add("show"); } },
+      modalBody: body, modalSubtitle: {}, modalFooter: footer, viewedOrderId: null,
+      orderDetailRequest: 0, orderDetailController: null, AbortController,
+      esc: value => String(value ?? ""), currency: () => 'PHP 5000',
+      fmtDate: () => '2030-01-02', fmtTime: value => value, fmtManilaDateTime: () => '2030-01-01',
+      niceStatus: value => value, orderStatusLabel: order => order.status, paymentLabel: () => 'GCash',
+      FULFILL_LABELS: { delivery_installation: 'Delivery + Installation' }, canAssign: () => false,
+      isAdminWorkspace: role === 'admin', canResolveOrders: true,
+      operationsFetchJson: async () => ({ photosDeferred: true, order: { _id: 'order-1', orderReference: 'ORD-TEST',
+        fulfillmentType: 'delivery_installation', status: 'technician_accepted', paymentStatus: 'partial',
+        paymentMethod: 'gcash', items: [], total: 5000,
+        preparation: { dispatch: { status: 'pending' }, installation: { status: 'pending' } } } }),
+    };
+    vm.runInNewContext(source.slice(source.indexOf('  function unitPreparedBtn('), source.indexOf('\n  }', source.indexOf('  function unitPreparedBtn(')) + 4), context);
+    vm.runInNewContext(source.slice(source.indexOf('  window._aoViewOrder ='), source.indexOf('  window._aoResendCustomerActivation')), context);
+    await f.window._aoViewOrder('order-1');
+    assert.equal(context.modalSubtitle.textContent, 'ORD-TEST');
+    assert.match(footer.innerHTML, /_aoMarkDispatchReady\('order-1'\)/);
+    assert.match(footer.innerHTML, /Confirm Unit Prepared/);
+    assert.match(body.innerHTML, /Admin or secretary/);
+  }
 });
 
 function photosFixture(fetch) {

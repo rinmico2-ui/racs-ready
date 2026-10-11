@@ -1062,26 +1062,8 @@ router.get("/tracking/data", pageAuth.requireRole("customer"), async (req, res, 
 
     const items = await BookingService.find({
       customerId: req.user._id,
-      status: {
-        $in: [
-          "pending",
-          "pending_project_scheduling",
-          "payment_verified",
-          "awaiting_assignment",
-          "assigned",
-          "accepted",
-          "confirmed",
-          "scheduled",
-          "on-the-way",
-          "arrived",
-          "in-progress",
-          "completed",
-          "re-scheduled",
-          "expired",
-        ],
-      },
     })
-      .select("_id customerId customer technicianId technician status bookingDate startTime endTime bookingReference workOrderNumber service.name service.basePrice serviceType serviceModel serviceId services.name services.duration services.quantity services.unitPrice services.totalPrice serviceDurationMinutes duration quantity isProject location.address location.lat location.lng proposedReschedule.status travelFare amountPaid downpaymentAmount servicePrice approval.status quotation.totalCost totalPrice")
+      .select("_id customerId sourceOrderId customer technicianId technician status bookingDate startTime endTime bookingReference workOrderNumber service.name service.basePrice serviceType serviceModel serviceId services.name services.duration services.quantity services.unitPrice services.totalPrice serviceDurationMinutes duration quantity isProject location.address location.lat location.lng proposedReschedule.status travelFare amountPaid downpaymentAmount servicePrice approval.status quotation.totalCost totalPrice")
       .populate("technicianId", "name phone")
       .sort({ bookingDate: -1 })
       .limit(100)

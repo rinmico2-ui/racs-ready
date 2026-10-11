@@ -29,6 +29,11 @@ database before choosing a name; do not assume it is `appointment_scheduler`.
 
 ## Dokploy configuration
 
+For the service details supplied in this investigation, see the
+[procedure using custom MongoDB arguments](dokploy-mongodb-replica-set-arguments.md).
+It retains the existing data volume and prepares a persistent keyfile before
+redeployment. Confirm the image and deployed database name before applying it.
+
 Open the **MongoDB service**, rather than the application's logs. The exact
 replica set controls depend on the installed Dokploy version. Dokploy's MongoDB
 service schema supports `replicaSets`, and its implementation uses the name

@@ -4,6 +4,7 @@ const RelocationRequest = require("../models/RelocationRequest");
 const MaintenanceSchedule = require("../models/MaintenanceSchedule");
 const { getAftercarePolicy } = require("./aftercarePolicy");
 const { normalizeServiceLocation } = require("./maintenanceLocation");
+const { manilaDateKey } = require("./bookingDateTime");
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_INTERVAL_DAYS = 90;
@@ -23,12 +24,10 @@ function effectiveScheduleStatus(schedule, now = new Date()) {
   if (["scheduled", "completed", "paused", "cancelled"].includes(current)) return current;
   const due = new Date(schedule?.dueDate);
   if (Number.isNaN(due.getTime())) return current;
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const dueDay = new Date(due);
-  dueDay.setHours(0, 0, 0, 0);
+  const today = manilaDateKey(now);
+  const dueDay = manilaDateKey(due);
   if (dueDay < today) return "overdue";
-  if (dueDay.getTime() === today.getTime()) return "due";
+  if (dueDay === today) return "due";
   return "upcoming";
 }
 
@@ -185,6 +184,9 @@ async function upsertAsset(seed, values) {
 
 async function syncMaintenanceFromBooking(booking, options = {}) {
   if (!booking || !["completed", "repair_completed"].includes(String(booking.status))) return [];
+  // Installation orders mirror progress onto a linked booking. The order owns
+  // those aircons and their maintenance cycles; the mirror is not another unit.
+  if (booking.sourceOrderId) return [];
   const policy = options.policy || await getAftercarePolicy();
   const maintenanceRule = policy.maintenance;
   const completedAt = booking.completedAt || booking.repairCompletion?.completedAt || new Date();

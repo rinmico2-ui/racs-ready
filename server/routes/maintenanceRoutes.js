@@ -17,6 +17,7 @@ const SiteSetting = require("../models/SiteSetting");
 const { authoritativeDeliveryQuote, parseDateOnly } = require("../utils/orderCheckoutPolicy");
 const { linkScheduleToBooking } = require("../utils/maintenanceLifecycle");
 const { manilaDateKey, firstMaintenanceSlot } = require("../utils/maintenanceBooking");
+const { manilaDateTime } = require("../utils/bookingDateTime");
 const { maintenanceSummary: summaryFor } = require("../utils/maintenanceSummary");
 const { resolveMaintenanceLocation, requireServiceLocation, normalizeServiceLocation } = require("../utils/maintenanceLocation");
 const { reopenScheduleAfterBookingCancellation } = require("../utils/maintenanceLifecycle");
@@ -151,10 +152,8 @@ function customerId(req) {
 }
 
 async function refreshDueStates(now = new Date()) {
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const today = manilaDateTime(now, 0);
+  const tomorrow = new Date(today.getTime() + 86400000);
   await Promise.all([
     MaintenanceSchedule.updateMany(
       { status: { $in: ["upcoming", "due"] }, dueDate: { $lt: today } },

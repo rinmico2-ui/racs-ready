@@ -1,0 +1,93 @@
+/* One date-status palette for service bookings and aircon orders. */
+:is(.ent-calendar, .co-ent-calendar) {
+  --date-available-bg: #dcfce7;
+  --date-available-border: #86efac;
+  --date-available-text: #166534;
+  --date-limited-bg: #ffedd5;
+  --date-limited-border: #fdba74;
+  --date-limited-text: #9a3412;
+  --date-full-bg: #fee2e2;
+  --date-full-border: #fca5a5;
+  --date-full-text: #991b1b;
+  --date-holiday-bg: #f3e8ff;
+  --date-holiday-border: #d8b4fe;
+  --date-holiday-text: #6b21a8;
+  --date-closed-bg: #f1f5f9;
+  --date-closed-border: #cbd5e1;
+  --date-closed-text: #475569;
+}
+
+:is(.ent-calendar, .co-ent-calendar) .available {
+  --date-bg: var(--date-available-bg);
+  --date-border: var(--date-available-border);
+  --date-text: var(--date-available-text);
+}
+:is(.ent-calendar, .co-ent-calendar) .limited {
+  --date-bg: var(--date-limited-bg);
+  --date-border: var(--date-limited-border);
+  --date-text: var(--date-limited-text);
+}
+:is(.ent-calendar, .co-ent-calendar) .full {
+  --date-bg: var(--date-full-bg);
+  --date-border: var(--date-full-border);
+  --date-text: var(--date-full-text);
+}
+:is(.ent-calendar, .co-ent-calendar) .holiday {
+  --date-bg: var(--date-holiday-bg);
+  --date-border: var(--date-holiday-border);
+  --date-text: var(--date-holiday-text);
+}
+:is(.ent-calendar, .co-ent-calendar) .non-working {
+  --date-bg: var(--date-closed-bg);
+  --date-border: var(--date-closed-border);
+  --date-text: var(--date-closed-text);
+}
+
+:is(.ent-calendar, .co-ent-calendar) :is(.ent-cal-cell, .co-cal-cell):is(.available, .limited, .full, .holiday, .non-working):not(.selected, .range-start, .range-end, .in-range, .too-soon) {
+  background: var(--date-bg);
+  border-color: var(--date-border);
+  color: var(--date-text);
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:is(.ent-calendar, .co-ent-calendar) :is(.ent-cal-cell, .co-cal-cell):is(.available, .limited):not(.selected, .range-start, .range-end, .in-range, .too-soon):hover {
+  background: var(--date-bg);
+  border-color: var(--date-text);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+}
+:is(.ent-calendar, .co-ent-calendar) :is(.ent-cal-cell, .co-cal-cell):is(.available, .limited, .full, .holiday, .non-working):not(.selected, .range-start, .range-end, .in-range, .too-soon) :is(.ent-cal-date, .ent-cal-slots, .ent-cal-reason, .co-cal-date, .co-cal-slots, .co-cal-reason) {
+  color: var(--date-text);
+}
+:is(.ent-calendar, .co-ent-calendar) :is(.ent-cal-legend-item, .co-cal-legend-item):is(.available, .limited, .full, .holiday, .non-working) {
+  color: var(--date-text);
+}
+:is(.ent-calendar, .co-ent-calendar) :is(.ent-cal-legend-dot, .co-cal-legend-dot):is(.available, .limited, .full, .holiday, .non-working) {
+  background: var(--date-bg);
+  border: 1.5px solid var(--date-text);
+}
+
+.co-ent-calendar .co-cal-cell.selected {
+  background: #2563eb !important;
+  color: #fff !important;
+  border-color: #2563eb !important;
+}
+.co-ent-calendar .co-cal-cell.selected :is(.co-cal-date, .co-cal-slots, .co-cal-reason) {
+  color: #fff !important;
+}
+.co-ent-calendar .co-cal-legend {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.co-ent-calendar .co-cal-legend-item {
+  font-size: .68rem;
+  line-height: 1.4;
+}
+.co-ent-calendar .co-cal-legend-item:nth-child(n+4) { display: flex; }
+@media (max-width: 575px) {
+  .co-ent-calendar .co-cal-legend { gap: 7px 12px; }
+  .co-ent-calendar .co-cal-legend-item { font-size: .65rem; }
+}

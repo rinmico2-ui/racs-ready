@@ -66,7 +66,7 @@ test("booking history exposes one schedule action across customer-editable state
   assert.match(script, /syncGlobalState: false/);
   assert.doesNotMatch(script, /schedule\/technician\/\$\{encodeURIComponent\(currentRescheduleTechnicianId\)\}/);
   assert.match(calendar, /\/api\/schedule\/available-dates\?/);
-  assert.match(calendar, /\/api\/schedule\/time-slots\?/);
+  assert.match(calendar, /\/api\/schedule\/time-slots/);
 });
 
 test("customer rescheduling is ownership-scoped and revalidates capacity before request and approval", () => {

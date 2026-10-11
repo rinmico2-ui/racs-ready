@@ -613,41 +613,12 @@ router.post("/:id/assign", auth.authenticate, auth.requireRole(["admin", "secret
  * Syncs assignment status changes to booking status.
  * Called internally when technician transitions assignment.
  */
-router.post("/:id/sync-status", auth.authenticate, async (req, res, next) => {
-  try {
-    const BookingService = require("../models/BookingService");
-    const { id } = req.params;
-    const { status: assignmentStatus } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking id" });
-
-    const booking = await BookingService.findById(id);
-    if (!booking) return res.status(404).json({ error: "Booking not found" });
-
-    // Map assignment statuses to booking statuses
-    const statusMap = {
-      "accepted": "confirmed",
-      "en_route": "on-the-way",
-      "on_site": "arrived",
-      "in_progress": "in-progress",
-      "completed": "completed",
-      "cancelled": "pending_reassignment",
-      "declined": "pending_reassignment",
-    };
-
-    const newBookingStatus = statusMap[assignmentStatus];
-    if (!newBookingStatus) {
-      return res.status(400).json({ error: `No booking status mapping for assignment status "${assignmentStatus}"` });
-    }
-
-    booking.status = newBookingStatus;
-    if (assignmentStatus === "completed") {
-      booking.completedAt = new Date();
-    }
-    await booking.save();
-
-    return res.json({ message: `Booking status updated to ${newBookingStatus}`, booking });
-  } catch (err) { next(err); }
+router.post("/:id/sync-status", auth.authenticate, (req, res) => {
+  // Assignment handlers synchronize validated progress. Request-body status
+  // must never bypass ownership, preparation, payment or completion proof.
+  return res.status(409).json({ code: "ASSIGNMENT_WORKFLOW_REQUIRED",
+    error: "Update this job from the technician assignment page.",
+  });
 });
 
 /**

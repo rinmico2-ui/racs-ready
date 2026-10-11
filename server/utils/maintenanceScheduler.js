@@ -8,9 +8,12 @@ const {
   effectiveScheduleStatus,
   syncMaintenanceFromBooking,
   syncMaintenanceFromOrder,
+  bookingAssetSeeds,
+  orderAssetSeeds,
   reopenScheduleAfterBookingCancellation,
 } = require("./maintenanceLifecycle");
 const { DEFAULT_AFTERCARE_POLICY, getAftercarePolicy } = require("./aftercarePolicy");
+const { manilaDateTime } = require("./bookingDateTime");
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -21,10 +24,9 @@ function safeEmailText(value) {
 
 function reminderFor(schedule, now = new Date(), config = DEFAULT_AFTERCARE_POLICY.reminders) {
   if (!config.enabled) return null;
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(schedule.dueDate);
-  due.setHours(0, 0, 0, 0);
+  const today = manilaDateTime(now, 0);
+  const due = manilaDateTime(schedule.dueDate, 0);
+  if (!today || !due) return null;
   const days = Math.round((due - today) / DAY_MS);
   if (days < 0 && config.overdueEnabled && !schedule.reminders?.overdueAt) return { field: "overdueAt", type: "maintenance_overdue", label: "overdue", priority: "high" };
   if (days === 0 && config.dueDateEnabled && !schedule.reminders?.dueAt) return { field: "dueAt", type: "maintenance_due", label: "due today", priority: "high" };
@@ -165,6 +167,7 @@ async function reconcileMissingAftercare(now = new Date()) {
   const [bookings, orders] = await Promise.all([
     BookingService.find({
       status: { $in: ["completed", "repair_completed"] },
+      sourceOrderId: null,
       customerId: { $ne: null },
       $or: [
         { completedAt: { $gte: cutoff } },
@@ -178,18 +181,28 @@ async function reconcileMissingAftercare(now = new Date()) {
       $or: [{ completedAt: { $gte: cutoff } }, { updatedAt: { $gte: cutoff } }],
     }).sort({ updatedAt: -1 }).limit(250),
   ]);
-  const [orderAssetIds, completedBookingScheduleIds] = await Promise.all([
-    CustomerAsset.distinct("originId", { originType: "order", originId: { $in: orders.map((order) => order._id) } }),
-    MaintenanceSchedule.distinct("sourceCompletionId", {
-      sourceCompletionType: "booking",
-      sourceCompletionId: { $in: bookings.map((booking) => booking._id) },
-    }),
+  const completionIds = [...bookings, ...orders].map(record => record._id);
+  const [assets, cycles] = await Promise.all([
+    CustomerAsset.find({ originId: { $in: completionIds } }).select("_id assetKey").lean(),
+    MaintenanceSchedule.find({ sourceCompletionId: { $in: completionIds } }).select("cycleKey").lean(),
   ]);
-  const orderAssets = new Set(orderAssetIds.map(String));
-  const completedBookingSchedules = new Set(completedBookingScheduleIds.map(String));
+  const assetByKey = new Map(assets.map(asset => [asset.assetKey, asset]));
+  const cycleKeys = new Set(cycles.map(cycle => cycle.cycleKey));
+  const seedsCovered = (seeds, type, id, needsCycle = true) => seeds.length > 0 && seeds.every(seed => {
+    const asset = assetByKey.get(seed.assetKey);
+    return asset && (!needsCycle || cycleKeys.has(`${asset._id}:${type}:${id}`));
+  });
   let recovered = 0;
   for (const booking of bookings) {
-    if (completedBookingSchedules.has(String(booking._id))) continue;
+    // A cycle for one unit does not prove that every unit was saved. Linked
+    // maintenance/relocation assets use their existing identity instead.
+    const linkedAssetIds = booking.maintenance?.assetId ? [booking.maintenance.assetId]
+      : (booking.services || []).map(item => item.relocation?.assetId).filter(Boolean);
+    const seeds = (booking.maintenance?.assetId ? [] : bookingAssetSeeds(booking)).filter(seed => !(booking.services || []).some(item =>
+      item.relocation?.assetId && seed.originItemKey.startsWith(`service-${String(item._id || item.serviceId)}-`)));
+    if ((!seeds.length || seedsCovered(seeds, "booking", booking._id))
+      && (!linkedAssetIds.length || linkedAssetIds.every(id => cycleKeys.has(`${id}:booking:${booking._id}`)))
+      && (seeds.length || linkedAssetIds.length)) continue;
     try {
       const assets = await syncMaintenanceFromBooking(booking);
       if (assets.length) recovered += 1;
@@ -198,7 +211,7 @@ async function reconcileMissingAftercare(now = new Date()) {
     }
   }
   for (const order of orders) {
-    if (orderAssets.has(String(order._id))) continue;
+    if (seedsCovered(orderAssetSeeds(order), "order", order._id, order.fulfillmentType === "delivery_installation")) continue;
     try {
       const assets = await syncMaintenanceFromOrder(order);
       if (assets.length) recovered += 1;

@@ -605,5 +605,10 @@
   } else addressInput.addEventListener("input", addressChanged);
   document.querySelectorAll(".js-aftercare-retry").forEach(button => button.addEventListener("click", load));
 
+  window.CustomerWorkflowRefresh?.bindWorkflowRefresh({ window, document,
+    socket: window.socket || (typeof window.io === "function" ? window.io() : null),
+    refresh: load,
+    isBusy: () => bookingPending,
+  });
   load();
 })();

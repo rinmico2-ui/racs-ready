@@ -8,6 +8,11 @@
   const root = document.getElementById("bookHistoryRoot");
   if (!root) return;
 
+  window.CustomerWorkflowRefresh?.bindWorkflowRefresh({ window, document,
+    socket: window.socket || (typeof window.io === "function" ? window.io() : null),
+    refresh: () => fetchBookings(),
+  });
+
   const userId = root.getAttribute("data-user-id") || "";
   const userEmail = (root.getAttribute("data-user-email") || "").toLowerCase();
 
@@ -777,6 +782,8 @@
   
     // Payment section
     const paymentHtml = (() => {
+      if (b.sourceOrderId) return section('Order payment', 'bi-cash-coin',
+        `<p class="mb-0">Delivery and installation are part of your aircon order. <a href="/my-orders/${encodeURIComponent(String(b.sourceOrderId))}">View its payment and balance</a>.</p>`);
       // One-click Aftercare only requests a visit. The persisted default
       // payment plan is not a choice made by the customer and must stay hidden
       // until an actual payment is recorded.

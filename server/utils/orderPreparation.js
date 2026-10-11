@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { buildServicePreparation } = require("./servicePreparation");
+const { manilaDateTime, manilaDateKey } = require("./bookingDateTime");
 
 const ACTIVE_INSTALLATION_ORDER_STATUSES = [
   "technician_accepted",
@@ -84,7 +85,6 @@ function orderInstallationReadiness(order, kit) {
   const items = (kit.items || []).filter((item) => itemReferencesOrder(item, orderId));
   const deltaItems = (kit.deltaItems || []).filter((item) => itemReferencesOrder(item, orderId));
   const unresolved = items.filter(itemIsUnresolved);
-  const undecidedDelta = deltaItems.filter((item) => !RESOLVED_ITEM_STATUSES.has(item?.resolution?.status));
   const blockers = [];
 
   if (order.technicianId && kit.technicianId && String(order.technicianId) !== String(kit.technicianId)) {
@@ -93,7 +93,7 @@ function orderInstallationReadiness(order, kit) {
   if (order.delivery?.preferredDate && kit.workDate) {
     const scheduled = new Date(order.delivery.preferredDate);
     const kitDate = new Date(kit.workDate);
-    const dayKey = (value) => `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
+    const dayKey = manilaDateKey;
     if (!Number.isNaN(scheduled.getTime()) && !Number.isNaN(kitDate.getTime()) && dayKey(scheduled) !== dayKey(kitDate)) {
       blockers.push("The Daily Kit does not cover this installation date.");
     }
@@ -102,8 +102,12 @@ function orderInstallationReadiness(order, kit) {
   for (const item of unresolved) {
     blockers.push(item?.conflict?.message || `${item.name} is unavailable.`);
   }
-  if (undecidedDelta.length) {
-    blockers.push(`Review newly added Daily Kit items: ${undecidedDelta.map((item) => item.name).join(", ")}.`);
+  // A staff decision does not issue stock or confirm custody. Additional
+  // requirements must pass through kit confirmation before this order leaves.
+  if (deltaItems.length) {
+    blockers.push(`Prepare and confirm newly added Daily Kit items: ${deltaItems.map((item) => item.name).join(", ")}.`);
+  } else if (kit.hasDelta && !(kit.deltaItems || []).length) {
+    blockers.push("Review and confirm the updated Daily Kit before departure.");
   }
   if (!["confirmed", "in_progress"].includes(kit.status)) {
     blockers.push("Daily Preparation must be confirmed before departure.");
@@ -159,6 +163,21 @@ function orderDepartureReadiness(order, kit) {
   };
 }
 
+function orderUnitPreparationAttention(order, now = new Date()) {
+  const awaitingUnit = ["preparing_unit", "technician_assigned", "technician_accepted", "technician_declined"].includes(order?.status)
+    && ["delivery_only", "delivery_installation"].includes(order?.fulfillmentType)
+    && order?.preparation?.dispatch?.status !== "ready";
+  const scheduledDay = order?.delivery?.preferredDate && manilaDateTime(order.delivery.preferredDate, 0);
+  const today = manilaDateTime(now, 0);
+  const daysAway = scheduledDay && today ? (scheduledDay - today) / 86400000 : null;
+  const dueSoon = Boolean(awaitingUnit && (daysAway === 0 || daysAway === 1));
+  return {
+    unitPreparationDueSoon: dueSoon,
+    unitPreparationDueLabel: dueSoon ? (daysAway === 0 ? "Today" : "Tomorrow") : null,
+    unitPreparationDate: scheduledDay ? manilaDateKey(scheduledDay) : null,
+  };
+}
+
 function objectIds(values) {
   return [...new Set((values || []).filter(Boolean).map(String))]
     .filter(mongoose.isValidObjectId)
@@ -175,4 +194,5 @@ module.exports = {
   orderDepartureReadiness,
   orderInstallationReadiness,
   orderUnitCount,
+  orderUnitPreparationAttention,
 };

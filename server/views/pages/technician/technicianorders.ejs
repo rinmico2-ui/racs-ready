@@ -2859,6 +2859,7 @@
 <script>
 (function() {
   var _page=1,_status='today',_search='',_orders=[],_allOrders=[],_selectedId=null;
+  var orderFetchRequest = 0;
   var linkedOrderId = new URLSearchParams(window.location.search).get('order');
   var SCFG={
     pending_payment:{label:'Pending Payment',cls:'pending'}, preparing_unit:{label:'Preparing Unit',cls:'preparing'},
@@ -2977,6 +2978,20 @@
       ['technician_assigned','technician_accepted','preparing_unit'].includes(order.status));
   }
 
+  function orderPreparationAction(order) {
+    if(orderNeedsScheduleRecovery(order)) {
+      return { t:order.attentionTitle || 'Delivery schedule passed', s:order.attentionReason || 'Admin or secretary must confirm a new schedule.', icon:'bi-alarm-fill' };
+    }
+    if(['technician_accepted','preparing_unit'].includes(order.status)) {
+      var unitReady = order.preparation?.dispatch?.status === 'ready';
+      var kitReady = order.fulfillmentType !== 'delivery_installation' || ['confirmed','completed'].includes(order.preparation?.installation?.status);
+      if(!unitReady) return { t:'Waiting for aircon preparation', s:'Admin or secretary must check the aircon and mark it ready.' + (!kitReady ? ' You can prepare your installation kit while waiting.' : ''), icon:'bi-box-seam' };
+      if(!kitReady) return { t:'Prepare your installation kit', s:'Staff confirmed the aircon is ready. Review and confirm your tools and supplies before departure.', icon:'bi-briefcase' };
+      return { t:'Ready for delivery', s:'The aircon and required kit are ready. Follow the agreed delivery schedule.', icon:'bi-check-circle-fill' };
+    }
+    return ORDER_PROGRESS_ACTIONS[order.status] || { t:String(order.status || 'Pending'), s:'Review this order.', icon:'bi-circle' };
+  }
+
   function isTodayOrder(order) {
     var value = order && order.delivery && order.delivery.preferredDate;
     if(!value) return false;
@@ -3085,7 +3100,8 @@
     else renderCards();
   }
 
-  window.fetchOrders = function() {
+  window.fetchOrders = function(options) {
+    var request = ++orderFetchRequest;
     _search = document.getElementById('toSearch').value.trim();
     // Build URL — handle comma-separated multi-status by NOT sending to server; filter client-side
     var _statuses = !['all','today'].includes(_status) ? _status.split(',').map(s=>s.trim()) : [];
@@ -3093,9 +3109,9 @@
     if(_search) url+='&search='+encodeURIComponent(_search);
     
     setOrderListMode();
-    if(_status === 'today') {
+    if(!options?.quiet && _status === 'today') {
       document.getElementById('toTodayWorkOrderList').innerHTML = '<div class="today-work-order-loading"><span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>Refreshing today\'s order work...</div>';
-    } else {
+    } else if(!options?.quiet) {
       document.getElementById('toOrdersList').innerHTML = '<div class="to-empty"><div class="to-empty-icon"><i class="bi bi-arrow-repeat spin"></i></div><h6>Loading orders...</h6></div>';
     }
     
@@ -3106,6 +3122,7 @@
       return payload;
     })
     .then(data=>{
+      if(request !== orderFetchRequest) return;
       _allOrders = (data.orders||[]).filter(function(order) {
         return order.fulfillmentType === 'delivery_only' || order.fulfillmentType === 'delivery_installation';
       });
@@ -3132,6 +3149,7 @@
       }
     })
     .catch(e=>{
+      if(request !== orderFetchRequest) return;
       if(_status === 'today') {
         document.getElementById('toTodayWorkOrderSummary').textContent = 'Today\'s order schedule could not be loaded.';
         document.getElementById('toTodayWorkOrderList').innerHTML = '<div class="today-work-order-empty"><i class="bi bi-exclamation-triangle"></i>Error loading orders: '+esc(e.message)+'</div>';
@@ -3241,16 +3259,7 @@
     var ai = getFlowIndex(o.status, o.fulfillmentType);
     var liveStatuses = ['out_for_delivery','arrived','installing'];
     var isLive = liveStatuses.indexOf(o.status) !== -1;
-    var act = ORDER_PROGRESS_ACTIONS[o.status] || { t: b.label, s: 'In progress', icon: 'bi-circle' };
-    if(scheduleRecovery) {
-      act = { t:o.attentionTitle || 'Dispatch Window Expired', s:o.attentionReason || 'Operations must confirm a new customer schedule before this order can continue.', icon:'bi-alarm-fill' };
-    }
-    if(o.fulfillmentType === 'delivery_installation' && ['technician_accepted','preparing_unit'].includes(o.status)) {
-      var kitState = o.preparation?.installation?.status || 'pending';
-      act = ['confirmed','completed'].includes(kitState)
-        ? { t:'Daily Preparation confirmed', s:'The installation kit is ready. Confirm dispatch readiness before departure.', icon:'bi-briefcase-fill' }
-        : { t:'Complete Daily Preparation', s:'Review and confirm equipment and consumables before going En Route.', icon:'bi-briefcase' };
-    }
+    var act = orderPreparationAction(o);
 
     var opHtml = '<div class="trk-card-header"><h6 class="trk-card-title"><i class="bi bi-activity"></i> Work Progress</h6>';
     if(isLive) opHtml += '<span class="trk-live-tag"><span class="trk-pulse-dot"></span> LIVE</span>';
@@ -3290,7 +3299,7 @@
     var preparationDate = orderDateKey(o.delivery?.preferredDate);
     var prepBlocked = installPrep.status === 'blocked';
     var prepBlockers = [];
-    if(!dispatchReady) prepBlockers.push('Operations has not marked the ordered unit dispatch-ready.');
+    if(!dispatchReady) prepBlockers.push('Admin or secretary has not confirmed that the aircon is prepared.');
     if(!installReady) {
       var installationBlockers = Array.isArray(installPrep.blockers) && installPrep.blockers.length
         ? installPrep.blockers
@@ -3358,7 +3367,9 @@
     h += '</div></section></div><div class="to-detail-column">';
 
     h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-clipboard2-check"></i>Departure Readiness</h6></div><div class="to-detail-card-body">';
-    h += '<div class="to-readiness-row"><div class="to-readiness-name"><i class="bi bi-box-seam"></i>Unit &amp; dispatch</div><span class="to-state-pill '+(dispatchReady?'ready':dispatchPrep.status==='blocked'?'blocked':'pending')+'">'+esc(String(dispatchPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
+    h += '<div class="to-readiness-row"><div><div class="to-readiness-name"><i class="bi bi-box-seam"></i>Aircon preparation</div><div class="to-item-meta">Admin or secretary confirms</div></div><span class="to-state-pill '+(dispatchReady?'ready':dispatchPrep.status==='blocked'?'blocked':'pending')+'">'+(dispatchReady?'Prepared':'Not prepared')+'</span></div>';
+    if(dispatchReady && dispatchPrep.readyAt) h += '<div class="to-info-note">Confirmed '+esc(displayDate(dispatchPrep.readyAt, true))+(dispatchPrep.note ? '<br>'+esc(dispatchPrep.note) : '')+'</div>';
+    if(o.unitPreparationDueSoon && !dispatchReady && !scheduleRecovery) h += '<div class="to-info-note">'+esc(o.unitPreparationDueLabel)+'\'s delivery: ask admin or secretary to confirm aircon preparation.</div>';
     if(o.fulfillmentType === 'delivery_installation') {
       h += '<div class="to-readiness-row"><div><div class="to-readiness-name"><i class="bi bi-tools"></i>Installation Daily Kit</div>'+(requiredItems.length?'<div class="to-item-meta">'+requiredItems.length+' required kit item'+(requiredItems.length===1?'':'s')+'</div>':'')+'</div><span class="to-state-pill '+(installReady?'ready':prepBlocked?'blocked':'pending')+'">'+esc(String(installPrep.status || 'pending').replace(/_/g,' '))+'</span></div>';
       if(!scheduleRecovery) h += '<button type="button" class="to-detail-link odk-inline-link" onclick="openOrderDailyKit(\''+esc(preparationDate)+'\')"><i class="bi bi-box2-heart"></i>Open Daily Preparation <i class="bi bi-arrow-right"></i></button>';
@@ -3403,7 +3414,7 @@
       if(ftype === 'delivery_installation' && !installReady) {
         aHtml += '<button class="to-btn to-btn-enroute" data-action="open-kit" data-date="'+esc(preparationDate)+'"><i class="bi bi-briefcase"></i>Open Daily Preparation</button>';
       } else if(!dispatchReady) {
-        aHtml += '<button class="to-btn to-btn-enroute" data-action="blocked" data-message="Operations must mark the ordered unit dispatch-ready before departure."><i class="bi bi-box-seam"></i>Awaiting Dispatch Readiness</button>';
+        aHtml += '<button class="to-btn to-btn-enroute" data-action="blocked" data-message="Admin or secretary must confirm that the aircon is prepared before departure."><i class="bi bi-box-seam"></i>Waiting for Staff Preparation</button>';
       } else {
         aHtml += '<button class="to-btn to-btn-enroute" data-action="status" data-id="'+oid+'" data-status="out_for_delivery"><i class="bi bi-truck"></i>Mark En Route</button>';
       }
@@ -3661,6 +3672,29 @@
       button.classList.toggle('btn-outline-secondary', !active);
     });
   }
+  var orderPreparationRefreshTimer;
+  function refreshOrderPreparation() {
+    window.clearTimeout(orderPreparationRefreshTimer);
+    orderPreparationRefreshTimer = window.setTimeout(function() {
+      if(document.hidden) return;
+      if(window.Swal?.isVisible?.()) {
+        orderPreparationRefreshTimer = window.setTimeout(refreshOrderPreparation, 500);
+        return;
+      }
+      window.fetchOrders({quiet:true});
+    }, 250);
+  }
+  function bindOrderUpdates() {
+    if(!window.socket) return;
+    window.socket.on('order:status-change', refreshOrderPreparation);
+    window.socket.on('order:assigned', refreshOrderPreparation);
+    window.socket.on('connect', refreshOrderPreparation);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindOrderUpdates, {once:true});
+  else bindOrderUpdates();
+  document.addEventListener('visibilitychange', function() {
+    if(!document.hidden) refreshOrderPreparation();
+  });
   fetchOrders().then(function() {
     if(linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) window.viewOrder(linkedOrderId);
   });

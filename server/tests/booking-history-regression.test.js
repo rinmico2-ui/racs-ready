@@ -37,7 +37,7 @@ test("booking-history rows expose only View Details and keep operations in the m
   assert.match(script, /Book Again/);
   assert.match(script, /View Maintenance/);
   assert.match(view, /id="bh-download-json"/);
-  assert.match(view, /project-date-guide-v12/);
+  assert.match(view, /\/js\/book-history\.js\?v=/);
 });
 
 test("booking-history keeps status, location, filters, and schedule actions readable", () => {
@@ -135,7 +135,7 @@ test("edit-booking repair fields guide focus to the next completed step", () => 
   assert.match(script, /function selectedRepairPricing\(\)/);
   assert.match(script, /serviceId: null, name: `\$\{unitLabel\} Repair`/);
   assert.match(view, /bh-repair-step-current/);
-  assert.match(view, /project-date-guide-v12/);
+  assert.match(view, /\/js\/book-history\.js\?v=/);
 });
 
 test("edit booking mirrors the booking-page service picker", () => {
@@ -199,7 +199,9 @@ test("reschedule dialogs use accessible Bootstrap structure and bounded reasons"
   assert.match(script, /EnterpriseCalendar\.validateSelectedSlot\(\)/);
   assert.match(bookingModel, /requestedEndDate: \{ type: String \}/);
   assert.match(appointments, /Reschedule reason must be 500 characters or fewer/);
-  assert.match(appointments, /A cancellation reason is required/);
+  assert.match(appointments, /normalizeLifecycleReason/);
+  const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
+  assert.throws(() => normalizeLifecycleReason("", "Cancellation"), error => error.status === 400);
   assert.match(bookings, /Reason for change must be 1000 characters or fewer/);
 });
 

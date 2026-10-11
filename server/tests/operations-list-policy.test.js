@@ -94,7 +94,7 @@ test('deferred evidence endpoints retain staff-only role checks and existing per
   assert.match(appointments, /router\.get\('\/:id\/photos', requireRole\(\['admin', 'secretary'\]\)/);
   assert.match(appointments, /'appointments\.view'/);
   assert.match(orders, /router\.get\('\/:id\/photos', authenticate, requireRole\(\['admin', 'secretary'\]\)/);
-  assert.match(orders, /Every order-id endpoint inherits the same record-level access policy/);
+  assert.match(orders, /router\.use\("\/:id", authenticate,/);
 });
 
 test('admin and secretary rendered booking modal scripts remain valid JavaScript', async () => {

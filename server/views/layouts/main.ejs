@@ -54,6 +54,9 @@
     <link rel="stylesheet" href="/css/footer.css" />
     <link rel="stylesheet" href="/css/navbar.css" />
     <link rel="stylesheet" href="/css/customer-sidebar.css?v=20261008-mobile-scroll" />
+    <% if (pageUsesBookingCalendar) { %>
+    <link id="calendar-date-colors" rel="stylesheet" href="/css/calendar-date-colors.css?v=20261011-date-colors" />
+    <% } %>
     <% if (!lightweightPage) { %>
     <link rel="stylesheet" href="/css/servicescards.css" />
     <!-- custom fonts removed (using Google Fonts CDN) -->
