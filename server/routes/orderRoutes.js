@@ -1093,7 +1093,7 @@ router.use("/:id", authenticate, async (req, res, next) => {
   }
 });
 
-function checkoutErrorResponse(res, error) {
+function checkoutErrorResponse(res, error, { action, isStaff = false } = {}) {
   if (error?.code === "ORDER_WRITE_INCOMPLETE") {
     return res.status(503).json({
       error: "We could not confirm the order status. Keep your payment receipt and contact support before trying again.",
@@ -1102,14 +1102,20 @@ function checkoutErrorResponse(res, error) {
   }
   if (isUnsupportedMongoWriteFeature(error)) {
     return res.status(503).json({
-      error: "Ordering is temporarily unavailable. If you already sent a payment, keep your receipt and contact support before trying again.",
-      code: "ORDER_DATABASE_UNAVAILABLE",
+      error: action
+        ? isStaff
+          ? `${action} is unavailable because the database setup does not support this action. Ask the server administrator to check the MongoDB replica set setup.`
+          : `${action} is temporarily unavailable. Please contact support before trying again.`
+        : "Ordering is temporarily unavailable. If you already sent a payment, keep your receipt and contact support before trying again.",
+      code: action && isStaff ? "ORDER_DATABASE_SETUP_REQUIRED" : "ORDER_DATABASE_UNAVAILABLE",
     });
   }
   const status = Number(error?.status) || 500;
   const isOperational = (error instanceof OrderCheckoutError || error instanceof loyaltyRewards.LoyaltyError) && status < 500;
   return res.status(status).json({
-    error: isOperational ? error.message : "The order request could not be completed. Please try again.",
+    error: isOperational ? error.message : action
+      ? `${action} could not be completed. Please try again.`
+      : "The order request could not be completed. Please try again.",
     ...(isOperational && error.code ? { code: error.code } : {}),
   });
 }
@@ -1941,8 +1947,9 @@ router.post("/:id/mark-ready-for-pickup", authenticate, requireRole(["admin", "s
  * Transitions: ready_for_pickup â†’ completed
  */
 router.post("/:id/confirm-pickup", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
-  const session = await mongoose.startSession();
+  let session;
   try {
+    session = await mongoose.startSession();
     session.startTransaction();
     const order = await Order.findById(req.params.id).session(session);
     if (!order) throw new OrderCheckoutError("Order not found", 404, "ORDER_NOT_FOUND");
@@ -2029,10 +2036,10 @@ router.post("/:id/confirm-pickup", authenticate, requireRole(["admin", "secretar
     emitOrderStatus(req, order, { paymentCollected });
     res.json({ success: true, paymentCollected, order: presentOrderForRequest(req, order) });
   } catch (err) {
-    await session.abortTransaction().catch(() => {});
-    checkoutErrorResponse(res, err);
+    if (session) await session.abortTransaction().catch(() => {});
+    checkoutErrorResponse(res, err, { action: "Pickup confirmation", isStaff: true });
   } finally {
-    await session.endSession();
+    if (session) await session.endSession();
   }
 });
 
@@ -2189,7 +2196,10 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       order: presentOrderForRequest(req, cancelledOrder),
     });
   } catch (err) {
-    checkoutErrorResponse(res, err);
+    checkoutErrorResponse(res, err, {
+      action: "Order cancellation",
+      isStaff: ["admin", "secretary"].includes(req.user?.role),
+    });
   }
 });
 
@@ -2976,7 +2986,7 @@ router.get('/:id/payment-review', authenticate, requireRole(['admin', 'secretary
 });
 
 router.patch("/:id/payment", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
-  const session = await mongoose.startSession();
+  let session;
   try {
     const { paymentStatus, note } = req.body;
     if (!paymentStatus) return res.status(400).json({ error: "Payment status is required" });
@@ -2986,6 +2996,7 @@ router.patch("/:id/payment", authenticate, requireRole(["admin", "secretary"]), 
       return res.status(400).json({ error: `Payment status must be one of: ${validStatuses.join(", ")}` });
     }
 
+    session = await mongoose.startSession();
     session.startTransaction();
     const order = await Order.findById(req.params.id).session(session);
     if (!order) throw new OrderCheckoutError("Order not found", 404, "ORDER_NOT_FOUND");
@@ -3055,11 +3066,11 @@ router.patch("/:id/payment", authenticate, requireRole(["admin", "secretary"]), 
     emitOrderStatus(req, order);
     res.json({ success: true, order: presentOrderForRequest(req, order), paymentStatus: effectivePaymentStatus });
   } catch (err) {
-    await session.abortTransaction().catch(() => {});
+    if (session) await session.abortTransaction().catch(() => {});
     console.error("PATCH /api/orders/:id/payment error:", err);
-    checkoutErrorResponse(res, err);
+    checkoutErrorResponse(res, err, { action: "Payment review", isStaff: true });
   } finally {
-    await session.endSession();
+    if (session) await session.endSession();
   }
 });
 

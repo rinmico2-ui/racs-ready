@@ -132,6 +132,22 @@ test('closing details ignores an older pending-payment response',async()=>{
   assert.equal(element('detailPaymentChecked').disabled,true);assert.equal(element('detailPaymentReview').classList.contains('d-none'),true);
 });
 
+test('an order database setup error stays in the review modal without success or queue refresh',async()=>{
+  const error='Payment review is unavailable because the database setup does not support this action. Ask the server administrator to check the MongoDB replica set setup.';
+  const {context,element,details,notices}=setup('order',null,async(_url,options)=>{
+    return options.method
+      ? {ok:false,status:503,json:async()=>({error,code:'ORDER_DATABASE_SETUP_REQUIRED'})}
+      : {ok:true,json:async()=>({success:true,pendingPayment:{amount:500}})};
+  });
+  await context.openResolutionPaymentReview('order','record');element('detailPaymentChecked').checked=true;
+  await context.confirmResolutionPaymentReview();
+  assert.equal(element('detailPaymentError').hidden,false);
+  assert.equal(element('detailPaymentError').textContent,error);
+  assert.equal(element('detailPaymentChecked').checked,true);
+  assert.deepEqual(details,[]);
+  assert.deepEqual(notices,[]);
+});
+
 function query(value){return {select(){return this;},sort(){return this;},lean:async()=>value};}
 test('the order payment read matches the order ledger and excludes cash pickup and reviewed payments',async t=>{
   const Order=require('../models/Order'),Payment=require('../models/Payment'),routes=require('../routes/orderRoutes');
