@@ -95,6 +95,7 @@
         </div>
       </div>
       <div class="au-hero-actions">
+        <% if (resolvedRepairServicesApiBase.startsWith('/api/admin/')) { %><a class="btn btn-outline-light btn-sm fw-semibold" href="/admin/services/kit-rules">Kit Rules</a><% } %>
         <div class="btn-group">
           <button class="btn btn-light btn-sm fw-semibold new-repair-service">
             <i class="bi bi-plus-lg me-1"></i>Add Repair Service

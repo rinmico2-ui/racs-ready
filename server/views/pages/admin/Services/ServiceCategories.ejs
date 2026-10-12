@@ -167,6 +167,7 @@
   <!-- Hero Header -->
   <section class="sc-hero" aria-labelledby="serviceCategoriesTitle">
     <div class="sc-hero-inner">
+      <% if (resolvedServiceCategoriesApiBase.startsWith('/api/admin/')) { %><a class="btn btn-light" href="/admin/services/kit-rules">Kit Rules</a><% } %>
       <div class="sc-hero-copy">
         <div class="sc-hero-icon"><i class="bi bi-grid-3x3-gap-fill"></i></div>
         <div><span class="sc-eyebrow">Service configuration</span><h1 id="serviceCategoriesTitle">Repair Service Categories</h1><p>Control the customer-facing repair categories and the unit types available in every repair request.</p></div>

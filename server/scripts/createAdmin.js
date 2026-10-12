@@ -31,13 +31,13 @@ const MONGODB_AUTH_SOURCE =
 
 const email = (
   process.env.ADMIN_EMAIL ||
-  'upperclass0306@gmail.com'
+  'rrtestadmin@gmail.com'
 )
   .trim()
   .toLowerCase();
 
 const password =
-  process.env.ADMIN_PASSWORD || 'Racs1234';
+  process.env.ADMIN_PASSWORD || '@Racs123';
 
 const defaultFirst =
   process.env.ADMIN_FIRSTNAME || 'Admin';

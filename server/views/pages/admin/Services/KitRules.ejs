@@ -1,0 +1,52 @@
+<link rel="stylesheet" href="/css/service-kit-rules.css">
+<main class="kit-rules container-fluid py-4" id="kitRules">
+  <div class="au-hero">
+    <div class="au-hero-inner">
+      <div class="au-hero-left">
+        <div class="au-hero-icon"><i class="bi bi-tools" aria-hidden="true"></i></div>
+        <div><h1>Service Kit Rules</h1><p>Choose the equipment and consumables to prepare for each service.</p></div>
+      </div>
+      <div class="au-hero-actions"><a class="btn btn-light" href="/admin/inventory/technician-tools">View daily kits</a></div>
+    </div>
+  </div>
+  <div id="kitMessage" class="kr-message" role="status" aria-live="polite" hidden></div>
+  <div class="kr-summary" id="kitSummary" aria-live="polite">Loading service rules…</div>
+  <div class="kr-layout">
+    <aside class="kr-card kr-directory" aria-label="Service list">
+      <div class="kr-directory-head"><h2>Services</h2><button type="button" class="kr-button kr-secondary" id="reloadRules">Reload</button></div>
+      <label for="serviceSearch">Find a service</label>
+      <input id="serviceSearch" type="search" placeholder="Search service name" class="kr-input">
+      <label for="serviceFilter">Service type</label>
+      <select id="serviceFilter" class="kr-input"><option value="all">All services</option><option value="CoreService">Core services</option><option value="RepairService">Repair services</option></select>
+      <div id="serviceList" class="kr-service-list" aria-label="Choose a service"></div>
+    </aside>
+    <section class="kr-card kr-editor" aria-label="Kit rule editor">
+      <div id="editorEmpty" class="kr-empty"><i class="bi bi-tools" aria-hidden="true"></i><h2>Choose a service</h2><p>Set its kit list, quantities, and when each item is needed.</p></div>
+      <form id="kitRuleForm" hidden>
+        <div class="kr-editor-head"><div><div id="serviceKind" class="kr-eyebrow"></div><h2 id="serviceName"></h2><p id="ruleUpdated" class="kr-muted"></p></div><span id="draftBadge" class="kr-badge" hidden>Unsaved changes</span></div>
+        <label for="ruleMode">Kit source</label>
+        <select id="ruleMode" class="kr-input"><option value="defaults">Use current defaults</option><option value="custom">Use this service’s own kit list</option></select>
+        <div id="defaultInfo" class="kr-note">This service uses the existing kit suggestions. Choose its own kit list to set exact catalog items and quantities.</div>
+        <div id="phaseTabs" class="kr-tabs" role="tablist" aria-label="Repair visit"></div>
+        <details id="defaultPreview" class="kr-default-preview" open>
+          <summary>Current default kit <span id="defaultCount" class="kr-muted"></span></summary>
+          <p id="defaultHelp" class="kr-muted">Default quantities for a job with one aircon or unit. Job details and booked quantities can change the final kit.</p>
+          <div id="defaultItems" class="kr-default-items"></div>
+          <p class="kr-default-note">Catalog choices depend on current stock. Existing kits may keep their previously selected equipment. Repair parts are added from the approved quotation.</p>
+        </details>
+        <div id="customEditor" hidden>
+          <h3 id="phaseHeading"></h3><p id="phaseHelp" class="kr-muted"></p>
+          <div id="kitItems" class="kr-items"></div>
+          <label class="kr-empty-confirm" id="emptyConfirmLabel"><input id="emptyConfirm" type="checkbox"> No equipment or consumables are needed for this visit.</label>
+          <div class="kr-add">
+            <label for="itemSearch">Add from inventory</label><input id="itemSearch" type="search" placeholder="Search item name or code" class="kr-input">
+            <div id="catalogResults" class="kr-catalog" aria-live="polite"></div>
+          </div>
+          <div class="kr-note">Reusable equipment is shared across a technician’s jobs. Consumables are added together. Repair parts come from the approved quotation.</div>
+        </div>
+        <div class="kr-footer"><p>Changes apply when kits are generated or refreshed. Items already issued remain recorded.</p><button class="kr-button kr-primary" id="saveRule" type="submit" disabled>Save kit rule</button></div>
+      </form>
+    </section>
+  </div>
+</main>
+<script src="/js/service-kit-rules-admin.js" defer></script>

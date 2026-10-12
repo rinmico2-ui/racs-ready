@@ -777,26 +777,32 @@ async function checkForServiceDelays() {
 /**
  * Start the scheduler (called from server startup)
  */
+let overdueSchedulerStarted = false;
 function startOverdueScheduler() {
+  if (overdueSchedulerStarted) return;
+  overdueSchedulerStarted = true;
   console.log('[booking-monitor] Starting booking delay monitor & service delay detector (every 5 minutes)');
 
+  let running = false;
+  async function runCycle() {
+    if (running) return;
+    running = true;
+    try {
+      await checkForUnassignedOverdueBookings();
+      await checkForDelayedBookings();
+      await checkForServiceDelays();
+      await checkForUpcomingUnverifiedBookings();
+      await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
+    } catch (error) {
+      console.error('[booking-monitor] Cycle failed:', error.message);
+    } finally { running = false; }
+  }
+
   // Run immediately on startup (after a short delay to let DB connect)
-  setTimeout(async () => {
-    await checkForUnassignedOverdueBookings();
-    await checkForDelayedBookings();
-    await checkForServiceDelays();
-    await checkForUpcomingUnverifiedBookings();
-    await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
-  }, 30 * 1000);
+  setTimeout(runCycle, 30 * 1000);
 
   // Then run every 5 minutes
-  setInterval(async () => {
-    await checkForUnassignedOverdueBookings();
-    await checkForDelayedBookings();
-    await checkForServiceDelays();
-    await checkForUpcomingUnverifiedBookings();
-    await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
-  }, CHECK_INTERVAL_MS);
+  setInterval(runCycle, CHECK_INTERVAL_MS);
 }
 
 module.exports = {

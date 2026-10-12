@@ -70,5 +70,5 @@ test("the technician UI and server both require checked items before confirmatio
   assert.match(route, /router\.post\("\/daily-kit-legacy\/confirm"[\s\S]*?confirmDailyKit\(/);
   assert.match(service, /const unchecked = items\.filter\(item => needsChecklistCheck\(item\) && !item\.preparedChecked\)/);
   assert.match(service, /item\.checkoutStatus === "unavailable" &&[\s\S]*?needsChecklistCheck\(item\)/);
-  assert.match(service, /strictManilaDateKey\(date\) !== manilaDateKey\(new Date\(\)\)/);
+  assert.match(service, /manilaDateKey\(dayBounds\(date\)\.start\) !== manilaDateKey\(new Date\(\)\)/);
 });

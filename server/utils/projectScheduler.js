@@ -689,6 +689,23 @@ async function suggestResources(projectId) {
   const recs = [];
   const round = (n) => Math.max(1, Math.ceil(n));
 
+  const preparation = booking ? await buildServicePreparation(booking) : null;
+  if (preparation?.ruleControlled) {
+    const recommendations = require('./projectServiceKitRules').projectRuleResources(preparation, workOrders, crew);
+    const quotedParts = [...(booking.quotation?.parts || []), ...(booking.services || []).flatMap(item => item.quotation?.parts || [])];
+    const partIds = quotedParts.map(part => part.toolId).filter(Boolean);
+    const tools = partIds.length ? await Tool.find({ _id: { $in: partIds } }).lean() : [];
+    for (const part of quotedParts) {
+      if (!part.name) continue;
+      const tool = tools.find(tool => String(tool._id) === String(part.toolId));
+      recommendations.push({ itemName: part.name, type: 'part', quantity: Math.max(1, Number(part.quantity) || 1),
+        baseQuantity: Math.max(1, Number(part.quantity) || 1), requirementRule: 'fixed', unit: tool?.unit || 'pcs', scope: 'shared',
+        toolId: tool?._id, available: Math.max(0, Number(tool?.quantity || 0) - Number(tool?.reservedQuantity || 0)),
+        source: 'repair_quotation', reason: 'Required by repair quotation' });
+    }
+    return { recommendations, webResearchUsed: false, webSources: [], webContext: '' };
+  }
+
   // Step 1: Web research for project resources
   let webResearch = { webContext: '', sources: [], searchUsed: false };
   try {
@@ -774,7 +791,6 @@ async function suggestResources(projectId) {
   // Merge the same service-aware kit used by technician preparation. This
   // captures tools/consumables for non-cleaning and mixed Core + Repair jobs.
   if (booking) {
-    const preparation = await buildServicePreparation(booking);
     for (const item of preparation.recommendations || []) {
       const quantity = item.kind === "consumable"
         ? Math.max(1, Number(item.quantity || 1) * totalUnits)

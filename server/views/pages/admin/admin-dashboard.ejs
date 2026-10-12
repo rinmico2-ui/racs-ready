@@ -1667,12 +1667,16 @@
   };
 
   // Load preparation issues
+  let prepIssuesLoading = false;
   window.loadPrepIssues = async function() {
+    if (document.hidden || prepIssuesLoading) return;
     const body = document.getElementById('prepIssuesBody');
     const badge = document.getElementById('prepIssuesBadge');
     if (!body) return;
+    prepIssuesLoading = true;
     try {
       const res = await fetch('/api/admin/daily-kit/pending-issues');
+      if (!res.ok) throw new Error('Could not load preparation issues');
       const data = await res.json();
       const issues = data.issues || [];
       badge.textContent = issues.length;
@@ -1703,12 +1707,15 @@
       }).join('');
     } catch (e) {
       body.innerHTML = '<div class="dash-empty" style="color:#dc2626;font-size:0.8rem;">Failed to load issues</div>';
+    } finally {
+      prepIssuesLoading = false;
     }
   };
 
   // Initial load
   loadPrepIssues();
   setInterval(loadPrepIssues, 30000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) loadPrepIssues(); });
 })();
 </script>
 <% } %>

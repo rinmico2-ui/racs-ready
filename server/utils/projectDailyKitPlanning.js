@@ -77,6 +77,7 @@ function buildProjectKitRequirements({ targetAssignments = [], allAssignments = 
       if (!quantity) continue;
       requirements.push({
         inventoryId: resource.toolId || null,
+        catalogLocked: Boolean(resource.toolId),
         name: resource.itemName,
         kind: resource.type === "part" ? "repair_part" : resource.type,
         quantity,

@@ -144,3 +144,7 @@
   :is(.rc-dialog, .rc-modal) .ent-cal-date { font-size: .85rem; }
   :is(.rc-dialog, .rc-modal) :is(.ent-cal-slots, .ent-cal-reason) { font-size: .58rem; overflow-wrap: anywhere; }
 }
+.rc-action-status{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:2000;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);padding:14px 20px;border:1px solid #bbf7d0;border-radius:12px;background:#fff;color:#166534;box-shadow:0 8px 32px #0f172a26;pointer-events:none}.rc-action-status[hidden]{display:none!important}.rc-action-status strong{display:block;font-size:.9rem}.rc-action-status small{display:block;margin-top:3px;color:#64748b;font-size:.75rem}.rc-action-status .spinner-border{flex-shrink:0}#resolutionWorkspace[inert] button,.rc-modal .modal-content[inert] button{opacity:.6;cursor:wait}@media(prefers-reduced-motion:reduce){.rc-action-status .spinner-border{animation-duration:2s}}
+[data-resolution-loading="preserve"]::after{content:"";display:inline-block;flex:0 0 auto;width:12px;height:12px;margin-left:6px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rc-action-spin .75s linear infinite;vertical-align:middle}
+@keyframes rc-action-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){[data-resolution-loading="preserve"]::after{animation-duration:2s}}

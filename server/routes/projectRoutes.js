@@ -378,19 +378,22 @@ router.get("/projects/dashboard", auth.requireRole(["admin", "secretary"]), asyn
     const stats = await Project.getDashboardStats();
 
     const scheduleHealthProjects = await Project.find({
+      archivedAt: null,
       status: { $in: ["pending_project_scheduling", "accepted", "planning", "ready", "in_progress", "on_hold"] },
     }).select("status totalUnits completedUnits plannedStartDate plannedCompletionDate preferredStartDate preferredCompletionDeadline schedulePlan scheduleGovernance").lean();
     stats.scheduleHealth = summarizeScheduleHealth(scheduleHealthProjects, new Date());
 
-    const recentProjects = await Project.find()
+    const recentProjects = await Project.find({ archivedAt: null })
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
 
     const pendingProjects = await Project.countDocuments({
+      archivedAt: null,
       status: { $in: ["pending_project_scheduling", "accepted"] },
     });
     const pendingVerification = await Project.countDocuments({
+      archivedAt: null,
       status: "pending_project_scheduling",
       isLargeScale: true,
     });
@@ -413,7 +416,7 @@ router.get("/projects", auth.requireRole(["admin", "secretary"]), async (req, re
     page = parseInt(page);
     limit = Math.min(parseInt(limit) || 20, 100);
 
-    let query = {};
+    let query = { archivedAt: null };
     if (status) {
       const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
       if (statuses.length > 1) {
@@ -2223,7 +2226,7 @@ router.get("/projects/:id/suggest-resources", auth.requireRole(["admin", "secret
     const project = await Project.findById(id).lean();
     const prepared = (result.recommendations || []).map(item => ({
       ...item,
-      source: "ai",
+      source: item.source || "ai",
       recommendationState: item.type === "part" && !/required by repair quotation/i.test(item.reason || "") ? "optional" : "recommended",
       requirementRule: item.requirementRule || (item.scope === "shared" ? "shared" : "fixed"),
       baseQuantity: item.baseQuantity || item.quantity || 1,

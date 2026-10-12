@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
+const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8').replace(/\r\n/g, '\n');
 const route = read('routes/appointmentManagement.js');
 const view = read('views/pages/admin/Appointments/AppointmentsUnified.ejs');
 
@@ -44,8 +44,9 @@ test('flow statistics trim documents before the faceted aggregation', () => {
 });
 
 test('overview renders recent bookings independently of statistics and uses compact indexed pages', () => {
-  const overview = section(view, 'AU.Overview.load=function()', 'AU.Overview.renderPipeline=function');
-  assert.doesNotMatch(overview, /Promise\.all/);
+  const overview = section(view, 'AU.Overview.load=function(', 'AU.Overview.renderPipeline=function');
+  assert.match(overview, /var statsPromise=fetch/);
+  assert.match(overview, /var listPromise=fetch/);
   assert.match(overview, /list\?page=1&limit='\+_ovLimit\+'&compact=true'/);
   assert.match(overview, /_overviewListRequest/);
   assert.match(overview, /_overviewStatsRequest/);

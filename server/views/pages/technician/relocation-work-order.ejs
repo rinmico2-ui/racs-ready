@@ -1,7 +1,9 @@
 <link rel="stylesheet" href="/css/relocation-requests.css?v=20261007-v1">
-<main class="rr-page" data-booking-id="<%= bookingId %>">
-  <header class="rr-head"><div><span class="rr-eyebrow">Technician work order</span><h1>Aircon relocation</h1><p>Follow the stages in order and record each completed task before submitting your completion proof.</p></div><a class="rr-button rr-button-light" href="/technician/assignments"><i class="bi bi-arrow-left"></i> Assignments</a></header>
+<link rel="stylesheet" href="/css/relocation-work-order.css?v=20261011-steps-v2">
+<main class="rr-page" data-map-provider="leaflet" data-booking-id="<%= bookingId %>">
+  <header class="rr-head"><div><span class="rr-eyebrow">Assigned aircon move</span><h1>Aircon relocation</h1><p>Check where the aircon is moving, then record the work you finish. Payment and the completion photo are handled in Assignments.</p></div><div class="rr-actions"><button type="button" class="rr-button rr-button-light" id="relocationRefresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button><a class="rr-button rr-button-light" href="/technician/assignments"><i class="bi bi-arrow-left"></i> Assignments</a></div></header>
   <div id="relocationMessage" class="rr-message" role="status" aria-live="polite" hidden></div>
   <div id="relocationWorkOrder" class="rr-list"><div class="rr-panel rr-muted">Loading work order…</div></div>
 </main>
-<script src="/js/relocation-work-order.js?v=20261007-v1" defer></script>
+<script src="/js/relocation-work-order-map.js?v=20261011-map-v1" defer></script>
+<script src="/js/relocation-work-order.js?v=20261011-steps-v4" defer></script>

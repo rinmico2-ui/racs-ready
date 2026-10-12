@@ -824,21 +824,11 @@ exports.analyticsSummary = async (req, res, next) => {
     try {
       const BookingService = require("../models/BookingService");
 
-      // Total bookings today (by bookingDate OR createdAt)
-      data.totalBookingsToday = await BookingService.countDocuments({
-        $or: [
-          { bookingDate: { $gte: startOfDay, $lte: endOfDay } },
-          { createdAt: { $gte: startOfDay, $lte: endOfDay } }
-        ],
-      });
-
-      // Total all-time bookings count
-      data.totalBookingsAllTime = await BookingService.countDocuments();
-
-      // Pipeline counts (all statuses) — single aggregation for efficiency
-      var pipelineRaw = await BookingService.aggregate([
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-      ]);
+      // One compact read supplies counts, pipeline and all seven trend days.
+      const bookingSummary = await require('../utils/dashboardBookingSummary').dashboardBookingSummary(BookingService, {startOfDay,endOfDay});
+      data.totalBookingsToday = bookingSummary.totalBookingsToday || 0;
+      data.totalBookingsAllTime = bookingSummary.totalBookingsAllTime || 0;
+      var pipelineRaw = bookingSummary.pipeline;
       var pipeMap = {};
       pipelineRaw.forEach(function (p) { pipeMap[p._id] = p.count; });
       console.log('[DEBUG] Pipeline:', JSON.stringify(pipeMap), 'TotalBookingsToday:', data.totalBookingsToday);
@@ -869,29 +859,18 @@ exports.analyticsSummary = async (req, res, next) => {
       data.pipeline.assigned = pipeMap.assigned || 0;
 
       // Pending Review = paymentStatus "pending" or "partial"
-      data.pendingReview = await BookingService.countDocuments({
-        paymentStatus: { $in: ["pending", "partial"] },
-      }).catch(function () { return 0; });
+      data.pendingReview = bookingSummary.pendingReview || 0;
 
       // Awaiting Assignment = awaiting_assignment status OR confirmed with no technician
       data.awaitingAssignment = (pipeMap.awaiting_assignment || 0) + (pipeMap.pending_reassignment || 0);
-      var awaitConfirmedNoTech = await BookingService.countDocuments({
-        status: "confirmed",
-        technicianId: { $in: [null, undefined] },
-      }).catch(function () { return 0; });
+      var awaitConfirmedNoTech = bookingSummary.confirmedWithoutTechnician || 0;
       data.awaitingAssignment += awaitConfirmedNoTech;
 
       // Active Services = all statuses that mean work is in progress
       data.activeServices = data.pipeline.onTheWay + data.pipeline.arrived + data.pipeline.inProgress
         + data.pipeline.assigned + data.pipeline.awaitingAssignment;
 
-      data.completedToday = await BookingService.countDocuments({
-        status: "completed",
-        $or: [
-          { bookingDate: { $gte: startOfDay, $lte: endOfDay } },
-          { createdAt: { $gte: startOfDay, $lte: endOfDay } }
-        ],
-      });
+      data.completedToday = bookingSummary.completedToday || 0;
 
       // Today's schedule (upcoming, sorted)
       var scheduleItems = await BookingService.find({
@@ -901,6 +880,7 @@ exports.analyticsSummary = async (req, res, next) => {
         ],
         status: { $nin: ["cancelled", "completed", "closed", "no-show", "rejected"] },
       })
+        .select('startTime serviceType service.name customer.name customerId technician.name technicianId status')
         .sort({ startTime: 1 })
         .limit(10)
         .populate("customerId", "firstName lastName")
@@ -923,30 +903,8 @@ exports.analyticsSummary = async (req, res, next) => {
         };
       });
 
-      // 7-day booking trend
-      var trendData = [];
-      for (var i = 6; i >= 0; i--) {
-        var d = new Date();
-        d.setDate(d.getDate() - i);
-        d.setHours(0, 0, 0, 0);
-        var dEnd = new Date(d);
-        dEnd.setHours(23, 59, 59, 999);
-        var cnt = await BookingService.countDocuments({
-          $or: [
-            { bookingDate: { $gte: d, $lte: dEnd } },
-            { createdAt: { $gte: d, $lte: dEnd } }
-          ],
-        }).catch(function () { return 0; });
-        var dayLabel = d.toLocaleDateString("en", { weekday: "short" });
-        trendData.push({ date: dayLabel, count: cnt });
-      }
-      data.trend7 = trendData;
-
-      // Service distribution
-      var serviceAgg = await BookingService.aggregate([
-        { $group: { _id: "$serviceType", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-      ]).catch(function () { return []; });
+      data.trend7 = bookingSummary.trend7;
+      var serviceAgg = bookingSummary.serviceDistribution;
       data.serviceDistribution = (serviceAgg || []).map(function (s) {
         return { name: s._id || "Other", count: s.count };
       });
@@ -970,7 +928,7 @@ exports.analyticsSummary = async (req, res, next) => {
         var logsToday = await ActivityLog.find({
           action: /appointment/i,
           createdAt: { $gte: startOfDay, $lte: endOfDay },
-        }).lean();
+        }).select('action').maxTimeMS(8000).lean();
         data.totalBookingsToday = logsToday.length;
         data.completedToday = logsToday.filter(function (l) { return /complete|completed/i.test(l.action); }).length;
       } catch (xx) {}

@@ -1189,6 +1189,7 @@ document.addEventListener("DOMContentLoaded", function () {
           <span class="ao-st-fulfillment">${esc(FULFILL_LABELS[o.fulfillmentType]||o.fulfillmentType)}</span>
         </div>
         ${o.isPastDate ? `<div class="ao-overdue-alert" style="margin:0 0 14px;"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${esc(o.attentionTitle || 'Requested schedule passed')}.</strong> ${esc(o.attentionReason || 'Review the case and confirm a future schedule in the Resolution Center.')}</span></div>` : ''}
+        ${o.cancellationStockReview?.status === 'pending_review' ? `<div class="alert alert-warning"><strong>Stock needs checking</strong><p class="small mb-2">This order was cancelled. These units were not added to stock because their original inventory entries were removed. Refund review can continue.</p>${o.cancellationStockReview.items.map(item => `<div class="small py-1"><strong>${esc(item.name)} × ${Number(item.quantity)}</strong><div>Original stock ID: ${esc(item.inventoryId || 'Not recorded')}</div></div>`).join('')}</div>` : ''}
 
         <div class="pm-grid">
           <div class="pm-card">

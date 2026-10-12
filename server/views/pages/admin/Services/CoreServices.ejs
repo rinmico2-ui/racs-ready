@@ -821,6 +821,7 @@
         </div>
       </div>
       <div class="au-hero-actions">
+        <% if (resolvedCoreServicesApiBase.startsWith('/api/admin/')) { %><a class="btn btn-outline-light btn-sm fw-semibold" href="/admin/services/kit-rules">Kit Rules</a><% } %>
         <a class="btn btn-outline-light btn-sm fw-semibold core-archive-link" href="<%= resolvedCoreArchiveHref %>" title="View archived services" aria-label="View archived services (<%= totalArchivedCount %> core)"><i class="bi bi-archive" aria-hidden="true"></i><span class="core-archive-count" aria-hidden="true"><%= totalArchivedCount %></span></a>
         <% if (resolvedCoreServicesCanManage) { %><div class="btn-group">
           <button class="btn btn-light btn-sm fw-semibold new-core-service">

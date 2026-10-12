@@ -12,6 +12,7 @@ function toSecretaryNotificationLink(link) {
   }
 
   const exactMappings = new Map([
+    ["/admin/inventory/technician-tools", "/secretary/inventory/repair-parts"],
     ["/admin/appointments/pending", "/secretary/appointments?tab=pending"],
     ["/admin/appointments/active", "/secretary/appointments?tab=active"],
     ["/admin/appointments/queue", "/secretary/appointments?tab=queue"],

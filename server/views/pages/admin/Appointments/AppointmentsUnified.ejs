@@ -1917,11 +1917,47 @@
   }
 
   function statusLabel(s) {
+    if(s==='reschedule-required') return 'New schedule needed';
     return (s||'').replace(/_/g,' ').replace(/-/g,' ').replace(/\b\w/g,function(l){return l.toUpperCase();});
+  }
+
+  function bookingStatusLabel(b) {
+    // Reviewing an overdue payment does not approve its old service date.
+    // Show the verified payment without pretending it is ready for assignment.
+    if (b.status==='pending' && ['partial','paid','verified','remitted'].indexOf(b.paymentStatus)!==-1) return 'Payment verified';
+    if (b.status==='reschedule-required') return 'New schedule needed';
+    return STATUS_LABELS[b.status] || RQ_STATUS_LABELS[b.status] || statusLabel(b.status);
+  }
+
+  function bookingScheduleIssueLabel(b) {
+    return ({
+      past_date:'New schedule needed', no_show:'Schedule review needed',
+      no_technician:'Technician needed', technician_issue:'New technician needed',
+      customer_reschedule:'Schedule confirmation needed'
+    })[b.overviewScheduleResolution?.issueType] || 'Schedule review needed';
+  }
+
+  function bookingClosedCasesHTML(b) {
+    var issues={};
+    (b.resolutionCases||[]).forEach(function(decision){
+      if(decision.state==='closed' && decision.sourceStatus===b.status) issues[decision.issueType]=true;
+    });
+    var count=Object.keys(issues).length;
+    if(!count) return '';
+    if(bookingNeedsResolution(b)) return '<div class="small text-muted mt-1"><i class="bi bi-journal-check me-1"></i>Review saved</div>';
+    return '<div class="small text-success fw-semibold mt-1"><i class="bi bi-check2-circle me-1"></i>'+(count===1?'Case closed':count+' cases closed')+'</div>';
+  }
+
+  function bookingCurrentTechnician(b,assignment) {
+    if(!b.technicianId || ['cancelled','reschedule-required'].indexOf(b.status)!==-1) return null;
+    if(assignment && ['cancelled','declined','expired'].indexOf(assignment.status)!==-1) return null;
+    return typeof b.technicianId==='object' && b.technicianId.name ? b.technicianId : (b.technician || {name:'Assigned technician'});
   }
 
   function bookingNeedsResolution(b) {
     if (!b) return false;
+    if (['cancelled','completed','closed','repair_completed','rejected'].indexOf(b.status)!==-1) return false;
+    if (typeof b.overviewScheduleResolution?.required === 'boolean') return b.overviewScheduleResolution.required;
     if (b.isReviewOverdue===true||b.status==='reschedule-required') return true;
     if (b.assignmentTiming&&typeof b.assignmentTiming.isExpired==='boolean'&&['awaiting_assignment','pending_reassignment'].indexOf(b.status)!==-1) return b.assignmentTiming.isExpired;
     var actionableStatuses=[
@@ -2023,7 +2059,8 @@
     var unitBrand=b.brand||(b.unitInfo&&b.unitInfo.brand)||'—';
     var unitQty=Number(b.quantity)||(Array.isArray(b.services)?b.services.reduce(function(sum,s){return sum+(Number(s.quantity)||0);},0):0)||1;
     var unitHp=b.hpDescription||(b.hp?b.hp+' HP':'')||(b.unitInfo&&b.unitInfo.hpDescription?b.unitInfo.hpDescription:'')||(b.unitInfo&&b.unitInfo.hp?b.unitInfo.hp+' HP':'')||((Array.isArray(b.services)&&b.services[0]&&b.services[0].hpDescription)?b.services[0].hpDescription:((Array.isArray(b.services)&&b.services[0]&&b.services[0].hp)?b.services[0].hp+' HP':'—'))||'—';
-    var stL=statusLabel(b.status);
+    var stL=bookingStatusLabel(b);
+    var currentTechnician=bookingCurrentTechnician(b,data.assignment);
     var isCOD=b.paymentMethod==='cod';
     var total=b.totalPrice||b.estimatedFee||0;
     var travelFee=Number(b.travelFare)||0;
@@ -2060,15 +2097,15 @@
 
     var ref = b.bookingReference||b.workOrderNumber||b._id.toString().slice(-8).toUpperCase();
     var needsResolution=bookingNeedsResolution(b);
-    var statusColor = needsResolution?'danger':(b.paymentStatus==='paid'?'success':(b.paymentStatus==='partial'?'warning':'secondary'));
+    var statusColor = b.status==='cancelled'?'danger':(b.paymentStatus==='paid'?'success':(b.paymentStatus==='partial'?'warning':'secondary'));
     var heroBg = needsResolution?'#fef2f2':(b.paymentStatus==='paid'?'#f0fdf4':(b.paymentStatus==='partial'?'#fffbeb':'#eff6ff'));
     var heroColor = needsResolution?'#dc2626':(b.paymentStatus==='paid'?'#059669':(b.paymentStatus==='partial'?'#d97706':'#2563eb'));
-    var displayedStatus=needsResolution?'Needs Resolution':stL;
+    var displayedStatus=stL;
     var resolutionUrl=bookingResolutionUrl(b);
     var resolutionActionHtml = APPOINTMENTS_CAN_RESOLVE ? '<a class="btn btn-sm btn-warning" href="'+resolutionUrl+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a>' : '';
     var overdueReviewHtml = needsResolution ? '<div class="alert alert-warning border-warning mb-3">'+
       '<div class="d-flex gap-2 align-items-start"><i class="bi bi-exclamation-triangle-fill text-danger mt-1"></i><div class="flex-grow-1">'+
-      '<div class="fw-bold text-uppercase small">Past Schedule &middot; Needs Resolution</div><div class="small mt-1">The requested service window has passed. Normal payment verification, assignment, and field-work actions are paused for this booking.</div>'+
+      '<div class="fw-bold text-uppercase small">'+bookingScheduleIssueLabel(b)+'</div><div class="small mt-1">Review the remaining schedule issue before assigning or starting this visit. Payment review and the service schedule are separate steps.</div>'+
       '<div class="small mt-2"><strong>Next step:</strong> review the case, contact the customer when needed, and record the approved outcome in the Resolution Center.</div>'+
       '<div class="d-flex flex-wrap gap-2 mt-3">'+((customer.phone||'')?'<a class="btn btn-sm btn-outline-success" href="tel:'+qEsc(customer.phone)+'"><i class="bi bi-telephone me-1"></i>Contact Customer</a>':'')+resolutionActionHtml+'</div>'+
       '</div></div></div>' : '';
@@ -2116,9 +2153,11 @@
 
     function effectiveItemStatus(s) {
       var own=String(s.status||'pending');
+      if (b.status==='cancelled' && ['completed','repair_completed','repair_declined'].indexOf(own)===-1) return 'cancelled';
+      if (b.status==='reschedule-required' && ['completed','repair_completed','repair_declined'].indexOf(own)===-1) return 'reschedule-required';
       if (own!=='pending') return own;
-      if (data.assignment&&data.assignment.status==='pending_acceptance') return 'assigned';
-      if (data.assignment&&data.assignment.status==='accepted') return isRepair?'inspection_scheduled':'accepted';
+      if (currentTechnician&&data.assignment&&data.assignment.status==='pending_acceptance') return 'assigned';
+      if (currentTechnician&&data.assignment&&data.assignment.status==='accepted') return isRepair?'inspection_scheduled':'accepted';
       if (['assigned','confirmed','scheduled','on-the-way','arrived','in-progress','completed'].indexOf(b.status)>=0) return b.status;
       return own;
     }
@@ -2132,7 +2171,7 @@
       var model=s.model||'\u2014';
       var issue=s.problemDescription||s.repairIssue||s.issueDescription||'';
       var itemStatus=effectiveItemStatus(s);
-      var stBadge=itemStatus==='completed'?'background:#dcfce7;color:#166534;':s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
+      var stBadge=itemStatus==='cancelled'?'background:#fee2e2;color:#991b1b;':itemStatus==='completed'?'background:#dcfce7;color:#166534;':s.type==='repair'?'background:#fef3c7;color:#92400e;':'background:#dbeafe;color:#1e40af;';
       var sIcon=s.type==='repair'?'bi-wrench-adjustable':'bi-gear-wide-connected';
       var item='<div class="ms-service-item">'+
         '<div class="ms-service-head">'+
@@ -2254,6 +2293,7 @@
         '<div class="dv2-hero-side">'+
           '<div class="dv2-hero-amount">\u20B1'+total.toLocaleString()+'</div>'+
           '<span class="badge bg-'+statusColor+'" style="font-size:0.7rem;padding:6px 10px;">'+displayedStatus+'</span>'+
+          bookingClosedCasesHTML(b)+
         '</div>'+
       '</div>'+
       '<div class="dv2-grid">'+
@@ -2276,11 +2316,11 @@
           '</div>'+
         '</div>'+
         unitDetailsHtml+
-        ((b.technicianId||b.technician||data.assignment)?'<div class="dv2-card dv2-card-wide">'+
+        (currentTechnician?'<div class="dv2-card dv2-card-wide">'+
           '<div class="dv2-card-icon bg-primary-subtle"><i class="bi bi-person-badge text-primary"></i></div>'+
           '<div class="dv2-card-content">'+
             '<span class="dv2-label">'+(data.assignment?'Technician Assignment':'Selected Technician')+'</span>'+
-            '<div class="dv2-value">'+((b.technicianId&&b.technicianId.name)||(b.technician&&b.technician.name)||(data.assignment&&data.assignment.technicianId&&data.assignment.technicianId.name)||'Assigned technician')+'</div>'+
+            '<div class="dv2-value">'+(currentTechnician.name||'Assigned technician')+'</div>'+
             '<span class="dv2-sub">'+(data.assignment?'Assignment: '+statusLabel(data.assignment.status):'No assignment has been dispatched yet')+'</span>'+
             (data.assignment&&data.assignment.acceptanceDeadline&&data.assignment.status==='pending_acceptance'?'<span class="dv2-sub">Accept by '+new Date(data.assignment.acceptanceDeadline).toLocaleString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})+'</span>':'')+
           '</div></div>':'')+
@@ -2510,7 +2550,7 @@
   function loadBookingResolutionCount(){
     var badge=document.getElementById('bookingResolutionCount');
     if(!badge)return;
-    fetch(APPOINTMENTS_RESOLUTION_API+'/resolution-center?source=booking&page=1&perPage=1')
+    return fetch(APPOINTMENTS_RESOLUTION_API+'/resolution-center?source=booking&page=1&perPage=1', {cache:'no-store'})
       .then(function(r){if(!r.ok)throw new Error('Resolution count unavailable');return r.json();})
       .then(function(data){
         var count=Number(data&&data.summary&&data.summary.bySource&&data.summary.bySource.booking)||0;
@@ -2627,7 +2667,8 @@
   var _overviewSearchTimeout=null;
   var _overviewStatsRequest=0,_overviewListRequest=0;
 
-  AU.Overview.load=function(){
+  AU.Overview.load=function(options){
+    var preservePage=options&&options.preservePage===true;
     var startDate=(document.getElementById('filterStartDate')||{}).value||'';
     var endDate=(document.getElementById('filterEndDate')||{}).value||'';
     var statsUrl=APPOINTMENTS_API+'/flow-stats';
@@ -2637,8 +2678,8 @@
     }
     var listDate=startDate||endDate||'';
     var statsRequest=++_overviewStatsRequest;
-    var listRequest=++_overviewListRequest;
-    fetch(statsUrl+dateParams).then(appointmentResponseJson).then(function(data){
+    var listRequest=preservePage?0:++_overviewListRequest;
+    var statsPromise=fetch(statsUrl+dateParams,{cache:'no-store'}).then(appointmentResponseJson).then(function(data){
       if(statsRequest!==_overviewStatsRequest)return;
       AU.Overview.renderPipeline(data.statusCounts||{});
       AU.Overview.renderKPIs(data);
@@ -2648,7 +2689,8 @@
       AU.Overview.renderPipeline({});
       AU.Overview.renderKPIs({});
     });
-    fetch(APPOINTMENTS_API+'/list?page=1&limit='+_ovLimit+'&compact=true'+(listDate?'&date='+encodeURIComponent(listDate):'')).then(appointmentResponseJson).then(function(data){
+    if(preservePage)return Promise.all([statsPromise,AU.Overview.loadRecent(_ovPage)]);
+    var listPromise=fetch(APPOINTMENTS_API+'/list?page=1&limit='+_ovLimit+'&compact=true'+(listDate?'&date='+encodeURIComponent(listDate):''),{cache:'no-store'}).then(appointmentResponseJson).then(function(data){
       if(listRequest!==_overviewListRequest)return;
       AU.Overview.renderTable(data.bookings);
       AU.Overview.renderPagination(data.pagination);
@@ -2659,6 +2701,7 @@
       AU.Overview.renderTable([]);
       AU.Overview.renderPagination({page:1,limit:_ovLimit,total:0,pages:0});
     });
+    return Promise.all([statsPromise,listPromise]);
   };
 
   AU.Overview.loadRecent=function(page){
@@ -2670,7 +2713,7 @@
     var dateParam='';
     if(startDate&&endDate){dateParam='&date='+startDate;}else if(startDate){dateParam='&date='+startDate;}else if(endDate){dateParam='&date='+endDate;}
     var listRequest=++_overviewListRequest;
-    fetch(APPOINTMENTS_API+'/list?page='+page+'&limit='+_ovLimit+'&compact=true&status='+encodeURIComponent(status)+'&search='+encodeURIComponent(search)+dateParam)
+    return fetch(APPOINTMENTS_API+'/list?page='+page+'&limit='+_ovLimit+'&compact=true&status='+encodeURIComponent(status)+'&search='+encodeURIComponent(search)+dateParam,{cache:'no-store'})
     .then(appointmentResponseJson).then(function(data){
       if(listRequest!==_overviewListRequest)return;
       AU.Overview.renderTable(data.bookings);
@@ -2734,10 +2777,12 @@
     tbody.innerHTML=bookings.map(function(b){
       var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
       var needsResolution=bookingNeedsResolution(b);
-      var sc=needsResolution?'st-needs-resolution':(STATUS_CLASSES[b.status]||'st-pending');
+      var sc=STATUS_CLASSES[b.status]||'st-pending';
+      if (b.status==='pending' && bookingStatusLabel(b)==='Payment verified') sc='st-payment_verified';
       var ref=b.bookingReference||b.workOrderNumber||'N/A';
       var svc=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
-      var tech=b.technician?b.technician.name:'';
+      var currentTechnician=bookingCurrentTechnician(b);
+      var tech=currentTechnician?currentTechnician.name:'';
       var actions=_ovViewBtn(b._id);
       if(needsResolution && APPOINTMENTS_CAN_RESOLVE) actions+='<a class="btn btn-sm btn-warning" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Resolve</a>';
       return '<tr>'+
@@ -2745,7 +2790,7 @@
         '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
         '<td class="small">'+svc+'</td>'+
         '<td class="fw-bold text-nowrap">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
-        '<td><span class="st-badge '+sc+'">'+(needsResolution?'Needs Resolution':statusLabel(b.status))+'</span>'+(needsResolution?'<div class="small text-danger fw-semibold mt-1"><i class="bi bi-clock-history me-1"></i>Past schedule</div>':'')+'</td>'+
+        '<td><span class="st-badge '+sc+'">'+bookingStatusLabel(b)+'</span>'+bookingClosedCasesHTML(b)+(needsResolution?'<div class="small text-danger fw-semibold mt-1"><i class="bi bi-clock-history me-1"></i>'+bookingScheduleIssueLabel(b)+'</div>':'')+'</td>'+
         '<td>'+(tech?'<strong>'+tech+'</strong>':'<span class="text-muted">Unassigned</span>')+'</td>'+
         '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+actions+'</div></td>'+
         '</tr>';
@@ -2972,7 +3017,7 @@
       var b=data.booking;
       if(!b)throw new Error('Booking not found. Refresh the list and try again.');
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
-      document.getElementById('detailModalSubtitle').textContent=bookingNeedsResolution(b)?'Past schedule \u00b7 Needs resolution':'Complete booking information';
+      document.getElementById('detailModalSubtitle').textContent=bookingStatusLabel(b)+(bookingNeedsResolution(b)?' \u00b7 '+bookingScheduleIssueLabel(b):'');
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
       if(onLoaded)onLoaded(b,data,document.getElementById('detailBody'),document.getElementById('detailModalSubtitle'));
     }).catch(function(e){
@@ -3943,7 +3988,7 @@
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Booking '+refText;
       var needsResolution=bookingNeedsResolution(b);
-      subtitle.textContent=needsResolution?'Past schedule \u00b7 Needs resolution':refText;
+      subtitle.textContent=needsResolution?refText+' \u00b7 '+bookingScheduleIssueLabel(b):refText;
       if(needsResolution && APPOINTMENTS_CAN_RESOLVE){
         var resolutionFooter=document.createElement('div');resolutionFooter.className='pm-footer';
         resolutionFooter.innerHTML='<a class="btn btn-warning btn-sm fw-semibold" href="'+bookingResolutionUrl(b)+'"><i class="bi bi-exclamation-diamond me-1"></i>Open Resolution Center</a><button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
@@ -4436,6 +4481,23 @@
       switchTab(target);
     });
   });
+
+  var overviewReturnTimer=null,overviewReturnPending=false;
+  function refreshReturnedBookingOverview(){
+    if(document.hidden||!document.querySelector('#tab-overview.active')||overviewReturnPending)return;
+    window.clearTimeout(overviewReturnTimer);
+    overviewReturnTimer=window.setTimeout(function(){
+      if(document.hidden||!document.querySelector('#tab-overview.active')||overviewReturnPending)return;
+      overviewReturnPending=true;
+      Promise.resolve().then(function(){
+        return Promise.all([AU.Overview.load({preservePage:true}),loadBookingResolutionCount()]);
+      }).catch(function(error){console.warn('Booking overview refresh failed:',error);})
+        .finally(function(){overviewReturnPending=false;});
+    },150);
+  }
+  window.addEventListener('pageshow',function(event){if(event.persisted)refreshReturnedBookingOverview();});
+  window.addEventListener('focus',refreshReturnedBookingOverview);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshReturnedBookingOverview();});
 
   function auInit(){
     var params=new URLSearchParams(window.location.search);

@@ -18,6 +18,7 @@ const { BookingStatus, PaymentStatus, FlowStages } = require('../models/BookingS
 const { generateAssistantReport } = require('../utils/aiTechnicianAssistant');
 const { calculatePaymentBreakdown } = require('../utils/paymentPolicy');
 const { bookingReviewState, withBookingReviewState } = require('../utils/bookingReview');
+const { bookingOverviewScheduleResolution } = require('../utils/resolutionCenter');
 const { isUnpaidAftercareMaintenance } = require('../utils/customerBookingPresentation');
 const { expectedReturnForWorkDate } = require('../utils/equipmentReturnPolicy');
 const { releaseReservedEquipment } = require('../utils/equipmentAssignmentLifecycle');
@@ -337,6 +338,10 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'serviceType', 'serviceModel',
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
         'autoReschedulePending', 'priority', 'duration', 'createdAt', 'updatedAt',
+        'isProject', 'projectScheduling.preferredStartDate',
+        'technicianId', 'proposedReschedule.status', 'proposedReschedule.date',
+        'rescheduleRequest.status', 'rescheduleRequest.requestedDate',
+        'resolutionCases.issueType', 'resolutionCases.sourceStatus', 'resolutionCases.state',
       ];
       const projection = Object.fromEntries(fields.map(field => [field, 1]));
       if (req.query.compact === 'queue') {
@@ -358,6 +363,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       bookings: bookings.map(booking => ({
         ...withBookingReviewState(booking),
         assignmentTiming: assignmentTimingState(booking),
+        overviewScheduleResolution: bookingOverviewScheduleResolution(booking),
       })),
       pagination: {
         page,
@@ -1893,6 +1899,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
 
     Object.assign(booking, bookingReviewState(booking));
     booking.assignmentTiming = assignmentTimingState(booking);
+    booking.overviewScheduleResolution = bookingOverviewScheduleResolution(booking);
     res.set('Cache-Control', 'private, no-store');
     res.json({ booking, assignment, payment, payments, reservedParts, technicianLocation, financialSummary, operationalSummary,
       ...(modalView ? { photosDeferred: true } : {}) });

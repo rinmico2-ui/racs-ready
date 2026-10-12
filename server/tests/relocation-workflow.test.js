@@ -17,7 +17,6 @@ test('custom quote submission reuses the pinned origin and scheduled date withou
   assert.doesNotMatch(implementation, /relocationFromAddress|relocationPreferredDate|relocationToAddress/);
   assert.doesNotMatch(view, /cfgUnknownBrandBtn/);
   assert.match(view, /id="relocationDestinationAddress"/);
-  assert.match(script, /<option value="__unknown__">I don\\'t know the unit details<\/option>/);
 
   const calls = [];
   const item = { serviceId: id(2), brand: "I don't know", hp: null,

@@ -133,8 +133,8 @@ const toolSchema = new mongoose.Schema(
     nextMaintenanceAt: { type: Date, default: null },
     assignable: { type: Boolean, default: true },
     checkedOutQuantity: { type: Number, min: 0, default: 0 },
-    // Items technicians normally carry. Daily preparation treats these as
-    // already covered and does not issue/check them out again.
+    // Items technicians normally carry. Individual custody is still verified
+    // before Daily Preparation treats company equipment as already held.
     standardTechnicianKit: { type: Boolean, default: false, index: true },
     standardKitQuantity: { type: Number, min: 1, default: 1 },
 

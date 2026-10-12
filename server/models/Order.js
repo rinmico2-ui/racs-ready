@@ -208,6 +208,19 @@ const orderSchema = new mongoose.Schema(
 
     // when an order is cancelled, record the reason
     cancellationReason: { type: String },
+    cancellationStockReview: {
+      type: new mongoose.Schema({
+        status: { type: String, enum: ["completed", "pending_review"], required: true },
+        checkedAt: { type: Date, required: true },
+        items: [{
+          inventoryId: { type: mongoose.Schema.Types.ObjectId, default: null },
+          parentHvacId: { type: mongoose.Schema.Types.ObjectId, default: null },
+          isHvac: Boolean, name: String, quantity: Number, reason: String,
+        }],
+      }, { _id: false }),
+      default: undefined,
+      select: false,
+    },
     // Staff invitation to replace an overdue schedule, restricted to the owning account.
     rescheduleInvitation: {
       status: { type: String, enum: ['allowed', 'submitted', 'revoked'] },

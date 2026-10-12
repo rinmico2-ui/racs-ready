@@ -34,14 +34,11 @@ async function buildOrderInstallationPreparation(order, opts = {}) {
     return { serviceName: "Delivery", recommendations: [], catalog: [] };
   }
 
-  const units = (order.items || []).map((item) => ({
-    name: `${item.brand || "Air Conditioner"} ${item.modelLine || ""} Installation`.trim(),
-    type: "core",
-    quantity: Math.max(1, Number(item.quantity) || 1),
-    applianceTypeName: item.modelLine || "Air Conditioner",
-    hpDescription: item.capacity ? `${item.capacity} ${item.capacityUnit || "HP"}` : "",
-  }));
+  // One installation visit can contain several product lines. Per-visit
+  // consumables apply once; per-unit quantities cover all ordered aircons.
+  const units = [{ name: 'Aircon Installation', type: 'core', quantity: orderUnitCount(order) }];
   const bookingShape = {
+    serviceSlug: 'aircon-installation',
     serviceType: "core",
     serviceName: "Air Conditioner Installation",
     service: { name: "Air Conditioner Installation" },
@@ -112,7 +109,8 @@ function orderInstallationReadiness(order, kit) {
   if (!["confirmed", "in_progress"].includes(kit.status)) {
     blockers.push("Daily Preparation must be confirmed before departure.");
   }
-  if (!items.length && !deltaItems.length) {
+  const explicitlyEmpty = (kit.noItemsOrderIds || []).some(id => String(id) === String(orderId));
+  if (!items.length && !deltaItems.length && !explicitlyEmpty) {
     blockers.push("No installation requirements are linked to this order yet.");
   }
 

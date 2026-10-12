@@ -141,6 +141,7 @@ const notificationSchema = new mongoose.Schema(
         "MaintenanceSchedule",
         "Payroll",
         "EquipmentAssignment",
+        "DailyKit",
         "ProductReturn",
       ],
     },

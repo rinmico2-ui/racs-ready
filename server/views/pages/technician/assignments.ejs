@@ -9971,6 +9971,10 @@ function preparationEscapeHtml(value) {
             }
           } else {
             showNotification({ type: 'error', title: 'Checkout Failed', message: data.error || 'Failed to check out equipment', duration: 5000 });
+            if (data.code === 'DAILY_KIT_REQUIRED') {
+              const job = allItems.find(item => String(item._id) === String(id));
+              openDailyKitModal(job?.bookingDate ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(job.bookingDate)) : undefined);
+            }
           }
         } catch (err) {
           showNotification({ type: 'error', title: 'Checkout Error', message: err.message || 'Network error', duration: 5000 });
@@ -12633,6 +12637,7 @@ function preparationEscapeHtml(value) {
         if (window._currentDetailId) showDetail(window._currentDetailId);
       } else {
         if (body) body.innerHTML = '<div class="alert alert-danger m-3">' + _esc3(data.error || 'Checkout failed') + '</div>';
+        if (data.code === 'DAILY_KIT_REQUIRED') openDailyKitModal();
       }
     } catch (err) {
       if (body) body.innerHTML = '<div class="alert alert-danger m-3">' + _esc3(err.message) + '</div>';
@@ -13478,6 +13483,7 @@ function preparationEscapeHtml(value) {
         loadPreparation(dateInput.value);
       } else {
         (window._showNotification || showNotification)({ type: 'error', title: 'Briefing', message: result.error || 'Checkout failed.', duration: 5000 });
+        if (result.code === 'DAILY_KIT_REQUIRED') openDailyKitModal(dateInput.value);
       }
     } catch (err) {
       (window._showNotification || showNotification)({ type: 'error', title: 'Briefing', message: 'Checkout failed.', duration: 5000 });

@@ -7,7 +7,7 @@
   const resolutionShowsOrders = typeof resolutionCanViewOrders === 'boolean' ? resolutionCanViewOrders : true;
 %>
 <link rel="stylesheet" href="/css/enterprise-calendar.css?v=2">
-<link rel="stylesheet" href="/css/resolution-center-dialogs.css?v=20261010-payment-review">
+<link rel="stylesheet" href="/css/resolution-center-dialogs.css?v=20261012-tab-loading">
 <style>
   .attention-card { background:#fff; border-radius:12px; padding:1rem; border:1px solid #e2e8f0; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
   .attention-icon { width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
@@ -51,6 +51,13 @@
   .rc-domain-tab.active { color:#1d4ed8; background:#fff; box-shadow:0 1px 5px rgba(15,23,42,.1); }
   .rc-domain-count { min-width:22px; padding:2px 6px; color:inherit; background:#e2e8f0; border-radius:999px; font-size:.65rem; text-align:center; }
   .rc-domain-tab.active .rc-domain-count { background:#dbeafe; }
+  .rc-booking-types { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:12px 16px; border-bottom:1px solid #eef2f7; }
+  .rc-booking-types[hidden] { display:none; }
+  .rc-booking-types-label { margin-right:4px; color:#64748b; font-size:.75rem; font-weight:700; }
+  .rc-booking-type { min-height:40px; padding:8px 13px; color:#475569; background:#fff; border:1px solid #dbe3ed; border-radius:8px; font-size:.75rem; font-weight:700; }
+  .rc-booking-type:hover { color:#1d4ed8; border-color:#93c5fd; background:#f8fbff; }
+  .rc-booking-type.active { color:#1d4ed8; border-color:#93c5fd; background:#eff6ff; }
+  .rc-booking-type:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
   .rc-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) 220px 180px auto; gap:10px; padding:16px; border-bottom:1px solid #eef2f7; }
   .rc-search { position:relative; }
   .rc-search i { position:absolute; left:12px; top:50%; color:#94a3b8; transform:translateY(-50%); }
@@ -152,7 +159,7 @@
 
 <div class="main-content">
   <div class="container-fluid py-4">
-    <div class="rc-shell">
+    <div class="rc-shell" id="resolutionWorkspace">
       <section class="rc-hero" aria-labelledby="resolutionTitle">
         <div class="rc-hero-row">
           <div>
@@ -176,6 +183,12 @@
           <button class="rc-domain-tab active" type="button" data-source="" role="tab" aria-selected="true"><i class="bi bi-grid"></i> All cases <span class="rc-domain-count" id="rcAllCount">0</span></button>
           <button class="rc-domain-tab" type="button" data-source="booking" role="tab" aria-selected="false"><i class="bi bi-calendar2-check"></i> Bookings <span class="rc-domain-count" id="rcBookingCount">0</span></button>
           <% if (resolutionShowsOrders) { %><button class="rc-domain-tab" type="button" data-source="order" role="tab" aria-selected="false"><i class="bi bi-box-seam"></i> Orders <span class="rc-domain-count" id="rcOrderCount">0</span></button><% } %>
+        </div>
+        <div class="rc-booking-types" id="resolutionBookingTypes" role="group" aria-label="Booking type" hidden>
+          <span class="rc-booking-types-label">Booking type</span>
+          <button class="rc-booking-type active" type="button" data-booking-type="" aria-pressed="true">All bookings</button>
+          <button class="rc-booking-type" type="button" data-booking-type="standard" aria-pressed="false">Standard bookings</button>
+          <button class="rc-booking-type" type="button" data-booking-type="project" aria-pressed="false">Large-scale projects</button>
         </div>
         <div class="rc-toolbar">
           <div class="rc-search"><i class="bi bi-search"></i><input class="form-control" id="resolutionSearch" type="search" placeholder="Search reference, customer, technician…" autocomplete="off"></div>
@@ -260,15 +273,15 @@
         </div>
         <div class="d-flex flex-column gap-3">
           <!-- Option 1: Customer chooses -->
-          <button type="button" class="rc-resolution-option is-customer" onclick="handleResolveAction('send_link')">
+          <button type="button" class="rc-resolution-option is-customer" onclick="handleResolveAction('send_link', this)">
             <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-link-45deg"></i></span><span><strong>Customer chooses schedule</strong><small>Send a schedule link so the customer can choose a new date.</small></span>
           </button>
           <!-- Option 2: Admin schedules -->
-          <button type="button" class="rc-resolution-option is-staff" onclick="handleResolveAction('admin_schedule')">
+          <button type="button" class="rc-resolution-option is-staff" onclick="handleResolveAction('admin_schedule', this)">
             <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-calendar-check"></i></span><span><strong>Staff chooses schedule</strong><small>Agree on a date with the customer, then choose it in the calendar.</small></span>
           </button>
           <!-- Option 3: Cancel -->
-          <button type="button" class="rc-resolution-option is-cancel" onclick="handleResolveAction('cancel')">
+          <button type="button" class="rc-resolution-option is-cancel" onclick="handleResolveAction('cancel', this)">
             <span class="rc-resolution-option-icon" aria-hidden="true"><i class="bi bi-x-circle"></i></span><span><strong>Cancel booking</strong><small>Cancel this booking and review any payment that needs a refund.</small></span>
           </button>
         </div>
@@ -430,6 +443,7 @@
 
 <script src="/js/enterprise-calendar.js"></script>
 <script src="/js/resolution-evidence.js?v=20261009"></script>
+<script src="/js/resolution-action-loading.js?v=20261012-tab-loading"></script>
 <script>
   document.querySelectorAll('.rc-modal').forEach(modal => document.body.appendChild(modal));
   const RESOLUTION_WORKSPACE_ROLE = <%- JSON.stringify(resolutionRole).replace(/</g, '\\u003c') %>;
@@ -454,6 +468,7 @@
   let currentFilter = legacyFilterMap[requestedFilter] || (validIssueFilters.includes(requestedFilter) ? requestedFilter : '');
   let currentSource = ['booking', 'order'].includes(queryParams.get('source')) ? queryParams.get('source') : '';
   if (currentSource === 'order' && !RESOLUTION_CAN_VIEW_ORDERS) currentSource = '';
+  let currentBookingType = ['standard', 'project'].includes(queryParams.get('bookingType')) ? queryParams.get('bookingType') : '';
   let currentSeverity = ['critical', 'high', 'medium'].includes(queryParams.get('severity')) ? queryParams.get('severity') : '';
   let currentSearch = queryParams.get('q') || '';
   let currentPage = Math.max(1, Number.parseInt(queryParams.get('page'), 10) || 1);
@@ -507,6 +522,7 @@
     const params = new URLSearchParams({ page: String(currentPage), perPage: '25' });
     if (currentFocus) params.set('focus', currentFocus);
     if (currentSource) params.set('source', currentSource);
+    if (currentSource === 'booking' && currentBookingType) params.set('bookingType', currentBookingType);
     if (currentFilter) params.set('issue', currentFilter);
     if (currentSeverity) params.set('severity', currentSeverity);
     if (currentSearch.trim()) params.set('q', currentSearch.trim());
@@ -520,6 +536,8 @@
       if (data.focus) {
         resolvedFocus = data.focus.source + ':' + data.focus.id;
         currentSource = data.focus.source;
+        currentBookingType = '';
+        syncBookingTypeFilter();
         currentFilter = ''; currentSeverity = ''; currentSearch = ''; currentPage = 1;
         document.getElementById('resolutionIssue').value = '';
         document.getElementById('resolutionSeverity').value = '';
@@ -871,18 +889,29 @@
       text:'This stops the order. Any verified payment will be queued for refund review.',
       input:'textarea', inputLabel:'Reason for cancellation', inputAttributes:{ maxlength:1000 },
       showCancelButton:true, confirmButtonText:'Cancel order', cancelButtonText:'Keep order', confirmButtonColor:'#b91c1c',
-      showLoaderOnConfirm:true, allowOutsideClick:() => !Swal.isLoading(),
+      didOpen:() => window.ResolutionActionLoading?.dialogReady(),
+      showLoaderOnConfirm:true, allowOutsideClick:() => !Swal.isLoading(), allowEscapeKey:() => !Swal.isLoading(),
       preConfirm:async reason => {
         if (!String(reason || '').trim()) { Swal.showValidationMessage('Enter a cancellation reason.'); return false; }
+        const finish = window.ResolutionActionLoading?.beginNetwork('Cancelling order...');
+        if (window.ResolutionActionLoading && !finish) return false;
         try {
           const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/cancel`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ reason:String(reason).trim() }) });
           const data = await response.json();
           if (!response.ok) { Swal.showValidationMessage(data.error || 'Could not cancel the order. Please try again.'); return false; }
           return data;
         } catch (_) { Swal.showValidationMessage('Could not reach the server. Your cancellation has not been confirmed. Please try again.'); return false; }
+        finally { finish?.(); }
       },
     });
-    if (result.isConfirmed) { showToast('success', result.value?.message || 'Order cancelled.'); await loadQueue(); }
+    if (result.isConfirmed) {
+      showToast('success', result.value?.message || 'Order cancelled.');
+      await loadQueue();
+      if (result.value?.warning) await Swal.fire({
+        icon:'warning', title:'Order cancelled — stock needs checking', text:result.value.warning,
+        customClass:{ popup:'rc-dialog' }, confirmButtonText:'Understood', confirmButtonColor:'#15803d',
+      });
+    }
   }
 
   function contactPhoneHref(value) {
@@ -1035,9 +1064,10 @@
 
   function syncResolutionUrl() {
     const url = new URL(window.location.href);
-    ['source', 'issue', 'severity', 'q', 'page', 'status', 'focus', 'open'].forEach(key => url.searchParams.delete(key));
+    ['source', 'bookingType', 'issue', 'severity', 'q', 'page', 'status', 'focus', 'open'].forEach(key => url.searchParams.delete(key));
     if (currentFocus) url.searchParams.set('focus', currentFocus);
     if (currentSource) url.searchParams.set('source', currentSource);
+    if (currentSource === 'booking' && currentBookingType) url.searchParams.set('bookingType', currentBookingType);
     if (currentFilter) url.searchParams.set('issue', currentFilter);
     if (currentSeverity) url.searchParams.set('severity', currentSeverity);
     if (currentSearch.trim()) url.searchParams.set('q', currentSearch.trim());
@@ -1079,7 +1109,9 @@
         confirmButtonText:isProject ? 'Save project window' : 'Save schedule',
         confirmButtonColor:'#2563eb', focusConfirm:false, showLoaderOnConfirm:true,
         allowOutsideClick:() => !Swal.isLoading(),
+        allowEscapeKey:() => !Swal.isLoading(),
         didOpen:() => {
+          window.ResolutionActionLoading?.dialogReady();
           EnterpriseCalendar.init({
             root:Swal.getHtmlContainer(), syncGlobalState:false, resetSelection:true,
             duration:isProject ? Math.ceil(workload.totalEstimatedMinutes / workload.totalUnits) : workload.totalEstimatedMinutes,
@@ -1118,6 +1150,8 @@
               preferredWorkingDays:selection.preferences.workingDays,
               preferredWorkingHours:{ start:selection.preferences.preferredWorkingHours, end:'' } };
           } else payload.timeSlot = slot.startTime;
+          const finish = window.ResolutionActionLoading?.beginNetwork('Saving order schedule...');
+          if (window.ResolutionActionLoading && !finish) return false;
           try {
             const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/admin-reschedule`, {
               method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
@@ -1130,6 +1164,7 @@
             }
             return data;
           } catch (error) { Swal.showValidationMessage(error.message || 'Could not save the schedule. Try again.'); return false; }
+          finally { finish?.(); }
         },
       });
       if (result.isConfirmed) {
@@ -1157,14 +1192,18 @@
       html:`<div class="text-start">${customerContact ? `<div class="rounded-3 border bg-light p-3 mb-3"><div class="small fw-bold text-uppercase text-muted mb-2">Customer contact</div><div class="d-flex flex-wrap gap-2">${customerContact}</div></div>` : ''}<label for="rcOrderDate" class="form-label small fw-bold">New pickup date</label><input id="rcOrderDate" type="date" min="${minDate}" class="form-control mb-2"><p class="small text-muted">Choose a future date when the store is open.</p><label for="rcOrderReason" class="form-label small fw-bold mt-2">Resolution note (optional)</label><textarea id="rcOrderReason" class="form-control" rows="2" maxlength="500"></textarea></div>`,
       showCancelButton:true,
       confirmButtonText:'Save pickup date',
+      didOpen:() => window.ResolutionActionLoading?.dialogReady(),
       confirmButtonColor:'#2563eb',
       focusConfirm:false,
       showLoaderOnConfirm:true,
       allowOutsideClick:() => !Swal.isLoading(),
+      allowEscapeKey:() => !Swal.isLoading(),
       preConfirm:async () => {
         const root = Swal.getHtmlContainer();
         const date = root.querySelector('#rcOrderDate').value;
         if (!date) { Swal.showValidationMessage('Choose a future pickup date.'); return false; }
+        const finish = window.ResolutionActionLoading?.beginNetwork('Saving pickup schedule...');
+        if (window.ResolutionActionLoading && !finish) return false;
         try {
           const response = await fetch(`/api/orders/${encodeURIComponent(item.id)}/admin-reschedule`, {
             method:'POST', headers:{'Content-Type':'application/json'},
@@ -1177,6 +1216,7 @@
           Swal.showValidationMessage(error.message || 'Could not save the pickup date. Try again.');
           return false;
         }
+        finally { finish?.(); }
       },
     });
     if (result.isConfirmed) {
@@ -1495,6 +1535,7 @@
         ${detail('bi-credit-card', 'Payment', niceLabel(order.paymentStatus || 'pending'), 'background:#f5f3ff;color:#7c3aed;')}
         ${detail('bi-calendar3', 'Requested schedule', scheduledDate ? `${new Date(scheduledDate).toLocaleDateString('en-PH')} ${order.timeSlot || ''}`.trim() : 'Not scheduled', 'background:#ecfeff;color:#0e7490;')}
         ${detail('bi-cash-stack', 'Order total', money(order.total), 'background:#f0fdf4;color:#15803d;')}
+        ${order.cancellationStockReview?.status === 'pending_review' ? `<div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;"><div class="ent-detail-card-content"><div class="ent-detail-card-label">Stock needs checking</div><p class="small mb-2">This order was cancelled. These units were not added to stock because their original inventory entries were removed. Refund review can continue.</p>${order.cancellationStockReview.items.map(item => `<div class="small py-1"><strong>${escapeHtml(item.name)} × ${Number(item.quantity)}</strong><div class="text-muted">Original stock ID: ${escapeHtml(item.inventoryId || 'Not recorded')}</div></div>`).join('')}</div></div>` : ''}
         <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-box-seam"></i></div><div class="ent-detail-card-content" style="width:100%;"><div class="ent-detail-card-label">Order items (${items.length})</div>${items.length ? items.map(item => `<div class="d-flex justify-content-between gap-3 py-2 border-bottom"><span>${escapeHtml([item.brand, item.modelLine || item.name, item.capacity ? `${item.capacity}${item.capacityUnit || 'HP'}` : ''].filter(Boolean).join(' ') || 'Product')} <span class="text-muted">× ${Number(item.quantity || 1)}</span></span><strong class="text-nowrap">${money(item.totalPrice || (Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1)))}</strong></div>`).join('') : '<div class="text-muted small mt-2">No item details recorded.</div>'}</div></div>
         <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Delivery / pickup location</div><div class="ent-detail-card-value">${escapeHtml(address)}</div></div></div>
         ${delivery.notes ? `<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fffbeb;color:#b45309;"><i class="bi bi-sticky"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer note</div><div class="ent-detail-card-value">${escapeHtml(delivery.notes)}</div></div></div>` : ''}
@@ -1512,6 +1553,7 @@
      ══════════════════════════════════════════════════════════════════════════ */
 
   let resolveBookingId = null;
+  let resolveIssueType = 'past_date';
   let resolveRef = '';
   let resolveDuration = 60;
   let resolvePrice = 0;
@@ -1535,6 +1577,7 @@
 
   function openResolveMenu(id, ref, duration, price, paid, issueType, phone = '', email = '', customer = 'Customer') {
     resolveBookingId = id;
+    resolveIssueType = issueType || 'past_date';
     resolveRef = ref;
     resolveDuration = duration;
     resolvePrice = price;
@@ -1548,32 +1591,30 @@
     modal.show();
   }
 
-  function handleResolveAction(action) {
+  async function handleResolveAction(action, button) {
     const modalEl = document.getElementById('resolveMenuModal');
+    if (!modalEl.classList.contains('show') || window.ResolutionActionLoading.isWriting()) return;
     const modal = bootstrap.Modal.getInstance(modalEl);
     modal.hide();
 
     if (action === 'send_link') {
-      sendCustomerRescheduleLink(resolveBookingId, resolveRef);
+      await sendCustomerRescheduleLink(resolveBookingId, resolveRef, button);
     } else if (action === 'admin_schedule') {
-      openReschedule(resolveBookingId, resolveRef, resolveDuration, 'standard', 'past_date');
+      await openReschedule(resolveBookingId, resolveRef, resolveDuration, 'standard', resolveIssueType);
     } else if (action === 'cancel') {
-      openCancelModal(resolveBookingId, resolveRef, resolvePaid);
+      await openCancelModal(resolveBookingId, resolveRef, resolvePaid);
     }
   }
 
-  async function sendCustomerRescheduleLink(bookingId, ref) {
-    const btn = event.target.closest('button');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...'; }
+  async function sendCustomerRescheduleLink(bookingId, ref, button) {
     try {
       const res = await fetch(`/api/reschedule/${bookingId}/send-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send reschedule link');
-      showToast('success', 'Reschedule link sent!', `A reschedule link has been sent to the customer for ${ref}.`);
+      showToast('success', `Reschedule link sent for ${ref}.`);
+      await loadQueue();
     } catch (err) {
-      showToast('error', 'Failed to send link', err.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Send Reschedule Link'; }
+      showToast('error', err.message || 'Failed to send the reschedule link.');
     }
   }
 
@@ -1581,7 +1622,7 @@
      CANCEL WITH REFUND MODAL
      ══════════════════════════════════════════════════════════════════════════ */
 
-  function openCancelModal(bookingId, ref, paidAmount) {
+  async function openCancelModal(bookingId, ref, paidAmount) {
     resolvePaid = 0;
     document.getElementById('cancelBookingId').value = bookingId;
     document.getElementById('cancelRefLabel').textContent = ref;
@@ -1602,7 +1643,7 @@
     modal.show();
 
     // Fetch verified and pending amounts separately from the payment ledger.
-    fetch(`${RESOLUTION_API_BASE}/resolution-center/${bookingId}/payment-summary`)
+    return fetch(`${RESOLUTION_API_BASE}/resolution-center/${bookingId}/payment-summary`)
       .then(r => r.json())
       .then(summary => {
         if (!summary || summary.success === false) throw new Error(summary?.error || 'Failed to load');
@@ -1770,7 +1811,7 @@
       modal.hide();
 
       showToast('success', 'Booking cancelled', data.message || 'The booking has been cancelled.');
-      setTimeout(() => loadQueue(), 1200);
+      await loadQueue();
     } catch (err) {
       showCancelError('Cancellation could not be completed', err.message || 'The server did not accept this request. Nothing was changed.');
     } finally {
@@ -1927,7 +1968,7 @@
   async function closeCase(id, issueType) {
     const note = prompt('Resolution note (optional):', `Reviewed and closed by ${RESOLUTION_WORKSPACE_ROLE}`);
     if (note === null) return;
-    if (!confirm('Close this resolution case? The booking record and history will remain unchanged.')) return;
+    if (!confirm('Close this issue and save your review? The booking keeps its current status.')) return;
     try {
       const res = await fetch(`${RESOLUTION_API_BASE}/resolution-center/${id}/close`, {
         method: 'POST',
@@ -1998,12 +2039,59 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reject failed');
-      loadQueue();
+      await loadQueue();
     } catch (e) {
       alert(e.message || 'Failed to reject reschedule');
     }
   }
 
+  // One guard covers every write, including calls from different case cards.
+  // Reads keep their own locks; queue refreshes still support changing filters.
+  const actionLoading = window.ResolutionActionLoading;
+  handleResolveAction = actionLoading.wrap(handleResolveAction, { group:'booking-menu', label:'Opening action...', progress:false, modals:true });
+  handleOrderResolveAction = actionLoading.wrap(handleOrderResolveAction, { group:'order-menu', label:'Opening action...', progress:false, modals:true });
+  confirmNoShow = actionLoading.wrap(confirmNoShow, { group:'write', label:'Confirming no-show...' });
+  closeCase = actionLoading.wrap(closeCase, { group:'write', label:'Closing case...' });
+  reassignCase = actionLoading.wrap(reassignCase, { group:'write', label:'Preparing assignment...' });
+  approveReschedule = actionLoading.wrap(approveReschedule, { group:'write', label:'Accepting schedule...' });
+  rejectReschedule = actionLoading.wrap(rejectReschedule, { group:'write', label:'Rejecting schedule...' });
+  sendCustomerRescheduleLink = actionLoading.wrap(sendCustomerRescheduleLink, { group:'write', label:'Sending schedule link...' });
+  sendOrderRescheduleLink = actionLoading.wrap(sendOrderRescheduleLink, { group:'write', label:'Sending schedule link...' });
+  submitCancellation = actionLoading.wrap(submitCancellation, { group:'write', label:'Cancelling booking...' });
+  confirmPendingPaymentVerification = actionLoading.wrap(confirmPendingPaymentVerification, { group:'write', label:'Verifying payment...' });
+  confirmResolutionPaymentReview = actionLoading.wrap(confirmResolutionPaymentReview, { group:'write', label:'Verifying payment...' });
+  rschSubmitProposal = actionLoading.wrap(rschSubmitProposal, { group:'write', label:'Saving schedule...', after:rschOnCalendarSelect });
+  viewDetail = actionLoading.wrap(viewDetail, { group:'detail', label:'Loading booking...' });
+  viewOrderDetail = actionLoading.wrap(viewOrderDetail, { group:'detail', label:'Loading order...' });
+  openResolutionPaymentReview = actionLoading.wrap(openResolutionPaymentReview, { group:'payment-review', label:'Loading payment...' });
+  openReschedule = actionLoading.wrap(openReschedule, { group:'schedule-open', label:'Loading available dates...' });
+  openCancelModal = actionLoading.wrap(openCancelModal, { group:'cancel-open', label:'Loading payment details...', modals:true });
+  rescheduleDeliveryOrder = actionLoading.wrap(rescheduleDeliveryOrder, { group:'order-dialog', label:'Loading available dates...', modals:true });
+  reschedulePickupOrder = actionLoading.wrap(reschedulePickupOrder, { group:'order-dialog', label:'Opening pickup schedule...', modals:true });
+  cancelResolutionOrder = actionLoading.wrap(cancelResolutionOrder, { group:'order-dialog', label:'Opening cancellation...', modals:true });
+  loadQueue = actionLoading.wrap(loadQueue, { group:'queue', label:'Refreshing...', progress:false, inert:false, allowWrite:true, preserveButtonContent:true });
+
+  function syncBookingTypeFilter() {
+    document.getElementById('resolutionBookingTypes').hidden = currentSource !== 'booking';
+    document.querySelectorAll('.rc-booking-type').forEach(button => {
+      const selected = button.dataset.bookingType === currentBookingType;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    document.getElementById('resolutionResultsTitle').textContent = currentSource === 'booking'
+      ? (currentBookingType === 'project' ? 'Large-scale project cases' : currentBookingType === 'standard' ? 'Standard booking cases' : 'Booking cases')
+      : currentSource === 'order' ? 'Order cases' : 'Open operational cases';
+  }
+  syncBookingTypeFilter();
+  document.querySelectorAll('.rc-booking-type').forEach(button => {
+    button.addEventListener('click', () => {
+      clearResolutionFocus();
+      currentBookingType = button.dataset.bookingType || '';
+      currentPage = 1;
+      syncBookingTypeFilter();
+      loadQueue();
+    });
+  });
   document.getElementById('resolutionIssue').value = currentFilter;
   document.getElementById('resolutionSeverity').value = currentSeverity;
   document.getElementById('resolutionSearch').value = currentSearch;
@@ -2015,6 +2103,7 @@
       clearResolutionFocus();
       currentSource = tab.dataset.source || '';
       currentPage = 1;
+      syncBookingTypeFilter();
       document.querySelectorAll('.rc-domain-tab').forEach(item => { item.classList.remove('active'); item.setAttribute('aria-selected','false'); });
       tab.classList.add('active');
       tab.setAttribute('aria-selected','true');
@@ -2033,7 +2122,8 @@
   });
   document.getElementById('resolutionClear').addEventListener('click', () => {
     clearResolutionFocus();
-    currentSource = ''; currentFilter = ''; currentSeverity = ''; currentSearch = ''; currentPage = 1;
+    currentSource = ''; currentBookingType = ''; currentFilter = ''; currentSeverity = ''; currentSearch = ''; currentPage = 1;
+    syncBookingTypeFilter();
     document.getElementById('resolutionIssue').value = '';
     document.getElementById('resolutionSeverity').value = '';
     document.getElementById('resolutionSearch').value = '';

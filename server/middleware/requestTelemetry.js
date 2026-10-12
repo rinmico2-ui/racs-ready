@@ -14,7 +14,8 @@ const state = {
   peakActiveRequests: 0,
   responses: { "2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0 },
   latency: { count: 0, totalMs: 0, maxMs: 0, over500Ms: 0, over2000Ms: 0, samples: [] },
-  databasePool: { checkedOut: 0, peakCheckedOut: 0, waitQueueEntered: 0, checkoutFailures: 0 },
+  databasePool: { checkedOut: 0, peakCheckedOut: 0, waiting: 0, waitQueueEntered: 0, checkoutFailures: 0,
+    maxPoolSize: 0, checkoutDurationTotalMs: 0, checkoutDurationMaxMs: 0, checkoutCompleted: 0 },
 };
 
 function safeRequestId(value) {
@@ -128,7 +129,17 @@ function runtimeSnapshot() {
 function trackMongoPool(client) {
   if (!client || client.__racsPoolTelemetryAttached) return;
   Object.defineProperty(client, "__racsPoolTelemetryAttached", { value: true });
-  client.on("connectionCheckedOut", () => {
+  state.databasePool.maxPoolSize = Number(client.options?.maxPoolSize) || 0;
+  let lastFailureLog = -Infinity;
+  const completeCheckout = event => {
+    state.databasePool.waiting = Math.max(0, state.databasePool.waiting - 1);
+    const duration = Math.max(0, Number(event?.durationMS) || 0);
+    state.databasePool.checkoutDurationTotalMs += duration;
+    state.databasePool.checkoutDurationMaxMs = Math.max(state.databasePool.checkoutDurationMaxMs, duration);
+    state.databasePool.checkoutCompleted += 1;
+  };
+  client.on("connectionCheckedOut", event => {
+    completeCheckout(event);
     state.databasePool.checkedOut += 1;
     state.databasePool.peakCheckedOut = Math.max(
       state.databasePool.peakCheckedOut,
@@ -138,8 +149,19 @@ function trackMongoPool(client) {
   client.on("connectionCheckedIn", () => {
     state.databasePool.checkedOut = Math.max(0, state.databasePool.checkedOut - 1);
   });
-  client.on("connectionCheckOutStarted", () => { state.databasePool.waitQueueEntered += 1; });
-  client.on("connectionCheckOutFailed", () => { state.databasePool.checkoutFailures += 1; });
+  client.on("connectionCheckOutStarted", () => {
+    state.databasePool.waitQueueEntered += 1;
+    state.databasePool.waiting += 1;
+  });
+  client.on("connectionCheckOutFailed", event => {
+    completeCheckout(event);
+    state.databasePool.checkoutFailures += 1;
+    if (Date.now() - lastFailureLog < 30000) return;
+    lastFailureLog = Date.now();
+    logger.warn('MongoDB checkout failed: reason=%s waitMs=%d checkedOut=%d waiting=%d poolLimit=%d activeRequests=%d',
+      event?.reason || 'unknown', Math.round(Number(event?.durationMS) || 0), state.databasePool.checkedOut,
+      state.databasePool.waiting, state.databasePool.maxPoolSize, state.activeRequests);
+  });
 }
 
 module.exports = { requestTelemetry, runtimeSnapshot, safeRequestId, trackMongoPool };

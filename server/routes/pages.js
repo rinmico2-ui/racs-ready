@@ -1592,6 +1592,9 @@ router.get("/admin/inventory/technician-tools", pageAuth.requireRole("admin"), (
 router.get("/admin/technician-tools", pageAuth.requireRole("admin"), (req, res) => {
   res.redirect("/admin/inventory/technician-tools");
 });
+router.get('/admin/services/kit-rules', pageAuth.requireRole('admin'), (req, res) => {
+  res.render('pages/admin/Services/KitRules', { title: 'Service Kit Rules', layout: 'layouts/admin' });
+});
 router.get(
   "/admin/inventory/repair-parts",
   pageAuth.requireRole("admin"),

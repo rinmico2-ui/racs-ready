@@ -77,6 +77,8 @@ const projectSchema = new mongoose.Schema({
     default: "pending_project_scheduling",
     index: true,
   },
+  archivedAt: { type: Date, default: null, index: true },
+  archiveReason: { type: String, trim: true, maxlength: 500, default: "" },
 
   // Whether the project qualifies as "large scale" (derived at creation from
   // estimated hours vs the enterprise threshold). Drives the admin verify gate.
@@ -657,6 +659,7 @@ projectSchema.statics.getDashboardStats = async function () {
 
   const [result, trendsAgg] = await Promise.all([
     this.aggregate([
+      { $match: { archivedAt: null } },
       {
         $facet: {
           planning: [{ $match: { status: "planning" } }, { $count: "count" }],
@@ -675,6 +678,7 @@ projectSchema.statics.getDashboardStats = async function () {
       },
     ]),
     this.aggregate([
+      { $match: { archivedAt: null } },
       {
         $addFields: {
           period: {

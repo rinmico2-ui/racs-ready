@@ -18,7 +18,17 @@ function scoreMatch(item, wanted) {
   return words.reduce((score, word) => score + (text.includes(word) ? 1 : 0), 0);
 }
 
-async function buildServicePreparation(booking, opts = {}) {
+async function buildLegacyServicePreparation(booking, opts = {}) {
+  const inventory = await Tool.find({
+    active: { $ne: false }, status: { $ne: 'discontinued' },
+    assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
+  }).select('itemName category description type inventoryClass quantity reservedQuantity unit assignable assetStatus').lean();
+  return buildDefaultServicePreparation(booking, inventory, opts);
+}
+
+// The admin preview and technician generation share this exact matcher.
+// A catalog snapshot lets all service previews use one inventory read.
+function buildDefaultServicePreparation(booking, inventory, opts = {}) {
   // preferToolIds: inventory ids already present in the technician's current
   // daily kit. Requirements keep resolving to these "sticky" picks instead of
   // drifting to whatever unit happens to have the most stock right now —
@@ -50,10 +60,8 @@ async function buildServicePreparation(booking, opts = {}) {
   // one shared visit kit. No repair-part recommendation is read here.
   const matchedKits = SERVICE_KITS.filter(k => k.match.test(matchingContext));
   const kits = matchedKits.length ? matchedKits : [SERVICE_KITS[0]];
-  const inventory = await Tool.find({
-    active: { $ne: false }, status: { $ne: 'discontinued' },
-    assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
-  }).select('itemName category description type inventoryClass quantity reservedQuantity unit assignable assetStatus').lean();
+  inventory = inventory.filter(item => item.active !== false && item.status !== 'discontinued'
+    && !['under_maintenance', 'damaged', 'retired'].includes(item.assetStatus));
 
   const pick = (wanted, kind) => {
     const sticky = (item) => (preferToolIds && preferToolIds.has(String(item._id)) ? 1 : 0);
@@ -91,6 +99,46 @@ async function buildServicePreparation(booking, opts = {}) {
   return { serviceName, recommendations, catalog };
 }
 
+async function buildServicePreparation(booking, opts = {}) {
+  const { rulesForBooking } = require('./serviceKitRules');
+  const entries = await rulesForBooking(booking || {}, opts);
+  if (!entries.some(entry => entry.rule)) {
+    const selected = opts.serviceItemId ? entries[0] : null;
+    if (opts.serviceItemId && !selected) return { serviceName: 'Service', recommendations: [], catalog: [] };
+    return buildLegacyServicePreparation(selected ? { ...booking, service: { name: selected.item.name },
+      serviceName: selected.item.name, serviceType: selected.item.type || 'core', services: [selected.item] } : booking, opts);
+  }
+  const configuredIds = [...new Set(entries.flatMap(entry => (entry.rule?.[entry.phase] || []).map(row => String(row.toolId))))];
+  const tools = configuredIds.length ? await Tool.find({ _id: { $in: configuredIds } }).lean() : [];
+  const toolMap = new Map(tools.map(tool => [String(tool._id), tool]));
+  const recommendations = [];
+  for (const entry of entries) {
+    if (entry.rule) {
+      for (const row of entry.rule[entry.phase] || []) {
+        const tool = toolMap.get(String(row.toolId));
+        const quantity = Number(row.quantity) * (row.quantityBasis === 'per_unit' ? entry.quantity : 1);
+        recommendations.push({ inventoryId: row.toolId, name: tool?.itemName || row.name, kind: row.category,
+          unit: tool?.unit || row.unit || 'pcs', quantity, available: tool ? available(tool) : 0,
+          recommended: true, catalogMissing: !tool, quantityApplied: true, quantityBasis: 'per_visit',
+          ruleQuantityBasis: row.quantityBasis, baseQuantity: Number(row.quantity), serviceId: entry.serviceId,
+          serviceModel: entry.serviceModel, ruleRevision: entry.rule.revision,
+          serviceGroupIndex: Array.isArray(booking.services) ? booking.services.indexOf(entry.item) : null });
+      }
+    } else {
+      const fallback = await buildLegacyServicePreparation({ ...booking, serviceType: entry.item.type || 'core',
+        service: { name: entry.item.name }, serviceName: entry.item.name, services: [entry.item] }, opts);
+      for (const row of fallback.recommendations) recommendations.push({ ...row,
+        quantity: row.quantity * entry.quantity, quantityApplied: true, quantityBasis: 'per_visit',
+        serviceId: entry.serviceId, serviceModel: entry.serviceModel, baseQuantity: row.quantity, ruleQuantityBasis: 'per_unit',
+        serviceGroupIndex: Array.isArray(booking.services) ? booking.services.indexOf(entry.item) : null });
+    }
+  }
+  return { serviceName: booking?.service?.name || booking?.serviceName || entries.map(entry => entry.item.name).filter(Boolean).join(', ') || 'Service',
+    recommendations, catalog: tools.filter(require('./serviceKitRules').selectable).map(tool => ({
+      inventoryId: tool._id, name: tool.itemName, kind: tool.type === 'consumable' ? 'consumable' : 'equipment',
+      available: available(tool), unit: tool.unit || 'pcs' })), ruleControlled: true };
+}
+
 /**
  * Auto-reserve resources for an accepted booking.
  * Creates EquipmentAssignment records with status 'reserved' and increments
@@ -116,7 +164,7 @@ async function autoReserveResources({ bookingId, serviceItemId, bookingReference
   const issues = [];
 
   // 1. Build service preparation recommendations
-  const prep = await buildServicePreparation(booking);
+  const prep = await buildServicePreparation(booking, { serviceItemId });
 
   // 2. Reserve recommended equipment and consumables
   for (const rec of prep.recommendations) {
@@ -217,4 +265,4 @@ async function autoReserveResources({ bookingId, serviceItemId, bookingReference
   return { reserved, issues, preparationStatus };
 }
 
-module.exports = { buildServicePreparation, autoReserveResources };
+module.exports = { buildServicePreparation, buildLegacyServicePreparation, buildDefaultServicePreparation, autoReserveResources };

@@ -7,7 +7,7 @@ const NON_CANCELLABLE_BOOKING_STATUSES = new Set([
   "rejected",
 ]);
 
-function cancelBookingRecord(booking, { actorId, actorName, reason, at = new Date() }) {
+function cancelBookingRecord(booking, { actorId, actorName, reason, at = new Date(), recordHistory = true }) {
   if (!booking) throw Object.assign(new Error("Booking not found"), { status: 404 });
   if (booking.status === "cancelled") return { booking, changed: false };
   if (NON_CANCELLABLE_BOOKING_STATUSES.has(booking.status)) {
@@ -36,7 +36,7 @@ function cancelBookingRecord(booking, { actorId, actorName, reason, at = new Dat
       }
     });
   }
-  if (typeof booking.recordStatusHistory === "function") {
+  if (recordHistory && typeof booking.recordStatusHistory === "function") {
     booking.recordStatusHistory({
       fromStatus: previousStatus,
       toStatus: "cancelled",

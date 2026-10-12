@@ -1,5 +1,61 @@
 # Admin performance changes and verification
 
+## MongoDB pool timeout follow-up (October 12, 2026)
+
+The local application uses a 20-connection pool and a five-second checkout wait.
+The reported timeout means a command could not acquire a connection within that
+wait. It does not itself identify a bad password or missing transaction support.
+
+Changes made locally:
+
+- Dashboard booking counters, status totals, service distribution and seven
+  trend days now use one compact aggregation instead of 14 separate count/group
+  commands. Its current-schedule read selects only fields displayed in the card;
+  it does not download inline booking photos.
+- Preparation issues fetch linked bookings once across all technicians and both
+  kit item lists. Reads select display fields and have server execution limits.
+- Hidden dashboards skip kit polling, concurrent polls cannot overlap, and failed
+  responses show an error instead of claiming there are no issues.
+- The booking-monitor timer skips a cycle while its previous cycle is running.
+  Calling its start function twice cannot create duplicate timers. Schedule and
+  notification rules are unchanged.
+- Pool telemetry records waiting and checked-out connections, checkout duration,
+  configured pool size and timeout counts. Rate-limited warnings include these
+  values and active HTTP requests, without connection credentials.
+
+Read-only verification on the configured remote MongoDB found 67 bookings,
+approximately 40 MB of booking data, and average booking documents of 633,541
+bytes. The original status-group query used a collection scan. Server connections
+were 53 with 356 available at the sample, so that sample did not show exhaustion
+of the server's connection limit. These measurements do not establish the exact
+application-pool occupancy when the earlier timeout occurred.
+
+The new compact booking aggregation completed in 643 ms. Its six bookings for
+today matched the original count query. The first diagnostic connection attempt
+failed; a later read connected successfully. No live records, indexes or photos
+were changed and no application background jobs were started for verification.
+43 relevant isolated checks passed before the final documentation update.
+
+After restarting the application, inspect the new `MongoDB checkout failed`
+warning if the problem recurs. A safe read-only diagnostic is available:
+
+```powershell
+node server/scripts/diagnoseMongoPool.js
+```
+
+For only the compact summary and original today's-count comparison:
+
+```powershell
+node server/scripts/diagnoseMongoPool.js --summary-only
+```
+
+The diagnostic uses at most two connections, disables model/index creation,
+omits credentials and query contents, and closes its connection when finished.
+Awaitable MongoDB heartbeat commands are excluded from its slow-operation sample.
+Public-network latency and the database host's CPU/disk still require live
+monitoring if timeouts persist; these code changes do not prove the server's
+capacity or guarantee that a remote connection will always succeed.
+
 ## What changed
 
 - Dashboard attendance loads asynchronously instead of using synchronous XHR.

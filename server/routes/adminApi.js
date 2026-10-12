@@ -76,6 +76,10 @@ async function reconcileOrderRefundState(orderId) {
 }
 
 // Customers
+const serviceKitRulesController = require('../controllers/serviceKitRulesController');
+router.get('/service-kit-rules', requirePermission('services.view'), serviceKitRulesController.list);
+router.patch('/service-kit-rules/:serviceModel/:serviceId', requirePermission('services.manage'), serviceKitRulesController.save);
+
 router.get('/customers/loyalty-rules', requirePermission('customers.view'), async (req, res, next) => {
   try {
     const rewards = require('../utils/loyaltyRewards');
@@ -7444,7 +7448,7 @@ router.get("/resolution-center", async (req, res, next) => {
     const ServiceReport = require("../models/ServiceReport");
     const { REVIEWABLE_ORDER_STATUSES } = require("../utils/orderAttention");
     const {
-      RECOVERY_BOOKING_STATUSES, bookingScheduleNeedsResolution, parseResolutionFocus, focusedResolutionCases, resolutionPaymentNeedsReview, pendingResolutionProposal, pendingResolutionRequest,
+      RECOVERY_BOOKING_STATUSES, bookingScheduleNeedsResolution, bookingResolutionCaseIsResolved, bookingIssueRequiresOutcome, parseResolutionFocus, focusedResolutionCases, resolutionPaymentNeedsReview, pendingResolutionProposal, pendingResolutionRequest,
       groupResolutionCases, filterResolutionCases,
       orderResolutionCase,
       paginateResolutionCases,
@@ -7599,10 +7603,7 @@ router.get("/resolution-center", async (req, res, next) => {
     const addCase = (booking, issueType, details = {}) => {
       const caseKey = `${booking._id}:${issueType}`;
       if (caseKeys.has(caseKey)) return;
-      const alreadyResolved = (booking.resolutionCases || []).some((decision) =>
-        decision.issueType === issueType && decision.sourceStatus === booking.status &&
-        ["closed", "rescheduled", "reassigned"].includes(decision.state),
-      );
+      const alreadyResolved = bookingResolutionCaseIsResolved(booking, issueType, now);
       if (alreadyResolved) return;
       caseKeys.add(caseKey);
 
@@ -7641,7 +7642,8 @@ router.get("/resolution-center", async (req, res, next) => {
         bookingDate: booking.bookingDate,
         scheduledAt: bookingDate ? bookingDate.toISOString() : null,
         startTime: booking.startTime || "",
-        technicianName: booking.technicianId?.name || booking.technician?.name || booking.technicianName || report.reportedByName || "Unassigned",
+        technicianName: booking.technicianId && !['cancelled', 'reschedule-required'].includes(booking.status)
+          ? booking.technicianId.name || booking.technician?.name || booking.technicianName || "Assigned technician" : "Unassigned",
         isPastDate,
         daysPast,
         requiresReschedule: !isCancelled && (details.requiresReschedule ?? isPastDate),
@@ -7663,7 +7665,7 @@ router.get("/resolution-center", async (req, res, next) => {
         paymentStatus: booking.paymentStatus || 'pending',
         paymentMethod: booking.paymentMethod || '',
         allowedActions: [
-          "view", "close", ...(!isCancelled ? ['reschedule'] : []),
+          "view", ...(!bookingIssueRequiresOutcome(booking, issueType, now) ? ['close'] : []), ...(!isCancelled ? ['reschedule'] : []),
           ...(resolutionPaymentNeedsReview(booking) ? ['verify_payment'] : []),
           ...((!isCancelled && !workload.isProject && (details.canReassign ?? (!isPastDate && issueType !== "cancelled" && issueType !== "no_show"))) ? ["reassign"] : []),
           ...(customerDoc.phone || embeddedCustomer.phone || embeddedCustomer.mobile ? ["call"] : []),
@@ -7759,6 +7761,7 @@ router.get("/resolution-center", async (req, res, next) => {
     const summary = summarizeResolutionCases(groupedCases);
     const filtered = focus ? focusedResolutionCases(groupedCases, focus) : filterResolutionCases(groupedCases, {
       source: req.query.source,
+      bookingType: req.query.bookingType,
       issue: req.query.issue,
       severity: req.query.severity,
       q: req.query.q,
@@ -7782,6 +7785,7 @@ router.get("/resolution-center", async (req, res, next) => {
       pagination: paginated.pagination,
       filters: {
         source: String(req.query.source || ""),
+        bookingType: String(req.query.bookingType || ""),
         issue: String(req.query.issue || ""),
         severity: String(req.query.severity || ""),
         q: String(req.query.q || ""),
@@ -7805,6 +7809,10 @@ router.post("/resolution-center/:id/close", async (req, res, next) => {
 
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (require('../utils/resolutionCenter').bookingIssueRequiresOutcome(booking, issueType)) {
+      return res.status(409).json({ code:'BOOKING_OUTCOME_REQUIRED',
+        error:'This booking still needs a schedule or technician. Use Resolve case to choose a new schedule, reassign the technician, or cancel the booking.' });
+    }
     booking.resolutionCases.push({
       issueType,
       sourceStatus: booking.status,
@@ -8042,149 +8050,158 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
     const BookingService = require("../models/BookingService");
     const Payment = require("../models/Payment");
     const audit = require("../utils/audit");
+    const { cancelBookingRecord } = require("../utils/bookingLifecycle");
     const { id } = req.params;
     const { reason, reasonType, refundDecision, refundAmount, refundMethod, refundNotes } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid booking ID" });
+    if (refundDecision && !["full", "partial", "none"].includes(refundDecision)) return res.status(400).json({ error: "Choose a valid refund option." });
+    if (refundDecision === "partial" && !(Number(refundAmount) > 0 && Number.isFinite(Number(refundAmount)))) return res.status(400).json({ error: "Enter a valid partial refund amount." });
 
-    const booking = await BookingService.findById(id);
-    if (!booking) return res.status(404).json({ error: "Booking not found" });
-    if (["cancelled", "completed", "closed"].includes(booking.status)) {
-      return res.status(400).json({ error: `Cannot cancel a booking with status "${booking.status}".` });
-    }
-
-    const previousStatus = booking.status;
-
-    // Cancel existing assignment if any
-    if (booking.assignmentId) {
-      try {
-        await Assignment.findByIdAndUpdate(booking.assignmentId, {
-          status: "cancelled",
-          cancelledAt: new Date(),
-          notes: "Auto-cancelled: booking cancelled by admin",
-        });
-      } catch (_) {}
-    }
-
-    // Set booking to cancelled
-    booking.status = "cancelled";
-    booking.cancellationReason = reason || "Cancelled by admin";
-    booking.technicianId = null;
-    booking.assignmentId = null;
-
-    // Handle refund
-    let payment = null;
-    if (refundDecision && refundDecision !== "none") {
-      // Money actually received from the customer (any payment type —
-      // downpayment for COD, full amount for GCash, etc.)
-      const PAID_STATUSES = ["verified", "paid", "remitted", "payment_collected", "partial", "waiting_for_remittance"];
-      payment = await Payment.findOne({
-        bookingId: booking._id,
-        status: { $in: PAID_STATUSES },
-      }).sort({ submittedAt: -1 });
-
-      if (payment) {
-        // Full refund returns exactly what the customer actually paid on this record;
-        // partial refunds are capped at the paid amount.
-        const maxRefundable = Math.max(0, (Number(payment.amount) || 0) - (Number(payment.refundAmount) || 0));
-        let refundAmt = refundDecision === "full"
-          ? maxRefundable
-          : Math.min(maxRefundable, Math.max(0, Number(refundAmount) || 0));
-        if (!(refundAmt > 0)) {
-          return res.status(400).json({ error: "No refundable amount found on this payment. The customer may not have a verified payment, or it was already refunded." });
+    let booking, payment, previousStatus;
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        booking = await BookingService.findById(id).session(session);
+        if (!booking) throw Object.assign(new Error("Booking not found"), { status:404 });
+        if (["cancelled", "completed", "repair_completed", "rejected", "closed"].includes(booking.status)) {
+          throw Object.assign(new Error(`Cannot cancel a booking with status "${booking.status}".`), { status:400 });
         }
 
-        payment.refundStatus = refundDecision === "full" ? "pending" : (refundAmt > 0 ? "pending" : "none");
-        payment.refundAmount = refundAmt;
-        payment.refundMethod = refundMethod || "original";
-        payment.refundNotes = refundNotes || "";
-        payment.refundReason = reason || "Admin-initiated cancellation";
+        previousStatus = booking.status;
+        const originalAssignmentId = booking.assignmentId;
+        const cancellation = cancelBookingRecord(booking, {
+          actorId: req.user?._id,
+          actorName: req.user?.name || req.user?.email || "Operations staff",
+          reason: reason || "Cancelled by admin",
+          recordHistory: false,
+        });
 
-        if (refundDecision === "full" && refundAmt === (payment.amount || 0)) {
-          payment.status = "refunded";
-          payment.refundedAt = new Date();
-          payment.refundedBy = req.user?._id;
+        // Cancel existing assignment if any
+        if (originalAssignmentId) {
+          await Assignment.findByIdAndUpdate(originalAssignmentId, {
+            $set: { status: "cancelled", cancelledAt: booking.cancelledAt },
+            $push: { notes: {
+              text: `Booking cancelled: ${cancellation.reason}`,
+              by: req.user?._id,
+              byName: req.user?.name || req.user?.email || "Operations staff",
+              createdAt: booking.cancelledAt,
+            } },
+          }, { session });
         }
 
-        payment.events.push({
-          status: payment.status === "refunded" ? "refunded" : "refund_pending",
-          actor: req.user?._id,
-          actorName: req.user?.name || req.user?.email || "Admin",
-          actorRole: req.user?.role || "admin",
-          note: refundDecision === "full"
-            ? `Full refund of ₱${refundAmt} approved`
-            : refundDecision === "partial"
-              ? `Partial refund of ₱${refundAmt} approved`
-              : "No refund",
-          at: new Date(),
-          metadata: { refundDecision, refundMethod, refundNotes },
+        booking.technicianId = null;
+        booking.technician = undefined;
+        booking.assignmentId = null;
+
+        // Handle refund
+        payment = null;
+        if (refundDecision && refundDecision !== "none") {
+          // Money actually received from the customer (any payment type —
+          // downpayment for COD, full amount for GCash, etc.)
+          const PAID_STATUSES = ["verified", "paid", "remitted", "payment_collected", "partial", "waiting_for_remittance"];
+          payment = await Payment.findOne({
+            bookingId: booking._id,
+            status: { $in: PAID_STATUSES },
+          }).sort({ submittedAt: -1 }).session(session);
+          if (!payment) throw Object.assign(new Error("There is no verified payment to refund. Choose No Refund or review the payment first."), { status:400 });
+
+          if (payment) {
+            // Full refund returns exactly what the customer actually paid on this record;
+            // partial refunds are capped at the paid amount.
+            const maxRefundable = Math.max(0, (Number(payment.amount) || 0) - (Number(payment.refundAmount) || 0));
+            let refundAmt = refundDecision === "full"
+              ? maxRefundable
+              : Math.min(maxRefundable, Math.max(0, Number(refundAmount) || 0));
+            if (!(refundAmt > 0)) {
+              throw Object.assign(new Error("No refundable amount found on this payment. The customer may not have a verified payment, or it was already refunded."), { status:400 });
+            }
+
+            payment.refundStatus = refundDecision === "full" ? "pending" : (refundAmt > 0 ? "pending" : "none");
+            payment.refundAmount = refundAmt;
+            payment.refundMethod = refundMethod || "original";
+            payment.refundNotes = refundNotes || "";
+            payment.refundReason = reason || "Admin-initiated cancellation";
+
+            payment.events.push({
+              status: "refund_pending",
+              actor: req.user?._id,
+              actorName: req.user?.name || req.user?.email || "Admin",
+              actorRole: req.user?.role || "admin",
+              note: refundDecision === "full"
+                ? `Full refund of ₱${refundAmt} approved`
+                : refundDecision === "partial"
+                  ? `Partial refund of ₱${refundAmt} approved`
+                  : "No refund",
+              at: new Date(),
+              metadata: { refundDecision, refundMethod, refundNotes },
+            });
+            await payment.save({ session });
+
+            booking.refundStatus = payment.refundStatus;
+            booking.refundAmount = payment.refundAmount;
+            booking.refundMethod = payment.refundMethod;
+            booking.refundNotes = payment.refundNotes;
+          }
+        }
+
+        // Keep history in this transaction; global audit logging happens after commit.
+        booking.statusHistory.push({
+          fromStatus: previousStatus, toStatus: "cancelled",
+          changedBy: req.user?._id, changedByModel: "User",
+          changedByName: req.user?.name || req.user?.email || "Operations staff",
+          reason: cancellation.reason, timestamp: booking.cancelledAt,
         });
-        await payment.save();
 
-        booking.paymentStatus = payment.status === "refunded" ? "refunded" : booking.paymentStatus;
-        booking.refundStatus = payment.refundStatus;
-        booking.refundAmount = payment.refundAmount;
-        booking.refundMethod = payment.refundMethod;
-        booking.refundNotes = payment.refundNotes;
-      }
-    }
+        // Record in cancellation history so the Cancellation Log page picks it up
+        if (!Array.isArray(booking.cancellationHistory)) booking.cancellationHistory = [];
+        booking.cancellationHistory.push({
+          technicianId: undefined,
+          technicianName: req.user?.name || "Admin",
+          action: "cancelled",
+          reason: `${reasonType ? reasonType.replace(/_/g, " ") : "admin cancellation"}${reason ? `: ${reason}` : ""}${refundDecision !== "none" ? ` (refund ${refundDecision}${refundAmount ? ` ₱${refundAmount}` : ""})` : ""}`,
+          timestamp: new Date(),
+        });
 
-    // Record status history
-    booking.recordStatusHistory({
-      fromStatus: previousStatus,
-      toStatus: "cancelled",
-      changedBy: req.user?._id,
-      changedByModel: "User",
-      changedByName: req.user?.name || "Admin",
-      reason: reason || "Cancelled by admin",
-    });
+        // Record resolution case
+        const validIssueTypes = ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
+        const issueType = req.body.issueType || "past_date";
+        if (validIssueTypes.includes(issueType)) {
+          booking.resolutionCases.push({
+            issueType,
+            sourceStatus: previousStatus,
+            state: "closed",
+            action: "close",
+            note: reason || "Cancelled by admin from resolution center",
+            decidedAt: new Date(),
+            decidedBy: req.user?._id,
+            decidedByName: req.user?.name || "Admin",
+          });
+        }
 
-    // Record in cancellation history so the Cancellation Log page picks it up
-    if (!Array.isArray(booking.cancellationHistory)) booking.cancellationHistory = [];
-    booking.cancellationHistory.push({
-      technicianId: undefined,
-      technicianName: req.user?.name || "Admin",
-      action: "cancelled",
-      reason: `${reasonType ? reasonType.replace(/_/g, " ") : "admin cancellation"}${reason ? `: ${reason}` : ""}${refundDecision !== "none" ? ` (refund ${refundDecision}${refundAmount ? ` ₱${refundAmount}` : ""})` : ""}`,
-      timestamp: new Date(),
-    });
+        // Cancellation closes the scheduling issue; it never creates a new visit.
+        if (booking.resolutionCases && Array.isArray(booking.resolutionCases)) {
+          for (const rc of booking.resolutionCases) {
+            if (rc.issueType === "past_date" && !["closed", "rescheduled", "reassigned"].includes(rc.state)) {
+              rc.state = "closed";
+              rc.action = "close";
+              rc.note = reason || "Booking cancelled by admin";
+              rc.decidedAt = new Date();
+              rc.decidedBy = req.user?._id;
+              rc.decidedByName = req.user?.name || "Admin";
+            }
+          }
+        }
 
-    // Record resolution case
-    const validIssueTypes = ["no_show", "cancelled", "incomplete", "no_technician", "technician_issue", "schedule_conflict", "customer_reschedule", "past_date"];
-    const issueType = req.body.issueType || "past_date";
-    if (validIssueTypes.includes(issueType)) {
-      booking.resolutionCases.push({
-        issueType,
-        sourceStatus: previousStatus,
-        state: "closed",
-        action: "close",
-        note: reason || "Cancelled by admin from resolution center",
-        decidedAt: new Date(),
-        decidedBy: req.user?._id,
-        decidedByName: req.user?.name || "Admin",
+        await booking.save({ session });
       });
+    } finally {
+      await session.endSession();
     }
-
-    // Close any open past_date resolution cases — the scheduling issue is resolved
-    if (booking.resolutionCases && Array.isArray(booking.resolutionCases)) {
-      for (const rc of booking.resolutionCases) {
-        if (rc.issueType === "past_date" && !["closed", "rescheduled", "reassigned"].includes(rc.state)) {
-          rc.state = "rescheduled";
-          rc.action = "reschedule";
-          rc.note = reason || "New visit scheduled by admin";
-          rc.decidedAt = new Date();
-          rc.decidedBy = req.user?._id;
-          rc.decidedByName = req.user?.name || "Admin";
-        }
-      }
-    }
-
-    await booking.save();
 
     // Notify customer
     try {
-      const { createNotification } = require("./notify");
-      const customerName = booking.customer?.name || "Customer";
+      const { createNotification } = require("../utils/notify");
       const refundSummary = refundDecision === "full"
         ? "A full refund will be processed."
         : refundDecision === "partial"
@@ -8200,6 +8217,7 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
         referenceId: booking._id,
         referenceModel: "BookingService",
         link: "/tracking",
+        io: req.app?.get("io"),
       }).catch(() => {});
     } catch (_) {}
 
@@ -9690,48 +9708,45 @@ router.put("/settings/no-show-policy", async (req, res, next) => {
 router.get("/daily-kit/pending-issues", async (req, res, next) => {
   try {
     const DailyKit = require("../models/DailyKit");
-    const Technician = require("../models/Technician");
     const BookingService = require("../models/BookingService");
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const { start: today, end: nextDay } = require("../utils/dailyKitService").dayBounds(new Date());
 
     const kits = await DailyKit.find({
       workDate: { $gte: today, $lt: nextDay },
-      "items.checkoutStatus": "unavailable",
-      "items.resolution.status": "admin_notified",
-    }).populate("technicianId", "name");
+      $or: [{ items: { $elemMatch: { checkoutStatus: 'unavailable', 'resolution.status': 'admin_notified' } } },
+        { deltaItems: { $elemMatch: { checkoutStatus: 'unavailable', 'resolution.status': 'admin_notified' } } }],
+    }).select('technicianId items deltaItems').populate("technicianId", "name").maxTimeMS(8000).lean();
 
+    const pendingItems = kits.flatMap(kit => [...(kit.items || []), ...(kit.deltaItems || [])]
+      .filter(item => item.checkoutStatus === 'unavailable' && item.resolution?.status === 'admin_notified')
+      .map(item => ({kit, item})));
+    const bookingIds = [...new Map(pendingItems.flatMap(({item}) => item.bookingIds || [])
+      .map(id => [String(id), id])).values()];
+    const bookings = bookingIds.length ? await BookingService.find({_id:{$in:bookingIds}})
+      .select('bookingReference serviceName serviceType startTime address location.address service.name services.name')
+      .maxTimeMS(8000).lean() : [];
+    const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
     const issues = [];
-    for (const kit of kits) {
+    for (const {kit, item} of pendingItems) {
       const tech = kit.technicianId;
-      for (const item of kit.items) {
-        if (item.checkoutStatus === "unavailable" && item.resolution?.status === "admin_notified") {
-          // Find which bookings need this item
-          const bookings = await BookingService.find({ _id: { $in: item.bookingIds } })
-            .select("bookingReference serviceName serviceType startTime address")
-            .lean();
-          issues.push({
-            kitId: kit._id,
-            technicianId: tech?._id,
-            technicianName: tech?.name || "Unknown",
-            itemName: item.name,
-            category: item.category,
-            quantity: item.quantity,
-            bookings: bookings.map(b => ({
-              id: b._id,
-              reference: b.bookingReference,
-              service: b.serviceName,
-              type: b.serviceType,
-              time: b.startTime,
-              address: b.address,
-            })),
-            reportedAt: item.resolution.resolvedAt,
-          });
-        }
-      }
+      issues.push({
+        kitId: kit._id,
+        technicianId: tech?._id,
+        technicianName: tech?.name || "Unknown",
+        itemName: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        bookings: (item.bookingIds || []).map(id=>bookingMap.get(String(id))).filter(Boolean).map(b => ({
+          id: b._id,
+          reference: b.bookingReference,
+          service: b.serviceName || b.service?.name || (b.services || []).map(service=>service.name).filter(Boolean).join(', '),
+          type: b.serviceType,
+          time: b.startTime,
+          address: b.address || b.location?.address,
+        })),
+        reportedAt: item.resolution.resolvedAt,
+      });
     }
 
     return res.json({ issues });
@@ -9795,7 +9810,7 @@ router.patch("/daily-kit/resolve-item", async (req, res, next) => {
     const kit = await DailyKit.findById(kitId);
     if (!kit) return res.status(404).json({ error: "Daily kit not found" });
 
-    const item = kit.items.find(i => i.name === itemName && i.checkoutStatus === "unavailable");
+    const item = [...(kit.items || []), ...(kit.deltaItems || [])].find(i => i.name === itemName && i.checkoutStatus === "unavailable");
     if (!item) return res.status(404).json({ error: "Unavailable item not found in kit" });
 
     // Update resolution

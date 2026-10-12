@@ -52,7 +52,19 @@ const dailyKitItemSchema = new mongoose.Schema({
 
   // Reference to inventory item (Tool model)
   toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
+  // Admin kit rules reference an exact catalog item. Never substitute by name.
+  catalogLocked: { type: Boolean, default: false },
   toolCode: { type: String, default: null },
+
+  // A technician's requested total packing quantity stays separate from the
+  // generated job demand. Removing an extra must never erase required stock.
+  requiredQuantity: { type: Number, min: 0, default: 0 },
+  manualQuantity: { type: Number, min: 0, default: 0 },
+  manualJobType: { type: String, enum: ["booking", "order", "project", null], default: null },
+  manualJobId: { type: mongoose.Schema.Types.ObjectId, default: null },
+  manualNote: { type: String, trim: true, maxlength: 300, default: "" },
+  manualAddedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  manualAddedAt: { type: Date, default: null },
 
   // For equipment: checkout/return tracking
   checkoutStatus: {
@@ -94,6 +106,8 @@ const dailyKitItemSchema = new mongoose.Schema({
   // Legacy project equipment may already be in this technician's custody.
   // Referencing it prevents the consolidated kit from deducting it again.
   custodyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "EquipmentAssignment" }],
+  reservedAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "EquipmentAssignment" }],
+  quantityToCheckout: { type: Number, min: 0, default: null },
 
   // Conflict info (if equipment unavailable)
   conflict: {
@@ -157,6 +171,7 @@ const dailyKitSchema = new mongoose.Schema({
   bookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "BookingService" }],
   orderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
   projectIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Project" }],
+  noItemsOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Order" }],
   workOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "WorkOrder" }],
   dailyAssignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "DailyAssignment" }],
 
@@ -173,7 +188,7 @@ const dailyKitSchema = new mongoose.Schema({
   notes: { type: String, trim: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date },
-});
+}, { optimisticConcurrency: true });
 
 dailyKitSchema.pre("save", function () {
   this.updatedAt = new Date();
@@ -181,6 +196,14 @@ dailyKitSchema.pre("save", function () {
   this.totalEquipment = this.items.filter(i => i.category === "equipment").length;
   this.totalConsumables = this.items.filter(i => i.category === "consumable").length;
   this.totalRepairParts = this.items.filter(i => i.category === "repair_part").length;
+});
+
+dailyKitSchema.post('save', function (error, doc, next) {
+  if (error.name === 'VersionError') {
+    error.status = 409;
+    error.message = 'Your kit changed. Refresh Daily Preparation and try again.';
+  }
+  next(error);
 });
 
 // Unique index: one kit per technician per day

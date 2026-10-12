@@ -126,11 +126,12 @@ test("legacy bookings without a public reference can be opened by their ID", asy
   assert.ok(result.body.cases.every(item => item.id === BOOKING_ID));
 });
 
-test("a link with an old Past Date filter still finds a different open issue on the booking", async () => {
+test("a Resolve link reopens a dismissed past-date issue when no schedule outcome was saved", async () => {
   const record = booking({ resolutionCases: [{ issueType: "past_date", sourceStatus: "awaiting_assignment", state: "closed" }] });
   const result = await load({ booking: record, filters: { issue: "past_date" } });
   assert.equal(result.body.cases.length, 1);
-  assert.equal(result.body.cases[0].issueType, "no_technician");
+  assert.equal(result.body.cases[0].issueType, "past_date");
+  assert.ok(result.body.cases[0].issues.some(issue=>issue.issueType==='no_technician'));
   assert.equal(result.body.focus.state, "open");
 });
 
@@ -207,4 +208,51 @@ test("pagination and secondary-issue filters count unique bookings before slicin
   assert.equal(new Set(result.body.cases.map(item => item.id)).size, 4);
   assert.ok(result.body.cases.every(item => item.issueType === "no_technician" && item.issues.length === 2));
   assert.equal(result.body.summary.total, 14);
+});
+
+test("booking-type filters classify the entire queue before pagination without changing summary counts", async () => {
+  const standard = Array.from({ length: 14 }, (_, i) => booking({
+    _id: i.toString(16).padStart(24, "0"), bookingReference: `STANDARD-${i}`,
+  }));
+  const projects = [
+    booking({ _id: "100000000000000000000001", isProject: true, bookingReference: "PROJECT-EXPLICIT" }),
+    booking({ _id: "100000000000000000000002", quantity: 8, bookingReference: "PROJECT-UNITS" }),
+    booking({ _id: "100000000000000000000003", serviceDurationMinutes: 481, bookingReference: "PROJECT-HOURS" }),
+  ];
+  const normalBookings = [...projects, ...standard];
+  const result = await load({ focus: null, normalBookings, normalOrders: [order()],
+    filters: { source: "booking", bookingType: "standard", page: "2", perPage: "10", issue: "no_technician" } });
+  assert.equal(result.body.pagination.total, 14);
+  assert.equal(result.body.pagination.pages, 2);
+  assert.equal(result.body.cases.length, 4);
+  assert.ok(result.body.cases.every(item => item.sourceType === "booking" && !item.isProject && item.issueType === "no_technician"));
+  assert.equal(result.body.summary.total, 18);
+  assert.equal(result.body.summary.bySource.booking, 17);
+  assert.equal(result.body.filters.bookingType, "standard");
+
+  const largeScale = await load({ focus: null, normalBookings, filters: {
+    source: "booking", bookingType: "project", q: "PROJECT", severity: "high", page: "20",
+  } });
+  assert.equal(largeScale.body.pagination.total, 3);
+  assert.equal(largeScale.body.pagination.page, 1);
+  assert.ok(largeScale.body.cases.every(item => item.sourceType === "booking" && item.isProject));
+});
+
+test("booking types do not hide order or all-case views, and invalid values leave bookings visible", async () => {
+  const normalBookings = [booking(), booking({ _id: "100000000000000000000001", isProject: true })];
+  for (const source of ["", "order", "booking"]) {
+    const result = await load({ focus: null, normalBookings, normalOrders: [order()], filters: {
+      source, bookingType: source === "booking" ? "unknown" : "project",
+    } });
+    assert.equal(result.body.pagination.total, source === "" ? 3 : source === "order" ? 1 : 2);
+  }
+});
+
+test("a direct Resolve link finds a project despite an old standard-booking filter", async () => {
+  const result = await load({ booking: booking({ isProject: true }), filters: {
+    source: "booking", bookingType: "standard", page: "2",
+  } });
+  assert.equal(result.body.focus.state, "open");
+  assert.equal(result.body.cases.length, 1);
+  assert.equal(result.body.cases[0].isProject, true);
 });

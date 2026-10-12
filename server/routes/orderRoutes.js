@@ -19,6 +19,7 @@ const AirconCart = require("../models/AirconCart");
 const { parseCartItemIds } = require("../utils/cartCheckoutSelection");
 const { reorderCancelledOrder } = require("../utils/orderReorder");
 const { requestOrderRefund } = require("../utils/orderRefundRequest");
+const { restoreCancelledOrderStock } = require("../utils/orderCancellationStock");
 const {
   recordOrderConsumableUsage,
   syncDailyKit,
@@ -138,6 +139,7 @@ function presentOrderForRequest(req, order) {
   const presented = withOrderPresentation(
     order && typeof order.toObject === "function" ? order.toObject() : order,
   );
+  if (!["admin", "secretary"].includes(req.user?.role)) delete presented.cancellationStockReview;
   return req.user?.role === "technician"
     ? presentTechnicianOrder(presented)
     : presented;
@@ -1428,6 +1430,7 @@ router.get("/:id", authenticate, async (req, res) => {
     const modalView = ['admin', 'secretary'].includes(req.user.role) && req.query?.view === 'modal';
     const order = await Order.findById(req.params.id)
       .select(modalView ? exclude(ORDER_PHOTO_FIELDS) : '')
+      .select(['admin', 'secretary'].includes(req.user.role) ? '+cancellationStockReview' : '')
       .populate("technicianId", "name phone")
       .maxTimeMS(8000).lean();
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -2089,7 +2092,7 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
     const isTechnician = req.user && req.user.role === "technician";
 
     // Check if user is the customer
-    const isOwner = order.userId.toString() === req.user._id.toString();
+    const isOwner = Boolean(order.userId && String(order.userId) === String(req.user._id));
 
     if (isTechnician) {
       const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
@@ -2134,11 +2137,10 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       }
 
       const cancelNote = `Cancelled by ${isOwner ? "customer" : req.user.role}. Reason: ${cancellationReason}`;
-      cancelledOrder.pushStatus("cancelled", cancelNote, {
-        actor: req.user._id,
-        actorRole: req.user.role,
-        actorName: req.user.name || req.user.email || "System",
-      });
+      // pushStatus emits a separate audit write immediately. Record the status
+      // here, then audit only after the cancellation transaction commits.
+      cancelledOrder.status = "cancelled";
+      cancelledOrder.statusHistory.push({ status: "cancelled", timestamp: new Date(), note: cancelNote });
       cancelledOrder.cancellationReason = cancellationReason;
       if (cancelledOrder.fulfillmentType === "delivery_installation") {
         cancelledOrder.preparation = cancelledOrder.preparation || {};
@@ -2184,23 +2186,9 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       }
 
       const HVACProduct = require("../models/HVACProduct");
-      for (const item of cancelledOrder.items || []) {
-        if (item.isHvac) {
-          const restored = await HVACProduct.findOneAndUpdate(
-            { _id: item.parentHvacId, "variants._id": item.inventoryId },
-            { $inc: { "variants.$.quantity": item.quantity } },
-            { session },
-          );
-          if (!restored) throw new Error(`Unable to restore stock for ${item.modelLine || item.inventoryId}`);
-        } else {
-          const restored = await Inventory.findByIdAndUpdate(
-            item.inventoryId,
-            { $inc: { quantity: item.quantity } },
-            { session },
-          );
-          if (!restored) throw new Error(`Unable to restore stock for ${item.modelLine || item.inventoryId}`);
-        }
-      }
+      cancelledOrder.cancellationStockReview = await restoreCancelledOrderStock(
+        cancelledOrder.items, { Inventory, HVACProduct }, session,
+      );
 
       if (cancelledOrder.bookingId) {
         await BookingService.findByIdAndUpdate(
@@ -2218,15 +2206,38 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       await session.endSession();
     }
 
+    await require("../utils/audit").logEvent({
+      actor: req.user._id, action: "order.status_change", module: "Order", req,
+      entityId: cancelledOrder._id, entityType: "Order",
+      details: { toStatus: "cancelled", orderReference: cancelledOrder.orderReference,
+        orderId: String(cancelledOrder._id), reason: cancellationReason,
+        actorRole: req.user.role, actorName: req.user.name || req.user.email || "System",
+        stockReviewStatus: cancelledOrder.cancellationStockReview.status, refundRequested },
+    }).catch(error => console.warn("[orders] Cancellation audit could not be saved:", error.message));
+    const stockReviewRequired = cancelledOrder.cancellationStockReview.status === "pending_review";
+    if (stockReviewRequired) {
+      await require("../utils/notify").createNotification({
+        type: "resource_issue", role: "admin", priority: "high",
+        title: "Cancelled order needs a stock check",
+        message: `${cancelledOrder.orderReference || cancelledOrder._id} was cancelled. Its original stock item was removed. Check the affected units in order details before updating stock.`,
+        referenceId: cancelledOrder._id, referenceModel: "Order",
+        link: `/admin/appointments/orders?order=${cancelledOrder._id}`,
+        io: req.app.get("io"),
+      }).catch(error => console.warn("[orders] Stock review notification could not be sent:", error.message));
+    }
     await syncLinkedInstallationBooking(cancelledOrder, null, req.app.get("io")).catch(() => {});
     await syncAffectedOrderKits(previousKitTarget);
     emitOrderStatus(req, cancelledOrder, { refundRequested });
     res.json({
       message: refundRequested ? "Order cancelled. The verified payment is queued for refund review." : "Order cancelled",
       refundRequested,
+      ...(["admin", "secretary"].includes(req.user.role) && stockReviewRequired ? {
+        warning: "Order cancelled. The original stock item was removed, so no stock was added for the affected units. Check the stock issue in order details. Refund review can continue.",
+      } : {}),
       order: presentOrderForRequest(req, cancelledOrder),
     });
   } catch (err) {
+    console.error("Order cancellation error:", { orderId: req.params.id, error: err });
     checkoutErrorResponse(res, err, {
       action: "Order cancellation",
       isStaff: ["admin", "secretary"].includes(req.user?.role),

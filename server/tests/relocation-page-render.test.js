@@ -66,6 +66,9 @@ test("the actual relocation route renders the full layout, checklist shell and t
   assert.ok(html.includes(`data-booking-id="${bookingId}"`));
   assert.ok(html.includes(`window.socket.emit('tech:join', '${technician._id}')`));
   assert.match(html, /relocation-work-order\.js/);
+  assert.match(html, /leaflet\/dist\/leaflet\.js/);
+  assert.match(html, /relocation-work-order-map\.js/);
+  assert.ok(html.indexOf('src="/js/relocation-work-order-map.js') < html.indexOf('src="/js/relocation-work-order.js'));
   assert.match(html, /Assignments/);
 });
 

@@ -27,6 +27,60 @@ function bookingScheduleNeedsResolution(booking, now = new Date()) {
   return cutoff ? cutoff.getTime() < now.getTime() : booking.autoReschedulePending === true;
 }
 
+function bookingIssueRequiresOutcome(booking, issueType, now = new Date()) {
+  if (!booking || ['cancelled', 'completed', 'closed', 'repair_completed', 'rejected'].includes(booking.status)) return false;
+  if (issueType === 'past_date') {
+    if (booking.status === 'reschedule-required' || bookingScheduleNeedsResolution(booking, now)) return true;
+    const date = booking.projectScheduling?.preferredStartDate || booking.preferredDate || booking.bookingDate;
+    const start = parseAppointmentTime(booking.startTime);
+    const visit = date ? manilaDateTime(date, Number.isFinite(start) ? start : 24 * 60 - 1) : null;
+    return booking.status === 'pending_project_scheduling' && Boolean(visit && visit < now);
+  }
+  if (issueType === 'no_show') return ['reschedule-required', 'no-show-reported', 'no-show'].includes(booking.status);
+  if (issueType === 'no_technician') return !booking.isProject && ['awaiting_assignment', 'confirmed', 'scheduled'].includes(booking.status)
+    && !booking.technicianId && !pendingResolutionProposal(booking);
+  if (issueType === 'technician_issue') return booking.status === 'pending_reassignment';
+  if (issueType === 'customer_reschedule') return booking.status === 're-scheduled' || Boolean(pendingResolutionProposal(booking) || pendingResolutionRequest(booking));
+  if (issueType === 'schedule_conflict') return Boolean(booking.technicianId) && ['assigned', 'confirmed', 'scheduled', 're-scheduled'].includes(booking.status);
+  return false;
+}
+
+function bookingResolutionCaseIsResolved(booking, issueType, now = new Date()) {
+  // A review note cannot make an unusable schedule or missing technician ready.
+  // Keep legacy dismissed cases actionable until an actual outcome is saved.
+  if (bookingIssueRequiresOutcome(booking, issueType, now)) return false;
+  return (booking?.resolutionCases || []).some(decision => decision.issueType === issueType
+    && decision.sourceStatus === booking.status && ['closed', 'rescheduled', 'reassigned'].includes(decision.state));
+}
+
+// The overview's schedule warning is separate from the actual booking status.
+// A case clears only when its underlying issue has an approved outcome.
+function bookingOverviewScheduleResolution(booking, now = new Date()) {
+  const issues = [];
+  if (!booking || ['cancelled', 'completed', 'closed', 'repair_completed'].includes(booking.status)) {
+    return { required: false, issueType: null };
+  }
+  const isProject = booking.isProject || booking.status === 'pending_project_scheduling';
+  const date = isProject ? (booking.projectScheduling?.preferredStartDate || booking.preferredDate || booking.bookingDate)
+    : (booking.bookingDate || booking.preferredDate);
+  const minutes = parseAppointmentTime(booking.startTime);
+  const visit = date ? manilaDateTime(date, Number.isFinite(minutes) ? minutes : 24 * 60 - 1) : null;
+  const pastVisit = Boolean(visit && visit < now);
+  if (bookingScheduleNeedsResolution(booking, now) || (booking.status === 'pending_project_scheduling' && pastVisit)) issues.push('past_date');
+  if (booking.status === 'reschedule-required') issues.push(pastVisit ? 'past_date' : 'no_show');
+  // An overdue visit may have more than one open issue. Closing Past Date
+  // alone must not hide a missing technician or a pending schedule decision.
+  if (issues.length) {
+    if (!isProject && ['awaiting_assignment', 'confirmed', 'scheduled'].includes(booking.status)
+      && !booking.technicianId && !pendingResolutionProposal(booking)) issues.push('no_technician');
+    if (booking.status === 'pending_reassignment') issues.push('technician_issue');
+    if (booking.status !== 'reschedule-required'
+      && (booking.status === 're-scheduled' || pendingResolutionProposal(booking) || pendingResolutionRequest(booking))) issues.push('customer_reschedule');
+  }
+  const issueType = issues.find(issue => !bookingResolutionCaseIsResolved(booking, issue, now)) || null;
+  return { required: Boolean(issueType), issueType };
+}
+
 function parseResolutionFocus(value) {
   const match = String(value || "").match(/^(booking|order):([a-f\d]{24})$/i);
   return match ? { source: match[1].toLowerCase(), id: match[2].toLowerCase() } : null;
@@ -177,11 +231,14 @@ function summarizeResolutionCases(cases) {
 
 function filterResolutionCases(cases, filters = {}) {
   const source = normalizeText(filters.source);
+  const bookingType = normalizeText(filters.bookingType);
   const issue = normalizeText(filters.issue);
   const severity = normalizeText(filters.severity);
   const search = normalizeText(filters.q);
   return cases.filter((item) => {
     if (source && source !== "all" && normalizeText(item.sourceType || "booking") !== source) return false;
+    if (source === "booking" && ["standard", "project"].includes(bookingType)
+      && (item.isProject === true) !== (bookingType === "project")) return false;
     if (issue && issue !== "all" && ![item, ...(item.issues || [])].some(entry => normalizeText(entry.issueType) === issue)) return false;
     if (severity && severity !== "all" && normalizeText(item.severity) !== severity) return false;
     if (search) {
@@ -219,6 +276,9 @@ function paginateResolutionCases(cases, pageValue, perPageValue) {
 }
 
 module.exports = {
+  bookingResolutionCaseIsResolved,
+  bookingIssueRequiresOutcome,
+  bookingOverviewScheduleResolution,
   pendingResolutionRequest,
   pendingResolutionProposal,
   resolutionPaymentNeedsReview,

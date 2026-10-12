@@ -87,3 +87,39 @@ The customer later reported an internal server error when opening the technician
 The relocation page route omitted the technician local supplied by other technician pages. The route now loads the signed-in technician and supplies `technician: tech || {}`. The layout also checks whether that local exists before rendering the socket-room join. Database lookup errors go to the existing page error handler.
 
 Six new regression checks execute the actual page handler and render the full EJS page and layout, including missing/null technician data and lookup failures. Those checks and the existing technician calendar/integrity checks passed: **15 passed, 0 failed**. This fixes the locally reproduced page-render failure; the other workflow findings above remain open. The deployed page has not been verified after this change.
+
+## Follow-up: relocation API returns 404
+
+The reported API response was “Relocation work order not found”. The former assignment page exposed the work-order link based on the service name, while the API accepted only service items with `relocation.scope`. Older named relocation items and older single-service bookings could therefore expose a link that the API rejected. These compatibility failures were reproduced locally. A read-only lookup of the supplied booking was attempted, but the configured database connection timed out, so its exact stored shape was not verified.
+
+The shared relocation identification now recognises both explicit relocation scopes and the Aircon Relocation service name. The GET API includes the booking snapshot needed for older records, selects the current applicable assignment and limits items to that assignment. Reading does not migrate data. Missing destination details are displayed as missing, with a request to confirm both locations with staff; another address is never guessed.
+
+Task saves now use the same item selection. Older existing service items retain their identities. An older booking without service items receives a canonical item only when its assigned technician records the first task, inside the save transaction. Per-unit price, quantity, duration and saved model are preserved, and parent charges, payments and booking location are not changed. Duplicate task submissions return the saved progress. Cancellation and reassignment checks are made inside the transaction, which also guards the assignment before updating the booking. Unsupported transactions return a setup error.
+
+The completion checklist gate recognises these older relocation records too. The page uses each item's actual edit permission, explains missing move details and has a Refresh button. The unrelated literal-option assertion was removed from the quote-submission test; its existing behavior checks still verify the request payload and unknown-brand normalization.
+
+Validation: **95 checks passed, 0 failed** across ten related test files, including actual API handlers, full page rendering, browser behavior, Mongoose validation of the canonical item, stage ordering, retry behavior, rollback, ownership, closed-job restrictions, acceptance, booking persistence and aftercare. These are local tests with model doubles, not a completed live visit. The earlier findings about customer-supplied progress, quote-request cancellation status, same-property aftercare pins and parent completion for split visits still need separate fixes.
+
+## Follow-up: actual location map
+
+After switching the ignored local environment file to Dokploy's external connection, a read-only check of the supplied booking succeeded. Its relocation service has no scope, origin/destination details or linked relocation request. The booking's current location has a saved pin, and its address contains a broken UTF-8/Latin-1 character sequence. This confirms the older-record case behind the earlier 404. No booking or address records were modified by this check.
+
+The technician work-order page now loads Leaflet through the existing technician layout and uses the application's shared Esri hybrid basemap. Each aircon has a responsive map showing A for the current location and B for the new location. When both valid pins exist, the map requests the existing server OSRM proxy and draws the returned road geometry, with distance and estimated travel time. If routing fails, the real pins remain visible; a straight line is not presented as a road route. Refresh removes old map instances and ignores late route results.
+
+For this specific booking, the map can show only the saved current pin. The unknown destination is labelled as missing and staff must confirm it. No destination coordinates are invented or copied from another property. A declared same-property move can share the property's pin while keeping the two room/position descriptions. The address presentation repairs the broken ñ without changing the database or corrupting valid Unicode text. Missing map assets do not block the checklist.
+
+Validation: **107 related checks passed**, including twelve map/location checks for coordinates, encoding, road routing, missing pins, routing failures, map cleanup and popup text safety. Full-page rendering also checks that Leaflet and the map script are loaded in the correct order. These are automated local checks; a signed-in browser visit on the deployed site has not been verified.
+
+A separate repository-wide tile-policy check passed two checks and failed two because `maintenance-admin.js` and `maintenance-customer.js` still use direct OpenStreetMap tile layers. Both files were confirmed unchanged from the current commit. The relocation map uses the shared Esri provider; those existing maintenance-map failures were not changed in this task.
+
+## Follow-up: clearer move details and work steps
+
+The work order now follows the customer's saved move choice. A same-property move shows the current and new room, floor or wall position alongside the property address. A move to another address shows both addresses and checks for both map pins. Older records without a move choice show that field as missing. The warning names each missing field instead of saying that unspecified move details were lost. Aircon type, HP, quantity and saved model help identify the unit.
+
+The checklist now has four expandable steps with progress counts and a progress bar. The first unfinished step opens automatically, finished steps collapse, and later tasks stay locked until earlier work is recorded. The assigned-job link makes it clear where payment and the completion photo are handled. Task labels use simpler words while retaining refrigerant recovery and pipe preparation for split units.
+
+Window and portable units use eleven applicable tasks instead of seventeen split-unit tasks. Stable task keys preserve existing progress. Server task validation, stage ordering and the completion checklist gate use the same aircon-specific stages as the page, including the booking's aircon type for older flat records.
+
+A read-only check confirmed that the supplied booking contains a Panasonic split-type 0.75 HP relocation item, with no saved move choice or destination. These missing details cannot be reconstructed from the current address. No live booking data was changed or guessed.
+
+Validation: **112 related checks passed, 0 failed** across eleven test files. Coverage includes the customer move choice, room-position prompts, different-address prompts, aircon-specific tasks, stage expansion, API task saves and completion checks. After placing refrigerant recovery before unit removal in the displayed task order, the twenty-eight affected API/workflow checks passed again. JavaScript syntax checks and `git diff --check` passed. These changes are local and have not been deployed.

@@ -23,6 +23,8 @@ const {
   dayBounds: dailyKitDayBounds,
   syncDailyKit,
   setDailyKitItemChecked,
+  addDailyKitItem,
+  removeDailyKitItem,
   confirmDailyKit,
   dailyKitDepartureReadiness,
   recordBookingConsumableUsage,
@@ -209,54 +211,89 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get('/relocation-work-order/:bookingId', async (req, res) => {
-  const BookingService = require('../models/BookingService');
-  const Assignment = require('../models/Assignment');
-  const { RELOCATION_STAGES } = require('../utils/relocationChecklist');
-  if (!mongoose.isValidObjectId(req.params.bookingId)) return res.status(400).json({ error: 'Invalid booking.' });
-  const { tech } = await loadTechnicianContext(req.user._id);
-  if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
-  const assignment = await Assignment.findOne({ bookingId: req.params.bookingId, technicianId: tech._id, status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress', 'completed'] } }).select('_id status').lean();
-  if (!assignment) return res.status(403).json({ error: 'This work order is not assigned to you.' });
-  const booking = await BookingService.findById(req.params.bookingId).select('bookingReference services paymentStatus status').lean();
-  const items = (booking?.services || []).filter(item => item.relocation?.scope).map(item => ({
-    id: item._id, name: item.name, from: item.relocation.from, to: item.relocation.to,
-    brand: item.brand, model: item.relocation.model, serialNumber: item.relocation.serialNumber,
-    completedTasks: item.relocation.completedTasks || [],
-  }));
-  if (!items.length) return res.status(404).json({ error: 'Relocation work order not found.' });
-  return res.json({ bookingReference: booking.bookingReference, assignmentStatus: assignment.status, stages: RELOCATION_STAGES, items });
+router.get('/relocation-work-order/:bookingId', async (req, res, next) => {
+  try {
+    const BookingService = require('../models/BookingService');
+    const Assignment = require('../models/Assignment');
+    const { RELOCATION_STAGES } = require('../utils/relocationChecklist');
+    const { READABLE_STATES, assignedRelocationItems, presentRelocationItem } = require('../utils/relocationWorkOrder');
+    if (!mongoose.isValidObjectId(req.params.bookingId)) return res.status(400).json({ error: 'Invalid booking.' });
+    const { tech } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+    const booking = await BookingService.findById(req.params.bookingId)
+      .select('bookingReference services service serviceId serviceName servicePrice serviceDurationMinutes quantity brand hp applianceType unitInfo location status technicianId assignmentId isProject').lean();
+    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    const assignments = await Assignment.find({ bookingId: booking._id, technicianId: tech._id, status: { $in: READABLE_STATES } })
+      .select('_id bookingId technicianId serviceItemId serviceType serviceName status assignedAt').lean();
+    if (!assignments.length) return res.status(403).json({ error: 'This work order is not assigned to you.' });
+    const assignedItems = assignedRelocationItems(booking, assignments, tech._id);
+    if (!assignedItems.length) return res.status(404).json({ error: 'No relocation service is assigned to you in this booking.' });
+    const items = assignedItems.map(item => presentRelocationItem(item, booking));
+    return res.json({ bookingReference: booking.bookingReference, assignmentStatus: items[0].assignmentStatus,
+      bookingStatus: booking.status, stages: RELOCATION_STAGES, items });
+  } catch (error) { next(error); }
 });
 
-router.post('/relocation-work-order/:bookingId/items/:itemId/tasks', async (req, res) => {
-  const BookingService = require('../models/BookingService');
-  const Assignment = require('../models/Assignment');
-  const { RELOCATION_STAGES, taskKeys } = require('../utils/relocationChecklist');
-  if (!mongoose.isValidObjectId(req.params.bookingId) || !mongoose.isValidObjectId(req.params.itemId)) return res.status(400).json({ error: 'Invalid work order.' });
-  const task = String(req.body.task || '');
-  if (!taskKeys.includes(task)) return res.status(400).json({ error: 'Invalid relocation task.' });
-  const { tech } = await loadTechnicianContext(req.user._id);
-  if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
-  const assignment = await Assignment.exists({ bookingId: req.params.bookingId, technicianId: tech._id, status: 'in_progress' });
-  if (!assignment) return res.status(409).json({ error: 'Start the assigned job before completing relocation tasks.' });
-  const booking = await BookingService.findById(req.params.bookingId).select('services status').lean();
-  const item = (booking?.services || []).find(row => String(row._id) === req.params.itemId && row.relocation?.scope);
-  if (!item || booking.status === 'completed') return res.status(409).json({ error: 'This relocation work order is not open.' });
-  const stageIndex = RELOCATION_STAGES.findIndex(stage => stage.tasks.some(([key]) => `${stage.key}.${key}` === task));
-  const completed = item.relocation.completedTasks || [];
-  for (const stage of RELOCATION_STAGES.slice(0, stageIndex)) {
-    if (stage.tasks.some(([key]) => !completed.includes(`${stage.key}.${key}`))) {
-      return res.status(409).json({ error: `Complete ${stage.label} before moving to the next stage.` });
-    }
-  }
-  const updated = await BookingService.findOneAndUpdate({ _id: booking._id,
-    services: { $elemMatch: { _id: item._id, 'relocation.completedTasks': { $ne: task } } },
-  }, { $addToSet: { 'services.$.relocation.completedTasks': task },
-    $push: { 'services.$.relocation.taskEvents': { task, technicianId: tech._id, at: new Date() } },
-  }, { returnDocument: 'after' }).select('services').lean();
-  if (!updated && !completed.includes(task)) return res.status(409).json({ error: 'This task changed. Refresh the work order.' });
-  const updatedItem = (updated?.services || []).find(row => String(row._id) === req.params.itemId);
-  return res.json({ completedTasks: updatedItem?.relocation?.completedTasks || completed });
+router.post('/relocation-work-order/:bookingId/items/:itemId/tasks', async (req, res, next) => {
+  let session;
+  try {
+    const BookingService = require('../models/BookingService');
+    const Assignment = require('../models/Assignment');
+    const { taskKeys, stagesForItem } = require('../utils/relocationChecklist');
+    const { assignedRelocationItems, presentRelocationItem } = require('../utils/relocationWorkOrder');
+    if (!mongoose.isValidObjectId(req.params.bookingId) || !mongoose.isValidObjectId(req.params.itemId)) return res.status(400).json({ error: 'Invalid work order.' });
+    const task = String(req.body.task || '');
+    if (!taskKeys.includes(task)) return res.status(400).json({ error: 'Invalid relocation task.' });
+    const { tech } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+    const problem = message => Object.assign(new Error(message), { status: 409 });
+    let result;
+    session = await mongoose.startSession();
+    await session.withTransaction(async () => {
+      const booking = await BookingService.findById(req.params.bookingId).session(session).lean();
+      if (!booking) throw problem('Booking not found. Refresh your assignments.');
+      const assignments = await Assignment.find({ bookingId: booking._id, technicianId: tech._id, status: 'in_progress' }).session(session).lean();
+      const assigned = assignedRelocationItems(booking, assignments, tech._id)
+        .find(row => String(row.item._id) === req.params.itemId);
+      if (!assigned || !presentRelocationItem(assigned, booking).editable) throw problem('Start your assigned relocation job before recording tasks. Cancelled or completed jobs cannot be changed.');
+      const { item, assignment, virtual } = assigned;
+      const stages = stagesForItem({ ...item, airconType: item.airconType || item.applianceType || booking.applianceType });
+      if (!stages.some(stage => stage.tasks.some(([key]) => stage.key + '.' + key === task))) throw problem('This task does not apply to this aircon type. Refresh the work order.');
+      const completed = item.relocation?.completedTasks || [];
+      if (completed.includes(task)) { result = { completedTasks: completed }; return; }
+      const stageIndex = stages.findIndex(stage => stage.tasks.some(([key]) => stage.key + '.' + key === task));
+      const earlierTasks = stages.slice(0, stageIndex).flatMap(stage => stage.tasks.map(([key]) => stage.key + '.' + key));
+      if (earlierTasks.some(key => !completed.includes(key))) throw problem('Finish the earlier checklist stages before moving to the next stage.');
+      // Keep cancellation/reassignment from racing a task write.
+      const locked = await Assignment.updateOne({ _id: assignment._id, bookingId: booking._id, technicianId: tech._id, status: 'in_progress' },
+        { $set: { updatedAt: new Date() } }, { session });
+      if (!locked.matchedCount) throw problem('Your assignment changed. Refresh the work order.');
+      const event = { task, technicianId: tech._id, at: new Date() };
+      const filter = { _id: booking._id, status: booking.status };
+      let update;
+      if (virtual) {
+        // Older single-service bookings gain a service item only when their
+        // assigned technician actually records progress, never during a read.
+        filter['services.0'] = { $exists: false };
+        update = { $set: { services: [{ ...item, status: 'in_progress', technicianId: tech._id, assignmentId: assignment._id,
+          relocation: { ...item.relocation, completedTasks: [task], taskEvents: [event] } }] } };
+      } else {
+        filter.services = { $elemMatch: { _id: item._id, 'relocation.completedTasks': { $ne: task } } };
+        update = { $addToSet: { 'services.$.relocation.completedTasks': task },
+          $push: { 'services.$.relocation.taskEvents': event } };
+      }
+      const updated = await BookingService.findOneAndUpdate(filter, update, { session, returnDocument: 'after', runValidators: true }).select('services').lean();
+      if (!updated) throw problem('This work order changed. Refresh and try again.');
+      const saved = updated.services.find(row => String(row._id) === String(item._id));
+      result = { completedTasks: saved.relocation.completedTasks };
+    });
+    return res.json(result);
+  } catch (error) {
+    const { isUnsupportedMongoWriteFeature } = require('../utils/mongoWriteSupport');
+    if (isUnsupportedMongoWriteFeature(error)) return res.status(503).json({ error: 'Relocation tasks could not be saved. Ask the server administrator to check the MongoDB replica set setup.' });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    return next(error);
+  } finally { await session?.endSession().catch(() => {}); }
 });
 
 // Warranty inspections mirror the core-service field lifecycle.
@@ -3683,81 +3720,25 @@ router.get('/assignments/preparation/next-jobs', async (req, res, next) => {
 router.post('/assignments/checkout-batch', async (req, res, next) => {
   try {
     const Assignment = require('../models/Assignment');
-    const EquipmentAssignment = require('../models/EquipmentAssignment');
-    const StockReservation = require('../models/StockReservation');
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: 'Technician record not found' });
-
-    const { assignmentIds } = req.body;
-    if (!Array.isArray(assignmentIds) || !assignmentIds.length) {
-      return res.status(400).json({ error: 'Provide an array of assignment IDs to check out.' });
+    const ids = req.body.assignmentIds;
+    if (!Array.isArray(ids) || !ids.length || ids.some(id => !mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ error: 'Choose valid jobs for checkout.' });
     }
-
-    const results = [];
-    for (const asgId of assignmentIds) {
-      if (!mongoose.Types.ObjectId.isValid(asgId)) continue;
-      const assignment = await Assignment.findOne({ _id: asgId, technicianId: tech._id });
-      if (!assignment) continue;
-
-      // Checkout equipment
-      const reserved = await EquipmentAssignment.find({ bookingId: assignment.bookingId, status: 'reserved' });
-      const checkedOut = [];
-      for (const eq of reserved) {
-        const tool = await Tool.findById(eq.equipmentId);
-        if (!tool) continue;
-        if (Tool.effectiveInventoryClass(tool) !== 'operational_asset' || tool.assignable === false || ['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus)) continue;
-        if (tool.quantity < eq.quantity) continue;
-
-        tool.quantity -= eq.quantity;
-        tool.reservedQuantity = Math.max(0, (tool.reservedQuantity || 0) - eq.quantity);
-        if (!eq.consumable) {
-          tool.checkedOutQuantity = (tool.checkedOutQuantity || 0) + eq.quantity;
-          tool.assetStatus = 'checked_out';
-        }
-        await tool.save();
-
-        eq.status = eq.consumable ? 'consumed' : 'checked_out';
-        eq.checkedOutAt = new Date();
-        eq.checkedOutBy = req.user._id;
-        await eq.save();
-        checkedOut.push({ name: eq.equipmentName, quantity: eq.quantity, kind: eq.consumable ? 'consumable' : 'equipment' });
-      }
-
-      // Checkout repair parts (StockReservations)
-      const reservedParts = await StockReservation.find({ bookingId: assignment.bookingId, status: 'reserved' });
-      const checkedOutParts = [];
-      for (const sr of reservedParts) {
-        const tool = await Tool.findById(sr.toolId);
-        if (tool) {
-          tool.reservedQuantity = Math.max(0, (tool.reservedQuantity || 0) - sr.quantity);
-          await tool.save();
-        }
-        sr.status = 'checked_out';
-        sr.fulfilledAt = new Date();
-        await sr.save();
-        checkedOutParts.push({ name: sr.itemName, quantity: sr.quantity });
-      }
-
-      // Update assignment
-      assignment.equipmentCheckedOut = true;
-      assignment.equipmentCheckedOutAt = new Date();
-      assignment.preparationStatus = 'checked_out';
-      assignment.notes.push({
-        text: `Batch checkout: ${checkedOut.length} equipment, ${checkedOutParts.length} parts`,
-        by: req.user._id, byName: tech.name, createdAt: new Date(),
-      });
-      await assignment.save();
-
-      results.push({
-        assignmentId: asg._id,
-        bookingId: assignment.bookingId,
-        checkedOut,
-        checkedOutParts,
-      });
+    const requested = [...new Set(ids.map(String))];
+    const assignments = await Assignment.find({ _id: { $in: requested }, technicianId: tech._id }).lean();
+    if (assignments.length !== requested.length) return res.status(403).json({ error: 'One or more jobs are not assigned to you.' });
+    const today = require('../utils/bookingDateTime').manilaDateKey(new Date());
+    if (assignments.some(row => require('../utils/bookingDateTime').manilaDateKey(row.bookingDate) !== today)) {
+      return res.status(409).json({ error: 'Check out equipment on the scheduled work date.', code: 'DAILY_KIT_REQUIRED' });
     }
-
-    return res.json({ success: true, results });
-  } catch (err) { next(err); }
+    const kit = await confirmDailyKit({ technicianId: tech._id, userId: req.user._id, date: today, expectedAssignmentIds: requested });
+    return res.json({ success: true, kit: kit.toObject(), results: requested.map(assignmentId => ({ assignmentId, prepared: true })) });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code || 'DAILY_KIT_REQUIRED' });
+    next(err);
+  }
 });
 
 /**
@@ -3766,103 +3747,38 @@ router.post('/assignments/checkout-batch', async (req, res, next) => {
  */
 router.post("/assignments/:id/checkout", async (req, res, next) => {
   try {
-    const Assignment = require("../models/Assignment");
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-
+    const Assignment = require('../models/Assignment');
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid job.' });
     const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id });
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-    const reserved = await EquipmentAssignment.find({ bookingId: assignment.bookingId, status: "reserved" });
-    const checkedOut = [];
-    const skipped = [];
-    for (const eq of reserved) {
-      const tool = await Tool.findById(eq.equipmentId);
-      if (!tool) { skipped.push({ id: eq._id, name: eq.equipmentName, reason: "Tool not found" }); continue; }
-      if (Tool.effectiveInventoryClass(tool) !== 'operational_asset' || tool.assignable === false || ['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus)) {
-        skipped.push({ id: eq._id, name: eq.equipmentName, reason: "Not an assignable operational asset" }); continue;
-      }
-      if (tool.quantity < eq.quantity) { skipped.push({ id: eq._id, name: eq.equipmentName, reason: "Insufficient stock" }); continue; }
-      tool.quantity -= eq.quantity;
-      tool.reservedQuantity = Math.max(0, (tool.reservedQuantity || 0) - eq.quantity);
-      if (!eq.consumable) {
-        tool.checkedOutQuantity = (tool.checkedOutQuantity || 0) + eq.quantity;
-        tool.assetStatus = 'checked_out';
-      }
-      await tool.save();
-      eq.status = eq.consumable ? "consumed" : "checked_out";
-      eq.checkedOutAt = new Date();
-      eq.checkedOutBy = req.user._id;
-      await eq.save();
-      checkedOut.push({ id: eq._id, name: eq.equipmentName, qty: eq.quantity });
-    }
-
-    if (!reserved.length || checkedOut.length > 0) {
-      assignment.equipmentCheckedOut = true;
-      assignment.equipmentCheckedOutAt = new Date();
-      assignment.notes.push({
-        text: `Checked out ${checkedOut.length} equipment item(s)`,
-        by: req.user._id,
-        byName: tech.name,
-        createdAt: new Date(),
-      });
-      await assignment.save();
-    }
-
-    return res.json({ message: "Equipment checked out.", checkedOut, skipped, assignment });
+    if (!tech) return res.status(404).json({ error: 'Technician record not found' });
+    const assignment = await Assignment.findOne({ _id: req.params.id, technicianId: tech._id });
+    if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+    const kit = await confirmDailyKit({ technicianId: tech._id, userId: req.user._id, date: assignment.bookingDate, expectedAssignmentIds: [assignment._id] });
+    return res.json({ success: true, message: 'Daily Preparation confirmed.', kit: kit.toObject(), assignment });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code || 'DAILY_KIT_REQUIRED' });
     next(err);
   }
 });
 
-/**
- * POST /api/technician/assignments/:id/return
- * Technician confirms return of all assigned equipment.
- */
+/** Technician equipment returns. */
+
 router.post("/assignments/:id/return", async (req, res, next) => {
   try {
-    const Assignment = require("../models/Assignment");
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const assignment = await Assignment.findOne({ _id: id, technicianId: tech._id });
-    if (!assignment) return res.status(404).json({ error: "Assignment not found" });
-
-    const inUse = await EquipmentAssignment.find({ bookingId: assignment.bookingId, status: { $in: ["checked_out", "in_use"] } });
-    const returned = [];
-    for (const eq of inUse) {
-      if (eq.consumable) continue; // consumables are not returned
-      const tool = await Tool.findById(eq.equipmentId);
-      if (tool) {
-        tool.quantity += eq.quantity;
-        tool.checkedOutQuantity = Math.max(0, (tool.checkedOutQuantity || 0) - eq.quantity);
-        tool.assetStatus = tool.checkedOutQuantity > 0 ? 'checked_out' : 'available';
-        await tool.save();
-      }
-      eq.status = "returned";
-      eq.returnedAt = new Date();
-      await eq.save();
-      returned.push({ id: eq._id, name: eq.equipmentName, qty: eq.quantity });
-    }
-
-    assignment.equipmentReturned = true;
-    assignment.equipmentReturnedAt = new Date();
-    assignment.notes.push({
-      text: `Returned ${returned.length} equipment item(s)`,
-      by: req.user._id,
-      byName: tech.name,
-      createdAt: new Date(),
-    });
-    await assignment.save();
-
-    return res.json({ message: "Equipment returned.", returned, assignment });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: 'Invalid job.' });
+    const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
+    if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+    const Assignment = require('../models/Assignment');
+    const assignment = await Assignment.findOne({ _id: req.params.id, technicianId: tech._id });
+    if (!assignment) return res.status(404).json({ error: 'Assignment not found.' });
+    const kits = await require('../models/DailyKit').find({ technicianId: tech._id, bookingIds: assignment.bookingId }).select('_id').lean();
+    const rows = await EquipmentAssignment.find({ technicianId: { $in: technicianIds }, consumable: { $ne: true }, status: { $in: ['checked_out', 'in_use'] },
+      $or: [{ bookingId: assignment.bookingId }, { dailyKitId: { $in: kits.map(row => row._id) } }],
+    }).select('_id').lean();
+    const returned = rows.length ? await technicianToolsService.returnEquipment({ assignmentIds: rows.map(row => row._id), technicianIds, userId: req.user._id, condition: 'good' }) : [];
+    return res.json({ success: true, message: rows.length ? 'Equipment returned.' : 'No equipment is awaiting return.', returned, assignment });
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });
@@ -6239,10 +6155,13 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
 
       const booking = await BookingService.findById(assignment.bookingId);
       if (!booking) return res.status(404).json({ error: "Booking not found" });
-      const relocationItems = (booking.services || []).filter(item => item.relocation?.scope);
+      const { isRelocationService, assignedRelocationItems } = require('../utils/relocationWorkOrder');
+      const relocationItems = (booking.services || []).filter(isRelocationService);
+      if (!booking.services?.length) relocationItems.push(...assignedRelocationItems(booking, [assignment], tech._id).map(row => row.item));
       if (relocationItems.length) {
         const { allTasksComplete } = require('../utils/relocationChecklist');
-        if (relocationItems.some(item => !allTasksComplete(item))) {
+        if (relocationItems.some(item => !allTasksComplete({ relocation: item.relocation,
+          airconType: item.airconType || item.applianceType || booking.applianceType }))) {
           return res.status(409).json({ error: 'Finish the Removal, Transport, Installation, and Testing checklist before submitting completion proof.' });
         }
       }
@@ -9694,8 +9613,7 @@ router.get("/daily-kit/upcoming", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
     const { start } = dailyKitDayBounds();
-    const end = new Date(start);
-    end.setDate(end.getDate() + 61);
+    const end = new Date(start.getTime() + 61 * 86400000);
     const [assignments, orders, projects] = await Promise.all([
       Assignment.find({ technicianId: tech._id, status: { $in: ACTIVE_ASSIGNMENT_STATUSES }, bookingDate: { $gte: start, $lt: end } }).select("bookingDate").lean(),
       Order.find({ technicianId: tech._id, fulfillmentType: "delivery_installation", status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES }, "delivery.preferredDate": { $gte: start, $lt: end } }).select("delivery.preferredDate").lean(),
@@ -9706,7 +9624,7 @@ router.get("/daily-kit/upcoming", async (req, res, next) => {
       if (!value) return;
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const key = require('../utils/bookingDateTime').manilaDateKey(date);
       counts.set(key, (counts.get(key) || 0) + 1);
     };
     assignments.forEach(row => addDate(row.bookingDate));
@@ -9812,291 +9730,9 @@ router.get("/daily-kit", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get("/daily-kit-legacy", async (req, res, next) => {
-  try {
-    const DailyKit = require("../models/DailyKit");
-    const Assignment = require("../models/Assignment");
-    const BookingService = require("../models/BookingService");
-    const Tool = require("../models/Tool");
-
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const filterDate = req.query.date ? new Date(req.query.date) : today;
-    filterDate.setHours(0, 0, 0, 0);
-    const nextDay = new Date(filterDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    // Check if kit already exists for this date
-    let kit = await DailyKit.findOne({
-      technicianId: tech._id,
-      workDate: { $gte: filterDate, $lt: nextDay },
-    }).lean();
-
-    if (kit) {
-      return res.json({ success: true, kit, isNew: false });
-    }
-
-    // Generate new kit for today
-    // Get all accepted assignments for the date
-    const assignments = await Assignment.find({
-      technicianId: tech._id,
-      status: { $in: ["accepted", "en_route", "on_site", "in_progress"] },
-      bookingDate: { $gte: filterDate, $lt: nextDay },
-    }).sort({ startTime: 1 }).lean();
-
-    if (assignments.length === 0) {
-      return res.json({
-        success: true,
-        kit: {
-          technicianId: tech._id,
-          workDate: filterDate,
-          status: "draft",
-          items: [],
-          assignmentIds: [],
-          bookingIds: [],
-        },
-        isNew: true,
-      });
-    }
-
-    const bookingIds = assignments.map(a => a.bookingId).filter(Boolean);
-    const bookings = await BookingService.find({ _id: { $in: bookingIds } })
-      .select("serviceType services technicianAssistant issueDescription unitInfo")
-      .lean();
-    const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
-
-    // Collect job-specific equipment from service type defaults
-    const jobEquipment = new Map(); // name -> { name, quantity, source, assignmentIds, bookingIds }
-    const jobConsumables = new Map();
-
-    for (const asg of assignments) {
-      const bk = bookingMap.get(String(asg.bookingId));
-      if (!bk) continue;
-
-      const isRepair = bk.serviceType === "repair";
-      const isInstallation = bk.serviceType === "installation";
-      const isCleaning = bk.serviceType === "cleaning" || bk.serviceType === "maintenance";
-
-      // Add standard equipment based on service type
-      if (isRepair) {
-        const repairTools = ["Multimeter", "Manifold Gauge", "Clamp Meter", "Inspection Mirror"];
-        repairTools.forEach(name => {
-          if (!jobEquipment.has(name)) {
-            jobEquipment.set(name, { name, quantity: 1, category: "equipment", source: "job_specific", assignmentIds: [], bookingIds: [] });
-          }
-          jobEquipment.get(name).assignmentIds.push(asg._id);
-          jobEquipment.get(name).bookingIds.push(asg.bookingId);
-        });
-
-        // Standard repair consumables
-        const repairConsumables = ["Electrical Tape", "Cable Ties", "Cleaning Cloth"];
-        repairConsumables.forEach(name => {
-          if (!jobConsumables.has(name)) {
-            jobConsumables.set(name, { name, quantity: 1, category: "consumable", source: "job_specific", unit: "roll", assignmentIds: [], bookingIds: [] });
-          }
-          jobConsumables.get(name).assignmentIds.push(asg._id);
-          jobConsumables.get(name).bookingIds.push(asg.bookingId);
-        });
-      } else if (isInstallation) {
-        const installTools = ["Drill", "Level", "Vacuum Pump", "Manifold Gauge", "Pipe Cutter", "Flaring Tool"];
-        installTools.forEach(name => {
-          if (!jobEquipment.has(name)) {
-            jobEquipment.set(name, { name, quantity: 1, category: "equipment", source: "job_specific", assignmentIds: [], bookingIds: [] });
-          }
-          jobEquipment.get(name).assignmentIds.push(asg._id);
-          jobEquipment.get(name).bookingIds.push(asg.bookingId);
-        });
-
-        const installConsumables = ["Coil Cleaner", "Refrigerant", "Copper Pipe", "Insulation Tape", "Wall Plugs"];
-        installConsumables.forEach(name => {
-          if (!jobConsumables.has(name)) {
-            const qty = name === "Wall Plugs" ? 8 : name === "Copper Pipe" ? 2 : 1;
-            const unit = name === "Copper Pipe" ? "m" : name === "Refrigerant" ? "kg" : "pcs";
-            jobConsumables.set(name, { name, quantity: qty, category: "consumable", source: "job_specific", unit, assignmentIds: [], bookingIds: [] });
-          }
-          jobConsumables.get(name).assignmentIds.push(asg._id);
-          jobConsumables.get(name).bookingIds.push(asg.bookingId);
-        });
-      } else if (isCleaning || asg.serviceName?.toLowerCase().includes("clean")) {
-        const cleanTools = ["Pressure Washer", "Coil Cleaning Brush", "Fin Comb"];
-        cleanTools.forEach(name => {
-          if (!jobEquipment.has(name)) {
-            jobEquipment.set(name, { name, quantity: 1, category: "equipment", source: "job_specific", assignmentIds: [], bookingIds: [] });
-          }
-          jobEquipment.get(name).assignmentIds.push(asg._id);
-          jobEquipment.get(name).bookingIds.push(asg.bookingId);
-        });
-
-        const cleanConsumables = ["Coil Cleaner", "Cleaning Cloth", "Gloves", "Protective Cover"];
-        cleanConsumables.forEach(name => {
-          if (!jobConsumables.has(name)) {
-            const qty = name === "Cleaning Cloth" ? 3 : name === "Gloves" ? 1 : 1;
-            const unit = name === "Gloves" ? "pair" : name === "Cleaning Cloth" ? "pcs" : "pcs";
-            jobConsumables.set(name, { name, quantity: qty, category: "consumable", source: "job_specific", unit, assignmentIds: [], bookingIds: [] });
-          }
-          jobConsumables.get(name).assignmentIds.push(asg._id);
-          jobConsumables.get(name).bookingIds.push(asg.bookingId);
-        });
-      }
-
-      // Add AI suggested tools if available
-      if (bk.technicianAssistant?.suggestedTools?.length > 0) {
-        bk.technicianAssistant.suggestedTools.forEach(t => {
-          const name = typeof t === "string" ? t : t.name || t;
-          if (!name) return;
-          if (!jobEquipment.has(name)) {
-            jobEquipment.set(name, { name, quantity: 1, category: "equipment", source: "ai_recommended", assignmentIds: [], bookingIds: [] });
-          }
-          jobEquipment.get(name).assignmentIds.push(asg._id);
-          jobEquipment.get(name).bookingIds.push(asg.bookingId);
-        });
-      }
-    }
-
-    // Standard kit (always bring)
-    const standardEquipment = [
-      { name: "Multimeter", quantity: 1 },
-      { name: "Screwdriver Set", quantity: 1 },
-      { name: "Pliers", quantity: 1 },
-      { name: "Flashlight", quantity: 1 },
-      { name: "Tool Bag", quantity: 1 },
-    ];
-
-    const standardConsumables = [
-      { name: "Gloves", quantity: 2, unit: "pair" },
-      { name: "Electrical Tape", quantity: 1, unit: "roll" },
-      { name: "Cable Ties", quantity: 10, unit: "pcs" },
-      { name: "Cleaning Cloth", quantity: 5, unit: "pcs" },
-      { name: "Masking Tape", quantity: 1, unit: "roll" },
-    ];
-
-    const items = [];
-
-    // Add standard kit items
-    standardEquipment.forEach(e => {
-      items.push({
-        name: e.name,
-        quantity: e.quantity,
-        category: "equipment",
-        source: "standard",
-        checkoutStatus: "pending",
-        assignmentIds: [],
-        bookingIds: [],
-      });
-    });
-
-    standardConsumables.forEach(c => {
-      items.push({
-        name: c.name,
-        quantity: c.quantity,
-        unit: c.unit || "pcs",
-        category: "consumable",
-        source: "standard",
-        quantityIssued: 0,
-        quantityUsed: 0,
-        quantityReturned: 0,
-        assignmentIds: [],
-        bookingIds: [],
-      });
-    });
-
-    // Add job-specific equipment (skip duplicates from standard kit)
-    const standardNames = new Set(standardEquipment.map(e => e.name));
-    jobEquipment.forEach((eq, name) => {
-      if (standardNames.has(name)) {
-        // Just add the assignment/booking references to existing standard item
-        const existing = items.find(i => i.name === name);
-        if (existing) {
-          existing.assignmentIds = [...new Set([...existing.assignmentIds, ...eq.assignmentIds])];
-          existing.bookingIds = [...new Set([...existing.bookingIds, ...eq.bookingIds])];
-          existing.source = "job_specific"; // upgraded from standard
-        }
-        return;
-      }
-      items.push({
-        ...eq,
-        checkoutStatus: "pending",
-      });
-    });
-
-    // Add job-specific consumables
-    const standardConsumableNames = new Set(standardConsumables.map(c => c.name));
-    jobConsumables.forEach((cn, name) => {
-      if (standardConsumableNames.has(name)) {
-        const existing = items.find(i => i.name === name && i.category === "consumable");
-        if (existing) {
-          existing.assignmentIds = [...new Set([...existing.assignmentIds, ...cn.assignmentIds])];
-          existing.bookingIds = [...new Set([...existing.bookingIds, ...cn.bookingIds])];
-          existing.quantity = Math.max(existing.quantity, cn.quantity);
-        }
-        return;
-      }
-      items.push({
-        ...cn,
-        checkoutStatus: "pending",
-        quantityIssued: 0,
-        quantityUsed: 0,
-        quantityReturned: 0,
-      });
-    });
-
-    // Check equipment availability
-    const allToolNames = items.filter(i => i.category === "equipment").map(i => i.name);
-    const tools = await Tool.find({ name: { $in: allToolNames } }).lean();
-    const toolMap = new Map(tools.map(t => [t.name, t]));
-
-    // Check which tools are already checked out to other technicians today
-    const todayToolsCheckedOut = await EquipmentAssignment.find({
-      workDate: { $gte: filterDate, $lt: nextDay },
-      status: { $in: ["checked_out", "in_use"] },
-      technicianId: { $ne: tech._id },
-    }).populate("technicianId", "name").lean();
-
-    const checkedOutByOther = new Map();
-    todayToolsCheckedOut.forEach(ea => {
-      if (ea.equipmentName) {
-        checkedOutByOther.set(ea.equipmentName, ea.technicianId?.name || "Another technician");
-      }
-    });
-
-    items.forEach(item => {
-      if (item.category === "equipment") {
-        const tool = toolMap.get(item.name);
-        if (!tool) {
-          item.conflict = { isUnavailable: true, checkedOutTo: null, message: "Item not found in inventory" };
-          item.checkoutStatus = "unavailable";
-        } else if (checkedOutByOther.has(item.name)) {
-          item.conflict = { isUnavailable: true, checkedOutTo: checkedOutByOther.get(item.name), message: `Checked out to ${checkedOutByOther.get(item.name)}` };
-          item.checkoutStatus = "unavailable";
-        } else if (tool.quantity <= 0) {
-          item.conflict = { isUnavailable: true, checkedOutTo: null, message: "Out of stock" };
-          item.checkoutStatus = "unavailable";
-        } else {
-          item.toolId = tool._id;
-          item.toolCode = tool.code || null;
-        }
-      }
-    });
-
-    // Create the kit
-    kit = await DailyKit.create({
-      technicianId: tech._id,
-      workDate: filterDate,
-      status: "draft",
-      items,
-      assignmentIds: assignments.map(a => a._id),
-      bookingIds: bookingIds.filter(Boolean),
-      generatedAt: new Date(),
-    });
-
-    return res.json({ success: true, kit: kit.toObject(), isNew: true });
-  } catch (err) {
-    console.error("Daily kit error:", err);
-    return res.status(500).json({ error: "Server error" });
-  }
+router.get("/daily-kit-legacy", (req, res) => {
+  const query = req.query.date ? '?date=' + encodeURIComponent(req.query.date) : '';
+  return res.redirect(307, (req.baseUrl || '/api/technician') + '/daily-kit' + query);
 });
 
 /**
@@ -10165,10 +9801,7 @@ router.post("/daily-kit/consume", async (req, res, next) => {
     const { itemName, quantityUsed, bookingId, orderId, projectId, workOrderId, dailyAssignmentId, serviceItemId } = req.body;
     if (!itemName || !quantityUsed) return res.status(400).json({ error: "itemName and quantityUsed required" });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const { start: today, end: nextDay } = dailyKitDayBounds(req.body?.date || req.query?.date || new Date());
 
     const kit = await DailyKit.findOne({
       technicianId: tech._id,
@@ -10250,8 +9883,8 @@ router.post("/daily-kit/return-consumable", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
     const quantity = Number(req.body.quantity);
     if (!req.body.itemName || !Number.isFinite(quantity) || quantity <= 0) return res.status(400).json({ error: "itemName and a positive quantity are required" });
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const kit = await DailyKit.findOne({ technicianId: tech._id, workDate: today });
+    const { start: today, end: nextDay } = dailyKitDayBounds(req.body?.date || req.query?.date || new Date());
+    const kit = await DailyKit.findOne({ technicianId: tech._id, workDate: { $gte: today, $lt: nextDay } });
     if (!kit) return res.status(404).json({ error: "No daily kit found for today" });
     const item = kit.items.find(row => row.category === "consumable" && row.name === req.body.itemName);
     if (!item) return res.status(404).json({ error: "Consumable item not found in kit" });
@@ -10297,7 +9930,9 @@ router.get("/daily-kit/inventory-search", async (req, res, next) => {
     const filter = {
       itemName: regex,
       active: { $ne: false },
-      quantity: { $gt: 0 },
+      archivedAt: null,
+      status: { $ne: 'discontinued' },
+      type: { $in: ['equipment', 'tool', 'consumable'] },
     };
     if (category === "equipment") {
       filter.type = { $in: ["equipment", "tool"] };
@@ -10306,19 +9941,21 @@ router.get("/daily-kit/inventory-search", async (req, res, next) => {
     } else if (category === "repair_part") {
       filter.type = "part";
     }
-    // No category = search all types
+    // Show real unreserved stock; unavailable catalog items remain visible so
+    // a technician can report a shortage rather than invent an item.
     const items = await Tool.find(filter)
-      .select("itemName type inventoryClass quantity unit assetCode category")
+      .select("itemName type inventoryClass quantity reservedQuantity unit assetCode category assignable assetStatus")
       .sort({ itemName: 1 })
       .limit(20)
       .lean();
     return res.json({
-      items: items.map(t => ({
+      items: items.filter(t => t.type === 'consumable' || (Tool.effectiveInventoryClass(t) === 'operational_asset'
+        && t.assignable !== false && !['under_maintenance', 'damaged', 'retired'].includes(t.assetStatus))).map(t => ({
         _id: t._id,
         name: t.itemName,
         type: t.type,
         category: t.type === "consumable" ? "consumable" : t.type === "part" ? "repair_part" : "equipment",
-        available: Math.max(0, Number(t.quantity || 0)),
+        available: Math.max(0, Number(t.quantity || 0) - Number(t.reservedQuantity || 0)),
         unit: t.unit || "pcs",
         assetCode: t.assetCode || "",
         inventoryCategory: t.category || "",
@@ -10330,125 +9967,33 @@ router.get("/daily-kit/inventory-search", async (req, res, next) => {
 /**
  * POST /api/technician/daily-kit/add-item
  * Add an item to the daily kit (manual addition).
- * Body: { name, quantity, category, unit?, inventoryItemId? }
+ * Body: { date, inventoryItemId, quantity, jobType, jobId, note }
  */
 router.post("/daily-kit/add-item", async (req, res, next) => {
   try {
-    const DailyKit = require("../models/DailyKit");
-
-    const tech = await Technician.findOne({ user: req.user._id });
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const { name, quantity, category, unit, inventoryItemId } = req.body;
-    if (!name || !["equipment", "consumable", "repair_part"].includes(category)) return res.status(400).json({ error: "Only equipment, consumables, or repair parts can be added to a Daily Kit" });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const kit = await DailyKit.findOne({
-      technicianId: tech._id,
-      workDate: { $gte: today, $lt: nextDay },
-    });
-
-    if (!kit) return res.status(404).json({ error: "No daily kit found for today" });
-
-    // Manual additions must still resolve to the canonical inventory catalog.
-    if (kit.status !== "draft") return res.status(409).json({ error: "Confirmed kits can only be extended by newly assigned jobs" });
-
-    // Find inventory item by ID or name
-    let inventory;
-    if (inventoryItemId) {
-      inventory = await Tool.findById(inventoryItemId);
-    } else {
-      inventory = await Tool.findOne({ itemName: name, active: { $ne: false } });
-    }
-    if (!inventory) return res.status(404).json({ error: "Choose an item from the existing equipment or consumables catalog" });
-
-    // Determine actual category from inventory type
-    let actualCategory;
-    if (inventory.type === "consumable") {
-      actualCategory = "consumable";
-    } else if (inventory.type === "part") {
-      actualCategory = "repair_part";
-    } else {
-      actualCategory = "equipment";
-    }
-
-    // Validate category match
-    if (actualCategory !== category) {
-      return res.status(400).json({ error: "Inventory classification does not match. Item is type \"" + inventory.type + "\", expected \"" + category + "\"" });
-    }
-
-    // Equipment must be operational asset class
-    if (actualCategory === "equipment" && Tool.effectiveInventoryClass(inventory) !== "operational_asset") {
-      return res.status(400).json({ error: "Inventory classification does not match" });
-    }
-    const existing = kit.items.find(i => String(i.toolId) === String(inventory._id));
-    if (existing) {
-      const nextQuantity = Math.max(existing.quantity, Number(quantity) || 1);
-      if (nextQuantity !== existing.quantity) {
-        existing.preparedChecked = false;
-        existing.preparedCheckedAt = null;
-        existing.preparedCheckedBy = null;
-      }
-      existing.quantity = nextQuantity;
-    } else {
-      kit.items.push({
-        name: inventory.itemName,
-        quantity: Number(quantity) || 1,
-        unit: inventory.unit || unit || "pcs",
-        category,
-        source: "manual",
-        toolId: inventory._id,
-        toolCode: inventory.assetCode || inventory.barcode || null,
-        checkoutStatus: "pending",
-      });
-    }
-
-    await kit.save();
+    const kit = await addDailyKitItem({ technicianId: tech._id, userId: req.user._id,
+      date: req.body?.date || new Date(), inventoryItemId: req.body?.inventoryItemId,
+      quantity: req.body?.quantity, jobType: req.body?.jobType, jobId: req.body?.jobId, note: req.body?.note });
     return res.json({ success: true, kit: kit.toObject() });
   } catch (err) {
-    console.error("Daily kit add item error:", err);
-    return res.status(500).json({ error: "Server error" });
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
   }
 });
 
-/**
- * DELETE /api/technician/daily-kit/remove-item
- * Remove an item from the daily kit.
- * Body: { itemName }
- */
+/** Remove an unissued extra; keep generated job demand and custody records. */
 router.delete("/daily-kit/remove-item", async (req, res, next) => {
   try {
-    const DailyKit = require("../models/DailyKit");
-
-    const tech = await Technician.findOne({ user: req.user._id });
+    const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const { itemName } = req.body;
-    if (!itemName) return res.status(400).json({ error: "itemName required" });
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
-
-    const kit = await DailyKit.findOne({
-      technicianId: tech._id,
-      workDate: { $gte: today, $lt: nextDay },
-    });
-
-    if (!kit) return res.status(404).json({ error: "No daily kit found for today" });
-
-    kit.items = kit.items.filter(i => i.name !== itemName);
-    await kit.save();
-
+    const kit = await removeDailyKitItem({ technicianId: tech._id, userId: req.user._id,
+      date: req.body?.date || new Date(), itemId: req.body?.itemId, itemName: req.body?.itemName, note: req.body?.note });
     return res.json({ success: true, kit: kit.toObject() });
   } catch (err) {
-    console.error("Daily kit remove item error:", err);
-    return res.status(500).json({ error: "Server error" });
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
   }
 });
 
@@ -10465,10 +10010,7 @@ router.post("/daily-kit/check-delta", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const { start: today, end: nextDay } = dailyKitDayBounds(req.body?.date || req.query?.date || new Date());
 
     const kit = await DailyKit.findOne({
       technicianId: tech._id,
@@ -10540,10 +10082,7 @@ router.post("/daily-kit/notify-admin", async (req, res, next) => {
     const tech = await Technician.findOne({ user: req.user._id });
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextDay = new Date(today);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const { start: today, end: nextDay } = dailyKitDayBounds(req.body?.date || req.query?.date || new Date());
 
     const kit = await DailyKit.findOne({
       technicianId: tech._id,
@@ -10577,7 +10116,7 @@ router.post("/daily-kit/notify-admin", async (req, res, next) => {
       title: "Preparation Issue — Items Unavailable",
       message: `${tech.name} reported ${unavailableItems.length} item(s) missing: ${itemList}`,
       referenceId: kit._id,
-      referenceModel: "BookingService",
+      referenceModel: "DailyKit",
       link: "/admin/dashboard",
       priority: "high",
       io: req.app.get("io"),
@@ -10623,7 +10162,7 @@ router.post("/daily-kit/notify-admin", async (req, res, next) => {
      const tech = await Technician.findOne({ user: req.user._id });
      if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
-     const { itemName, category, resolution, source, reasonCode, note } = req.body;
+     const { itemName, itemId, category, resolution, source, reasonCode, note } = req.body;
      if (!itemName || !["confirmed_available", "not_required", "admin_notified"].includes(resolution)) {
        return res.status(400).json({ error: "itemName and valid resolution required" });
      }
@@ -10638,6 +10177,10 @@ router.post("/daily-kit/notify-admin", async (req, res, next) => {
 
      const { start, end } = dailyKitDayBounds(req.body?.date || new Date());
 
+     if (start.getTime() !== dailyKitDayBounds().start.getTime()) {
+       return res.status(409).json({ error: 'Change item decisions on the scheduled work date. Other dates are previews.' });
+     }
+
      const kit = await DailyKit.findOne({
        technicianId: tech._id,
        workDate: { $gte: start, $lt: end },
@@ -10645,13 +10188,19 @@ router.post("/daily-kit/notify-admin", async (req, res, next) => {
 
      if (!kit) return res.status(404).json({ error: "No daily kit found for the selected date" });
 
-     // Search regular items first, then pending delta items (late-accepted bookings)
+     if (kit.status !== 'draft' && !(['confirmed', 'in_progress'].includes(kit.status) && kit.hasDelta)) {
+       return res.status(409).json({ error: 'This kit is already confirmed. Use the return process for issued items.' });
+     }
+
+     // A confirmed kit's issued rows are historical custody; only its pending
+     // additions can receive a new field decision.
      let item = null;
      let itemList = null;
-     for (const list of [kit.items, Array.isArray(kit.deltaItems) ? kit.deltaItems : []]) {
+     for (const list of [kit.status === 'draft' ? kit.items : kit.deltaItems]) {
        if (!Array.isArray(list)) continue;
        const found = list.find(i =>
          i.name === itemName &&
+         (!itemId || String(i._id) === String(itemId)) &&
          (!category || i.category === category) &&
          ["pending", "unavailable", "reserved"].includes(i.checkoutStatus)
        );
@@ -10719,10 +10268,6 @@ router.post("/daily-kit/notify-admin-item", async (req, res, next) => {
       technicianId: tech._id,
       workDate: { $gte: start, $lt: end },
     });
-    if (!eqAssignments.length) {
-      return res.status(409).json({ error: "This equipment is no longer checked out or was already returned." });
-    }
-
     if (!kit) return res.status(404).json({ error: "No daily kit found for the selected date" });
 
     // Search regular items and pending delta items (late-accepted bookings)
@@ -10747,24 +10292,20 @@ router.post("/daily-kit/notify-admin-item", async (req, res, next) => {
 
     // Send real notification to admin
     const { createNotification } = require("../utils/notify");
-    const prefillParams = new URLSearchParams({
-      prefillName: itemName,
-      prefillType: "equipment",
-      prefillQty: "1",
-    }).toString();
+    let notificationDelivered = true;
     await createNotification({
       role: "admin",
       type: "daily_kit_issue",
-      title: "Equipment Not in Catalog",
-      message: `${tech.name} needs "${itemName}" added to inventory. Required for today's jobs.`,
+      title: "Daily Kit Item Unavailable",
+      message: `${tech.name} needs help with "${itemName}" for ${require('../utils/bookingDateTime').manilaDateKey(kit.workDate)}.`,
       referenceId: kit._id,
-      referenceModel: "BookingService",
-      link: `/admin/inventory/repair-parts?${prefillParams}`,
+      referenceModel: "DailyKit",
+      link: `/admin/inventory/technician-tools?date=${require('../utils/bookingDateTime').manilaDateKey(kit.workDate)}`,
       priority: "normal",
       io: req.app.get("io"),
-    }).catch(() => {});
+    }).catch(error => { notificationDelivered = false; console.warn("[daily-kit] Notification could not be sent:", error.message); });
 
-    return res.json({ success: true, message: "Admin has been notified about \"" + itemName + "\"" });
+    return res.json({ success: true, notificationDelivered, message: notificationDelivered ? "Admin was notified about " + itemName + "." : "Issue saved. Admin can review it in Technician Tools, but the notification could not be sent." });
   } catch (err) {
     console.error("Daily kit notify admin item error:", err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : "Server error" });
@@ -11203,39 +10744,21 @@ router.get("/equipment/:bookingId", async (req, res, next) => {
  */
 router.post("/equipment/:assignmentId/checkout", async (req, res, next) => {
   try {
-    const { assignmentId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(assignmentId)) return res.status(400).json({ error: "Invalid id" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.assignmentId)) return res.status(400).json({ error: 'Invalid equipment assignment.' });
     const { tech, technicianIds } = await loadTechnicianContext(req.user._id);
-    if (!tech) return res.status(404).json({ error: "Technician record not found" });
-
-    const assignment = await EquipmentAssignment.findById(assignmentId);
-    if (!assignment) return res.status(404).json({ error: "Equipment assignment not found" });
-    if (!technicianIds.includes(String(assignment.technicianId || ""))) {
-      return res.status(403).json({ error: "Not assigned to you" });
-    }
-    if (assignment.status !== "reserved") return res.status(400).json({ error: "Equipment already checked out or returned" });
-
-    const tool = await Tool.findById(assignment.equipmentId);
-    if (!tool) return res.status(404).json({ error: "Tool not found" });
-    if (Tool.effectiveInventoryClass(tool) !== 'operational_asset' || tool.assignable === false || ['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus)) {
-      return res.status(400).json({ error: 'Only available operational assets can be checked out' });
-    }
-    if (tool.quantity < assignment.quantity) return res.status(400).json({ error: "Insufficient stock for " + tool.itemName });
-
-    tool.quantity -= assignment.quantity;
-    tool.reservedQuantity = Math.max(0, (tool.reservedQuantity || 0) - assignment.quantity);
-    if (!assignment.consumable) {
-      tool.checkedOutQuantity = (tool.checkedOutQuantity || 0) + assignment.quantity;
-      tool.assetStatus = 'checked_out';
-    }
-    await tool.save();
-    assignment.status = assignment.consumable ? "consumed" : "checked_out";
-    assignment.checkedOutAt = new Date();
-    assignment.checkedOutBy = req.user._id;
-    await assignment.save();
-
-    res.json({ success: true, assignment });
-  } catch (err) { next(err); }
+    if (!tech) return res.status(404).json({ error: 'Technician record not found.' });
+    const assignment = await EquipmentAssignment.findById(req.params.assignmentId);
+    if (!assignment) return res.status(404).json({ error: 'Equipment assignment not found.' });
+    if (!technicianIds.includes(String(assignment.technicianId))) return res.status(403).json({ error: 'Not assigned to you.' });
+    if (!['reserved', 'checked_out', 'in_use'].includes(assignment.status)) return res.status(409).json({ error: 'This equipment is already returned or unavailable.' });
+    await confirmDailyKit({ technicianId: tech._id, userId: req.user._id, date: assignment.workDate, equipmentAssignmentId: assignment._id });
+    const current = await EquipmentAssignment.findById(assignment._id);
+    if (!['checked_out', 'in_use'].includes(current.status)) return res.status(409).json({ error: 'Review and check the required items in Daily Preparation.', code: 'DAILY_KIT_REQUIRED' });
+    return res.json({ success: true, assignment: current });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: err.code || 'DAILY_KIT_REQUIRED' });
+    next(err);
+  }
 });
 
 /**

@@ -9,6 +9,8 @@ const ServiceToolUsage = require("../models/ServiceToolUsage");
 const StockReservation = require("../models/StockReservation");
 const Tool = require("../models/Tool");
 const WorkOrder = require("../models/WorkOrder");
+const Technician = require("../models/Technician");
+const Project = require("../models/Project");
 const { manilaDateKey, strictManilaDateKey } = require("./bookingDateTime");
 const { buildServicePreparation } = require("./servicePreparation");
 const { buildProjectKitRequirements } = require("./projectDailyKitPlanning");
@@ -22,12 +24,52 @@ const {
 const ACTIVE_ASSIGNMENT_STATUSES = ["accepted", "en_route", "on_site", "in_progress"];
 
 function dayBounds(value = new Date()) {
-  const start = value instanceof Date ? new Date(value) : new Date(`${value}T00:00:00`);
-  if (Number.isNaN(start.getTime())) throw Object.assign(new Error("Invalid work date"), { status: 400 });
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  if (typeof value === 'string' && !strictManilaDateKey(value)) throw Object.assign(new Error('Invalid work date'), { status: 400 });
+  const key = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? strictManilaDateKey(value) : manilaDateKey(value);
+  if (!key) throw Object.assign(new Error("Invalid work date"), { status: 400 });
+  const start = new Date(`${key}T00:00:00+08:00`);
+  const end = new Date(start.getTime() + 86400000);
   return { start, end };
+}
+
+function checkoutError(message, status = 409) {
+  return Object.assign(new Error(message), { status, code: 'DAILY_KIT_REQUIRED' });
+}
+
+function assertWorkDate(date) {
+  if (manilaDateKey(dayBounds(date).start) !== manilaDateKey(new Date())) {
+    throw checkoutError('Daily Preparation can only be confirmed on the scheduled work date.');
+  }
+}
+
+async function technicianScope(technicianId, session) {
+  const tech = await Technician.findById(technicianId).session(session).select('user').lean();
+  return uniqueIds([technicianId, tech?.user]);
+}
+
+async function kitReads(tasks, session) {
+  if (!session) return Promise.all(tasks.map(task => task()));
+  const results = [];
+  for (const task of tasks) results.push(await task());
+  return results;
+}
+
+async function kitTransaction(work, attempt = 0) {
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => { result = await work(session); });
+    result?.$session?.(null);
+    return result;
+  } catch (error) {
+    if (error.code === 11000 && attempt === 0) return kitTransaction(work, 1);
+    if (error.code === 11000) throw checkoutError('Another request updated your kit. Refresh Daily Preparation.');
+    if (error.name === 'VersionError') throw checkoutError('Your kit changed. Refresh Daily Preparation and try again.');
+    if (/Transaction numbers are only allowed|does not support retryable writes/i.test(error.message)) {
+      throw checkoutError('Equipment checkout is unavailable. Ask admin to check the database setup.', 503);
+    }
+    throw error;
+  } finally { await session.endSession(); }
 }
 
 function uniqueIds(values) {
@@ -50,6 +92,8 @@ function retainChecklistState(previous, next) {
   // endpoint still targets the same requirement.
   next._id = previous._id;
   const unchanged = Number(previous.quantity) === Number(next.quantity)
+    && previous.checkoutStatus !== 'standard_kit'
+    && Number(previous.quantityToCheckout ?? previous.quantity) === Number(next.quantityToCheckout ?? next.quantity)
     && previous.checkoutStatus !== "unavailable"
     && next.checkoutStatus !== "unavailable"
     && (previous.resolution?.status || null) === (next.resolution?.status || null)
@@ -62,7 +106,7 @@ function retainChecklistState(previous, next) {
 function mergeRequirement(map, rec, context = {}) {
   if (!rec || !rec.name || !["equipment", "consumable", "repair_part"].includes(rec.kind)) return;
   const key = rec.inventoryId ? `${rec.kind}:id:${rec.inventoryId}` : `${rec.kind}:name:${String(rec.name).trim().toLowerCase()}`;
-  const quantity = Math.max(1, Number(rec.quantity || 1)) * Math.max(1, Number(context.multiplier || 1));
+  const quantity = Math.max(1, Number(rec.quantity || 1)) * (rec.quantityApplied || rec.quantityBasis === 'per_visit' ? 1 : Math.max(1, Number(context.multiplier || 1)));
   const current = map.get(key) || {
     name: rec.name,
     quantity: 0,
@@ -80,6 +124,7 @@ function mergeRequirement(map, rec, context = {}) {
     projectAllocations: [],
   };
   // Reusable equipment is carried once. Consumables/parts cover total daily demand.
+  current.catalogLocked = Boolean(current.catalogLocked || rec.ruleRevision || rec.catalogLocked);
   current.quantity = rec.kind === "equipment" ? Math.max(1, current.quantity, quantity) : current.quantity + quantity;
   if (context.assignmentId) current.assignmentIds.push(context.assignmentId);
   if (context.bookingId) current.bookingIds.push(context.bookingId);
@@ -172,13 +217,14 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
     orders.map(order => order.bookingId).filter(Boolean).map(String),
   );
   const requirements = new Map();
+  const noItemsOrderIds = [];
   for (const assignment of assignments) {
     const booking = bookingMap.get(String(assignment.bookingId));
     // A linked order booking is a calendar/history projection. The Order is
     // the sole inventory-demand source for delivery + installation. Matching
     // bookingId also protects legacy rows before the optional backfill runs.
     if (!booking || booking.sourceOrderId || linkedOrderBookingIds.has(String(booking._id))) continue;
-    const prep = await buildServicePreparation(booking, { preferToolIds });
+    const prep = await buildServicePreparation(booking, { preferToolIds, serviceItemId: assignment.serviceItemId, quantity: assignment.quantity });
     for (const rec of prep.recommendations || []) {
       mergeRequirement(requirements, rec, {
         assignmentId: assignment._id,
@@ -189,6 +235,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
   }
   for (const order of orders) {
     const prep = await buildOrderInstallationPreparation(order, { preferToolIds });
+    if (prep.ruleControlled && !prep.recommendations?.length) noItemsOrderIds.push(order._id);
     for (const rec of prep.recommendations || []) {
       mergeRequirement(requirements, rec, {
         orderId: order._id,
@@ -205,7 +252,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
   }
   // Phase 2 repair visits: parts are now known exactly from the approved quotation.
   await partRequirementsFor(assignments, bookings, requirements);
-  return [...requirements.values()].map(item => ({
+  const rows = [...requirements.values()].map(item => ({
     ...item,
     assignmentIds: uniqueIds(item.assignmentIds),
     bookingIds: uniqueIds(item.bookingIds),
@@ -216,6 +263,8 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
     dailyAssignmentIds: uniqueIds(item.dailyAssignmentIds || []),
     projectAllocations: item.projectAllocations || [],
   }));
+  rows.noItemsOrderIds = noItemsOrderIds;
+  return rows;
 }
 
 function mergeOrderAllocations(existing = [], incoming = []) {
@@ -255,6 +304,7 @@ function mergeProjectAllocations(existing = [], incoming = []) {
 }
 
 function copyRequirementLinks(target, requirement) {
+  target.catalogLocked = Boolean(requirement.catalogLocked);
   target.assignmentIds = uniqueIds(requirement.assignmentIds || []);
   target.bookingIds = uniqueIds(requirement.bookingIds || []);
   target.orderIds = uniqueIds(requirement.orderIds || []);
@@ -265,34 +315,40 @@ function copyRequirementLinks(target, requirement) {
   target.projectAllocations = requirement.projectAllocations || [];
 }
 
-async function hydrateAvailability(items, technicianId, start, end) {
+async function hydrateAvailability(items, technicianId, start, end, session = null) {
+  const holderIds = await technicianScope(technicianId, session);
   const toolIds = uniqueIds(items.map(item => item.toolId));
   const repairPartItems = items.filter(item => item.category === "repair_part" && item.toolId);
   const repairPartBookingIds = uniqueIds(repairPartItems.flatMap(item => item.bookingIds || []));
-  const [tools, otherCheckouts, ownCheckouts, stockReservations] = await Promise.all([
-    Tool.find({ _id: { $in: toolIds } }).lean(),
-    EquipmentAssignment.find({
+  const [tools, otherCheckouts, ownCheckouts, stockReservations, ownReservations] = await kitReads([
+    () => Tool.find({ _id: { $in: toolIds } }).session(session).lean(),
+    () => EquipmentAssignment.find({
       equipmentId: { $in: toolIds },
       technicianId: { $ne: technicianId },
       status: { $in: ["reserved", "checked_out", "in_use"] },
       workDate: { $gte: start, $lt: end },
       consumable: { $ne: true },
-    }).populate("technicianId", "name").lean(),
-    EquipmentAssignment.find({
+    }).session(session).populate("technicianId", "name").lean(),
+    () => EquipmentAssignment.find({
       equipmentId: { $in: toolIds },
-      technicianId,
+      technicianId: { $in: holderIds },
       status: { $in: ["checked_out", "in_use"] },
-      workDate: { $gte: start, $lt: end },
+      workDate: { $lt: end },
       consumable: { $ne: true },
-    }).select("_id equipmentId quantity").lean(),
-    repairPartItems.length
+    }).session(session).select("_id equipmentId quantity").lean(),
+    () => repairPartItems.length
       ? StockReservation.find({
           toolId: { $in: toolIds },
           bookingId: { $in: repairPartBookingIds },
           status: { $in: ["reserved", "checked_out"] },
-        }).lean()
+        }).session(session).lean()
       : Promise.resolve([]),
-  ]);
+    () => EquipmentAssignment.find({ equipmentId: { $in: toolIds }, technicianId: { $in: holderIds },
+      status: 'reserved', workDate: { $gte: start, $lt: end },
+      $or: [{ bookingId: { $in: uniqueIds(items.flatMap(item => item.bookingIds || [])) } },
+        { workOrderId: { $in: uniqueIds(items.flatMap(item => item.workOrderIds || [])) } }],
+    }).session(session).lean(),
+  ], session);
   const toolMap = new Map(tools.map(tool => [String(tool._id), tool]));
   const conflictMap = new Map(otherCheckouts.map(row => [String(row.equipmentId), row]));
   const ownCustodyByTool = ownCheckouts.reduce((map, row) => {
@@ -341,21 +397,27 @@ async function hydrateAvailability(items, technicianId, start, end) {
       };
     }
 
-    const ownCustody = item.category === "equipment" ? ownCustodyByTool.get(String(item.toolId)) : null;
-    if (ownCustody && ownCustody.quantity >= item.quantity) {
+    const usable = tool && tool.active !== false && (item.category !== 'equipment' ||
+      (Tool.effectiveInventoryClass(tool) === 'operational_asset' && tool.assignable !== false &&
+        !['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus)));
+    const held = ownReservations.filter(row => String(row.equipmentId) === String(item.toolId));
+    const ownHeld = held.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+    const ownCustody = usable && item.category === "equipment" ? ownCustodyByTool.get(String(item.toolId)) : null;
+    if (ownCustody && ownCustody.quantity >= item.quantity && !ownHeld) {
       return {
         ...item,
         toolCode: tool?.assetCode || tool?.barcode || null,
         checkoutStatus: "in_custody",
+        quantityToCheckout: 0,
         custodyAssignmentIds: ownCustody.assignmentIds,
         conflict: { isUnavailable: false },
       };
     }
 
-    const standardQty = tool?.standardTechnicianKit ? Number(tool.standardKitQuantity || 1) : 0;
-    if (standardQty >= item.quantity) return { ...item, checkoutStatus: "standard_kit", conflict: { isUnavailable: false } };
-    const needed = Math.max(0, item.quantity - standardQty);
-    const available = Math.max(0, Number(tool?.quantity || 0) - Number(tool?.reservedQuantity || 0));
+    // A catalog flag cannot establish this technician's physical custody.
+    const requiredQuantity = Math.max(item.quantity, Number(ownCustody?.quantity || 0) + ownHeld);
+    const needed = Math.max(0, requiredQuantity - Number(ownCustody?.quantity || 0));
+    const available = Math.max(0, Number(tool?.quantity || 0) - Number(tool?.reservedQuantity || 0) + ownHeld);
     const conflict = item.category === "equipment" ? conflictMap.get(String(item.toolId)) : null;
     const unusable = !tool || tool.active === false || (item.category === "equipment" && (
       Tool.effectiveInventoryClass(tool) !== "operational_asset" || tool.assignable === false ||
@@ -364,7 +426,10 @@ async function hydrateAvailability(items, technicianId, start, end) {
     const unavailable = unusable || available < needed || Boolean(conflict && available < needed);
     return {
       ...item,
-      quantity: needed || item.quantity,
+      quantity: requiredQuantity,
+      quantityToCheckout: needed,
+      custodyAssignmentIds: ownCustody?.assignmentIds || [],
+      reservedAssignmentIds: held.map(row => row._id),
       toolCode: tool?.assetCode || tool?.barcode || null,
       checkoutStatus: unavailable ? "unavailable" : "pending",
       conflict: unavailable ? {
@@ -380,13 +445,14 @@ async function hydrateAvailability(items, technicianId, start, end) {
   });
 }
 
-async function syncOrderPreparationSummaries(kit, orderIds) {
+async function syncOrderPreparationSummaries(kit, orderIds, { session = null, events = [] } = {}) {
   const ids = uniqueIds(orderIds || []);
   if (!ids.length) return;
-  const orders = await Order.find({ _id: { $in: ids } });
+  const query = Order.find({ _id: { $in: ids } });
+  const orders = await (session ? query.session(session) : query);
   const now = new Date();
-  await Promise.all(orders.map(async (order) => {
-    if (order.fulfillmentType !== "delivery_installation") return;
+  for (const order of orders) {
+    if (order.fulfillmentType !== "delivery_installation") continue;
     const previousReadiness = order.preparation?.installation?.status;
     const readiness = orderInstallationReadiness(order, kit);
     const installation = {
@@ -405,62 +471,109 @@ async function syncOrderPreparationSummaries(kit, orderIds) {
     const updated = await Order.findOneAndUpdate({
       _id: order._id, status: order.status, technicianId: order.technicianId,
       "delivery.preferredDate": order.delivery?.preferredDate,
-    }, { $set: { "preparation.installation": installation } }, { new: true, runValidators: true });
-    if (!updated) return; // Schedule/assignment changed; its next kit sync will recalculate.
-    if (previousReadiness !== installation.status && global.io) {
+    }, { $set: { "preparation.installation": installation } }, { new: true, runValidators: true, ...(session ? { session } : {}) });
+    if (!updated) continue; // Schedule/assignment changed; its next kit sync will recalculate.
+    if (previousReadiness !== installation.status) {
       const update = { orderId: updated._id, status: updated.status, preparationUpdated: true, timestamp: Date.now() };
-      global.io.to("admin-room").emit("order:status-change", update);
-      if (updated.technicianId) global.io.to(`tech:${updated.technicianId}`).emit("order:status-change", update);
+      if (session) events.push({ update, technicianId: updated.technicianId });
+      else if (global.io) {
+        global.io.to("admin-room").emit("order:status-change", update);
+        if (updated.technicianId) global.io.to(`tech:${updated.technicianId}`).emit("order:status-change", update);
+      }
     }
-  }));
+  }
 }
 
-async function syncDailyKit(technicianId, date) {
+function publishKitEvents(events) {
+  if (!global.io) return;
+  for (const { update, technicianId } of events) {
+    try {
+      global.io.to('admin-room').emit('order:status-change', update);
+      if (technicianId) global.io.to(`tech:${technicianId}`).emit('order:status-change', update);
+    } catch (error) { console.warn('[daily-kit] Live update could not be sent:', error.message); }
+  }
+}
+
+async function syncDailyKit(technicianId, date, { session = null } = {}) {
+  if (!session) {
+    const events = [];
+    const kit = await kitTransaction(async tx => {
+      events.length = 0;
+      const kit = await syncDailyKit(technicianId, date, { session: tx });
+      await syncOrderPreparationSummaries(kit, kit.$locals.resolutionOrderIds || kit.orderIds || [], { session: tx, events });
+      return kit;
+    });
+    publishKitEvents(events);
+    return kit;
+  }
   const { start, end } = dayBounds(date);
-  const [assignments, orders, projectAssignments] = await Promise.all([
-    Assignment.find({
+  let [assignments, orders, projectAssignments] = await kitReads([
+    () => Assignment.find({
       technicianId,
       status: { $in: ACTIVE_ASSIGNMENT_STATUSES },
       bookingDate: { $gte: start, $lt: end },
-    }).sort({ startTime: 1 }).lean(),
-    Order.find({
+    }).session(session).sort({ startTime: 1 }).lean(),
+    () => Order.find({
       technicianId,
       fulfillmentType: "delivery_installation",
       status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES },
       "delivery.preferredDate": { $gte: start, $lt: end },
-    }).sort({ timeSlot: 1, createdAt: 1 }).lean(),
-    DailyAssignment.find({
+    }).session(session).sort({ timeSlot: 1, createdAt: 1 }).lean(),
+    () => DailyAssignment.find({
       technicianId,
       planningOnly: { $ne: true },
       status: { $in: ["pending", "in_progress"] },
       date: { $gte: start, $lt: end },
-    }).sort({ startTime: 1 }).lean(),
-  ]);
-  const bookingIds = uniqueIds(assignments.map(row => row.bookingId));
-  const bookings = await BookingService.find({ _id: { $in: bookingIds } }).lean();
+    }).session(session).sort({ startTime: 1 }).lean(),
+  ], session);
+  let bookingIds = uniqueIds(assignments.map(row => row.bookingId));
+  const bookings = await BookingService.find({ _id: { $in: bookingIds }, status: { $nin: ['cancelled', 'completed', 'closed', 'repair_declined', 'repair_completed'] } }).session(session).lean();
+  const validBookings = new Set(bookings.map(row => String(row._id)));
+  assignments = assignments.filter(row => {
+    if (!validBookings.has(String(row.bookingId))) return false;
+    const booking = bookings.find(booking => String(booking._id) === String(row.bookingId));
+    const ref = value => String(value?._id || value || '');
+    const item = row.serviceItemId && (booking.services || []).find(item => ref(item._id) === ref(row.serviceItemId));
+    if (row.serviceItemId && booking.services?.length && !item) return false;
+    if (item?.technicianId) return ref(item.technicianId) === ref(technicianId);
+    if (item?.assignmentId) return ref(item.assignmentId) === ref(row._id);
+    return !booking.technicianId || ref(booking.technicianId) === ref(technicianId);
+  });
+  bookingIds = uniqueIds(assignments.map(row => row.bookingId));
   const orderIds = uniqueIds(orders.map(row => row._id));
-  const workOrderIds = uniqueIds(projectAssignments.map(row => row.workOrderId));
-  const projectIds = uniqueIds(projectAssignments.map(row => row.projectId));
-  const dailyAssignmentIds = uniqueIds(projectAssignments.map(row => row._id));
-  const [workOrders, projectScheduleRows] = await Promise.all([
-    WorkOrder.find({ _id: { $in: workOrderIds }, status: { $ne: "cancelled" } })
+  let workOrderIds = uniqueIds(projectAssignments.map(row => row.workOrderId));
+  let projectIds = uniqueIds(projectAssignments.map(row => row.projectId));
+  let dailyAssignmentIds = uniqueIds(projectAssignments.map(row => row._id));
+  const [workOrders, projectScheduleRows] = await kitReads([
+    () => WorkOrder.find({ _id: { $in: workOrderIds }, status: { $nin: ['cancelled', 'completed', 'declined', 'rescheduled'] } })
+      .session(session)
       .select("projectId workOrderNumber title resourceRequirements")
       .lean(),
-    workOrderIds.length
+    () => workOrderIds.length
       ? DailyAssignment.find({
           workOrderId: { $in: workOrderIds },
           planningOnly: { $ne: true },
           status: { $ne: "skipped" },
-        }).select("projectId workOrderId technicianId date allocatedMinutes targetUnits status").lean()
+        }).session(session).select("projectId workOrderId technicianId date allocatedMinutes targetUnits status").lean()
       : Promise.resolve([]),
-  ]);
+  ], session);
+  const projects = await Project.find({ _id: { $in: projectIds }, status: { $nin: ['cancelled', 'completed', 'closed'] } }).session(session).select('_id').lean();
+  const openProjects = new Set(projects.map(row => String(row._id)));
+  const openWorkOrders = new Set(workOrders.map(row => String(row._id)));
+  projectAssignments = projectAssignments.filter(row => openProjects.has(String(row.projectId)) && openWorkOrders.has(String(row.workOrderId)));
+  workOrderIds = uniqueIds(projectAssignments.map(row => row.workOrderId));
+  projectIds = uniqueIds(projectAssignments.map(row => row.projectId));
+  dailyAssignmentIds = uniqueIds(projectAssignments.map(row => row._id));
   const projectRequirements = buildProjectKitRequirements({
     targetAssignments: projectAssignments,
     allAssignments: projectScheduleRows,
     workOrders,
   });
   const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
-  let kit = await DailyKit.findOne({ technicianId, workDate: start });
+  let kit = await DailyKit.findOne({ technicianId, workDate: { $gte: start, $lt: end } }).session(session).sort({ workDate: 1 });
+  if (kit && ['confirmed', 'in_progress'].includes(kit.status)) {
+    kit.items = kit.items.filter(item => !['standard_kit', 'returned', 'damaged'].includes(item.checkoutStatus));
+  }
   const previouslyLinkedAssignmentIds = new Set((kit?.assignmentIds || []).map(String));
   const previouslyLinkedOrderIds = kit ? uniqueIds(kit.orderIds || []) : [];
   const previouslyLinkedOrderIdSet = new Set(previouslyLinkedOrderIds.map(String));
@@ -475,28 +588,95 @@ async function syncDailyKit(technicianId, date) {
       if (src?.toolId && !["returned"].includes(src.checkoutStatus)) preferToolIds.add(String(src.toolId));
     }
   }
+  const requirements = await requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds);
+  if (kit) kit.noItemsOrderIds = requirements.noItemsOrderIds || [];
+  const holderIds = await technicianScope(technicianId, session);
+  const reservations = await EquipmentAssignment.find({ technicianId: { $in: holderIds }, status: 'reserved', workDate: { $gte: start, $lt: end },
+    $or: [{ bookingId: { $in: bookingIds } }, { workOrderId: { $in: workOrderIds } }],
+  }).session(session).lean();
+  for (const held of reservations) {
+    const category = held.consumable ? 'consumable' : 'equipment';
+    let item = requirements.find(row => String(row.toolId) === String(held.equipmentId) && row.category === category);
+    if (!item) {
+      item = { name: held.equipmentName, quantity: held.quantity, category, unit: 'pcs', source: 'job_specific', toolId: held.equipmentId,
+        bookingIds: held.bookingId ? [held.bookingId] : [], assignmentIds: assignments.filter(row => String(row.bookingId) === String(held.bookingId)).map(row => row._id),
+        orderIds: [], projectIds: held.projectId ? [held.projectId] : [], workOrderIds: held.workOrderId ? [held.workOrderId] : [], dailyAssignmentIds: held.dailyAssignmentIds || [] };
+      requirements.push(item);
+    }
+  }
+  // Rehydrate manual extras with current stock, rather than appending a stale
+  // availability snapshot after hydration. Store requested totals separately
+  // when the same catalog item is also required by a job.
+  for (const item of requirements) item.requiredQuantity = item.quantity;
+  for (const source of (kit?.items || []).filter(item => item.source === 'manual' || Number(item.manualQuantity) > 0)) {
+    const old = source.toObject ? source.toObject() : { ...source };
+    const hasLegacyLinks = ['assignmentIds', 'bookingIds', 'orderIds', 'projectIds', 'dailyAssignmentIds'].some(field => (old[field] || []).length);
+    const intersects = (values, current) => (values || []).some(id => current.some(value => String(id) === String(value)));
+    const linked = old.manualJobType === 'booking' ? assignments.some(row => String(row._id) === String(old.manualJobId))
+      : old.manualJobType === 'order' ? orderIds.some(id => String(id) === String(old.manualJobId))
+      : old.manualJobType === 'project' ? dailyAssignmentIds.some(id => String(id) === String(old.manualJobId))
+      : hasLegacyLinks ? intersects(old.assignmentIds, assignments.map(row => row._id)) || intersects(old.bookingIds, bookingIds)
+        || intersects(old.orderIds, orderIds) || intersects(old.dailyAssignmentIds, dailyAssignmentIds) || intersects(old.projectIds, projectIds)
+      : assignments.length + orders.length + projectAssignments.length > 0;
+    if (!linked) continue;
+    const manualQuantity = Number(old.manualQuantity) || Number(old.quantity) || 1;
+    const existing = requirements.find(item => itemKey(item) === itemKey(old));
+    const row = existing || { ...old, quantity: manualQuantity, requiredQuantity: 0, source: 'manual' };
+    row.quantity = Math.max(row.quantity, manualQuantity);
+    for (const field of ['manualJobType', 'manualJobId', 'manualNote', 'manualAddedBy', 'manualAddedAt']) row[field] = old[field];
+    row.manualQuantity = manualQuantity;
+    let links = {
+      assignmentIds: (old.assignmentIds || []).filter(id => assignments.some(row => String(row._id) === String(id))),
+      bookingIds: (old.bookingIds || []).filter(id => bookingIds.some(value => String(value) === String(id))),
+      orderIds: (old.orderIds || []).filter(id => orderIds.some(value => String(value) === String(id))),
+      projectIds: (old.projectIds || []).filter(id => projectIds.some(value => String(value) === String(id))),
+      workOrderIds: (old.workOrderIds || []).filter(id => workOrderIds.some(value => String(value) === String(id))),
+      dailyAssignmentIds: (old.dailyAssignmentIds || []).filter(id => dailyAssignmentIds.some(value => String(value) === String(id))),
+      orderAllocations: (old.orderAllocations || []).filter(row => orderIds.some(id => String(id) === String(row.orderId))),
+      projectAllocations: (old.projectAllocations || []).filter(row => dailyAssignmentIds.some(id => String(id) === String(row.dailyAssignmentId))),
+    };
+    if (old.manualJobType === 'booking') {
+      const assignment = assignments.find(job => String(job._id) === String(old.manualJobId));
+      links = { assignmentIds: [assignment._id], bookingIds: [assignment.bookingId] };
+    } else if (old.manualJobType === 'order') {
+      links = { orderIds: [old.manualJobId], orderAllocations: [{ orderId: old.manualJobId, quantity: manualQuantity }] };
+    } else if (old.manualJobType === 'project') {
+      const daily = projectAssignments.find(job => String(job._id) === String(old.manualJobId));
+      links = { projectIds: [daily.projectId], workOrderIds: [daily.workOrderId], dailyAssignmentIds: [daily._id],
+        projectAllocations: [{ projectId: daily.projectId, workOrderId: daily.workOrderId, dailyAssignmentId: daily._id, quantity: manualQuantity }] };
+    }
+    // Keep extra consumables usable by the explicitly selected job.
+    for (const field of ['assignmentIds', 'bookingIds', 'orderIds', 'projectIds', 'workOrderIds', 'dailyAssignmentIds']) {
+      row[field] = uniqueIds([...(existing ? row[field] || [] : []), ...(links[field] || [])]);
+    }
+    row.orderAllocations = mergeOrderAllocations(existing ? row.orderAllocations : [], links.orderAllocations);
+    row.projectAllocations = mergeProjectAllocations(existing ? row.projectAllocations : [], links.projectAllocations);
+    if (!existing) requirements.push(row);
+  }
   const required = await hydrateAvailability(
-    await requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds),
+    requirements,
     technicianId,
     start,
     end,
+    session,
   );
 
   if (!kit) {
-    kit = await DailyKit.create({
+    [kit] = await DailyKit.create([{
       technicianId,
       workDate: start,
       items: required,
+      noItemsOrderIds: requirements.noItemsOrderIds || [],
       assignmentIds: assignments.map(a => a._id),
       bookingIds,
       orderIds,
       projectIds,
       workOrderIds,
       dailyAssignmentIds,
-    });
-    await syncOrderPreparationSummaries(kit, orderIds);
+    }], { session });
     return kit;
   }
+  kit.$locals.resolutionOrderIds = uniqueIds([...previouslyLinkedOrderIds, ...orderIds]);
 
   if (!["confirmed", "in_progress"].includes(kit.status)) {
     // Preserve technician resolutions from previous items before overwriting
@@ -520,14 +700,6 @@ async function syncDailyKit(technicianId, date) {
         }
       }
     }
-    // Manually-added contingency items are explicit technician decisions and
-    // must survive an automatic re-sync. If the generated plan now includes
-    // the same item, keep the larger reusable quantity and one canonical row.
-    for (const oldItem of kit.items.filter(item => item.source === "manual")) {
-      const existingRequired = required.find(item => itemKey(item) === itemKey(oldItem));
-      if (!existingRequired) required.push(oldItem.toObject ? oldItem.toObject() : oldItem);
-      else existingRequired.quantity = Math.max(existingRequired.quantity, oldItem.quantity);
-    }
     for (const item of required) retainChecklistState(priorItems.get(itemKey(item)), item);
     kit.items = required;
     kit.assignmentIds = assignments.map(a => a._id);
@@ -538,8 +710,7 @@ async function syncDailyKit(technicianId, date) {
     kit.dailyAssignmentIds = dailyAssignmentIds;
     kit.hasDelta = false;
     kit.deltaItems = [];
-    await kit.save();
-    await syncOrderPreparationSummaries(kit, uniqueIds([...previouslyLinkedOrderIds, ...orderIds]));
+    await kit.save({ session });
     return kit;
   }
 
@@ -570,7 +741,7 @@ async function syncDailyKit(technicianId, date) {
   // made on previously synced delta items so they survive recomputation.
   const priorResolutionMap = new Map();
   for (const source of [...kit.items, ...(Array.isArray(kit.deltaItems) ? kit.deltaItems : [])]) {
-    if (source?.resolution?.status && source.resolution.status !== "admin_notified") {
+    if (source?.resolution?.status) {
       const key = itemKey(source);
       if (!priorResolutionMap.has(key)) priorResolutionMap.set(key, source.resolution);
     }
@@ -582,7 +753,7 @@ async function syncDailyKit(technicianId, date) {
     if (priorResolution) requirement.resolution = priorResolution;
     if (!old) {
       const nameMatch = existingByName.get(`${requirement.category}:${String(requirement.name).trim().toLowerCase()}`);
-      if (nameMatch) {
+      if (nameMatch && !requirement.catalogLocked && !nameMatch.catalogLocked) {
         // Same consumable/equipment under a different inventory id — merge
         // into the kit's existing row instead of emitting a phantom delta.
         copyRequirementLinks(nameMatch, requirement);
@@ -595,7 +766,13 @@ async function syncDailyKit(technicianId, date) {
       continue;
     }
     copyRequirementLinks(old, requirement);
-    if (requirement.quantity > old.quantity && ["confirmed", "in_progress"].includes(kit.status)) {
+    if (Number(requirement.quantityToCheckout) > 0 && ['checked_out', 'in_custody'].includes(old.checkoutStatus)) {
+      const remaining = Number(requirement.quantityToCheckout);
+      additions.push({ ...requirement, quantity: remaining, quantityToCheckout: remaining });
+      const carried = requirement.quantity - remaining;
+      if (carried > 0) old.quantity = carried;
+      else kit.items = kit.items.filter(item => String(item._id) !== String(old._id));
+    } else if (requirement.quantity > old.quantity && ["confirmed", "in_progress"].includes(kit.status)) {
       additions.push({ ...requirement, quantity: requirement.quantity - old.quantity });
     } else if (!["confirmed", "in_progress"].includes(kit.status)) {
       old.quantity = requirement.quantity;
@@ -622,185 +799,348 @@ async function syncDailyKit(technicianId, date) {
   kit.deltaItems = additions;
   kit.hasDelta = additions.length > 0 || coverageChanged || pendingCoverageReview;
   if (!["confirmed", "in_progress"].includes(kit.status)) kit.items = [...existing.values(), ...additions];
-  await kit.save();
-  await syncOrderPreparationSummaries(kit, uniqueIds([...previouslyLinkedOrderIds, ...orderIds]));
+  await kit.save({ session });
   return kit;
+}
+
+function kitEditError(message, status = 409) { return Object.assign(new Error(message), { status }); }
+function assertEditableKit(kit) {
+  if (kit.status !== 'draft') throw kitEditError('This kit is already confirmed. Return issued equipment from My Tools; it cannot be removed here.');
+  if (!(kit.assignmentIds || []).length && !(kit.orderIds || []).length && !(kit.dailyAssignmentIds || []).length) {
+    throw kitEditError('Accept a scheduled job before changing the kit.');
+  }
+}
+function assertUnissuedItem(item) {
+  if (['checked_out', 'issued', 'in_custody', 'returned', 'damaged', 'reserved'].includes(item.checkoutStatus)
+      || item.equipmentAssignmentId || (item.custodyAssignmentIds || []).length || (item.reservedAssignmentIds || []).length
+      || Number(item.quantityIssued) > 0) throw kitEditError('This item has a stock or custody record. Use the return process instead of removing it.');
+}
+
+async function addDailyKitItem({ technicianId, userId, date, inventoryItemId, quantity, jobType, jobId, note }) {
+  assertWorkDate(date);
+  const requested = Number(quantity), reason = String(note || '').trim();
+  if (!mongoose.isValidObjectId(inventoryItemId) || !mongoose.isValidObjectId(jobId)
+      || !['booking', 'order', 'project'].includes(jobType) || !Number.isFinite(requested) || requested < 1 || requested > 10000
+      || reason.length < 3 || reason.length > 300) throw kitEditError('Choose a catalog item, job, quantity from 1 to 10,000, and a short reason (3 to 300 characters).', 400);
+  return kitTransaction(async session => {
+    let kit = await syncDailyKit(technicianId, date, { session });
+    assertEditableKit(kit);
+    const tool = await Tool.findById(inventoryItemId).session(session).lean();
+    if (!tool || tool.active === false || tool.archivedAt || tool.status === 'discontinued') throw kitEditError('This catalog item is no longer active.', 404);
+    const category = tool.type === 'consumable' ? 'consumable' : ['tool', 'equipment'].includes(tool.type) ? 'equipment' : null;
+    if (!category) throw kitEditError('Repair parts must come from the approved repair quotation. Choose equipment or a consumable.', 400);
+    if (category === 'equipment' && (!Number.isInteger(requested) || Tool.effectiveInventoryClass(tool) !== 'operational_asset'
+      || tool.assignable === false || ['under_maintenance', 'damaged', 'retired'].includes(tool.assetStatus))) {
+      throw kitEditError('Choose usable company equipment and a whole-number quantity.', 400);
+    }
+    const ids = jobType === 'booking' ? kit.assignmentIds : jobType === 'order' ? kit.orderIds : kit.dailyAssignmentIds;
+    if (!(ids || []).some(id => String(id) === String(jobId))) throw kitEditError('This job is not covered by your kit. Refresh Daily Preparation.', 403);
+    let item = kit.items.find(row => String(row.toolId) === String(tool._id) && row.category === category);
+    if (item) {
+      assertUnissuedItem(item);
+      if (requested < Number(item.requiredQuantity)) throw kitEditError(`The covered jobs need at least ${item.requiredQuantity} ${tool.unit || 'pcs'}. Removing an extra cannot reduce that requirement.`, 400);
+    }
+    else {
+      kit.items.push({ name: tool.itemName, toolId: tool._id, category, unit: tool.unit || 'pcs', source: 'manual', quantity: requested });
+      item = kit.items[kit.items.length - 1];
+    }
+    item.manualQuantity = requested;
+    item.manualJobType = jobType; item.manualJobId = jobId; item.manualNote = reason;
+    item.manualAddedBy = userId; item.manualAddedAt = new Date();
+    item.resolution = { status: null }; item.exception = { approved: false };
+    item.preparedChecked = false; item.preparedCheckedAt = null; item.preparedCheckedBy = null;
+    // Clear older manual links only for a standalone extra. Generated job
+    // demand will rebuild its own links during the next sync.
+    if (item.source === 'manual') for (const field of ['assignmentIds', 'bookingIds', 'orderIds', 'orderAllocations', 'projectIds', 'workOrderIds', 'dailyAssignmentIds', 'projectAllocations']) item[field] = [];
+    if (jobType === 'booking') {
+      const assignment = await Assignment.findById(jobId).session(session).lean();
+      item.assignmentIds = uniqueIds([...(item.assignmentIds || []), assignment._id]);
+      item.bookingIds = uniqueIds([...(item.bookingIds || []), assignment.bookingId]);
+    } else if (jobType === 'order') {
+      item.orderIds = uniqueIds([...(item.orderIds || []), jobId]);
+      item.orderAllocations = mergeOrderAllocations(item.orderAllocations, [{ orderId: jobId, quantity: requested }]);
+    } else {
+      const daily = await DailyAssignment.findById(jobId).session(session).lean();
+      item.projectIds = uniqueIds([...(item.projectIds || []), daily.projectId]);
+      item.workOrderIds = uniqueIds([...(item.workOrderIds || []), daily.workOrderId]);
+      item.dailyAssignmentIds = uniqueIds([...(item.dailyAssignmentIds || []), jobId]);
+      item.projectAllocations = mergeProjectAllocations(item.projectAllocations, [{ projectId: daily.projectId, workOrderId: daily.workOrderId, dailyAssignmentId: jobId, quantity: requested }]);
+    }
+    kit.notes = [kit.notes, `[${new Date().toISOString()}] Extra ${tool.itemName}: requested total ${requested}; ${jobType} ${jobId}; by ${userId}; ${reason}`].filter(Boolean).join('\n');
+    await kit.save({ session });
+    kit = await syncDailyKit(technicianId, date, { session });
+    return kit;
+  });
+}
+
+async function removeDailyKitItem({ technicianId, userId, date, itemId, itemName, note }) {
+  assertWorkDate(date);
+  const reason = String(note || '').trim();
+  if ((!mongoose.isValidObjectId(itemId) && !String(itemName || '').trim()) || reason.length < 3 || reason.length > 300) {
+    throw kitEditError('Choose the extra item and give a short reason (3 to 300 characters).', 400);
+  }
+  return kitTransaction(async session => {
+    let kit = await syncDailyKit(technicianId, date, { session });
+    assertEditableKit(kit);
+    const matches = kit.items.filter(row => itemId ? String(row._id) === String(itemId) : row.name === itemName);
+    if (matches.length !== 1) throw kitEditError('This item changed. Refresh the kit and try again.');
+    const item = matches[0];
+    assertUnissuedItem(item);
+    if (!(Number(item.manualQuantity) > 0) && item.source !== 'manual') throw kitEditError('This item is required by a job. Use Not needed and give a reason instead.');
+    kit.notes = [kit.notes, `[${new Date().toISOString()}] Removed extra ${item.name}: ${item.manualQuantity || item.quantity}; by ${userId}; ${reason}`].filter(Boolean).join('\n');
+    if (Number(item.requiredQuantity) > 0) {
+      item.manualQuantity = 0; item.manualJobType = null; item.manualJobId = null; item.manualNote = '';
+      item.manualAddedBy = null; item.manualAddedAt = null;
+      item.quantity = item.requiredQuantity; item.source = 'job_specific';
+      item.preparedChecked = false; item.preparedCheckedAt = null; item.preparedCheckedBy = null;
+    } else kit.items = kit.items.filter(row => String(row._id) !== String(item._id));
+    await kit.save({ session });
+    kit = await syncDailyKit(technicianId, date, { session });
+    return kit;
+  });
 }
 
 async function setDailyKitItemChecked({ technicianId, userId, date, itemId, checked }) {
   const { start } = dayBounds(date);
-  if (strictManilaDateKey(date) !== manilaDateKey(new Date())) {
-    throw Object.assign(new Error("You can check kit items on the scheduled work date."), { status: 409 });
-  }
+  assertWorkDate(date);
   if (!mongoose.isValidObjectId(itemId) || typeof checked !== "boolean") {
     throw Object.assign(new Error("Choose a valid kit item and check state."), { status: 400 });
   }
-  const kit = await syncDailyKit(technicianId, start);
-  const item = checklistItems(kit).find(row => String(row._id) === String(itemId));
-  if (!item) throw Object.assign(new Error("This kit item changed. Refresh the kit and try again."), { status: 409 });
-  if (!needsChecklistCheck(item)) {
-    throw Object.assign(new Error("This item was marked not required and does not need a checkmark."), { status: 409 });
-  }
-  if (item.checkoutStatus === "unavailable" && !item.exception?.approved) {
-    throw Object.assign(new Error("Resolve this unavailable item before checking it off."), { status: 409 });
-  }
-  item.preparedChecked = checked;
-  item.preparedCheckedAt = checked ? new Date() : null;
-  item.preparedCheckedBy = checked ? userId : null;
-  await kit.save();
-  return kit;
+  return kitTransaction(async session => {
+    const kit = await syncDailyKit(technicianId, start, { session });
+    const item = checklistItems(kit).find(row => String(row._id) === String(itemId));
+    if (!item) throw Object.assign(new Error("This kit item changed. Refresh the kit and try again."), { status: 409 });
+    if (!needsChecklistCheck(item)) {
+      throw Object.assign(new Error("This item was marked not required and does not need a checkmark."), { status: 409 });
+    }
+    if (item.checkoutStatus === "unavailable" && !item.exception?.approved) {
+      throw Object.assign(new Error("Resolve this unavailable item before checking it off."), { status: 409 });
+    }
+    item.preparedChecked = checked;
+    item.preparedCheckedAt = checked ? new Date() : null;
+    item.preparedCheckedBy = checked ? userId : null;
+    await kit.save({ session });
+    return kit;
+  });
 }
 
-async function confirmDailyKit({ technicianId, userId, date }) {
+async function confirmDailyKit({ technicianId, userId, date, expectedAssignmentIds = [], equipmentAssignmentId = null }) {
   const { start } = dayBounds(date);
-  if (strictManilaDateKey(date) !== manilaDateKey(new Date())) {
-    throw Object.assign(new Error("Daily Preparation can only be confirmed on the scheduled work date."), { status: 409 });
-  }
-  const kit = await syncDailyKit(technicianId, start);
-  if (!["draft", "confirmed", "in_progress"].includes(kit.status) ||
-      (kit.status !== "draft" && !kit.hasDelta)) {
-    throw Object.assign(new Error("This Daily Kit is already confirmed."), { status: 409 });
-  }
-  if (!(kit.assignmentIds?.length || kit.orderIds?.length || kit.dailyAssignmentIds?.length)) {
-    throw Object.assign(new Error("There are no accepted jobs to prepare for this date."), { status: 409 });
-  }
-  const items = checklistItems(kit);
-  // Block if there are truly unresolved unavailable items
-  // admin_notified still blocks (admin hasn't resolved yet)
-  // Only confirmed_available, not_required, assigned_from_stock, procured are truly resolved
-  const unresolved = items.filter(item =>
-    item.checkoutStatus === "unavailable" &&
-    !item.exception?.approved &&
-    needsChecklistCheck(item)
-  );
-  if (unresolved.length) throw Object.assign(new Error("Resolve unavailable equipment before confirming the Daily Kit."), { status: 409, unavailable: unresolved });
-
-  const unchecked = items.filter(item => needsChecklistCheck(item) && !item.preparedChecked);
-  if (unchecked.length) {
-    throw Object.assign(new Error(`Check ${unchecked.length} required kit item(s) before confirming.`), {
-      status: 409,
-      unchecked: unchecked.map(item => ({ id: String(item._id), name: item.name, quantity: item.quantity })),
-    });
-  }
-
-  for (const item of items) {
-    // Skip items that are unavailable but truly resolved (not admin_notified)
-    if (item.checkoutStatus === "unavailable" && item.resolution?.status && item.resolution?.status !== "admin_notified") continue;
-    if (["standard_kit", "in_custody", "exception", "checked_out", "issued"].includes(item.checkoutStatus)) continue;
-    // Technician field decision: item explicitly marked not needed — never deduct.
-    if (item.resolution?.status === "not_required") {
-      item.checkoutStatus = "exception";
-      item.exception = { approved: true, reason: `Not required — technician confirmed (${item.resolution.reasonCode || "field decision"})`, approvedBy: item.resolution.resolvedBy };
-      continue;
+  assertWorkDate(date);
+  const events = [];
+  const kit = await kitTransaction(async session => {
+    events.length = 0;
+    const kit = await syncDailyKit(technicianId, start, { session });
+    if (expectedAssignmentIds.some(id => !(kit.assignmentIds || []).some(value => String(value) === String(id)))) {
+      throw checkoutError('Accept this job and review Daily Preparation before checking out equipment.');
     }
-    if (item.checkoutStatus === "reserved" && item.category === "repair_part") {
-      // Stock was already soft-deducted via StockReservation when the
-      // quotation was approved/scheduled — do not deduct again.
-      item.quantityIssued = item.quantity;
-      item.checkoutStatus = "issued";
-      continue;
+    if (equipmentAssignmentId) {
+      const row = await EquipmentAssignment.findById(equipmentAssignmentId).session(session);
+      if (!row || ![String(technicianId), String(userId)].includes(String(row.technicianId))) {
+        throw checkoutError('This equipment is not assigned to you.', 403);
+      }
+      assertWorkDate(row.workDate);
+      const covered = (row.bookingId && (kit.bookingIds || []).some(id => String(id) === String(row.bookingId)))
+        || (row.workOrderId && (kit.workOrderIds || []).some(id => String(id) === String(row.workOrderId)));
+      if (!covered || ![...(kit.items || []), ...(kit.deltaItems || [])].some(item => String(item.toolId) === String(row.equipmentId))) {
+        throw checkoutError('Review this equipment in Daily Preparation before checkout.');
+      }
     }
-    const updated = await Tool.findOneAndUpdate({
-      _id: item.toolId,
-      active: { $ne: false },
-      quantity: { $gte: item.quantity },
-      ...(item.category === "equipment" ? { assignable: { $ne: false }, assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] } } : {}),
-    }, {
-      $inc: item.category === "equipment"
-        ? { quantity: -item.quantity, checkedOutQuantity: item.quantity }
-        : { quantity: -item.quantity },
-      ...(item.category === "equipment" ? { $set: { assetStatus: "checked_out" } } : {}),
-    }, { returnDocument: "after" });
-    if (!updated) throw Object.assign(new Error(`${item.name} became unavailable. Refresh the kit and resolve the conflict.`), { status: 409 });
+    if (['confirmed', 'in_progress'].includes(kit.status) && !kit.hasDelta) return kit;
+    if (!["draft", "confirmed", "in_progress"].includes(kit.status) ||
+        (kit.status !== "draft" && !kit.hasDelta)) {
+      throw Object.assign(new Error("This Daily Kit is already confirmed."), { status: 409 });
+    }
+    if (!(kit.assignmentIds?.length || kit.orderIds?.length || kit.dailyAssignmentIds?.length)) {
+      throw Object.assign(new Error("There are no accepted jobs to prepare for this date."), { status: 409 });
+    }
+    const items = checklistItems(kit);
+    // Block if there are truly unresolved unavailable items
+    // admin_notified still blocks (admin hasn't resolved yet)
+    // Only confirmed_available, not_required, assigned_from_stock, procured are truly resolved
+    const unresolved = items.filter(item =>
+      item.checkoutStatus === "unavailable" &&
+      !item.exception?.approved &&
+      needsChecklistCheck(item)
+    );
+    if (unresolved.length) throw Object.assign(new Error("Resolve unavailable equipment before confirming the Daily Kit."), { status: 409, unavailable: unresolved });
 
-    if (item.category === "equipment") {
-      const ledger = await EquipmentAssignment.create({
-        dailyKitId: kit._id, bookingId: item.bookingIds[0] || null, technicianId, workDate: start,
-        orderIds: item.orderIds || [],
-        projectId: item.projectIds?.[0] || null,
-        projectIds: item.projectIds || [],
-        workOrderId: item.workOrderIds?.[0] || null,
-        workOrderIds: item.workOrderIds || [],
-        dailyAssignmentIds: item.dailyAssignmentIds || [],
-        equipmentId: item.toolId, equipmentName: item.name, equipmentCode: item.toolCode || "",
-        quantity: item.quantity, consumable: false, status: "checked_out", checkedOutAt: new Date(), checkedOutBy: userId,
-        notes: `Daily Kit; bookings: ${item.bookingIds.join(", ") || "none"}; orders: ${(item.orderIds || []).join(", ") || "none"}; projects: ${(item.projectIds || []).join(", ") || "none"}`,
+    const unchecked = items.filter(item => needsChecklistCheck(item) && !item.preparedChecked);
+    if (unchecked.length) {
+      throw Object.assign(new Error(`Check ${unchecked.length} required kit item(s) before confirming.`), {
+        status: 409,
+        unchecked: unchecked.map(item => ({ id: String(item._id), name: item.name, quantity: item.quantity })),
       });
-      item.equipmentAssignmentId = ledger._id;
-      item.checkoutStatus = "checked_out";
-      item.checkedOutAt = new Date();
-    } else {
-      item.quantityIssued = item.quantity;
-      item.checkoutStatus = "issued";
-      // Project submissions historically consume against an
-      // EquipmentAssignment id. Create an issued-custody ledger linked to the
-      // Daily Kit so that workflow can record usage without deducting stock a
-      // second time.
-      if ((item.projectIds || []).length && item.toolId) {
-        const allocations = mergeProjectAllocations([], item.projectAllocations || []);
-        const ledgerRows = allocations.length ? allocations : [{
-          projectId: item.projectIds[0],
+    }
+
+    for (const item of items) {
+      // Only verified custody, recorded issuance, and explicit exceptions skip checkout.
+      if (item.checkoutStatus === 'in_custody') {
+        const custody = item.custodyAssignmentIds || [];
+        const claimed = await EquipmentAssignment.updateMany({ _id: { $in: custody },
+          technicianId: { $in: uniqueIds([technicianId, userId]) }, status: { $in: ['checked_out', 'in_use'] },
+        }, { $set: { updatedAt: new Date() } }, { session });
+        const usable = await Tool.updateOne({ _id: item.toolId, active: { $ne: false }, assignable: { $ne: false },
+          assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
+        }, { $set: { updatedAt: new Date() } }, { session });
+        if (!custody.length || claimed.matchedCount !== custody.length || usable.matchedCount !== 1) {
+          throw checkoutError(`${item.name} is no longer available in your custody. Refresh Daily Preparation.`);
+        }
+      }
+      if (["in_custody", "exception", "checked_out", "issued"].includes(item.checkoutStatus)) continue;
+      // Technician field decision: item explicitly marked not needed — never deduct.
+      if (item.resolution?.status === "not_required") {
+        item.checkoutStatus = "exception";
+        item.exception = { approved: true, reason: `Not required — technician confirmed (${item.resolution.reasonCode || "field decision"})`, approvedBy: item.resolution.resolvedBy };
+        continue;
+      }
+      const held = await EquipmentAssignment.find({ _id: { $in: item.reservedAssignmentIds || [] },
+        technicianId: { $in: uniqueIds([technicianId, userId]) }, equipmentId: item.toolId, status: 'reserved', workDate: { $gte: start, $lt: dayBounds(date).end },
+      }).session(session);
+      const parts = item.category === 'repair_part' ? await StockReservation.find({
+        toolId: item.toolId, bookingId: { $in: item.bookingIds || [] }, status: { $in: ['reserved', 'checked_out'] },
+      }).session(session) : [];
+      const alreadyDeducted = parts.filter(row => row.stockTreatment !== 'soft_hold' || row.status === 'checked_out')
+        .reduce((sum, row) => sum + Number(row.quantity), 0);
+      const quantity = Math.max(0, Number(item.quantityToCheckout ?? item.quantity) - alreadyDeducted);
+      const heldQuantity = held.reduce((sum, row) => sum + Number(row.quantity), 0)
+        + parts.filter(row => row.stockTreatment === 'soft_hold' && row.status === 'reserved').reduce((sum, row) => sum + Number(row.quantity), 0);
+      if (heldQuantity > quantity) throw checkoutError(`${item.name} has conflicting reserved quantities. Ask admin to review its reservation.`);
+      if (quantity) {
+        const updated = await Tool.findOneAndUpdate({
+          _id: item.toolId,
+          active: { $ne: false },
+          quantity: { $gte: quantity },
+          ...(heldQuantity ? { reservedQuantity: { $gte: heldQuantity } } : {}),
+          $expr: { $gte: [{ $subtract: ['$quantity', { $ifNull: ['$reservedQuantity', 0] }] }, quantity - heldQuantity] },
+          ...(item.category === "equipment" ? { assignable: { $ne: false }, assetStatus: { $nin: ["under_maintenance", "damaged", "retired"] } } : {}),
+        }, {
+          $inc: item.category === "equipment"
+            ? { quantity: -quantity, checkedOutQuantity: quantity, reservedQuantity: -heldQuantity }
+            : { quantity: -quantity, reservedQuantity: -heldQuantity },
+          ...(item.category === "equipment" ? { $set: { assetStatus: "checked_out" } } : {}),
+        }, { returnDocument: "after", session });
+        if (!updated) throw Object.assign(new Error(`${item.name} became unavailable. Refresh the kit and resolve the conflict.`), { status: 409 });
+      }
+      for (const reservation of parts) {
+        if (reservation.status === 'checked_out') continue;
+        const claimed = await StockReservation.updateOne({ _id: reservation._id, status: 'reserved' },
+          { $set: { status: 'checked_out', fulfilledAt: new Date() } }, { session });
+        if (!claimed.modifiedCount) throw checkoutError('This parts reservation changed. Refresh Daily Preparation.');
+      }
+      for (const reservation of held) {
+        reservation.status = reservation.consumable ? 'consumed' : 'checked_out';
+        reservation.dailyKitId = kit._id;
+        reservation.checkedOutAt = new Date(); reservation.checkedOutBy = userId;
+        await reservation.save({ session });
+        if (!item.equipmentAssignmentId) item.equipmentAssignmentId = reservation._id;
+        item.custodyAssignmentIds = uniqueIds([...(item.custodyAssignmentIds || []), reservation._id]);
+      }
+
+      if (item.category === "equipment") {
+        if (quantity > heldQuantity) {
+        const [ledger] = await EquipmentAssignment.create([{
+          dailyKitId: kit._id, bookingId: item.bookingIds[0] || null, technicianId, workDate: start,
+          orderIds: item.orderIds || [],
+          projectId: item.projectIds?.[0] || null,
+          projectIds: item.projectIds || [],
           workOrderId: item.workOrderIds?.[0] || null,
-          dailyAssignmentId: item.dailyAssignmentIds?.[0] || null,
-          quantity: item.quantity,
-        }];
-        for (const allocation of ledgerRows) {
-          const ledger = await EquipmentAssignment.create({
-            dailyKitId: kit._id,
-            projectId: allocation.projectId,
-            projectIds: [allocation.projectId],
-            workOrderId: allocation.workOrderId || null,
-            workOrderIds: allocation.workOrderId ? [allocation.workOrderId] : [],
-            dailyAssignmentIds: allocation.dailyAssignmentId ? [allocation.dailyAssignmentId] : [],
-            technicianId,
-            workDate: start,
-            equipmentId: item.toolId,
-            equipmentName: item.name,
-            equipmentCode: item.toolCode || "",
-            quantity: allocation.quantity,
-            consumable: true,
-            status: "in_use",
-            checkedOutAt: new Date(),
-            checkedOutBy: userId,
-            notes: `Issued through shared Daily Kit for project ${allocation.projectId}`,
-          });
-          if (!item.equipmentAssignmentId) item.equipmentAssignmentId = ledger._id;
+          workOrderIds: item.workOrderIds || [],
+          dailyAssignmentIds: item.dailyAssignmentIds || [],
+          equipmentId: item.toolId, equipmentName: item.name, equipmentCode: item.toolCode || "",
+          quantity: quantity - heldQuantity, consumable: false, status: "checked_out", checkedOutAt: new Date(), checkedOutBy: userId,
+          notes: `Daily Kit; bookings: ${item.bookingIds.join(", ") || "none"}; orders: ${(item.orderIds || []).join(", ") || "none"}; projects: ${(item.projectIds || []).join(", ") || "none"}`,
+        }], { session });
+        item.equipmentAssignmentId = ledger._id;
+        item.custodyAssignmentIds = uniqueIds([...(item.custodyAssignmentIds || []), ledger._id]);
+        }
+        item.checkoutStatus = "checked_out";
+        item.checkedOutAt = new Date();
+      } else {
+        item.quantityIssued = item.quantity;
+        item.checkoutStatus = "issued";
+        // Project submissions historically consume against an
+        // EquipmentAssignment id. Create an issued-custody ledger linked to the
+        // Daily Kit so that workflow can record usage without deducting stock a
+        // second time.
+        if ((item.projectIds || []).length && item.toolId) {
+          const allocations = mergeProjectAllocations([], item.projectAllocations || []);
+          const ledgerRows = allocations.length ? allocations : [{
+            projectId: item.projectIds[0],
+            workOrderId: item.workOrderIds?.[0] || null,
+            dailyAssignmentId: item.dailyAssignmentIds?.[0] || null,
+            quantity: item.quantity,
+          }];
+          for (const allocation of ledgerRows) {
+            const [ledger] = await EquipmentAssignment.create([{
+              dailyKitId: kit._id,
+              projectId: allocation.projectId,
+              projectIds: [allocation.projectId],
+              workOrderId: allocation.workOrderId || null,
+              workOrderIds: allocation.workOrderId ? [allocation.workOrderId] : [],
+              dailyAssignmentIds: allocation.dailyAssignmentId ? [allocation.dailyAssignmentId] : [],
+              technicianId,
+              workDate: start,
+              equipmentId: item.toolId,
+              equipmentName: item.name,
+              equipmentCode: item.toolCode || "",
+              quantity: allocation.quantity,
+              consumable: true,
+              status: "in_use",
+              checkedOutAt: new Date(),
+              checkedOutBy: userId,
+              notes: `Issued through shared Daily Kit for project ${allocation.projectId}`,
+            }], { session });
+            if (!item.equipmentAssignmentId) item.equipmentAssignmentId = ledger._id;
+          }
         }
       }
     }
-  }
 
-  if (kit.hasDelta) {
-    for (const delta of kit.deltaItems) {
-      const existing = kit.items.find(item => String(item.toolId) === String(delta.toolId) && item.category === delta.category);
-      if (existing) {
-        existing.quantity += delta.quantity;
-        if (delta.category === "consumable") existing.quantityIssued = (existing.quantityIssued || 0) + (delta.quantityIssued || 0);
-        existing.assignmentIds = uniqueIds([...existing.assignmentIds, ...delta.assignmentIds]);
-        existing.bookingIds = uniqueIds([...existing.bookingIds, ...delta.bookingIds]);
-        existing.orderIds = uniqueIds([...(existing.orderIds || []), ...(delta.orderIds || [])]);
-        existing.orderAllocations = mergeOrderAllocations(existing.orderAllocations, delta.orderAllocations);
-        existing.projectIds = uniqueIds([...(existing.projectIds || []), ...(delta.projectIds || [])]);
-        existing.workOrderIds = uniqueIds([...(existing.workOrderIds || []), ...(delta.workOrderIds || [])]);
-        existing.dailyAssignmentIds = uniqueIds([...(existing.dailyAssignmentIds || []), ...(delta.dailyAssignmentIds || [])]);
-        existing.projectAllocations = mergeProjectAllocations(existing.projectAllocations, delta.projectAllocations);
-        if (delta.resolution?.status) existing.resolution = delta.resolution;
-      } else kit.items.push(delta.toObject ? delta.toObject() : delta);
+    if (kit.hasDelta) {
+      for (const delta of kit.deltaItems) {
+        const existing = kit.items.find(item => String(item.toolId) === String(delta.toolId) && item.category === delta.category);
+        if (existing) {
+          existing.quantity += delta.quantity;
+          if (delta.category === "consumable") existing.quantityIssued = (existing.quantityIssued || 0) + (delta.quantityIssued || 0);
+          existing.assignmentIds = uniqueIds([...existing.assignmentIds, ...delta.assignmentIds]);
+          existing.bookingIds = uniqueIds([...existing.bookingIds, ...delta.bookingIds]);
+          existing.orderIds = uniqueIds([...(existing.orderIds || []), ...(delta.orderIds || [])]);
+          existing.orderAllocations = mergeOrderAllocations(existing.orderAllocations, delta.orderAllocations);
+          existing.projectIds = uniqueIds([...(existing.projectIds || []), ...(delta.projectIds || [])]);
+          existing.workOrderIds = uniqueIds([...(existing.workOrderIds || []), ...(delta.workOrderIds || [])]);
+          existing.dailyAssignmentIds = uniqueIds([...(existing.dailyAssignmentIds || []), ...(delta.dailyAssignmentIds || [])]);
+          existing.custodyAssignmentIds = uniqueIds([...(existing.custodyAssignmentIds || []), ...(delta.custodyAssignmentIds || [])]);
+          existing.reservedAssignmentIds = uniqueIds([...(existing.reservedAssignmentIds || []), ...(delta.reservedAssignmentIds || [])]);
+          existing.projectAllocations = mergeProjectAllocations(existing.projectAllocations, delta.projectAllocations);
+          if (delta.resolution?.status) existing.resolution = delta.resolution;
+        } else kit.items.push(delta.toObject ? delta.toObject() : delta);
+      }
     }
-  }
-  kit.status = "confirmed";
-  kit.confirmedAt = new Date();
-  kit.hasDelta = false;
-  kit.deltaItems = [];
-  await kit.save();
+    kit.status = "confirmed";
+    kit.confirmedAt = new Date();
+    kit.hasDelta = false;
+    kit.deltaItems = [];
+    await kit.save({ session });
 
-  await Assignment.updateMany({ _id: { $in: kit.assignmentIds } }, {
-    $set: { equipmentCheckedOut: true, equipmentCheckedOutAt: new Date(), preparationStatus: "checked_out", preparationIssue: "" },
+    await Assignment.updateMany({ _id: { $in: kit.assignmentIds } }, {
+      $set: { equipmentCheckedOut: true, equipmentCheckedOutAt: new Date(), preparationStatus: "checked_out", preparationIssue: "" },
+    }, { session });
+    await BookingService.updateMany({ _id: { $in: kit.bookingIds } }, {
+      $set: { "servicePreparation.confirmed": true, "servicePreparation.confirmedAt": new Date(), "servicePreparation.confirmedBy": technicianId },
+    }, { session });
+    // These writes also prevent cancellation/reassignment from racing checkout.
+    await Order.updateMany({ _id: { $in: kit.orderIds || [] }, technicianId,
+      status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES } },
+      { $set: { 'preparation.installation.lastSyncedAt': new Date() } }, { session });
+    await DailyAssignment.updateMany({ _id: { $in: kit.dailyAssignmentIds || [] }, technicianId },
+      { $set: { updatedAt: new Date() } }, { session });
+    await WorkOrder.updateMany({ _id: { $in: kit.workOrderIds || [] } }, { $set: { updatedAt: new Date() } }, { session });
+    await Project.updateMany({ _id: { $in: kit.projectIds || [] } }, { $set: { updatedAt: new Date() } }, { session });
+    await syncOrderPreparationSummaries(kit, kit.$locals.resolutionOrderIds || kit.orderIds || [], { session, events });
+    return kit;
   });
-  await BookingService.updateMany({ _id: { $in: kit.bookingIds } }, {
-    $set: { "servicePreparation.confirmed": true, "servicePreparation.confirmedAt": new Date(), "servicePreparation.confirmedBy": technicianId },
-  });
-  await syncOrderPreparationSummaries(kit, kit.orderIds || []);
+  publishKitEvents(events);
   return kit;
 }
 
@@ -1106,6 +1446,8 @@ module.exports = {
   needsChecklistCheck,
   retainChecklistState,
   setDailyKitItemChecked,
+  addDailyKitItem,
+  removeDailyKitItem,
   confirmDailyKit,
   dailyKitDepartureReadiness,
   recordBookingConsumableUsage,
