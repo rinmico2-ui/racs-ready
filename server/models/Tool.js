@@ -214,6 +214,17 @@ const toolSchema = new mongoose.Schema(
 toolSchema.index({ active: 1, status: 1 });
 toolSchema.index({ itemName: "text" });
 
+// Some legacy catalogue records contain an object instead of a creation date.
+// Recover it before validation so POS stock saves and reversals can proceed.
+// Persist the repair in the same save/transaction; valid dates remain intact.
+toolSchema.pre("validate", function () {
+  if (this.isNew || (this.createdAt instanceof Date && Number.isFinite(this.createdAt.getTime()))) return;
+  const createdAt = this._id?.getTimestamp?.();
+  if (createdAt instanceof Date && Number.isFinite(createdAt.getTime())) {
+    this.set("createdAt", createdAt, { overwriteImmutable: true });
+  }
+});
+
 // ─── Pre-save Middleware ─────────────────────────────────────────────────────
 
 toolSchema.pre("save", async function () {
