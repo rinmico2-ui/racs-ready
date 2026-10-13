@@ -90,6 +90,8 @@ const bookingSchema = new mongoose.Schema({
   isMultiService: { type: Boolean, default: false },
   services: [{
     serviceId: { type: mongoose.Schema.Types.ObjectId },
+    applianceGroupId: { type: String, maxlength: 80 },
+    applianceKind: { type: String, enum: ["aircon", "refrigerator", "freezer"] },
     assistanceRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'UnitAssistanceRequest', default: null },
     name: String,
     // `type` is a reserved schema-definition key in Mongoose. It must be
@@ -196,6 +198,7 @@ const bookingSchema = new mongoose.Schema({
     // When quantity > 1, each unit can have its own inspection/diagnosis.
     // `units[]` tracks individual unit status within this service group.
     units: [{
+      ...require('./repairUnitFields').trackingFields,
       unitIndex: { type: Number, required: true },   // 1-based index within this service
       label: { type: String, trim: true },            // e.g. "Unit 1", "Unit 2" (auto or custom)
       status: {
@@ -338,7 +341,14 @@ const bookingSchema = new mongoose.Schema({
   workOrderNumber: { type: String, unique: true, sparse: true },
 
   // ── Unit Information (for repair requests) ──────────────────────────────
+  repairUnitTracking: { type: Boolean, default: false },
+  quotationReview: {
+    totalAmount: Number,
+    items: [{ description: String, quantity: Number, unitPrice: Number, total: Number }],
+    status: String, reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, reviewedAt: Date, rejectionReason: String,
+  },
   unitInfo: {
+    // Legacy single-appliance details remain available.
     unitType: String,       // e.g. "Split Type Aircon", "Refrigerator"
     brand: String,          // e.g. "Carrier"
     model: { type: String, trim: true, maxlength: 50 }, // e.g. "42KDPV48"
@@ -1101,10 +1111,13 @@ bookingSchema.pre("validate", function () {
       "Multi-service booking must have at least one service",
     );
   }
-  const serviceUnits = Array.isArray(this.services) && this.services.length
-    ? this.services.reduce((sum, service) => sum + (Number(service.quantity) || 1), 0)
-    : Number(this.quantity || 1);
+  let serviceUnits;
+  try { serviceUnits = Array.isArray(this.services) && this.services.length
+    ? require("../public/js/appliance-services").unitCount(this.services)
+    : Number(this.quantity || 1); }
+  catch (error) { this.invalidate("services", error.message); return; }
   if (serviceUnits > 40) this.invalidate("services", "A booking can contain at most 40 units across all services");
+  if (this.services?.some(item => item.applianceGroupId)) this.quantity = serviceUnits;
   if (serviceUnits >= 8) {
     this.quantity = serviceUnits;
     this.isProject = true;
@@ -1250,7 +1263,7 @@ bookingSchema.methods.getUnitGroups = function () {
   }
 
   return this.services.map((svc, idx) => ({
-    groupIndex: idx,
+    groupIndex: idx, applianceGroupId: svc.applianceGroupId, applianceKind: svc.applianceKind,
     serviceId: svc.serviceId,
     serviceName: svc.name,
     serviceType: svc.type || 'repair',

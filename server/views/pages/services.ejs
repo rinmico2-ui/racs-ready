@@ -1,3 +1,7 @@
+<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261013-sticky-actions">
+<script src="/js/relocation-booking-locations.js?v=20261013-guided-relocation"></script>
+<script src="/js/appliance-services.js?v=20261013-guided-relocation"></script>
+<script src="/js/core-appliance-booking.js?v=20261013-sticky-actions"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <%
@@ -276,19 +280,19 @@
               <div class="ent-step-icon step-services"><i class="bi bi-grid-3x3-gap"></i></div>
               <div class="ent-step-info">
                 <h5>Service and Details</h5>
-                <p>What service do you need?</p>
+                <p>Choose an appliance and the services it needs.</p>
               </div>
             </div>
             <div class="ent-step-body">
               <p class="booking-step-lead">Choose what you need. You can add more than one service.</p>
-              <nav class="service-picker-guide" aria-label="Steps for choosing a service">
-                <button type="button" class="is-active service-guide-choose" id="serviceGuideChoose" onclick="navigateServiceGuide('choose')" aria-label="Choose a service from the list below">
-                  <span>1</span><strong>Choose a Service</strong><small>See the list below</small>
+              <nav class="service-picker-guide" aria-label="Booking actions" hidden>
+                <button type="button" class="is-active service-guide-choose" id="serviceGuideChoose" onclick="navigateServiceGuide('choose')" aria-label="Choose an appliance below">
+                  <span>1</span><strong>Choose Appliance</strong><small>Aircon, refrigerator or freezer</small>
                   <i class="bi bi-arrow-down" aria-hidden="true"></i>
                 </button>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 <button type="button" id="serviceGuideConfigure" onclick="navigateServiceGuide('configure')">
-                  <span>2</span><strong>Add</strong><small>Details</small>
+                  <span>2</span><strong>Details and Services</strong><small>Choose what it needs</small>
                 </button>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 <button type="button" class="service-guide-review" id="serviceGuideReview" onclick="navigateServiceGuide('review')" aria-label="Check your selected services" aria-controls="selectedServicesSummary" aria-expanded="false">
@@ -299,50 +303,13 @@
               <div class="service-selection-layout">
                 <div class="service-catalog-panel" id="serviceCatalogPanel">
               <ul class="nav nav-tabs mb-3" id="serviceTabs" role="tablist">
-                <li class="nav-item"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><i class="bi bi-gear-fill me-2"></i>Aircon Services</button></li>
+                <li class="nav-item"><button class="nav-link active" id="core-tab" data-bs-toggle="tab" data-bs-target="#core-services" type="button" role="tab" aria-controls="core-services" aria-selected="true"><i class="bi bi-gear-fill me-2"></i>Core Services</button></li>
                 <li class="nav-item"><button class="nav-link" id="repair-tab" data-bs-toggle="tab" data-bs-target="#repair-services" type="button" role="tab" aria-controls="repair-services" aria-selected="false"><i class="bi bi-tools me-2"></i>Repair Service</button></li>
               </ul>
               <div class="tab-content" id="serviceTabContent">
                 <!-- Core Services Tab -->
                 <div class="tab-pane fade show active" id="core-services" role="tabpanel" aria-labelledby="core-tab">
-                  <div class="ent-svc-section">
-                    <div class="ent-svc-section-header">
-                      <div class="ent-svc-section-icon"><i class="bi bi-gear-wide-connected"></i></div>
-                      <div>
-                        <h6 class="ent-svc-section-title">Aircon and Technical Services</h6>
-                        <p class="ent-svc-section-sub">Choose a service. You will see its details and price before adding it.</p>
-                      </div>
-                    </div>
-                    <div class="service-list-jump-wrap">
-                      <button type="button" class="service-list-jump" onclick="scrollToCoreServiceList()" aria-controls="coreServiceCards">
-                        View Service List <i class="bi bi-arrow-down" aria-hidden="true"></i>
-                      </button>
-                    </div>
-                    <nav class="service-pagination" id="coreServicePagination" aria-label="Aircon service pages">
-                      <div class="service-pagination-status">
-                        <strong>Available services</strong>
-                        <span id="coreServiceShowingLabel">Showing available services</span>
-                      </div>
-                      <div class="service-pagination-actions">
-                        <button type="button" id="coreServicePrev" onclick="changeCoreServicePage(-1)" aria-label="Previous service list">
-                          <i class="bi bi-chevron-left" aria-hidden="true"></i><span>Previous</span>
-                        </button>
-                        <strong class="service-page-indicator" id="coreServicePageLabel" tabindex="-1">Page 1 of 1</strong>
-                        <button type="button" id="coreServiceNext" onclick="changeCoreServicePage(1)" aria-label="Next service list">
-                          <span>Next</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
-                        </button>
-                      </div>
-                    </nav>
-                    <div class="service-list-guide" id="serviceListGuide">
-                      <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
-                      <span id="serviceListGuideText">Use the arrows to see more services.</span>
-                    </div>
-                    <div class="service-list-target" id="coreServiceListTarget" aria-hidden="true"></div>
-                    <div class="row g-3" id="coreServiceCards"></div>
-                    <div class="ent-svc-section-footer d-none" id="coreServiceEmpty">
-                      <i class="bi bi-info-circle me-1"></i>No services are available right now. Please try again later.
-                    </div>
-                  </div>
+                  <div class="ent-svc-section"><div id="coreApplianceBuilder"></div><div id="coreServiceCards" hidden></div></div>
                 </div>
                 <!-- Repair Services Tab -->
                 <div class="tab-pane fade" id="repair-services" role="tabpanel" aria-labelledby="repair-tab">
@@ -593,7 +560,7 @@
                     </div>
 
                     <button type="button" class="booking-add-another" onclick="focusServiceCatalog()">
-                      <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Another Service
+                      <i class="bi bi-plus-lg" aria-hidden="true"></i> Add Another Appliance
                     </button>
                   </div>
                 </aside>
@@ -620,8 +587,8 @@
             <div class="ent-step-header">
               <div class="ent-step-icon step-location"><i class="bi bi-geo-alt"></i></div>
               <div class="ent-step-info">
-                <h5>Service Location</h5>
-                <p>Where should the technician go?</p>
+                <h5 id="serviceLocationStepTitle">Service Location</h5>
+                <p id="serviceLocationStepIntro">Where should the technician go?</p>
               </div>
             </div>
             <div class="ent-step-body">
@@ -657,8 +624,12 @@
                   try{const l=await(window._companyBaseLocationPromise||Promise.resolve(window._companyBaseLocation));window._companyBaseLocation=l||window._companyBaseLocation;if(window.BookingState&&window._companyBaseLocation){window.BookingState.companyBaseCoordinates={lat:window._companyBaseLocation.lat,lng:window._companyBaseLocation.lng};}}catch(e){window._companyBaseLocation=window._companyBaseLocation||{configured:false,lat:14.676049,lng:121.043731,address:'Company location not set'};}
                 });
               </script>
+              <div class="relocation-map-steps d-none" id="relocationMapSteps" aria-label="Relocation map steps">
+                <div class="relocation-map-step-buttons"><button type="button" id="relocationMapStepFrom" aria-pressed="true"><span class="service-map-dot customer"></span><strong>1. Current address</strong></button><button type="button" id="relocationMapStepTo" aria-pressed="false" disabled><span class="service-map-dot destination"></span><strong>2. New address</strong></button></div>
+                <p id="relocationMapStepHelp" role="status" aria-live="polite">Choose the current address first. Then choose where the aircon will move.</p>
+              </div>
               <div class="service-map-search mb-3">
-                <label class="form-label fw-semibold" for="locationInput"><%= accountAddress ? 'Use a different address' : 'Service address or nearby landmark' %></label>
+                <label class="form-label fw-semibold" for="locationInput" id="serviceAddressLabel"><%= accountAddress ? 'Use a different address' : 'Service address or nearby landmark' %></label>
                 <div class="position-relative">
                   <div class="input-group input-group-lg service-map-input">
                     <span class="input-group-text bg-white border-0"><i class="bi bi-geo-alt-fill text-primary"></i></span>
@@ -675,13 +646,13 @@
               </div>
               <div class="service-map-search mb-3 d-none" id="relocationDestinationSection">
                 <label class="form-label fw-semibold" for="relocationDestinationAddress">New address for the aircon</label>
-                <div class="input-group">
-                  <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" autocomplete="street-address" placeholder="House number, street, barangay, city, province" />
-                  <button type="button" class="btn btn-outline-primary" id="relocationDestinationSearch"><i class="bi bi-search me-1" aria-hidden="true"></i>Show on map</button>
-                </div>
-                <button type="button" class="service-manual-pin-link mt-2" id="relocationDestinationPin"><i class="bi bi-pin-map-fill me-1" aria-hidden="true"></i>Can't find it? Place the destination pin on the map</button>
-                <small class="text-muted d-block mt-1" id="relocationDestinationStatus" role="status" aria-live="polite">Enter the new address, then show it on the map.</small>
-                <small class="text-muted d-block mt-1">Staff will review both addresses and send a custom quote before payment or assignment.</small>
+                <div class="position-relative"><div class="input-group">
+                  <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" role="combobox" aria-controls="relocationDestinationSuggest" aria-expanded="false" aria-autocomplete="list" autocomplete="off" placeholder="Type the new address or place the orange pin" />
+                  <button type="button" class="btn btn-outline-primary" id="relocationDestinationSearch" aria-label="Search for the new address"><i class="bi bi-search" aria-hidden="true"></i></button>
+                </div><div id="relocationDestinationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions" role="listbox" aria-label="New address suggestions"></div></div>
+                <button type="button" class="service-manual-pin-link mt-2" id="relocationDestinationPin"><i class="bi bi-pin-map-fill me-1" aria-hidden="true"></i>Place the new location on the map</button>
+                <small class="text-muted d-block mt-1" id="relocationDestinationStatus" role="status" aria-live="polite">Choose the current address first.</small>
+                <small class="text-muted d-block mt-1">Staff will check both locations and send a quote. No payment is needed now.</small>
               </div>
 
               <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
@@ -2749,7 +2720,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 </style>
 
-<link id="ent-calendar-styles" rel="stylesheet" href="/css/enterprise-calendar.css?v=20261001-project-date-guide-v1">
+<link id="ent-calendar-styles" rel="stylesheet" href="/css/enterprise-calendar.css?v=20261013-project-preferences">
 <script>
   // Leaflet is already loaded by the main layout (main.ejs).
   // Only mark it as ready if the L global exists; never reload from CDN to avoid conflicts.
@@ -2774,8 +2745,12 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script>
-  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261011-relocation-preferred-calendar-date-colors';document.head.appendChild(e)})();
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261009-live-addresses':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var e=document.createElement('script');e.src='/js/enterprise-calendar.js?v=20261013-core-guided-v2';document.head.appendChild(e)})();
+</script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261013">
+<script src="/js/repair-unit-entry.js?v=20261013"></script>
+<script>
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261013-guided-relocation':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -2824,7 +2799,7 @@ function showBookingConfirmationModal(d){
       svcListEl.innerHTML='<div class="ent-inv-service-row"><span class="ent-inv-svc-name text-muted">No services</span><span class="ent-inv-svc-price">—</span></div>';
     } else {
       services.forEach(function(svc){
-        var qty=svc.quantity||1;
+        var qty=Number(svc.quantity)||1;
         var price=svc.unitPrice||svc.price||0;
         var lineTotal=price*qty;
         servicesTotal+=lineTotal;
@@ -2842,11 +2817,14 @@ function showBookingConfirmationModal(d){
           }
         } else {
           var parts=[];
+          if(svc.brand) parts.push(escapeInvHtml(svc.brand));
+          if(svc.applianceTypeName) parts.push(escapeInvHtml(svc.applianceTypeName));
+          if(svc.model) parts.push('Model: '+escapeInvHtml(svc.model));
           if(svc.hp) parts.push(svc.hp+' HP');
-          if(svc.airconTypeName) parts.push(escapeInvHtml(svc.airconTypeName));
-          parts.push('Qty: '+qty);
+          if(svc.airconTypeName && svc.airconTypeName!==svc.applianceTypeName) parts.push(escapeInvHtml(svc.airconTypeName));
           details='<div class="ent-inv-svc-detail">'+parts.join(' &middot; ')+'</div>';
         }
+        details='<div class="ent-inv-svc-detail"><strong>Quantity: '+qty+' '+(qty===1?'unit':'units')+'</strong> &middot; &#8369;'+Number(price).toLocaleString()+' per unit</div>'+details;
         var row=document.createElement('div');
         row.className='ent-inv-service-row';
         row.style.cssText='flex-direction:column;align-items:flex-start;gap:4px;padding:10px 0;border-bottom:1px solid rgba(226,232,240,0.5);';
@@ -3111,7 +3089,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     var schedule=document.getElementById('paymentScheduleSummary');
     var location=document.getElementById('paymentLocationSummary');
     var travel=document.getElementById('paymentTravelSummary');
-    var unitCount=svcs.reduce(function(sum,s){return sum+(Number(s.quantity)||1);},0);
+    var unitCount=window.ApplianceServices.unitCount(svcs);
     if(serviceCount) serviceCount.textContent=svcs.length+' '+(svcs.length===1?'service':'services')+' · '+unitCount+' '+(unitCount===1?'unit':'units');
     if(location) location.textContent=(bs.customerLocation&&bs.customerLocation.address)||bs.location||'Not selected';
     if(travel) travel.textContent=fmt(travelFee);

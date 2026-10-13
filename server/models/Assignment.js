@@ -216,14 +216,14 @@ assignmentSchema.virtual("elapsedMinutes").get(function () {
  * @param {ObjectId} technicianId
  * @returns {Promise<Object>}
  */
-assignmentSchema.statics.getDashboardCounts = async function (technicianId) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+assignmentSchema.statics.getDashboardCounts = async function (technicianId, workScope) {
+  const { manilaDateTime } = require("../utils/bookingDateTime");
+  const today = manilaDateTime(new Date(), 0);
+  const tomorrow = manilaDateTime(new Date(), 1440);
+  const scope = workScope || await require("../utils/technicianWorkSync").technicianAssignmentScope(technicianId);
 
   const pipeline = [
-    { $match: { technicianId: new mongoose.Types.ObjectId(technicianId) } },
+    { $match: { ...scope, technicianId: new mongoose.Types.ObjectId(technicianId) } },
     {
       $facet: {
         pendingAcceptance: [
@@ -239,7 +239,7 @@ assignmentSchema.statics.getDashboardCounts = async function (technicianId) {
           { $count: "count" },
         ],
         todayJobs: [
-          { $match: { bookingDate: { $gte: today, $lt: tomorrow } } },
+          { $match: { bookingDate: { $gte: today, $lt: tomorrow }, status: { $nin: ["cancelled", "declined", "expired", "no_show", "no_show_reported"] } } },
           { $count: "count" },
         ],
         completedToday: [

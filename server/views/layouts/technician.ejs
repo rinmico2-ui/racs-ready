@@ -69,6 +69,7 @@
     <link rel="stylesheet" href="/css/enterprise-alerts.css?v=20260915-semantic-icons-v2">
     <link rel="stylesheet" href="/css/performance.css?v=20260911" />
     <link rel="stylesheet" href="/css/enterprise-typography.css?v=20261006-1" />
+    <link rel="stylesheet" href="/css/admin-mobile-navigation.css?v=20261013-mobile-close" />
   </head>
   <body class="admin-layout technician-layout">
     <div class="admin-topbar"><%- include('../partials/technician-navbar') %></div>
@@ -214,7 +215,7 @@
         window.socket.emit('tech:join', '<%= technician._id %>');
       <% } %>
     </script>
-    <script src="/js/admin.js?v=20260927-shell-components"></script>
+    <script src="/js/admin.js?v=20261013-mobile-close"></script>
     <% if (pageUsesChart) { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script><% } %>
     <!-- Optional technician scripts -->
     <script src="/js/technician.js"></script>

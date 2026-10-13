@@ -210,8 +210,11 @@
   .admin-layout .admin-modern-sidebar .sidebar-mobile-close {
     top: 16px;
     right: 14px;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    pointer-events: auto;
+    touch-action: manipulation;
     display: grid;
     place-items: center;
     border: 1px solid #dce3ec;

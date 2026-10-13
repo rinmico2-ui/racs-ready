@@ -37,6 +37,9 @@ const equipmentAssignmentSchema = new mongoose.Schema({
   consumable: { type: Boolean, default: false },
   consumableUsed: { type: Number, default: 0 },
   consumableReturned: { type: Number, default: 0 },
+  consumableDamaged: { type: Number, default: 0 },
+  consumableMissing: { type: Number, default: 0 },
+  returnPending: { type: Boolean, default: false },
 
   status: { type: String, enum: EQ_STATUSES, default: "reserved" },
 

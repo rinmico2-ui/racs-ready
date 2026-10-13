@@ -435,7 +435,6 @@ const MAX_BOOKING_UNITS = 40;
 const REPAIR_MODEL_MAX_LENGTH = 50;
 const SAFE_REPAIR_MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/;
 let customerLocationRequestToken = 0;
-let relocationDestinationRequestToken = 0;
 let placingRelocationDestination = false;
 let routeRequestToken = 0;
 let addressGeocodeRequestToken = 0;
@@ -448,7 +447,7 @@ let addressAutocompleteEnabled = true;
 let addressAutocompleteStatusLoaded = false;
 const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
-  return (BookingState.selectedServices || []).reduce((sum, service) => sum + (Number(service.quantity) || 1), 0);
+  return window.ApplianceServices.unitCount(BookingState.selectedServices || []);
 }
 function repairModelValidationMessage(value) {
   const model = String(value || '').trim();
@@ -458,12 +457,19 @@ function repairModelValidationMessage(value) {
   return '';
 }
 function isLargeScaleSelection() { return selectedUnitTotal() >= LARGE_SCALE_MIN_UNITS; }
+function selectedServiceMinutes() {
+  const configuredInspection = Number(window.__bookingPolicy?.inspectionDurationMinutes);
+  const inspectionMinutes = Number.isFinite(configuredInspection) && configuredInspection > 0 ? configuredInspection : 90;
+  return (BookingState.selectedServices || []).reduce((sum, service) => {
+    const perUnit = service.type === 'repair' ? inspectionMinutes : Math.max(1, Number(service.duration) || 60);
+    return sum + perUnit * Math.max(1, Number(service.quantity) || 1);
+  }, 0);
+}
 function bookingRequiresProjectSchedule() {
   if (isLargeScaleSelection()) return true;
   const configuredHours = Number(window.__bookingPolicy?.largeProjectThresholdHours);
   const thresholdMinutes = (Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : 8) * 60;
-  const serviceMinutes = (BookingState.selectedServices || []).reduce((sum, service) =>
-    sum + Math.max(1, Number(service.duration) || (service.type === 'repair' ? 90 : 60)) * Math.max(1, Number(service.quantity) || 1), 0);
+  const serviceMinutes = selectedServiceMinutes();
   // Preserve a restored project's range until the current policy loads. Once
   // the policy arrives, the selected work becomes the sole source of truth.
   if (!Number.isFinite(configuredHours) && BookingState.isProject && BookingState.projectScheduling) return true;
@@ -3118,7 +3124,7 @@ function initializeMapInternal(mapContainer) {
     }
     if (placingRelocationDestination && pendingRelocationQuoteItem()) {
       placingRelocationDestination = false;
-      setRelocationDestinationPin(lat, lng);
+      relocationLocationController()?.pin(lat, lng);
       return;
     }
     const requestToken = ++customerLocationRequestToken;
@@ -4065,6 +4071,7 @@ function setupLocateButtons() {
 }
 
 function syncLocationContinueAction() {
+  relocationLocationController()?.sync();
   const action = document.getElementById('locationNextAction');
   if (!action) return;
 
@@ -5904,6 +5911,16 @@ function updateCoreServicePagination(totalServices) {
 }
 
 function renderCoreServices() {
+  if (window.CoreApplianceBooking && document.getElementById("coreApplianceBuilder")) {
+    const guide = document.querySelector(".service-picker-guide");
+    if (guide && !guide.dataset.coreWizardBound) {
+      guide.dataset.coreWizardBound = "true";
+      guide.hidden = document.getElementById('core-tab')?.classList.contains('active') !== false;
+      document.getElementById("serviceTabs")?.addEventListener("shown.bs.tab", event => { guide.hidden = event.target.id === "core-tab"; });
+    }
+    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep() });
+    return;
+  }
 
   if (!DOM.coreServiceCards) {
     return;
@@ -6052,6 +6069,13 @@ function syncRelocationMapSummary() {
   const move = item?.relocation;
   const separateDestination = move?.scope === 'custom_quote';
   const sharedProperty = move?.scope === 'same_property';
+  const title = document.getElementById('serviceLocationStepTitle');
+  if (title) title.textContent = separateDestination ? 'Relocation locations' : sharedProperty ? 'Current aircon property' : 'Service location';
+  const intro = document.getElementById('serviceLocationStepIntro');
+  if (intro) intro.textContent = separateDestination ? 'Choose the current address first, then the new address.' : sharedProperty ? 'Pin the property where the aircon will move to its new position.' : 'Where should the technician go?';
+  const addressLabel = document.getElementById('serviceAddressLabel');
+  if (addressLabel) addressLabel.textContent = item ? 'Current aircon address' : 'Service address or nearby landmark';
+  relocationLocationController()?.sync();
   document.getElementById('relocationMapLocations')?.classList.toggle('d-none', !item);
   document.getElementById('serviceDestinationLegend')?.classList.toggle('d-none', !item);
   const toolbarTitle = document.getElementById('serviceMapToolbarTitle');
@@ -6090,7 +6114,7 @@ function syncRelocationMapSummary() {
 function setRelocationDestinationPin(lat, lng) {
   const item = activeRelocationItem();
   if (item?.relocation?.scope !== 'custom_quote') return;
-  const address = String(item.relocation.to?.address || '').trim();
+  const address = String(item.relocation.to?.address || '').trim() || (Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6));
   if (address.length < 8 || !isWithinPhilippinesMapBounds(lat, lng)) return;
   item.relocation.to = { ...item.relocation.to, address, lat, lng };
   scheduleBookingProgressSave();
@@ -6118,13 +6142,13 @@ function setRelocationDestinationPin(lat, lng) {
       showError('Choose a destination in the Philippines.');
       return;
     }
-    setRelocationDestinationPin(point.lat, point.lng);
+    relocationLocationController()?.pin(point.lat, point.lng);
   });
   const from = BookingState.userCoordinates;
   if (BookingState.relocationMoveLine) BookingState.map.removeLayer(BookingState.relocationMoveLine);
   if (from && Number.isFinite(Number(from.lat)) && Number.isFinite(Number(from.lng))) {
     BookingState.relocationMoveLine = L.polyline([[from.lat, from.lng], [lat, lng]], { color: '#ea580c', weight: 3, dashArray: '7 7', opacity: .9 }).addTo(BookingState.map);
-    BookingState.map.fitBounds(L.featureGroup([BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean)).getBounds(), { padding: [50, 50], maxZoom: 16 });
+    BookingState.map.fitBounds(L.featureGroup([BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean)).getBounds(), { padding: [50, 50], maxZoom: 16, animate: false });
   } else BookingState.map.setView([lat, lng], 15);
   const status = document.getElementById('relocationDestinationStatus');
   if (status) status.textContent = 'Orange pin marks the new address. Drag it to the exact place if needed.';
@@ -6132,75 +6156,36 @@ function setRelocationDestinationPin(lat, lng) {
   syncLocationContinueAction();
 }
 
-async function searchRelocationDestination() {
-  const item = pendingRelocationQuoteItem();
-  const address = String(document.getElementById('relocationDestinationAddress')?.value || '').trim();
-  const status = document.getElementById('relocationDestinationStatus');
-  if (!item || address.length < 8) {
-    if (status) status.textContent = 'Enter the full new address first.';
-    return;
+let relocationLocationsController = null;
+function relocationLocationController() {
+  if (!relocationLocationsController && window.RelocationBookingLocations && document.getElementById('relocationDestinationAddress')) {
+    relocationLocationsController = window.RelocationBookingLocations.createController({
+      document, fetch: (...args) => fetch(...args),
+      getItem: () => { const item = activeRelocationItem(); return item?.relocation?.requestId ? null : item; },
+      getOrigin: () => BookingState.customerLocation,
+      setPin: setRelocationDestinationPin,
+      setTarget: target => { placingRelocationDestination = target === 'to' && Boolean(pendingRelocationQuoteItem()); },
+      isLocationStep: () => BookingState.currentStep === 3,
+      clearPin: () => {
+        if (BookingState.map) {
+          if (BookingState.relocationDestinationMarker) BookingState.map.removeLayer(BookingState.relocationDestinationMarker);
+          if (BookingState.relocationMoveLine) BookingState.map.removeLayer(BookingState.relocationMoveLine);
+        }
+        BookingState.relocationDestinationMarker = null; BookingState.relocationMoveLine = null;
+      },
+      changed: () => { syncRelocationMapSummary(); scheduleBookingProgressSave(); syncLocationContinueAction(); },
+    });
   }
-  const requestId = ++relocationDestinationRequestToken;
-  if (status) status.textContent = 'Finding the new address on the map...';
-  try {
-    const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(address)}&limit=1`);
-    if (!response.ok) throw new Error('Address search unavailable');
-    const results = await response.json();
-    if (requestId !== relocationDestinationRequestToken || pendingRelocationQuoteItem() !== item || item.relocation.to?.address !== address) return;
-    const point = Array.isArray(results) ? results[0] : null;
-    const lat = Number(point?.lat), lng = Number(point?.lon);
-    if (!isWithinPhilippinesMapBounds(lat, lng)) throw new Error('Address not found');
-    setRelocationDestinationPin(lat, lng);
-  } catch (_) {
-    if (requestId === relocationDestinationRequestToken && status) status.textContent = 'Could not locate this address. Check it or place the orange pin manually.';
-  }
+  return relocationLocationsController;
 }
-
+function searchRelocationDestination() { return relocationLocationController()?.search(); }
 function syncRelocationDestination() {
-  const field = document.getElementById('relocationDestinationAddress');
-  const section = document.getElementById('relocationDestinationSection');
+  relocationLocationController()?.sync();
   const item = pendingRelocationQuoteItem();
-  if (section) section.classList.toggle('d-none', !item);
   document.getElementById('mapInfoPanel')?.classList.toggle('d-none', Boolean(item));
   syncRelocationMapSummary();
-  if (!field) return;
-  if (item) field.value = item.relocation.to?.address || '';
-  const destination = (item || activeRelocationItem())?.relocation?.to;
-  if (isWithinPhilippinesMapBounds(Number(destination?.lat), Number(destination?.lng)) && BookingState.map) {
-    setRelocationDestinationPin(Number(destination.lat), Number(destination.lng));
-  }
-  field.oninput = () => {
-    const current = pendingRelocationQuoteItem();
-    if (!current) return;
-    ++relocationDestinationRequestToken;
-    placingRelocationDestination = false;
-    current.relocation.to = { ...current.relocation.to, address: field.value.trim(), lat: null, lng: null };
-    if (BookingState.relocationDestinationMarker && BookingState.map) BookingState.map.removeLayer(BookingState.relocationDestinationMarker);
-    if (BookingState.relocationMoveLine && BookingState.map) BookingState.map.removeLayer(BookingState.relocationMoveLine);
-    BookingState.relocationDestinationMarker = null;
-    BookingState.relocationMoveLine = null;
-    const status = document.getElementById('relocationDestinationStatus');
-    if (status) status.textContent = 'Show the new address on the map, or place its pin manually.';
-    syncRelocationMapSummary();
-    scheduleBookingProgressSave();
-    syncLocationContinueAction();
-  };
-  field.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); searchRelocationDestination(); } };
-  const search = document.getElementById('relocationDestinationSearch');
-  if (search) search.onclick = searchRelocationDestination;
-  const pin = document.getElementById('relocationDestinationPin');
-  if (pin) pin.onclick = () => {
-    if (field.value.trim().length < 8) {
-      field.focus();
-      const status = document.getElementById('relocationDestinationStatus');
-      if (status) status.textContent = 'Enter the new address before placing its pin.';
-      return;
-    }
-    placingRelocationDestination = true;
-    const status = document.getElementById('relocationDestinationStatus');
-    if (status) status.textContent = 'Click the new location on the map. The orange pin can be dragged afterward.';
-    document.getElementById('technicianMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
+  const destination = activeRelocationItem()?.relocation?.to;
+  if (isWithinPhilippinesMapBounds(Number(destination?.lat), Number(destination?.lng)) && BookingState.map) setRelocationDestinationPin(Number(destination.lat), Number(destination.lng));
 }
 
 function bookingTravelFare() {
@@ -7606,7 +7591,7 @@ async function submitRelocationQuoteRequest() {
   const fromAddress = String(BookingState.customerLocation?.address || '').trim();
   const toAddress = String(item.relocation?.to?.address || '').trim();
   const preferredDate = serializeBookingDate(BookingState.selectedDate || BookingState.scheduleDate);
-  if (fromAddress.length < 8 || toAddress.length < 8 || !preferredDate) {
+  if (fromAddress.length < 8 || toAddress.length < 8 || !preferredDate || !window.RelocationBookingLocations.validPoint(BookingState.customerLocation) || !window.RelocationBookingLocations.validPoint(item.relocation.to)) {
     showError('Confirm the current and new addresses and choose a preferred date.');
     return false;
   }
@@ -7618,8 +7603,8 @@ async function submitRelocationQuoteRequest() {
       body: JSON.stringify({
         serviceId: item.serviceId, scope: 'custom_quote',
         assetId: item.relocation.assetId || null,
-        from: { address: fromAddress, lat: BookingState.customerLocation?.lat, lng: BookingState.customerLocation?.lng },
-        to: { address: toAddress, lat: item.relocation.to?.lat, lng: item.relocation.to?.lng }, preferredDate,
+        from: { address: fromAddress, lat: BookingState.customerLocation?.lat, lng: BookingState.customerLocation?.lng, details: item.relocation.from?.details || '' },
+        to: { address: toAddress, lat: item.relocation.to?.lat, lng: item.relocation.to?.lng, details: item.relocation.to?.details || '' }, preferredDate,
         unit: {
           brand: item.brand === "I don't know" ? '' : (item.brand || ''),
           airconType: item.airconType || '',
@@ -10557,6 +10542,16 @@ function hideModalWithoutBackdrop(modalElement) {
 /**
  * Add service to booking
  */
+function commitCoreAppliance(rows, editingGroupId) {
+  const existing = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId);
+  if (existing.some(item => item.relocation?.scope === 'custom_quote')) throw new Error('Finish or remove the selected relocation before adding another service.');
+  if (rows.some(item => item.relocation?.scope === 'custom_quote') && (existing.length || rows.length !== 1)) throw new Error('A move to another address needs its own quote. Complete or remove other services first.');
+  const next = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId).concat(rows);
+  window.ApplianceServices.unitCount(next);
+  BookingState.selectedServices = next;
+  BookingState.editingServiceId = null;
+  updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
+}
 function addServiceToBooking(service, quantity, hpData = null) {
   bookingDebug('Adding service to booking:', {
     service: service.name,
@@ -10667,6 +10662,9 @@ function advanceToNextStep() {
 }
 
 function getBookingStepIssue(stepNumber) {
+  if (stepNumber === 2 && document.getElementById('core-tab')?.classList.contains('active') && window.CoreApplianceBooking?.pending()) {
+    return { step: 2, title: 'Finish your appliance setup', message: 'Finish adding this appliance or cancel your changes before continuing.', focusSelector: '#coreApplianceBuilder [data-panel]:not([hidden]) h3' };
+  }
   if (stepNumber === 1) {
     const stepper = document.getElementById('entStepper');
     if (!stepper || stepper.dataset.authenticated !== 'true') {
@@ -11121,6 +11119,8 @@ function navigateServiceGuide(destination) {
     if (document.getElementById('repair-tab')?.classList.contains('active')) {
       return goToRepairGuideStep(typeof getRepairGuideStep === 'function' ? getRepairGuideStep() : 1);
     }
+    const details = document.querySelector('#coreApplianceBuilder [name="brand"]');
+    if (details) { toggleBookingSummary(false); details.scrollIntoView({ behavior: 'smooth', block: 'center' }); details.focus({ preventScroll: true }); return; }
     if (!BookingState.selectedServices.length) {
       showBookingToast('Choose a service first, then add its details.', 'remove');
       return focusServiceCatalog();
@@ -11148,7 +11148,7 @@ function updateBookingCartChrome() {
   if (countCopy) countCopy.textContent = count === 0
     ? 'No service selected'
     : (needsQuote ? 'Continue to the locations and preferred date for staff review.' : 'Check the details and estimated price before you continue.');
-  if (mobileCount) mobileCount.textContent = `${count} ${count === 1 ? 'service' : 'services'} selected`;
+  if (mobileCount) mobileCount.textContent = `${selectedUnitTotal()} appliances / ${count} services`;
   if (mobileTotal) mobileTotal.textContent = needsQuote ? 'Custom quote' : formatBookingPrice(total);
   syncBookingActionBarLayer();
   if (reviewButton) {
@@ -11277,6 +11277,7 @@ document.addEventListener('keydown', event => {
 
 function focusServiceCatalog() {
   toggleBookingSummary(false);
+  if (document.getElementById('core-tab')?.classList.contains('active')) window.CoreApplianceBooking?.start();
   const tabs = document.getElementById('serviceTabs');
   const catalog = document.getElementById('serviceCatalogPanel');
   const activeTab = tabs?.querySelector('.nav-link.active') || document.getElementById('core-tab');
@@ -11295,13 +11296,18 @@ function openSelectedServiceSummary(event) {
   bookingSummaryReturnFocus = event?.currentTarget || (
     window.matchMedia('(max-width: 991.98px)').matches
       ? document.getElementById('mobileBookingSummaryButton')
-      : document.getElementById('serviceGuideReview')
+      : document.querySelector('#coreApplianceBuilder .cab-progress .is-active') || document.getElementById('serviceGuideReview')
   );
   toggleBookingSummary(true);
 }
 window.openSelectedServiceSummary = openSelectedServiceSummary;
 
 function editSelectedService(index) {
+  const grouped = BookingState.selectedServices[index];
+  if (grouped?.applianceGroupId && window.CoreApplianceBooking) {
+    toggleBookingSummary(false); document.getElementById("core-tab")?.click();
+    window.CoreApplianceBooking.edit(grouped.applianceGroupId); return;
+  }
   const item = BookingState.selectedServices[index];
   if (!item) return;
   toggleBookingSummary(false);
@@ -11321,6 +11327,7 @@ window.editSelectedService = editSelectedService;
 
 function updateSelectedServicesDisplay() {
   reconcileBookingScheduleAfterServiceChange();
+  window.CoreApplianceBooking?.sync();
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
   syncRelocationDestination();
 
@@ -11354,7 +11361,8 @@ function updateSelectedServicesDisplay() {
         if (service.problemDescription || service.repairIssue) details.push(esc(service.problemDescription || service.repairIssue));
         if (service.photos?.length) details.push(`${service.photos.length} ${service.photos.length === 1 ? 'photo' : 'photos'}`);
       } else {
-        if (service.airconTypeName) details.push(esc(service.airconTypeName));
+        if (service.applianceGroupId) details.push(esc(service.brand), esc(service.model), esc(service.applianceTypeName));
+        else if (service.airconTypeName) details.push(esc(service.airconTypeName));
         if (service.hp) details.push(`${service.hp} HP`);
       }
       details.push(`${service.quantity} ${getServiceUnitText(service)}`);
@@ -11378,7 +11386,7 @@ function updateSelectedServicesDisplay() {
           <div class="selected-service-price"><span>${move?.scope === 'custom_quote' ? (move.requestId ? 'Approved quote' : 'Staff review') : 'Estimate'}</span><strong>${move?.scope === 'custom_quote' && !move.requestId ? 'Custom quote' : formatBookingPrice(service.totalPrice)}</strong></div>
         </div>
         <div class="selected-service-actions">
-          ${move?.scope === 'custom_quote' ? (move.requestId ? '<a class="selected-service-edit" href="/relocation-requests"><i class="bi bi-file-text" aria-hidden="true"></i> View quote</a>' : '') : `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>`}
+          ${move?.scope === 'custom_quote' ? (move.requestId ? '<a class="selected-service-edit" href="/relocation-requests"><i class="bi bi-file-text" aria-hidden="true"></i> View quote</a>' : service.applianceGroupId ? `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}">Change</button>` : '') : `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>`}
           <button type="button" class="remove-service-btn" data-service-id="${service.id}" aria-label="Remove ${esc(service.name)}">
             <i class="bi bi-trash3" aria-hidden="true"></i> Remove
           </button>
@@ -12045,17 +12053,13 @@ async function renderManualCalendar() {
     try {
       // Calculate total duration for backend query
       // Each service's contribution = duration × quantity
-      const serviceDuration = BookingState.selectedServices?.reduce((total, service) => {
-        return total + ((service.duration || 60) * (service.quantity || 1));
-      }, 0) || 60;
+      const serviceDuration = selectedServiceMinutes() || 60;
       const travelDuration = BookingState.travelDuration || 30;
       const totalDuration = serviceDuration + travelDuration;
       const totalEstimatedMinutes = serviceDuration; // quantity × per-unit duration (excludes travel)
 
       // Calculate total quantity across all selected services
-      const totalQuantity = BookingState.selectedServices?.reduce((total, service) => {
-        return total + (service.quantity || 1);
-      }, 0) || 1;
+      const totalQuantity = selectedUnitTotal() || 1;
 
       // Initialize enterprise calendar with per-unit duration and total quantity
       // Backend will calculate: capacityPerSlot = (duration × quantity) + travelTime + bufferTime
@@ -13048,6 +13052,7 @@ function bookingRewardSelection() {
   return { services: (BookingState.selectedServices || []).map(service => ({
     serviceId: service.serviceId || service._id, type: isRepairBookingService(service) ? 'repair' : 'core',
     quantity: service.quantity || 1, hp: service.hp, airconType: service.airconType,
+    applianceGroupId: service.applianceGroupId, applianceKind: service.applianceKind, model: service.model,
     brand: service.brand, relocation: service.relocation, assistanceRequestId: service.assistanceRequestId
   })), isProject: bookingRequiresProjectSchedule() };
 }
@@ -14120,6 +14125,7 @@ async function prepareBookingData() {
       const svc = {
         serviceId: service.serviceId || service._id || null,
         assistanceRequestId: service.assistanceRequestId || null,
+        applianceGroupId: service.applianceGroupId, applianceKind: service.applianceKind,
         name: service.name,
         type: isRepairBookingService(service) ? 'repair' : 'core',
         quantity: service.quantity || 1,
@@ -14138,6 +14144,7 @@ async function prepareBookingData() {
         isAirconService: service.isAirconService,
         repairIssue: service.repairIssue || service.problemDescription || null,
         problemDescription: service.problemDescription || service.repairIssue || null,
+        units: isRepairBookingService(service) ? service.units : undefined,
         unitType: service.unitType || null,
         unitCategory: service.unitCategory || null,
         initialCost: isRepairBookingService(service) ? (service.unitPrice ?? service.price ?? 0) : undefined
@@ -14214,18 +14221,19 @@ async function prepareBookingData() {
     bookingData.bookingDate = formatDateKey(new Date(ps.preferredStartDate || ps.date));
     bookingData.startTime = undefined;
     bookingData.selectedTimeLabel = undefined;
-    const serviceDuration = BookingState.selectedServices?.reduce((t, s) => t + ((s.duration || 60) * (s.quantity || 1)), 0) || 0;
+    const serviceDuration = selectedServiceMinutes();
     bookingData.projectScheduling = {
       preferredStartDate: formatDateKey(new Date(ps.preferredStartDate || ps.date)),
       preferredWorkingDays: (ps.preferences && ps.preferences.workingDays) || [],
       preferredWorkingHours: ps.preferences ? { start: ps.preferences.preferredWorkingHours || 'morning', end: '' } : undefined,
-      preferredCompletionDeadline: ps.preferences && ps.preferences.completionDeadline ? formatDateKey(new Date(ps.preferences.completionDeadline)) : undefined,
+      preferredCompletionDeadline: (ps.endDate || ps.preferredCompletionDeadline || ps.preferences?.completionDeadline)
+        ? formatDateKey(new Date(ps.endDate || ps.preferredCompletionDeadline || ps.preferences.completionDeadline)) : undefined,
       estimatedTotalHours: Math.round((serviceDuration / 60) * 10) / 10
     };
     // Project-level unit count (drives totalUnits on the admin project).
     // Default to the customer's actual selected service quantities so the
     // per-service quantity entered in the UI is never lost.
-    const customerQtySum = BookingState.selectedServices?.reduce((t, s) => t + (Number(s.quantity) || 1), 0) || 0;
+    const customerQtySum = selectedUnitTotal();
     bookingData.quantity = customerQtySum > 0 ? customerQtySum : 1;
   }
 
@@ -14283,8 +14291,9 @@ function showBookingSuccessModal(result) {
   if (breakdown && BookingState.selectedServices && BookingState.selectedServices.length) {
     const fmt = (n) => `₱${Number(n || 0).toLocaleString()}`;
     const rows = BookingState.selectedServices.map((s, i) => {
-      const brand = s.brand ? s.brand : '—';
-      const type = s.applianceTypeName || s.unitType || (s.applianceType ? s.applianceType : '—');
+      const escapeReceipt = value => String(value || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[c]));
+      const brand = s.brand ? escapeReceipt(s.brand) : '—';
+      const type = escapeReceipt(s.applianceTypeName || s.unitType || s.applianceType) || (s.applianceType ? escapeReceipt(s.applianceType) : '—');
       const qty = s.quantity || 1;
       const isRepair = isRepairBookingService(s);
       const badge = isRepair
@@ -14293,15 +14302,15 @@ function showBookingSuccessModal(result) {
       const unit = s.totalPrice ? fmt(s.totalPrice / qty) : fmt(s.totalPrice || 0);
       const durMin = (s.duration || 60) * qty;
       const durH = durMin >= 60 ? `${(durMin / 60).toFixed(1)} hr` : `${durMin} min`;
-      const modelLine = s.model ? `<div><i class="bi bi-upc me-1 text-primary"></i><strong>Model:</strong> ${s.model}</div>` : '';
+      const modelLine = s.model ? `<div><i class="bi bi-upc me-1 text-primary"></i><strong>Model:</strong> ${escapeReceipt(s.model)}</div>` : '';
       const issue = s.problemDescription || s.repairIssue;
-      const issueLine = issue ? `<div style="color:#d97706;margin-top:4px;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${issue}</div>` : '';
+      const issueLine = issue ? `<div style="color:#d97706;margin-top:4px;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${escapeReceipt(issue)}</div>` : '';
       return `
         <div class="receipt-svc-item border rounded p-2 mb-2" style="background:#f8fafc;">
           <div class="d-flex justify-content-between align-items-center">
             <div style="display:flex;align-items:center;gap:6px;">
               ${badge}
-              <span class="fw-semibold" style="font-size:0.9rem;color:#0f172a;">${s.name}</span>
+              <span class="fw-semibold" style="font-size:0.9rem;color:#0f172a;">${escapeReceipt(s.name)}</span>
             </div>
             <span class="fw-bold" style="color:#059669;">${fmt(s.totalPrice || 0)}</span>
           </div>
@@ -15100,6 +15109,7 @@ function addCurrentRepairItem() {
     unitType: item.unitType,
     unitCategory: item.unitCategory,
     problemDescription: item.problemDescription,
+    units: window.readRepairUnitDetails ? window.readRepairUnitDetails(item.quantity, item.problemDescription) : [],
     photos: [...repairPhotos],
   };
 
@@ -15109,6 +15119,7 @@ function addCurrentRepairItem() {
   updateContinueButtonState();
   saveBookingProgress();
   resetRepairForm();
+  window.setRepairUnitDetails?.(null);
   showServiceAddedConfirmation('Repair Request');
 }
 window.addCurrentRepairItem = addCurrentRepairItem;
@@ -15148,6 +15159,7 @@ function editRepairItem(index) {
   if (modelEl) modelEl.value = item.model || '';
   if (problemEl) problemEl.value = item.problemDescription || '';
   if (qtyEl) qtyEl.value = item.quantity || 1;
+  window.setRepairUnitDetails?.(item);
   // Restore photos from the item being edited
   repairPhotos = item.photos ? [...item.photos] : [];
   renderRepairPhotoPreview();

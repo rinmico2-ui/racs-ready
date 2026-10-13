@@ -31,7 +31,7 @@ test("technician notification count covers the full inbox, not just the latest 3
     const handler = router.stack.find(layer => layer.route?.path === "/notifications").route.stack[0].handle;
     let response;
     await handler({ user: { _id: "my-user" } }, { json(value) { response = value; } }, error => { throw error; });
-    const inbox = { $or: [{ userId: "my-user" }, { userId: null, role: "technician" }] };
+    const inbox = { userId: "my-user" };
     assert.deepEqual(filters[0], inbox);
     assert.deepEqual(filters[1], { ...inbox, read: { $ne: true } });
     assert.equal(response.unread, 47);

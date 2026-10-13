@@ -28,7 +28,7 @@ test("admin sidebar uses a compact semantic navigation hierarchy", async () => {
   for (const section of ["Workspace", "Operations", "Administration"]) {
     assert.match(html, new RegExp(`class="section-label">${section}<`));
   }
-  for (const group of ["Work", "Service Catalog", "Inventory", "People", "Finance", "Analytics", "System"]) {
+  for (const group of ["Work", "Service Catalog", "Inventory", "People", "Finance", "Reports and Ratings", "System"]) {
     assert.match(html, new RegExp(`<span class="nav-label">${group}</span>`));
   }
   assert.match(html, /data-admin-sidebar-close/);
@@ -82,8 +82,8 @@ test("admin sidebar scripts and mobile controls remain valid", async () => {
   assert.match(mobileCss, /body\.admin-layout\.admin-nav-open/);
   assert.match(layout, /\/css\/sidebaradmin\.css\?v=20260927-modern-nav/);
   assert.match(mobileCss, /#sidebarToggle\.admin-menu-trigger\s*\{\s*display:\s*none\s*!important/);
-  assert.match(layout, /\/css\/admin-mobile-navigation\.css\?v=20260928-2/);
+  assert.match(layout, /\/css\/admin-mobile-navigation\.css\?v=20261013-mobile-close/);
   assert.match(layout, /id="adminSidebarBackdrop"/);
-  assert.match(layout, /\/js\/admin\.js\?v=20260928-mobile-drawer/);
+  assert.match(layout, /\/js\/admin\.js\?v=20261013-mobile-close/);
 });
 

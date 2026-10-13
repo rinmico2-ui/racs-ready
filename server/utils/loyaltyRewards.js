@@ -149,7 +149,7 @@ function assertQuote(token, customerId, channel, lines, reward, excluded) {
 }
 
 async function serviceLines(selections) {
-  if (!Array.isArray(selections) || !selections.length || selections.length > 40) throw error('Select valid services to check the loyalty price.');
+  if (!Array.isArray(selections) || !selections.length || selections.length > 320) throw error('Select valid services to check the loyalty price.');
   const lines = [];
   for (const selection of selections) {
     if (selection.type === 'repair' || selection.relocation?.scope === 'custom_quote' || selection.assistanceRequestId) {

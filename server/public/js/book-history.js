@@ -1085,6 +1085,9 @@
     if (serviceItemsHtml) {
       html += serviceItemsHtml;
     }
+    if (b.serviceType === 'repair' || b.serviceType === 'mixed' || (b.services || []).some(item => item.type === 'repair')) {
+      html += `<div class="bh-actions-bar"><button class="bh-btn bh-btn--success" onclick="openRepairUnits('booking','${escapeHtml(b._id)}')">Appliance repairs and prices</button></div>`;
+    }
   
     html += paymentHtml;
   
@@ -1169,6 +1172,7 @@
     }
   }
 
+  window.addEventListener('repair-units:updated', () => fetchBookings());
   function applyFilters() {
     page = 0;
     void fetchBookings();
@@ -1209,7 +1213,7 @@
       const rows = (state.services || []).map(item => ({ ...item }));
       const initialServicesSnapshot = JSON.stringify(rows);
       const maxBookingUnits = 40;
-      const selectedUnits = () => rows.reduce((sum, row) => sum + (Number(row.quantity) || 1), 0);
+      const selectedUnits = () => window.ApplianceServices.unitCount(rows);
       const remainingUnits = () => Math.max(0, maxBookingUnits - selectedUnits());
       const maxQuantityFor = index => maxBookingUnits - selectedUnits() + (Number(rows[index]?.quantity) || 0);
       const unitLimitMessage = `A booking can contain at most ${maxBookingUnits} units across all services.`;
@@ -1578,7 +1582,7 @@
             const previousQuantity = Math.max(1, Math.min(40, Number(row.quantity) || 1));
             const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
             const delta = button.classList.contains('bh-item-qty-plus') ? 1 : -1;
-            row.quantity = Math.max(1, Math.min(maxQuantityFor(index), previousQuantity + delta));
+            window.ApplianceServices.setQuantity(rows, index, Math.max(1, Math.min(maxQuantityFor(index), previousQuantity + delta)));
             if (unitPrice) {
               row.unitPrice = unitPrice;
               row.totalPrice = unitPrice * row.quantity;
@@ -1596,7 +1600,7 @@
             if (!raw && !normalize) return;
             const quantity = Math.max(1, Math.min(maxQuantityFor(index), Math.trunc(Number(raw)) || previousQuantity));
             const unitPrice = Number(row.unitPrice) || (Number(row.totalPrice) / previousQuantity) || 0;
-            row.quantity = quantity;
+            window.ApplianceServices.setQuantity(rows, index, quantity);
             if (unitPrice) {
               row.unitPrice = unitPrice;
               row.totalPrice = unitPrice * quantity;
@@ -1615,6 +1619,17 @@
               const otherPlus = otherInput.closest('.bh-editor-stepper')?.querySelector('.bh-item-qty-plus');
               if (otherPlus) otherPlus.disabled = Number(rows[otherIndex]?.quantity) >= maxQuantityFor(otherIndex);
             });
+            if (row.applianceGroupId) {
+              itemsHost.querySelectorAll('.bh-item-qty-input').forEach(otherInput => {
+                const other = rows[Number(otherInput.dataset.index)];
+                if (other?.applianceGroupId !== row.applianceGroupId) return;
+                otherInput.value = String(quantity);
+                const amount = otherInput.closest('.bh-editor-cart-item')?.querySelector('.bh-editor-item-price strong');
+                if (amount) amount.textContent = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(other.totalPrice);
+                const minus = otherInput.closest('.bh-editor-stepper')?.querySelector('.bh-item-qty-minus');
+                if (minus) minus.disabled = quantity <= 1;
+              });
+            }
             updateServiceCount();
             syncRepairQuantity(true);
           };
@@ -2348,6 +2363,7 @@
               const services = rows.map(row => ({
                 _id: row._id, type: row.type,
                 serviceId: row.serviceId, name: row.name || "",
+                applianceGroupId: row.applianceGroupId, applianceKind: row.applianceKind,
                 quantity: Number(row.quantity || 1),
                 brand: row.brand || "", model: row.model || "",
                 problemDescription: row.problemDescription || row.repairIssue || "",

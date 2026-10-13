@@ -89,16 +89,16 @@
 
       <li class="nav-item nav-group<%= inventoryGroupOpen ? ' expanded' : '' %>">
         <button class="btn btn-toggle nav-link<%= inventoryGroupOpen ? ' active' : ' collapsed' %>" type="button" data-bs-toggle="collapse" data-bs-target="#inventory-collapse" aria-controls="inventory-collapse" aria-expanded="<%= inventoryGroupOpen ? 'true' : 'false' %>">
-          <i class="bi bi-box-seam nav-icon"></i><span class="nav-label">Inventory</span><span id="equipmentReturnsBadge" class="nav-badge badge bg-danger" style="display:none;">0</span><i class="bi bi-chevron-down nav-chevron"></i>
+          <i class="bi bi-box-seam nav-icon"></i><span class="nav-label">Inventory</span><span id="inventoryGroupBadge" class="nav-badge badge bg-danger" style="display:none;">0</span><i class="bi bi-chevron-down nav-chevron"></i>
         </button>
         <div class="collapse<%= inventoryGroupOpen ? ' show' : '' %>" id="inventory-collapse" data-default-open="<%= inventoryGroupOpen ? 'true' : 'false' %>">
           <ul class="btn-toggle-nav list-unstyled">
-            <li><a href="/admin/inventory/pos" class="nav-link nav-link-featured"><i class="bi bi-shop nav-icon"></i><span class="nav-label">Point of Sale</span></a></li>
-            <li><a href="/admin/inventory" class="nav-link"><i class="bi bi-list-check nav-icon"></i><span class="nav-label">Aircons</span></a></li>
-            <li><a href="/admin/inventory/repair-parts" class="nav-link"><i class="bi bi-boxes nav-icon"></i><span class="nav-label">Repair Parts</span></a></li>
-            <li><a href="/admin/inventory/technician-tools" class="nav-link"><i class="bi bi-briefcase nav-icon"></i><span class="nav-label">Technician Tools</span></a></li>
-            <li><a href="/admin/inventory/equipment-returns" class="nav-link"><i class="bi bi-arrow-return-left nav-icon"></i><span class="nav-label">Equipment Returns</span></a></li>
-            <li><a href="/admin/inventory/history" class="nav-link"><i class="bi bi-clock-history nav-icon"></i><span class="nav-label">Stock History</span></a></li>
+            <li><a href="/admin/inventory/pos" class="nav-link nav-link-featured"><i class="bi bi-shop nav-icon"></i><span class="nav-label">Point of Sale</span><span id="inventoryPosBadge" class="nav-badge badge bg-primary" style="display:none;" title="Today's sales at the counter (Philippine time)">0</span></a></li>
+            <li><a href="/admin/inventory" class="nav-link"><i class="bi bi-list-check nav-icon"></i><span class="nav-label">Aircons</span><span id="inventoryAirconsBadge" data-inventory-attention class="nav-badge badge bg-danger" style="display:none;" title="Aircon HP options with low or empty stock">0</span></a></li>
+            <li><a href="/admin/inventory/repair-parts" class="nav-link"><i class="bi bi-boxes nav-icon"></i><span class="nav-label">Repair Parts</span><span id="inventoryPartsBadge" data-inventory-attention class="nav-badge badge bg-danger" style="display:none;" title="Catalog items with low or empty stock">0</span></a></li>
+            <li><a href="/admin/inventory/technician-tools" class="nav-link"><i class="bi bi-briefcase nav-icon"></i><span class="nav-label">Technician Tools</span><span id="inventoryKitsBadge" data-inventory-attention class="nav-badge badge bg-danger" style="display:none;" title="Today's Daily Kits needing attention (Philippine time)">0</span></a></li>
+            <li><a href="/admin/inventory/equipment-returns" class="nav-link"><i class="bi bi-arrow-return-left nav-icon"></i><span class="nav-label">Equipment Returns</span><span id="equipmentReturnsBadge" data-inventory-attention class="nav-badge badge bg-danger" style="display:none;" title="Overdue equipment returns">0</span></a></li>
+            <li><a href="/admin/inventory/history" class="nav-link"><i class="bi bi-clock-history nav-icon"></i><span class="nav-label">Stock History</span><span id="inventoryHistoryBadge" class="nav-badge badge bg-primary" style="display:none;" title="Today's stock changes (Philippine time)">0</span></a></li>
           </ul>
         </div>
       </li>
@@ -188,6 +188,7 @@
     function setSidebarBadge(id, value, title) {
       const badge = document.getElementById(id);
       if (!badge) return;
+      if (!badge.dataset.countTitle && badge.title) badge.dataset.countTitle = badge.title;
       const number = Number(value);
       const count = Number.isFinite(number) ? Math.max(0, Math.floor(number)) : 0;
       badge.dataset.count = String(count);
@@ -208,10 +209,11 @@
       const stale = children.some(badge => badge.dataset.countStale === 'true');
       const total = children.reduce((sum, badge) => sum + (Number(badge.dataset.count) || 0), 0);
       const detail = label === 'Work' ? '; queues may overlap' : '';
+      const description = label === 'Inventory' ? 'Total needing attention under Inventory' : `Total of the counts shown under ${label}`;
       setSidebarBadge(id, total, unavailable
-        ? `Total of the counts shown under ${label}; some counts temporarily unavailable${detail}`
-        : stale ? `Last known total of the counts shown under ${label}; update temporarily unavailable${detail}`
-          : `Total of the counts shown under ${label}${detail}`);
+        ? `${description}; some counts temporarily unavailable${detail}`
+        : stale ? `Last known ${description.toLowerCase()}; update temporarily unavailable${detail}`
+          : `${description}${detail}`);
       const group = document.getElementById(id);
       if (group) {
         group.dataset.countUnavailable = String(unavailable || stale);
@@ -225,6 +227,10 @@
 
     function updateWorkGroupBadge() {
       updateSidebarGroupBadge('pendingReviewCount', '#appointment-mgmt-collapse a.nav-link .nav-badge', 'Work');
+    }
+
+    function updateInventoryGroupBadge() {
+      updateSidebarGroupBadge('inventoryGroupBadge', '#inventory-collapse [data-inventory-attention]', 'Inventory');
     }
 
     function markSidebarBadgeUnavailable(id) {
@@ -279,9 +285,14 @@
         if (repairScheduling) setSidebarBadge('repairSchedBadge', repairScheduling.pendingScheduling);
         const returns = summary.returns;
         if (returns) {
-          setSidebarBadge('equipmentReturnsBadge', returns.overdue);
-          setSidebarBadge('equipmentReturnsDashboardBadge', returns.overdue);
+          setSidebarBadge('equipmentReturnsBadge', returns.actionable ?? returns.overdue, 'Overdue equipment or kit returns awaiting admin review');
+          setSidebarBadge('equipmentReturnsDashboardBadge', returns.actionable ?? returns.overdue);
         }
+        const inventory = summary.inventory || {};
+        Object.entries({ aircons: 'inventoryAirconsBadge', parts: 'inventoryPartsBadge', kits: 'inventoryKitsBadge',
+          salesToday: 'inventoryPosBadge', changesToday: 'inventoryHistoryBadge' }).forEach(([key, id]) => {
+          if (Number.isFinite(inventory[key])) setSidebarBadge(id, inventory[key]);
+        });
         const failedSources = new Set(summary.failedSources || []);
         const staleSources = new Set(summary.staleSources || []);
         const sourceBadges = {
@@ -290,6 +301,8 @@
           orders: ['ordersBadge'], projects: ['projectsBadge'],
           returns: ['equipmentReturnsBadge', 'equipmentReturnsDashboardBadge'],
           maintenance: ['maintenanceBadge'],
+          inventoryAircons: ['inventoryAirconsBadge'], inventoryParts: ['inventoryPartsBadge'],
+          inventoryKits: ['inventoryKitsBadge'], inventorySales: ['inventoryPosBadge'], inventoryHistory: ['inventoryHistoryBadge'],
         };
         Object.entries(sourceBadges).forEach(([source, ids]) => ids.forEach(id => {
           const badge = document.getElementById(id);
@@ -308,6 +321,7 @@
         }));
         updateSystemGroupBadge();
         updateWorkGroupBadge();
+        updateInventoryGroupBadge();
         if (summary.degraded) console.warn('Some navigation counts are temporarily unavailable:', summary.failedSources.join(', '));
         // Keep the exact warranty/case policies, but defer their heavier reads
         // so they do not compete with the first list/modal response.
@@ -322,6 +336,9 @@
         updateSystemGroupBadge();
         ['appointmentsBadge', 'escalatedBadge', 'repairSchedBadge', 'expensesBadge', 'ordersBadge', 'projectsBadge', 'maintenanceBadge'].forEach(markSidebarBadgeUnavailable);
         updateWorkGroupBadge();
+        ['inventoryAirconsBadge', 'inventoryPartsBadge', 'inventoryKitsBadge', 'inventoryPosBadge', 'inventoryHistoryBadge',
+          'equipmentReturnsBadge', 'equipmentReturnsDashboardBadge'].forEach(markSidebarBadgeUnavailable);
+        updateInventoryGroupBadge();
         console.warn('Navigation summary unavailable:', error.message);
       } finally {
         sidebarBadgeRefreshRunning = false;
@@ -354,9 +371,22 @@
 
     document.addEventListener('DOMContentLoaded', function () {
       window.addEventListener('resolution:counts', event => setResolutionSidebarCount(event.detail));
+      window.addEventListener('inventory:changed', scheduleSidebarRefresh);
+      window.addEventListener('notification:new', scheduleSidebarRefresh);
       updateSidebarBadges();
       window.setInterval(updateSidebarBadges, 60000);
       document.addEventListener('visibilitychange', function () { if (!document.hidden) updateSidebarBadges(); });
     });
+    let sidebarRefreshTimer = null;
+    function scheduleSidebarRefresh() {
+      if (sidebarRefreshTimer) window.clearTimeout(sidebarRefreshTimer);
+      sidebarRefreshTimer = window.setTimeout(async function refreshAfterAction() {
+        sidebarRefreshTimer = null;
+        if (document.hidden) return;
+        // A save during a count request needs a fresh read after that request.
+        if (sidebarBadgeRefreshRunning) { scheduleSidebarRefresh(); return; }
+        await updateSidebarBadges();
+      }, 400);
+    }
   })();
 </script>

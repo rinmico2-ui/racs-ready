@@ -7,32 +7,77 @@ const vm = require('node:vm');
 const sidebar = path.join(__dirname, '../views/partials/admin-sidebar.ejs');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-async function fixture() {
-  const html = await ejs.renderFile(sidebar, { currentPath: '/admin/settings/system', user: { role: 'admin' } });
+async function fixture(currentPath = '/admin/settings/system') {
+  const html = await ejs.renderFile(sidebar, { currentPath, user: { role: 'admin' } });
   const elements = new Map();
   for (const match of html.matchAll(/<span[^>]*id="([^"]+)"[^>]*>/g)) elements.set(match[1], {
-    dataset: {}, style: { display: 'none' }, textContent: '', title: '', removeAttribute(name) { delete this[name]; },
+    dataset: {}, style: { display: 'none' }, textContent: '', title: /title="([^"]*)"/.exec(match[0])?.[1] || '', removeAttribute(name) { delete this[name]; },
   });
   const children = [elements.get('auditTodayBadge')];
   const handlers = {};
+  const windowHandlers = {}, timers = new Map();
+  let timerId = 0;
   let summary = { counts: { pendingBookings: 99, assignmentQueue: 3, activeJobs: 2, auditToday: 7 } }, fail = false, refresh;
   const context = {
     document: { hidden: false, getElementById: id => elements.get(id),
       querySelectorAll: selector => {
+        if (selector === '#inventory-collapse [data-inventory-attention]') return ['inventoryAirconsBadge', 'inventoryPartsBadge', 'inventoryKitsBadge', 'equipmentReturnsBadge'].map(id => elements.get(id));
         if (selector === '#appointment-mgmt-collapse a.nav-link .nav-badge') return ['appointmentsBadge', 'ordersBadge', 'repairSchedBadge', 'expensesBadge', 'projectsBadge', 'attentionBadge', 'escalatedBadge', 'warrantyBadge', 'maintenanceBadge'].map(id => elements.get(id));
         assert.equal(selector, '#settings-collapse a.nav-link .nav-badge'); return children;
       },
       addEventListener: (name, handler) => { handlers[name] = handler; } },
-    window: { location: { pathname: '/admin/settings/system' }, addEventListener() {},
-      setInterval(fn) { refresh = fn; }, setTimeout() { return 1; } },
+    window: { location: { pathname: currentPath }, addEventListener(name, handler) { windowHandlers[name] = handler; },
+      setInterval(fn) { refresh = fn; }, setTimeout(fn, ms) { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout(id) { timers.delete(id); } },
     console: { warn() {} },
     fetch: async url => { assert.equal(url, '/api/admin/navigation-summary'); if (fail) throw new Error('Network unavailable'); return { ok: true, json: async () => summary }; },
   };
   vm.runInNewContext([...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(match => match[1]).join('\n'), context);
   handlers.DOMContentLoaded();
   await tick();
-  return { html, elements, children, async update(data, networkFailure = false) { summary = data; fail = networkFailure; await refresh(); }, handlers };
+  return { html, elements, children, timers, windowHandlers, async update(data, networkFailure = false) { summary = data; fail = networkFailure; await refresh(); }, handlers };
 }
+
+test('all six inventory pages show their own counts; the parent totals only attention counts', async () => {
+  for (const suffix of ['', '/pos', '/repair-parts', '/technician-tools', '/equipment-returns', '/history']) {
+    const f = await fixture('/admin/inventory' + suffix);
+    assert.match(f.html, /class="collapse show" id="inventory-collapse"/);
+    await f.update({ inventory: { aircons: 2, parts: 3, kits: 4, salesToday: 15, changesToday: 25 }, returns: { overdue: 5 } });
+    for (const [id, count] of [['inventoryAirconsBadge', 2], ['inventoryPartsBadge', 3], ['inventoryKitsBadge', 4], ['inventoryPosBadge', 15], ['inventoryHistoryBadge', 25], ['equipmentReturnsBadge', 5]]) {
+      assert.equal(f.elements.get(id).textContent, String(count));
+      assert.equal((f.html.match(new RegExp('id="' + id + '"', 'g')) || []).length, 1);
+      assert.ok(f.elements.get(id).title);
+    }
+    assert.equal(f.elements.get('inventoryGroupBadge').textContent, '14');
+    await f.update({ inventory: { aircons: 0, parts: 0, kits: 0, salesToday: 0, changesToday: 0 }, returns: { overdue: 0 } });
+    assert.equal(f.elements.get('inventoryGroupBadge').style.display, 'none');
+    assert.equal(f.elements.get('equipmentReturnsBadge').style.display, 'none');
+  }
+});
+
+test('inventory failures preserve a labelled stale count and recovery clears it', async () => {
+  const f = await fixture('/admin/inventory');
+  await f.update({ inventory: { aircons: 6, parts: 2, kits: 0, salesToday: 0, changesToday: 0 }, returns: { overdue: 1 } });
+  await f.update(null, true);
+  assert.equal(f.elements.get('inventoryAirconsBadge').textContent, '6');
+  assert.match(f.elements.get('inventoryGroupBadge').title, /Last known/);
+  await f.update({ inventory: { parts: 2 }, failedSources: ['inventoryAircons'], staleSources: [] });
+  assert.equal(f.elements.get('inventoryAirconsBadge').style.display, 'none');
+  assert.match(f.elements.get('inventoryGroupBadge').title, /unavailable/);
+  await f.update({ inventory: { aircons: 4, parts: 2, kits: 0, salesToday: 0, changesToday: 0 }, returns: { overdue: 0 } });
+  assert.equal(f.elements.get('inventoryGroupBadge').textContent, '6');
+  assert.equal(f.elements.get('inventoryAirconsBadge').title, 'Aircon HP options with low or empty stock');
+  assert.equal(f.elements.get('inventoryAirconsBadge').dataset.countUnavailable, undefined);
+});
+
+test('rapid inventory saves coalesce into a single refresh', async () => {
+  const f = await fixture('/admin/inventory/pos');
+  f.windowHandlers['inventory:changed']();
+  f.windowHandlers['inventory:changed']();
+  f.windowHandlers['inventory:changed']();
+  const actionTimers = [...f.timers.values()].filter(timer => timer.ms === 400);
+  assert.equal(actionTimers.length, 1);
+  await actionTimers[0].fn();
+});
 
 test('Audit Trail owns the audit count and System sums only its child badges', async () => {
   const f = await fixture();
@@ -83,7 +128,8 @@ test('all Configuration and Governance routes open the System group', async () =
 test('audit activity uses the Philippine day and never reuses yesterday’s count after midnight', async t => {
   const Booking = require('../models/BookingService');
   t.mock.method(Booking, 'aggregate', async () => []);
-  for (const model of ['Expense', 'LeaveRequest', 'Order', 'Project', 'EquipmentAssignment']) t.mock.method(require('../models/' + model), 'countDocuments', async () => 0);
+  for (const model of ['Expense', 'LeaveRequest', 'Order', 'Project', 'EquipmentAssignment', 'Tool', 'DailyKit', 'WalkInSale', 'StockAdjustment', 'KitReturn']) t.mock.method(require('../models/' + model), 'countDocuments', async () => 0);
+  t.mock.method(require('../models/HVACProduct'), 'aggregate', async () => []);
   t.mock.method(require('../utils/maintenanceSummary'), 'maintenanceSummary', async () => ({ actionable: 0 }));
   let fail = false;
   t.mock.method(require('../models/ActivityLog'), 'countDocuments', async filter => {

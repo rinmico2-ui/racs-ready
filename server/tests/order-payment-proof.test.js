@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { Writable, PassThrough } = require("node:stream");
+const { Writable, PassThrough, Readable } = require("node:stream");
 const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const storage = require("../utils/paymentProofStorage");
@@ -14,7 +14,7 @@ const handler = route.stack.at(-1).handle;
 const id = "507f1f77bcf86cd799439011";
 function response() {
   return { statusCode: 200, headers: {}, status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; }, set(headers) { Object.assign(this.headers, headers); return this; } };
+    json(body) { this.body = body; return this; }, set(headers) { Object.assign(this.headers, headers); return this; }, on() {} };
 }
 function mockOrder(t, value) {
   t.mock.method(Order, "findById", requestedId => {
@@ -96,5 +96,20 @@ test("receipt upload stores bytes and order metadata before removing its tempora
   assert.deepEqual(Buffer.concat(chunks), bytes);
   assert.equal(savedOptions.metadata.orderId, id);
   assert.equal(savedOptions.metadata.uploadedBy, "customer");
+  assert.equal(savedOptions.metadata.contentType, 'image/png');
   assert.equal(fs.existsSync(filePath), false);
+});
+
+test('an older order receipt without MIME is served using its original JPEG signature', async t => {
+  const fileId = new mongoose.Types.ObjectId();
+  mockOrder(t, { _id: id, gcashProofFileId: fileId });
+  t.mock.method(storage, 'findPaymentProof', async () => ({ length: 40000 }));
+  const full = new PassThrough(); full.pipe = target => { full.target = target; };
+  const reads = [];
+  t.mock.method(storage, 'openPaymentProofDownload', (_fileId, options) => {
+    reads.push(options); return options ? Readable.from([Buffer.from([0xff, 0xd8, 0xff, 0xe0])]) : full;
+  });
+  const res = response(); await handler({ params: { id } }, res, error => { throw error; });
+  assert.equal(res.headers['Content-Type'], 'image/jpeg'); assert.equal(full.target, res);
+  assert.deepEqual(reads[0], { start: 0, end: 16 }); assert.equal(reads.length, 2);
 });

@@ -78,7 +78,7 @@ test('cancelled booking details override unfinished service and stale assignment
   for (const status of ['completed','repair_completed','repair_declined']) assert.equal(context.effectiveItemStatus({status}), status);
 });
 
-function cancellationFixture({ fail, paymentStatus='partial', status='assigned', missing=false } = {}) {
+function cancellationFixture({ fail, paymentStatus='partial', status='assigned', missing=false, lostAssignmentReference=false } = {}) {
   const file = path.join(__dirname, '../routes/adminApi.js');
   const source = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
   const begin = source.indexOf('router.post("/resolution-center/:id/cancel-with-refund"');
@@ -91,6 +91,7 @@ function cancellationFixture({ fail, paymentStatus='partial', status='assigned',
     statusHistory:[],resolutionCases:[],cancellationHistory:[]}, assignment:{status:'accepted',notes:[]},
     payment:{_id:id,status:paymentStatus,amount:2793,refundAmount:0,refundStatus:'none',events:[]} };
   const events = [];
+  if (lostAssignmentReference) stored.booking.assignmentId = null;
   let draft, session;
   const models = {
     '../models/BookingService':{findById:()=>({session:async value=>{
@@ -121,7 +122,13 @@ function cancellationFixture({ fail, paymentStatus='partial', status='assigned',
   const handler=vm.runInNewContext('('+source.slice(start,end+2)+')', {
     mongoose:{Types:mongoose.Types,startSession:async()=>session},
     require:name=>models[name]||actualRequire(name), console:{error(){}},
-    Assignment:{findByIdAndUpdate:async (assignmentId,update,options)=>{
+    Assignment:{updateMany:async (filter,update,options)=>{
+      assert.equal(options.session,session);assert.equal(filter.bookingId,id);
+      assert.ok(filter.status.$in.includes('accepted'));assert.ok(filter.status.$in.includes('waiting_for_customer'));
+      assert.ok(!filter.status.$in.includes('completed'));
+      if(fail==='assignmentBatch')throw Error('Assignment batch failed');
+      if(filter.status.$in.includes(draft.assignment.status))Object.assign(draft.assignment,update.$set);
+    },findByIdAndUpdate:async (assignmentId,update,options)=>{
       assert.equal(options.session,session);assert.equal(assignmentId,id);
       // Use the real schema to catch the previous string-to-notes-array CastError.
       Assignment.schema.path('notes').cast([update.$push.notes]);
@@ -161,8 +168,15 @@ test('full refund cancellation queues refund review without claiming money has a
   assert.equal(fixture.stored.payment.events[0].status,'refund_pending');assert.equal(fixture.stored.booking.paymentStatus,'partial');
 });
 
+test('cancellation retires an accepted assignment even when the booking lost its assignment reference',async()=>{
+  const fixture=cancellationFixture({lostAssignmentReference:true});
+  const result=await fixture.invoke();
+  assert.equal(result.error,undefined);assert.equal(result.body.success,true);
+  assert.equal(fixture.stored.booking.status,'cancelled');assert.equal(fixture.stored.assignment.status,'cancelled');
+});
+
 test('failed booking, assignment or refund writes roll back every status and send no success notification',async()=>{
-  for(const fail of ['booking','assignment','payment']){
+  for(const fail of ['booking','assignment','assignmentBatch','payment']){
     const fixture=cancellationFixture({fail});const before=structuredClone(fixture.stored);
     const result=await fixture.invoke({refundDecision:'full'});
     assert.match(result.error.message,/failed/);assert.equal(result.body,undefined);

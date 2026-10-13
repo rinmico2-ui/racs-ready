@@ -56,6 +56,7 @@ const EnterpriseCalendar = (() => {
   let _availabilityError = null;
   let _availabilityExtendPromise = null;
   let _availabilityRequestId = 0;
+  let _projectRangeRequestId = 0;
   let _endDatePromptShown = false;
   let _minProjectStartKey = null;
   let _projectPreferences = {
@@ -170,7 +171,7 @@ const EnterpriseCalendar = (() => {
     if (document.getElementById('ent-calendar-styles')) return;
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/css/enterprise-calendar.css?v=20261001-project-date-guide-v1';
+    link.href = '/css/enterprise-calendar.css?v=20261013-project-preferences';
     link.id = 'ent-calendar-styles';
     document.head.appendChild(link);
   }
@@ -184,6 +185,8 @@ const EnterpriseCalendar = (() => {
 
   async function init(opts = {}) {
     _availabilityRequestId++;
+    _projectRangeRequestId++;
+    _isValidating = false;
     _timeSlotRequestId++;
     _availabilityExtendPromise = null;
     _availabilityError = null;
@@ -398,6 +401,8 @@ const EnterpriseCalendar = (() => {
 
   async function refresh(opts = {}) {
     if (opts.invalidateSelection) {
+      _projectRangeRequestId++;
+      _isValidating = false;
       _selectedSlot = null;
       _selectedEndDate = null;
       _selectingEndDate = _mode === 'project' && Boolean(_selectedDate);
@@ -1302,6 +1307,8 @@ const EnterpriseCalendar = (() => {
 
     // Insufficient-window actions
     getElement('adjustEndDateBtn')?.addEventListener('click', () => {
+      _projectRangeRequestId++;
+      _isValidating = false;
       _selectedEndDate = null;
       _selectingEndDate = true;
       _windowResult = null;
@@ -1325,6 +1332,9 @@ const EnterpriseCalendar = (() => {
   }
 
   async function handleProjectDateSelect(dateStr) {
+    _projectRangeRequestId++;
+    _isValidating = false;
+    _windowError = null;
     const parts = dateStr.split('-');
     const clickedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     let pickedStart = false;
@@ -1388,13 +1398,13 @@ const EnterpriseCalendar = (() => {
     }
 
     if (_selectedDate && _selectedEndDate && !_selectingEndDate) {
-      const isValid = await validateProjectRange();
+      const isValid = await validateProjectRange({ revealPreferences: true });
       if (_syncGlobalState) window.syncScheduleNextAction?.();
 
       if (isValid) {
         if (_onSelectCb) {
           _onSelectCb(getProjectSelection());
-        } else if (typeof showStep === 'function') {
+        } else if (!getElement('projectPrefs') && typeof showStep === 'function') {
           showStep(_nextStep);
           if (typeof updateStepper === 'function') updateStepper(_nextStep);
         }
@@ -1408,8 +1418,22 @@ const EnterpriseCalendar = (() => {
    * inside it are skipped and feasibility is judged on total technician-hours.
    * Returns true when the window can accommodate the project.
    */
-  async function validateProjectRange() {
+  function revealProjectRangeResult(showPreferences) {
+    const target = (showPreferences && getElement('projectPrefs')?.querySelector('.ent-project-prefs-title'))
+      || getElement('projectRangeValidation');
+    if (!target) return;
+    target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  async function validateProjectRange({ revealPreferences = false } = {}) {
     if (!_selectedDate || !_selectedEndDate) return false;
+    const requestId = ++_projectRangeRequestId;
+    const startDate = formatDateKey(_selectedDate);
+    const endDate = formatDateKey(_selectedEndDate);
+    const isCurrentRequest = () => requestId === _projectRangeRequestId && _mode === 'project';
 
     _isValidating = true;
     _windowResult = null;
@@ -1424,13 +1448,14 @@ const EnterpriseCalendar = (() => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          startDate: formatDateKey(_selectedDate),
-          endDate: formatDateKey(_selectedEndDate),
+          startDate,
+          endDate,
           requiredHours,
           totalUnits,
         }),
       });
 
+      if (!isCurrentRequest()) return false;
       if (!resp.ok) {
         // Transport/API failure (e.g. 404 when the server hasn't been
         // restarted) — NOT a genuine capacity verdict.
@@ -1441,18 +1466,17 @@ const EnterpriseCalendar = (() => {
         return false;
       }
 
-      _windowResult = await resp.json();
+      const result = await resp.json();
+      if (!isCurrentRequest()) return false;
+      _windowResult = result;
       _windowError = null;
       _isValidating = false;
       render();
       syncProjectSelection();
 
-      // Keep the capacity verdict and the next scheduling preference in view,
-      // especially after the mobile calendar has pushed them below the fold.
-      setTimeout(() => {
-        const target = getElement('projectRangeValidation') || getElement('projectPrefs');
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 100);
+      // A completed, available range leads to preferences. A capacity problem
+      // keeps the customer at the date guidance instead of skipping past it.
+      if (revealPreferences) revealProjectRangeResult(_windowResult.sufficient);
 
       if (!_windowResult.sufficient) {
         return false;
@@ -1460,6 +1484,7 @@ const EnterpriseCalendar = (() => {
 
       return true;
     } catch (e) {
+      if (!isCurrentRequest()) return false;
       console.error('EnterpriseCalendar: range validation error', e);
       _windowResult = null;
       _windowError = 'Network error while checking technician availability. Please check your connection and try again.';
@@ -1517,7 +1542,7 @@ const EnterpriseCalendar = (() => {
 
     prefsHost.innerHTML = `
       <div class="ent-project-prefs">
-        <div class="ent-project-prefs-title"><i class="bi bi-sliders"></i>Optional Scheduling Preferences</div>
+        <h6 class="ent-project-prefs-title" tabindex="-1"><i class="bi bi-sliders" aria-hidden="true"></i>Optional Scheduling Preferences</h6>
         <p class="ent-project-prefs-note">These are preferences only. The Operations Team will prepare the final multi-day schedule based on technician availability, company workload, and your selected date range.</p>
 
         <div class="ent-pref-group">
@@ -1535,8 +1560,6 @@ const EnterpriseCalendar = (() => {
           </div>
         </div>
 
-        ${buildProjectEstimateHtml()}
-
         <div class="ent-pref-group">
           <label class="ent-pref-label">Preferred Working Days</label>
           <div class="ent-pref-chips" id="prefWorkingDays" role="group" aria-label="Preferred working days">
@@ -1550,6 +1573,7 @@ const EnterpriseCalendar = (() => {
           <div class="ent-project-prefs-note mt-1">Calculated from the quantities entered for all Core and Repair services.</div>
         </div>
 
+        ${buildProjectEstimateHtml()}
         <div id="projectPrefsError" class="text-danger small mt-2 d-none"></div>
       </div>
     `;
@@ -1715,6 +1739,7 @@ const EnterpriseCalendar = (() => {
   function getWindowVerdict() { return _windowResult; }
 
   function resetRange() {
+    _projectRangeRequestId++;
     _selectedDate = null;
     _selectedEndDate = null;
     _selectedSlot = null;
@@ -1739,7 +1764,7 @@ const EnterpriseCalendar = (() => {
     if (!_syncGlobalState) return _quantity;
     const sel = (window.BookingState && window.BookingState.selectedServices) ||
                 (window.RepairState && window.RepairState.selectedServices) || [];
-    const total = Array.isArray(sel) ? sel.reduce((t, s) => t + (Number(s.quantity) || 1), 0) : 0;
+    const total = Array.isArray(sel) ? (window.ApplianceServices ? window.ApplianceServices.unitCount(sel) : sel.reduce((t, s) => t + (Number(s.quantity) || 1), 0)) : 0;
     return total > 0 ? total : 1;
   }
 
@@ -1767,12 +1792,12 @@ const EnterpriseCalendar = (() => {
     syncProjectSelection();
 
     // Auto-validate the suggested range
-    const isValid = await validateProjectRange();
+    const isValid = await validateProjectRange({ revealPreferences: true });
     if (_syncGlobalState) window.syncScheduleNextAction?.();
     if (isValid) {
       if (_onSelectCb) {
         _onSelectCb(getProjectSelection());
-      } else if (typeof showStep === 'function') {
+      } else if (!getElement('projectPrefs') && typeof showStep === 'function') {
         showStep(_nextStep);
         if (typeof updateStepper === 'function') updateStepper(_nextStep);
       }
@@ -1783,6 +1808,7 @@ const EnterpriseCalendar = (() => {
    * Clear the current selection and validation state.
    */
   function resetValidation() {
+    _projectRangeRequestId++;
     _lastValidationResult = null;
     _windowResult = null;
     _isValidating = false;

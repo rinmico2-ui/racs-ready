@@ -52,6 +52,7 @@ const {
 // Protect all booking routes with authentication
 router.use(auth.authenticate);
 router.use(auth.requireRole("customer"));
+router.use(require('../utils/repairUnitLegacyGuard'));
 
 const bookingSubmissionLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -135,6 +136,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     if (!parsedServices || !Array.isArray(parsedServices) || parsedServices.length === 0) {
       return res.status(400).json({ error: 'At least one service is required' });
     }
+    if (parsedServices.length > 320) return res.status(400).json({ error: 'Choose up to 320 service items across a maximum of 40 appliances.' });
     if (parsedServices.some(item => item?.type === 'repair' && item.relocation)) {
       return res.status(400).json({ error: 'Relocation details are only valid for Aircon Relocation.' });
     }
@@ -143,7 +145,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     }
     for (let index = 0; index < parsedServices.length; index += 1) {
       const service = parsedServices[index];
-      if (service?.type !== 'repair') continue;
+      if (service?.type !== 'repair' && !service?.applianceKind) continue;
       const modelResult = validateRepairModel(service.model);
       if (!modelResult.valid) {
         return res.status(400).json({ error: `Repair service ${index + 1}: ${modelResult.error}` });
@@ -154,11 +156,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     if (normalizedQuantities.some(value => !Number.isInteger(value) || value < 1)) {
       return res.status(400).json({ error: 'Every service quantity must be a whole number of at least 1.' });
     }
-    const totalBookingUnits = normalizedQuantities.reduce((sum, value) => sum + value, 0);
+    let totalBookingUnits;
+    try { totalBookingUnits = require("../utils/bookingUnitLimit").validateBookingUnitLimit(parsedServices); }
+    catch (error) { return res.status(400).json({ error: error.message }); }
     if (totalBookingUnits > schedulingEngine.MAX_BOOKING_UNITS) {
       return res.status(400).json({ error: `A booking can contain at most ${schedulingEngine.MAX_BOOKING_UNITS} units across all Core and Repair services.` });
     }
-    const effectiveIsProject = totalBookingUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS;
     
     if (!location || !location.lat || !location.lng) {
       return res.status(400).json({ error: 'Valid location is required' });
@@ -168,10 +171,6 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       return res.status(400).json({ error: 'A date is required' });
     }
 
-    // Large-scale / project bookings have no fixed time slot — only a start date.
-    if (!effectiveIsProject && !startTime) {
-      return res.status(400).json({ error: 'Date and start time are required' });
-    }
     
     if (!['gcash', 'cod'].includes(bookingPaymentMethod)) {
       return res.status(400).json({ error: 'Choose a supported payment option.' });
@@ -400,8 +399,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
           if (fromDetails.length < 2 || toDetails.length < 2 || relocation.requestId) {
             return res.status(400).json({ error: 'Describe the current and new aircon positions on the same property.' });
           }
-          relocation.from = { address: String(location.address || '').slice(0, 300), details: fromDetails };
-          relocation.to = { address: String(location.address || '').slice(0, 300), details: toDetails };
+          relocation.from = { address: String(location.address || '').slice(0, 300), details: fromDetails, lat: Number(location.lat), lng: Number(location.lng) };
+          relocation.to = { address: String(location.address || '').slice(0, 300), details: toDetails, lat: Number(location.lat), lng: Number(location.lng) };
           relocation.model = String(relocation.model || '').trim().slice(0, 80);
           relocation.serialNumber = String(relocation.serialNumber || '').trim().slice(0, 100);
           if (relocation.assetId) {
@@ -456,7 +455,12 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         totalPrice: isQuotedRelocation ? Number(item.unitPrice) : pricing.totalPrice,
         duration: isQuotedRelocation ? Number(relocationById.get(String(item.relocation.requestId)).quote.durationMinutes) : pricing.duration,
         airconType: pricing.airconType, airconTypeName: pricing.airconTypeName,
-        hp: pricing.hp, isAirconService: catalog.isAirconService,
+        ...(item.applianceKind ? {
+          applianceType: item.applianceKind === 'aircon' ? pricing.airconType : item.applianceKind,
+          applianceTypeName: item.applianceKind === 'aircon' ? pricing.airconTypeName : require('../public/js/appliance-services').labels[item.applianceKind],
+          brand: String(item.brand || '').trim(),
+        } : {}),
+        hp: pricing.hp, isAirconService: item.applianceKind ? item.applianceKind === 'aircon' : catalog.isAirconService,
       };
     }
 
@@ -467,7 +471,19 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // Project (large-scale) bookings have no fixed time slot, so capacity
     // overlap checks are skipped — they are scheduled later by admin.
     const inspectionDurationMinutes = await getInspectionDurationMinutes();
-    const serviceDurationMin = capacityMinutes(parsedServices, inspectionDurationMinutes);
+    parsedServices = parsedServices.map(service => service.type === 'repair'
+      ? { ...service, duration: inspectionDurationMinutes } : service);
+    // Use catalog durations and the repair inspection policy, never a supplied
+    // schedule or project flag. Match the calendar and service-change workflow.
+    const serviceDurationMin = capacityMinutes(parsedServices.map(({ type, quantity, duration }) =>
+      ({ type, quantity, duration })), inspectionDurationMinutes);
+    const effectiveIsProject = await schedulingEngine.isLargeProject({
+      totalUnits: totalBookingUnits, totalEstimatedMinutes: serviceDurationMin,
+    });
+    if (!effectiveIsProject && !startTime) {
+      return res.status(400).json({ error: 'Choose a date and a start time for this booking.' });
+    }
+    const projectRequiredHours = Math.max(1, Math.round(serviceDurationMin / 6) / 10);
     const travelDurationMin = Number(travelDurationMinutes) || Number(distanceKm) * 2 || 0;
     const bufferMin = await getBufferMinutes();
     const startMin = effectiveIsProject ? null : parseTimeToMinutes(startTime);
@@ -501,11 +517,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       }
 
       if (projStartDate && projEndDate) {
-        const sumQty = Array.isArray(parsedServices)
-          ? parsedServices.reduce((s, sv) => s + (Number(sv.quantity) || 0), 0)
-          : 0;
-        const totalQty = Number(quantity) > 0 ? Number(quantity) : (sumQty > 0 ? sumQty : 1);
-        const estHours = Number(ps.estimatedTotalHours) || (serviceDurationMin / 60);
+        const totalQty = totalBookingUnits;
+        const estHours = projectRequiredHours;
 
         // Window-capacity validation: the customer's range is a preferred
         // window — unavailable dates inside it are skipped and feasibility is
@@ -543,6 +556,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     const cleanServices = JSON.parse(JSON.stringify(parsedServices.map(svc => ({
       serviceId: svc.serviceId || null,
       assistanceRequestId: svc.assistanceRequestId || null,
+      applianceGroupId: svc.applianceGroupId || undefined,
+      applianceKind: svc.applianceKind || undefined,
       name: svc.name || '',
       type: svc.type || 'core',
       quantity: Number(svc.quantity) || 1,
@@ -560,7 +575,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       isAirconService: Boolean(svc.isAirconService),
       repairIssue: svc.repairIssue || null,
       problemDescription: svc.problemDescription || svc.repairIssue || null,
-      model: svc.type === 'repair' ? normalizeRepairModel(svc.model) || null : null,
+      units: svc.type === 'repair' ? require('../utils/repairUnitWorkflow').customerUnits(svc) : [],
+      model: normalizeRepairModel(svc.model) || null,
       relocation: svc.relocation || undefined,
       status: svc.type === 'repair' ? 'inspection_pending' : 'pending',
       phase: svc.type === 'repair' ? 'repair_phase_1' : 'core',
@@ -640,6 +656,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       // Multi-service support — persist the full services array so HP and
       // per-service data are preserved for admin view details.
       isMultiService: cleanServices.length > 1,
+      repairUnitTracking: cleanServices.some(item => item.type === 'repair'),
       services: cleanServices,
 
       // Large-scale / project support
@@ -650,7 +667,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
         preferredWorkingDays: Array.isArray(projectScheduling?.preferredWorkingDays) ? projectScheduling.preferredWorkingDays : undefined,
         preferredWorkingHours: projectScheduling?.preferredWorkingHours || undefined,
         preferredCompletionDeadline: projectScheduling?.preferredCompletionDeadline ? new Date(projectScheduling.preferredCompletionDeadline) : undefined,
-        estimatedTotalHours: projectScheduling?.estimatedTotalHours ? Number(projectScheduling.estimatedTotalHours) : Number((serviceDurationMin / 60).toFixed(1)),
+        estimatedTotalHours: projectRequiredHours,
       } : undefined,
       
       // Location with coordinates
@@ -795,18 +812,11 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
           || ps.endDate
           || (ps.preferences && ps.preferences.completionDeadline)
           || projStartDate;
-        const sumQty = parsedServices.reduce(
-          (sum, service) => sum + (Number(service.quantity) || 0),
-          0,
-        );
         const projectCapacity = await schedulingEngine.getProjectWindowAvailability({
           startDate: projStartDate,
           endDate: projEndDate,
-          requiredHours: Math.max(
-            1,
-            Math.round((Number(ps.estimatedTotalHours) || (serviceDurationMin / 60)) * 10) / 10,
-          ),
-          totalUnits: Number(quantity) > 0 ? Number(quantity) : Math.max(1, sumQty),
+          requiredHours: projectRequiredHours,
+          totalUnits: totalBookingUnits,
         });
         if (!projectCapacity.sufficient) {
           throw Object.assign(
@@ -875,7 +885,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     // ── Large-Scale / Project detection ───────────────────────────────────
     if (effectiveIsProject) {
       const sumServiceQty = Array.isArray(bookingData.services)
-        ? bookingData.services.reduce((s, sv) => s + (Number(sv.quantity) || 0), 0)
+        ? require("../public/js/appliance-services").unitCount(bookingData.services)
         : 0;
       const derivedUnits = bookingData.quantity && Number(bookingData.quantity) > 0
         ? Number(bookingData.quantity)
@@ -1047,6 +1057,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     }
     console.error('❌ Booking creation error:', error);
     console.error('Error stack:', error.stack);
+    if (!savedBooking && error.status === 400) return res.status(400).json({ error: error.message });
     if (savedBooking?.status === 'cancelled' && savedBooking.cancellationReason === 'Maintenance cycle could not be reserved.') {
       return res.status(error.status || 409).json({ error: error.message });
     }
@@ -1163,8 +1174,8 @@ function ownsBooking(booking, user) {
 }
 
 async function validatedServiceItems(inputItems, booking) {
-  if (!Array.isArray(inputItems) || inputItems.length < 1 || inputItems.length > 20) {
-    const error = new Error("A booking must contain between 1 and 20 service items.");
+  if (!Array.isArray(inputItems) || inputItems.length < 1 || inputItems.length > 320) {
+    const error = new Error("A booking must contain between 1 and 320 service items.");
     error.status = 400;
     throw error;
   }
@@ -1190,7 +1201,7 @@ async function validatedServiceItems(inputItems, booking) {
   return Promise.all(contexts.map(async ({ input, type, prior }) => {
     const Catalog = type === "repair" ? RepairService : CoreService;
     const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "");
-    if (type === "repair" && !modelResult.valid) {
+    if (!modelResult.valid) {
       const error = new Error(modelResult.error);
       error.status = 400;
       throw error;
@@ -1244,7 +1255,7 @@ async function validatedServiceItems(inputItems, booking) {
         quantity,
         totalPrice: (Number(prior.unitPrice) || (Number(prior.totalPrice) / (Number(prior.quantity) || 1)) || 0) * quantity,
         brand: String(input.brand || prior.brand || "").trim().slice(0, 100),
-        model: type === "repair" ? modelResult.value : "",
+        model: modelResult.value,
         repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.repairIssue || "").trim().slice(0, 2000) : prior.repairIssue || "",
         problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || prior.problemDescription || "").trim().slice(0, 2000) : prior.problemDescription || "",
       };
@@ -1262,14 +1273,15 @@ async function validatedServiceItems(inputItems, booking) {
     let corePricing = null;
     if (type === 'core') {
       try {
-        corePricing = resolveCoreServicePricing(catalog, { ...input, quantity, airconType, hp });
+        corePricing = resolveCoreServicePricing(catalog, { applianceKind: prior?.applianceKind, ...input, quantity, airconType, hp });
       } catch (error) {
         // Existing bookings keep their accepted price if a catalog tier was
         // retired after purchase. A newly added or reconfigured unit must use
         // a currently valid type/HP tier.
         const sameTier = prior && String(prior.serviceId) === String(input.serviceId)
           && Number(prior.hp || 0) === Number(hp || 0)
-          && String(prior.airconType || '') === String(airconType || '');
+          && String(prior.airconType || '') === String(airconType || '')
+          && (prior.applianceKind || 'aircon') === (input.applianceKind || prior?.applianceKind || 'aircon');
         if (!sameTier || !Number.isFinite(Number(prior.unitPrice))) throw error;
         corePricing = { unitPrice: Number(prior.unitPrice), duration: Number(prior.duration) || 60 };
       }
@@ -1284,6 +1296,8 @@ async function validatedServiceItems(inputItems, booking) {
       ...(prior || {}),
       _id: prior?._id,
       serviceId: catalog._id,
+      applianceGroupId: input.applianceGroupId || prior?.applianceGroupId,
+      applianceKind: input.applianceKind || prior?.applianceKind,
       name: catalog.name,
       type,
       quantity,
@@ -1297,7 +1311,7 @@ async function validatedServiceItems(inputItems, booking) {
       applianceType: input.applianceType || airconType,
       applianceTypeName: input.applianceTypeName || input.airconTypeName || typeTier?.name || "",
       brand: String(input.brand || "").trim().slice(0, 100),
-      model: type === "repair" ? modelResult.value : "",
+      model: modelResult.value,
       repairIssue: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
       problemDescription: type === "repair" ? String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000) : "",
       status: prior?.status || (type === "repair" ? "inspection_pending" : "pending"),
@@ -1331,7 +1345,7 @@ async function applyProjectScheduling(booking, req, opts = {}) {
     const ps = booking.projectScheduling || {};
     const estimatedTotalHours = Number(opts.estimatedTotalHours) || ps.estimatedTotalHours || 0;
     const sumServiceQty = Array.isArray(booking.services)
-      ? booking.services.reduce((s, sv) => s + (Number(sv.quantity) || 0), 0)
+      ? require("../public/js/appliance-services").unitCount(booking.services)
       : 0;
     const customerQuantity = Number(booking.quantity) > 0
       ? Number(booking.quantity)
@@ -1375,7 +1389,10 @@ async function applyProjectScheduling(booking, req, opts = {}) {
           lng: booking.location.lng,
         } : undefined,
         isLargeScale: totalUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS,
-        projectPhase: booking.serviceType === 'repair' ? 'assessment' : 'execution',
+        projectPhase: require('../utils/repairUnitWorkflow').hasRepair(booking) ? 'assessment' : 'execution',
+        repairUnitTracking: require('../utils/repairUnitWorkflow').hasRepair(booking),
+        requestedUnitCount: totalUnits,
+        payment: require('../utils/projectPaymentReview').projectPaymentSnapshot(booking),
       };
 
       // ── Populate repair data from BookingService ──
@@ -1452,82 +1469,7 @@ async function applyProjectScheduling(booking, req, opts = {}) {
       // ── Populate unitGroups for multi-appliance tracking ──────────────
       // When the booking has multiple services (isMultiService), build
       // unitGroups so each appliance type is tracked independently.
-      if (booking.isMultiService && Array.isArray(booking.services) && booking.services.length > 0) {
-        projectData.unitGroups = booking.services.map((svc, idx) => {
-          const units = [];
-          const qty = Number(svc.quantity) || 1;
-          for (let i = 1; i <= qty; i++) {
-            units.push({
-              unitIndex: i,
-              label: `${svc.name || 'Unit'} #${i}`,
-              status: 'pending',
-            });
-          }
-          return {
-            groupIndex: idx,
-            serviceId: svc.serviceId,
-            serviceName: svc.name,
-            serviceType: svc.type || 'repair',
-            unitType: svc.airconTypeName || svc.name || 'Unknown',
-            brand: svc.brand || '',
-            model: '',
-            applianceType: svc.applianceType || svc.airconType || '',
-            applianceTypeName: svc.airconTypeName || '',
-            hp: svc.hp || null,
-            hpDescription: svc.hpDescription || '',
-            problemDescription: svc.repairIssue || '',
-            quantity: qty,
-            unitPrice: svc.unitPrice || 0,
-            totalPrice: svc.totalPrice || 0,
-            repairIssue: svc.repairIssue || '',
-            duration: svc.duration || 60,
-            inspection: {},
-            diagnosis: {},
-            quotation: { parts: [], laborCost: 0, totalCost: 0 },
-            partsUsed: [],
-            units,
-            completedUnits: 0,
-            inspectedUnits: 0,
-          };
-        });
-      } else if (booking.serviceType === 'repair' && booking.unitInfo) {
-        // Single-service repair: create one unitGroup from top-level unitInfo
-        const qty = Number(booking.quantity) || 1;
-        const units = [];
-        for (let i = 1; i <= qty; i++) {
-          units.push({
-            unitIndex: i,
-            label: `${booking.unitInfo.unitType || 'Unit'} #${i}`,
-            status: 'pending',
-          });
-        }
-        projectData.unitGroups = [{
-          groupIndex: 0,
-          serviceId: booking.serviceId,
-          serviceName: booking.service?.name || 'Repair',
-          serviceType: 'repair',
-          unitType: booking.unitInfo.unitType || 'Unknown',
-          brand: booking.unitInfo.brand || booking.brand || '',
-          model: booking.unitInfo.model || '',
-          applianceType: booking.applianceType || '',
-          applianceTypeName: booking.applianceTypeName || '',
-          hp: null,
-          hpDescription: '',
-          problemDescription: booking.unitInfo.problemDescription || '',
-          quantity: qty,
-          unitPrice: booking.servicePrice || 0,
-          totalPrice: booking.totalPrice || 0,
-          repairIssue: booking.issueDescription || '',
-          duration: booking.serviceDurationMinutes || 60,
-          inspection: {},
-          diagnosis: {},
-          quotation: { parts: [], laborCost: 0, totalCost: 0 },
-          partsUsed: [],
-          units,
-          completedUnits: 0,
-          inspectedUnits: 0,
-        }];
-      }
+      projectData.unitGroups = require('../utils/repairUnitWorkflow').buildUnitGroups(booking);
 
       await Project.create(projectData);
     }
@@ -1771,6 +1713,7 @@ router.post('/create-repair', (req, res, next) => {
       // Store even a single repair as a service item so it can later coexist
       // with core services or additional repair appliances.
       isMultiService: repairItems.length > 1,
+      repairUnitTracking: true,
       services: repairItems.map((item, index) => ({
         name: `${item.unitType} Repair`,
         type: 'repair',
@@ -1786,6 +1729,7 @@ router.post('/create-repair', (req, res, next) => {
         model: item.model,
         repairIssue: item.problemDescription,
         problemDescription: item.problemDescription,
+        units: require('../utils/repairUnitWorkflow').customerUnits(item),
         status: 'inspection_pending',
         phase: 'repair_phase_1',
         schedule: { date: inspectionDate, startTime: preferredTime || '', endTime: capacityEndTimeStr, durationMinutes: inspectionDuration, kind: 'inspection' },
@@ -2074,7 +2018,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
     const proposedServices = await validatedServiceItems(req.body.services, booking);
     const summary = summarizeChanges(beforeServices, proposedServices);
     const inspectionDuration = await getInspectionDurationMinutes();
-    const totalUnits = proposedServices.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const totalUnits = validateBookingUnitLimit(proposedServices);
     const serviceMinutes = capacityMinutes(proposedServices, inspectionDuration);
     const wasProject = Boolean(booking.isProject);
     const projectRequired = await schedulingEngine.isLargeProject({
@@ -2266,7 +2210,7 @@ router.post('/:id/service-change-requests/:requestId/schedule-response', async (
     const date = new Date(change.proposedSchedule.date);
     const start = parseTimeToMinutes(change.proposedSchedule.startTime);
     const end = parseTimeToMinutes(change.proposedSchedule.endTime);
-    const proposedUnits = (change.proposedServices || []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const proposedUnits = validateBookingUnitLimit(change.proposedServices || []);
     const inspectionDuration = await getInspectionDurationMinutes();
     if (await schedulingEngine.isLargeProject({
       totalUnits: proposedUnits,

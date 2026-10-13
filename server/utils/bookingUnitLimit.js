@@ -9,7 +9,9 @@ function validateBookingUnitLimit(services) {
     error.status = 400;
     throw error;
   }
-  const total = quantities.reduce((sum, quantity) => sum + quantity, 0);
+  let total;
+  try { total = require('../public/js/appliance-services').unitCount(services); }
+  catch (error) { error.status = 400; throw error; }
   if (total > MAX_BOOKING_UNITS) {
     const error = new Error(`A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.`);
     error.status = 400;

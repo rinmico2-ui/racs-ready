@@ -209,7 +209,7 @@ app.use((req, res, next) => {
     "img-src 'self' data: blob: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://*.arcgisonline.com https://api.qrserver.com https://res.cloudinary.com; " +
     "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://*.arcgisonline.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
     "font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-    "frame-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+    "frame-src 'self' blob: https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
     "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';",
   );
   next();
@@ -441,6 +441,8 @@ app.use(function (req, res, next) {
 
 // Evidence and payment uploads are not public assets. Authentication is
 // checked before static delivery; financial proofs are restricted to staff.
+app.use("/api/receipts", require("./routes/receiptRoutes"));
+app.use("/uploads/expense-receipts", require("./routes/legacyExpenseReceiptRoutes"));
 app.use(
   ["/uploads/gcash-receipts", "/uploads/project-payment-proofs"],
   apiAuth.authenticate,
@@ -768,6 +770,7 @@ setInterval(async () => {
 const { startOverdueScheduler } = require('./utils/overdueBookingScheduler');
 const { startMaintenanceScheduler } = require('./utils/maintenanceScheduler');
 const { startEquipmentReturnScheduler } = require('./utils/equipmentReturnScheduler');
+const { startAttendanceAlerts } = require('./utils/attendanceAlerts');
 
 // ── Overtime Delay Monitor ─────────────────────────────────────────────────
 // Periodically scans active jobs that have overrun their buffered capacity end
@@ -780,6 +783,7 @@ function startBackgroundSchedulers() {
   startOverdueScheduler();
   startMaintenanceScheduler();
   startEquipmentReturnScheduler();
+  startAttendanceAlerts();
   startDelayMonitor();
 }
 

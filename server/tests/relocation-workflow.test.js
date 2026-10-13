@@ -28,7 +28,7 @@ test('custom quote submission reuses the pinned origin and scheduled date withou
     fetch: async (url, options) => { calls.push({ url, payload: JSON.parse(options.body) }); return { ok: true, json: async () => ({ id: id(3) }) }; },
     clearBookingProgress: () => calls.push({ cleared: true }),
     showError: message => { throw new Error(message); },
-    window: { location: { assign: url => calls.push({ redirected: url }) } },
+    window: { RelocationBookingLocations: require('../public/js/relocation-booking-locations'), location: { assign: url => calls.push({ redirected: url }) } },
   };
   vm.runInNewContext(implementation, context);
   assert.equal(await context.submitRelocationQuoteRequest(), true);
@@ -153,7 +153,7 @@ test('relocation preferred calendar selects a date without looking up or reservi
 
 test('mapping a relocation destination keeps the current pin and updates the move path', () => {
   const script = fs.readFileSync(path.join(__dirname, '../public/js/services-multi.js'), 'utf8');
-  const implementation = script.slice(script.indexOf('function setRelocationDestinationPin('), script.indexOf('async function searchRelocationDestination()'));
+  const implementation = script.slice(script.indexOf('function setRelocationDestinationPin('), script.indexOf('let relocationLocationsController'));
   const paths = [];
   const marker = (point, options) => ({
     point, options, handlers: {},
@@ -168,6 +168,7 @@ test('mapping a relocation destination keeps the current pin and updates the mov
   const state = { map, userMarker: currentPin, userCoordinates: { lat: 14.7, lng: 121.1 } };
   const context = {
     BookingState: state, activeRelocationItem: () => item,
+    relocationLocationController: () => ({ pin(lat, lng) { context.setRelocationDestinationPin(lat, lng); } }),
     isWithinPhilippinesMapBounds: (lat, lng) => lat >= 4.5 && lat <= 21.5 && lng >= 116 && lng <= 127,
     escapeServiceMapText: value => value, syncRelocationMapSummary() {}, syncLocationContinueAction() {}, scheduleBookingProgressSave() {},
     document: { getElementById: () => ({ textContent: '' }) },

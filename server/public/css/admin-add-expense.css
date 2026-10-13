@@ -1,0 +1,34 @@
+.ae-modal [hidden] { display: none !important; }
+.ae-modal .modal-content { max-height: calc(100dvh - 3.5rem); border: 0; border-radius: 16px; overflow: hidden; color: #172b4d; }
+.ae-modal .modal-header, .ae-modal .modal-footer { flex-shrink: 0; padding: 20px 24px; border-color: #e5eaf1; }
+.ae-modal .modal-header { align-items: flex-start; background: #fff; }
+.ae-eyebrow { color: #15803d; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
+.ae-modal .modal-title { margin-top: 6px; font-size: 22px; font-weight: 700; }
+.ae-modal .modal-header p { margin: 6px 0 0; font-size: 13px; color: #66758c; }
+.ae-modal .modal-body { min-height: 0; overflow-y: auto; padding: 24px; }
+.ae-note { margin-bottom: 20px; padding: 12px 14px; border: 1px solid #d4e9dc; border-radius: 9px; color: #166534; background: #f0f9f3; font-size: 12px; line-height: 1.6; }
+.ae-note i { margin-right: 5px; }
+.ae-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.ae-full { grid-column: 1 / -1; }
+.ae-modal label { display: block; font-size: 12px; font-weight: 600; color: #475569; }
+.ae-modal label > span { color: #b42318; }
+.ae-modal label small { font-size: 11px; font-weight: 400; color: #66758c; margin-left: 5px; }
+.ae-modal .form-control, .ae-modal .form-select { margin-top: 7px; min-height: 44px; font-size: 14px; border-color: #dce3ec; border-radius: 9px; }
+.ae-modal .form-control:focus, .ae-modal .form-select:focus { border-color: #6db78b; box-shadow: 0 0 0 3px #15803d12; }
+.ae-fuel { margin: 20px 0; padding: 18px; border: 1px solid #e5eaf1; border-radius: 10px; }
+.ae-fuel legend { float: none; width: auto; margin: 0 0 12px; font-size: 14px; font-weight: 700; }
+.ae-receipt-label { margin-top: 20px; }
+.ae-help, .ae-options-notice { margin: 8px 0 16px; color: #66758c; font-size: 11px; line-height: 1.6; }
+.ae-preview { padding: 12px; margin-bottom: 16px; background: #f8fafc; border: 1px solid #e5eaf1; border-radius: 10px; }
+.ae-preview img { display: block; max-width: 100%; max-height: 220px; margin: auto; object-fit: contain; }
+.ae-preview p { margin: 8px 0 0; color: #66758c; font-size: 12px; overflow-wrap: anywhere; }
+.ae-modal .modal-footer { background: #f8fafc; gap: 8px; }
+.ae-modal .modal-footer .btn { border-radius: 9px; min-height: 44px; font-size: 13px; font-weight: 600; padding: 10px 18px; }
+.ae-modal .btn-success { background: #15803d; border-color: #15803d; }
+.ae-modal .btn-success:hover { background: #166534; border-color: #166534; }
+@media (max-width: 575.98px) {
+  .ae-modal .modal-header, .ae-modal .modal-body, .ae-modal .modal-footer { padding: 16px; }
+  .ae-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .ae-modal .form-control, .ae-modal .form-select { font-size: 16px; }
+  .ae-modal .modal-footer .btn { flex: 1; }
+}

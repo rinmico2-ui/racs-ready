@@ -34,7 +34,7 @@ test("calendar cells show only the day number; counts appear after choosing a da
   assert.doesNotMatch(appointment, /<span class="ent-cal-slots">|slotsText =/);
   assert.match(calendar, /const availableTimes = slots\.filter/);
   assert.match(calendar, /class="ent-time-count"/);
-  assert.match(view, /enterprise-calendar\.css\?v=20261001-project-date-guide-v1/);
+  assert.match(view, /enterprise-calendar\.css\?v=20261013-project-preferences/);
 });
 
 test("the schedule guides users from date to time with accessible choices", () => {

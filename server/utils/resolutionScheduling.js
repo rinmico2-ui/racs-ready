@@ -6,7 +6,7 @@ const engine = require('./enterpriseSchedulingEngine');
 function bookingWorkload(booking, thresholdHours = 8) {
   const services = Array.isArray(booking.services) ? booking.services : [];
   const totalUnits = services.length
-    ? services.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0)
+    ? require("../public/js/appliance-services").unitCount(services)
     : Math.max(1, Number(booking.quantity) || 1);
   const totalEstimatedMinutes = Math.max(1,
     Number(booking.serviceDurationMinutes) ||

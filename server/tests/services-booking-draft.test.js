@@ -95,7 +95,7 @@ test("changing project workload clears the old range and requires a new appointm
   let saves = 0;
   const context = {
     BookingState: bookingState,
-    window: { __bookingPolicy: { largeProjectThresholdHours: 8 } },
+    window: { ApplianceServices: require('../public/js/appliance-services'), __bookingPolicy: { largeProjectThresholdHours: 8 } },
     document: { getElementById: () => null },
     syncScheduleNextAction: () => {},
     scheduleBookingProgressSave: () => { saves += 1; },

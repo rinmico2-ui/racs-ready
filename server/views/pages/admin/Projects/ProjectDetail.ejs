@@ -627,10 +627,16 @@
   <div id="toast" class="toast-msg"></div>
 </div>
 
+<script src="/js/evidence-viewer.js?v=20261013-receipt-types"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261013">
+<script src="/js/repair-units.js?v=20261013"></script>
+<link rel="stylesheet" href="/css/project-booking-details.css?v=20261013-team-loading">
+<script src="/js/project-booking-details.js?v=20261013-service-location"></script>
 <script>
 (async function() {
   const qs = (s) => document.querySelector(s);
   const projectId = window.location.pathname.split('/').pop();
+  window.addEventListener('repair-units:updated', () => loadProject());
   const PROJECT_WORKSPACE_BASE = <%- JSON.stringify(typeof projectWorkspaceBase === 'string' ? projectWorkspaceBase : '/admin/projects').replace(/</g, '\\u003c') %>;
   const PROJECT_INVENTORY_PARTS_PATH = <%- JSON.stringify(typeof projectInventoryPartsPath === 'string' ? projectInventoryPartsPath : '/admin/inventory/repair-parts').replace(/</g, '\\u003c') %>;
 
@@ -883,7 +889,7 @@
   function schedulePreviewHtml(project, workOrders, assignmentRows) {
     const plan = project?.schedulePlan || {};
     const rows = assignmentRows || (plan.dailySummary || []).flatMap(day => day.allocations || []);
-    if (!rows.length) return '<div class="text-muted" style="font-size:0.8rem;">Configure and generate Step 4 to create Work Order dates and daily technician allocations.</div>';
+    if (!rows.length) return '<div class="text-muted" style="font-size:0.8rem;">The final work schedule has not been created yet. The customer’s preferred dates are shown in the service details. Staff can prepare the schedule in Step 4 after planning the team and work orders.</div>';
     const safe = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
     const dayKey = value => { const d=new Date(value); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
     const orders = Object.fromEntries((workOrders || []).map(order => [String(order._id), order]));
@@ -1198,7 +1204,7 @@
   function projectTypeLabel(p) {
     if (p.service?.category && /commercial|business|industrial/i.test(p.service.category)) return 'Commercial Project';
     if ((p.totalUnits || 0) >= 10) return 'Commercial Project';
-    return 'Large-Scale Residential Project';
+    return Number(p.requestedUnitCount || p.totalUnits || 0) >= 8 ? 'Large-Scale Residential Project' : 'Multi-day Service Project';
   }
 
   function payStatusClass(p) {
@@ -1211,17 +1217,23 @@
 
   // Customer-entered payment details (captured at booking time on the source booking).
   function customerPayment(data) {
-    const b = data.booking || {};
+    const b = data.booking || {}, recorded = data.project?.payment || {};
+    const receipt = (data.payments || []).find(payment => payment.proofUrl);
+    const pending = (data.payments || []).filter(payment => payment.status === 'pending');
+    const summary = data.paymentSummary || {};
+    const amountPaid = summary.amountPaid ?? b.amountPaid ?? recorded.amountPaid ?? 0;
+    const total = summary.total ?? b.totalPrice ?? b.totalAmount ?? recorded.totalAmount ?? b.estimatedFee ?? 0;
+    const submittedAmount = summary.submittedAmount ?? pending.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     return {
-      status: b.paymentStatus || 'unpaid',
-      amountPaid: b.amountPaid || 0,
-      balance: (b.balanceAmount != null) ? b.balanceAmount : 0,
-      total: (b.totalAmount != null) ? b.totalAmount : (b.amountPaid || 0) + (b.balanceAmount || 0),
-      method: b.paymentMethod || '—',
-      reference: b.paymentReference || '',
-      gcashNumber: b.gcashNumber || '',
-      notes: b.paymentNotes || '',
-      proofUrl: b.paymentProof || '',
+      status: summary.status || b.paymentStatus || recorded.paymentStatus || 'unpaid',
+      amountPaid, total, submittedAmount,
+      balance: summary.balance ?? Math.max(0, Number(total) - Number(amountPaid)),
+      balanceAfterReview: summary.balanceAfterReview ?? Math.max(0, Number(total) - Number(amountPaid) - submittedAmount),
+      pendingPayments: summary.pendingPayments || pending.map(payment => ({ id: payment._id, amount: payment.amount, type: payment.type, reference: payment.reference })),
+      method: b.paymentChannel || receipt?.method || b.paymentMethod || recorded.paymentMethod || '—',
+      reference: b.paymentReference || receipt?.reference || '',
+      gcashNumber: b.gcashNumber || '', notes: b.paymentNotes || '',
+      proofUrl: b.paymentProofFileId && b._id ? '/api/appointments/' + b._id + '/payment-proof' : (b.paymentProof || recorded.proofUrl || receipt?.proofUrl || ''),
       verifiedAt: b.paymentVerifiedAt || null,
     };
   }
@@ -1241,17 +1253,18 @@
     const readiness = data.completionReadiness || {};
     const totalUnits = submissions.reduce((sum, submission) => sum + (submission.workOrders || []).reduce((lineSum, line) => lineSum + Number(line.completedUnits || 0), 0), 0);
     const blockerText = (readiness.blockers || []).map(escHtml).join('; ');
+    const showCloseout = ['in_progress', 'completed', 'closed'].includes(data.project?.status);
     return `
       <div class="pd-card" data-stage="active completed" style="border:1.5px solid #bbf7d0;">
         <div class="pd-head"><h3><i class="bi bi-shield-check me-2" style="color:#15803d;"></i>Field Evidence & Consumables</h3><span class="cap-pill ${readiness.evidenceComplete ? 'ok' : 'warn'}">${submissions.length} submission${submissions.length === 1 ? '' : 's'} · ${totalUnits} unit${totalUnits === 1 ? '' : 's'}</span></div>
         <div class="pd-body">
-          ${!submissions.length ? '<div class="text-muted" style="font-size:.82rem;">No proof-backed field submissions have been recorded.</div>' : submissions.map(submission => {
+          ${!submissions.length ? '<div class="text-muted" style="font-size:.82rem;">No service photos or completed units have been submitted yet. The lead technician records these after work is done.</div>' : submissions.map(submission => {
             const technician = submission.technicianId?.name || 'Technician';
             const work = (submission.workOrders || []).map(line => `${escHtml(line.workOrderNumber || line.title || 'Work order')}: ${Number(line.completedUnits || 0)} unit(s)`).join(' · ');
             const consumables = (submission.consumables || []).map(item => `${escHtml(item.itemName)}: ${Number(item.quantityUsed || 0)} ${escHtml(item.unit || 'pcs')}`).join(' · ');
             return `<div style="padding:.7rem 0;border-bottom:1px solid #e2e8f0;"><div class="d-flex justify-content-between align-items-start gap-2"><div><strong style="font-size:.82rem;">${escHtml(technician)}</strong><div class="wo-mini">${submission.createdAt ? new Date(submission.createdAt).toLocaleString('en-PH') : 'Recorded submission'}</div></div><a class="pd-btn" href="${escHtml(submission.proof?.url || '#')}" target="_blank" rel="noopener" style="font-size:.7rem;"><i class="bi bi-image"></i> View Proof</a></div><div style="font-size:.76rem;margin-top:.4rem;"><b>Completed:</b> ${work || 'No work-order lines'}</div><div style="font-size:.76rem;margin-top:.2rem;"><b>Consumables:</b> ${consumables || (submission.consumablesDeclaredNone ? 'None declared for this submission' : 'Not declared')}</div>${submission.notes ? `<div style="font-size:.72rem;color:#64748b;margin-top:.2rem;"><b>Note:</b> ${escHtml(submission.notes)}</div>` : ''}</div>`;
           }).join('')}
-          <div style="margin-top:.75rem;padding:.65rem .75rem;background:${readiness.canClose ? '#f0fdf4' : '#fff7ed'};border:1px solid ${readiness.canClose ? '#bbf7d0' : '#fed7aa'};font-size:.72rem;color:${readiness.canClose ? '#166534' : '#9a3412'};"><b>${readiness.canClose ? 'Closeout ready' : 'Closeout blockers'}</b>${readiness.canClose ? '' : ` · ${blockerText || 'Operational review is incomplete.'}`}</div>
+          ${showCloseout ? `<div style="margin-top:.75rem;padding:.65rem .75rem;background:${readiness.canClose ? '#f0fdf4' : '#fff7ed'};border:1px solid ${readiness.canClose ? '#bbf7d0' : '#fed7aa'};font-size:.72rem;color:${readiness.canClose ? '#166534' : '#9a3412'};"><b>${readiness.canClose ? 'Ready to close' : 'Needed before closing'}</b>${readiness.canClose ? '' : ` · ${blockerText || 'The work and payment still need to be reviewed.'}`}</div>` : ''}
         </div>
       </div>`;
   }
@@ -1646,11 +1659,15 @@
       </div>`;
   }
 
+  let projectLoadRequestId = 0;
   async function loadProject() {
+    const requestId = ++projectLoadRequestId;
     try {
       const r = await fetch(`/api/projects/${projectId}`);
-      if (!r.ok) throw new Error('Not found');
-      const data = await r.json();
+      const data = await r.json().catch(() => null);
+      if (requestId !== projectLoadRequestId) return;
+      if (!r.ok) throw Object.assign(new Error(data?.error || 'Project details could not be loaded. Please try again.'), { status: r.status });
+      if (!data?.project) throw new Error('The project details are incomplete. Please try again.');
 
       // Load issues + expenses in parallel (best-effort)
       try {
@@ -1665,12 +1682,15 @@
         window.__projectExpenseSummary = edata.summary || {};
       } catch (e2) { /* non-fatal */ }
 
+      if (requestId !== projectLoadRequestId) return;
       renderProject(data);
       window.currentProject = data;
       renderLiveStatus(data.workOrders);
       loadEquipmentCheckout();
     } catch(e) {
-      qs('#projectDetailContainer').innerHTML = '<div class="text-center py-5 text-muted">Project not found</div>';
+      if (requestId !== projectLoadRequestId) return;
+      console.error('[Project details] Could not load project:', e);
+      qs('#projectDetailContainer').innerHTML = `<div class="text-center py-5 text-muted" role="alert"><p>${escHtml(e.status === 404 ? 'Project not found.' : e.message)}</p><button type="button" class="pd-btn" onclick="window.location.reload()">Try again</button></div>`;
     }
   }
 
@@ -1763,6 +1783,8 @@
 
   function renderProject(data) {
     const p = data.project;
+    const requestDetails = window.ProjectBookingDetails.read(data);
+    const requestedServiceNames = [...new Set(requestDetails.services.map(group => group.name))].join(', ') || p.service?.name || 'Service';
     const workOrders = data.workOrders || [];
     const materials = data.materials || [];
     const m = deriveMetrics(p, workOrders, materials);
@@ -1824,7 +1846,7 @@
           <div class="prj-id">${prjId}</div>
           <h2>${p.customer?.name || 'Unknown Customer'}</h2>
           <div class="meta-grid">
-            <div><div class="mk">Service</div><div class="mv">${p.service?.name || (p.repair?.serviceType === 'repair' ? 'Repair — ' + [p.repair?.unitInfo?.unitType, p.repair?.unitInfo?.brand, p.repair?.unitInfo?.model].filter(Boolean).join(' ') : '—')}</div></div>
+            <div><div class="mk">Service</div><div class="mv">${escHtml(requestedServiceNames)}</div></div>
             <div><div class="mk">Project Type</div><div class="mv">${projectTypeLabel(p)} ${p.repair?.serviceType === 'repair' ? '<span class="status-badge" style="background:#fef3c7;color:#92400e;border-color:#fde68a;font-size:0.6rem;">Repair</span>' : '<span class="status-badge" style="background:#e0f2fe;color:#0369a1;border-color:#bae6fd;font-size:0.6rem;">Core Service</span>'}</div></div>
             <div><div class="mk">Progress</div><div class="mv">${m.completedUnits}/${m.totalUnits} (${m.progress}%)</div></div>
             <div><div class="mk">Approved Completion</div><div class="mv">${fmtDate(approvedCompletionDate(p))}${p.scheduleGovernance?.revisionNumber ? ` <span class="status-badge" style="font-size:0.55rem;">Rev ${p.scheduleGovernance.revisionNumber}</span>` : ''}</div></div>
@@ -1942,11 +1964,12 @@
           <div class="pd-body">${teamCardBodyHtml(p, workOrders)}</div>
         </div>` : ''}
 
-      ${p.isLargeScale && p.projectPhase ? `
+      ${window.ProjectBookingDetails.render(requestDetails, p._id)}
+      ${(p.isLargeScale || requestDetails.hasRepair) && p.projectPhase ? `
       <!-- Large-Scale Project Phase: Inspection + Quotation Review -->
       <div class="pd-card" data-stage="active completed" style="border:1.5px solid ${p.projectPhase === 'quotation_review' ? '#f59e0b' : p.projectPhase === 'assessment' ? '#e0e7ff' : '#d1fae5'};">
         <div class="pd-head"><h3><i class="bi bi-diagram-3 me-2" style="color:#6366f1;"></i>Project Phase: <span class="cap-pill" style="font-size:0.7rem;background:${p.projectPhase === 'assessment' ? '#fef3c7' : p.projectPhase === 'quotation_review' ? '#e0f2fe' : '#d1fae5'};color:${p.projectPhase === 'assessment' ? '#92400e' : p.projectPhase === 'quotation_review' ? '#0369a1' : '#065f46'};">${p.projectPhase === 'assessment' ? 'Site Assessment' : p.projectPhase === 'quotation_review' ? 'Quotation Review' : 'Execution'}</span></h3>
-          ${p.projectPhase === 'quotation_review' ? '<span class="cap-pill warn" style="font-size:0.7rem;">Awaiting your review</span>' : ''}
+          ${p.projectPhase === 'quotation_review' ? `<span class="cap-pill warn" style="font-size:0.7rem;">${p.quotationReview?.status === 'awaiting_customer' ? 'Awaiting customer decision' : 'Awaiting your review'}</span>` : ''}
         </div>
         <div class="pd-body">
           ${p.inspectionReport?.submittedAt ? `
@@ -1971,7 +1994,7 @@
             ${p.quotationReview.notes ? `<div style="font-size:0.78rem;color:#64748b;margin-top:.3rem;"><strong>Notes:</strong> ${p.quotationReview.notes}</div>` : ''}
             ${p.quotationReview.rejectionReason ? `<div style="font-size:0.78rem;color:#dc2626;margin-top:.3rem;"><strong>Rejection reason:</strong> ${p.quotationReview.rejectionReason}</div>` : ''}
 
-            ${p.projectPhase === 'quotation_review' ? `
+            ${p.projectPhase === 'quotation_review' && p.quotationReview?.status === 'pending' ? `
             <div class="d-flex gap-2 mt-3" style="border-top:1px solid #e2e8f0;padding-top:1rem;">
               <button class="pd-btn success" onclick="approveQuotation('${p._id}')"><i class="bi bi-check2-circle"></i> Approve Quotation</button>
               <button class="pd-btn danger" onclick="rejectQuotation('${p._id}')"><i class="bi bi-x-circle"></i> Reject</button>
@@ -1981,18 +2004,9 @@
       </div>` : ''}
 
       ${p.repair?.serviceType === 'repair' ? `
-      <div class="pd-card" data-stage="review planning ready active completed" style="border:1.5px solid #fef3c7;">
-        <div class="pd-head"><h3><i class="bi bi-tools me-2" style="color:#d97706;"></i>Repair Summary</h3></div>
+      ${(p.repair.inspection?.findings || p.repair.diagnosis?.summary) ? `<div class="pd-card" data-stage="review planning ready active completed" style="border:1.5px solid #fef3c7;">
+        <div class="pd-head"><h3><i class="bi bi-tools me-2" style="color:#d97706;"></i>Saved inspection notes</h3></div>
         <div class="pd-body">
-          ${p.repair.unitInfo ? `
-          <div class="sd-section"><div class="sd-section-title">Unit Information</div>
-            <div class="sd-grid">
-              <div class="sd-item"><div class="sd-k">Type</div><div class="sd-v">${p.repair.unitInfo.unitType || '—'}</div></div>
-              <div class="sd-item"><div class="sd-k">Brand</div><div class="sd-v">${p.repair.unitInfo.brand || '—'}</div></div>
-              <div class="sd-item"><div class="sd-k">Model</div><div class="sd-v">${p.repair.unitInfo.model || '—'}</div></div>
-              <div class="sd-item sd-full"><div class="sd-k">Problem</div><div class="sd-v">${p.repair.unitInfo.problemDescription || '—'}</div></div>
-            </div>
-          </div>` : ''}
           ${p.repair.inspection?.findings ? `
           <div class="sd-section mt-3">
             <div class="sd-section-title">Inspection <span class="cap-pill ${p.repair.inspection.severity === 'critical' ? 'danger' : p.repair.inspection.severity === 'major' ? 'warn' : 'ok'}" style="font-size:0.65rem;">${(p.repair.inspection.severity || '').toUpperCase()}</span></div>
@@ -2005,7 +2019,7 @@
             <div class="sd-v">${p.repair.diagnosis.summary}</div>
           </div>` : ''}
         </div>
-      </div>
+      </div>` : ''}
       ${p.repair.aiAssist?.summary ? `
       <div class="pd-card" data-stage="planning ready active" style="border:1.5px solid #e0e7ff;">
         <div class="pd-head"><h3><i class="bi bi-robot me-2" style="color:#6366f1;"></i>AI Diagnosis <span class="cap-pill" style="font-size:0.6rem;background:#eef2ff;color:#4f46e5;">AI</span></h3></div>
@@ -2141,20 +2155,21 @@
       ${((() => {
         const cp = customerPayment(data);
         const pill = cp.status === 'paid' ? 'ok' : cp.status === 'partial' ? 'current' : '';
-        const empty = !cp.amountPaid && !cp.proofUrl && cp.method === '—' && !cp.notes;
+        const empty = !cp.amountPaid && !cp.submittedAmount && !cp.proofUrl && cp.method === '—' && !cp.notes;
         return `
       <div class="pd-card" data-stage="review planning ready active completed" style="border:1.5px solid #dcfce7;">
         <div class="pd-head"><h3><i class="bi bi-receipt me-2" style="color:#059669;"></i>Payment <span class="text-muted" style="font-size:0.7rem;">· customer</span></h3>
-          <button class="pd-btn" style="font-size:0.72rem;" onclick="showPaymentModal()"><i class="bi bi-pencil"></i> Update</button>
+          <button class="pd-btn" style="font-size:0.72rem;" onclick="showPaymentModal()"><i class="bi bi-eye"></i> View payment</button>
         </div>
         <div class="pd-body">
           ${empty ? '<div class="text-muted" style="font-size:0.82rem;">No payment submitted yet.</div>' : `
           <div class="sd-grid" style="grid-template-columns:repeat(3,1fr);">
             <div class="sd-item"><div class="sd-k">Status</div><div class="sd-v"><span class="cap-pill ${pill}">${cp.status.toUpperCase()}</span></div></div>
-            <div class="sd-item"><div class="sd-k">Paid</div><div class="sd-v">₱${Number(cp.amountPaid).toLocaleString()}</div></div>
-            <div class="sd-item"><div class="sd-k">Balance</div><div class="sd-v">₱${Number(cp.balance).toLocaleString()}</div></div>
+            <div class="sd-item"><div class="sd-k">Payment received</div><div class="sd-v">₱${Number(cp.amountPaid).toLocaleString()}</div></div>
+            <div class="sd-item"><div class="sd-k">Still to be paid</div><div class="sd-v">₱${Number(cp.balance).toLocaleString()}</div></div>
           </div>
-          ${cp.proofUrl ? `<a href="${cp.proofUrl}" target="_blank" class="pw-tag mt-1" style="display:inline-block;font-size:0.78rem;"><i class="bi bi-paperclip"></i> View Proof</a>` : ''}`}
+          ${cp.submittedAmount > 0 ? `<div class="mt-2 small" style="color:#92400e;"><b>₱${Number(cp.submittedAmount).toLocaleString()} submitted · waiting for review</b><br>After confirmation, the remaining balance will be ₱${Number(cp.balanceAfterReview).toLocaleString()}.</div>` : ''}
+          ${cp.proofUrl ? `<button type="button" onclick="showPaymentModal()" class="pw-tag mt-1" style="display:inline-block;font-size:0.78rem;"><i class="bi bi-paperclip"></i> View receipt</button>` : ''}`}
         </div>
       </div>`;})())}
 
@@ -2167,9 +2182,9 @@
             <div class="sd-item"><div class="sd-k">Contact</div><div class="sd-v">${p.customer?.phone || p.customer?.email || '—'}</div></div>
             <div class="sd-item"><div class="sd-k">Start Date</div><div class="sd-v">${p.preferredStartDate ? new Date(p.preferredStartDate).toLocaleDateString('en-PH') : '—'}</div></div>
             <div class="sd-item"><div class="sd-k">Approved Completion</div><div class="sd-v">${approvedCompletionDate(p) ? new Date(approvedCompletionDate(p)).toLocaleDateString('en-PH') : '—'}</div></div>
-            <div class="sd-item"><div class="sd-k">Address</div><div class="sd-v">${p.customer?.address || p.location?.address || '—'}</div></div>
+            <div class="sd-item"><div class="sd-k">Customer address</div><div class="sd-v">${escHtml(p.customer?.address || 'Not recorded')}</div></div>
             <div class="sd-item"><div class="sd-k">Working Days</div><div class="sd-v">${(p.preferredWorkingDays||[]).join(', ') || '—'}</div></div>
-            <div class="sd-item"><div class="sd-k">Service</div><div class="sd-v">${p.service?.name || (p.repair?.serviceType === 'repair' ? 'Repair — ' + [p.repair?.unitInfo?.unitType, p.repair?.unitInfo?.brand, p.repair?.unitInfo?.model].filter(Boolean).join(' ') : '—')} ${p.service?.category ? '(' + p.service.category + ')' : ''}</div></div>
+            <div class="sd-item"><div class="sd-k">Service</div><div class="sd-v">${escHtml(requestedServiceNames)} ${p.service?.category ? '(' + p.service.category + ')' : ''}</div></div>
             <div class="sd-item"><div class="sd-k">Hours</div><div class="sd-v">${p.preferredWorkingHours?.start ? p.preferredWorkingHours.start + '–' + p.preferredWorkingHours.end : '—'}</div></div>
           </div>
           ${(p.notes || p.adminNotes) ? `<div class="mt-2 pt-2 border-top"><div class="sd-k mb-1">Notes</div><div class="sd-v">${p.notes || ''}${p.adminNotes ? (p.notes ? '<br>' : '') + p.adminNotes : ''}</div></div>` : ''}
@@ -2283,6 +2298,8 @@
     qs('#projectDetailContainer').innerHTML = html;
     window.__projectData = p;
     window.__projectBooking = data.booking;
+    window.__projectPayments = data.payments || [];
+    window.__projectPaymentSummary = data.paymentSummary || null;
     window.__materialsCount = materials.length;
     window.__lastMaterials = materials;
     window.__lastWorkOrders = workOrders || [];
@@ -2471,6 +2488,7 @@
 
   // Admin approves or rejects the lead's quotation (large-scale project phase)
   window.approveQuotation = async function(pid) {
+    if (window.__projectData?.repairUnitTracking || window.__projectData?.repair?.serviceType === 'repair' || (window.__projectData?.unitGroups || []).some(g => g.serviceType === 'repair')) return window.openRepairUnits('project', pid);
     if (!confirm('Approve this quotation? The project will move to execution phase and the team can mobilize.')) return;
     try {
       const r = await fetch(`/api/projects/${pid}/review-quotation`, {
@@ -2482,6 +2500,7 @@
     } catch(e) { toast('Failed to approve quotation', 'error'); }
   };
   window.rejectQuotation = async function(pid) {
+    if (window.__projectData?.repairUnitTracking || window.__projectData?.repair?.serviceType === 'repair' || (window.__projectData?.unitGroups || []).some(g => g.serviceType === 'repair')) return window.openRepairUnits('project', pid);
     const reason = prompt('Rejection reason (sent to lead technician for revision):');
     if (reason === null) return;
     try {
@@ -2515,13 +2534,14 @@
   window.verifyProject = async function(btn) {
     const p = window.__projectData;
     if (!p || p.status !== 'pending_project_scheduling') return;
-    const label = p.isLargeScale ? 'Verify this large-scale project (details & payment checked) and accept it for planning?' : 'Approve this project and start planning?';
+    if (window.__projectPaymentSummary?.requiresVerification) { showPaymentModal(); toast('Check the receipt and confirm the payment before approving the project.', 'warning'); return; }
+    const label = 'Approve this project and let staff prepare its work schedule?';
     if (!confirm(label)) return;
     const action = async () => {
       try {
         const r = await fetch(`/api/projects/${projectId}/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         if (r.ok) { toast('Project approved — planning started'); loadProject(); }
-        else { const e = await r.json(); toast(e.error || 'Failed to verify', 'error'); }
+        else { const e = await r.json(); toast(e.error || 'Failed to approve', 'error'); if (e.code === 'PROJECT_PAYMENT_REVIEW_REQUIRED') { await loadProject(); showPaymentModal(); } }
       } catch(e) { toast('Failed to verify project', 'error'); }
     };
     if (btn) await withBtnLoading(btn, 'Approving…', action);
@@ -3568,147 +3588,121 @@
   };
 
   window.showTeamModal = async function() {
-    try {
-      const [tr, cr] = await Promise.all([
-        fetch(`/api/projects/${projectId}/eligible-technicians`),
-        fetch(`/api/projects/${projectId}/allocation-calendar`),
-      ]);
-      const td = await tr.json();
-      const cal = cr.ok ? await cr.json() : { days: [], conflicts: [], technicians: [] };
-      const techs = td.technicians || [];
-
-      const assignedIds = new Set((window.__projectData?.assignedTechnicians || []).map(t => (t._id || '').toString()));
-      const currentLead = (window.__projectData?.leadTechnicianId || '').toString();
-      const techName = (id) => {
-        const t = techs.find(x => (x._id || '').toString() === String(id));
-        return t ? (t.name || t.email || 'Unknown') : 'Technician';
-      };
-      let listHtml = techs.map(t => {
-        const checked = assignedIds.has((t._id || '').toString()) ? 'checked' : '';
-        const isLead = (t._id || '').toString() === currentLead;
-        const avail = t.availableDuringProject !== false;
-        const avBadge = avail
-          ? `<span class="badge" style="font-size:0.62rem;background:#dcfce7;color:#15803d;"><i class="bi bi-check-circle-fill"></i> Available</span>`
-          : `<span class="badge" style="font-size:0.62rem;background:#fee2e2;color:#b91c1c;" title="${t.conflictReason || ''}"><i class="bi bi-exclamation-triangle-fill"></i> Conflict</span>`;
-        const avTitle = avail ? '' : ` title="${t.conflictReason || 'Unavailable during project dates'}"`;
-        return `<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #f1f5f9;"${avTitle}>
-          <input type="checkbox" class="tech-checkbox" value="${t._id}" ${checked}>
-          <span style="font-size:0.85rem;flex:1;">${t.name || t.email || 'Unknown'}</span>
-          ${avBadge}
-          <label style="font-size:0.72rem;font-weight:600;color:#4f46e5;cursor:pointer;margin:0;">
-            <input type="radio" name="leadTech" value="${t._id}" ${isLead || (!currentLead && checked) ? 'checked' : ''}> Lead
-          </label>
-        </div>`;
-      }).join('') || '<div class="text-muted" style="font-size:0.82rem;">No technicians available</div>';
-
-      const spanNote = td.projectSpan
-        ? `<p style="font-size:0.72rem;color:#64748b;margin-bottom:0.5rem;"><i class="bi bi-calendar-check"></i> Project span: <strong>${new Date(td.projectSpan.start).toLocaleDateString('en-PH')}</strong> – <strong>${new Date(td.projectSpan.end).toLocaleDateString('en-PH')}</strong> · ${td.projectSpan.workingDays} working day(s).</p>`
-        : '<p style="font-size:0.72rem;color:#94748b;margin-bottom:0.5rem;">No planned start/completion dates set — daily capacity can\'t be assessed.</p>';
-
-      // ── Daily allocation calendar (build schedule around commitments) ──
-      let allocHtml = '';
-      if (Array.isArray(cal.days) && cal.days.length) {
-        const rows = cal.days.map(d => {
-          const cells = (cal.technicians || []).map(t => {
-            const m = (d.matrix || []).find(x => x._id === t._id);
-            if (!m) return `<td style="font-size:0.6rem;color:#94a3b8;text-align:center;">–</td>`;
-            const cls = m.status === 'free'
-              ? 'background:#dcfce7;color:#15803d;'
-              : 'background:#fee2e2;color:#b91c1c;';
-            const icon = m.status === 'free' ? '✓' : '✕';
-            return `<td style="font-size:0.6rem;${cls}text-align:center;" title="${m.detail || m.status}">${icon}</td>`;
-          }).join('');
-          const cap = d.remaining < d.required
-            ? `<span style="color:#b91c1c;font-weight:700;">${d.remaining}/${d.required}</span>`
-            : `${d.remaining}/${d.required}`;
-          return `<tr>
-            <td style="font-size:0.68rem;font-weight:600;white-space:nowrap;">${d.display}</td>
-            <td style="font-size:0.68rem;text-align:center;">${d.totalTechs}</td>
-            <td style="font-size:0.68rem;text-align:center;">${d.reservedByOthers}</td>
-            <td style="font-size:0.68rem;text-align:center;">${d.onLeave}</td>
-            <td style="font-size:0.68rem;text-align:center;">${cap}</td>
-            ${cells}
-          </tr>`;
+    const existing = document.getElementById('projectTeamModal');
+    if (existing) { existing.focus(); return; }
+    const controller = new AbortController(), p = window.__projectData || {};
+    const assignedIds = new Set((p.assignedTechnicians || []).map(t => String(t._id)));
+    const initialLead = String(p.leadTechnicianId || [...assignedIds][0] || '');
+    let techniciansReady = false, calendarReady = false, saving = false, techRequest = 0, calendarRequest = 0;
+    const modal = document.createElement('div');
+    modal.id = 'projectTeamModal'; modal.className = 'pd-payment-overlay pd-team-overlay'; modal.tabIndex = -1;
+    modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'projectTeamTitle');
+    modal.innerHTML = `<div class="pd-payment-dialog pd-team-dialog"><header class="pd-payment-header"><div><h2 id="projectTeamTitle">Assign project team</h2><p id="projectPaymentDescription">Choose technicians and one team lead. Existing bookings stay protected.</p></div><button type="button" class="pd-payment-icon" data-team-close aria-label="Close team selection">×</button></header>
+      <div class="pd-team-body"><section><h3>Team members</h3><div data-team-span></div><div data-team-list role="status" aria-live="polite"></div></section>
+      <section><h3>Schedule availability</h3><div data-team-calendar role="status" aria-live="polite"></div></section><p data-team-error class="pd-payment-error" role="alert"></p></div>
+      <footer class="pd-payment-footer"><p data-team-selection>Loading availability checks…</p><div class="pd-team-actions"><button type="button" class="pd-payment-button" data-team-close>Cancel</button><button type="button" class="pd-payment-button is-primary" id="saveTeamBtn" disabled>Save team</button></div></footer></div>`;
+    const list = modal.querySelector('[data-team-list]'), calendar = modal.querySelector('[data-team-calendar]');
+    const save = modal.querySelector('#saveTeamBtn'), error = modal.querySelector('[data-team-error]');
+    const selection = modal.querySelector('[data-team-selection]');
+    function active() { return modal.isConnected && !controller.signal.aborted; }
+    function loading(section, text) { section.setAttribute('aria-busy', 'true'); section.innerHTML = '<p class="pd-team-loading"><span class="btn-spinner" aria-hidden="true"></span>' + escHtml(text) + '</p>'; }
+    function updateSave() {
+      const selected = modal.querySelectorAll('.tech-checkbox:checked').length;
+      save.disabled = saving || !techniciansReady || !calendarReady || !selected;
+      selection.textContent = !techniciansReady || !calendarReady ? 'Waiting for availability checks' : selected ? selected + ' technician' + (selected === 1 ? '' : 's') + ' selected' : 'Select at least one technician';
+    }
+    function failed(section, message, retry) {
+      section.setAttribute('aria-busy', 'false'); section.replaceChildren();
+      const text = document.createElement('p'); text.className = 'pd-team-load-error'; text.textContent = message;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'pd-payment-button'; button.textContent = 'Try again';
+      button.addEventListener('click', retry); section.append(text, button); updateSave();
+    }
+    async function read(url) {
+      const response = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'This check could not be loaded. Please try again.');
+      return body;
+    }
+    async function loadTechnicians() {
+      const request = ++techRequest; techniciansReady = false; loading(list, 'Loading technicians and checking their bookings…'); updateSave();
+      try {
+        const data = await read(`/api/projects/${projectId}/eligible-technicians`);
+        if (!active() || request !== techRequest) return;
+        if (!Array.isArray(data.technicians)) throw new Error('The technician list could not be loaded. Please try again.');
+        const technicians = data.technicians;
+        list.innerHTML = technicians.map(t => {
+          const id = String(t._id), checked = assignedIds.has(id), conflict = t.availableDuringProject === false;
+          return `<div class="pd-team-member"><label class="pd-team-member-choice"><input type="checkbox" class="tech-checkbox" value="${escHtml(id)}" ${checked ? 'checked' : ''}><span><strong>${escHtml(t.name || t.email || 'Technician')}</strong><small class="${conflict ? 'has-conflict' : ''}">${escHtml(conflict ? t.conflictReason || 'Schedule conflict' : t.availabilityChecked === false ? 'Dates not set' : 'Available during project dates')}</small></span></label><label class="pd-team-lead"><input type="radio" name="leadTech" value="${escHtml(id)}" ${id === initialLead ? 'checked' : ''} ${checked ? '' : 'disabled'}> Lead</label></div>`;
+        }).join('') || '<p class="pd-request-note">No active technicians were found.</p>';
+        list.setAttribute('aria-busy', 'false');
+        const span = modal.querySelector('[data-team-span]');
+        span.textContent = data.projectSpan ? 'Project dates: ' + fmtDate(data.projectSpan.start) + ' – ' + fmtDate(data.projectSpan.end) + ' · ' + data.projectSpan.workingDays + ' working days' : 'Set the project dates to check availability.';
+        techniciansReady = true; updateSave();
+      } catch (cause) { if (active() && request === techRequest) failed(list, cause.message, loadTechnicians); }
+    }
+    async function loadCalendar() {
+      const request = ++calendarRequest; calendarReady = false; loading(calendar, 'Checking daily capacity and schedule conflicts…'); updateSave();
+      try {
+        const cal = await read(`/api/projects/${projectId}/allocation-calendar`);
+        if (!active() || request !== calendarRequest) return;
+        if (!Array.isArray(cal.days) || !Array.isArray(cal.technicians)) throw new Error('Schedule availability could not be loaded. Please try again.');
+        const techs = cal.technicians;
+        const heads = techs.map(t => '<th>' + escHtml(t.name || 'Technician') + '</th>').join('');
+        const rows = cal.days.map(day => {
+          const cells = techs.map(t => { const cell = (day.matrix || []).find(item => String(item._id) === String(t._id));
+            return '<td class="' + (cell?.status === 'free' ? 'is-free' : 'is-busy') + '" title="' + escHtml(cell?.detail || cell?.status || 'Not checked') + '">' + (cell ? cell.status === 'free' ? 'Free' : 'Busy' : '—') + '</td>'; }).join('');
+          return '<tr><th>' + escHtml(day.display || day.date) + '</th><td>' + Number(day.totalTechs || 0) + '</td><td>' + Number(day.reservedByOthers || 0) + '</td><td>' + Number(day.onLeave || 0) + '</td><td>' + Number(day.remaining || 0) + '/' + Number(day.required || 0) + '</td>' + cells + '</tr>';
         }).join('');
-        const headCells = (cal.technicians || []).map(t => `<th style="font-size:0.58rem;padding:2px 4px;">${techName(t._id).split(' ')[0]}</th>`).join('');
-        allocHtml = `
-          <p style="font-size:0.72rem;font-weight:700;margin:0.25rem 0 0.35rem;color:#334155;">Daily Capacity & Allocation</p>
-          <div style="overflow-x:auto;margin-bottom:0.75rem;">
-            <table style="width:100%;border-collapse:collapse;">
-              <thead>
-                <tr style="background:#f8fafc;">
-                  <th style="font-size:0.58rem;padding:2px 4px;text-align:left;">Day</th>
-                  <th style="font-size:0.58rem;padding:2px 4px;">Total</th>
-                  <th style="font-size:0.58rem;padding:2px 4px;">Oth.Proj</th>
-                  <th style="font-size:0.58rem;padding:2px 4px;">Leave</th>
-                  <th style="font-size:0.58rem;padding:2px 4px;">Free/Req</th>
-                  ${headCells}
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-          <p style="font-size:0.6rem;color:#94a3b8;margin:0;">✓ free · ✕ busy (booking / leave / other project). Standard bookings keep priority — the project uses only remaining capacity.</p>`;
+        calendar.innerHTML = cal.days.length ? '<div class="pd-team-calendar-scroll" tabindex="0" aria-label="Daily technician availability"><table><thead><tr><th>Date</th><th>Total</th><th>Other projects</th><th>On leave</th><th>Free / needed</th>' + heads + '</tr></thead><tbody>' + rows + '</tbody></table></div><p class="pd-request-note">Free and busy labels include bookings, leave and other projects.</p>' : '<p class="pd-request-note">No working dates are available in this project window.</p>';
+        (cal.conflicts || []).forEach(conflict => { const item = document.createElement('p'); item.className = 'pd-team-conflict';
+          item.textContent = conflict.date + ': ' + conflict.required + ' technicians needed, ' + conflict.available + ' available. ' + (conflict.suggestions || []).map(suggestion => suggestion.label).join(' '); calendar.appendChild(item); });
+        calendar.setAttribute('aria-busy', 'false'); calendarReady = true; updateSave();
+      } catch (cause) { if (active() && request === calendarRequest) failed(calendar, cause.message, loadCalendar); }
+    }
+    list.addEventListener('change', event => {
+      if (event.target.classList.contains('tech-checkbox')) {
+        const row = event.target.closest('.pd-team-member'), lead = row.querySelector('input[name="leadTech"]');
+        lead.disabled = !event.target.checked; if (!event.target.checked) lead.checked = false;
+        if (!modal.querySelector('input[name="leadTech"]:checked')) {
+          const selected = modal.querySelector('.tech-checkbox:checked'); if (selected) selected.closest('.pd-team-member').querySelector('input[name="leadTech"]').checked = true;
+        }
       }
-
-      // ── Conflict suggestions (rule-based, no auto-changes) ──
-      let conflictHtml = '';
-      if (Array.isArray(cal.conflicts) && cal.conflicts.length) {
-        const items = cal.conflicts.map(c => {
-          const sugg = (c.suggestions || []).map(s => `<span class="badge" style="font-size:0.6rem;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;margin:2px 2px 0 0;">${s.label}</span>`).join('');
-          return `<div style="border:1px solid #fecaca;background:#fffbeb;border-radius:10px;padding:0.6rem 0.75rem;margin-bottom:0.5rem;">
-            <div style="font-size:0.74rem;font-weight:700;color:#b45309;"><i class="bi bi-exclamation-triangle-fill"></i> ${c.date}: needs ${c.required}, only ${c.available} free (short ${c.missing})</div>
-            <div style="margin-top:0.3rem;">${sugg}</div>
-          </div>`;
-        }).join('');
-        conflictHtml = `<p style="font-size:0.72rem;font-weight:700;margin:0.5rem 0 0.35rem;color:#b45309;">Scheduling Conflicts</p>${items}
-          <p style="font-size:0.6rem;color:#94a3b8;margin:0.25rem 0 0;">Existing bookings are protected — resolve with a suggestion above. The team still saves; you can adjust later.</p>`;
-      }
-
-      const modal = document.createElement('div');
-      modal.className = 'pd-modal-overlay';
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
-      modal.innerHTML = `
-        <div style="background:#fff;border-radius:16px;padding:1.5rem;width:680px;max-width:94vw;max-height:85vh;overflow-y:auto;">
-          <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.35rem;">Assign Project Team</h4>
-          <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.5rem;">Select team members and choose one as <strong>Lead Technician</strong>. The schedule is built around each technician's existing bookings.</p>
-          ${spanNote}
-          <p style="font-size:0.72rem;font-weight:700;margin:0 0 0.35rem;color:#334155;">Team Members</p>
-          <div style="margin-bottom:0.5rem;max-height:160px;overflow-y:auto;">${listHtml}</div>
-          ${allocHtml}
-          ${conflictHtml}
-          <div class="d-flex gap-2 justify-content-end" style="margin-top:0.75rem;">
-            <button class="pd-btn" onclick="closeModal(this)">Cancel</button>
-            <button class="pd-btn primary" id="saveTeamBtn">Save Team</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      modal.querySelector('#saveTeamBtn').addEventListener('click', async function() {
-        const selected = [...modal.querySelectorAll('.tech-checkbox:checked')].map(c => c.value);
-        if (selected.length === 0) { toast('Select at least one technician', 'error'); return; }
-        const lead = modal.querySelector('input[name="leadTech"]:checked');
-        const leadId = lead ? lead.value : selected[0];
-        await withBtnLoading(this, 'Saving…', async () => {
-          try {
-            const r = await fetch(`/api/projects/${projectId}/team`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ technicianIds: selected, leadTechnicianId: leadId }),
-            });
-            if (r.ok) { toast('Team assigned'); modal.remove(); loadProject(); }
-            else {
-              const e = await r.json();
-              if (e.conflict) {
-                toast('Saved with conflicts — see allocation calendar', 'error');
-                modal.remove(); loadProject();
-              } else { toast(e.error || 'Failed', 'error'); }
-            }
-          } catch(e) { toast('Failed', 'error'); }
-        });
+      updateSave();
+    });
+    const previousFocus = document.activeElement, previousOverflow = document.body.style.overflow;
+    function close() { if (saving) return; controller.abort(); document.removeEventListener('keydown', onKey); document.body.style.overflow = previousOverflow; modal.remove(); previousFocus?.focus(); }
+    function onKey(event) {
+      if (event.key === 'Escape') { event.preventDefault(); close(); }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(modal.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')).filter(item => item.getClientRects().length);
+      if (!controls.length) { event.preventDefault(); modal.focus(); return; }
+      if (event.shiftKey && (document.activeElement === controls[0] || document.activeElement === modal)) { event.preventDefault(); controls.at(-1).focus(); }
+      else if (!event.shiftKey && (document.activeElement === controls.at(-1) || !modal.contains(document.activeElement))) { event.preventDefault(); controls[0].focus(); }
+    }
+    modal.querySelectorAll('[data-team-close]').forEach(button => button.addEventListener('click', close));
+    modal.addEventListener('click', event => { if (event.target === modal) close(); });
+    save.addEventListener('click', async function() {
+      if (saving || save.disabled || !techniciansReady || !calendarReady) return;
+      const selected = Array.from(modal.querySelectorAll('.tech-checkbox:checked')).map(input => input.value);
+      if (!selected.length) return;
+      const lead = modal.querySelector('input[name="leadTech"]:checked');
+      const leadId = lead && selected.includes(lead.value) ? lead.value : selected[0];
+      saving = true; error.textContent = ''; modal.querySelectorAll('button, input').forEach(input => { input.disabled = true; });
+      await withBtnLoading(save, 'Saving…', async () => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/team`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ technicianIds: selected, leadTechnicianId: leadId }) });
+          const result = await response.json();
+          if (!response.ok && !(response.status === 409 && result.conflict === true)) throw new Error(result.error || 'The team could not be saved. Please try again.');
+          saving = false; close(); toast(result.conflict ? 'Team saved. Review the schedule conflicts before confirming the work plan.' : 'Team assigned', result.conflict ? 'warning' : 'success'); await loadProject();
+        } catch (cause) { error.textContent = cause.message; }
       });
-      modal.addEventListener('click', function(e) { if (e.target === this) this.remove(); });
-    } catch(e) { toast('Failed to load technicians', 'error'); }
+      saving = false;
+      if (active()) { modal.querySelectorAll('button, input').forEach(input => { input.disabled = false; });
+        modal.querySelectorAll('.pd-team-member').forEach(row => { row.querySelector('input[name="leadTech"]').disabled = !row.querySelector('.tech-checkbox').checked; }); updateSave(); }
+    });
+    document.body.style.overflow = 'hidden'; document.body.appendChild(modal); document.addEventListener('keydown', onKey);
+    modal.querySelector('[data-team-close]').focus();
+    await Promise.allSettled([loadTechnicians(), loadCalendar()]);
   };
 
   // Change only the lead technician (team stays intact).
@@ -3815,128 +3809,105 @@
     } catch(e) { toast('Failed to open', 'error'); }
   };
 
-  // Record / update proof of payment.
+  // Payment viewing never changes a receipt, balance or payment status.
   window.showPaymentModal = function() {
+    const existing = document.getElementById('projectPaymentViewer');
+    if (existing) { existing.focus(); return; }
+    const data = { project: window.__projectData || {}, booking: window.__projectBooking || {}, payments: window.__projectPayments || [], paymentSummary: window.__projectPaymentSummary };
+    const pay = customerPayment(data);
+    const pending = pay.submittedAmount > 0;
+    const statusLabels = { pending: 'Needs review', unpaid: 'Not paid yet', partial: 'Partly paid', paid: 'Paid', verified: 'Payment confirmed', refunded: 'Refunded', payment_collected: 'Payment collected', waiting_for_remittance: 'Awaiting cash handover', remitted: 'Payment handed over', rejected: 'Needs attention' };
+    const money = value => '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const methodLabels = { gcash: 'GCash', maya: 'Maya', cash: 'Cash', cod: 'Payment after service', bank: 'Bank transfer', bank_transfer: 'Bank transfer', card: 'Card', paymongo: 'Online payment' };
+    const downpaymentOnly = pay.pendingPayments.length && pay.pendingPayments.every(payment => payment.type === 'downpayment');
+    const reference = data.booking.bookingReference || 'Project payment';
+    const modal = document.createElement('div');
+    modal.id = 'projectPaymentViewer';
+    modal.className = 'pd-payment-overlay';
+    modal.tabIndex = -1;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'projectPaymentTitle');
+    modal.setAttribute('aria-describedby', 'projectPaymentDescription');
+    modal.innerHTML = `<div class="pd-payment-dialog">
+      <header class="pd-payment-header"><div><p class="pd-payment-eyebrow">${escHtml(reference)}</p><h2 id="projectPaymentTitle">View payment</h2><p id="projectPaymentDescription">Check the amount and receipt before confirming payment.</p></div><button type="button" class="pd-payment-icon" data-close aria-label="Close payment view"><span aria-hidden="true">×</span></button></header>
+      <div class="pd-payment-body"><section class="pd-payment-receipts" aria-label="Payment receipts"><div class="pd-payment-section-heading"><h3>Customer receipt</h3><span>Original file</span></div><div data-receipts></div></section>
+        <aside class="pd-payment-information" aria-label="Payment summary"><div class="pd-payment-amount ${pending ? 'is-pending' : ''}"><span class="pd-payment-status">${escHtml(pending ? 'Needs review' : statusLabels[pay.status] || 'Payment details')}</span><p>${pending ? (downpaymentOnly ? 'Submitted downpayment' : 'Submitted payment') : 'Payment received'}</p><strong>${money(pending ? pay.submittedAmount : pay.amountPaid)}</strong><small>${pending ? 'Waiting for staff confirmation' : 'Saved payment record'}</small></div>
+          <dl class="pd-payment-totals"><div><dt>Booking estimate</dt><dd>${money(pay.total)}</dd></div><div><dt>Payment received</dt><dd>${money(pay.amountPaid)}</dd></div><div class="pd-payment-balance"><dt>${pending ? 'Balance after confirmation' : 'Remaining balance'}</dt><dd>${money(pending ? pay.balanceAfterReview : pay.balance)}</dd></div></dl>
+          ${pending ? '<p class="pd-payment-note">The balance shown applies after the submitted payment is confirmed.</p>' : ''}
+          <dl class="pd-payment-meta"><div><dt>Payment method</dt><dd>${escHtml(methodLabels[pay.method] || pay.method || 'Not recorded')}</dd></div><div><dt>Reference number</dt><dd>${escHtml(pay.reference || 'Not recorded')}</dd></div></dl><div data-payment-review></div>
+        </aside></div>
+      <footer class="pd-payment-footer"><p>${pending ? 'Confirm payment before approving this project.' : 'The receipt and payment details are kept with this project.'}</p><button type="button" class="pd-payment-button" data-close>Close</button></footer>
+    </div>`;
+    const receipts = modal.querySelector('[data-receipts]'), sources = [], seen = new Set();
+    function addProof(src, label) { if (src && !seen.has(src)) { seen.add(src); sources.push({ src, label }); } }
+    addProof(pay.proofUrl, 'Customer receipt');
+    data.payments.forEach(payment => addProof(payment.proofUrl, (payment.type === 'downpayment' ? 'Downpayment' : 'Payment') + ' · ' + money(payment.amount)));
+    if (!sources.length) { receipts.className = 'pd-payment-no-receipt'; receipts.textContent = 'No receipt was attached to this payment.'; }
+    const containers = sources.map(proof => {
+      if (sources.length > 1) { const label = document.createElement('h4'); label.className = 'pd-payment-receipt-label'; label.textContent = proof.label; receipts.appendChild(label); }
+      const container = document.createElement('div'); container.className = 'pd-payment-preview'; receipts.appendChild(container);
+      window.evidenceViewer.show(container, proof.src);
+      return container;
+    });
+    const review = modal.querySelector('[data-payment-review]');
+    if (!['cancelled', 'completed', 'closed', 'archived'].includes(data.project.status)) pay.pendingPayments.forEach(payment => {
+      const section = document.createElement('section'); section.className = 'pd-payment-review';
+      const title = document.createElement('h3'); title.textContent = 'Confirm ' + money(payment.amount) + ' received';
+      if (pay.pendingPayments.length > 1 && payment.reference) { const ref = document.createElement('p'); ref.className = 'pd-payment-note'; ref.textContent = 'Reference: ' + payment.reference; section.appendChild(ref); }
+      const label = document.createElement('label'); label.className = 'pd-payment-confirmation';
+      const check = document.createElement('input'); check.type = 'checkbox';
+      label.append(check, document.createTextNode('I checked the receipt and confirmed that the payment was received.'));
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'pd-payment-button is-primary';
+      button.textContent = 'Confirm payment received'; button.disabled = true;
+      const message = document.createElement('p'); message.className = 'pd-payment-error'; message.setAttribute('role', 'alert');
+      check.addEventListener('change', () => { button.disabled = !check.checked || !!window.__projectPaymentBusy; });
+      button.addEventListener('click', () => window.verifyProjectSubmittedPayment(payment.id, check, button, message, modal));
+      section.prepend(title); section.append(label, button, message); review.appendChild(section);
+    });
+    const previousFocus = document.activeElement, previousOverflow = document.body.style.overflow;
+    function close() {
+      if (modal.querySelector('[data-close]').disabled) return;
+      containers.forEach(container => window.evidenceViewer.clear(container)); document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow; modal.remove(); previousFocus?.focus();
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') { event.preventDefault(); close(); }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(modal.querySelectorAll('button:not(:disabled), input:not(:disabled), a[href], iframe')).filter(element => element.getClientRects().length);
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (!first) { event.preventDefault(); modal.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === modal)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+    }
+    modal.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', close));
+    modal.addEventListener('click', event => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', onKey); document.body.style.overflow = 'hidden'; document.body.appendChild(modal);
+    modal.querySelector('[data-close]').focus();
+  };
+
+
+  window.verifyProjectSubmittedPayment = async function(paymentId, check, button, message, modal) {
+    if (!check.checked || window.__projectPaymentBusy) return;
+    window.__projectPaymentBusy = true;
+    const oldLabel = button.textContent;
+    modal.querySelectorAll('button, input').forEach(element => { element.disabled = true; });
+    button.textContent = 'Saving…'; message.textContent = '';
     try {
-      const p = window.__projectData || {};
-      const b = window.__projectBooking || {};
-      // Start from what the admin has recorded; fall back to the customer's booking entry.
-      const recorded = p.payment || {};
-      const pay = {
-        totalAmount: recorded.totalAmount != null ? recorded.totalAmount : ((b.totalAmount != null ? b.totalAmount : (b.amountPaid || 0) + (b.balanceAmount || 0))),
-        amountPaid: recorded.amountPaid != null ? recorded.amountPaid : (b.amountPaid || 0),
-        balanceAmount: recorded.balanceAmount != null ? recorded.balanceAmount : (b.balanceAmount || 0),
-        paymentMethod: recorded.paymentMethod || b.paymentMethod || '',
-        paymentStatus: recorded.paymentStatus || b.paymentStatus || 'unpaid',
-        proofUrl: recorded.proofUrl || b.paymentProof || '',
-        proofNote: recorded.proofNote || b.paymentNotes || '',
-      };
-      const modal = document.createElement('div');
-      modal.className = 'pd-modal-overlay';
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
-      modal.innerHTML = `
-        <div style="background:#fff;border-radius:16px;padding:1.5rem;width:480px;max-width:92vw;max-height:88vh;overflow-y:auto;">
-          <h4 style="font-size:1rem;font-weight:700;margin-bottom:0.35rem;"><i class="bi bi-receipt me-2" style="color:#059669;"></i>Proof of Payment</h4>
-          <p style="font-size:0.8rem;color:#64748b;margin-bottom:0.9rem;">Record the customer's payment and attach a receipt / proof reference.</p>
-          <div class="row g-2">
-            <div class="col-6">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Total Amount (₱)</label>
-              <input id="payTotal" type="number" class="form-control form-control-sm mt-1" min="0" value="${pay.totalAmount || ''}" placeholder="0">
-            </div>
-            <div class="col-6">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Amount Paid (₱)</label>
-              <input id="payPaid" type="number" class="form-control form-control-sm mt-1" min="0" value="${pay.amountPaid || ''}" placeholder="0">
-            </div>
-            <div class="col-6 mt-2">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Balance (₱)</label>
-              <input id="payBal" type="number" class="form-control form-control-sm mt-1" min="0" value="${pay.balanceAmount || ''}" placeholder="0">
-            </div>
-            <div class="col-6 mt-2">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Method</label>
-              <input id="payMethod" class="form-control form-control-sm mt-1" value="${pay.paymentMethod || ''}" placeholder="e.g., GCash, Bank, Cash">
-            </div>
-            <div class="col-6 mt-2">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Status</label>
-              <select id="payStatus" class="form-select form-select-sm mt-1">
-                <option value="unpaid" ${pay.paymentStatus === 'unpaid' ? 'selected' : ''}>Unpaid</option>
-                <option value="partial" ${pay.paymentStatus === 'partial' ? 'selected' : ''}>Partial</option>
-                <option value="paid" ${pay.paymentStatus === 'paid' ? 'selected' : ''}>Paid</option>
-                <option value="refunded" ${pay.paymentStatus === 'refunded' ? 'selected' : ''}>Refunded</option>
-              </select>
-            </div>
-            <div class="col-12 mt-2">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Proof of Payment (receipt photo)</label>
-              <input type="file" id="payProofFile" class="form-control form-control-sm mt-1" accept="image/png,image/jpeg,image/webp" onchange="previewPaymentProof(this)">
-              <div id="payProofPreview" class="mt-2" style="display:${pay.proofUrl ? 'block' : 'none'};">
-                ${pay.proofUrl ? `<img src="${pay.proofUrl}" style="max-height:120px;border-radius:8px;border:1px solid #e2e8f0;"><div class="mt-1"><a href="${pay.proofUrl}" target="_blank" class="pw-tag" style="text-decoration:none;font-size:0.74rem;"><i class="bi bi-paperclip"></i> View current</a></div>` : ''}
-              </div>
-              <input type="hidden" id="payProofUrl" value="${pay.proofUrl || ''}">
-              <small class="text-muted" style="font-size:0.7rem;">Upload a screenshot of the receipt, or paste a link below.</small>
-              <input id="payUrl" class="form-control form-control-sm mt-1" value="${pay.proofUrl && !pay.proofUrl.startsWith('/uploads/') ? pay.proofUrl : ''}" placeholder="https://... or receipt no.">
-            </div>
-            <div class="col-12 mt-2">
-              <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Note</label>
-              <textarea id="payNote" class="form-control form-control-sm mt-1" rows="2" placeholder="Optional note">${pay.proofNote || ''}</textarea>
-            </div>
-          </div>
-          <div class="d-flex gap-2 justify-content-end mt-3">
-            <button class="pd-btn" onclick="closeModal(this)">Cancel</button>
-            <button class="pd-btn primary" id="savePayBtn">Save Proof</button>
-          </div>
-        </div>`;
-      document.body.appendChild(modal);
-
-      // Show a preview of a freshly chosen file before upload.
-      window.previewPaymentProof = function(input) {
-        const preview = modal.querySelector('#payProofPreview');
-        if (input.files && input.files[0]) {
-          const url = URL.createObjectURL(input.files[0]);
-          preview.innerHTML = `<img src="${url}" style="max-height:120px;border-radius:8px;border:1px solid #e2e8f0;">`;
-          preview.style.display = 'block';
-        }
-      };
-
-      modal.querySelector('#savePayBtn').addEventListener('click', async function() {
-        // Upload the receipt image first (if one was chosen), then save.
-        const fileInput = modal.querySelector('#payProofFile');
-        let proofUrl = modal.querySelector('#payProofUrl').value.trim();
-        if (fileInput.files && fileInput.files[0]) {
-          const fd = new FormData();
-          fd.append('proofPhoto', fileInput.files[0]);
-          try {
-            const up = await fetch(`/api/projects/${projectId}/upload-payment-proof`, { method: 'POST', body: fd });
-            if (up.ok) { const ud = await up.json(); proofUrl = ud.url || proofUrl; }
-            else { const ue = await up.json(); toast(ue.error || 'Upload failed', 'error'); return; }
-          } catch(e) { toast('Upload failed', 'error'); return; }
-        }
-        // Manual URL overrides only if the user typed one.
-        const typedUrl = modal.querySelector('#payUrl').value.trim();
-        if (typedUrl) proofUrl = typedUrl;
-
-        const body = {
-          totalAmount: parseFloat(modal.querySelector('#payTotal').value) || 0,
-          amountPaid: parseFloat(modal.querySelector('#payPaid').value) || 0,
-          balanceAmount: parseFloat(modal.querySelector('#payBal').value) || 0,
-          paymentMethod: modal.querySelector('#payMethod').value.trim(),
-          paymentStatus: modal.querySelector('#payStatus').value,
-          proofUrl,
-          proofNote: modal.querySelector('#payNote').value.trim(),
-        };
-        await withBtnLoading(this, 'Saving…', async () => {
-          try {
-            const r = await fetch(`/api/projects/${projectId}/payment`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-            const d = await r.json().catch(() => ({}));
-            if (r.ok) { toast('Proof of payment saved'); modal.remove(); loadProject(); }
-            else toast(d.error || 'Failed', 'error');
-          } catch(e) { toast('Failed', 'error'); }
-        });
-      });
-      modal.addEventListener('click', function(e) { if (e.target === this) this.remove(); });
-    } catch(e) { toast('Failed to open', 'error'); }
+      const response = await fetch(`/api/projects/${projectId}/verify-payment`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, receiptConfirmed: true }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Payment could not be reviewed. Please try again.');
+      const closeButton = modal.querySelector('[data-close]'); closeButton.disabled = false; closeButton.click();
+      await loadProject();
+      toast(result.alreadyVerified ? 'This payment was already confirmed.' : 'Payment received and recorded. You can now approve the project.');
+    } catch (error) { message.textContent = error.message; }
+    finally {
+      window.__projectPaymentBusy = false;
+      modal.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
+      modal.querySelectorAll('section').forEach(section => { const input = section.querySelector('input'); const action = section.querySelector('button'); if (input && action) action.disabled = !input.checked; });
+      button.textContent = oldLabel;
+    }
   };
 
   // ── Team acceptance gate helper ──

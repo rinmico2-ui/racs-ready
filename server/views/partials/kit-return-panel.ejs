@@ -1,0 +1,41 @@
+<% const canReviewKitReturns = kitReturnMode !== 'technician' && (typeof user === 'undefined' || user?.role === 'admin'); %>
+<link rel="stylesheet" href="/css/kit-returns.css?v=20261013-bulk-review">
+<section class="kr-panel" id="kitReturnsPanel" data-mode="<%= kitReturnMode %>" data-review-allowed="<%= canReviewKitReturns %>" aria-labelledby="krTitle">
+  <header class="kr-header"><div><span class="kr-eyebrow">RETURN TRACKING</span><h2 id="krTitle"><%= kitReturnMode === 'technician' ? 'Materials and returns' : 'Kit returns awaiting receipt' %></h2><p><%= kitReturnMode === 'technician' ? 'Report unused items and follow your returns through admin review.' : 'Check the physical items and quantities before confirming. A cancelled job does not automatically return its tools or materials.' %></p></div><button type="button" class="btn btn-outline-secondary" id="krRefresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</button></header>
+  <div class="alert alert-danger" id="krError" role="alert" hidden></div>
+  <% if (kitReturnMode === 'technician') { %>
+  <section class="kr-section kr-material-section" aria-labelledby="krMaterialsTitle">
+  <div class="kr-section-heading"><span class="kr-section-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span><div><h3 id="krMaterialsTitle">Materials still with you</h3><p>Check used and remaining quantities before sending a report.</p></div></div>
+  <div class="kr-material-actions">
+    <div class="kr-selection-controls"><label class="kr-select-page"><input type="checkbox" id="krSelectPage" class="form-check-input" disabled> Select this page</label><span id="krSelectedCount" aria-live="polite">0 selected</span><button type="button" class="kr-clear-selection" id="krClearSelection" hidden>Clear</button></div>
+    <div class="kr-return-actions"><button type="button" class="btn btn-outline-success" id="krReturnSelected" disabled>Return selected</button><button type="button" class="btn btn-success" id="krReturnAll" disabled>Return all</button></div>
+  </div>
+  <p class="kr-selection-hint">Return all includes available materials from every page. Items awaiting admin receipt are skipped. You can check and adjust quantities before sending.</p>
+  <div class="kr-table-wrap"><table class="table align-middle"><thead><tr><th>Material / work date</th><th>Issued</th><th>Recorded used</th><th>Still with you</th><th>Action</th></tr></thead><tbody id="krMaterials"><tr><td colspan="5" class="kr-empty">Loading issued materials…</td></tr></tbody></table></div>
+  <div class="kr-footer"><span id="krMaterialPage"></span><div><button type="button" class="btn btn-outline-secondary btn-sm" id="krMaterialPrev">Previous materials</button> <button type="button" class="btn btn-outline-secondary btn-sm" id="krMaterialNext">Next materials</button></div></div>
+  </section>
+  <% } %>
+  <section class="kr-section kr-report-section" aria-labelledby="krReportsTitle">
+  <div class="kr-toolbar"><div class="kr-section-heading"><span class="kr-section-icon"><i class="bi bi-arrow-return-left" aria-hidden="true"></i></span><div><h3 id="krReportsTitle">Return reports <span id="krTotal" class="badge bg-secondary"></span></h3><p>Follow submitted reports and admin feedback.</p></div></div><select id="krStatus" class="form-select" aria-label="Return report status"><option value="pending">Awaiting admin receipt</option><option value="received">Received / reviewed</option><option value="rejected">Needs correction</option></select></div>
+  <% if (canReviewKitReturns) { %>
+  <div id="krReviewActions" class="kr-material-actions">
+    <div class="kr-selection-controls"><label class="kr-select-page"><input type="checkbox" id="krSelectReportsPage" class="form-check-input" disabled> Select this page</label><span id="krReviewSelectedCount" aria-live="polite">0 selected</span><button type="button" class="kr-clear-selection" id="krClearReviewSelection" hidden>Clear</button></div>
+    <div class="kr-return-actions"><button type="button" class="btn btn-outline-success" id="krReviewSelected" disabled>Review selected</button><button type="button" class="btn btn-success" id="krReviewAll" disabled>Review all</button></div>
+  </div>
+  <p id="krReviewSelectionHint" class="kr-selection-hint">Review all includes pending reports from every page. Check each item's quantities and condition before confirming receipt.</p>
+  <% } %>
+  <div class="kr-table-wrap"><table class="table align-middle"><thead><tr><th>Item / technician</th><th>Linked work</th><th>Reported quantities</th><th>Status</th><th><%= kitReturnMode === 'technician' ? 'Reviewed' : 'Action' %></th></tr></thead><tbody id="krReports"><tr><td colspan="5" class="kr-empty">Loading return reports…</td></tr></tbody></table></div>
+  <footer class="kr-footer"><span id="krPageLabel"></span><div><button type="button" class="btn btn-outline-secondary btn-sm" id="krPrev">Previous</button> <button type="button" class="btn btn-outline-secondary btn-sm" id="krNext">Next</button></div></footer>
+  </section>
+</section>
+<div class="modal fade" id="krModal" tabindex="-1" aria-labelledby="krModalTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><form class="modal-content" id="krForm">
+  <div class="modal-header"><h5 class="modal-title" id="krModalTitle">Return report</h5><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body"><div id="krModalError" class="alert alert-danger" role="alert" hidden></div><p id="krItem" class="fw-semibold"></p><p id="krBalance" class="small text-secondary"></p>
+    <div id="krBulkItems" hidden></div>
+    <div class="kr-quantities" id="krQuantities"><% for (const [key, label] of [['unused','Unused and usable'],['used','Additional used'],['damaged','Damaged / unusable'],['missing','Missing']]) { %><label class="form-label" for="kr-<%= key %>"><%= label %><input type="number" id="kr-<%= key %>" class="form-control mt-1" min="0" step="any" value="0" required></label><% } %></div>
+    <div id="krConditionWrap" hidden><label class="form-label" for="krCondition">Received condition</label><select id="krCondition" class="form-select"><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option><option value="lost">Missing / lost</option></select></div>
+    <label for="krNotes" class="form-label mt-3">Notes</label><textarea id="krNotes" class="form-control" rows="3" maxlength="500" placeholder="Explain used, damaged, or missing items, or corrections."></textarea>
+    <label class="form-check mt-3" id="krConfirmWrap" hidden><input id="krConfirm" class="form-check-input" type="checkbox"><span class="form-check-label">I checked the returned items and confirm these quantities or the reported loss.</span></label>
+  </div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-outline-danger" type="button" id="krReject" hidden>Needs correction</button><button class="btn btn-success" type="submit" id="krSave">Send report</button></div>
+</form></div></div>
+<script src="/js/kit-returns.js?v=20261013-bulk-review" defer></script>

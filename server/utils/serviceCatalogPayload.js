@@ -1,4 +1,5 @@
 "use strict";
+const { parseHp } = require('../public/js/appliance-services');
 
 function payloadError(field, expected) {
   const error = new Error(`${field} must be valid ${expected} JSON.`);
@@ -57,13 +58,31 @@ function normalizeServiceCatalogPayload(body, options = {}) {
 
 function normalizeCoreServicePayload(body) {
   const payload = normalizeServiceCatalogPayload(body, {
-    arrayFields: ["features", "includedItems", "exclusions", "airconTypes", "hpPricing"],
+    arrayFields: ["features", "includedItems", "exclusions", "airconTypes", "hpPricing", "applianceProfiles"],
     objectFields: ["warrantyPolicy"],
     booleanFields: ["isAirconService", "active"],
   });
   const groups = payload.airconTypes || [];
   const types = new Set();
   function invalid(message) { const error = new Error(message); error.status = 400; error.code = 'INVALID_SERVICE_PAYLOAD'; throw error; }
+  const appliances = new Set();
+  for (const profile of payload.applianceProfiles || []) {
+    if (!profile || !['refrigerator', 'freezer'].includes(profile.kind) || appliances.has(profile.kind) || typeof profile.enabled !== 'boolean') invalid('Choose distinct refrigerator or freezer service settings.');
+    appliances.add(profile.kind);
+    profile.pricingMode = profile.pricingMode || 'fixed';
+    if (!['fixed', 'hp'].includes(profile.pricingMode)) invalid('Choose a fixed price or compressor HP pricing.');
+    const validPrice = value => value != null && String(value).trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1000000;
+    const validTime = value => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 10080;
+    if (profile.hpPricing != null && !Array.isArray(profile.hpPricing)) invalid('Compressor HP prices must be a list.');
+    const seenHp = new Set();
+    for (const tier of profile.hpPricing || []) {
+      const hp = parseHp(tier?.hp);
+      if (!Number.isFinite(hp) || seenHp.has(hp) || !validPrice(tier?.price) || !validTime(tier?.durationMinutes)) invalid('Each compressor HP needs a unique positive size, a price, and a whole work time from 1 to 10080 minutes.');
+      tier.hp = hp; seenHp.add(hp);
+    }
+    if (profile.enabled && profile.pricingMode === 'hp' && !seenHp.size) invalid('Add at least one compressor HP price before enabling this appliance.');
+    if (profile.enabled && profile.pricingMode === 'fixed' && (!validPrice(profile.unitPrice) || !validTime(profile.durationMinutes))) invalid('Enabled appliance services need a price and a work time in minutes.');
+  }
   for (const group of groups) {
     if (!group || !Array.isArray(group.hpPricing)) invalid('Each aircon type needs a list of HP prices.');
     if (types.has(group.type)) invalid('Each aircon type can appear only once. Add more HP tiers to the existing type.');

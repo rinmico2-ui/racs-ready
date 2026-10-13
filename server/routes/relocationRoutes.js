@@ -8,6 +8,7 @@ const CustomerAsset = require('../models/CustomerAsset');
 const RelocationRequest = require('../models/RelocationRequest');
 const { createNotification } = require('../utils/notify');
 const { resolveCoreServicePricing } = require('../utils/coreServicePricing');
+const { validPoint } = require('../public/js/relocation-booking-locations');
 
 const router = express.Router();
 router.use(auth.authenticate);
@@ -24,6 +25,7 @@ router.post('/', customer, limiter, async (req, res) => {
     const service = await CoreService.findOne({ _id: req.body.serviceId, slug: 'aircon-relocation', active: true }).select('_id').lean();
     if (!service) return res.status(400).json({ error: 'Aircon Relocation is unavailable.' });
     if (req.body.scope !== 'custom_quote') return res.status(400).json({ error: 'Use the normal booking for a nearby move on the same property.' });
+    if (!validPoint(req.body.from) || !validPoint(req.body.to)) return res.status(400).json({ error: 'Choose a map pin for both the current and new addresses.' });
     const from = { address: clean(req.body.from?.address, 300), details: clean(req.body.from?.details, 500) };
     const to = { address: clean(req.body.to?.address, 300), details: clean(req.body.to?.details, 500) };
     for (const [source, target] of [[req.body.from, from], [req.body.to, to]]) {

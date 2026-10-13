@@ -519,7 +519,7 @@
 
   async function loadQueue() {
     const requestId = ++queueRequest;
-    const params = new URLSearchParams({ page: String(currentPage), perPage: '25' });
+    const params = new URLSearchParams({ page: String(currentPage), perPage: '10' });
     if (currentFocus) params.set('focus', currentFocus);
     if (currentSource) params.set('source', currentSource);
     if (currentSource === 'booking' && currentBookingType) params.set('bookingType', currentBookingType);
@@ -567,7 +567,7 @@
       document.getElementById('rcAllCount').textContent = data.summary?.total || 0;
       document.getElementById('rcBookingCount').textContent = data.summary?.bySource?.booking || 0;
       if (document.getElementById('rcOrderCount')) document.getElementById('rcOrderCount').textContent = data.summary?.bySource?.order || 0;
-      const pagination = data.pagination || { page:1, pages:1, total:allResolutionCases.length, perPage:25 };
+      const pagination = data.pagination || { page:1, pages:1, total:allResolutionCases.length, perPage:10 };
       const start = pagination.total ? ((pagination.page - 1) * pagination.perPage) + 1 : 0;
       const end = Math.min(pagination.total, pagination.page * pagination.perPage);
       document.getElementById('resolutionResultsMeta').textContent = pagination.total ? `Showing ${start}–${end} of ${pagination.total} matching cases` : '0 matching cases';

@@ -58,6 +58,7 @@ function summarizeChanges(before, proposed) {
     serviceId: String(item?.serviceId?._id || item?.serviceId || ""),
     type: item?.type === "repair" ? "repair" : "core",
     quantity: Math.max(1, Number(item?.quantity) || 1),
+    applianceGroupId: item?.applianceGroupId || "", applianceKind: item?.applianceKind || "",
     brand: String(item?.brand || "").trim(),
     model: String(item?.model || "").trim(),
     applianceType: String(item?.applianceType || item?.airconType || ""),

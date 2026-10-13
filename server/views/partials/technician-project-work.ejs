@@ -1470,7 +1470,7 @@
           ${kpiRow(a, true)}
           <div class="pw-wait mt-3">
             <div class="ic"><i class="bi bi-hourglass-split"></i></div>
-            <div><div class="t">Awaiting admin approval</div><div class="d">Your quotation is being reviewed by the admin. You'll be notified once approved.</div></div>
+            <div><div class="t">${qr.status === 'awaiting_customer' ? 'Awaiting customer decision' : 'Awaiting staff review'}</div><div class="d">${qr.status === 'awaiting_customer' ? 'Staff reviewed the prices. The customer must approve or decline each appliance repair.' : 'Staff will review each appliance price before sending it to the customer.'}</div></div>
           </div>
           ${hasMultipleTypes ? `
           <div class="pw-report-box mt-3">
@@ -1866,7 +1866,7 @@
 
   function cardHead(p, statusText, statusClass, phase) {
     const name = p?.customer?.name || p?.service?.name || 'Commercial Project';
-    const isRepair = p?.repair?.serviceType === 'repair' || p?.laborType === 'repair';
+    const isRepair = p?.repair?.serviceType === 'repair' || p?.laborType === 'repair' || (p?.unitGroups || []).some(group => group.serviceType === 'repair');
     return `
       ${phaseStepper(phase)}
       <div class="pw-content">
@@ -1875,7 +1875,7 @@
             <h3>${esc(name)}</h3>
             <div class="meta"><span><i class="bi bi-briefcase me-1"></i>${esc(p?.service?.name || 'Commercial Project')}</span><span class="dot"></span><span>Large-Scale Project</span>${isRepair ? '<span class="dot"></span><span style="background:#fef2f2;color:#991b1b;padding:.15rem .5rem;border-radius:999px;font-size:.65rem;font-weight:700;border:1px solid #fecaca;"><i class="bi bi-tools me-1"></i>Repair</span>' : ''}</div>
           </div>
-          <span class="pw-status ${statusClass}">${esc(statusText)}</span>
+          <div>${isRepair ? `<button class="pw-link" onclick="openRepairUnits('project','${p._id}')">Appliance repairs</button>` : ''}<span class="pw-status ${statusClass}">${esc(statusText)}</span></div>
         </div>`;
   }
 
@@ -2125,6 +2125,8 @@
   };
 
   window.pwSubmitInspection = async (pid) => {
+    const assignedProject = PW_ASSIGNMENTS.find(a => String(a.project?._id) === String(pid))?.project;
+    if (assignedProject?.repairUnitTracking || assignedProject?.repair?.serviceType === 'repair' || (assignedProject?.unitGroups || []).some(g => g.serviceType === 'repair')) return window.openRepairUnits('project', pid);
     // Fetch project to check for unitGroups
     let project = null;
     try {
@@ -2296,6 +2298,7 @@
     if (!availableOrders.length) {
       return toast('No unfinished field-work units are available to submit.', 'warning');
     }
+    if (assignment.project?.repairUnitTracking || assignment.project?.repair?.serviceType === 'repair' || (assignment.project?.unitGroups || []).some(group => group.serviceType === 'repair')) return window.openRepairUnitCompletion(pid, availableOrders);
     const projectRemaining = availableOrders.reduce((sum, wo) => sum + Number(wo.remaining || 0), 0);
     let submissionConsumables = [];
     try {
@@ -3802,10 +3805,12 @@
               <option value="fair">Fair — minor wear and tear</option>
               <option value="needs_repair">Needs repair</option>
             </select>
+            <label class="mt-2" for="eqReturnNotes">Return notes</label>
+            <textarea id="eqReturnNotes" class="form-control form-control-sm mt-1" rows="2" maxlength="500" placeholder="Explain damage, missing items, or why the items were not used."></textarea>
           </div>
           <div class="d-flex gap-2 justify-content-end mt-3">
             <button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Cancel</button>
-            <button class="pw-btn success" id="eqReturnBtn"><i class="bi bi-check-lg"></i> Return Selected</button>
+            <button class="pw-btn success" id="eqReturnBtn"><i class="bi bi-check-lg"></i> Send Return Report</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -3814,12 +3819,17 @@
         const ids = [...overlay.querySelectorAll('.eq-return-cb:checked')].map(cb => cb.value);
         if (!ids.length) { toast('Select items to return', 'error'); return; }
         const condition = overlay.querySelector('#eqReturnCondition').value;
+        const notes = overlay.querySelector('#eqReturnNotes').value.trim();
+        const button = overlay.querySelector('#eqReturnBtn');
+        if (button.disabled) return;
+        if (condition === 'needs_repair' && !notes) { toast('Explain the damage first.', 'error'); return; }
+        button.disabled = true;
         try {
-          await api(`/api/projects/${pid}/equipment/return`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ assignmentIds: ids, condition }) });
-          toast('Equipment returned');
+          await api(`/api/projects/${pid}/equipment/return`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ assignmentIds: ids, condition, notes }) });
+          toast('Return report sent. Admin must confirm receipt before stock is restored.');
           overlay.remove();
           window.__loadProjectWork();
-        } catch (e) { toast(e.message, 'error'); }
+        } catch (e) { toast(e.message, 'error'); } finally { button.disabled = false; }
       });
     } catch (e) { toast('Failed', 'error'); }
   };

@@ -154,19 +154,20 @@
   }
 
   function jobLinkHtml(job) {
-    return '<a class="tta-job-link" href="' + escapeHtml(job.href || '#') + '"><span class="tta-job-icon"><i class="bi ' + (job.type === 'order' ? 'bi-box-seam' : 'bi-calendar2-check') + '"></i></span><span><strong>' + escapeHtml(job.reference) + '</strong><small>' + escapeHtml(job.label || '') + (job.customer ? ' · ' + escapeHtml(job.customer) : '') + '</small></span></a>';
+    return '<a class="tta-job-link" href="' + escapeHtml(job.href || '#') + '"><span class="tta-job-icon"><i class="bi ' + (job.type === 'order' ? 'bi-box-seam' : 'bi-calendar2-check') + '"></i></span><span><strong>' + escapeHtml(job.reference) + (job.status === 'cancelled' ? ' ? Cancelled' : '') + '</strong><small>' + escapeHtml(job.label || '') + (job.customer ? ' · ' + escapeHtml(job.customer) : '') + '</small></span></a>';
   }
   function itemJobsHtml(item) {
     var jobs = uniqueJobs(item.jobs);
     if (!jobs.length) return '<span class="text-muted">Shared kit</span>';
-    return '<div class="tta-job-tags">' + jobs.map(function (job) { return '<span class="tta-job-tag" title="' + escapeHtml(job.label || '') + '">' + escapeHtml(job.reference) + '</span>'; }).join('') + '</div>';
+    return '<div class="tta-job-tags">' + jobs.map(function (job) { return '<span class="tta-job-tag" title="' + escapeHtml(job.label || '') + '">' + escapeHtml(job.reference) + (job.status === 'cancelled' ? ' ? Cancelled' : '') + '</span>'; }).join('') + '</div>';
   }
   function usageHtml(item) {
     if (item.category === 'equipment') return '<span class="text-muted">Reusable</span>';
     var issued = Number(item.quantityIssued || 0);
     var used = Number(item.quantityUsed || 0);
     var percent = issued > 0 ? Math.min(100, Math.round((used / issued) * 100)) : 0;
-    return '<strong>' + number(used) + ' / ' + number(issued) + ' ' + escapeHtml(item.unit) + '</strong><div class="tta-usage-bar" aria-label="' + percent + '% used"><span style="width:' + percent + '%"></span></div>' + (item.quantityReturned ? '<small>' + number(item.quantityReturned) + ' returned</small>' : '');
+    var outstanding = Math.max(0, issued - used - Number(item.quantityReturned || 0) - Number(item.quantityDamaged || 0) - Number(item.quantityMissing || 0));
+    return '<strong>' + number(used) + ' / ' + number(issued) + ' ' + escapeHtml(item.unit) + ' used</strong><div class="tta-usage-bar" aria-label="' + percent + '% used"><span style="width:' + percent + '%"></span></div><small>' + number(item.quantityReturned) + ' received back · ' + number(outstanding) + ' unaccounted for</small>' + (item.returnPendingQuantity ? '<small>' + number(item.returnPendingQuantity) + ' awaiting admin receipt</small>' : '') + (item.quantityDamaged || item.quantityMissing ? '<small>' + number(item.quantityDamaged) + ' damaged · ' + number(item.quantityMissing) + ' missing</small>' : '');
   }
   function itemRowHtml(item) {
     var status = item.custody && item.custody.status ? item.custody.status : item.checkoutStatus;
@@ -184,7 +185,7 @@
   function openDetail(id) {
     var kit = state.kits.find(function (entry) { return entry.id === id; });
     if (!kit) return;
-    var items = allItems(kit);
+    var items = allItems(kit).concat(kit.returnHistory || []);
     var jobs = uniqueJobs(kit.jobs.concat(items.flatMap(function (item) { return item.jobs || []; })));
     var custody = activeCustody(kit);
     var materialUsed = items.reduce(function (sum, item) { return sum + Number(item.quantityUsed || 0); }, 0);
@@ -198,7 +199,7 @@
     els.detailBody.innerHTML = issueBanner +
       '<div class="tta-detail-summary"><div class="tta-detail-stat"><small>Preparation state</small><strong>' + escapeHtml(kitStateLabel(kit)) + '</strong></div><div class="tta-detail-stat"><small>Covered jobs</small><strong>' + number(jobs.length) + '</strong></div><div class="tta-detail-stat"><small>Active custody</small><strong>' + number(custody.reduce(function (sum, row) { return sum + Number(row.quantity || 0); }, 0)) + '</strong></div><div class="tta-detail-stat"><small>Materials used</small><strong>' + number(materialUsed) + '</strong></div></div>' +
       '<section class="tta-detail-section"><div class="tta-detail-heading"><h3><i class="bi bi-link-45deg me-1"></i> Covered bookings and orders</h3><span>' + jobs.length + ' linked</span></div><div class="tta-job-list">' + jobsHtml + '</div></section>' +
-      '<section class="tta-detail-section"><div class="tta-detail-heading"><h3><i class="bi bi-tools me-1"></i> Tools and materials</h3><span>' + items.length + ' line item' + (items.length === 1 ? '' : 's') + '</span></div><div class="tta-table-wrap"><table class="tta-table"><thead><tr><th>Item</th><th>Category</th><th>Required</th><th>Custody / issue</th><th>Actual usage</th><th>Used for</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      '<section class="tta-detail-section"><div class="tta-detail-heading"><h3><i class="bi bi-tools me-1"></i> Tools and materials</h3><span>' + items.length + ' line item' + (items.length === 1 ? '' : 's') + '</span></div><div class="tta-table-wrap"><table class="tta-table"><thead><tr><th>Item</th><th>Category</th><th>Required</th><th>Custody / issue</th><th>Actual usage</th><th>Issued for</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
     bootstrap.Modal.getOrCreateInstance(byId('ttaDetailModal')).show();
   }
 

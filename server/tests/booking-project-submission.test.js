@@ -1,0 +1,215 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const mongoose = require('mongoose');
+const engine = require('../utils/enterpriseSchedulingEngine');
+const SiteSetting = require('../models/SiteSetting');
+const source = fs.readFileSync(path.join(__dirname, '../routes/bookingRoutesNew.js'), 'utf8');
+const query = value => ({ select() { return this; }, lean: async () => value, then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); } });
+
+function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient = true, catalogOverride } = {}) {
+  // Run the real submission handler with memory-only models and persistence.
+  // The real scheduling classifier reads a mocked setting, never a database.
+  engine.invalidateProjectThresholdCache();
+  t.mock.method(SiteSetting, 'findOne', () => query({ value: threshold }));
+  const customerId = new mongoose.Types.ObjectId();
+  const calls = { capacity: [], windows: [], writes: [], projects: [] };
+  class Booking {
+    constructor(data) { Object.assign(this, data); this._id = new mongoose.Types.ObjectId(); }
+    static findOne() { return query(null); }
+    async save() { return this; }
+  }
+  class Payment { constructor(data) { Object.assign(this, data); } }
+  let submit;
+  const router = { use() {}, get() {}, patch() {}, delete() {}, post(route, ...handlers) { if (route === '/create-new') submit = handlers.at(-1); } };
+  const pure = name => require('../utils/' + name);
+  const mocks = {
+    express: { Router: () => router }, mongoose: { ...mongoose, isValidObjectId: () => true }, crypto: require('node:crypto'),
+    '../models/BookingService': Booking, '../models/Payment': Payment,
+    '../models/User': { findById: async () => ({ _id: customerId, firstName: 'Test', lastName: 'Customer', email: 'customer@example.invalid' }) },
+    '../models/Project': { findOne: async () => null, create: async data => { calls.projects.push(data); return data; } },
+    '../models/BookingStatus': require('../models/BookingStatus'),
+    '../models/CoreService': { find: () => query(catalogOverride || [{ _id: 'core-id', name: 'Aircon Installation', active: true, basePrice: 1000, durationMinutes: duration }]) },
+    '../models/RepairService': {}, '../models/UnitAssistanceRequest': {}, '../models/RelocationRequest': {}, '../models/CustomerAsset': {}, '../models/MaintenanceSchedule': {},
+    '../middleware/authenticate': { authenticate() {}, requireRole: () => () => {} },
+    '../middleware/bookingSubmissionUpload': () => {},
+    '../utils/boundedRateLimit': { rateLimit: () => () => {} },
+    '../utils/bookingPolicy': { getBufferMinutes: async () => 15, getInspectionDurationMinutes: async () => inspection,
+      assertCompanyCapacity: async (...args) => { calls.capacity.push(args); } },
+    '../utils/enterpriseSchedulingEngine': { ...engine,
+      getProjectWindowAvailability: async input => { calls.windows.push(input); return { sufficient, totals: { totalAvailableHours: 80, workableDays: 5 } }; },
+      reserveProjectCapacity: async () => {} },
+    '../utils/mailer': {}, '../utils/notify': { createNotification: async () => {} },
+    '../utils/coreServicePricing': pure('coreServicePricing'), '../utils/bookingServiceItems': pure('bookingServiceItems'),
+    '../utils/bookingUnitLimit': pure('bookingUnitLimit'), '../utils/projectServiceChange': {}, '../utils/audit': {},
+    '../utils/projectPaymentReview': pure('projectPaymentReview'),
+    '../utils/paymentPolicy': { normalizePaymentChannel: value => value, MANUAL_PAYMENT_CHANNELS: ['bank'],
+      getPaymentMethods: async () => ({ bank: { available: true } }), getDownpaymentPercentage: async () => 10,
+      calculatePaymentBreakdown: total => ({ downpaymentPercentage: 10, downpaymentAmount: total / 10, balanceAmount: total * 0.9 }), paymentRecordMethod: () => 'bank' },
+    '../utils/operationLock': { bookingCapacityLockKey: value => value, withOperationLock: async (_key, fn) => fn() },
+    '../utils/rateLimitIdentity': {}, '../utils/maintenanceLifecycle': {},
+    '../utils/uploadSecurity': { hasValidImageDataUrl: () => true },
+    '../utils/paymentProofStorage': { discardTemporaryPaymentProof: async () => {} },
+    '../utils/repairInspectionPricing': { resolveRepairInspectionFees: async services => services.map(item => item.type === 'repair' ? { fee: 500 } : null) },
+    '../utils/mongoWriteSupport': { isUnsupportedMongoWriteFeature: () => false },
+    '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking }) => { calls.writes.push(booking); return booking; } },
+    '../utils/loyaltyRewards': { rewardFor: async () => null, assertQuote() {}, round: value => value },
+    '../public/js/appliance-services': require('../public/js/appliance-services'),
+    '../utils/repairModelPolicy': pure('repairModelPolicy'), '../utils/repairUnitWorkflow': pure('repairUnitWorkflow'),
+    '../utils/repairUnitLegacyGuard': () => {},
+    '../models/Technician': {},
+    '../models/Tool': {},
+  };
+  vm.runInNewContext(source.slice(0, source.indexOf('const multer =')), {
+    require(name) { assert.ok(name in mocks, 'Unexpected dependency: ' + name); return mocks[name]; },
+    console: { log() {}, warn() {}, error() {} }, process: { env: { NODE_ENV: 'test' } },
+    module: { exports: {} }, Buffer,
+  });
+  async function call(overrides = {}) {
+    let code = 200, body;
+    const req = { user: { _id: customerId }, body: {
+      services: [{ serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000, duration: 1 }],
+      bookingDate: '2035-01-02', projectScheduling: { preferredStartDate: '2035-01-02', preferredCompletionDeadline: '2035-01-06', estimatedTotalHours: 1 },
+      quantity: 1, location: { address: 'Test site', lat: 15, lng: 121 }, paymentMethod: 'cod', paymentChannel: 'bank', paymentReference: 'TEST-REFERENCE', proofImageBase64: 'mock-proof', ...overrides,
+    }, app: { get: () => null } };
+    await submit(req, { status(value) { code = value; return this; }, json(value) { body = value; } });
+    return { code, body, calls };
+  }
+  return { call, calls };
+}
+
+test('compressor HP booking uses appliance-specific prices and time, ignoring client estimates', async t => {
+  const catalog = [{ _id: 'core-id', name: 'Recharging', active: true, isAirconService: true,
+    applianceProfiles: [{ kind: 'freezer', enabled: true, pricingMode: 'hp', hpPricing: [{ hp: 0.125, price: 650, durationMinutes: 45 }] }] }];
+  const f = fixture(t, { catalogOverride: catalog });
+  const service = { serviceId: 'core-id', type: 'core', applianceKind: 'freezer', applianceGroupId: 'freezer_test_group', brand: 'Midea', model: 'TEST-123', hp: 0.125, quantity: 2, unitPrice: 1, duration: 1 };
+  const changedPrice = await f.call({ services: [service], startTime: '08:00', projectScheduling: undefined });
+  assert.equal(changedPrice.code, 409); assert.equal(f.calls.writes.length, 0);
+  service.unitPrice = 650;
+  const result = await f.call({ services: [service], startTime: '08:00', projectScheduling: undefined });
+  assert.equal(result.code, 201, result.body?.error);
+  const saved = result.calls.writes[0].services[0];
+  assert.equal(saved.hp, 0.125); assert.equal(saved.unitPrice, 650); assert.equal(saved.duration, 45);
+  assert.equal(saved.totalPrice, 1300); assert.equal(saved.applianceType, 'freezer'); assert.equal(saved.isAirconService, false);
+  const bad = await f.call({ services: [{ ...service, hp: 2 }], startTime: '08:00' });
+  assert.equal(bad.code, 400); assert.equal(f.calls.writes.length, 1);
+});
+
+test('nearby relocation saves the real property pin for both positions and rejects extra units', async t => {
+  const catalog = [{ _id: 'core-id', slug: 'aircon-relocation', name: 'Aircon Relocation', active: true, isAirconService: true,
+    airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1600, durationMinutes: 120 }] }] }];
+  const f = fixture(t, { catalogOverride: catalog });
+  const service = { serviceId: 'core-id', type: 'core', applianceKind: 'aircon', applianceGroupId: 'nearby_move_group', brand: 'Carrier', model: 'Nexus', hp: 1, airconType: 'split', quantity: 1, unitPrice: 1600,
+    relocation: { scope: 'same_property', from: { details: 'Living room', lat: 20, lng: 120 }, to: { details: 'Bedroom', lat: 20, lng: 120 } } };
+  const result = await f.call({ services: [service], startTime: '08:00', projectScheduling: undefined });
+  assert.equal(result.code, 201, result.body?.error);
+  const move = result.calls.writes[0].services[0].relocation;
+  assert.equal(move.from.lat, 15); assert.equal(move.from.lng, 121); assert.equal(move.to.lat, 15); assert.equal(move.to.lng, 121);
+  assert.equal(move.from.details, 'Living room'); assert.equal(move.to.details, 'Bedroom'); assert.equal(move.to.address, 'Test site');
+  const bad = await f.call({ services: [{ ...service, quantity: 2 }], startTime: '08:00' });
+  assert.equal(bad.code, 400); assert.equal(f.calls.writes.length, 1);
+});
+
+test('two core services on four appliances keep four physical units and use combined catalog work time', async t => {
+  const catalog = ['core-id', 'second-id'].map((_id, index) => ({ _id, name: index ? 'Freon Recharging' : 'Aircon Cleaning', active: true, isAirconService: true,
+    airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1000, durationMinutes: 60 }] }] }));
+  const rows = require('../public/js/appliance-services').serviceLines(catalog, { applianceKind: 'aircon', brand: 'Carrier', model: 'Nexus', airconType: 'split', hp: 1, quantity: 4 }, catalog.map(row => row._id), 'appliance_shared_test');
+  const { code, body, calls } = await fixture(t, { catalogOverride: catalog }).call({ services: rows, startTime: '08:00' });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, false); assert.equal(calls.projects.length, 0);
+  assert.equal(calls.writes[0].quantity, 4); assert.equal(calls.writes[0].serviceDurationMinutes, 480);
+  assert.equal(calls.writes[0].services[0].applianceGroupId, 'appliance_shared_test'); assert.equal(calls.writes[0].services[1].model, 'Nexus');
+  assert.equal(calls.writes[0].totalPrice, 8000);
+});
+test('shared appliances with longer combined work still use the multi-day project flow', async t => {
+  const catalog = ['core-id', 'second-id'].map(_id => ({ _id, name: 'Core service', active: true, isAirconService: true,
+    airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1000, durationMinutes: 90 }] }] }));
+  const rows = require('../public/js/appliance-services').serviceLines(catalog, { applianceKind: 'aircon', brand: 'Carrier', airconType: 'split', hp: 1, quantity: 4 }, catalog.map(row => row._id), 'appliance_shared_test');
+  const { code, body, calls } = await fixture(t, { catalogOverride: catalog }).call({ services: rows });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
+  assert.equal(calls.projects[0].totalUnits, 4); assert.equal(calls.windows[0].requiredHours, 12);
+  assert.equal(calls.projects[0].unitGroups[1].applianceGroupId, rows[0].applianceGroupId);
+});
+test('refrigerator booking is validated against staff prices and saves its own appliance details', async t => {
+  const catalog = [{ _id: 'core-id', name: 'Leak Testing', active: true, isAirconService: true, applianceProfiles: [{ kind: 'refrigerator', enabled: true, unitPrice: 1000, durationMinutes: 75 }] }];
+  const rows = require('../public/js/appliance-services').serviceLines(catalog, { applianceKind: 'refrigerator', brand: 'Midea', model: 'REF-123', quantity: 1 }, ['core-id'], 'appliance_fridge_test');
+  const { code, body, calls } = await fixture(t, { catalogOverride: catalog }).call({ services: rows, startTime: '08:00' });
+  assert.equal(code, 201, body?.error); assert.equal(calls.writes[0].services[0].hp, null);
+  assert.equal(calls.writes[0].services[0].applianceTypeName, 'Refrigerator'); assert.equal(calls.writes[0].services[0].isAirconService, false);
+  rows[0].unitPrice = 1;
+  const changed = await fixture(t, { catalogOverride: catalog }).call({ services: rows, startTime: '08:00' });
+  assert.equal(changed.code, 409); assert.equal(changed.calls.writes.length, 0);
+});
+test('a long job below eight units submits as a project without a start time', async t => {
+  const { code, body, calls } = await fixture(t).call();
+  assert.equal(code, 201, body?.error);
+  assert.equal(body.isProject, true);
+  assert.equal(body.booking.status, 'pending_project_scheduling');
+  assert.equal(body.booking.startTime, undefined);
+  assert.equal(calls.capacity.length, 0);
+  assert.equal(calls.windows.length, 2);
+  for (const window of calls.windows) { assert.equal(window.requiredHours, 9); assert.equal(window.totalUnits, 3); }
+  assert.equal(calls.writes[0].projectScheduling.estimatedTotalHours, 9);
+  assert.equal(calls.projects[0].totalUnits, 3);
+});
+
+test('eight short units still use project scheduling', async t => {
+  const { code, body, calls } = await fixture(t, { duration: 30 }).call({ services: [{ serviceId: 'core-id', type: 'core', quantity: 8, unitPrice: 1000 }] });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
+  assert.equal(calls.windows[0].requiredHours, 4);
+});
+
+test('standard bookings require a start time even if the client claims a project', async t => {
+  const { code, body, calls } = await fixture(t, { duration: 60 }).call({ isProject: true });
+  assert.equal(code, 400); assert.match(body.error, /start time/); assert.equal(calls.writes.length, 0);
+});
+
+test('standard appointments retain their date, time and capacity checks', async t => {
+  const { code, body, calls } = await fixture(t, { duration: 60 }).call({ startTime: '08:00', projectScheduling: undefined });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, false); assert.equal(body.booking.startTime, '08:00');
+  assert.equal(calls.capacity.length, 2); assert.equal(calls.windows.length, 0);
+});
+
+test('project submission cannot skip the end date or capacity validation', async t => {
+  const f = fixture(t, { sufficient: false });
+  const incomplete = await f.call({ projectScheduling: { preferredStartDate: '2035-01-02' } });
+  assert.equal(incomplete.code, 400); assert.match(incomplete.body.error, /end date/);
+  const full = await f.call(); assert.equal(full.code, 409); assert.equal(f.calls.writes.length, 0);
+});
+
+test('repair workload uses the inspection policy and configurable project threshold', async t => {
+  const { code, body, calls } = await fixture(t, { inspection: 120, threshold: 6 }).call({
+    services: [{ serviceId: 'repair-id', type: 'repair', name: 'Aircon repair', quantity: 4, duration: 1, problemDescription: 'Aircons are not cooling properly' }],
+  });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
+  assert.equal(calls.windows[0].requiredHours, 8);
+  assert.equal(calls.projects[0].projectPhase, 'assessment');
+  assert.equal(calls.projects[0].unitGroups[0].duration, 120);
+});
+
+test('client duration and nested schedule cannot force project classification', async t => {
+  const { code, calls } = await fixture(t, { duration: 60 }).call({
+    services: [{ serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000, duration: 9999, schedule: { durationMinutes: 9999 } }],
+  });
+  assert.equal(code, 400); assert.equal(calls.windows.length, 0); assert.equal(calls.writes.length, 0);
+});
+
+test('a workload exactly at the hours threshold remains a standard appointment', async t => {
+  const { code, body, calls } = await fixture(t, { duration: 120 }).call({
+    services: [{ serviceId: 'core-id', type: 'core', quantity: 4, unitPrice: 1000 }], startTime: '08:00',
+  });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, false);
+  assert.equal(calls.capacity.length, 2);
+});
+
+test('mixed core and repair groups share one combined project workload', async t => {
+  const { code, body, calls } = await fixture(t, { duration: 90 }).call({ services: [
+    { serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000 },
+    { serviceId: 'repair-id', name: 'Aircon repair', type: 'repair', quantity: 3, problemDescription: 'Aircons are not cooling properly' },
+  ] });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
+  assert.equal(calls.windows[0].requiredHours, 9); assert.equal(calls.windows[0].totalUnits, 6);
+  assert.equal(calls.projects[0].unitGroups.length, 2); assert.equal(calls.projects[0].projectPhase, 'assessment');
+});

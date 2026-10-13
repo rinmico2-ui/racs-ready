@@ -4,7 +4,8 @@ function projectUnits(project, booking) {
   const groups = project.unitGroups?.length
     ? project.unitGroups
     : (booking?.services || []).map((service, index) => ({
-        groupIndex: index, serviceId: service.serviceId, serviceName: service.name,
+        groupIndex: index, applianceGroupId: service.applianceGroupId, applianceKind: service.applianceKind,
+        serviceId: service.serviceId, serviceName: service.name,
         serviceType: service.type || booking.serviceType || "core",
         unitType: service.airconTypeName || service.applianceTypeName || service.name,
         applianceType: service.applianceType || service.airconType,
@@ -24,10 +25,14 @@ function projectUnits(project, booking) {
   fallback.forEach((group, groupPosition) => {
     const count = Math.max(1, Number(group.quantity) || 1);
     for (let index = 1; index <= count; index++) {
+      const tracked = (group.units || []).find(unit => Number(unit.unitIndex) === index);
+      if (tracked?.repairReview?.state === 'declined') continue;
       const groupIndex = group.groupIndex ?? groupPosition;
       result.push({
+        applianceGroupId: group.applianceGroupId, applianceKind: group.applianceKind,
+        applianceUnitIndex: index,
         unitKey: `G${groupIndex + 1}-U${String(index).padStart(3, "0")}`,
-        label: `${group.unitType || group.serviceName || "Unit"} ${index}`,
+        label: tracked?.label || `${group.unitType || group.serviceName || "Unit"} ${index}`,
         groupIndex, serviceId: group.serviceId,
         serviceType: group.serviceType === "repair" ? "repair" : "core",
         serviceName: group.serviceName || project.service?.name || "HVAC Service",
@@ -38,7 +43,23 @@ function projectUnits(project, booking) {
       });
     }
   });
-  return result.slice(0, Math.max(1, Number(project.totalUnits || project.quantity) || result.length));
+  // Each physical appliance owns all its selected core services. Schedule their
+  // combined work; truncating service rows to a physical count would lose tasks.
+  const physical = [], shared = new Map();
+  for (const unit of result) {
+    if (!unit.applianceGroupId) { physical.push(unit); continue; }
+    const key = `${unit.applianceGroupId}:${unit.applianceUnitIndex}`;
+    const task = { serviceId: unit.serviceId, name: unit.serviceName, durationMinutes: unit.durationMinutes };
+    const existing = shared.get(key);
+    if (existing) {
+      existing.serviceTasks.push(task);
+      existing.serviceName = existing.serviceTasks.map(row => row.name).join(' + ');
+      existing.durationMinutes += unit.durationMinutes;
+    } else {
+      unit.serviceTasks = [task]; shared.set(key, unit); physical.push(unit);
+    }
+  }
+  return physical.slice(0, Math.max(1, Number(project.totalUnits || project.quantity) || physical.length));
 }
 
 function hasCycle(workOrders) {

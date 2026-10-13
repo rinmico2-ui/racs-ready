@@ -21,6 +21,7 @@ async function storePaymentProof(file, metadata = {}) {
   const upload = paymentProofBucket().openUploadStream(filename, {
     contentType: String(file.mimetype).toLowerCase(),
     metadata: {
+      contentType: String(file.mimetype).toLowerCase(),
       bookingId: metadata.bookingId ? String(metadata.bookingId) : null,
       orderId: metadata.orderId ? String(metadata.orderId) : null,
       uploadedBy: metadata.uploadedBy ? String(metadata.uploadedBy) : null,
@@ -56,11 +57,11 @@ async function findPaymentProof(fileId) {
   return paymentProofBucket().find({ _id: new mongoose.Types.ObjectId(fileId) }).next();
 }
 
-function openPaymentProofDownload(fileId) {
+function openPaymentProofDownload(fileId, options) {
   if (!mongoose.Types.ObjectId.isValid(fileId)) {
     throw Object.assign(new Error("Invalid payment proof id."), { status: 400 });
   }
-  return paymentProofBucket().openDownloadStream(new mongoose.Types.ObjectId(fileId));
+  return paymentProofBucket().openDownloadStream(new mongoose.Types.ObjectId(fileId), options);
 }
 
 module.exports = {

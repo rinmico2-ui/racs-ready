@@ -597,3 +597,42 @@ test('active project work checks out its daily resources and cancelled projects 
     assert.equal(f.data.Tool[0].quantity, status === 'cancelled' ? 1 : 0);
   }
 });
+
+test('returned issue rows and original cancelled job links survive subsequent kit regeneration', async () => {
+  const f = fixture();
+  await confirmation(f);
+  f.data.BookingService[0].status = 'cancelled';
+  f.data.Assignment[0].status = 'cancelled';
+  f.data.EquipmentAssignment[0].status = 'returned';
+  f.data.DailyKit[0].items[0].checkoutStatus = 'returned';
+  const kit = await f.api.syncDailyKit(T, DATE);
+  assert.equal(kit.items.length, 0);
+  assert.equal(kit.returnedItems.length, 1);
+  assert.equal(String(kit.returnedItems[0]._id), I);
+  assert.deepEqual(Array.from(kit.returnedItems[0].issuedBookingIds).map(String), [B]);
+  const refreshed = await f.api.syncDailyKit(T, DATE);
+  assert.equal(refreshed.returnedItems.length, 1);
+});
+
+test('equipment awaiting admin receipt cannot be reused for a new departure', async () => {
+  const f = fixture();
+  await confirmation(f);
+  f.data.DailyKit[0].items[0].returnPendingQuantity = 1;
+  f.data.EquipmentAssignment[0].returnPending = true;
+  const readiness = await f.api.dailyKitDepartureReadiness({ technicianId: T, assignment: f.data.Assignment[0] });
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.code, 'DAILY_KIT_RETURN_PENDING');
+});
+
+test('order usage respects pending material returns and writes usage with kit counters atomically', async () => {
+  const f = fixture({ items: 2 });
+  await confirmation(f);
+  f.data.DailyKit[0].items[1].orderIds = [U];
+  const input = { technicianId: T, userId: U, orderId: U, date: DATE, usages: [{ itemName: 'Cleaner', quantityUsed: 0.5 }] };
+  await f.api.recordOrderConsumableUsage(input);
+  assert.equal(f.data.DailyKit[0].items[1].quantityUsed, 0.5);
+  assert.equal(f.data.ServiceToolUsage.length, 1);
+  f.data.DailyKit[0].items[1].returnPendingQuantity = 0.5;
+  await assert.rejects(f.api.recordOrderConsumableUsage({ ...input, usages: [{ itemName: 'Cleaner', quantityUsed: 0.1 }] }), { status: 409 });
+  assert.equal(f.data.ServiceToolUsage.length, 1);
+});

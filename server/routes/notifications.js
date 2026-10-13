@@ -1,17 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const Notification = require("../models/Notification");
+const { notificationInboxFilter } = require("../utils/notificationInbox");
 const {
   authenticate,
 } = require("../middleware/authenticate");
 
 function inboxFilter(user) {
-  return {
-    $or: [
-      { userId: user._id },
-      { userId: null, role: user.role },
-    ],
-  };
+  return notificationInboxFilter(user._id, user.role);
 }
 
 // ── GET /api/notifications ─ Get notifications for current user ──────────────

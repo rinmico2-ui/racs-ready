@@ -60,36 +60,30 @@ async function buildAllocationCalendar(projectId, opts = {}) {
   const spanEnd = startOfDay(span.end);
 
   // Non-working company days (global holidays/etc.)
-  const nwds = await NonWorkingDay.find({ service: null, active: { $ne: false } }).lean();
-  const nwdSet = new Set(nwds.map((d) => dateKey(new Date(d.date))));
+  const nwdsQuery = NonWorkingDay.find({ service: null, active: { $ne: false } }).select("date").lean();
 
   // Candidate technicians for the matrix.
   let candidateIds = opts.candidateTechIds;
   if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
     candidateIds = (project.assignedTechnicians || []).map((t) => t._id);
   }
-  // Default to all active techs so the calendar is useful even before assignment.
-  if (candidateIds.length === 0) {
-    const all = await Technician.find({ active: { $ne: false } }).select("_id").lean();
-    candidateIds = all.map((t) => t._id);
-  }
-
-  const techs = await Technician.find({ _id: { $in: candidateIds }, active: { $ne: false } })
+  // One read also covers the unassigned case; there is no need to fetch all
+  // IDs first and then read the same technicians again.
+  const techs = await Technician.find({ ...(candidateIds.length ? { _id: { $in: candidateIds } } : {}), active: { $ne: false } })
     .select("_id name email").lean();
   const techIds = techs.map((t) => t._id);
 
   // Working-weekday map per technician (for totalTechs each day).
-  const schedules = await require("../models/TechnicianSchedule").find({
+  const schedulesQuery = require("../models/TechnicianSchedule").find({
     technicianId: { $in: techIds },
   }).lean();
-  const schedMap = {};
-  schedules.forEach((s) => { schedMap[String(s.technicianId)] = s; });
+
   const DEFAULT_WORKING = [
     { dayOfWeek: 1 }, { dayOfWeek: 3 }, { dayOfWeek: 4 }, { dayOfWeek: 5 },
   ];
 
   // Other ACTIVE projects reserving technicians (source of "other-project" conflict).
-  const otherProjects = await Project.find({
+  const otherProjectsQuery = Project.find({
     _id: { $ne: project._id },
     status: { $in: ["accepted", "planning", "in_progress", "on_hold"] },
     $or: [
@@ -99,7 +93,7 @@ async function buildAllocationCalendar(projectId, opts = {}) {
   }).lean();
 
   // Leaves overlapping the span.
-  const leaves = await LeaveRequest.find({
+  const leavesQuery = LeaveRequest.find({
     technicianId: { $in: techIds },
     status: "approved",
     startDate: { $lte: spanEnd },
@@ -107,11 +101,18 @@ async function buildAllocationCalendar(projectId, opts = {}) {
   }).lean();
 
   // Fixed standard bookings for candidate techs across the span.
-  const bookings = await BookingService.find({
+  const bookingsQuery = BookingService.find({
     technicianId: { $in: techIds },
     bookingDate: { $gte: spanStart, $lte: spanEnd },
     status: { $in: BOOKING_ACTIVE },
   }).select("technicianId bookingDate startTime").lean();
+
+  const [nwds, schedules, otherProjects, leaves, bookings] = await Promise.all([
+    nwdsQuery, schedulesQuery, otherProjectsQuery, leavesQuery, bookingsQuery,
+  ]);
+  const nwdSet = new Set(nwds.map(row => dateKey(new Date(row.date))));
+  const schedMap = {};
+  schedules.forEach(row => { schedMap[String(row.technicianId)] = row; });
 
   // Index helpers by dateKey.
   const leaveByDate = {}; // dateKey -> Set(techId)

@@ -274,7 +274,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.AdminDropdowns = { closeAll: closeAdminDropdowns, setOpen: setAdminDropdown };
 
-  var toggle = document.getElementById("sidebarToggle");
+  var toggle = document.getElementById("sidebarToggle") || document.getElementById("sidebarToggleMobile");
   var sidebar = document.getElementById("adminSidebar");
   var root = document.querySelector(".admin-root");
   var lastSidebarFocus = null;
@@ -299,7 +299,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function setMobileSidebarOpen(open, options) {
-    if (!sidebar || !toggle) return;
+    if (!sidebar) return;
     options = options || {};
 
     if (open) {
@@ -313,6 +313,7 @@ document.addEventListener("DOMContentLoaded", function () {
       document.body.classList.add("admin-nav-open");
       showBackdrop();
       window.setTimeout(function () {
+        if (!sidebar.classList.contains("open")) return;
         var firstControl = sidebar.querySelector("[data-admin-sidebar-close], a[href], button:not([disabled])");
         if (firstControl) firstControl.focus({ preventScroll: true });
       }, 30);
@@ -324,7 +325,7 @@ document.addEventListener("DOMContentLoaded", function () {
       document.body.classList.remove("admin-nav-open");
       hideBackdrop();
       if (options.restoreFocus !== false) {
-        var returnTarget = toggle || lastSidebarFocus;
+        var returnTarget = toggle && toggle.offsetParent !== null ? toggle : document.getElementById("sidebarHandle") || lastSidebarFocus;
         if (returnTarget && typeof returnTarget.focus === "function") {
           returnTarget.focus({ preventScroll: true });
         }
@@ -334,6 +335,13 @@ document.addEventListener("DOMContentLoaded", function () {
     setToggleAria(open);
     setMobileToggleIcon(open);
   }
+
+  window.toggleMobileSidebar = function () {
+    if (sidebar && isMobileSidebar()) setMobileSidebarOpen(!sidebar.classList.contains("open"));
+  };
+  window.closeMobileSidebar = function () {
+    if (sidebar) setMobileSidebarOpen(false);
+  };
 
   function applyMobileSidebarMode() {
     if (!sidebar || !toggle) return;
@@ -415,9 +423,11 @@ document.addEventListener("DOMContentLoaded", function () {
   // The topbar control sits behind the open drawer on small screens. Keep an
   // obvious close action inside the drawer and support the Escape key.
   var sidebarMobileClose = document.querySelector("[data-admin-sidebar-close]");
-  if (sidebarMobileClose && toggle && sidebar) {
-    sidebarMobileClose.addEventListener("click", function () {
-      if (isMobileSidebar() && sidebar.classList.contains("open")) setMobileSidebarOpen(false);
+  if (sidebarMobileClose && sidebar) {
+    sidebarMobileClose.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (sidebar.classList.contains("open")) setMobileSidebarOpen(false);
     });
   }
 
@@ -425,7 +435,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (
       event.key === "Escape" &&
       isMobileSidebar() &&
-      toggle &&
       sidebar &&
       sidebar.classList.contains("open")
     ) {
@@ -587,7 +596,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   function hideBackdrop() {
     if (!sidebarBackdrop) return;
-    sidebarBackdrop.classList.remove("visible");
+    sidebarBackdrop.classList.remove("visible", "show");
     setTimeout(function () {
       if (sidebarBackdrop && !sidebarBackdrop.classList.contains("visible")) sidebarBackdrop.hidden = true;
     }, 220);

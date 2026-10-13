@@ -455,7 +455,7 @@ async function computeRevenueAnalytics(query = {}) {
     recognizedInventoryIds.length
       ? HVACProduct.find({ "variants._id": { $in: recognizedInventoryIds } }).select("variants._id variants.costPrice").lean()
       : [],
-    Expense.find({ expenseDate: dateFilter }).select("amount type status bookingId projectId").lean(),
+    Expense.find({ expenseDate: dateFilter }).select("amount type status bookingId projectId source").lean(),
     Payroll.find({ status: { $ne: "voided" }, payDate: dateFilter }).select("grossPay netPay status").lean(),
     recognizedProjectIds.length
       ? ProjectMaterial.find({
@@ -498,13 +498,8 @@ async function computeRevenueAnalytics(query = {}) {
       + Number(service.localPurchaseCost || 0) > 0)
     .map((service) => String(service.bookingId)));
   const projectsWithRecordedMaterials = new Set(projectMaterials.map((material) => String(material.projectId)));
-  const duplicatedDirectExpenseTypes = new Set(["external_parts", "material"]);
   const approvedExpenses = expenseRows.filter((expense) => expense.status === "approved");
-  const operatingExpenseRows = approvedExpenses.filter((expense) => !(
-    duplicatedDirectExpenseTypes.has(expense.type)
-    && ((expense.bookingId && bookingsWithRecordedDirectCost.has(String(expense.bookingId)))
-      || (expense.projectId && projectsWithRecordedMaterials.has(String(expense.projectId))))
-  ));
+  const operatingExpenseRows = approvedExpenses.filter(expense => isOperatingExpense(expense, bookingsWithRecordedDirectCost, projectsWithRecordedMaterials));
   const approvedExpenseTotal = operatingExpenseRows.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
   const approvedPayrollRows = payrollRows.filter((payroll) => ["approved", "paid"].includes(payroll.status));
   const payrollCost = approvedPayrollRows.reduce((sum, payroll) => sum + Number(payroll.grossPay || 0), 0);
@@ -1019,4 +1014,11 @@ async function buildRevenueDashboardSnapshot(now = new Date()) {
   };
 }
 
-module.exports = { buildRevenueAnalytics, buildRevenueDashboardSnapshot, resolveDateRange };
+function isOperatingExpense(expense, bookingIds, projectIds) {
+  if (expense.status !== 'approved') return false;
+  // Admin entries are separate business costs, rather than mirrored
+  // technician part-purchase records already counted in direct job costs.
+  if (expense.source === 'admin' || !['external_parts', 'material'].includes(expense.type)) return true;
+  return !((expense.bookingId && bookingIds.has(String(expense.bookingId))) || (expense.projectId && projectIds.has(String(expense.projectId))));
+}
+module.exports = { buildRevenueAnalytics, buildRevenueDashboardSnapshot, resolveDateRange, isOperatingExpense };

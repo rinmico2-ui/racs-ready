@@ -1396,14 +1396,18 @@ router.get('/:id/payment-proof', authenticate, requireRole(['admin', 'secretary'
     if (!order.gcashProofFileId) return res.status(404).json({ error: 'Receipt file not found.' });
     const file = await paymentProofStorage.findPaymentProof(order.gcashProofFileId);
     if (!file) return res.status(404).json({ error: 'Receipt file not found.' });
+    const type = await require('../utils/storedReceiptType').resolveStoredReceiptType(file,
+      options => paymentProofStorage.openPaymentProofDownload(order.gcashProofFileId, options), { allowPdf: false });
+    if (!type) return res.status(415).json({ error: 'Unsupported payment receipt file.' });
     res.set({
       'Cache-Control': 'private, no-store',
-      'Content-Type': file.contentType || 'application/octet-stream',
+      'Content-Type': type,
       'Content-Length': String(file.length),
       'X-Content-Type-Options': 'nosniff',
     });
     const download = paymentProofStorage.openPaymentProofDownload(order.gcashProofFileId);
     download.once('error', error => res.headersSent ? res.destroy(error) : next(error));
+    res.on('close', () => download.destroy());
     download.pipe(res);
   } catch (error) {
     next(error);
@@ -2543,11 +2547,12 @@ async function resolutionOrderProjectAvailability(req, res) {
 }
 
 async function announceCustomerOrderSchedule(req, order) {
+  // Staff and customer changes both refresh the assigned technician's sheet.
+  emitOrderStatus(req, order, { scheduleUpdated: true });
   if (!req.orderCustomerReschedule) return;
   await require('../utils/notify').createNotification({ type:'order_rescheduled', title:'Customer chose a new order schedule',
     message:`The customer selected a new ${order.fulfillmentType === 'customer_pickup' ? 'pickup date' : order.isProject ? 'installation project window' : 'delivery schedule'} for ${order.orderReference || 'their aircon order'}.`,
     role:'admin', referenceId:order._id, referenceModel:'Order', link:'/admin/appointments/orders', io:req.app.get('io') }).catch(() => {});
-  emitOrderStatus(req, order, { rescheduleInvitationStatus:'submitted' });
 }
 
 router.post("/:id/admin-reschedule", authenticate, requireRole(["admin", "secretary"]), saveResolutionOrderSchedule);

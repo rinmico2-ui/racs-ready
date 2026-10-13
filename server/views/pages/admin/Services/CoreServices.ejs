@@ -1058,25 +1058,18 @@
 
 
 <!-- modal to create/edit core service -->
+<link rel="stylesheet" href="/css/core-service-editor.css?v=20261013-compressor-hp">
 <div class="modal fade" id="coreServiceModal" tabindex="-1" aria-labelledby="coreServiceModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-    <form id="coreServiceForm" class="modal-content">
-      <div class="modal-header au-hero text-white" style="background: linear-gradient(135deg,#0f172a 0%,#1d4ed8 50%,#2563eb 100%) !important;">
-        <div class="d-flex align-items-center gap-3">
-          <div class="modal-icon"><i class="bi bi-gear"></i></div>
-          <div>
-            <h5 class="modal-title mb-0" id="coreServiceModalLabel">Core Service</h5>
-            <small class="text-white-50">Configure service catalog details</small>
-          </div>
-        </div>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body core-modal-body">
-        <div class="row g-3">
+ <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+ <form id="coreServiceForm" class="modal-content" novalidate>
+ <div class="modal-header cse-header"><div><span class="cse-eyebrow">SERVICE CATALOG</span><h5 class="modal-title" id="coreServiceModalLabel">Core Service</h5><p>Choose what you offer, set prices, and review the warranty.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+ <nav class="cse-tabs" role="tablist" aria-label="Service settings"><button type="button" id="cseTab-details" role="tab" data-editor-tab="details" aria-controls="csePanel-details" aria-selected="true" tabindex="0">1. Service details</button><button type="button" id="cseTab-pricing" role="tab" data-editor-tab="pricing" aria-controls="csePanel-pricing" aria-selected="false" tabindex="-1">2. Appliances & prices</button><button type="button" id="cseTab-warranty" role="tab" data-editor-tab="warranty" aria-controls="csePanel-warranty" aria-selected="false" tabindex="-1">3. Warranty</button></nav>
+ <div class="modal-body core-modal-body">
+ <section id="csePanel-details" role="tabpanel" aria-labelledby="cseTab-details" data-editor-panel="details"><div class="row g-3">
           <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm">
               <div class="card-header bg-white border-bottom-0 p-3">
-                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-card-text text-primary"></i> Basic Info</h6>
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-card-text text-primary"></i> Service details</h6>
               </div>
               <div class="card-body p-3 d-flex flex-column">
                 <div class="mb-3">
@@ -1087,7 +1080,7 @@
                   </div>
                 </div>
                 <div class="mb-3">
-                  <label for="coreServiceSlug" class="form-label">Slug / Code</label>
+                  <label for="coreServiceSlug" class="form-label">Service code</label>
                   <div class="input-group">
                     <span class="input-group-text core-input-icon"><i class="bi bi-hash"></i></span>
                     <input type="text" id="coreServiceSlug" name="slug" class="form-control" required placeholder="e.g. std-cleaning" />
@@ -1133,19 +1126,9 @@
           <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm">
               <div class="card-header bg-white border-bottom-0 p-3">
-                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-cash-coin text-success"></i> Pricing &amp; Details</h6>
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-cash-coin text-success"></i> What the service includes</h6>
               </div>
               <div class="card-body p-3 d-flex flex-column">
-                <div class="card border-0 bg-light rounded mb-3">
-                  <div class="card-body py-2 px-3">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" name="isAirconService" id="isAirconServiceCheckCore" />
-                      <label class="form-check-label fw-semibold" for="isAirconServiceCheckCore">Is Aircon Service?</label>
-                      <div class="form-text small text-muted mb-0">Enables aircon specific workflows like HP pricing categories.</div>
-                    </div>
-                  </div>
-                </div>
-
                 <div class="mb-3">
                   <label for="coreServiceFeatures" class="form-label">Features (Comma separated)</label>
                   <div class="input-group">
@@ -1185,10 +1168,51 @@
             </div>
           </div>
 
-          <div class="col-12">
+          </div></section>
+ <section id="csePanel-pricing" role="tabpanel" aria-labelledby="cseTab-pricing" data-editor-panel="pricing" hidden><div class="cse-section-intro"><h6>Appliances & prices</h6><p>Enable the appliances this service covers. Each appliance has its own prices.</p></div><div class="cse-info"><i class="bi bi-info-circle" aria-hidden="true"></i><p>Refrigerators and freezers can have compressor HP ratings too. Use separate prices for them. Choose a fixed price when HP does not affect the service charge. If the work needs an inspection first, use Repair Services.</p></div><div class="cse-aircon"><div class="card border-0 bg-light rounded mb-3">
+                  <div class="card-body py-2 px-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" name="isAirconService" id="isAirconServiceCheckCore" />
+                      <label class="form-check-label fw-semibold" for="isAirconServiceCheckCore">Offer this service for aircons</label>
+                      <div class="form-text small text-muted mb-0">Set prices by aircon type and HP below.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3"><div class="col-12 d-none" id="airconConfigSection">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 p-3">
+                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-snow text-info"></i> Aircon prices</h6>
+                <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAddAirconType"><i class="bi bi-plus-lg me-1"></i>Add Type</button>
+              </div>
+              <div class="card-body p-3">
+                <p class="text-muted small mb-3">Choose each aircon type you service, then enter its HP prices and work time.</p>
+                <div id="airconTypesContainer">
+                  <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
+                    <i class="bi bi-layers fs-4 d-block mb-2 text-primary"></i>
+                    No aircon types configured. Click "Add Type" to start defining HP prices.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div></div></div><section class="cse-appliance" data-appliance="refrigerator" aria-labelledby="refrigeratorHeading">
+ <div class="cse-appliance-heading"><div><h6 id="refrigeratorHeading">Refrigerator</h6><p>Prices and work time for each refrigerator.</p></div><label class="cse-switch"><input type="checkbox" name="refrigeratorEnabled"><span>Offer this service</span></label></div>
+ <p class="cse-off-note" data-off-note>Not offered for this appliance. Turn it on to set its prices.</p>
+ <fieldset data-family-settings><legend class="visually-hidden">Refrigerator pricing</legend><label class="form-label" for="refrigeratorMode">How do you charge?</label><select class="form-select" id="refrigeratorMode" name="refrigeratorMode"><option value="fixed">Fixed price per appliance</option><option value="hp">Price by compressor HP</option></select>
+ <div data-fixed-fields class="cse-price-fields"><label for="refrigeratorPrice">Price per appliance (PHP)<input class="form-control" id="refrigeratorPrice" name="refrigeratorPrice" type="number" min="0" max="1000000" step="0.01" placeholder="e.g. 500"></label><label for="refrigeratorMinutes">Work time per appliance (minutes)<input class="form-control" id="refrigeratorMinutes" name="refrigeratorMinutes" type="number" min="1" max="10080" step="1" placeholder="e.g. 60"></label></div>
+ <div data-hp-fields hidden><p class="cse-field-help">Use the HP shown on the compressor label. Enter a fraction such as 1/8 or a decimal such as 0.125. Set your own price and work time for each size.</p><div data-hp-rows></div><button type="button" class="btn btn-outline-primary btn-sm" data-add-hp>Add compressor HP price</button></div>
+ </fieldset></section>
+<section class="cse-appliance" data-appliance="freezer" aria-labelledby="freezerHeading">
+ <div class="cse-appliance-heading"><div><h6 id="freezerHeading">Freezer</h6><p>Prices and work time for each freezer.</p></div><label class="cse-switch"><input type="checkbox" name="freezerEnabled"><span>Offer this service</span></label></div>
+ <p class="cse-off-note" data-off-note>Not offered for this appliance. Turn it on to set its prices.</p>
+ <fieldset data-family-settings><legend class="visually-hidden">Freezer pricing</legend><label class="form-label" for="freezerMode">How do you charge?</label><select class="form-select" id="freezerMode" name="freezerMode"><option value="fixed">Fixed price per appliance</option><option value="hp">Price by compressor HP</option></select>
+ <div data-fixed-fields class="cse-price-fields"><label for="freezerPrice">Price per appliance (PHP)<input class="form-control" id="freezerPrice" name="freezerPrice" type="number" min="0" max="1000000" step="0.01" placeholder="e.g. 500"></label><label for="freezerMinutes">Work time per appliance (minutes)<input class="form-control" id="freezerMinutes" name="freezerMinutes" type="number" min="1" max="10080" step="1" placeholder="e.g. 60"></label></div>
+ <div data-hp-fields hidden><p class="cse-field-help">Use the HP shown on the compressor label. Enter a fraction such as 1/8 or a decimal such as 0.125. Set your own price and work time for each size.</p><div data-hp-rows></div><button type="button" class="btn btn-outline-primary btn-sm" data-add-hp>Add compressor HP price</button></div>
+ </fieldset></section></section>
+ <section id="csePanel-warranty" role="tabpanel" aria-labelledby="cseTab-warranty" data-editor-panel="warranty" hidden><div class="row g-3"><div class="col-12">
             <div class="card border-0 shadow-sm">
               <div class="card-header bg-white d-flex justify-content-between align-items-center p-3">
-                <div><h6 class="mb-1 d-flex align-items-center gap-2"><i class="bi bi-shield-check text-primary"></i> Workmanship Warranty Policy</h6><div class="small text-muted">Saved into each completed booking as immutable customer-facing terms.</div></div>
+                <div><h6 class="mb-1 d-flex align-items-center gap-2"><i class="bi bi-shield-check text-primary"></i> Service warranty</h6><div class="small text-muted">These terms are saved with completed bookings. Later changes do not change old warranties.</div></div>
                 <div class="form-check form-switch"><input class="form-check-input" type="checkbox" name="warrantyEnabled" id="coreWarrantyEnabled" checked><label class="form-check-label fw-semibold" for="coreWarrantyEnabled">Enabled</label></div>
               </div>
               <div class="card-body p-3"><div class="row g-3">
@@ -1204,26 +1228,9 @@
             </div>
           </div>
 
-          <div class="col-12 d-none" id="airconConfigSection">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom-0 p-3">
-                <h6 class="mb-0 d-flex align-items-center gap-2"><i class="bi bi-snow text-info"></i> Aircon Types &amp; HP Matrix</h6>
-                <button type="button" class="btn btn-sm btn-primary fw-bold" id="btnAddAirconType"><i class="bi bi-plus-lg me-1"></i>Add Type</button>
-              </div>
-              <div class="card-body p-3">
-                <p class="text-muted small mb-3">Define each aircon type, then add structured HP pricing tiers below.</p>
-                <div id="airconTypesContainer">
-                  <div class="text-center text-muted small py-4" id="noAirconTypesMsg">
-                    <i class="bi bi-layers fs-4 d-block mb-2 text-primary"></i>
-                    No aircon types configured. Click "Add Type" to start defining HP prices.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer core-modal-footer bg-light border-top-0">
+          </div></section>
+ </div>
+ <div class="modal-footer core-modal-footer bg-light border-top-0">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><i class="bi bi-x-lg me-2"></i>Cancel</button>
         <button type="submit" class="btn btn-primary" id="coreServiceSaveBtn"><i class="bi bi-check2-lg me-2"></i>Save Service</button>
       </div>
@@ -1255,6 +1262,8 @@
 
 </div>
 
+<script src="/js/appliance-services.js?v=20261013-compressor-hp"></script>
+<script src="/js/core-service-appliance-editor.js?v=20261013-compressor-hp"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const modalEl = document.getElementById('coreServiceModal');
@@ -1269,6 +1278,7 @@
     }
     const modal = bootstrap && bootstrap.Modal ? new bootstrap.Modal(modalEl) : null;
     const form = document.getElementById('coreServiceForm');
+    const applianceEditor = window.CoreServiceApplianceEditor.mount(form);
     let editingId = null;
     let currentAirconTypes = [];
     let warrantyDaysTouched = false;
@@ -1315,6 +1325,7 @@
     const msgEmpty = document.getElementById('noAirconTypesMsg');
     
     isAirconToggle.addEventListener('change', () => {
+      applianceEditor.syncAircon();
       if (isAirconToggle.checked) {
         airconSection.classList.remove('d-none');
       } else {
@@ -1333,6 +1344,7 @@
     });
 
     function renderMatrix() {
+      queueMicrotask(() => applianceEditor.syncAircon());
       if(currentAirconTypes.length === 0) {
         msgEmpty.style.display = 'block';
         Array.from(airconContainer.querySelectorAll('.aircon-type-card')).forEach(e => e.remove());
@@ -1476,6 +1488,8 @@
         warrantyDaysTouched = false;
         preview.innerHTML = '<i class="bi bi-image text-muted" style="font-size:2rem;"></i>';
       }
+      applianceEditor.set(data?.applianceProfiles || []);
+      applianceEditor.tab('details');
       isAirconToggle.dispatchEvent(new Event('change'));
       renderMatrix();
       modal.show();
@@ -1544,8 +1558,7 @@
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
       if (form.dataset.saving === 'true') return;
-      if (!form.checkValidity()) {
-        form.reportValidity();
+      if (!applianceEditor.validate()) {
         return;
       }
 
@@ -1577,6 +1590,7 @@
         exclusions: form.exclusions.value.split(',').map(s => s.trim()).filter(Boolean),
         isAirconService: form.isAirconService.checked,
         airconTypes: cleanAirconTypes,
+        applianceProfiles: applianceEditor.get(),
         active: form.active.checked,
         warrantyPolicy: {
           enabled: form.warrantyEnabled.checked,
@@ -1637,7 +1651,7 @@
         saveButton.innerHTML = originalSaveHtml;
       }
     });
-  })();
+  });
 </script>
 
 <div id="coreSparkData" class="d-none" data-total="<%= totalCount %>" data-active="<%= activeCount %>" data-review="<%= reviewCount %>" data-avg="<%= Math.round(avgTime) %>"></div>

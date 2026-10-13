@@ -708,12 +708,14 @@
   padding: 16px;
 }
 .ent-project-prefs-title {
+  scroll-margin-top: 100px;
   font-weight: 700;
   font-size: 0.92rem;
   color: #0f172a;
   margin-bottom: 6px;
 }
 .ent-project-prefs-title i { color: #4f46e5; margin-right: 6px; }
+.ent-range-validation { scroll-margin-top: 100px; }
 .ent-project-prefs-note {
   font-size: 0.78rem;
   color: #64748b;

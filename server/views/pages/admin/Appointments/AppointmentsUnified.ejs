@@ -1781,6 +1781,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/operations-request.js?v=20260926"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261013">
+<script src="/js/repair-units.js?v=20261013"></script>
 <script>
 (function() {
   'use strict';
@@ -3019,6 +3021,10 @@
       document.getElementById('detailTitle').textContent='Booking '+(b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase());
       document.getElementById('detailModalSubtitle').textContent=bookingStatusLabel(b)+(bookingNeedsResolution(b)?' \u00b7 '+bookingScheduleIssueLabel(b):'');
       document.getElementById('detailBody').innerHTML=buildDetailHTML(b,data);
+      if (['repair','mixed'].includes(b.serviceType) || (b.services || []).some(item => item.type === 'repair')) {
+        const button=document.createElement('button'); button.className='btn btn-success mb-3'; button.textContent='Appliance repairs and prices'; button.onclick=function(){openRepairUnits('booking',b._id);};
+        document.getElementById('detailBody').prepend(button);
+      }
       if(onLoaded)onLoaded(b,data,document.getElementById('detailBody'),document.getElementById('detailModalSubtitle'));
     }).catch(function(e){
       if(request!==_bookingDetailRequest||e.name==='AbortError')return;

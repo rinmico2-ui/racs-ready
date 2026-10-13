@@ -2,6 +2,10 @@ function resolveCoreServicePricing(catalog, selection) {
   if (!catalog || catalog.active === false) throw new Error('This service is unavailable.');
   const quantity = Number(selection.quantity);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 40) throw new Error('Choose a valid number of units.');
+  if (selection.applianceKind) {
+    const pricing = require('../public/js/appliance-services').price(catalog, selection);
+    return { ...pricing, totalPrice: pricing.unitPrice * quantity };
+  }
   const types = Array.isArray(catalog.airconTypes) ? catalog.airconTypes : [];
   const legacyTiers = Array.isArray(catalog.hpPricing) ? catalog.hpPricing : [];
   const pricedByHp = Boolean(catalog.isAirconService && (types.length || legacyTiers.length));

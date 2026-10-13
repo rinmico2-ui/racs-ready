@@ -29,6 +29,12 @@ function normalizeProjectWorkSubmission(body = {}) {
       throw Object.assign(new Error("Completed units must be whole numbers greater than zero."), { status: 400 });
     }
     workOrderIds.add(workOrderId);
+    if (row.unitKeys !== undefined) {
+      if (!Array.isArray(row.unitKeys) || row.unitKeys.length !== completedUnits || new Set(row.unitKeys).size !== row.unitKeys.length || row.unitKeys.some(key => !/^G\d+-U\d{3}$/.test(String(key)))) {
+        throw Object.assign(new Error('Choose distinct appliance keys matching the completed quantity.'), { status: 400 });
+      }
+      return { workOrderId, completedUnits, unitKeys: row.unitKeys.map(String) };
+    }
     return { workOrderId, completedUnits };
   });
 

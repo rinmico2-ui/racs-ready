@@ -52,10 +52,14 @@ function bookingAssetSeeds(booking) {
         hpDescription: booking.hpDescription || booking.unitInfo?.hpDescription,
       }];
   const seeds = [];
+  const sharedAppliances = new Set();
   serviceItems.forEach((item, itemIndex) => {
     const quantity = Math.max(1, Math.min(40, Number(item.quantity) || 1));
     for (let unitIndex = 1; unitIndex <= quantity; unitIndex += 1) {
-      const itemKey = `service-${String(item._id || item.serviceId || itemIndex)}-unit-${unitIndex}`;
+      if (booking.repairUnitTracking && item.type === 'repair' && item.units?.find(unit => Number(unit.unitIndex) === unitIndex)?.repairReview?.state !== 'completed') continue;
+      const itemKey = item.applianceGroupId ? `appliance-${item.applianceGroupId}-unit-${unitIndex}` : `service-${String(item._id || item.serviceId || itemIndex)}-unit-${unitIndex}`;
+      if (sharedAppliances.has(itemKey)) continue;
+      sharedAppliances.add(itemKey);
       seeds.push({
         customerId,
         assetKey: `booking:${booking._id}:${itemKey}`,
@@ -71,7 +75,7 @@ function bookingAssetSeeds(booking) {
           model: item.relocation?.model || item.model || booking.unitInfo?.model || "",
           serialNumber: item.relocation?.serialNumber || "",
           capacity: String(item.hp || booking.hp || booking.unitInfo?.hp || ""),
-          capacityUnit: "HP",
+          capacityUnit: item.hp || !item.applianceKind || item.applianceKind === 'aircon' ? "HP" : '',
           unitLabel: item.units?.[unitIndex - 1]?.label || `Unit ${unitIndex}`,
         },
         serviceAddress: item.relocation?.to?.address || booking.location?.address || booking.customer?.address || "",

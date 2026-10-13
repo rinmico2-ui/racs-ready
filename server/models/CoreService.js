@@ -60,6 +60,21 @@ const coreServiceSchema = new mongoose.Schema({
 
   // Catalog of supported aircon brands for this service (free-form select on UI).
   brands: [String],
+  // Refrigeration prices are configured separately; never reuse aircon HP tiers.
+  applianceProfiles: [{
+    _id: false,
+    kind: { type: String, enum: ['refrigerator', 'freezer'], required: true },
+    enabled: { type: Boolean, default: false },
+    pricingMode: { type: String, enum: ['fixed', 'hp'], default: 'fixed' },
+    unitPrice: { type: Number, min: 0, max: 1000000 },
+    durationMinutes: { type: Number, min: 1, max: 10080 },
+    hpPricing: [{
+      _id: false,
+      hp: { type: Number, required: true, min: 0.000001 },
+      price: { type: Number, required: true, min: 0, max: 1000000 },
+      durationMinutes: { type: Number, required: true, min: 1, max: 10080 },
+    }],
+  }],
   
   // Duration
   durationMinutes: { type: Number },

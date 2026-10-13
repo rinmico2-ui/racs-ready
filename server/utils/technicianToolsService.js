@@ -46,7 +46,7 @@ function createService(overrides = {}) {
   }
 
   async function assertWorkFinished(assignment, rows, session) {
-    const links = (key, singular) => ids([...(assignment[key] || []), ...(singular ? [assignment[singular]] : []), ...rows.flatMap(row => row[key] || [])]);
+    const links = (key, singular) => ids([...(assignment[key] || []), ...(singular ? [assignment[singular]] : []), ...rows.flatMap(row => [...(row[key] || []), ...(row[key === 'bookingIds' ? 'issuedBookingIds' : key === 'orderIds' ? 'issuedOrderIds' : key] || [])])]);
     const checks = [
       [m.BookingService, links("bookingIds", "bookingId"), CLOSED_BOOKINGS],
       [m.Order, links("orderIds"), ["completed", "cancelled"]],
@@ -64,16 +64,16 @@ function createService(overrides = {}) {
     }
   }
 
-  async function returnEquipment({ assignmentIds, technicianIds, userId, condition = "good", damageDescription = "" }) {
+  async function receiveEquipment({ assignmentIds, technicianIds, userId, condition = "good", damageDescription = "", session: providedSession }) {
     if (!["good", "fair", "damaged", "lost"].includes(condition)) throw fail(400, "Choose the equipment condition.");
     if (typeof damageDescription !== "string" || damageDescription.trim().length > 500) throw fail(400, "Keep notes within 500 characters.");
     const note = damageDescription.trim();
     if (["damaged", "lost"].includes(condition) && !note) throw fail(400, "Add a short note about the damage or missing equipment.");
     if (!assignmentIds?.length || assignmentIds.some(value => !m.mongoose.isValidObjectId(value))) throw fail(400, "Choose a valid equipment record.");
-    const session = await m.mongoose.startSession();
+    const session = providedSession || await m.mongoose.startSession();
     let results;
     try {
-      await session.withTransaction(async () => {
+      const receive = async () => {
         results = [];
         for (const assignmentId of ids(assignmentIds)) {
           const assignment = await m.EquipmentAssignment.findById(assignmentId).session(session).lean();
@@ -86,7 +86,7 @@ function createService(overrides = {}) {
           if (["good", "fair"].includes(condition)) await assertWorkFinished(assignment, rows, session);
           const now = new Date();
           const status = ["good", "fair"].includes(condition) ? "returned" : condition;
-          const claimed = await m.EquipmentAssignment.findOneAndUpdate({ _id: assignmentId, status: { $in: ACTIVE }, $or: [{ resolutionState: "open" }, { resolutionState: null }, { resolutionState: { $exists: false } }] }, { $set: { status, condition, damageDescription: note, returnedAt: now, returnedTo: id(userId), resolvedBy: userId, resolutionNotes: note, resolutionState: "resolved" } }, { session, returnDocument: "after", runValidators: true }).lean();
+          const claimed = await m.EquipmentAssignment.findOneAndUpdate({ _id: assignmentId, status: { $in: ACTIVE }, $or: [{ resolutionState: "open" }, { resolutionState: null }, { resolutionState: { $exists: false } }] }, { $set: { status, condition, damageDescription: note, returnedAt: now, returnedTo: id(userId), resolvedBy: userId, resolutionNotes: note, resolutionState: "resolved", returnPending: false } }, { session, returnDocument: "after", runValidators: true }).lean();
           if (!claimed) throw fail(409, "This equipment was already returned or is being processed.");
           const quantity = Number(assignment.quantity);
           if (!Number.isFinite(quantity) || quantity <= 0) throw fail(409, "The issued quantity needs an admin check.");
@@ -108,6 +108,7 @@ function createService(overrides = {}) {
             const sets = {};
             for (const key of ["items", "deltaItems"]) (related[key] || []).forEach((row, index) => {
               if (!rows.some(value => id(value._id) === id(row._id)) && id(row.equipmentAssignmentId) !== id(assignmentId) && !(row.custodyAssignmentIds || []).some(value => id(value) === id(assignmentId))) return;
+              sets[`${key}.${index}.returnPendingQuantity`] = Math.max(0, Number(row.returnPendingQuantity || 0) - quantity);
               if (remaining && status === "returned") return;
               sets[`${key}.${index}.checkoutStatus`] = status === "returned" ? "returned" : "damaged";
               sets[`${key}.${index}.returnedAt`] = now;
@@ -123,14 +124,18 @@ function createService(overrides = {}) {
           await m.Notification.updateMany({ referenceModel: "EquipmentAssignment", referenceId: assignmentId, type: "equipment_return_overdue", read: false }, { $set: { read: true, readAt: now } }, { session });
           results.push(claimed);
         }
-      });
+      };
+      if (providedSession) await receive(); else await session.withTransaction(receive);
       return results;
     } catch (error) {
       if (/Transaction numbers are only allowed|does not support retryable writes/i.test(error.message)) throw fail(503, "Equipment returns are temporarily unavailable. Ask admin to check the database setup.");
       throw error;
-    } finally { await session.endSession(); }
+    } finally { if (!providedSession) await session.endSession(); }
   }
-  return { usageOptions, logUsage, returnEquipment };
+  async function returnEquipment(input) {
+    return require('./kitReturnService').createService().reportEquipment(input);
+  }
+  return { usageOptions, logUsage, returnEquipment, receiveEquipment, assertWorkFinished };
 }
 
 module.exports = { createService, usageDay, ACTIVE };

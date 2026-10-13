@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { notificationInboxFilter } = require("../utils/notificationInbox");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -26,6 +27,8 @@ const notificationSchema = new mongoose.Schema(
         "assignment_new",
         "assignment_released",
         "assignment_update",
+        "attendance_missing_checkin",
+        "attendance_missing_checkout",
         "booking_cancelled",
         "booking_change_approved",
         "booking_change_rejected",
@@ -58,6 +61,8 @@ const notificationSchema = new mongoose.Schema(
         "equipment_return_overdue",
         "equipment_return_reminder",
         "equipment_return_resolved",
+        "kit_return_reported",
+        "kit_return_reviewed",
         "expense_approved",
         "expense_rejected",
         "expense_submitted",
@@ -142,6 +147,7 @@ const notificationSchema = new mongoose.Schema(
         "Payroll",
         "EquipmentAssignment",
         "DailyKit",
+        "KitReturn",
         "ProductReturn",
       ],
     },
@@ -152,6 +158,7 @@ const notificationSchema = new mongoose.Schema(
     // Read status
     read: { type: Boolean, default: false, index: true },
     readAt: { type: Date },
+    attendanceAlertKey: { type: String },
 
     // Priority
     priority: {
@@ -166,6 +173,7 @@ const notificationSchema = new mongoose.Schema(
 // Compound index for efficient queries
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ role: 1, read: 1, createdAt: -1 });
+notificationSchema.index({ attendanceAlertKey: 1 }, { name: "attendanceAlertKey_unique", unique: true, sparse: true });
 
 // Static: mark as read
 notificationSchema.statics.markRead = async function (id) {
@@ -197,7 +205,7 @@ notificationSchema.statics.deleteAll = async function (filter = {}) {
 // Static: mark multiple as read by ids
 notificationSchema.statics.markReadMany = async function (ids, userId, role) {
   return this.updateMany(
-    { _id: { $in: ids }, read: false, $or: [{ userId }, { userId: null, role }] },
+    { _id: { $in: ids }, read: false, ...notificationInboxFilter(userId, role) },
     { read: true, readAt: new Date() }
   );
 };
@@ -206,7 +214,7 @@ notificationSchema.statics.markReadMany = async function (ids, userId, role) {
 notificationSchema.statics.deleteManyByIds = async function (ids, userId, role) {
   return this.deleteMany({
     _id: { $in: ids },
-    $or: [{ userId }, { userId: null, role }],
+    ...notificationInboxFilter(userId, role),
   });
 };
 

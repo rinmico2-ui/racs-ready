@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const router = express.Router();
 const auth = require("../middleware/authenticate");
+router.use('/repair-units', require('./repairUnitRoutes'));
 
 // This router is mounted at /api, so authentication must be limited to the
 // project API families it owns. A router-wide guard would also capture later
@@ -74,6 +75,7 @@ const { buildAllocationCalendar, getTechnicianScheduleConflicts } = require("../
 const { ensureDailyAssignments, completeDay, nextWorkingDay } = require("../utils/dailyAssignment");
 const { BookingStatus } = require("../models/BookingStatus");
 const audit = require("../utils/audit");
+const { paymentFilter: projectPaymentFilter, projectPaymentSummary, syncProjectPayment, verifyProjectPayment, projectCanUsePlanning } = require('../utils/projectPaymentReview');
 const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
 const { normalizeProjectWorkSubmission } = require("../utils/projectWorkSubmission");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
@@ -496,12 +498,15 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       return res.status(404).json({ error: "Project not found" });
     }
 
-    const [workOrders, materials, booking, workSubmissions, completionReadiness] = await Promise.all([
+    const [workOrders, materials, booking, workSubmissions, completionReadiness, payments] = await Promise.all([
       WorkOrder.find({ projectId: id }).sort({ sortOrder: 1, scheduledDate: 1 }).lean(),
       ProjectMaterial.find({ projectId: id }).lean(),
       project.bookingId ? BookingService.findById(project.bookingId).lean() : null,
       ProjectWorkSubmission.find({ projectId: id }).populate("technicianId", "name").sort({ createdAt: -1 }).lean(),
       getProjectCompletionReadiness(project),
+      Payment.find({ $or: [{ projectId: id }, ...(project.bookingId ? [{ bookingId: project.bookingId }] : [])] })
+        .select('amount method status type reference proofUrl createdAt collectedAt verifiedAt refundAmount refundStatus')
+        .sort({ createdAt: -1 }).lean(),
     ]);
 
     // Recalculate team-, scope-, work-order-, and date-dependent requirements
@@ -514,7 +519,7 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       // existing explicit planning write endpoints, not while viewing a record.
     }
 
-    res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness });
+    res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness, payments, paymentSummary: projectPaymentSummary(project, booking, payments) });
   } catch (error) {
     console.error("Error fetching project:", error);
     res.status(500).json({ error: "Failed to fetch project" });
@@ -951,69 +956,76 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
   }
 });
 
-/**
- * POST /api/projects/:id/verify
- * Admin verifies/accepts a LARGE-SCALE project (checks details & payment) before
- * it can proceed to planning. Mirrors the booking verify-payment / order accept flow.
- * Only large-scale projects in "pending_project_scheduling" are gated here.
- */
-router.post("/projects/:id/verify", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+/** Explicit receipt review; never changes the work schedule or approval state. */
+router.post("/projects/:id/verify-payment", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: "Invalid project id" });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id) || !mongoose.Types.ObjectId.isValid(req.body.paymentId)) {
+      return res.status(400).json({ error: "Select a valid project and payment." });
     }
-
-    const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-
-    if (!project.isLargeScale || Number(project.totalUnits || 0) < schedulingEngine.LARGE_SCALE_MIN_UNITS) {
-      return res.status(409).json({ error: "Only bookings with 8 to 40 units use the large-scale project verification flow." });
+    if (req.body.receiptConfirmed !== true) {
+      return res.status(400).json({ error: "Confirm that you checked the receipt and received the payment." });
     }
+    const result = await verifyProjectPayment({ mongoose, Project, BookingService, Payment,
+      projectId: req.params.id, paymentId: req.body.paymentId, actor: req.user });
+    if (!result.alreadyVerified) await audit.logEvent({ actor: req.user._id, target: req.params.id,
+      action: "project.payment_verified", module: "payments", req,
+      details: { paymentId: result.paymentId, amount: result.amount } }).catch(() => {});
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("Project payment review error:", error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Payment could not be reviewed. Please try again." });
+  }
+});
 
-    if (project.status !== "pending_project_scheduling") {
-      return res.status(400).json({
-        error: `Cannot verify a project in "${project.status}" status. Verification is only allowed while pending review.`,
-      });
-    }
-
-    project.status = "accepted";
-    project.verifiedBy = req.user._id;
-    project.verifiedAt = new Date();
-    if (req.body.adminNotes !== undefined) project.adminNotes = req.body.adminNotes;
-    await project.save();
-
-    // Keep the linked booking in the pending_project_scheduling bridge state.
-    if (project.bookingId) {
-      await BookingService.findByIdAndUpdate(project.bookingId, {
-        status: "pending_project_scheduling",
-      });
-    }
-
-    await audit.logEvent({
-      actor: req.user._id,
-      target: project._id,
-      action: "project.verify",
-      module: "admin",
-      req,
-      details: { status: "accepted", isLargeScale: true },
-    }).catch(() => {});
-
-    const io = req.app.get("io");
-    await createNotification({
-      type: "project_verified",
-      title: "Large-Scale Project Verified",
-      message: `Project for ${project.customer?.name || "customer"} was verified and accepted. Proceed to planning.`,
-      role: "admin",
-      referenceId: project._id,
-      referenceModel: "Project",
-      link: `/admin/projects/${project._id}`,
-      io,
-    }).catch(() => {});
-
+/** Accept a quantity- or duration-based project after its payment is reviewed. */
+router.post("/projects/:id/verify", auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  let session;
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    session = await mongoose.startSession();
+    let project;
+    await session.withTransaction(async () => {
+      project = await Project.findById(req.params.id).session(session);
+      if (!project) throw Object.assign(new Error("Project not found"), { status: 404 });
+      if (project.status !== "pending_project_scheduling") {
+        throw Object.assign(new Error("Only projects waiting for review can be approved."), { status: 409 });
+      }
+      const booking = project.bookingId ? await BookingService.findById(project.bookingId).session(session) : null;
+      if (project.bookingId && !booking) throw Object.assign(new Error("The source booking could not be found."), { status: 404 });
+      if (booking && (!booking.isProject || ["cancelled", "completed", "closed", "rejected", "expired"].includes(booking.status))) {
+        throw Object.assign(new Error("The source booking is not available for project approval."), { status: 409 });
+      }
+      if (!await projectCanUsePlanning(project, booking, schedulingEngine)) {
+        throw Object.assign(new Error("Project planning is for 8–40 units or a smaller job that exceeds the daily work limit."), { status: 409 });
+      }
+      const payments = await Payment.find(projectPaymentFilter(project)).session(session).lean();
+      const summary = projectPaymentSummary(project, booking, payments);
+      if (summary.requiresVerification || summary.amountPaid + 0.01 < summary.downpaymentRequired) {
+        throw Object.assign(new Error("Review the submitted payment before approving this project. Open View payment to check the receipt."), { status: 409, code: "PROJECT_PAYMENT_REVIEW_REQUIRED" });
+      }
+      syncProjectPayment(project, booking, summary);
+      project.status = "accepted";
+      project.verifiedBy = req.user._id;
+      project.verifiedAt = new Date();
+      if (req.body.adminNotes !== undefined) project.adminNotes = req.body.adminNotes;
+      await project.save({ session });
+      // Project planning remains responsible for assigning the final schedule.
+      if (booking) {
+        booking.status = "pending_project_scheduling";
+        await booking.save({ session });
+      }
+    });
+    await audit.logEvent({ actor: req.user._id, target: project._id, action: "project.verify", module: "admin", req,
+      details: { status: "accepted", isLargeScale: project.isLargeScale } }).catch(() => {});
+    await createNotification({ type: "project_verified", title: "Project approved",
+      message: `Project for ${project.customer?.name || "customer"} was approved. Staff can now prepare the work schedule.`,
+      role: "admin", referenceId: project._id, referenceModel: "Project", link: `/admin/projects/${project._id}`, io: req.app.get("io") }).catch(() => {});
     res.json({ project });
   } catch (error) {
     console.error("Error verifying project:", error);
-    res.status(500).json({ error: "Failed to verify project" });
+    res.status(error.status || 500).json({ code: error.code, error: error.status ? error.message : "Failed to approve project" });
+  } finally {
+    await session?.endSession();
   }
 });
 
@@ -1040,6 +1052,9 @@ router.put("/projects/:id/submit-inspection", auth.authenticate, auth.requireRol
     }
 
     const { notes, findings, photos, quotationItems, totalAmount, unitGroupInspections } = req.body || {};
+    if (require('../utils/repairUnitWorkflow').hasRepair(project) || project.repair?.serviceType === 'repair') {
+      return res.status(409).json({ error: 'Use Appliance repairs to inspect and quote each appliance before staff review.', code: 'REPAIR_UNIT_INSPECTIONS_REQUIRED' });
+    }
     if (!["arrived", "completed"].includes(project.assessmentVisit?.status)) {
       return res.status(409).json({ error: "Record arrival at the customer site before submitting the inspection." });
     }
@@ -1218,6 +1233,9 @@ router.put("/projects/:id/review-quotation", auth.requireRole(["admin", "secreta
     }
 
     const { action, rejectionReason, notes } = req.body || {};
+    if (project.repairUnitTracking || require('../utils/repairUnitWorkflow').hasRepair(project) || project.repair?.serviceType === 'repair') {
+      return res.status(409).json({ error: 'Review the individual appliance quotations in Appliance repairs. Customer approval is required before repair work.' });
+    }
     if (action !== "approve" && action !== "reject") {
       return res.status(400).json({ error: 'Action must be "approve" or "reject"' });
     }
@@ -1346,33 +1364,9 @@ router.put("/projects/:id/lead", auth.requireRole(["admin", "secretary"]), async
   }
 });
 
-// Record / update the project's proof of payment.
-router.put("/projects/:id/payment", auth.requireRole(["admin", "secretary"]), async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
-    const { amountPaid, balanceAmount, totalAmount, paymentMethod, paymentStatus, proofUrl, proofNote } = req.body || {};
-    const project = await Project.findById(id);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-
-    const pay = project.payment || {};
-    if (amountPaid !== undefined) pay.amountPaid = Number(amountPaid) || 0;
-    if (balanceAmount !== undefined) pay.balanceAmount = Number(balanceAmount) || 0;
-    if (totalAmount !== undefined) pay.totalAmount = Number(totalAmount) || 0;
-    if (paymentMethod !== undefined) pay.paymentMethod = String(paymentMethod || "").trim();
-    if (paymentStatus !== undefined) pay.paymentStatus = ["unpaid", "partial", "paid", "refunded"].includes(paymentStatus) ? paymentStatus : pay.paymentStatus;
-    if (proofUrl !== undefined) pay.proofUrl = String(proofUrl || "").trim();
-    if (proofNote !== undefined) pay.proofNote = String(proofNote || "").trim();
-    pay.recordedBy = req.user._id;
-    pay.recordedAt = new Date();
-    if (pay.amountPaid > 0) pay.paidAt = pay.paidAt || new Date();
-    project.payment = pay;
-    await project.save();
-    res.json({ project, message: "Proof of payment saved" });
-  } catch (error) {
-    console.error("Error saving payment:", error);
-    res.status(500).json({ error: "Failed to save payment" });
-  }
+// Legacy direct snapshot edits bypass payment review and can replace evidence.
+router.put("/projects/:id/payment", auth.requireRole(["admin", "secretary"]), (_req, res) => {
+  return res.status(409).json({ code: "PAYMENT_LEDGER_REQUIRED", error: "Project payments are read-only here. Use payment review or technician payment collection. The submitted receipt cannot be replaced from this page." });
 });
 
 router.post("/projects/:id/team", auth.requireRole(["admin", "secretary"]), async (req, res) => {
@@ -1648,89 +1642,10 @@ router.get("/projects/:id/eligible-technicians", auth.requireRole(["admin", "sec
       .select("name phone email rating availabilityStatus")
       .lean();
 
-    // ── Availability during the project's date span ───────────────────────
-    // The assignment team should see, per technician, whether they are free
-    // across the project's planned working days. We check three conflict
-    // sources: (1) another project already reserving them on overlapping
-    // dates, (2) approved leave covering any project day, (3) fixed
-    // standard bookings already on those working days.
-    const BookingService = require("../models/BookingService");
-    const LeaveRequest = require("../models/LeaveRequest");
-    const spanStart = project.plannedStartDate || project.preferredStartDate;
-    const spanEnd = project.plannedCompletionDate || project.preferredCompletionDeadline;
-    const projectDays = [];
-    if (spanStart && spanEnd) {
-      const cur = new Date(spanStart);
-      cur.setHours(0, 0, 0, 0);
-      const end = new Date(spanEnd);
-      end.setHours(23, 59, 59, 999);
-      while (cur <= end) {
-        const dow = cur.getDay();
-        // Company working weekdays (Mon/Wed/Thu/Fri) — mirrors scheduleRoutes.
-        if ([1, 3, 4, 5].includes(dow)) projectDays.push(new Date(cur));
-        cur.setDate(cur.getDate() + 1);
-      }
-    }
-
-    const BOOKING_ACTIVE = ["pending", "payment_verified", "awaiting_assignment", "assigned", "pending_reassignment", "confirmed", "scheduled", "on-the-way", "arrived", "in-progress"];
-
-    for (const t of technicians) {
-      t.availableDuringProject = true;
-      t.conflictReason = "";
-      if (projectDays.length === 0) continue; // no planned span → can't assess
-
-      const dayStart = projectDays[0];
-      const dayEnd = projectDays[projectDays.length - 1];
-      dayEnd.setHours(23, 59, 59, 999);
-
-      // (1) Other projects reserving this tech on overlapping dates.
-      const clashProject = await Project.findOne({
-        _id: { $ne: project._id },
-        status: { $in: ["planning", "in_progress", "on_hold", "accepted"] },
-        $or: [
-          { plannedStartDate: { $lte: dayEnd }, plannedCompletionDate: { $gte: dayStart } },
-          { preferredStartDate: { $lte: dayEnd }, preferredCompletionDeadline: { $gte: dayStart } },
-        ],
-        "assignedTechnicians._id": t._id,
-      }).lean();
-      if (clashProject) {
-        t.availableDuringProject = false;
-        t.conflictReason = "Reserved by another project on overlapping dates";
-        continue;
-      }
-
-      // (2) Approved leave covering any project day.
-      const leave = await LeaveRequest.findOne({
-        technicianId: t._id,
-        status: "approved",
-        startDate: { $lte: dayEnd },
-        endDate: { $gte: dayStart },
-      }).lean();
-      if (leave) {
-        t.availableDuringProject = false;
-        t.conflictReason = "On approved leave during the project span";
-        continue;
-      }
-
-      // (3) Fixed standard bookings already on project working days.
-      const dayRanges = projectDays.map((d) => {
-        const s = new Date(d); s.setHours(0, 0, 0, 0);
-        const e = new Date(d); e.setHours(23, 59, 59, 999);
-        return { $gte: s, $lte: e };
-      });
-      const busyBookings = await BookingService.countDocuments({
-        technicianId: t._id,
-        $or: dayRanges.map((r) => ({ bookingDate: r })),
-        status: { $in: BOOKING_ACTIVE },
-      });
-      if (busyBookings > 0) {
-        t.availableDuringProject = false;
-        t.conflictReason = `${busyBookings} fixed booking(s) on project working day(s)`;
-        continue;
-      }
-    }
-
-    res.json({ technicians, projectSpan: spanStart && spanEnd ? { start: spanStart, end: spanEnd, workingDays: projectDays.length } : null });
+    const result = await require('../utils/projectTeamEligibility').projectTeamEligibility(project, technicians, {
+      Project, BookingService, LeaveRequest: require('../models/LeaveRequest'),
+    });
+    res.json(result);
   } catch (error) {
     console.error("Error fetching eligible technicians:", error);
     res.status(500).json({ error: "Failed to fetch eligible technicians" });
@@ -2628,7 +2543,9 @@ router.post("/projects/:id/work-orders", auth.requireRole(["admin", "secretary"]
           ? wo.checklist
           : [
               { label: "Initial inspection", completed: false },
-              { label: "Execute service", completed: false },
+              ...([...new Set(selectedUnits.flatMap(unit => (unit.serviceTasks || []).map(task => task.name)))].length
+                ? [...new Set(selectedUnits.flatMap(unit => (unit.serviceTasks || []).map(task => task.name)))].map(name => ({ label: `Complete ${name}`, completed: false }))
+                : [{ label: "Execute service", completed: false }]),
               { label: "Final quality check", completed: false },
             ],
         activity: [{ action: "work_order_created", actorId: req.user._id, actorName: req.user.name || req.user.email || req.user.role, details: { generationMode: "manual" } }],
@@ -3341,7 +3258,7 @@ const paymentProofUpload = multer({
   fileFilter: (req, file, cb) => cb(null, isAllowedImage(file)),
 }).single("proofPhoto");
 
-router.post("/projects/:id/upload-payment-proof", auth.authenticate, auth.requireRole(["admin", "secretary", "technician"]), (req, res) => {
+router.post("/projects/:id/upload-payment-proof", auth.authenticate, auth.requireRole("technician"), (req, res) => {
   paymentProofUpload(req, res, async (err) => {
     if (err) return res.status(400).json({ error: "Upload failed: " + err.message });
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -4288,7 +4205,7 @@ router.get("/projects/:id/submission-consumables", auth.authenticate, auth.requi
       unit: item.equipmentId?.unit || "pcs",
       quantityIssued: Number(item.quantity || 0),
       quantityUsed: Number(item.consumableUsed || 0),
-      quantityRemaining: Math.max(0, Number(item.quantity || 0) - Number(item.consumableUsed || 0) - Number(item.consumableReturned || 0)),
+      quantityRemaining: Math.max(0, Number(item.quantity || 0) - Number(item.consumableUsed || 0) - Number(item.consumableReturned || 0) - Number(item.consumableDamaged || 0) - Number(item.consumableMissing || 0)),
       workDate: item.workDate,
     })).filter(item => item.quantityRemaining > 0);
     res.json({ consumables });
@@ -4383,7 +4300,8 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
           if (line.completedUnits > available.length) {
             throw Object.assign(new Error(`Only ${available.length} tracked unit(s) remain on ${workOrder.workOrderNumber || workOrder.title || "this work order"}.`), { status: 409 });
           }
-          return { line, workOrder, selected: available.slice(0, line.completedUnits), now };
+          const selected = require('../utils/repairUnitWorkflow').selectCompletedUnits(project, workOrder, line);
+          return { line, workOrder, selected, now };
         });
 
         const consumableRecords = [];
@@ -4404,7 +4322,7 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
             const assignment = byAssignmentId.get(line.assignmentId);
             const issued = Number(assignment.quantity || 0);
             const usedBefore = Number(assignment.consumableUsed || 0);
-            const remaining = Math.max(0, issued - usedBefore - Number(assignment.consumableReturned || 0));
+            const remaining = Math.max(0, issued - usedBefore - Number(assignment.consumableReturned || 0) - Number(assignment.consumableDamaged || 0) - Number(assignment.consumableMissing || 0));
             if (line.quantityUsed > remaining) {
               throw Object.assign(new Error(`${assignment.equipmentName}: only ${remaining} of ${issued} issued remain unreported.`), { status: 409 });
             }
@@ -4441,7 +4359,7 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
                 (String(item.toolId || "") === String(assignment.equipmentId) && (item.projectIds || []).some(id => String(id) === String(project._id)))
               );
               if (!kitItem) throw Object.assign(new Error(`${assignment.equipmentName} is no longer linked to the shared Daily Kit.`), { status: 409 });
-              const kitRemaining = Number(kitItem.quantityIssued || 0) - Number(kitItem.quantityUsed || 0) - Number(kitItem.quantityReturned || 0);
+              const kitRemaining = require('../utils/kitMaterialBalance').available(kitItem);
               if (line.quantityUsed > kitRemaining) throw Object.assign(new Error(`${assignment.equipmentName}: only ${kitRemaining} remain in the shared Daily Kit.`), { status: 409 });
               kitItem.quantityUsed = Number(kitItem.quantityUsed || 0) + line.quantityUsed;
               await kit.save({ session });
@@ -4495,6 +4413,12 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
         for (const { line, workOrder, selected } of committedLines) {
           selected.forEach(unit => {
             unit.status = "completed";
+            const repairRecord = require('../utils/repairUnitWorkflow').rows(project).find(row => row.key === unit.unitKey);
+            if (repairRecord) {
+              repairRecord.unit.status = 'completed'; repairRecord.unit.repairReview.state = 'completed';
+              repairRecord.unit.completedAt = now; repairRecord.unit.completedBy = technician._id;
+              repairRecord.unit.completionNotes = payload.notes;
+            }
             unit.completedAt = now;
             unit.completedBy = technician._id;
             if (payload.notes) unit.notes = payload.notes;
@@ -4518,6 +4442,18 @@ router.post("/projects/:id/work-submissions", auth.authenticate, auth.requireRol
             timestamp: now,
           });
           await workOrder.save({ session });
+        }
+        if (project.repairUnitTracking) {
+          await Project.updateOne({ _id: project._id }, { $set: { unitGroups: project.unitGroups }, $inc: { __v: 1 } }, { session, runValidators: true });
+          const linkedBooking = await BookingService.findById(project.bookingId).session(session);
+          if (linkedBooking?.services?.length) {
+            for (const group of project.unitGroups.filter(group => group.serviceType === 'repair')) {
+              const item = linkedBooking.services[group.groupIndex];
+              if (!item || item.type !== 'repair') throw Object.assign(new Error('The booking appliance groups no longer match this work plan.'), { status: 409 });
+              item.units = group.units.map(unit => unit.toObject());
+            }
+            await BookingService.updateOne({ _id: linkedBooking._id }, { $set: { services: linkedBooking.services, repairUnitTracking: true, updatedAt: new Date() }, $inc: { __v: 1 } }, { session, runValidators: true });
+          }
         }
       });
       committed = true;
@@ -5053,6 +4989,9 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     if (project.isLargeScale && project.projectPhase !== "execution") {
       if (project.projectPhase === "assessment") return res.status(400).json({ error: "Site inspection must be completed and quotation approved before the team can mobilize for repair work", phase: "assessment" });
       if (project.projectPhase === "quotation_review") return res.status(400).json({ error: "Quotation is under admin review — await approval before mobilizing", phase: "quotation_review" });
+    }
+    if (project.repairUnitTracking && require('../utils/repairUnitWorkflow').rows(project).some(row => !['approved', 'declined', 'completed'].includes(row.unit.repairReview?.state))) {
+      return res.status(409).json({ error: 'Wait for the customer to decide on every appliance repair quote before starting the repair visit.' });
     }
     // Block mobilization if daily acceptance is still pending.
     if (project.dailyAcceptance && project.dailyAcceptance.required) {
@@ -6475,50 +6414,19 @@ router.put("/projects/:id/equipment/issue", auth.authenticate, auth.requireRole(
 // PUT /api/projects/:id/equipment/return — technician returns equipment
 router.put("/projects/:id/equipment/return", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const technician = await Technician.findOne({ user: req.user._id }).select('_id user').lean();
+    if (!technician) return res.status(404).json({ error: 'Technician record not found.' });
     const { assignmentIds, condition } = req.body;
-    if (!assignmentIds || !assignmentIds.length) return res.status(400).json({ error: "No assignments specified" });
-
-    const now = new Date();
-    const assignments = await EquipmentAssignment.find({
-      _id: { $in: assignmentIds },
-      $or: [{ projectId: id }, { projectIds: id }],
-      technicianId: req.technician?._id || { $exists: true },
-      status: { $in: ["checked_out", "in_use"] },
-    });
-    const managedIds = assignments.map(item => item._id);
-    const referencedByKit = managedIds.length && await DailyKit.exists({
-      technicianId: req.technician?._id,
-      status: { $in: ["confirmed", "in_progress"] },
-      $or: [
-        { "items.equipmentAssignmentId": { $in: managedIds } },
-        { "items.custodyAssignmentIds": { $in: managedIds } },
-      ],
-    });
-    if (assignments.some(item => item.dailyKitId) || referencedByKit) {
-      return res.status(409).json({ error: "Shared Daily Kit equipment must be returned from Daily Preparation after all scheduled jobs are finished." });
-    }
-    const updated = [];
-    for (const assignment of assignments) {
-      if (!assignment.consumable) {
-        const tool = await Tool.findById(assignment.equipmentId);
-        if (tool) {
-          tool.quantity = Number(tool.quantity || 0) + assignment.quantity;
-          tool.checkedOutQuantity = Math.max(0, Number(tool.checkedOutQuantity || 0) - assignment.quantity);
-          tool.assetStatus = tool.checkedOutQuantity > 0 ? "checked_out" : "available";
-          await tool.save();
-        }
-      }
-      assignment.status = "returned";
-      assignment.condition = condition || "good";
-      assignment.returnedAt = now;
-      await assignment.save();
-      updated.push(assignment.toObject());
-    }
-    res.json({ message: `${updated.length} item(s) returned`, assignments: updated });
+    if (!Array.isArray(assignmentIds) || !assignmentIds.length || assignmentIds.length > 100 || assignmentIds.some(value => !mongoose.Types.ObjectId.isValid(value))) return res.status(400).json({ error: 'Choose up to 100 valid equipment records.' });
+    const technicianIds = [technician._id, req.user._id];
+    const owned = await EquipmentAssignment.find({ _id: { $in: assignmentIds }, $or: [{ projectId: req.params.id }, { projectIds: req.params.id }], technicianId: { $in: technicianIds }, consumable: { $ne: true } }).select('_id').lean();
+    if (owned.length !== new Set(assignmentIds.map(String)).size) return res.status(403).json({ error: 'You can only report your own equipment for this project.' });
+    const reports = await require('../utils/kitReturnService').createService().reportEquipment({ assignmentIds, technicianIds, userId: req.user._id, condition: condition === 'needs_repair' ? 'damaged' : condition || 'good', damageDescription: req.body.notes || '', equipmentUse: req.body.equipmentUse || 'not_recorded' });
+    await require('../utils/kitReturnNotifications').reported(reports, req);
+    return res.json({ success: true, message: 'Return reports sent. Stock is restored only after admin confirms receipt.', reports });
   } catch (error) {
-    console.error("Error returning equipment:", error);
-    res.status(500).json({ error: "Failed to return equipment" });
+    console.error('Project equipment return report:', error.message);
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not submit the return report.' });
   }
 });
 

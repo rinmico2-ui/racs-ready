@@ -1,8 +1,8 @@
-<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261010-expenses-header">
+<link rel="stylesheet" href="/css/technician/technician-tools.css?v=20261013-clean-workspace">
 <section class="technician-page tt-page" id="technicianToolsPage">
   <div class="tt-shell">
     <header class="tt-header">
-      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools</h1><p>See your equipment, record its use, and keep returns up to date.</p></div>
+      <div><span class="tt-eyebrow">TECHNICIAN WORKSPACE</span><h1>My tools</h1><p>Manage your equipment, materials, and returns in one place.</p></div>
       <div class="tt-header-actions"><button class="tt-button tt-button-secondary" id="ttRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Refresh</button><button class="tt-button tt-button-primary" id="ttLogUsage" type="button"><i class="bi bi-plus-lg" aria-hidden="true"></i>Log equipment use</button></div>
     </header>
     <div class="tt-summary" aria-label="Your equipment summary">
@@ -11,6 +11,7 @@
       <div class="tt-stat"><span class="tt-stat-icon tt-green"><i class="bi bi-calendar-check" aria-hidden="true"></i></span><div><span class="tt-stat-label">Used today</span><strong id="ttUsageCount">&mdash;</strong><small>Equipment use records</small></div></div>
     </div>
     <section class="tt-workspace" aria-label="Equipment records">
+      <div class="tt-section-heading"><span class="tt-section-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><h2>Equipment</h2><p>See what is issued to you and track its use.</p></div></div>
       <div class="tt-tabs" role="tablist" aria-label="Tool records">
         <button type="button" class="tt-tab is-active" id="ttTabEquipment" role="tab" aria-selected="true" aria-controls="ttRecords" data-tab="equipment">Equipment <span id="ttEquipmentBadge">&mdash;</span></button>
         <button type="button" class="tt-tab" id="ttTabUsage" role="tab" aria-selected="false" tabindex="-1" aria-controls="ttRecords" data-tab="usage">Usage log</button>
@@ -20,8 +21,9 @@
       <div class="tt-context"><p id="ttResultContext" aria-live="polite">Loading your equipment...</p><span><i class="bi bi-info-circle" aria-hidden="true"></i><span id="ttContextHelp">Return reusable equipment after the linked work is finished.</span></span></div>
       <div id="ttNotice" class="tt-notice" role="status" hidden></div>
       <div id="ttRecords" class="tt-records" role="tabpanel" aria-labelledby="ttTabEquipment" aria-busy="true"><div class="tt-empty"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><p>Loading your equipment...</p></div></div>
-      <footer class="tt-workspace-footer"><i class="bi bi-link-45deg" aria-hidden="true"></i>Equipment and return records are linked to company inventory.</footer>
+      <footer class="tt-workspace-footer"><i class="bi bi-shield-check" aria-hidden="true"></i>Admin confirms receipt before returned items become available again.</footer>
     </section>
+    <%- include('../../partials/kit-return-panel', { kitReturnMode: 'technician' }) %>
   </div>
 </section>
 <div class="modal fade tt-modal" id="ttUsageModal" tabindex="-1" aria-labelledby="ttUsageTitle" aria-hidden="true">
@@ -35,9 +37,9 @@
 </div>
 <div class="modal fade tt-modal" id="ttReturnModal" tabindex="-1" aria-labelledby="ttReturnTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><form id="ttReturnForm">
-    <div class="modal-header"><div><span class="tt-eyebrow">EQUIPMENT RETURN</span><h2 id="ttReturnTitle">Return equipment</h2><p>Check the condition before saving.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-    <div class="modal-body"><div class="tt-form-error" id="ttReturnError" role="alert" hidden></div><div class="tt-return-item"><span class="tt-stat-icon tt-blue"><i class="bi bi-tools" aria-hidden="true"></i></span><div><strong id="ttReturnName"></strong><p id="ttReturnMeta"></p></div></div><label for="ttReturnCondition">Condition <span aria-hidden="true">*</span></label><select class="form-select" id="ttReturnCondition"><option value="good">Good</option><option value="fair">Fair - usable, with signs of wear</option><option value="damaged">Damaged - needs checking</option><option value="lost">Lost - cannot be returned</option></select><label for="ttReturnNotes">Notes <span id="ttReturnNotesLabel" class="tt-optional">Optional</span></label><textarea class="form-control" id="ttReturnNotes" rows="3" maxlength="500" placeholder="Add details about its condition"></textarea><p class="tt-field-hint">Good or fair equipment returns to available stock. Damaged or lost equipment stays unavailable.</p></div>
-    <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" id="ttReturnSave" type="submit">Save return</button></div>
+    <div class="modal-header"><div><span class="tt-eyebrow">EQUIPMENT RETURN</span><h2 id="ttReturnTitle">Report equipment return</h2><p>Record its use and condition for admin to review.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="tt-form-error" id="ttReturnError" role="alert" hidden></div><div class="tt-return-item"><span class="tt-stat-icon tt-blue"><i class="bi bi-tools" aria-hidden="true"></i></span><div><strong id="ttReturnName"></strong><p id="ttReturnMeta"></p></div></div><label for="ttReturnUse">Was this equipment used?</label><select class="form-select" id="ttReturnUse" required><option value="">Choose an option</option><option value="unused">Not used</option><option value="used">Used during work</option></select><label for="ttReturnCondition">Condition <span aria-hidden="true">*</span></label><select class="form-select" id="ttReturnCondition"><option value="good">Good</option><option value="fair">Fair - usable, with signs of wear</option><option value="damaged">Damaged - needs checking</option><option value="lost">Lost - cannot be returned</option></select><label for="ttReturnNotes">Notes <span id="ttReturnNotesLabel" class="tt-optional">Optional</span></label><textarea class="form-control" id="ttReturnNotes" rows="3" maxlength="500" placeholder="Add details about its condition"></textarea><p class="tt-field-hint">Send a report first. Admin checks what was received before usable equipment returns to stock.</p></div>
+    <div class="modal-footer"><button class="tt-button tt-button-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="tt-button tt-button-primary" id="ttReturnSave" type="submit">Send report</button></div>
   </form></div></div>
 </div>
-<script src="/js/technician-tools.js?v=20261010-workspace" defer></script>
+<script src="/js/technician-tools.js?v=20261013-admin-receipt" defer></script>

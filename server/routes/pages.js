@@ -3062,7 +3062,7 @@ router.get(
       bookings.forEach(b => {
         const key = b.isProject ? "largeScale" : "standard";
         const units = Array.isArray(b.services) && b.services.length
-          ? b.services.reduce((sum, s) => sum + Math.max(1, Number(s.quantity) || 1), 0)
+          ? require("../public/js/appliance-services").unitCount(b.services)
           : Math.max(1, Number(b.quantity) || 1);
         bookingScale[key].bookings++;
         bookingScale[key].units += units;

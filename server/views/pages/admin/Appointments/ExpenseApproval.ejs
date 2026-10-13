@@ -66,12 +66,13 @@
           <div class="au-hero-icon"><i class="bi bi-cash-stack"></i></div>
           <div>
             <h1>Expense Approval</h1>
-            <p>Review and approve technician expense submissions</p>
+            <p>Record business expenses and review technician submissions</p>
           </div>
         </div>
-        <div class="au-hero-actions" style="display:none;">
-          <input type="text" class="form-control form-control-sm" placeholder="Search..." id="searchInput" style="width:200px;">
-          <button class="btn btn-sm btn-outline-secondary" onclick="loadList()"><i class="bi bi-arrow-clockwise"></i></button>
+        <div class="au-hero-actions" style="flex-wrap:wrap;">
+          <% if (typeof expensesCanApprove !== 'boolean' || expensesCanApprove) { %><button type="button" class="btn btn-success" id="adminAddExpense"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add expense</button><% } %>
+          <input type="search" class="form-control form-control-sm" placeholder="Search expenses" aria-label="Search expenses" id="searchInput" style="max-width:200px;">
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadList()" aria-label="Refresh expenses"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
         </div>
       </div>
     </div>
@@ -179,7 +180,7 @@
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th>Technician</th>
+                <th>Expense for</th>
                 <th>Type</th>
                 <th>Description</th>
                 <th>Linked Service</th>
@@ -190,7 +191,7 @@
               </tr>
             </thead>
             <tbody id="tableBody">
-              <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+              <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -220,7 +221,7 @@
               </div>
               <div class="col-md-6">
                 <div class="expense-detail-section">
-                  <div class="expense-detail-label"><i class="bi bi-person me-1"></i>Technician</div>
+                  <div class="expense-detail-label"><i class="bi bi-person me-1"></i>Expense for</div>
                   <div class="expense-detail-value" id="viewTechName">—</div>
                 </div>
               </div>
@@ -290,8 +291,7 @@
           <div class="col-12">
             <div class="expense-receipt-wrap">
               <div class="expense-detail-label mb-2"><i class="bi bi-image me-1"></i>Receipt / Proof</div>
-              <div id="viewReceiptEmpty" class="expense-empty-state"><i class="bi bi-image"></i>No receipt attached</div>
-              <img id="viewReceiptImage" src="" alt="Receipt" class="expense-receipt" style="display:none;">
+              <div id="viewReceiptPreview" aria-live="polite"></div>
             </div>
           </div>
         </div>
@@ -353,15 +353,21 @@
   </div>
 </div>
 
+<% if (typeof expensesCanApprove !== 'boolean' || expensesCanApprove) { %><%- include('../../../partials/admin-add-expense') %><% } %>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/js/evidence-viewer.js?v=20261013-receipt-types"></script>
 <script>
   const EXPENSES_API = <%- JSON.stringify(typeof expensesApiBase === 'string' ? expensesApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
   const EXPENSES_CAN_APPROVE = <%- JSON.stringify(typeof expensesCanApprove === 'boolean' ? expensesCanApprove : true) %>;
   let currentFilter = '';
   let _expenseData = {};
   let activeRejectExpenseId = null;
+  document.getElementById('expenseDetailModal').addEventListener('hidden.bs.modal', () => {
+    window.evidenceViewer.clear(document.getElementById('viewReceiptPreview'));
+  });
 
-  const TYPE_LABELS = { fuel: 'Fuel', material: 'Material', transport: 'Transport', meal: 'Meal', other: 'Other' };
+  const expenseEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
+  const TYPE_LABELS = { fuel: 'Fuel', parking: 'Parking', toll: 'Toll', external_parts: 'External parts', material: 'Material', transport: 'Transport', meal: 'Meal', other: 'Other' };
   const STATUS_CLASSES = { pending: 'bg-warning text-dark', approved: 'bg-success', rejected: 'bg-danger' };
 
   async function loadStats() {
@@ -380,7 +386,8 @@
     try {
       const res = await fetch(`${EXPENSES_API}/expenses/list?status=${currentFilter}&search=${encodeURIComponent(search)}&limit=50`);
       const data = await res.json();
-      renderTable(data.expenses);
+      if (!res.ok) throw new Error(data.error || 'Could not load expenses.');
+      renderTable(data.expenses || []);
     } catch (e) { console.error(e); }
   }
 
@@ -389,18 +396,18 @@
     document.querySelectorAll('.status-tab').forEach(t => { t.classList.remove('active', 'btn-primary'); t.classList.add('btn-outline-secondary'); });
     btn.classList.add('active', 'btn-primary');
     btn.classList.remove('btn-outline-secondary');
-    loadList();
+    return loadList();
   }
 
   function renderTable(expenses) {
     const tbody = document.getElementById('tableBody');
-    _expenseData = Object.fromEntries(expenses.map(e => [e._id, e]));
+    _expenseData = Object.fromEntries((expenses || []).map(e => [e._id, e]));
     if (!expenses?.length) {
       tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:2.5rem;"></i><div class="mt-2">No expenses found</div></td></tr>`;
       return;
     }
     tbody.innerHTML = expenses.map(e => {
-      const date = new Date(e.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const date = new Date(e.expenseDate || e.createdAt).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' });
       let serviceLink = '<span class="text-muted small">—</span>';
       if (e.bookingId && typeof e.bookingId === 'object') {
         const bk = e.bookingId;
@@ -409,12 +416,12 @@
         const firstSvc = (bk.services && bk.services[0] && bk.services[0].name) || '';
         const svc = (bk.service && bk.service.name) || (bk.serviceId && bk.serviceId.name) || firstSvc || '';
         const label = [cust, svc].filter(Boolean).join(' - ') || ref || 'Linked';
-        serviceLink = `<span class="badge bg-light text-dark border" style="font-size:0.72rem;" title="${ref}"><i class="bi bi-link-45deg me-1"></i>${label}</span>`;
+        serviceLink = `<span class="badge bg-light text-dark border" style="font-size:0.72rem;" title="${expenseEscape(ref)}"><i class="bi bi-link-45deg me-1"></i>${expenseEscape(label)}</span>`;
       }
       return `<tr>
-        <td class="fw-semibold small">${e.technicianName || 'N/A'}</td>
-        <td><span class="badge bg-light text-dark">${TYPE_LABELS[e.type] || e.type}</span></td>
-        <td class="small">${e.description || 'N/A'}</td>
+        <td class="fw-semibold small">${expenseEscape(e.technicianName || (e.source === 'admin' ? 'Company expense' : 'N/A'))}${e.source === 'admin' ? `<small class="d-block text-muted">Added by ${expenseEscape(e.recordedByName || 'Admin')}</small>` : ''}</td>
+        <td><span class="badge bg-light text-dark">${expenseEscape(TYPE_LABELS[e.type] || e.type)}</span></td>
+        <td class="small">${expenseEscape(e.description || 'N/A')}</td>
         <td>${serviceLink}</td>
         <td class="fw-bold">₱${(e.amount || 0).toLocaleString()}</td>
         <td class="small">${date}</td>
@@ -526,7 +533,7 @@
     const e = _expenseData[id];
     if (!e) return showToast('Expense details not found', 'error');
 
-    document.getElementById('viewTechName').textContent = e.technicianName || 'N/A';
+    document.getElementById('viewTechName').textContent = e.technicianName || (e.source === 'admin' ? `Company expense · Added by ${e.recordedByName || 'Admin'}` : 'N/A');
     document.getElementById('viewType').textContent = (TYPE_LABELS[e.type] || e.type || 'N/A');
     document.getElementById('viewAmount').textContent = '₱' + (e.amount || 0).toLocaleString();
     document.getElementById('viewStatus').innerHTML = `<span class="badge ${STATUS_CLASSES[e.status] || 'bg-secondary'}">${e.status}</span>`;
@@ -544,17 +551,17 @@
       const serviceModelRaw = (bk.serviceModel || '').replace(/([A-Z])/g, ' $1').trim();
       const serviceType = serviceModelRaw ? serviceModelRaw.replace('Service', 'Service') : 'Unknown';
       const typeBadge = serviceType.toLowerCase().includes('repair')
-        ? `<span class="badge bg-danger-subtle text-danger border" style="font-size:0.72rem;"><i class="bi bi-wrench me-1"></i>${serviceType}</span>`
-        : `<span class="badge bg-primary-subtle text-primary border" style="font-size:0.72rem;"><i class="bi bi-gear me-1"></i>${serviceType}</span>`;
+        ? `<span class="badge bg-danger-subtle text-danger border" style="font-size:0.72rem;"><i class="bi bi-wrench me-1"></i>${expenseEscape(serviceType)}</span>`
+        : `<span class="badge bg-primary-subtle text-primary border" style="font-size:0.72rem;"><i class="bi bi-gear me-1"></i>${expenseEscape(serviceType)}</span>`;
       linked.innerHTML = `
         <div class="row g-3">
           <div class="col-md-6">
             <div class="expense-detail-label">Reference</div>
-            <div class="expense-detail-value">${ref || '—'}</div>
+            <div class="expense-detail-value">${expenseEscape(ref) || '—'}</div>
           </div>
           <div class="col-md-6">
             <div class="expense-detail-label">Customer</div>
-            <div class="expense-detail-value">${cust}</div>
+            <div class="expense-detail-value">${expenseEscape(cust)}</div>
           </div>
           <div class="col-md-6">
             <div class="expense-detail-label">Service Type</div>
@@ -562,7 +569,7 @@
           </div>
           <div class="col-md-6">
             <div class="expense-detail-label">Service</div>
-            <div class="expense-detail-value">${serviceName}</div>
+            <div class="expense-detail-value">${expenseEscape(serviceName)}</div>
           </div>
           <div class="col-12">
             <div class="expense-detail-label">Booking Date</div>
@@ -584,15 +591,7 @@
       fuelSection.style.display = 'none';
     }
 
-    const receiptImg = document.getElementById('viewReceiptImage');
-    if (e.receiptImage) {
-      receiptImg.src = e.receiptImage;
-      receiptImg.style.display = '';
-      document.getElementById('viewReceiptEmpty').style.display = 'none';
-    } else {
-      receiptImg.style.display = 'none';
-      document.getElementById('viewReceiptEmpty').style.display = '';
-    }
+    window.evidenceViewer.show(document.getElementById('viewReceiptPreview'), e.receiptImage);
 
     document.getElementById('viewRejectionReason').textContent = e.rejectionReason || '—';
     document.getElementById('viewApprovedAt').textContent = e.approvedAt ? new Date(e.approvedAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
@@ -630,6 +629,10 @@
     setTimeout(() => { el.style.transition='all 0.3s ease'; el.style.opacity='0'; el.style.transform='translateX(100%)'; setTimeout(()=>el.remove(),300); }, duration);
   }
 
+  window.addEventListener('expense:created', () => {
+    const allButton = document.querySelector('.status-tab');
+    Promise.all([filterBy(allButton, ''), loadStats()]);
+  });
   loadStats(); loadList();
   let st; document.getElementById('searchInput')?.addEventListener('input', () => { clearTimeout(st); st = setTimeout(loadList, 400); });
 

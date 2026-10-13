@@ -20,6 +20,7 @@ const REMINDER_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const MAX_BULK_SELECTION = 500;
 
 router.use(authenticate);
+router.use('/kit-returns', require('./kitReturnRoutes')());
 router.use((req, res, next) => {
   if (req.user.role !== "secretary") return next();
   const permission = ["GET", "HEAD", "OPTIONS"].includes(req.method)
@@ -29,10 +30,9 @@ router.use((req, res, next) => {
 });
 
 function dayBounds(now = new Date()) {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  const { manilaDateTime } = require('../utils/bookingDateTime');
+  const start = manilaDateTime(now, 0);
+  const end = manilaDateTime(now, 1440);
   return { start, end };
 }
 
@@ -62,13 +62,13 @@ function dueTodayClause(now = new Date()) {
 
 async function returnSummary(now = new Date()) {
   const base = activeFilter();
-  const [checkedOut, overdue, dueToday, remindersSent] = await Promise.all([
+  const [checkedOut, returns, dueToday, remindersSent] = await Promise.all([
     EquipmentAssignment.countDocuments(base),
-    EquipmentAssignment.countDocuments({ ...base, ...overdueClause(now) }),
+    require('../utils/inventoryReturnSummary').inventoryReturnSummary(now),
     EquipmentAssignment.countDocuments({ ...base, ...dueTodayClause(now) }),
     EquipmentAssignment.countDocuments({ ...base, reminderCount: { $gt: 0 } }),
   ]);
-  return { checkedOut, overdue, dueToday, remindersSent, actionable: overdue };
+  return { checkedOut, ...returns, dueToday, remindersSent };
 }
 
 router.get("/equipment-returns/summary", requireRole(["admin", "secretary"]), async (req, res) => {
@@ -208,90 +208,17 @@ router.post("/equipment-returns/:id/deadline", requireRole(["admin"]), async (re
 });
 
 router.post("/equipment-returns/:id/resolve", requireRole(["admin"]), async (req, res) => {
-  const token = crypto.randomUUID();
-  let locked = null;
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid equipment assignment id" });
-    const condition = String(req.body.condition || "").toLowerCase();
-    if (!["good", "fair", "damaged", "lost"].includes(condition)) return res.status(400).json({ error: "Select a valid return condition" });
-    const notes = String(req.body.notes || "").trim().slice(0, 500);
-    if (["damaged", "lost"].includes(condition) && !notes) return res.status(400).json({ error: "Notes are required for damaged or lost equipment" });
-
-    locked = await EquipmentAssignment.findOneAndUpdate(
-      { _id: req.params.id, consumable: { $ne: true }, status: { $in: ACTIVE_STATUSES }, $or: [{ resolutionState: "open" }, { resolutionState: { $exists: false } }, { resolutionState: null }] },
-      { $set: { resolutionState: "processing", resolutionStartedAt: new Date(), resolutionToken: token } },
-      { returnDocument: "after" },
-    ).select("+resolutionToken");
-    if (!locked) return res.status(409).json({ error: "This equipment was already resolved or is being processed" });
-
-    const quantity = Math.max(1, Number(locked.quantity) || 1);
-    if (condition === "good" || condition === "fair") {
-      const nextCheckedOut = { $max: [0, { $subtract: [{ $ifNull: ["$checkedOutQuantity", 0] }, quantity] }] };
-      const nextQuantity = { $add: [{ $ifNull: ["$quantity", 0] }, quantity] };
-      const inventoryResult = await Tool.updateOne({ _id: locked.equipmentId }, [{ $set: {
-        quantity: nextQuantity,
-        checkedOutQuantity: nextCheckedOut,
-        assetCondition: condition,
-        assetStatus: { $cond: [{ $gt: [nextCheckedOut, 0] }, "checked_out", "available"] },
-        assignable: true,
-        status: { $cond: [{ $lte: [nextQuantity, 0] }, "out_of_stock", { $cond: [{ $lte: [nextQuantity, { $ifNull: ["$minStockLevel", 0] }] }, "low_stock", "in_stock"] }] },
-      } }], { updatePipeline: true });
-      if (!inventoryResult.matchedCount) throw new Error("The linked inventory asset no longer exists");
-    } else {
-      const inventoryResult = await Tool.updateOne({ _id: locked.equipmentId }, [{ $set: {
-        checkedOutQuantity: { $max: [0, { $subtract: [{ $ifNull: ["$checkedOutQuantity", 0] }, quantity] }] },
-        assetCondition: "damaged",
-        assetStatus: condition === "damaged" ? "damaged" : "retired",
-        assignable: false,
-      } }], { updatePipeline: true });
-      if (!inventoryResult.matchedCount) throw new Error("The linked inventory asset no longer exists");
-    }
-
-    const returnedAt = new Date();
-    const status = ["good", "fair"].includes(condition) ? "returned" : condition;
-    const assignment = await EquipmentAssignment.findOneAndUpdate(
-      { _id: locked._id, resolutionState: "processing", resolutionToken: token },
-      { $set: { status, condition, damageDescription: ["damaged", "lost"].includes(condition) ? notes : locked.damageDescription, returnedAt, returnedTo: req.user?.name || String(req.user?._id || "Admin"), resolvedBy: req.user?._id, resolutionNotes: notes, resolutionState: "resolved" }, $unset: { resolutionToken: 1, resolutionStartedAt: 1 } },
-      { returnDocument: "after" },
-    );
-    if (!assignment) throw new Error("Resolution lock was lost");
-
-    const lifecycleUpdates = [];
-    lifecycleUpdates.push(Notification.updateMany(
-      { referenceModel: "EquipmentAssignment", referenceId: assignment._id, type: "equipment_return_overdue", read: false },
-      { $set: { read: true, readAt: returnedAt } },
-    ));
-    if (assignment.dailyKitId) {
-      lifecycleUpdates.push(DailyKit.updateOne(
-        { _id: assignment.dailyKitId, "items.equipmentAssignmentId": assignment._id },
-        { $set: { "items.$.checkoutStatus": ["good", "fair"].includes(condition) ? "returned" : "exception", "items.$.returnedAt": returnedAt } },
-      ));
-    }
-    if (assignment.bookingId) {
-      const remainingForJob = await EquipmentAssignment.countDocuments({
-        bookingId: assignment.bookingId,
-        technicianId: assignment.technicianId,
-        consumable: { $ne: true },
-        status: { $in: ACTIVE_STATUSES },
-      });
-      if (remainingForJob === 0) {
-        lifecycleUpdates.push(Assignment.updateMany(
-          { bookingId: assignment.bookingId, technicianId: assignment.technicianId },
-          { $set: { equipmentReturned: true, equipmentReturnedAt: returnedAt } },
-        ));
-      }
-    }
-
-    await Promise.all([
-      ...lifecycleUpdates,
-      audit.logEvent({ actor: req.user?._id, target: assignment._id, action: `inventory.equipment_return.${status}`, module: "inventory", req, details: { referenceModel: "EquipmentAssignment", equipmentName: assignment.equipmentName, quantity, condition, notes } }),
-      createNotification({ type: "equipment_return_resolved", title: condition === "lost" ? "Equipment Marked Lost" : "Equipment Return Recorded", message: `${assignment.equipmentName} was recorded as ${condition} by inventory administration.`, userId: assignment.technicianId, role: "technician", referenceId: assignment._id, referenceModel: "EquipmentAssignment", link: "/technician/assignments", priority: ["damaged", "lost"].includes(condition) ? "high" : "normal", io: req.app.get("io") || global.io }),
-    ]);
-    return res.json({ success: true, message: "Equipment return recorded", assignment });
+    const assignment = await require('../utils/kitReturnService').createService().receiveEquipmentRecord({
+      assignmentId: req.params.id, userId: req.user._id, condition: req.body.condition, notes: req.body.notes,
+    });
+    await audit.logEvent({ actor: req.user._id, target: req.params.id, action: 'inventory.equipment_return.received', module: 'inventory', req, details: { condition: req.body.condition, notes: req.body.notes } }).catch(error => console.warn('[equipment-returns] Audit unavailable:', error.message));
+    if (assignment.category) await require('../utils/kitReturnNotifications').reviewed(assignment, req);
+    else await createNotification({ type: 'equipment_return_resolved', userId: assignment.technicianId, role: 'technician', title: 'Equipment receipt confirmed', message: `${assignment.equipmentName}: admin recorded the return as ${assignment.condition}.`, referenceId: assignment._id, referenceModel: 'EquipmentAssignment', link: '/technician/tools', io: req.app.get('io') || global.io });
+    return res.json({ success: true, message: 'Equipment received and inventory updated.', assignment });
   } catch (error) {
-    if (locked) await EquipmentAssignment.updateOne({ _id: locked._id, resolutionState: "processing", resolutionToken: token }, { $set: { resolutionState: "open" }, $unset: { resolutionToken: 1, resolutionStartedAt: 1 } }).catch(() => {});
-    console.error("[equipment-returns] resolution failed:", error);
-    return res.status(500).json({ error: "Failed to record equipment return" });
+    console.error('[equipment-returns] Receipt failed:', error.message);
+    return res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to record equipment receipt.' });
   }
 });
 

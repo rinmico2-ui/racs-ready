@@ -84,6 +84,12 @@ const dailyKitItemSchema = new mongoose.Schema({
   quantityIssued: { type: Number, default: 0 },
   quantityUsed: { type: Number, default: 0 },
   quantityReturned: { type: Number, default: 0 },
+  quantityDamaged: { type: Number, default: 0, min: 0 },
+  quantityMissing: { type: Number, default: 0, min: 0 },
+  returnPendingQuantity: { type: Number, default: 0, min: 0 },
+  // Original issue links survive cancellation and kit regeneration.
+  issuedBookingIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BookingService' }],
+  issuedOrderIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Order' }],
 
   // Which job(s) need this item
   assignmentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Assignment" }],
@@ -160,6 +166,8 @@ const dailyKitSchema = new mongoose.Schema({
 
   // Items in the kit
   items: [dailyKitItemSchema],
+  // Settled issued rows remain auditable when a later job needs a fresh issue.
+  returnedItems: [dailyKitItemSchema],
 
   // Summary counts
   totalEquipment: { type: Number, default: 0 },

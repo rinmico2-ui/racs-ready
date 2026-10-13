@@ -1,0 +1,31 @@
+<link rel="stylesheet" href="/css/admin-add-expense.css?v=20261013">
+<div class="modal fade ae-modal" id="adminExpenseModal" tabindex="-1" aria-labelledby="adminExpenseTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><form class="modal-content" id="adminExpenseForm">
+    <div class="modal-header"><div><span class="ae-eyebrow">EXPENSE RECORD</span><h2 class="modal-title" id="adminExpenseTitle">Add expense</h2><p>Record a business expense and attach its receipt.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <div class="alert alert-danger" id="adminExpenseError" role="alert" hidden></div>
+      <div class="ae-note"><i class="bi bi-check-circle" aria-hidden="true"></i>Admin entries are saved as approved and included in expense totals.</div>
+      <div class="ae-fields">
+        <label for="aeType">Expense type <span>*</span><select class="form-select" id="aeType" name="type" required><option value="">Choose a type</option><option value="fuel">Fuel</option><option value="parking">Parking</option><option value="toll">Toll</option><option value="external_parts">External parts</option><option value="material">Materials</option><option value="transport">Transport</option><option value="meal">Meal</option><option value="other">Other</option></select></label>
+        <label for="aeAmount">Amount (₱) <span>*</span><input class="form-control" id="aeAmount" name="amount" type="number" min="0.01" max="1000000000" step="0.01" inputmode="decimal" placeholder="0.00" required></label>
+        <label for="aeDate">Expense date <span>*</span><input class="form-control" id="aeDate" name="expenseDate" type="date" required></label>
+        <label for="aeTechnician">Expense for<select class="form-select" id="aeTechnician" name="technicianId"><option value="">Company expense</option></select></label>
+        <label class="ae-full" for="aeBooking">Booking <small>Optional · Recent 100 bookings</small><select class="form-select" id="aeBooking" name="bookingId"><option value="">No linked booking</option></select></label>
+        <div class="ae-full ae-options-notice" id="aeOptionsNotice" hidden><span id="aeOptionsMessage"></span> <button type="button" class="btn btn-outline-secondary btn-sm" id="aeOptionsRetry">Try again</button></div>
+        <label class="ae-full" for="aeDescription">Description <span>*</span><textarea class="form-control" id="aeDescription" name="description" rows="3" maxlength="500" placeholder="What was this expense for?" required></textarea></label>
+      </div>
+      <fieldset id="aeFuelFields" class="ae-fuel" hidden><legend>Fuel details</legend><div class="ae-fields">
+        <label for="aeLitres">Litres <span>*</span><input class="form-control" id="aeLitres" name="fuelLiters" type="number" min="0.001" step="any"></label>
+        <label for="aeFuelPrice">Price per litre (₱) <span>*</span><input class="form-control" id="aeFuelPrice" name="pricePerLiter" type="number" min="0.01" step="any"></label>
+        <label for="aeOdometer">Odometer reading <span>*</span><input class="form-control" id="aeOdometer" name="odometerReading" type="number" min="0.001" step="any"></label>
+        <label for="aeStation">Gas station <span>*</span><input class="form-control" id="aeStation" name="gasStation" maxlength="200"></label>
+      </div></fieldset>
+      <label class="ae-receipt-label" for="aeReceipt">Receipt <span>*</span></label><input class="form-control" id="aeReceipt" name="receipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required>
+      <p class="ae-help">JPG, PNG, WEBP or PDF, up to 5 MB. Receipts are saved with the expense.</p>
+      <div class="ae-preview" id="aeReceiptPreview" hidden></div>
+      <p class="ae-help mb-0">Recorded under your admin account.</p>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-success" id="aeSave"><i class="bi bi-check2" aria-hidden="true"></i> Save expense</button></div>
+  </form></div>
+</div>
+<script src="/js/admin-add-expense.js?v=20261013" defer></script>

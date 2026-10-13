@@ -67,6 +67,15 @@ test("core-service editor prevents duplicate saves and reports API errors", () =
   assert.match(controller, /updates\.updatedAt = new Date\(\);[\s\S]*?CoreService\.findByIdAndUpdate/);
 });
 
+test('the editor registers its DOM-ready handler without invoking the listener registration result', () => {
+  const template = fs.readFileSync(path.join(__dirname, '../views/pages/admin/Services/CoreServices.ejs'), 'utf8');
+  const start = template.indexOf("document.addEventListener('DOMContentLoaded'");
+  const script = template.slice(start, template.indexOf('</script>', start)).replace(/<%[-=]?[\s\S]*?%>/g, "'/api/admin/core-services'");
+  let callback;
+  require('node:vm').runInNewContext(script, { document: { addEventListener(event, listener) { assert.equal(event, 'DOMContentLoaded'); callback = listener; } } });
+  assert.equal(typeof callback, 'function');
+});
+
 test("core-service editor keeps the save footer visible while its body scrolls", () => {
   const template = fs.readFileSync(
     path.join(__dirname, "../views/pages/admin/Services/CoreServices.ejs"),

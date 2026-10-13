@@ -1,0 +1,40 @@
+<!-- Full Notifications Modal -->
+<div id="notifModal" class="d-none" role="dialog" aria-modal="true" aria-labelledby="notifModalTitle" tabindex="-1" style="position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 16px;">
+  <div style="background: #fff; border-radius: 14px; box-shadow: 0 25px 60px rgba(0,0,0,0.2); width: 100%; max-width: min(640px, 94vw); max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;">
+    <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom" style="background: #f8fafc;">
+      <div class="d-flex align-items-center gap-2">
+        <input type="checkbox" id="selectAllNotif" aria-label="Select notifications" style="width:16px; height:16px; cursor: pointer;">
+        <span id="notifModalTitle" class="fw-bold" style="font-size: 0.95rem; color: #1e293b;">All Notifications</span>
+      </div>
+      <button id="closeNotifModal" type="button" aria-label="Close notifications" class="btn btn-sm" style="border: none; background: transparent; color: #64748b;"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="px-3 py-2 border-bottom" style="background: #fff;">
+      <div class="d-flex gap-2" style="align-items: center;">
+        <i class="bi bi-search" style="color: #94a3b8; font-size: 0.85rem;"></i>
+        <input id="notifSearch" aria-label="Search notifications" type="text" class="form-control form-control-sm" placeholder="Search notifications..." style="border: none; box-shadow: none; padding: 4px 0; font-size: 0.85rem;">
+      </div>
+    </div>
+    <div id="notifModalStatus" class="d-none px-3 py-2 small" role="status" aria-live="polite"></div>
+    <div id="notifModalList" class="overflow-auto" style="flex: 1; max-height: 60vh; min-height: 200px;">
+      <div class="text-center py-5 text-muted" style="font-size: 0.85rem;">
+        <i class="bi bi-bell-slash" style="font-size: 1.5rem;"></i>
+        <div class="mt-1">No notifications</div>
+      </div>
+    </div>
+    <div id="notifPagination" class="d-flex justify-content-center align-items-center gap-2 px-3 py-2 border-top" style="background: #f8fafc; display: none;">
+      <button id="notifPrevPage" class="btn btn-sm" style="font-size: 0.7rem; padding: 2px 8px;">Prev</button>
+      <div id="notifPageNumbers" class="d-flex gap-1"></div>
+      <button id="notifNextPage" class="btn btn-sm" style="font-size: 0.7rem; padding: 2px 8px;">Next</button>
+    </div>
+    <div class="notif-modal-actions d-flex justify-content-between align-items-center px-3 py-2 border-top" style="background: #f8fafc;">
+      <div class="d-flex gap-2">
+        <button id="modalMarkAllRead" class="btn btn-sm text-primary" style="font-size: 0.75rem; padding: 4px 10px;">Mark all read</button>
+        <button id="modalMarkSelectedRead" class="btn btn-sm text-primary" style="font-size: 0.75rem; padding: 4px 10px;" disabled>Mark selected</button>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="modalDeleteSelected" class="btn btn-sm text-danger" style="font-size: 0.75rem; padding: 4px 10px;" disabled>Delete selected</button>
+        <button id="modalDeleteAll" class="btn btn-sm text-danger" style="font-size: 0.75rem; padding: 4px 10px;">Delete all</button>
+      </div>
+    </div>
+  </div>
+</div>

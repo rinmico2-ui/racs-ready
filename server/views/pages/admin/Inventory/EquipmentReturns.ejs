@@ -4,12 +4,13 @@
   <section class="er-hero">
     <div>
       <span class="er-eyebrow"><i class="bi bi-shield-check"></i> Inventory accountability</span>
-      <h1>Equipment Returns Queue</h1>
-      <p>See who is holding reusable equipment, follow up on overdue returns, and reconcile inventory with a controlled audit trail.</p>
+      <h1>Equipment and Material Returns</h1>
+      <p>Review return reports, confirm what was received, and follow up on items still with technicians.</p>
     </div>
     <button class="btn btn-light er-refresh" id="erRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
   </section>
 
+  <%- include('../../../partials/kit-return-panel', { kitReturnMode: 'admin' }) %>
   <section class="er-metrics" aria-label="Equipment return summary">
     <button class="er-metric er-danger" data-state="overdue" type="button">
       <span class="er-metric-icon"><i class="bi bi-exclamation-octagon"></i></span>

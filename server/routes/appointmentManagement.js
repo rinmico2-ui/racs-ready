@@ -34,6 +34,7 @@ const { authenticate, requireRole } = require('../middleware/authenticate');
 const { requirePermission } = require('../middleware/requirePermission');
 
 router.use(authenticate);
+router.use('/expenses', require('./adminExpenseRoutes'));
 router.use((req, res, next) => {
   if (req.user.role !== 'secretary') return next();
   const permission = ['GET', 'HEAD', 'OPTIONS'].includes(req.method)
@@ -1666,18 +1667,17 @@ router.post('/expenses/:id/reject', requireRole("admin"), async (req, res) => {
  */
 router.get('/expenses/stats', requireRole(["admin", "secretary"]), async (req, res) => {
   try {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+    const now = new Date(), today = manilaDateTime(now, 0), todayEnd = manilaDateTime(now, 1440);
 
     const [pendingCount, approvedToday, totalPending, totalApproved] = await Promise.all([
       Expense.countDocuments({ status: 'pending' }),
-      Expense.countDocuments({ status: 'approved', approvedAt: { $gte: today, $lte: todayEnd } }),
+      Expense.countDocuments({ status: 'approved', approvedAt: { $gte: today, $lt: todayEnd } }),
       Expense.aggregate([
         { $match: { status: 'pending' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
       Expense.aggregate([
-        { $match: { status: 'approved', approvedAt: { $gte: today, $lte: todayEnd } } },
+        { $match: { status: 'approved', approvedAt: { $gte: today, $lt: todayEnd } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]),
     ]);
@@ -2364,12 +2364,14 @@ async function listDailyKits(req, res) {
     const uniqueIds = (values) => [...new Set(values.filter(Boolean).map(String))];
     const bookingIds = uniqueIds(kits.flatMap(kit => [
       ...(kit.bookingIds || []),
-      ...(kit.items || []).flatMap(item => item.bookingIds || []),
+      ...(kit.items || []).flatMap(item => [...(item.bookingIds || []), ...(item.issuedBookingIds || [])]),
+      ...(kit.returnedItems || []).flatMap(item => [...(item.bookingIds || []), ...(item.issuedBookingIds || [])]),
       ...(kit.deltaItems || []).flatMap(item => item.bookingIds || []),
     ]));
     const orderIds = uniqueIds(kits.flatMap(kit => [
       ...(kit.orderIds || []),
-      ...(kit.items || []).flatMap(item => item.orderIds || []),
+      ...(kit.items || []).flatMap(item => [...(item.orderIds || []), ...(item.issuedOrderIds || [])]),
+      ...(kit.returnedItems || []).flatMap(item => [...(item.orderIds || []), ...(item.issuedOrderIds || [])]),
       ...(kit.deltaItems || []).flatMap(item => item.orderIds || []),
     ]));
     const kitIds = kits.map(kit => kit._id);
@@ -2446,8 +2448,8 @@ async function listDailyKits(req, res) {
         ? String(row._id) === itemAssignmentId
         : item.toolId && String(row.equipmentId) === String(item.toolId));
       const jobs = [
-        ...(item.bookingIds || []).map(compactBooking),
-        ...(item.orderIds || []).map(compactOrder),
+        ...uniqueIds([...(item.bookingIds || []), ...(item.issuedBookingIds || [])]).map(compactBooking),
+        ...uniqueIds([...(item.orderIds || []), ...(item.issuedOrderIds || [])]).map(compactOrder),
       ];
       return {
         id: String(item._id),
@@ -2461,6 +2463,9 @@ async function listDailyKits(req, res) {
         quantityIssued: Number(item.quantityIssued || 0),
         quantityUsed: Number(item.quantityUsed || 0),
         quantityReturned: Number(item.quantityReturned || 0),
+        quantityDamaged: Number(item.quantityDamaged || 0),
+        quantityMissing: Number(item.quantityMissing || 0),
+        returnPendingQuantity: Number(item.returnPendingQuantity || 0),
         isDelta,
         conflict: item.conflict || null,
         resolution: item.resolution || null,
@@ -2487,6 +2492,7 @@ async function listDailyKits(req, res) {
         workDate: kit.workDate,
         status: kit.status,
         hasDelta: Boolean(kit.hasDelta),
+        returnHistory: (kit.returnedItems || []).map(item => compactItem(item, kitCustody)),
         generatedAt: kit.generatedAt || null,
         confirmedAt: kit.confirmedAt || null,
         completedAt: kit.completedAt || null,

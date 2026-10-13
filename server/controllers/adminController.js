@@ -1408,6 +1408,7 @@ exports.createCoreService = async (req, res, next) => {
       exclusions,
       isAirconService,
       airconTypes,
+      applianceProfiles,
       warrantyPolicy,
       active,
     } = normalizeCoreServicePayload(req.body);
@@ -1436,6 +1437,7 @@ exports.createCoreService = async (req, res, next) => {
       exclusions: Array.isArray(exclusions) ? exclusions : [],
       isAirconService: isAirconService === true || isAirconService === "true",
       airconTypes: Array.isArray(airconTypes) ? airconTypes : undefined,
+      applianceProfiles: Array.isArray(applianceProfiles) ? applianceProfiles : undefined,
       warrantyPolicy: normalizedWarranty,
       active: active !== false,
       images,

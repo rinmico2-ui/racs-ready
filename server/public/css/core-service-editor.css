@@ -1,0 +1,57 @@
+#coreServiceModal [hidden] { display: none !important; }
+.core-services-page #coreServiceModal .cse-header { background: #fff !important; color: #172b3a; padding: 22px 26px; border-bottom: 0; flex: 0 0 auto; }
+.core-services-page #coreServiceModal .cse-header .btn-close { filter: none; }
+.core-services-page #coreServiceModal .cse-header .modal-title { margin: 5px 0; font-size: 1.3rem; font-weight: 700; color: #172b3a !important; }
+#coreServiceModal .cse-header p { margin: 0; font-size: .85rem; color: #64748b; }
+.cse-eyebrow { font-size: .68rem; font-weight: 700; letter-spacing: .11em; color: #23704f; }
+.cse-tabs { display: flex; gap: 8px; padding: 0 26px; border-bottom: 1px solid #dce5e2; flex: 0 0 auto; background: #fff; }
+.cse-tabs button { background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 14px 12px; font-size: .84rem; font-weight: 600; color: #64748b; }
+.cse-tabs button[aria-selected="true"] { color: #047857; border-bottom-color: #047857; }
+.cse-tabs button:focus-visible, .cse-remove:focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
+#coreServiceModal .core-modal-body { background: #f7faf9; padding: 24px; }
+#coreServiceModal .card { border: 1px solid #e2e8e5 !important; box-shadow: none !important; border-radius: 12px; }
+#coreServiceModal .card-header { border-radius: 12px 12px 0 0; }
+#coreServiceModal .form-control, #coreServiceModal .form-select { border: 1px solid #d3ded8; border-radius: 8px; min-height: 40px; }
+#coreServiceModal .form-control:focus, #coreServiceModal .form-select:focus { border-color: #059669; box-shadow: 0 0 0 3px #05966916; }
+#coreServiceModal .form-label, .cse-price-fields label, .cse-hp-row label { font-size: .8rem; color: #334155; font-weight: 600; }
+#coreServiceModal .btn-primary { background: #047857; border-color: #047857; box-shadow: none; }
+#coreServiceModal .btn-primary:hover { background: #065f46; }
+.core-services-page #coreServiceModal .modal-footer .btn-primary { background: #047857; border-color: #047857; box-shadow: none; }
+.core-services-page #coreServiceModal .modal-footer .btn-primary:hover { background: #065f46; border-color: #065f46; box-shadow: none; }
+#coreServiceModal .btn-outline-primary { color: #047857; border-color: #a7c9b7; background: white; }
+#coreServiceModal .btn-outline-primary:hover { background: #ecfdf5; }
+#coreServiceModal .core-modal-footer { padding: 16px 24px; border-top: 1px solid #dce5e2 !important; background: #fff !important; }
+.cse-section-intro h6 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.cse-section-intro p, .cse-appliance-heading p, .cse-off-note, .cse-field-help { font-size: .81rem; color: #64748b; line-height: 1.6; }
+.cse-info { display: flex; gap: 12px; border: 1px solid #cce5da; background: #eef8f3; color: #315d49; padding: 14px 16px; border-radius: 10px; margin: 16px 0; }
+.cse-info p { margin: 0; font-size: .82rem; line-height: 1.6; }
+.cse-aircon, .cse-appliance { padding: 18px; border: 1px solid #dce5e0; border-radius: 12px; background: #fff; margin-top: 16px; }
+.cse-appliance-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cse-appliance-heading h6 { font-weight: 700; margin-bottom: 4px; }
+.cse-appliance-heading p { margin: 0; }
+.cse-switch { display: flex; align-items: center; gap: 8px; font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.cse-switch input { width: 18px; height: 18px; accent-color: #047857; }
+.cse-off-note { margin: 14px 0 0; }
+.cse-appliance fieldset { margin-top: 18px; }
+.cse-appliance.is-enabled { border-color: #a9cdbb; }
+.cse-price-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.cse-price-fields input, .cse-hp-row input { margin-top: 7px; }
+.cse-field-help { margin: 14px 0; }
+.cse-hp-row { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(110px, 1fr) minmax(100px, 1fr) auto; gap: 12px; align-items: end; border: 1px solid #e2e8e5; background: #fafcfb; padding: 14px; border-radius: 10px; margin-bottom: 12px; }
+.cse-remove { display: flex; align-items: center; gap: 5px; background: #fff; color: #9c3540; border: 1px solid #e7cdd0; border-radius: 8px; min-height: 40px; padding: 8px; font-size: .75rem; }
+@media (max-width: 575px) {
+  #coreServiceModal .cse-header { padding: 18px 16px; }
+  #coreServiceModal .cse-header .modal-title { font-size: 1.15rem; }
+  .cse-tabs { padding: 0 8px; gap: 0; }
+  .cse-tabs button { flex: 1; padding: 12px 5px; font-size: .73rem; }
+  #coreServiceModal .core-modal-body { padding: 14px; }
+  .cse-aircon, .cse-appliance { padding: 14px; }
+  .cse-appliance-heading { flex-direction: column; gap: 12px; }
+  .cse-price-fields { grid-template-columns: 1fr; gap: 12px; }
+  .cse-hp-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .cse-hp-row label:first-child { grid-column: 1 / -1; }
+  .cse-remove { grid-column: 1 / -1; justify-content: center; }
+  #coreServiceModal .core-modal-footer { padding: 12px 14px; }
+  .core-services-page #coreServiceModal .core-modal-footer { flex-wrap: nowrap; }
+  .core-services-page #coreServiceModal .core-modal-footer .btn { flex: 1; width: auto; padding-left: 8px; padding-right: 8px; margin: 0; }
+}

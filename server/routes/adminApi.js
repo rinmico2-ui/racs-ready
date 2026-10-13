@@ -3442,109 +3442,15 @@ router.post("/attendance/regenerate-token", async (req, res, next) => {
   }
 });
 
-/** GET /api/admin/attendance/today */
+/** GET /api/admin/attendance/today?date=YYYY-MM-DD ? daily staff roster, including missing records. */
 router.get("/attendance/today", async (req, res, next) => {
   try {
-    const day = attendanceDay();
-    const startOfToday = day.start;
-    const endOfToday = day.end;
-
-    // Get all active technicians (you can filter by role or status if needed)
-    const technicians = await Technician.find({}).populate("user", "firstName lastName email").lean();
-
-    // Get all attendance records for today
-    const attendanceRecords = await TechnicianAttendance.find({
-      date: { $gte: startOfToday, $lte: endOfToday }
-    }).lean();
-
-    const attendanceMap = new Map(attendanceRecords.map(r => [String(r.technicianId), r]));
-
-    // Batch-fetch approved leaves for today to resolve availability
-    const LeaveRequest = require("../models/LeaveRequest");
-    const activeLeaves = await LeaveRequest.find({
-      technicianId: { $in: technicians.map(t => t._id) },
-      status: "approved",
-      startDate: { $lte: startOfToday },
-      endDate: { $gte: startOfToday },
-    }).lean();
-    const leaveMap = new Map(activeLeaves.map(l => [l.technicianId.toString(), l]));
-
-    // Resolve availability for all technicians using centralized logic
-    const { resolveAvailabilityStatus, computeAttendanceStatus } = require("../utils/availability");
-
-    const technicianResult = await Promise.all(technicians.map(async (tech) => {
-      const record = attendanceMap.get(tech._id.toString()) || null;
-      const leave = leaveMap.get(tech._id.toString()) || null;
-
-      const availabilityStatus = await resolveAvailabilityStatus(tech, record, leave, { syncDb: true });
-
-      let attendanceStatus;
-      if (leave) {
-        const reason = (leave.reason || "").toLowerCase();
-        attendanceStatus = reason.includes("sick") ? "Sick Leave" : "On Leave";
-      } else if (record) {
-        attendanceStatus = record.checkOutTime ? "Checked Out" : record.status;
-      } else {
-        attendanceStatus = "Absent";
-      }
-
-      return {
-        staffId: tech._id,
-        technicianId: tech._id,
-        userId: tech.user ? tech.user._id : null,
-        staffType: "technician",
-        role: "technician",
-        name: tech.name || `${tech.firstName || ""} ${tech.lastName || ""}`.trim() || (tech.user && `${tech.user.firstName || ""} ${tech.user.lastName || ""}`.trim()),
-        email: tech.email || (tech.user && tech.user.email),
-        attendanceStatus,
-        availabilityStatus,
-        checkInTime: record ? record.checkInTime : null,
-        checkOutTime: record ? record.checkOutTime : null,
-        method: record ? record.method : null,
-        updatedBy: record ? record.updatedBy : null,
-        verificationLevel: !record ? null
-          : record.method === "manual" ? "manual"
-          : Number(record.securityVersion) >= 2 ? "layered"
-          : "legacy",
-        checkInDistanceMeters: record?.checkInEvidence?.distanceFromCompanyMeters ?? null,
-        checkInAccuracyMeters: record?.checkInEvidence?.accuracyMeters ?? null,
-      };
-    }));
-
-    const secretaries = await User.find({ role: "secretary", active: { $ne: false } })
-      .select("firstName lastName email")
-      .lean();
-    const secretaryRecords = await SecretaryAttendance.find({
-      userId: { $in: secretaries.map(item => item._id) },
-      date: { $gte: startOfToday, $lte: endOfToday },
-    }).lean();
-    const secretaryMap = new Map(secretaryRecords.map(record => [String(record.userId), record]));
-    const secretaryResult = secretaries.map((secretary) => {
-      const record = secretaryMap.get(String(secretary._id)) || null;
-      return {
-        staffId: secretary._id,
-        technicianId: null,
-        userId: secretary._id,
-        staffType: "secretary",
-        role: "secretary",
-        name: `${secretary.firstName || ""} ${secretary.lastName || ""}`.trim(),
-        email: secretary.email,
-        attendanceStatus: record ? (record.checkOutTime ? "Checked Out" : record.status) : "Absent",
-        availabilityStatus: null,
-        checkInTime: record ? record.checkInTime : null,
-        checkOutTime: record ? record.checkOutTime : null,
-        method: record ? record.method : null,
-        updatedBy: record ? record.updatedBy : null,
-        verificationLevel: !record ? null
-          : record.method === "manual" ? "manual"
-          : record.qrChallengeId ? "signed"
-          : "legacy",
-      };
-    });
-
-    return res.json([...technicianResult, ...secretaryResult].sort((a, b) => a.name.localeCompare(b.name)));
-  } catch (err) {
-    next(err);
+    const { loadStaffAttendanceRoster } = require("../utils/staffAttendanceRoster");
+    const roster = await loadStaffAttendanceRoster({ date: req.query?.date });
+    return res.json(roster);
+  } catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: "Choose a valid attendance date." });
+    next(error);
   }
 });
 
@@ -7833,6 +7739,7 @@ router.post("/resolution-center/:id/close", async (req, res, next) => {
       req,
       details: { bookingId: booking._id, issueType, note },
     }).catch(() => {});
+    await require('../utils/technicianWorkSync').publishBookingWorkUpdate({ io:req.app?.get('io'), booking, reason:'case_reviewed' }).catch(() => {});
     return res.json({ success: true, message: "Resolution case closed." });
   } catch (err) {
     next(err);
@@ -7879,7 +7786,7 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
     const previousStatus = booking.status;
     const previousTechnicianId = booking.technicianId;
     await Assignment.updateMany(
-      { bookingId: booking._id, status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress"] } },
+      { bookingId: booking._id, status: { $in: ["pending_acceptance", "accepted", "en_route", "on_site", "in_progress", "waiting_for_customer", "no_show_reported"] } },
       { $set: { status: "expired", expiredAt: new Date(), expiredReason: "Reassigned from Booking Resolution Center" } },
     );
 
@@ -7925,6 +7832,7 @@ router.post("/resolution-center/:id/reassign", async (req, res, next) => {
       req,
       details: { bookingId: booking._id, issueType, previousStatus },
     }).catch(() => {});
+    await require('../utils/technicianWorkSync').publishBookingWorkUpdate({ io:req.app?.get('io'), booking, technicianIds:[previousTechnicianId], reason:'reassigned' }).catch(() => {});
     return res.json({ success: true, message: "Booking sent to the assignment queue." });
   } catch (err) {
     next(err);
@@ -8093,6 +8001,9 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
         booking.technicianId = null;
         booking.technician = undefined;
         booking.assignmentId = null;
+        // Retire legacy unfinished attempts even if assignmentId was lost.
+        await Assignment.updateMany({ bookingId:booking._id, status:{ $in:["pending_acceptance", "accepted", "en_route", "on_site", "in_progress", "waiting_for_customer", "no_show_reported"] } },
+          { $set:{ status:"cancelled", cancelledAt:booking.cancelledAt } }, { session });
 
         // Handle refund
         payment = null;
@@ -8199,6 +8110,7 @@ router.post("/resolution-center/:id/cancel-with-refund", async (req, res, next) 
       await session.endSession();
     }
 
+    await require('../utils/technicianWorkSync').publishBookingWorkUpdate({ io:req.app?.get('io'), booking, reason:'cancelled' }).catch(() => {});
     // Notify customer
     try {
       const { createNotification } = require("../utils/notify");
@@ -9087,9 +8999,12 @@ router.post("/review-reschedule/:id/reschedule", async (req, res, next) => {
 
     await commitResolutionSchedule(schedule, async (session) => {
       if (originalAssignmentId) await Assignment.findByIdAndUpdate(originalAssignmentId, { status: "cancelled" }, { session });
+      await Assignment.updateMany({ bookingId:booking._id, status:{ $in:["pending_acceptance", "accepted", "en_route", "on_site", "in_progress", "waiting_for_customer", "no_show_reported"] } },
+        { $set:{ status:"expired", expiredAt:new Date(), expiredReason:"Visit rescheduled by staff" } }, { session });
       await booking.save({ session });
       await syncResolutionProject(booking, schedule, session);
     });
+    await require('../utils/technicianWorkSync').publishBookingWorkUpdate({ io:req.app?.get('io') || io, booking, reason:'rescheduled' }).catch(() => {});
 
     // ── Notify customer ──
     const customerEmail = booking.customer?.email || booking.customerId?.email;

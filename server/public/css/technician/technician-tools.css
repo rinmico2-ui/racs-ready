@@ -9,6 +9,11 @@
 .tt-page {
   padding:24px 24px 36px;
 }
+/* Keep the return dialog fixed to the viewport rather than this page section. */
+.technician-layout .technician-main > .tt-page {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
 .tt-shell {
   max-width:1440px;
   margin:auto;
@@ -178,6 +183,16 @@
   display:block;
   line-height:1.5;
 }
+.tt-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 24px 6px;
+}
+.tt-section-heading h2 { margin: 0 0 5px; font-size: 16px; font-weight: 700; }
+.tt-section-heading p { margin: 0; font-size: 12px; color: var(--tt-muted); line-height: 1.6; }
+.tt-section-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px; color: #15803d; background: #f0f7f3; }
+.tt-shell > .kr-panel { margin-bottom: 0; }
 .tt-workspace {
   background:white;
   border:1px solid var(--tt-border);
@@ -653,6 +668,7 @@
   }
 }
 @media(max-width:767.98px) {
+  .tt-section-heading { padding: 20px 16px 6px; }
   .tt-page {
     padding-top:22px;
     padding-bottom:24px;

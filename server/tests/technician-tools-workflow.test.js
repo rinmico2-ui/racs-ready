@@ -85,7 +85,7 @@ const input = { assignmentIds: [A], technicianIds: [T], userId: U, condition: "g
 
 test("good returns update stock, Daily Kit, job return flag and admin overdue records together", async () => {
   const f = fixture();
-  await f.service.returnEquipment(input);
+  await f.service.receiveEquipment(input);
   assert.equal(f.data.Tool[0].quantity, 5);
   assert.equal(f.data.Tool[0].checkedOutQuantity, 0);
   assert.equal(f.data.EquipmentAssignment[0].status, "returned");
@@ -93,14 +93,14 @@ test("good returns update stock, Daily Kit, job return flag and admin overdue re
   assert.equal(f.data.Assignment[0].equipmentReturned, true);
   assert.equal(f.data.Notification[0].read, true);
   assert.equal(f.ended, 1);
-  await assert.rejects(f.service.returnEquipment(input), { status: 409 });
+  await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
   assert.equal(f.data.Tool[0].quantity, 5, "retry must not restore stock twice");
 });
 
 test("failures after a return claim roll back every change", async () => {
   for (const failure of ["failInventory", "failKit"]) {
     const f = fixture(); f[failure] = true;
-    await assert.rejects(f.service.returnEquipment(input), /unavailable/);
+    await assert.rejects(f.service.receiveEquipment(input), /unavailable/);
     assert.equal(f.data.Tool[0].quantity, 3);
     assert.equal(f.data.EquipmentAssignment[0].status, "checked_out");
     assert.equal(f.data.DailyKit[0].items[0].checkoutStatus, "checked_out");
@@ -111,14 +111,14 @@ test("failures after a return claim roll back every change", async () => {
 test("ownership, consumables and admin processing locks block returns without stock changes", async () => {
   for (const change of [{ technicianId: U }, { consumable: true }, { resolutionState: "processing" }]) {
     const f = fixture(); Object.assign(f.data.EquipmentAssignment[0], change);
-    await assert.rejects(f.service.returnEquipment(input), error => [403, 409].includes(error.status));
+    await assert.rejects(f.service.receiveEquipment(input), error => [403, 409].includes(error.status));
     assert.equal(f.writes.length, 0);
   }
 });
 
 test("shared equipment cannot be returned while another linked booking remains unfinished", async () => {
   const f = fixture(); f.data.DailyKit[0].items[0].bookingIds.push(U); f.data.BookingService.push({ _id: U, status: "in_progress" });
-  await assert.rejects(f.service.returnEquipment(input), { status: 409 });
+  await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
   assert.equal(f.writes.length, 0);
 });
 
@@ -127,7 +127,7 @@ test("a shared return updates the equipment return flag for every covered bookin
   f.data.DailyKit[0].items[0].bookingIds.push(U);
   f.data.BookingService.push({ _id: U, status: "completed" });
   f.data.Assignment.push({ _id: "job2", bookingId: U, technicianId: T });
-  await f.service.returnEquipment(input);
+  await f.service.receiveEquipment(input);
   assert.equal(f.data.Assignment[0].equipmentReturned, true);
   assert.equal(f.data.Assignment[1].equipmentReturned, true);
 });
@@ -135,7 +135,7 @@ test("a shared return updates the equipment return flag for every covered bookin
 test("orders and today's project assignments also block early returns", async () => {
   for (const [key, model, status] of [["orderIds", "Order", "installing"], ["dailyAssignmentIds", "DailyAssignment", "in_progress"], ["workOrderIds", "WorkOrder", "accepted"]]) {
     const f = fixture(); f.data.DailyKit[0].items[0][key] = [U]; f.data[model].push({ _id: U, status });
-    await assert.rejects(f.service.returnEquipment(input), { status: 409 });
+    await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
     assert.equal(f.data.Tool[0].quantity, 3);
   }
 });
@@ -143,8 +143,8 @@ test("orders and today's project assignments also block early returns", async ()
 test("damage and loss can be reported during work and never add available stock", async () => {
   for (const condition of ["damaged", "lost"]) {
     const f = fixture(); f.data.BookingService[0].status = "in_progress";
-    await assert.rejects(f.service.returnEquipment({ ...input, condition }), { status: 400 });
-    await f.service.returnEquipment({ ...input, condition, damageDescription: "Motor stopped working" });
+    await assert.rejects(f.service.receiveEquipment({ ...input, condition }), { status: 400 });
+    await f.service.receiveEquipment({ ...input, condition, damageDescription: "Motor stopped working" });
     assert.equal(f.data.Tool[0].quantity, 3);
     assert.equal(f.data.Tool[0].assignable, false);
     assert.equal(f.data.DailyKit[0].items[0].checkoutStatus, "damaged");
@@ -157,23 +157,23 @@ test("extra Daily Kit rows and project custody rows stay in sync", async () => {
     const f = fixture(); const row = f.data.DailyKit[0].items.pop();
     f.data.DailyKit[0].deltaItems.push(row);
     if (custody) { f.data.EquipmentAssignment[0].dailyKitId = null; row.equipmentAssignmentId = null; row.custodyAssignmentIds = [A]; }
-    await f.service.returnEquipment(input);
+    await f.service.receiveEquipment(input);
     assert.equal(f.data.DailyKit[0].deltaItems[0].checkoutStatus, "returned");
   }
 });
 
 test("partial equipment returns leave the shared kit row checked out until the final record returns", async () => {
   const f = fixture(); f.data.EquipmentAssignment.push({ ...f.data.EquipmentAssignment[0], _id: U });
-  await f.service.returnEquipment(input);
+  await f.service.receiveEquipment(input);
   assert.equal(f.data.DailyKit[0].items[0].checkoutStatus, "checked_out");
-  await f.service.returnEquipment({ ...input, assignmentIds: [U] });
+  await f.service.receiveEquipment({ ...input, assignmentIds: [U] });
   assert.equal(f.data.DailyKit[0].items[0].checkoutStatus, "returned");
 });
 
 test("a failed second return rolls back the entire group rather than leaving a partial stock update", async () => {
   const f = fixture();
   f.data.EquipmentAssignment.push({ ...f.data.EquipmentAssignment[0], _id: U, equipmentId: "507f1f77bcf86cd799439017" });
-  await assert.rejects(f.service.returnEquipment({ ...input, assignmentIds: [A, U] }), { status: 409 });
+  await assert.rejects(f.service.receiveEquipment({ ...input, assignmentIds: [A, U] }), { status: 409 });
   assert.equal(f.data.Tool[0].quantity, 3);
   assert.equal(f.data.EquipmentAssignment[0].status, "checked_out");
   assert.equal(f.data.EquipmentAssignment[1].status, "checked_out");
@@ -185,14 +185,14 @@ test("a completed project work day can return its tools while the overall projec
   Object.assign(f.data.EquipmentAssignment[0], { projectId: U, dailyAssignmentIds: [U] });
   f.data.Project.push({ _id: U, status: "in_progress" });
   f.data.DailyAssignment.push({ _id: U, status: "completed" });
-  await f.service.returnEquipment(input);
+  await f.service.receiveEquipment(input);
   assert.equal(f.data.EquipmentAssignment[0].status, "returned");
 });
 
 test("missing linked inventory or Daily Kit records do not free stock or close the checkout", async () => {
   for (const missing of ["Tool", "DailyKit"]) {
     const f = fixture(); f.data[missing] = [];
-    await assert.rejects(f.service.returnEquipment(input), { status: 409 });
+    await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
     assert.equal(f.data.EquipmentAssignment[0].status, "checked_out");
     assert.equal(f.data.Notification[0].read, false);
   }
@@ -201,7 +201,7 @@ test("missing linked inventory or Daily Kit records do not free stock or close t
 test("a return cannot clear an existing inventory maintenance or damage restriction", async () => {
   for (const assetStatus of ["under_maintenance", "damaged", "retired"]) {
     const f = fixture(); Object.assign(f.data.Tool[0], { assetStatus, assetCondition: "damaged", assignable: false });
-    await f.service.returnEquipment(input);
+    await f.service.receiveEquipment(input);
     assert.equal(f.data.Tool[0].assetStatus, assetStatus);
     assert.equal(f.data.Tool[0].assetCondition, "damaged");
     assert.equal(f.data.Tool[0].assignable, false);
@@ -238,7 +238,7 @@ test("usage logging only accepts equipment held on the selected date and does no
 
 test("invalid conditions, IDs and long notes do not reach database writes", async () => {
   const f = fixture();
-  for (const changes of [{ condition: "broken" }, { assignmentIds: ["bad"] }, { damageDescription: "x".repeat(501) }]) await assert.rejects(f.service.returnEquipment({ ...input, ...changes }), { status: 400 });
+  for (const changes of [{ condition: "broken" }, { assignmentIds: ["bad"] }, { damageDescription: "x".repeat(501) }]) await assert.rejects(f.service.receiveEquipment({ ...input, ...changes }), { status: 400 });
   assert.equal(f.writes.length, 0);
 });
 

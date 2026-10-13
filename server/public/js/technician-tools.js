@@ -31,6 +31,7 @@
   }
   const labels = { checked_out: ["In your care", "blue"], in_use: ["In use", "blue"], assigned: ["In your care", "blue"], reserved: ["Reserved", "amber"], returned: ["Returned", "green"], released: ["Released", ""], damaged: ["Damaged", "red"], lost: ["Lost", "red"] };
   function badge(row) {
+    if (row.returnPending) return '<span class="tt-badge tt-badge-amber">Awaiting admin receipt</span>';
     const [label, color] = labels[row.status] || ["Recorded", ""];
     return `<span class="tt-badge ${color ? `tt-badge-${color}` : ""}">${label}</span>`;
   }
@@ -57,7 +58,7 @@
     return '<div class="tt-table-head" aria-hidden="true"><span>Equipment</span><span>' + (history ? "Return / issue date" : "Linked work") + '</span><span>Qty</span><span>Status</span><span>Action</span></div>' + rows.map(row => {
       const link = context(row);
       const meta = history ? { title: dateLabel(row.returnedAt || row.returnedDate || row.checkedOutAt || row.assignedDate || row.createdAt), sub: link.title } : link;
-      return `<article class="tt-equipment-row"><div class="tt-item"><span class="tt-item-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><strong>${escape(name(row))}</strong><small>${escape(code(row) || "No equipment code")}</small></div></div><div class="tt-job"><strong>${escape(meta.title)}</strong><small>${escape(meta.sub)}</small></div><span class="tt-quantity">${quantity(row)}</span><div class="tt-status">${badge(row)}</div>${!history && active(row) && !row.legacy ? `<button type="button" class="tt-row-action" data-return="${escape(id(row._id))}" aria-label="Return ${escape(name(row))}">Return</button>` : `<span class="tt-row-note">${row.legacy && active(row) ? "Admin records this return" : row.status === "reserved" ? "Not issued yet" : escape(row.condition ? `Condition: ${row.condition}` : "")}</span>`}</article>`;
+      return `<article class="tt-equipment-row"><div class="tt-item"><span class="tt-item-icon"><i class="bi bi-tools" aria-hidden="true"></i></span><div><strong>${escape(name(row))}</strong><small>${escape(code(row) || "No equipment code")}</small></div></div><div class="tt-job"><strong>${escape(meta.title)}</strong><small>${escape(meta.sub)}</small></div><span class="tt-quantity">${quantity(row)}</span><div class="tt-status">${badge(row)}</div>${!history && active(row) && !row.legacy && !row.returnPending ? `<button type="button" class="tt-row-action" data-return="${escape(id(row._id))}" aria-label="Return ${escape(name(row))}">Return</button>` : `<span class="tt-row-note">${row.legacy && active(row) ? "Admin records this return" : row.status === "reserved" ? "Not issued yet" : escape(row.condition ? `Condition: ${row.condition}` : "")}</span>`}</article>`;
     }).join("");
   }
   function render() {
@@ -178,7 +179,7 @@
     const required = ["damaged", "lost"].includes($("ttReturnCondition").value);
     $("ttReturnNotes").required = required;
     $("ttReturnNotesLabel").textContent = required ? "Required" : "Optional";
-    $("ttReturnSave").textContent = required ? "Save report" : "Save return";
+    $("ttReturnSave").textContent = "Send report";
   });
   $("ttReturnForm").addEventListener("submit", async event => {
     event.preventDefault();
@@ -191,10 +192,10 @@
     $("ttReturnSave").textContent = "Saving...";
     formError("ttReturnError", "");
     try {
-      await post(`/api/technician/equipment/${encodeURIComponent(id(state.selected._id))}/return`, { condition, damageDescription: note });
+      await post(`/api/technician/equipment/${encodeURIComponent(id(state.selected._id))}/return`, { condition, damageDescription: note, equipmentUse: $('ttReturnUse').value });
       state.returning = false;
       bootstrap.Modal.getOrCreateInstance($("ttReturnModal")).hide();
-      showMessage(["good", "fair"].includes(condition) ? "Equipment return saved. Inventory and Daily Kit records were updated." : "Equipment condition reported. It is no longer available for use.");
+      showMessage("Report sent. The equipment stays in your care until admin confirms receipt or reviews the report.");
       await load();
     } catch (error) { formError("ttReturnError", error.message); }
     finally { state.returning = false; busyModal("ttReturnModal", false); $("ttReturnCondition").dispatchEvent(new Event("change")); }
@@ -214,7 +215,7 @@
       $("ttReturnForm").reset();
       $("ttReturnNotes").required = false;
       $("ttReturnNotesLabel").textContent = "Optional";
-      $("ttReturnSave").textContent = "Save return";
+      $("ttReturnSave").textContent = "Send report";
       $("ttReturnName").textContent = name(state.selected);
       $("ttReturnMeta").textContent = `Qty: ${quantity(state.selected)} · ${context(state.selected).title}`;
       formError("ttReturnError", "");
@@ -248,5 +249,15 @@
   $("ttRefresh").addEventListener("click", load);
   $("ttSearch").addEventListener("input", render);
   $("ttStatus").addEventListener("change", render);
+  function refreshReceivedItems() {
+    if (document.hidden || state.loading || state.returning || state.saving || $('ttReturnModal').classList.contains('show') || $('ttUsageModal').classList.contains('show')) return;
+    load();
+  }
+  document.addEventListener('visibilitychange', refreshReceivedItems);
+  window.addEventListener('notification:new', refreshReceivedItems);
+  window.setInterval(refreshReceivedItems, 60000);
+  if (window.socket) window.socket.on('notification:new', data => {
+    if (['kit_return_reviewed', 'equipment_return_resolved'].includes(data?.type)) refreshReceivedItems();
+  });
   load();
 })();

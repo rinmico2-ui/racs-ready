@@ -265,7 +265,7 @@ function sortResolutionCases(cases) {
 
 function paginateResolutionCases(cases, pageValue, perPageValue) {
   const page = Math.max(1, Number.parseInt(pageValue, 10) || 1);
-  const perPage = Math.min(100, Math.max(10, Number.parseInt(perPageValue, 10) || 25));
+  const perPage = 10;
   const total = cases.length;
   const pages = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, pages);

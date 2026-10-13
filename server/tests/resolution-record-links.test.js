@@ -88,8 +88,10 @@ test('pending booking and order payments expose review on later pages without ad
   assert.equal(result.body.pagination.total,28);
   const pendingBooking=result.body.cases.find(row=>row.sourceType!=='order'&&row.paymentStatus==='pending');
   assert.ok(pendingBooking.allowedActions.includes('verify_payment'));
-  const paidBooking=result.body.cases.find(row=>row.paymentStatus==='partial');
-  assert.ok(!paidBooking.allowedActions.includes('verify_payment'));
+  assert.equal(result.body.pagination.perPage,10);
+  assert.equal(result.body.cases.length,10);
+  const paidResult=await load({booking:{...bookings[26],_id:BOOKING_ID}});
+  assert.ok(!paidResult.body.cases[0].allowedActions.includes('verify_payment'));
   const focusedOrder=await load({order:order({status:'pending_payment',paymentStatus:'pending'}),focus:`order:${ORDER_ID}`});
   assert.ok(focusedOrder.body.cases[0].allowedActions.includes('verify_payment'));
 });

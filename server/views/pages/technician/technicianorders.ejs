@@ -3672,32 +3672,11 @@
       button.classList.toggle('btn-outline-secondary', !active);
     });
   }
-  var orderPreparationRefreshTimer;
-  function refreshOrderPreparation() {
-    window.clearTimeout(orderPreparationRefreshTimer);
-    orderPreparationRefreshTimer = window.setTimeout(function() {
-      if(document.hidden) return;
-      if(window.Swal?.isVisible?.()) {
-        orderPreparationRefreshTimer = window.setTimeout(refreshOrderPreparation, 500);
-        return;
-      }
-      window.fetchOrders({quiet:true});
-    }, 250);
-  }
-  function bindOrderUpdates() {
-    if(!window.socket) return;
-    window.socket.on('order:status-change', refreshOrderPreparation);
-    window.socket.on('order:assigned', refreshOrderPreparation);
-    window.socket.on('connect', refreshOrderPreparation);
-  }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindOrderUpdates, {once:true});
-  else bindOrderUpdates();
-  document.addEventListener('visibilitychange', function() {
-    if(!document.hidden) refreshOrderPreparation();
-  });
+  window._refreshTechnicianWork = function() { return window.fetchOrders({quiet:true}); };
   fetchOrders().then(function() {
     if(linkedOrderId && /^[a-f\d]{24}$/i.test(linkedOrderId)) window.viewOrder(linkedOrderId);
   });
 
 })();
 </script>
+<script src="/js/technician-work-updates.js?v=20261012"></script>

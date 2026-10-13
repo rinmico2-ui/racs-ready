@@ -335,6 +335,7 @@ async function hydrateAvailability(items, technicianId, start, end, session = nu
       status: { $in: ["checked_out", "in_use"] },
       workDate: { $lt: end },
       consumable: { $ne: true },
+      returnPending: { $ne: true },
     }).session(session).select("_id equipmentId quantity").lean(),
     () => repairPartItems.length
       ? StockReservation.find({
@@ -532,12 +533,7 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
   assignments = assignments.filter(row => {
     if (!validBookings.has(String(row.bookingId))) return false;
     const booking = bookings.find(booking => String(booking._id) === String(row.bookingId));
-    const ref = value => String(value?._id || value || '');
-    const item = row.serviceItemId && (booking.services || []).find(item => ref(item._id) === ref(row.serviceItemId));
-    if (row.serviceItemId && booking.services?.length && !item) return false;
-    if (item?.technicianId) return ref(item.technicianId) === ref(technicianId);
-    if (item?.assignmentId) return ref(item.assignmentId) === ref(row._id);
-    return !booking.technicianId || ref(booking.technicianId) === ref(technicianId);
+    return require('./technicianWorkSync').assignmentWorkDecision(row, booking).current;
   });
   bookingIds = uniqueIds(assignments.map(row => row.bookingId));
   const orderIds = uniqueIds(orders.map(row => row._id));
@@ -572,6 +568,16 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
   const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
   let kit = await DailyKit.findOne({ technicianId, workDate: { $gte: start, $lt: end } }).session(session).sort({ workDate: 1 });
   if (kit && ['confirmed', 'in_progress'].includes(kit.status)) {
+    for (const item of [...(kit.items || []), ...(kit.deltaItems || [])]) {
+      if (Number(item.quantityIssued || 0) > 0 || ['checked_out', 'in_custody'].includes(item.checkoutStatus)) {
+        item.issuedBookingIds = uniqueIds([...(item.issuedBookingIds || []), ...(item.bookingIds || [])]);
+        item.issuedOrderIds = uniqueIds([...(item.issuedOrderIds || []), ...(item.orderIds || [])]);
+      }
+    }
+    kit.returnedItems = kit.returnedItems || [];
+    for (const item of kit.items.filter(item => ['returned', 'damaged'].includes(item.checkoutStatus))) {
+      if (!kit.returnedItems.some(row => String(row._id) === String(item._id))) kit.returnedItems.push(item.toObject ? item.toObject() : { ...item });
+    }
     kit.items = kit.items.filter(item => !['standard_kit', 'returned', 'damaged'].includes(item.checkoutStatus));
   }
   const previouslyLinkedAssignmentIds = new Set((kit?.assignmentIds || []).map(String));
@@ -766,6 +772,9 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
       continue;
     }
     copyRequirementLinks(old, requirement);
+    // Pending receipt is still physical custody. Do not replace or remove
+    // that row just because it is excluded from reusable available custody.
+    if (old.category === 'equipment' && Number(old.returnPendingQuantity || 0) > 0) continue;
     if (Number(requirement.quantityToCheckout) > 0 && ['checked_out', 'in_custody'].includes(old.checkoutStatus)) {
       const remaining = Number(requirement.quantityToCheckout);
       additions.push({ ...requirement, quantity: remaining, quantityToCheckout: remaining });
@@ -974,11 +983,15 @@ async function confirmDailyKit({ technicianId, userId, date, expectedAssignmentI
     }
 
     for (const item of items) {
+      if (Number(item.returnPendingQuantity || 0) > 0 && (item.category === 'equipment' || require('./kitMaterialBalance').available(item) <= 0)) throw checkoutError(`${item.name} has a return awaiting admin review. Resolve it before preparing this kit.`);
+      item.issuedBookingIds = uniqueIds([...(item.issuedBookingIds || []), ...(item.bookingIds || [])]);
+      item.issuedOrderIds = uniqueIds([...(item.issuedOrderIds || []), ...(item.orderIds || [])]);
       // Only verified custody, recorded issuance, and explicit exceptions skip checkout.
       if (item.checkoutStatus === 'in_custody') {
         const custody = item.custodyAssignmentIds || [];
         const claimed = await EquipmentAssignment.updateMany({ _id: { $in: custody },
           technicianId: { $in: uniqueIds([technicianId, userId]) }, status: { $in: ['checked_out', 'in_use'] },
+          returnPending: { $ne: true },
         }, { $set: { updatedAt: new Date() } }, { session });
         const usable = await Tool.updateOne({ _id: item.toolId, active: { $ne: false }, assignable: { $ne: false },
           assetStatus: { $nin: ['under_maintenance', 'damaged', 'retired'] },
@@ -1102,7 +1115,9 @@ async function confirmDailyKit({ technicianId, userId, date, expectedAssignmentI
         const existing = kit.items.find(item => String(item.toolId) === String(delta.toolId) && item.category === delta.category);
         if (existing) {
           existing.quantity += delta.quantity;
-          if (delta.category === "consumable") existing.quantityIssued = (existing.quantityIssued || 0) + (delta.quantityIssued || 0);
+          if (['consumable', 'repair_part'].includes(delta.category)) existing.quantityIssued = (existing.quantityIssued || 0) + (delta.quantityIssued || 0);
+          existing.issuedBookingIds = uniqueIds([...(existing.issuedBookingIds || []), ...(delta.issuedBookingIds || [])]);
+          existing.issuedOrderIds = uniqueIds([...(existing.issuedOrderIds || []), ...(delta.issuedOrderIds || [])]);
           existing.assignmentIds = uniqueIds([...existing.assignmentIds, ...delta.assignmentIds]);
           existing.bookingIds = uniqueIds([...existing.bookingIds, ...delta.bookingIds]);
           existing.orderIds = uniqueIds([...(existing.orderIds || []), ...(delta.orderIds || [])]);
@@ -1178,6 +1193,10 @@ async function dailyKitDepartureReadiness({ technicianId, assignment }) {
     };
   }
 
+  if ([...(kit.items || []), ...(kit.deltaItems || [])].some(item => Number(item.returnPendingQuantity || 0) > 0 && (item.category === 'equipment' || require('./kitMaterialBalance').available(item) <= 0))) {
+    return { ready: false, code: 'DAILY_KIT_RETURN_PENDING', error: 'This Daily Kit has items awaiting admin receipt. Resolve the return before starting another job with those items.', kit };
+  }
+
   // A delta is not prepared merely because each row has a field decision.
   // Prepare Additional Items completes checkout/issuance and custody logging.
   if (kit.hasDelta && Array.isArray(kit.deltaItems) && kit.deltaItems.length) {
@@ -1212,12 +1231,13 @@ async function dailyKitDepartureReadiness({ technicianId, assignment }) {
 }
 
 /** Attribute already-issued Daily Kit consumables to a specific installation. */
-async function recordOrderConsumableUsage({ technicianId, userId, orderId, date, usages = [] }) {
+async function recordOrderConsumableUsage({ technicianId, userId, orderId, date, usages = [], session = null }) {
+  if (!session) return kitTransaction(tx => recordOrderConsumableUsage({ technicianId, userId, orderId, date, usages, session: tx }));
   if (!mongoose.isValidObjectId(orderId)) {
     throw Object.assign(new Error("Invalid order id"), { status: 400 });
   }
   const { start } = dayBounds(date);
-  const kit = await DailyKit.findOne({ technicianId, workDate: start });
+  const kit = await DailyKit.findOne({ technicianId, workDate: start }).session(session);
   if (!kit) throw Object.assign(new Error("No Daily Kit was found for this installation date."), { status: 409 });
 
   const normalized = new Map();
@@ -1237,7 +1257,7 @@ async function recordOrderConsumableUsage({ technicianId, userId, orderId, date,
   for (const usage of normalized.values()) {
     const item = covered.find((candidate) => candidate.name.toLowerCase() === usage.name.toLowerCase());
     if (!item) throw Object.assign(new Error(`${usage.name} is not assigned to this order's Daily Kit.`), { status: 403 });
-    const remaining = Number(item.quantityIssued || 0) - Number(item.quantityUsed || 0) - Number(item.quantityReturned || 0);
+    const remaining = require('./kitMaterialBalance').available(item);
     if (usage.quantity > remaining) {
       throw Object.assign(new Error(`${usage.name} usage exceeds the ${remaining} ${item.unit || "pcs"} still available.`), { status: 409 });
     }
@@ -1246,8 +1266,8 @@ async function recordOrderConsumableUsage({ technicianId, userId, orderId, date,
   for (const usage of normalized.values()) {
     const item = covered.find((candidate) => candidate.name.toLowerCase() === usage.name.toLowerCase());
     item.quantityUsed = Number(item.quantityUsed || 0) + usage.quantity;
-    const tool = item.toolId ? await Tool.findById(item.toolId).select("costPrice").lean() : null;
-    await ServiceToolUsage.create({
+    const tool = item.toolId ? await Tool.findById(item.toolId).select("costPrice").session(session).lean() : null;
+    await ServiceToolUsage.create([{
       orderId,
       technicianId,
       toolItemId: item.toolId || undefined,
@@ -1260,9 +1280,9 @@ async function recordOrderConsumableUsage({ technicianId, userId, orderId, date,
       deductedFromInventory: true,
       notes: "Actual installation usage from Daily Kit issuance",
       recordedBy: userId,
-    });
+    }], { session });
   }
-  await kit.save();
+  await kit.save({ session });
   return { kit, recorded: [...normalized.values()] };
 }
 
@@ -1320,7 +1340,7 @@ async function recordBookingConsumableUsage({ technicianId, userId, assignmentId
   for (const usage of normalized.values()) {
     const item = covered.find(candidate => candidate.name.toLowerCase() === usage.name.toLowerCase());
     if (!item) throw Object.assign(new Error(`${usage.name} is not assigned to this booking's Daily Kit.`), { status: 403 });
-    const remaining = Number(item.quantityIssued || 0) - Number(item.quantityUsed || 0) - Number(item.quantityReturned || 0);
+    const remaining = require('./kitMaterialBalance').available(item);
     if (usage.quantity > remaining) {
       throw Object.assign(new Error(`${usage.name} usage exceeds the ${remaining} ${item.unit || "pcs"} still available.`), { status: 409 });
     }

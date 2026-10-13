@@ -92,6 +92,9 @@ const projectSchema = new mongoose.Schema({
     type: String,
     enum: ['assessment', 'quotation_review', 'execution'],
   },
+  repairUnitTracking: { type: Boolean, default: false },
+  repairQuoteHistory: [{ recordedAt: Date, recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, quotation: mongoose.Schema.Types.Mixed }],
+  requestedUnitCount: { type: Number, min: 0 },
 
   // The repair assessment is a traceable site visit, separate from the later
   // crew mobilization used for execution.
@@ -125,7 +128,7 @@ const projectSchema = new mongoose.Schema({
       total: { type: Number, default: 0 },
     }],
     notes: String,
-    status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+    status: { type: String, enum: ['pending', 'awaiting_customer', 'approved', 'rejected'], default: 'pending' },
     reviewedAt: Date,
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     rejectionReason: String,
@@ -454,6 +457,8 @@ const projectSchema = new mongoose.Schema({
   // + 2 fridges + 1 washer), each group tracks its own inspection, quotation,
   // and per-unit completion. Snapshot from BookingService.getUnitGroups().
   unitGroups: [{
+    applianceGroupId: { type: String, maxlength: 80 },
+    applianceKind: { type: String, enum: ["aircon", "refrigerator", "freezer"] },
     groupIndex: { type: Number, required: true },
     serviceId: { type: mongoose.Schema.Types.ObjectId },
     serviceName: { type: String },
@@ -520,6 +525,8 @@ const projectSchema = new mongoose.Schema({
     }],
     // Per-unit tracking within this group
     units: [{
+      ...require('./repairUnitFields').trackingFields,
+      ...require('./repairUnitFields').detailFields,
       unitIndex: { type: Number, required: true },
       label: { type: String },
       status: {
@@ -549,7 +556,7 @@ const projectSchema = new mongoose.Schema({
 projectSchema.pre("save", function () {
   // Business classification is quantity-based and cannot be overridden by a
   // stale client flag or by duration estimates.
-  this.isLargeScale = Number(this.totalUnits || this.quantity || 0) >= 8;
+  this.isLargeScale = Number(this.requestedUnitCount || this.totalUnits || this.quantity || 0) >= 8;
   if (this.isLargeScale && !this.projectPhase) {
     this.projectPhase = this.repair?.serviceType === "repair" ? "assessment" : "execution";
   }
@@ -564,7 +571,7 @@ projectSchema.virtual("progressPercent").get(function () {
 // Virtual: check if project has multiple appliance types
 projectSchema.virtual("hasMultipleApplianceTypes").get(function () {
   if (!this.unitGroups || this.unitGroups.length === 0) return false;
-  return this.unitGroups.length > 1;
+  return new Set(this.unitGroups.map((group, index) => group.applianceGroupId || `legacy-${index}`)).size > 1;
 });
 
 // Virtual: get appliance type summary for display
@@ -572,7 +579,13 @@ projectSchema.virtual("applianceTypeSummary").get(function () {
   if (!this.unitGroups || this.unitGroups.length === 0) {
     return this.repair?.unitInfo?.unitType || 'Unknown';
   }
-  return this.unitGroups.map(g => `${g.quantity}× ${g.unitType}`).join(', ');
+  const physical = new Map();
+  this.unitGroups.forEach((group, index) => {
+    const key = group.applianceGroupId || 'legacy-' + index;
+    if (!physical.has(key)) physical.set(key, { quantity: group.quantity, type: group.unitType, services: [] });
+    physical.get(key).services.push(group.serviceName || 'Service');
+  });
+  return [...physical.values()].map(group => group.quantity + ' x ' + group.type + (group.services.length > 1 ? ' (' + group.services.join(' + ') + ')' : '')).join(', ');
 });
 
 projectSchema.virtual("statusLabel").get(function () {

@@ -66,7 +66,7 @@ function calculateProjectCustomerPricing({ project, booking, workOrders = [], da
   // A deliberately stored project total is a fallback for legacy/admin-priced
   // records only when no reproducible quote or booked unit price exists.
   const storedTotal = positiveMoney(project?.payment?.totalAmount);
-  if (!serviceCharge && storedTotal) {
+  if (!serviceCharge && storedTotal && serviceType !== "repair" && serviceType !== "mixed") {
     serviceCharge = Math.max(0, storedTotal - travelFare);
     pricingSource = "Approved project total";
   }
@@ -74,8 +74,7 @@ function calculateProjectCustomerPricing({ project, booking, workOrders = [], da
   const total = serviceCharge + travelFare;
   const alreadyPaid = Math.max(
     positiveMoney(project?.payment?.amountPaid),
-    positiveMoney(booking?.amountPaid),
-    positiveMoney(booking?.downpaymentAmount)
+    positiveMoney(booking?.amountPaid)
   );
   return {
     totalUnits,

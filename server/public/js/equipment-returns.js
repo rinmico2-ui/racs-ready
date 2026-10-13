@@ -52,7 +52,7 @@
     const customer = booking.customer || row.projectId?.customer || {};
     const code = row.equipmentCode || row.equipmentId?.assetCode || row.equipmentId?.barcode || "No asset code";
     const jobReference = row.bookingReference || booking.bookingReference || (row.projectId ? `Project ${String(row.projectId._id).slice(-6).toUpperCase()}` : "No job reference");
-    const statusLabel = row.returnState === "overdue" ? relativeOverdue(row.overdueMinutes) : row.returnState === "due_today" ? "Due today" : "Outstanding";
+    const statusLabel = row.returnPending ? 'Awaiting admin receipt' : row.returnState === "overdue" ? relativeOverdue(row.overdueMinutes) : row.returnState === "due_today" ? "Due today" : "Outstanding";
     const reminder = row.reminderCount ? `${row.reminderCount} sent` : "No reminder yet";
     const lastReminder = row.lastReminderAt ? formatDate(row.lastReminderAt) : "";
     const phone = String(tech.phone || "").replace(/[^+\d]/g, "");
@@ -62,7 +62,7 @@
       <td class="er-select-cell"><input class="form-check-input er-row-select" type="checkbox" data-select-id="${row._id}" aria-label="Select ${escapeHtml(row.equipmentName)}" ${selected ? "checked" : ""}></td>
       <td><div class="er-title">${escapeHtml(row.equipmentName)} <span class="text-secondary">×${Number(row.quantity) || 1}</span></div><div class="er-sub"><span class="er-code">${escapeHtml(code)}</span> · checked out ${escapeHtml(formatDate(row.checkedOutAt || row.issuedAt))}</div></td>
       <td><div class="er-title">${escapeHtml(tech.name || "Unassigned technician")}</div><div class="er-sub">${phone ? `<a href="tel:${escapeHtml(phone)}">${escapeHtml(tech.phone)}</a>` : escapeHtml(tech.userEmail || "No contact recorded")}</div></td>
-      <td><div class="er-title">${escapeHtml(jobReference)}</div><div class="er-sub">${escapeHtml(serviceName(row))}${customer.name ? ` · ${escapeHtml(customer.name)}` : ""}</div>${jobLink ? `<a class="er-sub d-inline-block mt-1" href="${jobLink}">View job <i class="bi bi-box-arrow-up-right"></i></a>` : ""}</td>
+      <td><div class="er-title">${escapeHtml(jobReference)}${booking.status === "cancelled" ? ' <span class="badge bg-secondary">Cancelled</span><small class="d-block text-secondary mt-1">Issued items still need to be received back.</small>' : ""}</div><div class="er-sub">${escapeHtml(serviceName(row))}${customer.name ? ` · ${escapeHtml(customer.name)}` : ""}</div>${jobLink ? `<a class="er-sub d-inline-block mt-1" href="${jobLink}">View job <i class="bi bi-box-arrow-up-right"></i></a>` : ""}</td>
       <td><span class="er-status ${escapeHtml(row.returnState)}"><i class="bi ${row.returnState === "overdue" ? "bi-exclamation-circle" : "bi-clock"}"></i>${escapeHtml(statusLabel)}</span><div class="er-sub">Expected ${escapeHtml(formatDate(row.effectiveExpectedReturnAt))}</div></td>
       <td><div class="er-title">${escapeHtml(reminder)}</div><div class="er-sub">${escapeHtml(lastReminder)}</div></td>
       <td><div class="er-actions"><button class="btn btn-outline-primary" data-action="remind" data-id="${row._id}"><i class="bi bi-bell"></i> Remind</button><button class="btn btn-outline-secondary" data-action="deadline" data-id="${row._id}"><i class="bi bi-calendar2"></i> Deadline</button><button class="btn btn-success" data-action="resolve" data-id="${row._id}"><i class="bi bi-check2-circle"></i> Resolve</button></div></td>
@@ -337,5 +337,6 @@
       }
     });
     load();
+    window.addEventListener('inventory:changed', load);
   });
 })();

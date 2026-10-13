@@ -34,7 +34,7 @@ function parseProjectWindow(input) {
 }
 
 function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompletionDate, inspectionDurationMinutes }) {
-  const totalUnits = booking.services.reduce((sum, item) => sum + Number(item.quantity), 0);
+  const totalUnits = require("./bookingUnitLimit").validateBookingUnitLimit(booking.services);
   const totalMinutes = capacityMinutes(booking.services, inspectionDurationMinutes);
   const estimatedTotalHours = Math.max(1, Math.round(totalMinutes / 6) / 10);
 
@@ -62,6 +62,7 @@ function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompl
     const quantity = Number(item.quantity);
     return {
       groupIndex,
+      applianceGroupId: item.applianceGroupId, applianceKind: item.applianceKind,
       serviceId: item.serviceId || undefined,
       serviceName: item.name || "Service",
       serviceType: item.type || "core",
@@ -78,11 +79,7 @@ function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompl
       unitPrice: Number(item.unitPrice) || 0,
       totalPrice: Number(item.totalPrice) || 0,
       duration: Number(item.duration) || inspectionDurationMinutes,
-      units: Array.from({ length: quantity }, (_, index) => ({
-        unitIndex: index + 1,
-        label: `${item.name || "Unit"} #${index + 1}`,
-        status: "pending",
-      })),
+      units: require('./repairUnitWorkflow').initialUnits(item),
     };
   });
 
@@ -102,7 +99,9 @@ function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompl
     },
     status: "pending_project_scheduling",
     isLargeScale: true,
-    projectPhase: booking.serviceType === "repair" ? "assessment" : "execution",
+    projectPhase: require('./repairUnitWorkflow').hasRepair(booking) ? "assessment" : "execution",
+    repairUnitTracking: require('./repairUnitWorkflow').hasRepair(booking),
+    requestedUnitCount: totalUnits,
     totalUnits,
     quantity: totalUnits,
     estimatedTotalHours,
@@ -118,7 +117,7 @@ function prepareProjectServiceChange(booking, { startDate, endDate, plannedCompl
 }
 
 function prepareStandardServiceChange(booking, { date, startTime, endTime, inspectionDurationMinutes }) {
-  booking.quantity = booking.services.reduce((sum, item) => sum + Number(item.quantity), 0);
+  booking.quantity = require("./bookingUnitLimit").validateBookingUnitLimit(booking.services);
   booking.serviceDurationMinutes = capacityMinutes(booking.services, inspectionDurationMinutes);
   booking.isProject = false;
   booking.projectScheduling = undefined;
@@ -186,7 +185,10 @@ async function saveProjectServiceChange(booking, options) {
       await booking.save({ session });
       await Project.findOneAndUpdate(
         { bookingId: booking._id },
-        { $set: projectData },
+        { $set: { ...projectData, payment: {
+          ...(existingProject?.payment?.toObject?.() || existingProject?.payment || {}),
+          ...require('./projectPaymentReview').projectPaymentSnapshot(booking),
+        } } },
         { upsert: true, returnDocument: "after", session },
       );
     });

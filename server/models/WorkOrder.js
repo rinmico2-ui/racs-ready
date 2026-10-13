@@ -55,6 +55,10 @@ const workOrderSchema = new mongoose.Schema({
   workflowType: { type: String, enum: ["core", "repair"], default: "core" },
 
   units: [{
+    applianceGroupId: String,
+    applianceKind: String,
+    applianceUnitIndex: Number,
+    serviceTasks: [{ _id: false, serviceId: mongoose.Schema.Types.ObjectId, name: String, durationMinutes: Number }],
     unitKey: { type: String, required: true },
     label: String,
     groupIndex: Number,

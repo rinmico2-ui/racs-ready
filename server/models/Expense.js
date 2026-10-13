@@ -13,11 +13,15 @@ const expenseSchema = new mongoose.Schema(
     technicianId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Technician",
-      required: true,
+      required: function () { return this.source !== 'admin'; },
       index: true,
     },
 
     technicianName: { type: String, trim: true, default: "" },
+    source: { type: String, enum: ['technician', 'admin'], default: 'technician' },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, required: function () { return this.source === 'admin'; } },
+    recordedByName: { type: String, trim: true, default: '' },
+    submissionFingerprint: { type: String, select: false },
 
     // ── Expense Details ──────────────────────────────────────────────────────
     type: {

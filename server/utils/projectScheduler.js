@@ -409,7 +409,7 @@ async function generateWorkOrders(projectId, opts = {}) {
 
   // Enterprise default: create practical draft execution packages from the
   // real service/unit scope. Manual location modes remain available below.
-  if (!opts.mode || opts.mode === "intelligent" || opts.regenerate) {
+  if (!opts.mode || opts.mode === "intelligent" || opts.regenerate || project.unitGroups?.some(group => group.applianceGroupId)) {
     const booking = project.bookingId ? await BookingService.findById(project.bookingId).lean() : null;
     const allUnits = projectUnits(project.toObject(), booking);
     const prior = await WorkOrder.find({ projectId }).sort({ sortOrder: 1 }).lean();
@@ -470,7 +470,9 @@ async function generateWorkOrders(projectId, opts = {}) {
           sortOrder: protectedOrders.length + created.length + 1,
           checklist: sample.serviceType === "repair"
             ? [{ label: "Inspect and diagnose", completed: false }, { label: "Prepare quotation", completed: false }, { label: "Complete customer-approved repair", completed: false }, { label: "Proof of completion", completed: false }]
-            : [{ label: "Initial inspection", completed: false }, { label: "Execute core service", completed: false }, { label: "Final quality check", completed: false }, { label: "Proof of completion", completed: false }],
+            : [{ label: "Initial inspection", completed: false },
+                ...(sample.serviceTasks?.length ? sample.serviceTasks.map(task => ({ label: `Complete ${task.name}`, completed: false })) : [{ label: "Execute core service", completed: false }]),
+                { label: "Final quality check", completed: false }, { label: "Proof of completion", completed: false }],
           activity: [{ action: "work_order_created", actorName: "Planning Engine", details: { generationMode: "intelligent", provisionalAssignment: true } }],
         });
         order.resourceRequirements = resourcesForWorkOrder(project.toObject(), order.toObject());

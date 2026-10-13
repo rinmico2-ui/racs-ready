@@ -540,9 +540,12 @@ router.get("/:id/payment-proof", auth.authenticate, async (req, res, next) => {
 
     const storedFile = await findPaymentProof(booking.paymentProofFileId);
     if (!storedFile) return res.status(404).json({ error: "Payment proof not found" });
+    const type = await require('../utils/storedReceiptType').resolveStoredReceiptType(storedFile,
+      options => openPaymentProofDownload(booking.paymentProofFileId, options), { allowPdf: false });
+    if (!type) return res.status(415).json({ error: 'Unsupported payment receipt file.' });
     res.set({
       "Cache-Control": "private, no-store",
-      "Content-Type": storedFile.contentType || "application/octet-stream",
+      "Content-Type": type,
       "Content-Length": String(storedFile.length),
       "X-Content-Type-Options": "nosniff",
     });
@@ -551,6 +554,7 @@ router.get("/:id/payment-proof", auth.authenticate, async (req, res, next) => {
       if (!res.headersSent) return next(error);
       return res.destroy(error);
     });
+    res.on('close', () => download.destroy());
     download.pipe(res);
   } catch (error) {
     next(error);
@@ -4804,6 +4808,7 @@ router.post("/:id/approve-quotation", auth.authenticate, auth.requireRole(["admi
   try {
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.repairUnitTracking) return res.status(409).json({ error: 'Review each appliance quote in Appliance repairs. The customer must approve their repairs.' });
     if (booking.status !== "awaiting_approval") {
       return res.status(400).json({ error: `Cannot approve quotation from status: ${booking.status}` });
     }

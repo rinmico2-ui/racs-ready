@@ -273,7 +273,7 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start mb-3">
           <div>
-            <div class="kpi-title"><i class="bi bi-bar-chart-line me-1"></i>Today's Attendance Statistics</div>
+            <div class="kpi-title"><i class="bi bi-bar-chart-line me-1"></i>Attendance summary</div>
             <span class="inv-kpi-sub">Live overview of staff check-ins and availability</span>
           </div>
           <div class="kpi-icon" style="background: linear-gradient(135deg, #059669, #10b981);">
@@ -379,6 +379,12 @@
 
   <!-- ═══ TOOLBAR ═══ -->
   <div class="rp-toolbar mt-4">
+    <div class="rp-filter-group">
+      <label class="rp-filter-label" for="attendanceWorkDate">Work date</label>
+      <input type="date" class="form-control rp-filter-input" id="attendanceWorkDate">
+    </div>
+    <button type="button" class="btn btn-outline-primary rp-filter-btn" id="attendanceToday">Today</button>
+    <button type="button" class="btn btn-outline-secondary rp-filter-btn" id="attendanceRefresh">Refresh</button>
     <div class="rp-filter-group search">
       <label class="rp-filter-label" for="attendanceSearchInput"><i class="bi bi-search me-1"></i>Search Staff</label>
       <div class="input-group">
@@ -412,8 +418,19 @@
   <!-- ═══ FULL WIDTH: TODAY'S LOG ═══ -->
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-      <h6 class="mb-0 fw-bold">Today's Roster & Check-ins</h6>
-      <span class="text-muted small fw-normal" id="rosterRecordCount">0 total records</span>
+      <h6 class="mb-0 fw-bold" id="rosterDateTitle">Daily staff attendance</h6>
+      <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+        <span class="text-muted small fw-normal" id="rosterRecordCount">0 staff</span>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="attendanceShowTechnicians">Show technicians</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="attendanceShowAll">Show all staff</button>
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-3 px-4 py-3 border-bottom small" aria-live="polite">
+      <span><strong id="rosterTechnicianCount">0</strong> technicians</span>
+      <span><strong id="rosterSecretaryCount">0</strong> secretaries</span>
+      <span><strong id="missingCheckInCount">0</strong> missing check-ins</span>
+      <span><strong id="missingCheckOutCount">0</strong> missing check-outs</span>
+      <span class="text-muted">Alerts use saved shifts. Without a shift: check-in cutoff 9:00 AM, check-out 6:00 PM (Philippine time).</span>
     </div>
     <div class="table-responsive">
       <table class="table table-hover table-dense align-middle mb-0">
@@ -424,14 +441,16 @@
             <th>Email</th>
             <th>Attendance Status</th>
             <th>Availability Status</th>
-            <th>Check-in Time</th>
+            <th>Check in</th>
+            <th>Check out</th>
+            <th>Needs review</th>
             <th>Method</th>
             <th class="text-end pe-4">Actions</th>
           </tr>
         </thead>
         <tbody id="tblRosterBody">
           <tr>
-            <td colspan="8" class="text-center py-4 text-muted">
+            <td colspan="10" class="text-center py-4 text-muted">
               <div class="spinner-border spinner-border-sm text-sky me-2" role="status"></div>
               Loading roster...
             </td>
@@ -529,6 +548,12 @@
     const attendanceStatusFilter = document.getElementById("attendanceStatusFilter");
     const attendanceRoleFilter = document.getElementById("attendanceRoleFilter");
     const attendanceFilterBtn = document.getElementById("attendanceFilterBtn");
+    const attendanceWorkDate = document.getElementById('attendanceWorkDate');
+    const rosterRefresh = document.getElementById('attendanceRefresh');
+    let rosterController = null;
+    const requestedDate = new URLSearchParams(window.location.search).get('date');
+    attendanceWorkDate.max = historyDateKey(new Date());
+    attendanceWorkDate.value = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate || '') && requestedDate <= attendanceWorkDate.max ? requestedDate : attendanceWorkDate.max;
 
     // Stat boxes
     const statTotal = document.getElementById("statTotal");
@@ -540,7 +565,7 @@
 
     // Format local date header
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    lblTodayDate.textContent = new Date().toLocaleDateString(undefined, options);
+    lblTodayDate.textContent = new Date().toLocaleDateString('en-PH', { ...options, timeZone: 'Asia/Manila' });
 
     let qrRefreshTimer = null;
 
@@ -606,20 +631,34 @@
 
     // Load today's roster and check-ins
     async function loadRoster() {
+      if (rosterController) rosterController.abort();
+      const active = new AbortController();
+      rosterController = active;
+      rosterRefresh.disabled = true;
       try {
-        const res = await fetch("/api/admin/attendance/today");
+        const res = await fetch('/api/admin/attendance/today?date=' + encodeURIComponent(attendanceWorkDate.value), { cache: 'no-store', signal: active.signal });
         if (!res.ok) throw new Error("Failed to load today's attendance logs");
         
         const roster = await res.json();
+        if (rosterController !== active) return;
+        document.getElementById('rosterDateTitle').textContent = new Date(attendanceWorkDate.value + 'T12:00:00+08:00').toLocaleDateString('en-PH', { ...options, timeZone:'Asia/Manila' });
         renderRoster(roster);
       } catch (err) {
+        if (active.signal.aborted || rosterController !== active) return;
         console.error(err);
-        tblRosterBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to load roster.</td></tr>`;
-      }
+        tblRosterBody.innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle-fill me-1"></i> Could not load attendance. Tap Refresh to try again.</td></tr>`;
+      } finally { if (rosterController === active) { rosterController = null; rosterRefresh.disabled = false; } }
     }
 
     // Client-side roster filtering
-    function applyFilters() {
+    function selectRosterRole(role) {
+      attendanceRoleFilter.value = role;
+      attendanceStatusFilter.value = 'all';
+      attendanceSearchInput.value = '';
+      applyFilters();
+    }
+
+    function applyFilters(resetPage = true) {
       const term = attendanceSearchInput.value.trim().toLowerCase();
       const att = attendanceStatusFilter.value.toLowerCase();
       const role = attendanceRoleFilter.value;
@@ -630,8 +669,8 @@
         const matchRole = role === "all" || tech.role === role;
         return matchTerm && matchAtt && matchRole;
       });
-      currentPage = 1;
-      renderPage(1, rosterFiltered);
+      currentPage = resetPage ? 1 : Math.min(currentPage, Math.max(1, Math.ceil(rosterFiltered.length / pageSize)));
+      renderPage(currentPage, rosterFiltered);
     }
 
     function renderRow(tech) {
@@ -649,14 +688,14 @@
       else if (tech.availabilityStatus === "Unavailable") availBadgeClass = "badge-unavail";
 
       const checkInStr = tech.checkInTime 
-        ? new Date(tech.checkInTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+        ? new Date(tech.checkInTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })
         : "—";
 
       const checkOutStr = tech.checkOutTime 
-        ? new Date(tech.checkOutTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+        ? new Date(tech.checkOutTime).toLocaleTimeString('en-PH', { timeZone:'Asia/Manila', hour: '2-digit', minute: '2-digit' })
         : "";
 
-      const timeDisplay = checkOutStr ? `${checkInStr} / ${checkOutStr}` : checkInStr;
+      const reviewDisplay = tech.missingCheckOut ? '<span class="status-badge badge-late">Missing check-out</span>' : tech.missingCheckIn ? '<span class="status-badge badge-absent">Missing check-in</span>' : '<span class="text-muted small">—</span>';
 
       const roleBadge = tech.role === "secretary"
         ? '<span class="badge rounded-pill" style="background:#fce7f3;color:#be185d">Secretary</span>'
@@ -678,20 +717,22 @@
 
       return `
           <tr data-name="${safeName}" data-email="${safeEmail}" data-attendance="${safeAtt}">
-            <td class="ps-4 fw-semibold">${tech.name}</td>
+            <td class="ps-4 fw-semibold">${historyEscape(tech.name)}</td>
             <td>${roleBadge}</td>
-            <td class="text-muted small">${tech.email || "—"}</td>
+            <td class="text-muted small">${historyEscape(tech.email || "—")}</td>
             <td>
-              <span class="status-badge ${attBadgeClass}">${tech.attendanceStatus}</span>
+              <span class="status-badge ${attBadgeClass}">${historyEscape(tech.attendanceStatus)}</span>
             </td>
             <td>
               ${tech.role === "technician" ? `<span class="availability-badge ${availBadgeClass}">${tech.availabilityStatus}</span>` : '<span class="text-muted small">Not applicable</span>'}
             </td>
-            <td>${timeDisplay}</td>
+            <td>${tech.checkInTime ? checkInStr : `<span class="text-muted small">${historyEscape(tech.checkInState || 'Not checked in')}</span>`}</td>
+            <td>${tech.checkOutTime ? checkOutStr : `<span class="text-muted small">${historyEscape(tech.checkOutState || 'Not checked out')}</span>`}</td>
+            <td>${reviewDisplay}</td>
             <td>${methodStr}</td>
             <td class="text-end pe-4">
               <div class="d-inline-flex gap-1 align-items-center">
-                <select class="action-select attendance-select" data-staff-id="${tech.staffId}" data-staff-type="${tech.staffType}">
+                <select class="action-select attendance-select" ${tech.canEdit === false ? 'disabled title="Earlier dates are view-only"' : ''} data-staff-id="${tech.staffId}" data-staff-type="${tech.staffType}">
                   <option value="" disabled selected>Mark Attendance...</option>
                   <option value="Present" ${tech.attendanceStatus === "Present" ? "disabled" : ""}>Present</option>
                   <option value="Late" ${tech.attendanceStatus === "Late" ? "disabled" : ""}>Late</option>
@@ -701,7 +742,7 @@
                   <option value="Checked Out" ${tech.attendanceStatus === "Checked Out" ? "disabled" : ""}>Checked Out</option>
                 </select>
 
-                ${tech.role === "technician" ? `<select class="action-select availability-select" data-staff-id="${tech.staffId}" data-staff-type="${tech.staffType}">
+                ${tech.role === "technician" ? `<select class="action-select availability-select" ${tech.canEdit === false ? 'disabled title="Earlier dates are view-only"' : ''} data-staff-id="${tech.staffId}" data-staff-type="${tech.staffType}">
                   <option value="" disabled selected>Set Availability...</option>
                   <option value="Offline" ${tech.availabilityStatus === "Offline" ? "disabled" : ""}>Offline</option>
                   <option value="Available" ${tech.availabilityStatus === "Available" ? "disabled" : ""}>Available</option>
@@ -720,12 +761,13 @@
       const start = (page - 1) * pageSize;
       const slice = items.slice(start, start + pageSize);
       if (!slice.length) {
-        tblRosterBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No matching records.</td></tr>`;
+        rosterRecordCount.textContent = `Showing 0 of ${rosterData.length} staff. Clear filters to see the full list.`;
+        tblRosterBody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No matching records.</td></tr>`;
         attendanceFooter.innerHTML = '<nav aria-label="Attendance pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
         return;
       }
       tblRosterBody.innerHTML = slice.map(renderRow).join("");
-      rosterRecordCount.textContent = items.length + " records";
+      rosterRecordCount.textContent = `Showing ${start + 1}-${start + slice.length} of ${items.length} matching staff (${rosterData.length} total)`;
       renderPagination(page, Math.ceil(items.length / pageSize) || 1, items.length);
 
       document.querySelectorAll(".attendance-select").forEach(select => {
@@ -803,8 +845,14 @@
 
     // Render table and stats
     function renderRoster(roster) {
+      rosterData = roster || [];
+      document.getElementById('rosterTechnicianCount').textContent = rosterData.filter(staff => staff.role === 'technician').length;
+      document.getElementById('rosterSecretaryCount').textContent = rosterData.filter(staff => staff.role === 'secretary').length;
+      document.getElementById('attendanceShowTechnicians').textContent = `Show technicians (${rosterData.filter(staff => staff.role === 'technician').length})`;
+      document.getElementById('missingCheckInCount').textContent = rosterData.filter(staff => staff.missingCheckIn).length;
+      document.getElementById('missingCheckOutCount').textContent = rosterData.filter(staff => staff.missingCheckOut).length;
       if (!roster || roster.length === 0) {
-        tblRosterBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No active technicians or secretaries are registered.</td></tr>`;
+        tblRosterBody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-muted">No active technicians or secretaries are registered.</td></tr>`;
         rosterRecordCount.textContent = "0 total records";
         statTotal.textContent = 0;
         statPresent.textContent = 0;
@@ -845,10 +893,11 @@
       statHalf.textContent = checkedOutCount;
 
       // Render paged rows
-      applyFilters();
+      applyFilters(false);
     }
     // Call API to update status
     async function updateTechnician(techId, body) {
+      if (attendanceWorkDate.value !== historyDateKey(new Date())) return alert('Earlier attendance dates are view-only. Return to Today to update a current record.');
       try {
         const res = await fetch(`/api/admin/attendance/${techId}`, {
           method: "PATCH",
@@ -949,6 +998,12 @@
     attendanceStatusFilter.addEventListener("change", applyFilters);
     attendanceRoleFilter.addEventListener("change", applyFilters);
     attendanceFilterBtn.addEventListener("click", applyFilters);
+    document.getElementById('attendanceShowTechnicians').addEventListener('click', () => selectRosterRole('technician'));
+    document.getElementById('attendanceShowAll').addEventListener('click', () => selectRosterRole('all'));
+    attendanceWorkDate.addEventListener('change', () => { currentPage = 1; loadRoster(); });
+    rosterRefresh.addEventListener('click', loadRoster);
+    document.getElementById('attendanceToday').addEventListener('click', () => { attendanceWorkDate.value = historyDateKey(new Date()); currentPage = 1; loadRoster(); });
+    setInterval(() => { if (!document.hidden && !rosterController) loadRoster(); }, 60000);
 
     // Initialize
     loadQrToken();

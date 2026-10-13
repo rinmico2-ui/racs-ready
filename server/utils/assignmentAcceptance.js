@@ -80,6 +80,10 @@ async function acceptAssignment({ assignmentId, technician, user, isScheduleMiss
         throw problem("This booking is no longer available for acceptance. Refresh your jobs.", "BOOKING_UNAVAILABLE");
       }
       if (booking.sourceOrderId) throw problem("Accept delivery and installation work from My Orders.", "ORDER_WORKFLOW_REQUIRED");
+      if (!projectMembership) {
+        const decision = require('./technicianWorkSync').assignmentWorkDecision(assignment, booking);
+        if (!decision.current) throw problem(decision.reason, "BOOKING_CHANGED");
+      }
       if (!alreadyAccepted && ["completed", "repair_completed"].includes(booking.status)) {
         throw problem("The booking is already completed. Refresh your jobs.", "BOOKING_CHANGED");
       }
