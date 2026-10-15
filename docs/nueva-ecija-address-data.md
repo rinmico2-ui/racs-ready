@@ -4,7 +4,9 @@ The boundary in `server/public/js/nueva-ecija-coverage.js` is OpenStreetMap rela
 
 The local address catalog contains the Nueva Ecija province record, 32 cities/municipalities, and 849 barangays retrieved on 2026-10-15 from [PSGC.cloud](https://psgc.cloud/): `/api/v2/provinces`, `/api/v2/cities-municipalities`, and `/api/v2/provinces/0304900000/barangays`.
 
-Local suggestions identify administrative localities, not an exact house or geocoded pin. They carry `match_level: locality` and no coordinates. Selecting one preserves its address label and requires the customer to place and confirm the actual map pin. External geocoders supply street and point matches when available. Do not substitute an invented house or barangay coordinate when providers are unavailable.
+Local suggestions identify administrative localities, not an exact house or geocoded pin. They carry `match_level: locality` and no coordinates. Selecting one explicitly resolves that place through the cached geocoding proxy and moves the map pin to its real mapped location. The customer checks the exact house position. If resolution is unavailable, keep the label and explain how to retry or pin it manually; never substitute invented coordinates.
+
+Nominatim is used for explicit Search and selected-place resolution, not autocomplete keystrokes. Keep the existing application-wide queue (at most one upstream request per second), cache, identifying User-Agent and OpenStreetMap attribution, as required by its [usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 
 When provincial boundaries or PSGC records change, verify both sources before updating the bundled snapshots and rerun the coverage, registration/profile, and checkout tests.
 

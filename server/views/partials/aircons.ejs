@@ -3573,6 +3573,7 @@
             leafletMarker.setLatLng([lat,lon]);
           }
           calcTransportFare(lat,lon);
+          if (suggestion.match_level === 'area') document.getElementById('wizardMap')?.scrollIntoView({block:'center',behavior:'smooth'});
         }
       });
 

@@ -27,6 +27,23 @@
     source.target = '_blank'; source.rel = 'noopener noreferrer'; source.textContent = provider === 'geoapify' ? 'Geoapify' : 'Photon';
     note.append(source); container.append(note);
   }
+  function hasMapPoint(result, win) {
+    const lat = Number.parseFloat(result?.lat), lon = Number.parseFloat(result?.lon ?? result?.lng);
+    if (result?.address?.country_code && String(result.address.country_code).toLowerCase() !== 'ph') return false;
+    return win.NuevaEcijaCoverage ? win.NuevaEcijaCoverage.contains(lat, lon)
+      : Number.isFinite(lat) && Number.isFinite(lon) && lat >= 4.5 && lat <= 21.5 && lon >= 116 && lon <= 127;
+  }
+  async function resolveSelection(result, { signal } = {}, win = window) {
+    if (result.match_level !== 'locality') return hasMapPoint(result, win) ? result : null;
+    // Local autocomplete has names, not invented coordinates. Resolve only
+    // the place explicitly selected by the customer through the cached proxy.
+    const response = await win.fetch('/api/geocoding/search?q=' + encodeURIComponent(result.display_name) + '&limit=5', { signal, credentials: 'same-origin' });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !Array.isArray(data)) throw new Error('We could not locate this address right now. Try Search again or place your pin on the map.');
+    const point = data.find(place => hasMapPoint(place, win));
+    return point ? { ...point, lat: Number.parseFloat(point.lat), lon: Number.parseFloat(point.lon ?? point.lng),
+      match_level: 'area', source: point.source || 'nominatim', selected_locality: result.display_name } : null;
+  }
   function create(options, win = window) {
     const { input, list, searchButton, onSelect, onInput, onLocality } = options;
     if (!input || !list) return null;
@@ -60,12 +77,29 @@
       }
       open();
     }
-    function select(result) {
+    async function select(result) {
       cancel(); input.value = result.display_name;
       if (result.match_level === 'locality') {
         onInput?.(result.display_name);
-        if (onLocality) onLocality(result);
-        else message('Locality selected. Place the exact house or service pin on the map.');
+        const token = sequence, query = input.value;
+        controller = new win.AbortController(); const selectionController = controller; busy(true);
+        message('Finding the selected address on the map…');
+        const timer = setTimeout(() => selectionController.abort(), 20000);
+        try {
+          const point = await resolveSelection(result, { signal: controller.signal }, win);
+          if (token !== sequence || input.value !== query) return;
+          if (!point) {
+            if (onLocality) onLocality(result);
+            else message('We could not find a map pin for this place. Try Search again or place your exact pin on the map.');
+            return;
+          }
+          close(); input.value = point.display_name;
+          onSelect?.(point);
+        } catch (error) {
+          if (token !== sequence || input.value !== query) return;
+          if (onLocality) onLocality(result);
+          message('We could not locate this address right now. Try Search again or place your pin on the map.', true);
+        } finally { clearTimeout(timer); if (token === sequence) busy(false); }
         return;
       }
       onSelect?.(result);
@@ -80,9 +114,9 @@
         const button = doc.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action border-0 py-2 small text-start';
         button.setAttribute('role','option'); button.textContent = result.display_name;
         if (locality) {
-          const hint = doc.createElement('small'); hint.className = 'd-block text-muted'; hint.textContent = 'City / barangay match · place your exact pin on the map'; button.append(hint);
+          const hint = doc.createElement('small'); hint.className = 'd-block text-muted'; hint.textContent = 'City / barangay match · select to find it on the map'; button.append(hint);
         }
-        button.addEventListener('click',() => select({ ...result,lat:locality?null:lat,lon:locality?null:lon }));
+        button.addEventListener('click',event => { event.stopPropagation(); return select({ ...result,lat:locality?null:lat,lon:locality?null:lon }); });
         button.addEventListener('keydown',event => {
           if (event.key === 'Escape') { event.preventDefault(); cancel(); input.focus(); }
           else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -148,5 +182,5 @@
     searchButton?.addEventListener('click',search); doc.addEventListener('click',outside);
     const api = { search,close:cancel }; input._addressAutocomplete = api; return api;
   }
-  return { create,appendAttribution,retryDelay };
+  return { create,appendAttribution,retryDelay,resolveSelection };
 });

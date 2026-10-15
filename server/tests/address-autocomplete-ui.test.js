@@ -97,16 +97,62 @@ test('the retry interval accepts provider headers, caps long waits, and treats b
   assert.equal(retryDelay(response('not a date'), {}), 30000);
 });
 
-test('locality suggestions invalidate the previous selection and require an exact map pin', async () => {
+test('an unresolved locality clears the previous selection and offers a manual pin', async () => {
   const f = fixture(); f.win.NuevaEcijaCoverage = require('../public/js/nueva-ecija-coverage');
   await f.type('Puncan'); f.flush();
   const locality = require('../utils/nuevaEcijaAddresses').suggestions('Puncan')[0];
   f.respond(0,{suggestions:[locality]}); await tick();
   assert.match(f.list.children[0].textContent,/Puncan/);
-  await f.list.children[0].emit('click');
+  const selected = f.list.children[0].emit('click');
+  f.respond(1,[locality]); await selected;
   assert.equal(f.selections.length,0,'a locality must never become a zero-coordinate delivery pin');
   assert.equal(f.edits.at(-1),locality.display_name);
   assert.match(f.list.children[0].textContent,/exact.*pin/);
+});
+
+test('selecting a name-only suggestion fetches its map coordinates and applies them automatically', async () => {
+  const f = fixture(); f.win.NuevaEcijaCoverage = require('../public/js/nueva-ecija-coverage');
+  const locality = require('../utils/nuevaEcijaAddresses').suggestions('Puncan')[0];
+  await f.type('Puncan'); f.flush(); f.respond(0,{suggestions:[locality]}); await tick();
+  assert.equal(f.calls.length,1,'typing must only request local autocomplete');
+  const selected = f.list.children[0].emit('click');
+  assert.equal(f.calls.length,2); assert.match(f.calls[1].url,/\/search\?q=Puncan%2C%20Carranglan/);
+  assert.equal(f.calls[1].options.signal.aborted,false,'the selecting click must not cancel its own lookup');
+  assert.equal(f.search.disabled,true); assert.equal(f.selections.length,0);
+  const point={display_name:'Puncan, Carranglan, Nueva Ecija, Philippines',lat:'15.906146',lon:'120.9918457',address:{country_code:'ph'}};
+  f.respond(1,[point]); await selected;
+  assert.equal(f.selections.length,1); assert.equal(f.selections[0].lat,15.906146); assert.equal(f.selections[0].lon,120.9918457);
+  assert.equal(f.selections[0].match_level,'area'); assert.equal(f.input.value,point.display_name);
+  assert.equal(f.list.style.display,'none'); assert.equal(f.search.disabled,false);
+});
+
+test('editing or dismissing a locality lookup prevents its delayed map pin from replacing the latest selection', async () => {
+  for (const action of ['edit','escape','outside']) {
+    const f=fixture(),locality=require('../utils/nuevaEcijaAddresses').suggestions('Puncan')[0];
+    await f.type('Puncan');f.flush();f.respond(0,{suggestions:[locality]});await tick();
+    const selected=f.list.children[0].emit('click');
+    if(action==='edit')await f.type('Gapan');
+    else if(action==='escape')await f.input.emit('keydown',{key:'Escape'});
+    else await f.doc.emit('click',{target:{}});
+    assert.equal(f.calls[1].options.signal.aborted,true);
+    f.respond(1,[address]);await selected;
+    assert.equal(f.selections.length,0);assert.equal(f.search.disabled,false);
+    if(action==='edit')assert.equal(f.input.value,'Gapan');
+  }
+});
+
+test('a selected locality rejects outside-province coordinates and hides raw gateway errors',async()=>{
+  for(const result of ['gateway','foreign','empty']) {
+    const f=fixture();f.win.NuevaEcijaCoverage=require('../public/js/nueva-ecija-coverage');
+    const locality=require('../utils/nuevaEcijaAddresses').suggestions('Puncan')[0];
+    await f.type('Puncan');f.flush();f.respond(0,{suggestions:[locality]});await tick();
+    const selected=f.list.children[0].emit('click');
+    if(result==='gateway')f.calls[1].resolve({ok:false,status:502,json:async()=>{throw SyntaxError('Bad Gateway');}});
+    else f.respond(1,result==='empty'?[]:[{...address,lat:15.25,lon:120.65}]);
+    await selected;assert.equal(f.selections.length,0);assert.equal(f.search.disabled,false);
+    assert.equal(f.input.value,locality.display_name);assert.doesNotMatch(f.list.children[0].textContent,/Bad Gateway|SyntaxError/);
+    assert.match(f.list.children[0].textContent,/pin/);
+  }
 });
 
 test('a live-provider outage still allows the next locality autocomplete request', async () => {

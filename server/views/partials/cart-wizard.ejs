@@ -2974,7 +2974,14 @@
         const b = window.NuevaEcijaCoverage.bounds; if (leafletMap) leafletMap.fitBounds([[b.south,b.west],[b.north,b.east]]);
         focusCheckoutControl('#wizardMap', 150);
       },
-      onSelect:function(suggestion) { window.selectSuggestion(suggestion.lat,suggestion.lon,suggestion.display_name); }
+      onSelect:function(suggestion) {
+        window.selectSuggestion(suggestion.lat,suggestion.lon,suggestion.display_name);
+        if (suggestion.match_level === 'area') {
+          const status = document.getElementById('mapSelectionStatus');
+          if (status) status.textContent = 'Map pin found. Check or move it to your exact address.';
+          focusCheckoutControl('#wizardMap', 650);
+        }
+      }
     });
 
     window.selectSuggestion = function (lat, lon, name) {

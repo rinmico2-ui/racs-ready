@@ -2483,6 +2483,39 @@ function fetchAddressSuggestions(query) {
 /**
  * Display address suggestions
  */
+async function selectServiceAddressSuggestion(suggestion) {
+  clearTimeout(addressAutocompleteDebounceTimer);
+  const token = ++addressSuggestionRequestToken;
+  addressSuggestionAbortController?.abort();
+  closeAddressSuggestions();
+  if (suggestion.match_level !== 'locality') {
+    const selected = applyAddressSearchResult(suggestion, document.getElementById('locationInput').value, suggestion.match_level === 'area' ? 'Nearby address match' : 'Address match');
+    if (selected) guideToSelectedAddressMap();
+    return;
+  }
+  const input = document.getElementById('locationInput'), button = document.getElementById('serviceAddressSearchBtn');
+  input.value = suggestion.display_name;
+  resetServiceLocationForTypedAddress(suggestion.display_name);
+  const status = document.getElementById('locationStatus');
+  if (status) { status.hidden = false; status.textContent = 'Finding the selected address on the map…'; }
+  if (button) { button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>'; }
+  const controller = new AbortController(); addressSuggestionAbortController = controller;
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const point = await window.AddressAutocomplete.resolveSelection(suggestion, { signal: controller.signal });
+    if (token !== addressSuggestionRequestToken || input.value !== suggestion.display_name) return;
+    if (!point) throw new Error('No map match');
+    if (applyAddressSearchResult(point, suggestion.display_name, 'Locality map match — check your exact pin')) guideToSelectedAddressMap();
+  } catch (error) {
+    if (token !== addressSuggestionRequestToken || input.value !== suggestion.display_name) return;
+    guideToManualAddressPin();
+    showServiceAddressRecovery('We could not locate this address right now. Try Search again or place your exact pin on the map.');
+  } finally {
+    clearTimeout(timer);
+    if (token === addressSuggestionRequestToken && button) { button.disabled = false; button.innerHTML = '<i class="bi bi-search"></i>'; }
+  }
+}
+
 function displaySuggestions(suggestions) {
   const suggestContainer = document.getElementById('locationSuggest');
   const locationInput = document.getElementById("locationInput");
@@ -2518,29 +2551,18 @@ function displaySuggestions(suggestions) {
     heading.textContent = parts[0] || 'Location';
     const detail = document.createElement('small');
     detail.className = 'text-muted';
-    detail.textContent = `${parts.slice(1).join(', ').trim()}${suggestion.match_level === 'locality' ? ' · Locality match; place your exact pin' : suggestion.match_level === 'area' ? ' · Nearby area; check the pin' : ' · Check the pin'}`;
+    detail.textContent = `${parts.slice(1).join(', ').trim()}${suggestion.match_level === 'locality' ? ' · Locality match; select to locate the pin' : suggestion.match_level === 'area' ? ' · Nearby area; check the pin' : ' · Check the pin'}`;
     copy.appendChild(heading);
     copy.appendChild(detail);
     row.appendChild(icon);
     row.appendChild(copy);
     item.appendChild(row);
 
-    item.addEventListener('click', () => {
-      clearTimeout(addressAutocompleteDebounceTimer);
-      ++addressSuggestionRequestToken;
-      addressSuggestionAbortController?.abort();
-      if (suggestion.match_level === 'locality') {
-        locationInput.value = suggestion.display_name; resetServiceLocationForTypedAddress(suggestion.display_name);
-        closeAddressSuggestions();
-        const b = window.NuevaEcijaCoverage.bounds; BookingState.map?.fitBounds([[b.south, b.west], [b.north, b.east]]);
-        guideToManualAddressPin(); return;
-      }
-      // The input is only the search query. The chosen result owns the map
-      // coordinates and address label; a short query (for example "3123")
-      // must not replace its full address in the booking.
-      const selected = applyAddressSearchResult(suggestion, locationInput.value, suggestion.match_level === 'area' ? 'Nearby Philippine address match' : 'Philippine address match');
-      closeAddressSuggestions();
-      if (selected) guideToSelectedAddressMap();
+    item.addEventListener('click', event => {
+      // Resolution replaces this row. Do not let its same click reach the
+      // outside-click handler and cancel the newly started map lookup.
+      event.stopPropagation();
+      void selectServiceAddressSuggestion(suggestion);
     });
     item.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
