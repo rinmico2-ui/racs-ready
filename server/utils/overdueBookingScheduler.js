@@ -354,7 +354,7 @@ async function checkForUpcomingUnverifiedBookings() {
 }
 
 function customerReminderSlot(booking, now = new Date()) {
-  if (!booking?.customerId || !['confirmed', 'scheduled', 'repair_scheduled'].includes(booking.status)) return null;
+  if (!booking?.customerId || booking.testDataExcludedAt || !['confirmed', 'scheduled', 'repair_scheduled', 'inspection_scheduled'].includes(booking.status)) return null;
   if (!Number.isFinite(parseAppointmentTime(booking.startTime))) return null;
   const start = parseBookingDateTime(booking.bookingDate, booking.startTime);
   if (!start) return null;
@@ -370,23 +370,33 @@ function customerReminderSlot(booking, now = new Date()) {
 
 /** Remind the customer about a confirmed service, once per schedule and window. */
 async function checkForCustomerServiceReminders(now = new Date()) {
-  const statuses = ['confirmed', 'scheduled', 'repair_scheduled'];
+  const statuses = ['confirmed', 'scheduled', 'repair_scheduled', 'inspection_scheduled'];
   const windowEnd = new Date(now.getTime() + 24 * 3600000);
   const candidates = await BookingService.find({
     status: { $in: statuses },
+    testDataExcludedAt: null,
     customerId: { $ne: null },
     bookingDate: { $gte: new Date(now.getTime() - 24 * 3600000), $lte: new Date(windowEnd.getTime() + 24 * 3600000) },
-  }).select('status bookingDate startTime customerId customer.email bookingReference serviceName service.name customerReminder24hFor customerReminder2hFor').lean();
+  }).select('status bookingDate startTime customerId customer.email assignmentId bookingReference serviceName service.name customerReminder24hFor customerReminder2hFor').lean();
   let sent = 0;
   for (const booking of candidates) {
     const slot = customerReminderSlot(booking, now);
     if (!slot) continue;
+    // Inspection assignment is scheduled before the technician accepts it.
+    if (booking.status === 'inspection_scheduled') {
+      if (!booking.assignmentId) continue;
+      const assignment = await Assignment.findOne({ _id: booking.assignmentId, bookingId: booking._id, status: 'accepted' }).select('_id').lean();
+      if (!assignment) continue;
+    }
     const { start, marker, soon } = slot;
     // Claim atomically across workers. A reschedule changes bookingDate/startTime,
     // so an old worker cannot claim a reminder for a new schedule.
     const claimed = await BookingService.findOneAndUpdate({
       _id: booking._id,
-      status: { $in: statuses },
+      status: booking.status,
+      customerId: booking.customerId,
+      testDataExcludedAt: null,
+      ...(booking.status === 'inspection_scheduled' ? { assignmentId: booking.assignmentId } : {}),
       bookingDate: booking.bookingDate,
       startTime: booking.startTime,
       [marker]: { $ne: start },
@@ -395,26 +405,30 @@ async function checkForCustomerServiceReminders(now = new Date()) {
     const { createNotification } = require('./notify');
     const serviceName = booking.serviceName || booking.service?.name || 'service';
     const when = start.toLocaleString('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' });
-    const notification = await createNotification({
+    let notification;
+    try { notification = await createNotification({
       type: 'booking_service_reminder',
       title: soon ? 'Service starts soon' : 'Upcoming service appointment',
       message: `Reminder: ${serviceName} (${booking.bookingReference || 'your booking'}) is scheduled for ${when}. Please check your booking details and be ready at the service address.`,
       userId: booking.customerId,
       referenceId: booking._id,
       referenceModel: 'BookingService',
-      link: '/tracking',
+      link: booking.bookingReference ? `/book-history?highlight=${encodeURIComponent(booking.bookingReference)}` : '/book-history',
       io: global.io,
-    });
+    }); } catch (error) { console.error('[service-reminder] Notification failed:', error.message); }
     if (notification) {
       sent++;
-      if (booking.customer?.email) {
+      const customer = await resolveCustomer(booking.customer, booking.customerId);
+      if (customer.email) {
         const { sendMail } = require('./mailer');
         await sendMail({
-          to: booking.customer.email,
+          to: customer.email,
           subject: soon ? 'Your service appointment starts soon' : 'Reminder: upcoming service appointment',
           text: `Your ${serviceName} appointment (${booking.bookingReference || 'booking'}) is scheduled for ${when}. Please be ready at the service address. View your booking in your customer account.`,
           source: 'service-reminder',
-        }).catch(error => console.error('[service-reminder] Email failed:', error));
+          validUntil: start.toISOString(),
+          bookingReminder: { bookingId: String(booking._id), bookingDate: new Date(booking.bookingDate).toISOString(), startTime: booking.startTime, marker, scheduledFor: start.toISOString() },
+        }).catch(error => console.error('[service-reminder] Email could not be queued:', error.message));
       }
     } else await BookingService.updateOne({ _id: booking._id, [marker]: start }, { $set: { [marker]: null } });
   }
