@@ -1088,6 +1088,33 @@
   let isExpanded = false;
   const mobileChatMedia = window.matchMedia('(max-width: 640px)');
   let viewportUpdateFrame = null;
+  const identificationGuides = new Set();
+  let identificationDraft = null;
+
+  // Booking owns the form values. AI provides guidance without approving or
+  // writing appliance details, prices, schedules, or staff requests.
+  function openUnitIdentification({ applianceKind } = {}) {
+    const kind = ['aircon', 'refrigerator', 'freezer'].includes(applianceKind) ? applianceKind : 'aircon';
+    if (!win.classList.contains('active')) toggleChat();
+    if (isStreaming) return;
+    const details = kind === 'aircon' ? 'brand, model, aircon type and HP' : 'brand, model and compressor HP, if printed';
+    if (!identificationGuides.has(kind)) {
+      messages.querySelector('.racbot-welcome')?.remove();
+      const guide = `**Help identify your ${kind}**\n\nLook for the brand and model label you can read safely, without opening electrical covers. Type the exact label text here, including any capacity shown.\n\nI can help you understand the text, but I cannot confirm missing HP, approve a price or book a schedule. If the label is missing or unclear, close this chat and choose **Ask staff to identify my unit**.\n\nWhen you have the details, close the chat and choose **Enter my unit details instead** on the booking form.`;
+      const timestamp = new Date().toISOString();
+      appendMessage('bot', guide, timestamp);
+      history.push({ role: 'bot', content: guide, timestamp }); saveHistory();
+      identificationGuides.add(kind);
+    }
+    // Preserve any question the customer has already started writing.
+    if (!input.value.trim() || input.value === identificationDraft) {
+      input.value = `Help me identify my ${kind}'s ${details}. I can type the exact text from the unit label.`;
+      identificationDraft = input.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    input.focus(); requestAnimationFrame(scrollBottom);
+  }
+  window.RACSChat = { openUnitIdentification };
 
   // ── Init ───────────────────────────────────────────────────────────────
   function init() {
@@ -1263,6 +1290,8 @@
   // ── New Chat ───────────────────────────────────────────────────────────
   function newChat() {
     history = [];
+    identificationGuides.clear();
+    identificationDraft = null;
     saveHistory();
     localStorage.removeItem(SID_KEY);
     messages.innerHTML = '';
