@@ -74,9 +74,10 @@ function recoveryLimits() {
   } });
 }
 
-async function writeResetBackup(artifact, directory = path.resolve(__dirname, "../../temp")) {
+async function writeResetBackup(artifact, directory = path.resolve(__dirname, "../../temp"), { namePrefix = "booking-order-reset" } = {}) {
+  if (!["booking-order-reset", "paid-payroll-reset"].includes(namePrefix)) throw Error("Unsupported recovery backup name prefix.");
   const root = privateDirectory(directory);
-  const file = path.join(root, `booking-order-reset-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.ejson.gz`);
+  const file = path.join(root, `${namePrefix}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.ejson.gz`);
   const temporary = file + ".part", sidecar = file + ".sha256";
   const owned = new Set();
   const { original, seed, ...metadata } = artifact;
