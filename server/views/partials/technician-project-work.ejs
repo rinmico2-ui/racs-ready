@@ -1255,11 +1255,12 @@
 
   window.__loadProjectWork = async function () {
     try {
-      try { const me = await (await fetch('/api/auth/verify')).json(); ME_ID = me.user?.technicianId || me.user?._id || null; } catch (_) {}
       const data = await api(API);
       if (data && data.me) ME_ID = data.me;
+      if (!ME_ID) { try { const me = await (await fetch('/api/auth/verify')).json(); ME_ID = me.user?.technicianId || me.user?._id || null; } catch (_) {} }
       const assignments = data.assignments || [];
       PW_ASSIGNMENTS = assignments;
+      window.__pwData = assignments;
       if (assignments.length === 0) {
         qs('#pwContainer').innerHTML = '<div class="pw-empty"><i class="bi bi-folder2-open"></i>You have no large-scale project assignments yet.</div>';
         pwUpdateCounts([]);
@@ -2271,13 +2272,16 @@
   };
 
   window.pwLeadMobilize = async (pid, stage) => {
+    const finishUpdate = window.TechnicianWorkUpdates?.beginMutation();
+    let updated = false;
     try {
       await api(`/api/projects/${pid}/mobilize/${stage}`, { method:'PUT' });
+      updated = true;
       if (stage === 'en-route') postLocation();
       const labels = { 'en-route':'Crew en route', 'arrived':'Crew arrived on site', 'start':'Work started for the crew' };
       toast(labels[stage] || 'Updated');
       document.getElementById(`pwActionError-${pid}`)?.remove();
-      window.__loadProjectWork();
+      if (!finishUpdate) await window.__loadProjectWork();
     } catch (e) {
       toast(e.message, 'error');
       const body = document.getElementById(`pwCard-${pid}`)?.querySelector('.pw-project-body');
@@ -2289,7 +2293,7 @@
       if (e.preparation) pwRenderProjectPreparation(pid, e.preparation);
       else pwRefreshProjectPreparation(pid);
       document.getElementById(`pwPreparation-${pid}`)?.scrollIntoView({ behavior:'smooth', block:'nearest' });
-    }
+    } finally { finishUpdate?.(updated); }
   };
 
   // ── No Show handler ──
@@ -3952,8 +3956,12 @@
   // ── Live updates from lead / team phase changes ──
   try {
     if (window.socket && typeof window.socket.on === 'function') {
-      window.socket.on('project:phase', function () { if (typeof window.__loadProjectWork === 'function') window.__loadProjectWork(); });
-      window.socket.on('project:team-status', function () { if (typeof window.__loadProjectWork === 'function') window.__loadProjectWork(); });
+      const refresh = function () {
+        if (window.TechnicianWorkUpdates) window.TechnicianWorkUpdates.request();
+        else window.__loadProjectWork();
+      };
+      window.socket.on('project:phase', refresh);
+      window.socket.on('project:team-status', refresh);
     }
   } catch (_) {}
 })();
@@ -3963,18 +3971,20 @@
 // Wrap load to (a) cache data for the drawer and (b) init live maps.
 (function () {
   const real = window.__loadProjectWork;
-  window.__loadProjectWork = async function () {
+  let pending;
+  window.__loadProjectWork = function () {
+    if (pending) return pending;
+    pending = refresh().finally(() => { pending = null; });
+    return pending;
+  };
+  async function refresh() {
     await real();
-    // Cache full payload for the details drawer.
-    try {
-      const data = await (await fetch('/api/technician/projects')).json();
-      window.__pwData = data.assignments || [];
-    } catch (_) {}
+    // The card loader and drawer use the same response snapshot.
     // Initialize any queued maps now that cards are in the DOM.
     window.pwInitMaps();
     // Load equipment for each project card.
     if (typeof window.pwInitEquipment === 'function') window.pwInitEquipment();
-  };
+  }
   // Re-init maps whenever the assignments page switches to projects mode.
   if (typeof window.__pwOnProjectMode === 'function') window.__pwOnProjectMode();
 })();
