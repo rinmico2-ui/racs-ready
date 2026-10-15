@@ -3,7 +3,7 @@ const axios = require('axios');
 const router = express.Router();
 const { positiveLimit } = require('../utils/boundedWindow');
 const { busyError } = require('../utils/workLimiter');
-const { provider, suggestionLimiter, handleSuggestions } = require('../utils/addressSuggestions');
+const { suggestionAvailability, suggestionLimiter, handleSuggestions } = require('../utils/addressSuggestions');
 
 /**
  * Backend proxy for the OpenStreetMap Nominatim API.
@@ -27,7 +27,8 @@ let queuedProviderRequests = 0;
 const MAX_PROVIDER_QUEUE = positiveLimit(process.env.GEOCODING_MAX_PENDING_REQUESTS, 8);
 const MAX_PROVIDER_WAIT_MS = positiveLimit(process.env.GEOCODING_MAX_QUEUE_WAIT_MS, 5000);
 router.get('/autocomplete/status', (_req, res) => {
-  res.json({ enabled:true,provider:provider() });
+  res.set('Cache-Control', 'no-store');
+  res.json(suggestionAvailability());
 });
 
 router.get('/autocomplete', suggestionLimiter, handleSuggestions);

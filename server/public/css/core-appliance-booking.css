@@ -49,11 +49,18 @@ html:has(#coreApplianceBuilder), body:has(#coreApplianceBuilder) { overflow-x: c
 .cab-form .cab-footer [data-cancel]:hover:not(:disabled) { background: #e4e9ee; border-color: #bcc9d3; }
 .cab-form .cab-primary:disabled { background: #e6ece8; border-color: #dce6df; color: #63766a; }
 .cab-form .cab-secondary:disabled { background: #f0f3f1; border-color: #dce6df; color: #738277; }
-/* While adding or editing, keep one action bar. The booking bar returns after saving. */
+/* Keep the booking count available while configuring another appliance. */
+.cab-form .cab-review { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 44px; font-size: .7rem; line-height: 1.4; text-align: left; white-space: normal; }
+.cab-form .cab-review:hover { background: #dff0e5; border-color: #a5cab5; }
+.cab-review-label { display: inline-flex; align-items: center; gap: 6px; color: #13734a; font-size: .68rem; }
+.cab-success .cab-review { align-items: center; }
+.cab-form .cab-footer .cab-review { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+/* During setup the counter shares the sticky form actions; after saving it uses the viewport bar. */
 body:has(#serviceSelection:not(.d-none) #core-tab.active):has(#coreApplianceBuilder [data-wizard]:not([hidden])) #mobileBookingBar { display: none; }
 @container (max-width: 690px) {
   .cab-form .cab-footer { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; }
   .cab-form .cab-footer > p { font-size: .72rem; }
+  .cab-form .cab-footer:has([data-booking-review]) [data-guidance] { display: none; }
   .cab-form .cab-footer .cab-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cab-form .cab-footer .cab-actions .cab-primary { grid-column: 1 / -1; }
   .cab-form .cab-footer .cab-actions > button { width: 100%; min-width: 0; }
@@ -63,6 +70,17 @@ body:has(#serviceSelection:not(.d-none) #core-tab.active):has(#coreApplianceBuil
   .cab-form :is(.cab-primary, .cab-secondary) { transition: none; }
 }
 .cab-stepper:has(input[aria-invalid="true"]){border-color:#b33041}
+.cab-unit-help { margin-bottom: 14px; padding: 14px; border: 1px solid #c9dfd1; border-radius: 10px; background: #f5faf7; }
+.cab-unit-help p, .cab-identification-note { font-size: .76rem; line-height: 1.5; color: var(--cab-muted); margin: 10px 0 0; }
+.cab-unknown { display: flex; align-items: center; gap: 8px; font-size: .8rem; margin-bottom: 12px; }
+.cab-unknown input { width: 18px; height: 18px; accent-color: var(--cab-green); }
+.cab-fields input:disabled { background: #f1f5f3; color: #65766e; }
+.cab-assistance { margin-top: 18px; padding: 16px; border: 1px solid #c9dfd1; border-radius: 10px; background: #f5faf7; }
+.cab-assistance h4 { font-size: 1rem; margin-bottom: 8px; }
+.cab-assistance label { display: block; margin-top: 16px; font-size: .8rem; }
+.cab-assistance :is(input, textarea) { display: block; width: 100%; min-width: 0; margin-top: 6px; padding: 10px; border: 1px solid #d2ded6; border-radius: 8px; background: #fff; }
+.cab-assistance small { display: block; font-size: .72rem; line-height: 1.5; margin-top: 6px; color: var(--cab-muted); }
+.cab-service:has([data-verification]) .cab-service-price { white-space: normal; max-width: 150px; font-size: .76rem; }
 .cab-relocation { margin-top: 18px; border: 1px solid #b9d7c7; border-radius: 12px; padding: 18px; background: #f7fcf9; }
 .cab-relocation h4 { font-size: 1rem; margin: 0 0 8px; color: #183e2d; }
 .cab-move-scopes { display: grid; gap: 10px; border: 0; padding: 0; margin: 16px 0; }

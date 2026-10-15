@@ -527,7 +527,8 @@
       var termsLabel = document.querySelector('.auth-terms');
       if (termsLabel) termsLabel.classList.add('auth-check-error');
       if (termsAccepted) termsAccepted.focus();
-      return window.authUtils.swalError('Agreement required', 'Please agree to the Terms and Conditions to create your account.');
+      showFieldError(termsAccepted, 'Please agree to the Terms and Conditions to create your account.');
+      return;
     }
 
     // Loading
@@ -555,9 +556,12 @@
           addressPostal: addressPostal,
           mathCaptcha: mathCaptcha,
           mathAnswer: mathAnswer,
+          mathChallenge: window.AuthSecurityQuestion ? window.AuthSecurityQuestion.token(form) : '',
         }),
       });
-      var body = await res.json().catch(function () { return {}; });
+      var body;
+      try { body = await res.json(); }
+      catch (_) { throw new Error(window.RACSRequest.statusMessage(res.status)); }
 
       if (res.ok && body.requiresVerification) {
         showRegistrationVerification(body.email || email, true);
@@ -574,17 +578,26 @@
           res.status === 429 ? 'Verification pending' : 'Email not sent',
           body.error || 'Use Resend code to try again.'
         );
+      } else if (body.fields && Object.keys(body.fields).length) {
+        var fieldIds = { firstName:'register-firstName', lastName:'register-lastName', email:'register-email', phone:'register-phone', password:'register-password', addressProvince:'register-addressProvince', addressCity:'register-addressCity', addressBarangay:'register-addressBarangay', addressPostal:'register-addressPostal', mathCaptcha:'register-math', mathAnswer:'register-math' };
+        var firstField;
+        Object.keys(body.fields).forEach(function (name) {
+          var input = document.getElementById(fieldIds[name]);
+          if (input) { showFieldError(input, body.fields[name]); if (!firstField) firstField = input; }
+        });
+        if (firstField) focusRegisterField(firstField);
       } else if (res.status === 409) {
         showFieldError(registerEmailField, body && body.error ? body.error : 'An account already uses this email.');
         focusRegisterField(registerEmailField);
       } else if (res.status === 429) {
-        window.authUtils.swalError('Too many attempts', 'Please wait a short while and try again.', { reload: true });
+        showFieldError(btn, (body && body.error ? body.error : 'Too many requests. Please wait before trying again.') + (body && body.retryAfter ? ' Retry in ' + body.retryAfter + ' seconds.' : ''));
       } else {
-        window.authUtils.swalError('Registration failed', body && body.error ? body.error : 'An error occurred.');
+        showFieldError(btn, res.status >= 500 ? window.RACSRequest.statusMessage(res.status) : body.error || 'Your account could not be created. Please try again.');
       }
     } catch (e) {
-      window.authUtils.swalError('Network error', 'Unable to reach the server. Please try again later.');
+      showFieldError(btn, e.message || 'Unable to reach the server. Please try again later.');
     } finally {
+      if (window.AuthSecurityQuestion) await window.AuthSecurityQuestion.refresh(form);
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = previousText;

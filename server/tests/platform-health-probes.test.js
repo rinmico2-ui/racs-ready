@@ -21,6 +21,8 @@ async function fixture(t, { readyState = 1, shuttingDown = false, appUrl = "http
   const connection = { readyState };
   vm.runInNewContext(middleware, {
     app, mongoose: { connection }, shuttingDown, URL,
+    createHttpAdmission: require("../middleware/httpAdmission").createHttpAdmission,
+    createAuthAdmission: require("../middleware/authAdmission").createAuthAdmission,
     process: { env: { NODE_ENV: "production", APP_URL: appUrl } },
   });
   app.get("/profile", (_req, res) => res.json({ protectedPage: true }));

@@ -8,6 +8,7 @@ const test = require("node:test");
 const read = relativePath => fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8");
 const view = read("views/pages/services.ejs");
 const script = read("public/js/services-multi.js");
+const coreBuilder = read("public/js/core-appliance-booking.js");
 const calendar = read("public/js/enterprise-calendar.js");
 const styles = read("public/css/services-mobile-ux.css");
 const psgcRoutes = read("routes/psgcRoutes.js");
@@ -27,7 +28,8 @@ test("hero gives first-time customers one obvious path into the booking form", (
 });
 
 test("service and repair questions use clear simple English", () => {
-  assert.match(view, /What service do you need\?/);
+  assert.match(coreBuilder, /Which appliance needs service\?/);
+  assert.match(coreBuilder, /Choose the services you need/);
   assert.match(view, /Which appliance needs repair\?/);
   assert.match(view, /What is wrong\?/);
   assert.match(view, /Do you have a photo\?/);
@@ -49,7 +51,7 @@ test("selected services behave like a responsive booking cart", () => {
 
 test("booking review opens on demand from responsive launchers", () => {
   assert.doesNotMatch(view, /id="selectedServicesGuide"/);
-  assert.match(view, /id="serviceListGuide"[\s\S]*?id="serviceListGuideText"/);
+  assert.match(view, /id="coreApplianceBuilder"/);
   assert.match(view, /id="serviceGuideReview"[\s\S]*?Check Your Booking[\s\S]*?id="serviceGuideReviewText"/);
   assert.match(view, /id="mobileBookingSummaryButton"[\s\S]*?Check Booking/);
   assert.match(script, /document\.body\.appendChild\(summary\)/);
@@ -72,19 +74,16 @@ test("service cards show a clear selected state and booking actions", () => {
   assert.match(styles, /\.service-card\.is-selected[\s\S]*?border:\s*2px solid #16a34a/);
 });
 
-test("step two shows four services per page without clearing selections", () => {
-  assert.match(script, /const CORE_SERVICES_PER_PAGE = 4/);
-  assert.match(script, /coreServices\.slice\(pageStart, pageStart \+ CORE_SERVICES_PER_PAGE\)/);
-  assert.match(script, /function changeCoreServicePage\(direction\)/);
-  assert.doesNotMatch(script, /function changeCoreServicePage[\s\S]*?BookingState\.selectedServices\s*=\s*\[\]/);
-  assert.match(view, /id="coreServicePrev"[\s\S]*?Previous/);
-  assert.match(view, /id="coreServiceNext"[\s\S]*?Next/);
-  assert.match(view, /id="coreServicePageLabel"[^>]*>Page 1 of 1/);
-  assert.match(view, /id="coreServicePrev"[\s\S]*?bi-chevron-left[\s\S]*?id="coreServicePageLabel"[\s\S]*?id="coreServiceNext"[\s\S]*?bi-chevron-right/);
-  assert.match(view, /class="service-list-jump"[\s\S]*?View Service List[\s\S]*?bi-arrow-down/);
-  assert.match(view, /class="service-list-jump-wrap"[\s\S]*?class="service-list-jump"/);
-  assert.match(styles, /\.service-list-jump-wrap\s*\{[^}]*justify-content:\s*center/);
-  assert.match(script, /function scrollToCoreServiceList\(\)/);
+test("core booking offers appliance details before services and supports adding another appliance", () => {
+  assert.match(view, /id="coreApplianceBuilder"/);
+  assert.match(view, /id="coreServiceCards" hidden/);
+  assert.match(coreBuilder, /aria-label="Appliance service steps"/);
+  assert.match(coreBuilder, /\['Appliance', 'Details', 'Services'\]/);
+  assert.match(coreBuilder, /name="brand" required/);
+  assert.match(coreBuilder, /name="quantity"[^>]*min="1"[^>]*max="40"/);
+  assert.match(coreBuilder, /Select one or more services for the same appliance/);
+  assert.match(coreBuilder, /data-new>Add another appliance/);
+  assert.doesNotMatch(coreBuilder, /selectedServices\s*=\s*\[\]/);
 });
 
 test("service cards keep one primary choice while repair appliances paginate", () => {
@@ -97,8 +96,9 @@ test("service cards keep one primary choice while repair appliances paginate", (
 });
 
 test("step two guides customers through selection and repair one field at a time", () => {
-  assert.match(view, /class="service-picker-guide"[\s\S]*?Choose a Service[\s\S]*?Add[\s\S]*?Check Your Booking/);
-  assert.match(view, /id="serviceGuideChoose"[\s\S]*?Choose a Service[\s\S]*?See the list below[\s\S]*?bi-arrow-down/);
+  assert.match(coreBuilder, /data-panel="1"[\s\S]*?data-panel="2"[\s\S]*?data-panel="3"/);
+  assert.match(coreBuilder, /data-next>Next: appliance details/);
+  assert.match(coreBuilder, /data-submit[^>]*hidden>Add to booking/);
   assert.match(view, /id="repairGuide"[\s\S]*?Appliance[\s\S]*?Type[\s\S]*?Details[\s\S]*?Problem[\s\S]*?Photo/);
   assert.match(script, /function getRepairGuideStep\(\)/);
   assert.match(script, /function goToRepairGuideStep\(requestedStep, options = \{\}\)/);

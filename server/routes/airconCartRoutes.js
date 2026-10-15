@@ -3,6 +3,30 @@ const router = express.Router();
 const AirconCart = require("../models/AirconCart");
 const Inventory = require("../models/Inventory");
 const auth = require("../middleware/authenticate");
+const mongoose = require('mongoose');
+const { availability } = require('../public/js/product-availability');
+
+async function findPurchasableProduct(inventoryId) {
+  if (typeof inventoryId !== 'string' || !mongoose.isObjectIdOrHexString(inventoryId)) {
+    throw Object.assign(new Error('Select a valid HP configuration and try again.'), { status: 400, code: 'INVALID_PRODUCT' });
+  }
+  const identifier = inventoryId.toLowerCase();
+  let item = await Inventory.findById(identifier);
+  let parent;
+  if (!item) {
+    parent = await require('../models/HVACProduct').findOne({ 'variants._id': identifier }).lean();
+    item = parent && parent.variants.find(v => String(v._id) === identifier);
+  }
+  if (!item) throw Object.assign(new Error('This HP configuration no longer exists. Refresh the product page.'), { status: 404, code: 'PRODUCT_NOT_FOUND' });
+  return { item, availability: availability(item, parent) };
+}
+
+function cartError(res, error, fallback) {
+  if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
+  if (error.code === 11000 || error.name === 'VersionError') return res.status(409).json({ error: 'Your cart changed in another request. Refresh your cart before trying again.', code: 'CART_CHANGED' });
+  console.error('[aircon-cart]', error.name, error.code || '');
+  return res.status(503).json({ error: fallback, code: 'CART_UNAVAILABLE' });
+}
 
 // ── Auth Guard ─────────────────────────────────────────────────────────────
 router.use(auth.authenticate);
@@ -29,6 +53,7 @@ router.get("/", async (req, res) => {
         let inv = await Inventory.findById(id).lean();
         if (inv) {
           if (inv.brand) inv.brand = await Brand.findById(inv.brand).select("name").lean();
+          inv.status = availability(inv).status;
           item.inventoryId = inv;
         } else {
           const hvacDoc = await HVACProduct.findOne({ "variants._id": id }).populate("brand", "name").lean();
@@ -42,7 +67,8 @@ router.get("/", async (req, res) => {
               capacityUnit: variant.capacityUnit,
               sellingPrice: variant.sellingPrice,
               quantity: variant.quantity,
-              status: variant.status,
+              status: availability(variant, hvacDoc).status,
+              active: availability(variant, hvacDoc).available,
               imageUrl: hvacDoc.imageUrl,
               inverter: hvacDoc.inverter,
               productId: hvacDoc._id
@@ -80,21 +106,12 @@ router.post("/add", async (req, res) => {
     const { inventoryId, quantity = 1 } = req.body;
     if (!inventoryId) return res.status(400).json({ error: "inventoryId is required" });
     const quantityChange = Number(quantity);
-    if (!Number.isInteger(quantityChange) || quantityChange === 0) {
+    if (!['number', 'string'].includes(typeof quantity) || !Number.isSafeInteger(quantityChange) || quantityChange === 0) {
       return res.status(400).json({ error: "Quantity change must be a non-zero whole number" });
     }
 
-    // Validate inventory exists
-    const HVACProduct = require("../models/HVACProduct");
-    let item = await Inventory.findById(inventoryId);
-    if (!item) {
-      const hvacDoc = await HVACProduct.findOne({ active: { $ne: false }, "variants._id": inventoryId }).lean();
-      if (hvacDoc) {
-        item = hvacDoc.variants.find(v => v._id.toString() === inventoryId.toString());
-      }
-    }
-    if (!item) return res.status(404).json({ error: "Product not found" });
-    const availableStock = Number(item.quantity) || 0;
+    const product = await findPurchasableProduct(inventoryId);
+    const availableStock = product.availability.stock;
 
     let cart = await AirconCart.findOne({ userId: req.user._id });
 
@@ -103,19 +120,18 @@ router.post("/add", async (req, res) => {
     }
 
     const existingItemIdx = cart.items.findIndex(
-      (it) => it.inventoryId.toString() === inventoryId
+      (it) => it.inventoryId.toString() === inventoryId.toLowerCase()
     );
     const currentQuantity = existingItemIdx > -1 ? Number(cart.items[existingItemIdx].quantity) || 0 : 0;
     const nextQuantity = currentQuantity + quantityChange;
     if (nextQuantity < 1) {
       return res.status(400).json({ error: "Quantity cannot be less than one. Remove the item instead." });
     }
-    const unavailable = availableStock < 1 || item.active === false || ["out_of_stock", "discontinued", "coming_soon"].includes(item.status);
-    if (quantityChange > 0 && unavailable) {
-      return res.status(409).json({ error: "This product is not currently available" });
+    if (quantityChange > 0 && !product.availability.available) {
+      return res.status(409).json({ error: product.availability.message, code: 'PRODUCT_UNAVAILABLE' });
     }
     if (quantityChange > 0 && nextQuantity > availableStock) {
-      return res.status(409).json({ error: `Only ${availableStock} unit${availableStock === 1 ? " is" : "s are"} currently available` });
+      return res.status(409).json({ error: `Only ${availableStock} unit${availableStock === 1 ? ' is' : 's are'} available. You already have ${currentQuantity} in your cart; you can add ${Math.max(0, availableStock - currentQuantity)} more.`, code: 'STOCK_LIMIT', availableStock, currentQuantity });
     }
 
     if (existingItemIdx > -1) {
@@ -127,7 +143,7 @@ router.post("/add", async (req, res) => {
     await cart.save();
     res.json({ message: "Item added to cart", cart });
   } catch (err) {
-    res.status(500).json({ error: "Failed to update cart" });
+    cartError(res, err, 'The cart service is temporarily unavailable. Please try again shortly.');
   }
 });
 
@@ -145,7 +161,7 @@ router.delete("/:itemId", async (req, res) => {
 
     res.json({ message: "Item removed from cart", cart });
   } catch (err) {
-    res.status(500).json({ error: "Failed to remove cart item" });
+    cartError(res, err, 'The item could not be removed. Refresh your cart and try again.');
   }
 });
 
@@ -157,7 +173,7 @@ router.post("/clear", async (req, res) => {
   try {
     await AirconCart.findOneAndUpdate(
       { userId: req.user._id },
-      { $set: { items: [] } }
+      { $set: { items: [] }, $inc: { __v: 1 } }
     );
     res.json({ message: "Cart cleared" });
   } catch (err) {
@@ -175,24 +191,14 @@ router.post("/buy-now", async (req, res) => {
     const { inventoryId, quantity = 1 } = req.body;
     if (!inventoryId) return res.status(400).json({ error: "inventoryId is required" });
     const requestedQuantity = Number(quantity);
-    if (!Number.isInteger(requestedQuantity) || requestedQuantity < 1) {
+    if (!['number', 'string'].includes(typeof quantity) || !Number.isSafeInteger(requestedQuantity) || requestedQuantity < 1) {
       return res.status(400).json({ error: "Quantity must be a positive whole number" });
     }
 
-    // Validate inventory exists
-    const HVACProduct = require("../models/HVACProduct");
-    let item = await Inventory.findById(inventoryId);
-    if (!item) {
-      const hvacDoc = await HVACProduct.findOne({ active: { $ne: false }, "variants._id": inventoryId }).lean();
-      if (hvacDoc) {
-        item = hvacDoc.variants.find(v => v._id.toString() === inventoryId.toString());
-      }
-    }
-    if (!item) return res.status(404).json({ error: "Product not found" });
-    const availableStock = Number(item.quantity) || 0;
-    if (availableStock < requestedQuantity || item.active === false || ["out_of_stock", "discontinued", "coming_soon"].includes(item.status)) {
-      return res.status(409).json({ error: availableStock > 0 ? `Only ${availableStock} unit${availableStock === 1 ? " is" : "s are"} currently available` : "This product is not currently available" });
-    }
+    const product = await findPurchasableProduct(inventoryId);
+    const availableStock = product.availability.stock;
+    if (!product.availability.available) return res.status(409).json({ error: product.availability.message, code: 'PRODUCT_UNAVAILABLE' });
+    if (requestedQuantity > availableStock) return res.status(409).json({ error: `Only ${availableStock} units are available. Reduce the quantity or select another HP option.`, code: 'STOCK_LIMIT', availableStock });
 
     let cart = await AirconCart.findOne({ userId: req.user._id });
     if (!cart) {
@@ -205,7 +211,7 @@ router.post("/buy-now", async (req, res) => {
 
     res.json({ message: "Order ready for checkout", redirect: "/aircon-cart?checkout=now" });
   } catch (err) {
-    res.status(500).json({ error: "Failed to prepare checkout" });
+    cartError(res, err, 'Checkout is temporarily unavailable. Please try again shortly.');
   }
 });
 

@@ -37,6 +37,8 @@ test("large booking conversion sets a real status instead of undefined", async (
     require: name => {
       if (name === "../models/BookingStatus") return { BookingStatus };
       if (name === "../models/User") return { findById: async () => null };
+      if (name === "../utils/repairUnitWorkflow") return require(name);
+      if (name === "../utils/projectPaymentReview") return require(name);
       if (name === "../models/Project") return {
         findOne: async () => null,
         create: async value => { created = value; },

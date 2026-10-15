@@ -72,5 +72,5 @@ test("aircon order pickup workspace initializes without the Bootstrap modal bund
   assert.doesNotMatch(orderScript, /new bootstrap\.Modal/);
   assert.match(orderScript, /button\.addEventListener\("click", \(\) => setFulfillmentScope\(button\.dataset\.orderScope\)\)/);
   assert.match(orderScript, /case "pickup":\s+loadPickupTab\(\)/);
-  assert.match(template, /admin-aircon-orders\.js\?v=20261010-resolution-record-link/);
+  assert.match(template, /src="\/js\/admin-aircon-orders\.js\?v=[^"\s]+"/);
 });

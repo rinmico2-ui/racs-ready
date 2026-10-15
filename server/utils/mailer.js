@@ -30,6 +30,10 @@ function maskEmail(value) {
   return `${email.slice(0, 2)}${"*".repeat(Math.min(6, at - 2))}${email.slice(at)}`;
 }
 
+function maskRecipients(to) {
+  return (Array.isArray(to) ? to : [to]).flatMap(value => typeof value === "string" ? value.split(",") : [value?.email]).map(maskEmail).join(", ");
+}
+
 function buildMailerStatus(env = process.env) {
   const selection = resolveMailProvider(env);
   const senderEmail = String(env.FROM_EMAIL || "").trim();
@@ -50,6 +54,8 @@ function buildMailerStatus(env = process.env) {
     environment: selection.isRender ? "Render" : selection.isRailway ? "Railway" : selection.isProduction ? "Production" : "Local development",
     configured: issues.length === 0,
     issues,
+    warnings: selection.provider === "brevo" && /@(gmail|yahoo|outlook|hotmail)\./i.test(senderEmail)
+      ? ["This sender uses a public email domain. Use an address on a domain you control and authenticate that domain in Brevo to improve delivery."] : [],
     sender: { name: senderName, email: senderEmail },
     smtp: {
       host: String(env.SMTP_HOST || ""),
@@ -124,7 +130,7 @@ async function recordDeliveryAttempt({ to, subject, status, messageId = "", erro
 }
 
 async function deliverMailNow({ to, subject, html, text, source = "application" }) {
-  console.log("[MAILER] Sending email to:", to, "subject:", subject);
+  console.log("[MAILER] Sending email to:", maskRecipients(to), "source:", source);
   try {
     let result;
     if (MAIL_PROVIDER === "brevo") {
@@ -180,7 +186,7 @@ function sendViaBrevo({ to, subject, html, text }) {
     ...(html ? { htmlContent: html } : { textContent: text || "" }),
   });
 
-  console.log("[MAILER] (Brevo) Sending from:", FROM_EMAIL, "to:", to);
+  console.log("[MAILER] (Brevo) Sending from:", maskEmail(FROM_EMAIL), "to:", maskRecipients(to));
 
   return new Promise((resolve, reject) => {
     const url = new URL(BREVO_API_URL);
@@ -210,7 +216,6 @@ function sendViaBrevo({ to, subject, html, text }) {
           const messageId = parsed.messageId || `brevo-${res.statusCode}`;
 
           console.log("[MAILER] (Brevo) HTTP status:", res.statusCode);
-          console.log("[MAILER] (Brevo) Response:", parsed);
           console.log("[MAILER] (Brevo) Email accepted:", messageId);
 
           resolve({ messageId, provider: "brevo" });
@@ -1556,6 +1561,7 @@ async function sendRescheduleNotificationEmail({
 }
 
 module.exports = {
+  maskEmail,
   sendMail,
   deliverMailNow,
   buildMailerStatus,

@@ -1,11 +1,12 @@
 <link rel="stylesheet" href="/css/unit-assistance-staff.css?v=20261006-success-v2">
+<script src="/js/appliance-services.js?v=20261014-unit-help-v2"></script>
 
 <div class="ua-page" data-appointments-url="<%= user?.role === 'secretary' ? '/secretary/appointments' : '/admin/appointments' %>">
   <header class="ua-header">
     <div>
       <p class="ua-eyebrow">Customer service operations</p>
       <h1>Unit identification</h1>
-      <p class="ua-subtitle">Verify the aircon details, send a catalog price, and track what happens next.</p>
+      <p class="ua-subtitle">Verify the appliance details, send a catalog price, and track what happens next.</p>
     </div>
     <div class="ua-header-actions">
       <button class="ua-button ua-button-light" id="unitStaffRefresh" type="button"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh queue</button>
@@ -49,4 +50,4 @@
     <section class="ua-detail" id="unitStaffDetail" aria-labelledby="uaDetailTitle"><div class="ua-empty ua-empty-detail"><i class="bi bi-card-checklist" aria-hidden="true"></i><h2 id="uaDetailTitle">Select a request</h2><p>Customer details, verification, and the next action appear here.</p></div></section>
   </div>
 </div>
-<script src="/js/unit-assistance-staff.js?v=20261007-relocation" defer></script>
+<script src="/js/unit-assistance-staff.js?v=20261014-unit-help-v2" defer></script>

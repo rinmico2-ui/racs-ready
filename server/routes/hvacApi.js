@@ -92,13 +92,14 @@ async function handleBrand(brandValue) {
   // If it's a string, find or create the brand
   if (typeof brandValue === 'string') {
     const brandName = brandValue.trim();
-    let brand = await Brand.findOne({ name: brandName });
-    
-    if (!brand) {
-      brand = new Brand({ name: brandName });
-      await brand.save();
+    let brand;
+    try {
+      brand = await Brand.findOneAndUpdate({ name: brandName }, { $setOnInsert: { name: brandName, active: true } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      brand = await Brand.findOne({ name: brandName });
+      if (!brand) throw error;
     }
-    
     return brand._id;
   }
   
@@ -119,13 +120,14 @@ async function handleCategory(categoryValue) {
   // If it's a string, find or create the category
   if (typeof categoryValue === 'string') {
     const categoryName = categoryValue.trim();
-    let category = await Category.findOne({ name: categoryName });
-    
-    if (!category) {
-      category = new Category({ name: categoryName });
-      await category.save();
+    let category;
+    try {
+      category = await Category.findOneAndUpdate({ name: categoryName }, { $setOnInsert: { name: categoryName, active: true } }, { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      category = await Category.findOne({ name: categoryName });
+      if (!category) throw error;
     }
-    
     return category._id;
   }
   
@@ -257,6 +259,80 @@ router.get("/hvac", async (req, res, next) => {
  * GET /api/admin/hvac/:id
  * Get a single HVAC product by ID
  */
+const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024, files: 1, fields: 2 } }).single('csv');
+function csvFile(req, res, next) {
+  csvUpload(req, res, error => {
+    if (error) return res.status(400).json({ error: 'Choose one CSV file up to 1 MB.' });
+    if (!req.file || !/\.csv$/i.test(req.file.originalname)) return res.status(400).json({ error: 'Choose a CSV file using the inventory template.' });
+    next();
+  });
+}
+async function reviewInventoryImport(buffer) {
+  const plan = await require('../utils/inventoryCsv').parseInventoryCsv(buffer);
+  const brands = new Map(), categories = new Map();
+  function lookup(model, cache, value) {
+    const key = value.toLowerCase();
+    if (!cache.has(key)) {
+      const query = mongoose.isObjectIdOrHexString(value) ? model.findById(value).lean() : model.findOne({ name: { $regex: '^' + escapeRegex(value) + '$', $options: 'i' } }).lean();
+      // Share the result promise: awaiting a Mongoose Query twice executes it twice.
+      cache.set(key, Promise.resolve(query));
+    }
+    return cache.get(key);
+  }
+  await require('../utils/bulkPayrollPolicy').mapLimited(plan.products, async product => {
+    try {
+      const [brand, category] = await Promise.all([lookup(Brand, brands, product.brand), lookup(Category, categories, product.category)]);
+      if (mongoose.isObjectIdOrHexString(product.brand) && !brand) throw new Error('Brand not found. Use a valid brand name.');
+      if (mongoose.isObjectIdOrHexString(product.category) && !category) throw new Error('Category not found. Use a valid category name.');
+      if (brand?.active === false || category?.active === false) throw new Error('Choose an active brand and category.');
+      if (brand) product.brand = brand.name;
+      if (category) product.category = category.name;
+      if (brand && await HVACProduct.exists({ brand: brand._id, modelLine: { $regex: '^' + escapeRegex(product.modelLine) + '$', $options: 'i' } })) throw new Error('This model and brand already exist. Edit the existing product to adjust stock.');
+      product.variants = product.variants.map(normalizeHvacPrices);
+      const document = new HVACProduct({ ...product, brand: brand?._id || new mongoose.Types.ObjectId(), category: category?._id || new mongoose.Types.ObjectId(), variants: product.variants.map(v => ({ ...v, status: v.quantity > 0 ? 'in_stock' : 'out_of_stock' })) });
+      await document.validate();
+      await assertSerialNumbersAvailable(product.variants);
+      const identifiers = product.variants.flatMap(v => [v.sku ? { 'variants.sku': v.sku } : null, v.barcode ? { 'variants.barcode': v.barcode } : null].filter(Boolean));
+      if (identifiers.length && await HVACProduct.exists({ $or: identifiers })) throw new Error('A SKU or barcode in this product is already assigned to another product.');
+    } catch (error) { plan.errors.push({ row: product.rows[0], error: error.message }); }
+  });
+  plan.errors.sort((a, b) => a.row - b.row);
+  return plan;
+}
+router.get('/hvac/import/template', (req, res) => {
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', 'attachment; filename="aircon-import-template.csv"');
+  res.send(require('../utils/inventoryCsv').csvTemplate());
+});
+router.post('/hvac/import/preview', csvFile, async (req, res) => {
+  try {
+    const plan = await reviewInventoryImport(req.file.buffer);
+    const previewToken = plan.errors.length ? null : require('jsonwebtoken').sign({ purpose: 'inventory-import', actor: String(req.user._id), hash: plan.hash }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    res.json({ previewToken, rowCount: plan.rowCount, products: plan.products.map(p => ({ modelLine: p.modelLine, brand: p.brand, category: p.category, variants: p.variants.length })), errors: plan.errors });
+  } catch (error) { res.status(error.status || 503).json({ error: error.status === 400 ? error.message : 'The inventory file could not be checked. Please try again.' }); }
+});
+router.post('/hvac/import/commit', csvFile, async (req, res) => {
+  try {
+    let certificate;
+    try { certificate = require('jsonwebtoken').verify(req.body.previewToken, process.env.JWT_SECRET); }
+    catch (_) { return res.status(409).json({ error: 'Review the CSV again before importing. The preview has expired.' }); }
+    const hash = require('crypto').createHash('sha256').update(req.file.buffer).digest('hex');
+    if (certificate.purpose !== 'inventory-import' || certificate.actor !== String(req.user._id) || certificate.hash !== hash) return res.status(409).json({ error: 'The file changed after review. Review it again before importing.' });
+    await require('../utils/operationLock').withOperationLock('inventory-csv-import', async () => {
+      const plan = await reviewInventoryImport(req.file.buffer);
+      if (plan.errors.length) return res.status(409).json({ error: 'Inventory changed after review. Correct the file and review it again.', errors: plan.errors });
+      const results = await require('../utils/bulkPayrollPolicy').mapLimited(plan.products, async product => {
+        const response = { code: 200, status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
+        await createHVACProduct({ body: product, user: req.user, file: null }, response, { populateResponse: false });
+        return { modelLine: product.modelLine, variants: product.variants.length, productId: response.body?.product?._id, success: response.code < 400, error: response.body?.error, message: response.code < 400 ? 'Imported' : undefined };
+      });
+      const created = results.filter(r => r.success).length;
+      await audit.logEvent({ actor: req.user._id, action: 'inventory.csv_imported', module: 'inventory', req, details: { created, failed: results.length - created, rows: plan.rowCount } });
+      res.json({ results, created, failed: results.length - created });
+    }, { leaseMs: 180000, waitMs: 1000 });
+  } catch (error) { res.status(error.status || 503).json({ error: error.code === 'OPERATION_LOCK_TIMEOUT' ? 'Another inventory import is in progress. Try again shortly.' : 'The import could not finish. Refresh inventory to check which products were created before retrying.' }); }
+});
+
 router.get("/hvac/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -284,7 +360,7 @@ router.get("/hvac/:id", async (req, res, next) => {
  * POST /api/admin/hvac
  * Create a new HVAC product
  */
-router.post("/hvac", productImageUpload, async (req, res, next) => {
+async function createHVACProduct(req, res, { populateResponse = true } = {}) {
   let uploadedImage = null;
   try {
     let {
@@ -381,8 +457,10 @@ router.post("/hvac", productImageUpload, async (req, res, next) => {
     await product.save();
     
     // Populate for response
-    await product.populate('brand', 'name');
-    await product.populate('category', 'name');
+    if (populateResponse) {
+      await product.populate('brand', 'name');
+      await product.populate('category', 'name');
+    }
 
     return res.status(201).json({
       message: "HVAC product created successfully",
@@ -395,7 +473,9 @@ router.post("/hvac", productImageUpload, async (req, res, next) => {
     console.error("createHVACProduct 500:", err);
     return sendInventoryError(res, err);
   }
-});
+}
+
+router.post("/hvac", productImageUpload, (req, res) => createHVACProduct(req, res));
 
 /**
  * PATCH /api/admin/hvac/:id

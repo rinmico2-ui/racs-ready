@@ -22,7 +22,7 @@ const stockRecord = overrides => ({
   _id: toolId, itemName: "Copper pipe", type: "part", inventoryClass: "merchandise",
   active: true, quantity: 5, reservedQuantity: 1, minStockLevel: 3,
   sellingPrice: 100, costPrice: 60, barcode: "POS-REGRESSION", serialNumber: "POS-SERIAL",
-  createdAt: {}, ...overrides,
+  createdAt: {}, updatedAt: {}, ...overrides,
 });
 
 function fixture(t, { role = "admin", stock = {}, failSale = false } = {}) {
@@ -89,6 +89,8 @@ test("admin and secretary checkout repairs legacy dates and commits stock with t
     assert.equal(res.body.success, true);
     assert.deepEqual(state.stock.createdAt, toolId.getTimestamp());
     assert.equal(state.writes[0].$set.createdAt instanceof Date, true);
+    assert.equal(state.stock.updatedAt instanceof Date, true);
+    assert.equal(Number.isFinite(state.stock.updatedAt.getTime()), true);
     assert.equal(state.stock.quantity, 3);
     assert.equal(state.stock.reservedQuantity, 1);
     assert.equal(state.stock.status, "low_stock");
@@ -119,6 +121,7 @@ test("failed receipt writes roll back both stock and legacy timestamp repairs", 
   assert.equal(res.body.error, "Sale write failed");
   assert.equal(state.stock.quantity, 5);
   assert.deepEqual(state.stock.createdAt, {});
+  assert.deepEqual(state.stock.updatedAt, {});
   assert.equal(state.sale, null);
   assert.equal(state.commits, 0);
   assert.equal(state.aborts, 1);
@@ -147,6 +150,7 @@ test("voiding a receipt repairs legacy dates while restoring stock for either st
     await handler("/checkout")(req, checkout);
     assert.equal(checkout.statusCode, 200, checkout.body?.error);
     state.stock.createdAt = {};
+    state.stock.updatedAt = {};
     req.params = { id: String(state.sale._id) };
     req.body = { reason: "Customer cancelled" };
     const res = response();
@@ -154,6 +158,7 @@ test("voiding a receipt repairs legacy dates while restoring stock for either st
     assert.equal(res.statusCode, 200, res.body?.error);
     assert.equal(state.stock.quantity, 5);
     assert.deepEqual(state.stock.createdAt, toolId.getTimestamp());
+    assert.equal(state.stock.updatedAt instanceof Date, true);
     assert.equal(state.stock.status, "in_stock");
     assert.equal(state.sale.status, "voided");
     assert.equal(state.commits, 2);
@@ -162,8 +167,23 @@ test("voiding a receipt repairs legacy dates while restoring stock for either st
 });
 
 test("legacy date recovery does not bypass new-record or quantity validation", async () => {
-  await assert.rejects(new Tool(stockRecord()).validate(), error => Boolean(error.errors.createdAt));
+  await assert.rejects(new Tool(stockRecord()).validate(), error => Boolean(error.errors.createdAt && error.errors.updatedAt));
   const existing = Tool.hydrate(stockRecord());
   existing.quantity = -1;
   await assert.rejects(existing.validate(), error => Boolean(error.errors.quantity));
+});
+
+test("validation preserves valid timestamps and repairs each malformed legacy timestamp independently", async () => {
+  const createdAt = new Date("2020-01-02T03:04:05Z"), updatedAt = new Date("2025-06-07T08:09:10Z");
+  const valid = Tool.hydrate(stockRecord({ createdAt, updatedAt }));
+  await valid.validate();
+  assert.deepEqual(valid.createdAt, createdAt); assert.deepEqual(valid.updatedAt, updatedAt);
+  assert.equal(valid.isModified('createdAt'), false); assert.equal(valid.isModified('updatedAt'), false);
+  for (const fields of [{ createdAt:{}, updatedAt }, { createdAt, updatedAt:{} }, { createdAt:{}, updatedAt:{} }]) {
+    const before = Date.now(), legacy = Tool.hydrate(stockRecord(fields));
+    await legacy.validate();
+    assert.deepEqual(legacy.createdAt, fields.createdAt instanceof Date ? createdAt : toolId.getTimestamp());
+    if (fields.updatedAt instanceof Date) assert.deepEqual(legacy.updatedAt, updatedAt);
+    else assert.ok(legacy.updatedAt instanceof Date && legacy.updatedAt.getTime() >= before && legacy.updatedAt.getTime() <= Date.now());
+  }
 });

@@ -1,4 +1,12 @@
 /* Calm, task-focused checkout shell shared by the cart and product pages. */
+#checkoutOrderModal .order-project-window { padding: 20px; border: 1px solid #bfdbfe; border-radius: 14px; background: #f8fbff; margin-block: 20px; }
+#checkoutOrderModal .order-project-window p { font-size: .82rem; line-height: 1.65; color: #475569; }
+#checkoutOrderModal .order-project-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+#checkoutOrderModal .order-project-dates label { min-width: 0; font-size: .78rem; font-weight: 600; color: #334155; }
+#checkoutOrderModal .order-project-dates input { min-height: 44px; min-width: 0; width: 100%; margin-top: 8px; }
+#checkoutOrderModal #orderProjectWindowStatus { margin-top: 16px; }
+#checkoutOrderModal .order-project-window small { display: block; margin-top: 12px; font-size: .72rem; color: #64748b; line-height: 1.6; }
+@media (max-width: 575.98px) { #checkoutOrderModal .order-project-dates { grid-template-columns: 1fr; } #checkoutOrderModal .order-project-window { padding: 16px; } }
 #checkoutOrderModal .modal-dialog {
   width: min(900px, calc(100vw - 2rem));
   max-width: 900px;

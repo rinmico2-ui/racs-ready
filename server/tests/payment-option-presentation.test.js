@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require('node:vm');
 
 const root = path.join(__dirname, "..");
 const read = relative => fs.readFileSync(path.join(root, relative), "utf8");
@@ -149,15 +150,31 @@ test("customer full-payment and downpayment checkout do not offer card", () => {
   assert.match(bookingRoutes, /MANUAL_PAYMENT_CHANNELS\.includes\(normalizedPaymentChannel\)/);
 });
 
-test("aircon order totals include products and transportation but exclude installation", () => {
-  assert.match(orderModel, /this\.total = Math\.max\(0, this\.subtotal - \(this\.discount \|\| 0\)\)[\s\S]*?this\.transportationFee/);
-  assert.doesNotMatch(orderModel, /this\.total =[\s\S]{0,180}?this\.installationFee/);
+test("aircon order totals include products and transportation but exclude installation", async () => {
+  let save;
+  const begin = orderModel.indexOf('orderSchema.pre("save",');
+  const end = orderModel.indexOf('//', orderModel.indexOf('\n});', begin) + 5);
+  vm.runInNewContext(orderModel.slice(begin, end), { orderSchema:{ pre(_event, hook) { save = hook; } } });
+  for (const discount of [0, 100, 2000]) {
+    const order = { orderReference:'TEST-EXISTING',status:'pending_payment',statusHistory:[],
+      items:[{totalPrice:1000.25},{totalPrice:500.50}], discount, transportationFee:250.25, installationFee:9999 };
+    await save.call(order);
+    assert.equal(order.subtotal, 1500.75);
+    assert.equal(order.total, Math.max(0, 1500.75 - discount) + 250.25);
+  }
   assert.match(orderRoutes, /const calculatedOrderTotal = enrichedItems\.reduce\([\s\S]*?\+ orderData\.transportationFee/);
   assert.doesNotMatch(orderRoutes, /const calculatedOrderTotal =[\s\S]{0,180}?orderData\.installationFee/);
   assert.match(orderRoutes, /function withPayableOrderPricing\(order\)/);
   assert.match(orderRoutes, /orders = result\[0\]\.map\(\(order\) => withOrderPresentation\(order\)\)/);
   assert.match(orderRoutes, /res\.json\(\{ order: withOrderPresentation\(order\) \}\)/);
   assert.match(posRoutes, /const total = subtotal - discount \+ transportationFee;/);
-  assert.match(cartWizard, /const grandTotal = itemTotal \+ \(selectedFulfillment !== 'customer_pickup' \? _transportFee : 0\)/);
-  assert.match(productWizard, /const total = subtotal \+ \(selectedFulfillment !== 'customer_pickup' \? _transportFee : 0\)/);
+  const cartExpression = cartWizard.match(/const grandTotal = ([^;]+);/)[1];
+  const directExpression = productWizard.match(/let total = (Math\.round\(\(subtotal - directRewardDiscount\(\)[^;]+);/)[1];
+  for (const selectedFulfillment of ['customer_pickup','delivery_installation']) {
+    const context = { itemTotal:1500.75,subtotal:1500.75,selectedFulfillment,_transportFee:250.25,
+      orderRewardDiscount:()=>100,directRewardDiscount:()=>100 };
+    const expected = selectedFulfillment === 'customer_pickup' ? 1400.75 : 1651;
+    assert.equal(vm.runInNewContext(cartExpression, context), expected);
+    assert.equal(vm.runInNewContext(directExpression, context), expected);
+  }
 });

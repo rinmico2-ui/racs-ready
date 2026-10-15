@@ -1632,8 +1632,8 @@
 <script src="/js/enterprise-calendar.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/customer-workflow-refresh.js?v=20261011-workflow"></script>
-<script id="customerTrackInitialBookings" type="application/json"><%- JSON.stringify(initialBookings || []) %></script>
-<script id="customerTrackInitialBooking" type="application/json"><%- JSON.stringify(initialBooking || null) %></script>
+<script id="customerTrackInitialBookings" type="application/json"><%- (JSON.stringify(initialBookings || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
+<script id="customerTrackInitialBooking" type="application/json"><%- (JSON.stringify(initialBooking || null)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
 <script>
 (function () {
   const initialBookings = JSON.parse(

@@ -231,7 +231,7 @@ test("socket event limits span tabs and concurrent GPS writes cannot build a que
 test("production wiring admits requests before sessions, body parsers and payment webhooks", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
   const guard = source.indexOf("app.use(httpAdmission)");
-  assert.ok(guard > source.indexOf('app.get("/ready"'));
+  assert.ok(guard < source.indexOf('app.get("/ready"'));
   assert.ok(guard < source.indexOf('express.raw({ type: "application/json"'));
   assert.ok(guard < source.indexOf('express.json({ limit: "64kb"'));
   assert.ok(guard < source.indexOf("session({"));

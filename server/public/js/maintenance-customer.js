@@ -310,13 +310,13 @@
 
   function initializeBookingMap() {
     if ($("aftercareBookingLocationEditor").hidden) return;
-    if (typeof L === "undefined") {
+    if (typeof L === "undefined" || typeof window.createEsriHybridLayer !== "function") {
       updateBookingLocationState("Choose a suggested address to set your location. The map could not load.");
       return;
     }
     if (!bookingMap) {
       bookingMap = L.map("aftercareBookingMap", { scrollWheelZoom: false });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(bookingMap);
+      window.createEsriHybridLayer().addTo(bookingMap);
       bookingMap.on("click", event => selectMapPin(event.latlng.lat, event.latlng.lng));
     }
     bookingMap.invalidateSize();

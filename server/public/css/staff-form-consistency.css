@@ -1,0 +1,13 @@
+/* Common sizing for the reviewed staff forms and filter bars. */
+:is(.payroll-page, .inventory-premium, .payments-page) :is(.filter-input, .rp-filter-input, .payments-filter-input, .filter-btn, .rp-filter-btn) {
+  min-height: 42px;
+  height: 42px;
+  box-sizing: border-box;
+  border-radius: 10px;
+}
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .modal-header,
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .modal-footer { padding: 16px 20px; gap: 8px; }
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .modal-body { padding: 20px; }
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .form-label { margin-top: 12px; font-weight: 600; }
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .table th,
+:is(#inventoryImportModal, #payrollBatchModal, #payrollTemplateModal) .table td { padding: 10px 12px; vertical-align: middle; }

@@ -49,12 +49,22 @@ function collectionDate(payment) {
 }
 
 function refundDate(payment) {
-  return payment?.refundedAt || (money(payment?.refundAmount) > 0 ? collectionDate(payment) : null);
+  if (!completedRefund(payment)) return null;
+  return payment?.refundedAt || collectionDate(payment);
+}
+
+function completedRefund(payment) {
+  // Cancellation stores the requested amount before money is returned.
+  // Explicit pending/processing/partial requests must never become cash events.
+  if (payment?.testDataExcludedAt) return false;
+  if (payment?.refundStatus) return payment.refundStatus === "completed";
+  // Historical rows predate refundStatus; require settlement evidence.
+  return payment?.status === "refunded" || Boolean(payment?.refundedAt);
 }
 
 function paymentAmounts(payment) {
-  const gross = ACCEPTED_PAYMENT_STATUSES.has(payment?.status) ? money(payment?.amount) : 0;
-  const refunded = Math.min(gross, money(payment?.refundAmount));
+  const gross = !payment?.testDataExcludedAt && ACCEPTED_PAYMENT_STATUSES.has(payment?.status) ? money(payment?.amount) : 0;
+  const refunded = completedRefund(payment) ? Math.min(gross, money(payment?.refundAmount)) : 0;
   return { gross, refunded, net: Math.max(0, gross - refunded) };
 }
 
@@ -222,6 +232,7 @@ module.exports = {
   RECOGNIZED_BOOKING_STATUSES,
   bookingCompletionDate,
   collectionDate,
+  completedRefund,
   inRange,
   isRecognizedBooking,
   isRecognizedOrder,

@@ -2,7 +2,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../public/js/core-appliance-booking.js'), 'utf8');
 function fixture() {
-  const start = source.indexOf("    host.addEventListener('click', event => {"), end = source.indexOf("    host.querySelector('form').addEventListener", start);
+  const start = source.indexOf("    host.addEventListener('click', event => {"), end = source.indexOf("    const submit = event => {", start);
   assert.ok(start >= 0 && end > start);
   let click;
   const changes = [];

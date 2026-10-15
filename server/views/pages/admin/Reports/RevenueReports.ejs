@@ -84,7 +84,7 @@
   </style>
   <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
   <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260928-pos-categories">
-  <% const A=analytics||{}; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>Number(n||0).toFixed(1)+'%'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
+  <% const A=analytics||{}; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>n==null?'N/A':Number(n||0).toFixed(1)+'%'; const profitBadge=a=>a.operatingProfitMargin==null?'Margin unavailable':pct(a.operatingProfitMargin)+' margin'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
   <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Sales and Payments</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/<%= reportRole %>/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/<%= reportRole %>/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="<%= reportLinks.pos %>"><i class="bi bi-shop me-1"></i> Walk-in sales</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Download</button></div></div></div>
   <div class="rr-data-state" id="revenueDataState" role="status" aria-live="polite" <%= isDeferred ? '' : 'hidden' %>><span class="spinner-border" aria-hidden="true"></span><span>Loading live revenue, including completed walk-in and Walk-in sales sales&hellip;</span></div>
@@ -207,7 +207,7 @@
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Completed sales</p>
         <div class="kpi-enterprise-value"><span id="kpiCashRecorded"><%= peso(A.recognizedRevenue) %></span></div>
-        <small style="color:#64748b;">Completed work and sales, net of refunds</small>
+        <small style="color:#64748b;">Completed work less completed period refunds</small>
       </div>
       <div class="kpi-enterprise-sparkline"><canvas id="kpiSparkCash"></canvas></div>
     </div>
@@ -219,7 +219,7 @@
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Payments after refunds</p>
         <div class="kpi-enterprise-value"><span style="color:#d97706"><%= peso(A.netCollections) %></span></div>
-        <small style="color:#64748b;">Payments received less period refunds</small>
+        <small style="color:#64748b;">Payments received less completed period refunds</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
@@ -247,7 +247,7 @@
     <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon purple"><i class="bi bi-calculator"></i></div>
-        <span class="kpi-enterprise-badge <%= Number(A.operatingProfit||0) >= 0 ? 'green' : 'red' %>"><%= pct(A.operatingProfitMargin) %> profit %</span>
+        <span class="kpi-enterprise-badge <%= Number(A.operatingProfit||0) >= 0 ? 'green' : 'red' %>"><%= profitBadge(A) %></span>
       </div>
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Profit after expenses</p>
@@ -673,7 +673,7 @@
 <script>
 (()=>{
   const A=<%- JSON.stringify(analytics||{}).replace(/</g,'\\u003c') %>;
-  if (<%- JSON.stringify(isDeferred) %>) {
+  if (<%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>) {
     // Start the database work before Chart.js downloads so network and server
     // latency overlap instead of making the user wait for them sequentially.
     window.__revenueInitialRequest = fetch('/api/<%= reportRole %>/reports/revenue', {
@@ -729,14 +729,15 @@
 <script>
 (() => {
   const peso = n => '\u20B1' + Math.round(Number(n || 0)).toLocaleString('en-PH');
-  const pct = n => Number(n || 0).toFixed(1) + '%';
+  const pct = n => n == null ? 'N/A' : Number(n || 0).toFixed(1) + '%';
+  const profitBadge = a => a.operatingProfitMargin == null ? 'Margin unavailable' : pct(a.operatingProfitMargin) + ' margin';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   let charts = {};
   let activePosCategory = 'all';
 
   // ── Populate technician dropdown from initial analytics ──
   const initA = <%- JSON.stringify(analytics || {}).replace(/</g, '\\u003c') %>;
-  const deferredAnalytics = <%- JSON.stringify(isDeferred) %>;
+  const deferredAnalytics = <%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   if (initA.topTechnicians) {
     const techSelect = document.getElementById('filterTechnician');
     initA.topTechnicians.forEach(t => {
@@ -907,7 +908,7 @@
         <div class="kpi-enterprise-body">
           <p class="kpi-enterprise-label">Completed sales</p>
           <div class="kpi-enterprise-value"><span>${peso(A.recognizedRevenue)}</span></div>
-          <small style="color:#64748b;">Completed work net of period refunds</small>
+          <small style="color:#64748b;">Completed work less completed period refunds</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="amber" data-aos="fade-up" data-aos-delay="100">
@@ -918,7 +919,7 @@
         <div class="kpi-enterprise-body">
           <p class="kpi-enterprise-label">Payments after refunds</p>
           <div class="kpi-enterprise-value"><span>${peso(A.netCollections)}</span></div>
-          <small style="color:#64748b;">Payments received less period refunds</small>
+          <small style="color:#64748b;">Payments received less completed period refunds</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
@@ -946,7 +947,7 @@
       <div class="kpi-enterprise" data-accent="purple" data-aos="fade-up" data-aos-delay="140">
         <div class="kpi-enterprise-top">
           <div class="kpi-enterprise-icon purple"><i class="bi bi-calculator"></i></div>
-          <span class="kpi-enterprise-badge ${Number(A.operatingProfit||0) >= 0 ? 'green' : 'red'}">${pct(A.operatingProfitMargin)} profit</span>
+          <span class="kpi-enterprise-badge ${Number(A.operatingProfit||0) >= 0 ? 'green' : 'red'}">${profitBadge(A)}</span>
         </div>
         <div class="kpi-enterprise-body">
           <p class="kpi-enterprise-label">Profit after expenses</p>
@@ -1019,8 +1020,8 @@
         ? completedServiceCosts.slice(0, 5).map(s => `<tr><td><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div>Technician: ${esc(s.technician)} · Duration: ${Number(s.laborHours||0).toFixed(1)}h</div><div>Consumables: ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div><div>Repair parts: ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('')
         : '<tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr>';
     }
-    const profitBadge = document.getElementById('serviceProfitabilityBadge');
-    if (profitBadge) profitBadge.textContent = `Latest 5 of ${completedServiceCosts.length}`;
+    const serviceCountBadge = document.getElementById('serviceProfitabilityBadge');
+    if (serviceCountBadge) serviceCountBadge.textContent = `Latest 5 of ${completedServiceCosts.length}`;
     const viewAllBtn = document.getElementById('serviceProfitabilityViewAllBtn');
     if (viewAllBtn) viewAllBtn.style.display = completedServiceCosts.length > 5 ? 'inline-flex' : 'none';
     const modalBody = document.getElementById('serviceProfitabilityRows');

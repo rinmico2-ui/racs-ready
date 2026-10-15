@@ -4,7 +4,7 @@ const { summarizeBookingPayments } = require('./paymentSummary');
 
 const money = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
 const fail = (message, status = 409, code) => Object.assign(new Error(message), { status, code });
-const paymentFilter = project => ({ $or: [
+const paymentFilter = project => project.sourceOrderId ? { orderId: project.sourceOrderId } : ({ $or: [
   { projectId: project._id },
   ...(project.bookingId ? [{ bookingId: project.bookingId }] : []),
 ] });
@@ -46,6 +46,11 @@ function projectPaymentSummary(project, booking, payments = []) {
 }
 
 function syncProjectPayment(project, booking, summary) {
+  if (project.sourceOrderId) {
+    project.payment = { ...(project.payment?.toObject?.() || project.payment || {}),
+      totalAmount: 0, amountPaid: 0, balanceAmount: 0, paymentStatus: summary.status, paymentMethod: 'other' };
+    return;
+  }
   project.payment = {
     ...(project.payment?.toObject?.() || project.payment || {}),
     ...(booking ? projectPaymentSnapshot(booking) : {}),
@@ -63,6 +68,7 @@ async function verifyProjectPayment({ mongoose, Project, BookingService, Payment
     await session.withTransaction(async () => {
       const project = await Project.findById(projectId).session(session);
       if (!project) throw fail('Project not found', 404);
+      if (project.sourceOrderId) throw fail('Review this purchase payment in Aircon Orders. The installation project does not collect a second deposit.');
       if (['cancelled', 'closed', 'completed', 'archived'].includes(project.status)) {
         throw fail('Payment cannot be reviewed for a finished or cancelled project.');
       }

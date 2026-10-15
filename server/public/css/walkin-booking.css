@@ -1,0 +1,112 @@
+.walkin-page {
+  --sv-b: #15803d;
+  --sv-bd: #166534;
+  --sv-bs: #f0fdf4;
+  color: #183027;
+}
+.walkin-page [hidden] { display: none !important; }
+.walkin-page .walkin-shell, .walkin-page .booking-body { min-width: 0; }
+.walkin-page .ent-hero { padding: 2rem 1rem; background: linear-gradient(135deg, #f0fdf4, #f7faf9 65%, #eff6ff); border: 1px solid #dce9df; }
+.walkin-page .ent-hero-title { font-size: clamp(1.65rem, 3vw, 2.4rem); letter-spacing: -.06rem; }
+.walkin-page .ent-gradient-text { background: none; color: #166534; -webkit-text-fill-color: currentColor; }
+.walkin-page .ent-hero-subtitle { margin-bottom: 1rem; font-size: .9rem; }
+.walkin-page .ent-trust-badges { margin-bottom: 0; gap: .75rem; }
+.walkin-page .ent-hero-badge { color: #166534; background: #e9f5ed; border-color: #cce5d4; }
+.walkin-page .ent-stepper { border: 1px solid #dce7df; top: 76px; scroll-margin-top: 80px; margin-bottom: 0; }
+.walkin-page .ent-tr { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-radius: 12px; background: #f5f8f6; padding: 4px; gap: 4px; overflow: visible; }
+.walkin-page .ent-n { justify-content: center; min-height: 42px; padding: 8px 6px; border-radius: 9px; color: #64748b; }
+.walkin-page .ent-n.completed { background: #e8f5ed; color: #166534; }
+.walkin-page .ent-n:disabled { cursor: not-allowed; opacity: .6; }
+.walkin-page .ent-n:disabled:hover { background: transparent; }
+.walkin-page .ent-n.active { background: #15803d; box-shadow: 0 2px 8px #15803d20; }
+.walkin-progress-actions { display: flex; align-items: center; gap: .75rem; }
+.walkin-progress-back { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid #bbd9c5; border-radius: 8px; padding: .45rem .75rem; background: #f0fdf4; color: #166534; font-size: .75rem; font-weight: 700; }
+.walkin-progress-back:disabled { opacity: .5; cursor: not-allowed; }
+.walkin-stepper-help { display: flex; justify-content: center; align-items: center; gap: .4rem; margin: .65rem 0 0; color: #52665a; font-size: .73rem; text-align: center; }
+.walkin-page .ent-step-card { border-color: #dce7df; box-shadow: 0 3px 18px #14312608; border-radius: 16px; }
+.walkin-page .ent-step-header { background: #fcfefd; padding: 1.2rem 1.5rem; border-color: #e5eee8; }
+.walkin-page .ent-step-icon { width: 42px; height: 42px; background: #e9f5ed !important; color: #166534; border: 1px solid #cce5d4; }
+.walkin-page .ent-step-info p { font-size: 1.05rem; }
+.walkin-page .ent-step-info p:focus { outline: none; }
+.walkin-page .ent-step-info h5 { color: #637d6c; font-size: .68rem; }
+.walkin-page .booking-step-lead { color: #52665a; font-size: .88rem; line-height: 1.6; margin-bottom: 1.25rem; }
+.walkin-selection-layout { display: grid; grid-template-columns: minmax(0, 1fr) 285px; gap: 1.25rem; align-items: start; }
+.walkin-catalog-panel { min-width: 0; }
+.walkin-page #serviceTabs { display: flex; border: 1px solid #dce7df; padding: 4px; gap: 4px; background: #f5f8f6; border-radius: 10px; }
+.walkin-page #serviceTabs .nav-item { flex: 1; min-width: 0; }
+.walkin-page #serviceTabs .nav-link { width: 100%; min-height: 44px; border: 0; border-radius: 7px; color: #52665a; font-size: .83rem; font-weight: 700; }
+.walkin-page #serviceTabs .nav-link.active { color: #166534; background: #fff; box-shadow: 0 2px 8px #1431260a; }
+.walkin-selected-summary { min-width: 0; position: sticky; top: 228px; max-height: calc(100dvh - 250px); overflow: auto; border: 1px solid #dce7df; border-radius: 14px; padding: 1.1rem; background: #fcfefd; }
+.walkin-selected-summary .ent-svc-section-header { gap: 9px; padding-bottom: .85rem; margin-bottom: .2rem; }
+.walkin-selected-summary .ent-svc-section-icon { width: 35px; height: 35px; color: #166534; border-color: #cce5d4; background: #e9f5ed; font-size: .95rem; }
+.walkin-selected-summary .badge { background: #15803d !important; }
+.walkin-selected-summary .ent-svc-section-sub { font-size: .7rem; }
+.walkin-selected-item { padding: .9rem 0; border-bottom: 1px solid #e1eae5; }
+.walkin-selected-item-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; font-size: .83rem; }
+.walkin-selected-item-heading strong { overflow-wrap: anywhere; }
+.walkin-selected-item-heading > span { color: #166534; font-weight: 800; white-space: nowrap; }
+.walkin-selected-item p { margin: .45rem 0; color: #52665a; font-size: .75rem; overflow-wrap: anywhere; }
+.walkin-selected-item small { color: #637d6c; font-size: .7rem; }
+.walkin-selected-item-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .6rem; }
+.walkin-selected-item-actions button { display: inline-flex; align-items: center; gap: .3rem; min-height: 34px; padding: .35rem .5rem; border: 1px solid #dce7df; border-radius: 7px; background: #fff; font-size: .68rem; font-weight: 700; color: #166534; }
+.walkin-selected-item-actions .remove-service { color: #a73443; }
+.walkin-page #totalPricingSection .row { gap: .5rem; margin: 0; }
+.walkin-page #totalPricingSection .col-md-6 { width: 100%; padding: 0; text-align: left !important; }
+.walkin-page #totalEstimatedPrice { color: #166534 !important; font-size: 1.35rem !important; }
+.walkin-page .walkin-actions { position: sticky; bottom: 0; padding: 1rem 0 .5rem; margin-top: 1.25rem; border-top: 1px solid #e1eae5; background: #fff; z-index: 12; flex-wrap: wrap; }
+.walkin-page .ent-btn-primary { box-shadow: 0 3px 10px #15803d18; min-height: 44px; }
+.walkin-page .ent-btn-outline { min-height: 44px; border-color: #d1ddd5; }
+.walkin-page:has(#core-tab.active) #walkinServiceActions { display: none; }
+.walkin-page .cab-form { margin: 0; }
+.walkin-page .cab-help { display: none; }
+.walkin-page .cab-footer { z-index: 15; }
+.walkin-page .form-control:focus, .walkin-page .form-select:focus { border-color: #8cbc9e; box-shadow: 0 0 0 3px #15803d12; }
+.walkin-page :is(button, a, input, select, textarea):focus-visible { outline: 3px solid #8cbc9e; outline-offset: 3px; }
+.walkin-page .walkin-repair-guide { display: flex; gap: 5px; padding: .75rem 1rem; background: #f5f8f6; border-bottom: 1px solid #dce7df; }
+.walkin-repair-guide button { flex: 1; padding: .5rem .25rem; border: 0; border-radius: 7px; font-size: .7rem; font-weight: 700; color: #637d6c; background: transparent; }
+.walkin-repair-guide button[aria-current="step"] { background: #15803d; color: #fff; }
+.walkin-repair-guide button:disabled { opacity: .45; }
+.walkin-page .walkin-repair-panel-hidden { display: none !important; }
+.walkin-page #repairInlineConfigurator #serviceConfigContent .cfg-header { background: #fcfefd; border-color: #dce7df; }
+.walkin-page #repairInlineConfigurator #serviceConfigContent .cfg-ico { background: #e9f5ed; color: #166534; box-shadow: none; border-color: #cce5d4; }
+.walkin-page #repairInlineConfigurator .cfg-price { background: #f7faf8; border-color: #dce7df; }
+.walkin-page #repairInlineConfigurator .cfg-price-v { color: #166534; }
+.walkin-page #repairInlineConfigurator .cfg-btn-primary { background: #15803d; box-shadow: none; min-height: 44px; }
+.walkin-page #repairInlineConfigurator .cfg-close { display: none; }
+.walkin-page #walkinRepairHint { margin: .65rem 1rem; font-size: .78rem; color: #52665a; }
+@media (max-width: 1199px) {
+  .walkin-selection-layout { grid-template-columns: minmax(0, 1fr); }
+  .walkin-selected-summary { position: static; max-height: none; }
+  .walkin-page #totalPricingSection .col-md-6 { width: auto; }
+  .walkin-page #totalPricingSection .row { justify-content: space-between; }
+}
+@media (max-width: 767px) {
+  .walkin-page { padding: 1rem .5rem !important; }
+  .walkin-page .ent-hero { padding: 1.4rem .9rem; border-radius: 14px; }
+  .walkin-page .ent-hero-badge { margin-bottom: .8rem; }
+  .walkin-page .ent-trust-badges { gap: .5rem; }
+  .walkin-page .ent-trust-item { font-size: .68rem; }
+  .walkin-page .ent-trust-divider { display: none; }
+  .walkin-page .ent-stepper { position: sticky; top: 64px; padding: .7rem; border-radius: 12px; z-index: 40; }
+  .walkin-page .ent-tr { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .walkin-page .ent-n { font-size: .66rem; min-height: 40px; gap: 4px; }
+  .walkin-page .ent-h { margin-bottom: .5rem; }
+  .walkin-page .ent-h > span:first-child { font-size: .65rem; }
+  .walkin-progress-actions { gap: .5rem; }
+  .walkin-progress-back { padding: .35rem .5rem; }
+  .walkin-stepper-help { font-size: .65rem; line-height: 1.5; margin-top: .45rem; }
+  .walkin-page .ent-step-header { padding: 1rem; gap: .7rem; }
+  .walkin-page .ent-step-info p { font-size: .94rem; }
+  .walkin-page .ent-step-body { padding: .85rem; }
+  .walkin-page .walkin-actions { gap: .6rem; padding-bottom: calc(.5rem + env(safe-area-inset-bottom, 0px)); }
+  .walkin-page .walkin-actions > button { flex: 1; justify-content: center; padding: .65rem .8rem; font-size: .78rem; }
+  .walkin-page .walkin-actions > a { flex-basis: 100%; justify-content: center; }
+  .walkin-page #serviceConfigContent .modal-body { padding: 1rem !important; max-height: none !important; }
+  .walkin-page .walkin-repair-guide { gap: 2px; padding: .5rem; }
+  .walkin-repair-guide button { font-size: .63rem; }
+  .walkin-page #repairInlineConfigurator .cfg-footer { position: sticky; bottom: 0; background: #fff; padding: .8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .walkin-page .ent-step-card { animation: none; }
+  .walkin-page * { scroll-behavior: auto !important; }
+}

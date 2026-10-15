@@ -1,4 +1,6 @@
 const test = require("node:test");
+const { install: installMathChallenge, signedRequest } = require("./helpers/mathChallenge");
+installMathChallenge(test);
 const assert = require("node:assert/strict");
 
 const TrustedDevice = require("../models/TrustedDevice");
@@ -46,7 +48,7 @@ function responseRecorder() {
 }
 
 function loginRequest() {
-  return request({
+  return signedRequest(request({
     body: {
       email: "technician@example.com",
       password: "ValidPassword1!",
@@ -59,7 +61,7 @@ function loginRequest() {
       cookie: "XSRF-TOKEN=csrf-test",
       "user-agent": "Mozilla/5.0 Chrome/140.0 Windows NT 10.0",
     },
-  });
+  }), "login");
 }
 
 function mockSuccessfulPasswordLogin(t) {
@@ -67,6 +69,7 @@ function mockSuccessfulPasswordLogin(t) {
     _id: "technician-user-id",
     role: "technician",
     email: "technician@example.com",
+    passwordHash: "test-verified-password-hash",
     active: true,
     blocked: false,
     emailVerified: true,

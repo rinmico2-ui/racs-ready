@@ -16,8 +16,7 @@ test("product scheduling uses simple date and time labels in both checkouts", ()
   assert.match(calendar, /Choose a start time/);
   assert.match(calendar, /statusLabel = selected \? 'Selected' : 'Available'/);
   assert.doesNotMatch(calendar, /Teams Available|Past Date|\$\{availInfo\.availableSlots\} slots/);
-  assert.match(cart, /single-payment-action/);
-  assert.match(direct, /single-payment-action/);
+  for (const wizard of [cart, direct]) assert.match(wizard, /src="\/js\/checkout-calendar\.js\?v=[^"]+"/);
 });
 
 test("choosing a product delivery time retains the summary without duplicating the footer action", () => {

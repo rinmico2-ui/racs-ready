@@ -35,6 +35,9 @@ function scheduledStartMinutes(order) {
  * Delivery work gets the same 30-minute operational grace as service work.
  */
 function requestedOrderCutoff(order) {
+  if (order?.isProject && order.projectScheduling?.preferredCompletionDeadline) {
+    return manilaDateTime(order.projectScheduling.preferredCompletionDeadline, 24 * 60, -1);
+  }
   const dateValue = scheduledDate(order);
   if (!dateValue) return null;
   if (order?.fulfillmentType === "customer_pickup") {

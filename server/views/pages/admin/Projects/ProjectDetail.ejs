@@ -1240,7 +1240,7 @@
 
   function fmtDate(d) {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' });
   }
 
   // ── Team card body (reusable across stages) ──
@@ -2296,6 +2296,11 @@
     `;
 
     qs('#projectDetailContainer').innerHTML = html;
+    if (data.purchase) {
+      const prefix = location.pathname.startsWith('/secretary/') ? '/secretary' : '/admin';
+      const purchase = data.purchase;
+      qs('#projectDetailContainer').insertAdjacentHTML('afterbegin', `<div class="pd-card"><div class="pd-head"><h3>Purchased aircons - ${escHtml(purchase.reference || 'Product order')}</h3><a class="pd-btn" href="${prefix}/inventory/aircon-orders?order=${encodeURIComponent(purchase.id)}">Open purchase and payment</a></div><div class="pd-body"><p>${purchase.items.map(item => `${escHtml(item.brand || '')} ${escHtml(item.modelLine || 'Aircon')} ${escHtml(item.capacity || '')} ${escHtml(item.capacityUnit || 'HP')} &times; ${Number(item.quantity)}`).join(' &middot; ')}</p><p>Payment: ${escHtml(purchase.paymentStatus)} &middot; Units: ${purchase.dispatchStatus === 'ready' ? 'Prepared' : 'Awaiting physical preparation'}</p><small>Installation is included in the purchase. Confirm unit preparation and review payment in Aircon Orders before releasing the daily work plan.</small></div></div>`);
+    }
     window.__projectData = p;
     window.__projectBooking = data.booking;
     window.__projectPayments = data.payments || [];
@@ -3811,6 +3816,11 @@
 
   // Payment viewing never changes a receipt, balance or payment status.
   window.showPaymentModal = function() {
+    if (window.__projectData?.sourceOrderId) {
+      const prefix = location.pathname.startsWith('/secretary/') ? '/secretary' : '/admin';
+      location.assign(prefix + '/inventory/aircon-orders?order=' + encodeURIComponent(window.__projectData.sourceOrderId));
+      return;
+    }
     const existing = document.getElementById('projectPaymentViewer');
     if (existing) { existing.focus(); return; }
     const data = { project: window.__projectData || {}, booking: window.__projectBooking || {}, payments: window.__projectPayments || [], paymentSummary: window.__projectPaymentSummary };

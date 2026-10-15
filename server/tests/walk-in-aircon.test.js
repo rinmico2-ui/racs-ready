@@ -88,10 +88,14 @@ test("admin walk-in page exposes Services and Aircon Orders workflows", async ()
   scripts.forEach((script) => assert.doesNotThrow(() => new Function(script)));
 });
 
-test("inventory POS no longer offers an aircon sales tab or barcode fallback", async () => {
+test("POS routes aircon sales to Orders and keeps merchandise barcode lookup separate", async () => {
   const filename = path.join(__dirname, "..", "views", "pages", "admin", "Inventory", "POS.ejs");
   const html = await ejs.renderFile(filename, { user: { role: "admin" } });
-  assert.doesNotMatch(html, /switchTab\(['"]aircons/);
+  assert.match(html, /isAirconOrder \? "\/api\/pos\/aircon-checkout" : "\/api\/pos\/checkout"/);
+  assert.match(html, /Process aircons and parts as separate transactions/);
+  assert.ok(routeLayer(posRoutes, '/aircon-checkout', 'post'));
+  assert.equal(routeLayer(posRoutes, '/aircon-checkout', 'post').route.stack.at(-1).handle,
+    routeLayer(posRoutes.walkInAirconRouter, '/checkout', 'post').route.stack.at(-1).handle);
 
   const barcode = routeLayer(posRoutes, "/tools/barcode/:barcode", "get");
   assert.ok(barcode);

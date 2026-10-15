@@ -610,7 +610,7 @@
 <script>
   (function () {
     const staffApiBase = <%- JSON.stringify(resolvedStaffApiBase).replace(/</g, "\\u003c") %>;
-    const staffCanManage = <%- JSON.stringify(resolvedStaffCanManage) %>;
+    const staffCanManage = <%- (JSON.stringify(resolvedStaffCanManage)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
     // Move modals to body to escape AOS transform stacking context on <main>
     !function(){var m=document.getElementById('viewStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();
     !function(){var m=document.getElementById('editStaffModal');m&&m.parentNode!==document.body&&document.body.appendChild(m)}();

@@ -53,5 +53,6 @@ projectWorkSubmissionSchema.index(
   { unique: true },
 );
 projectWorkSubmissionSchema.index({ projectId: 1, createdAt: -1 });
+projectWorkSubmissionSchema.index({ "proof.url": 1 });
 
 module.exports = mongoose.model("ProjectWorkSubmission", projectWorkSubmissionSchema);

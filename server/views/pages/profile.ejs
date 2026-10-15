@@ -7,6 +7,7 @@
   <div class="alert alert-warning m-4">Please log in to view your profile.</div>
 <% } else { %>
   <% const namePolicy = locals.nameChangePolicy || { canChangeName: true, cooldownDays: 30, nextNameChangeAt: null }; %>
+  <% const profile = profilePresentation; %>
 
   <!-- ═══════════════════════════════════════════════════════════════════ -->
   <!-- ANIMATED HERO HEADER                                              -->
@@ -49,11 +50,17 @@
       <!-- Profile Card -->
       <div class="prof-card prof-profile-sidebar">
         <div class="prof-sidebar-header">
-          <div class="prof-avatar" id="profileAvatar">
-            <%= (user.firstName || 'A').charAt(0).toUpperCase() %>
+          <div class="prof-avatar prof-generated-avatar" id="profileAvatar" role="img" aria-label="Your account avatar">
+            <%- include('../partials/customer-avatar', { avatar: profile.avatar }) %>
           </div>
           <h3 class="prof-name" id="profileDisplayName"><%= ((user.firstName||'') + ' ' + (user.lastName||'')).trim() || 'Account' %></h3>
           <p class="prof-email"><%= user.email || '' %></p>
+          <div class="prof-identity-completion">
+            <a href="#profileCompletion"><span>Profile completeness</span><strong><%= profile.percent %>%</strong></a>
+            <div class="prof-progress-bar" role="progressbar" aria-label="Profile completeness" aria-valuenow="<%= profile.percent %>" aria-valuemin="0" aria-valuemax="100">
+              <div class="prof-progress-fill" style="width:<%= profile.percent %>%"></div>
+            </div>
+          </div>
         </div>
         <div class="prof-sidebar-stats">
           <button class="prof-mini-stat clickable" onclick="profSwitchTab('activity')" aria-label="View ratings in Activity tab">
@@ -86,7 +93,7 @@
           </div>
           <div class="prof-meta-row">
             <i class="bi bi-clock-history"></i>
-            <span>Last login <%= user.lastLogin ? new Date(user.lastLogin).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' %></span>
+            <span>Last login <%= user.lastLogin ? new Date(user.lastLogin).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' }) : '—' %></span>
           </div>
         </div>
         <div class="prof-sidebar-actions">
@@ -104,25 +111,41 @@
       </div>
 
       <!-- Profile Completion -->
-      <div class="prof-card prof-completion-card mt-3">
+      <section class="prof-card prof-completion-card mt-3 <%= profile.percent === 100 ? 'is-complete' : '' %>" id="profileCompletion" aria-labelledby="profileCompletionTitle" tabindex="-1">
         <div class="prof-completion-header">
-          <h6 class="prof-completion-title"><i class="bi bi-shield-check"></i> Profile Completeness</h6>
+          <div>
+            <p class="prof-completion-eyebrow">PROFILE PROGRESS</p>
+            <h2 class="prof-completion-title" id="profileCompletionTitle"><%= profile.percent === 100 ? 'Your profile is complete' : 'Complete your profile' %></h2>
+          </div>
+          <span class="prof-completion-percent"><%= profile.percent %>%</span>
         </div>
         <div class="prof-completion-body">
-          <%
-            var fields = [user.firstName, user.lastName, user.email, user.phone, user.address && user.address.barangay, user.address && user.address.province, user.address && user.address.city, user.address && user.address.postalCode];
-            var filled = fields.filter(f => f && String(f).trim()).length;
-            var pct = Math.round((filled / fields.length) * 100);
-          %>
-          <div class="prof-progress-wrap">
-            <div class="prof-progress-bar">
-              <div class="prof-progress-fill" style="width:<%= pct %>%"></div>
-            </div>
-            <span class="prof-progress-text"><%= pct %>%</span>
+          <div class="prof-progress-bar" role="progressbar" aria-label="Profile details completed" aria-valuenow="<%= profile.percent %>" aria-valuemin="0" aria-valuemax="100" aria-valuetext="<%= profile.filled %> of <%= profile.total %> details complete">
+            <div class="prof-progress-fill" style="width:<%= profile.percent %>%"></div>
           </div>
-          <p class="prof-completion-hint"><%= pct === 100 ? 'Your profile is complete!' : 'Complete your profile for a better experience.' %></p>
+          <p class="prof-completion-count"><strong><%= profile.filled %> of <%= profile.total %></strong> details complete</p>
+          <p class="prof-completion-hint"><%= profile.percent === 100 ? 'Your contact and address details are ready for your next booking.' : 'Add your contact and address details for easier bookings.' %></p>
+          <ul class="prof-completion-checklist" aria-label="Profile completion checklist">
+            <% profile.groups.forEach(function(group, index) { %>
+              <li class="prof-completion-task <%= group.complete ? 'is-done' : '' %>">
+                <span class="prof-task-status" aria-hidden="true"><%= group.complete ? '\u2713' : index + 1 %></span>
+                <div class="prof-task-details">
+                  <strong><%= group.title %></strong>
+                  <span><%= group.complete ? 'Complete' : 'Missing: ' + group.missingLabels.join(', ') %></span>
+                  <% if (!group.complete && group.target) { %>
+                    <button type="button" class="prof-task-action" data-profile-complete-field="<%= group.target %>">Add details<span class="visually-hidden"> for <%= group.title.toLowerCase() %></span><span aria-hidden="true"> &#8594;</span></button>
+                  <% } %>
+                </div>
+                <span class="prof-task-weight"><%= group.weight %>%<span class="visually-hidden"> of profile</span></span>
+              </li>
+            <% }); %>
+          </ul>
+          <% if (profile.nextTarget) { %>
+            <button type="button" class="prof-btn prof-btn-primary prof-complete-action" data-profile-complete-field="<%= profile.nextTarget %>">Complete your profile <span aria-hidden="true">&#8594;</span></button>
+            <p class="prof-completion-footnote">Progress updates after you save. ZIP code is optional.</p>
+          <% } %>
         </div>
-      </div>
+      </section>
     </div>
 
     <!-- RIGHT CONTENT -->
@@ -711,8 +734,9 @@
 <% } %>
 </div>
 
-<script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2"></script>
-<script src="/js/profile.js?v=20261009-name-policy"></script>
+<script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review"></script>
+<link rel="stylesheet" href="/css/customer-profile-completeness.css?v=20261014-profile-progress">
+<script src="/js/profile.js?v=20261014-profile-progress"></script>
 <script src="/js/customer-profile-password.js?v=20261009-visible-password"></script>
 <script>
   // Tab switching (client-side)

@@ -102,7 +102,7 @@ function viewer(contentType = "image/png", ok = true, status = ok ? 200 : 404) {
   }
   const window = { location: { href: "http://localhost:5000/admin/projects", origin: "http://localhost:5000" } };
   vm.runInNewContext(read("public/js/evidence-viewer.js"), {
-    window, URL: ViewerUrl, AbortController,
+    window, URL: ViewerUrl, AbortController, setTimeout, clearTimeout,
     document: { createElement(tag) { const el = new Element(); el.tagName = tag; return el; } },
     async fetch(url, options) { requests.push({ url, options }); return { ok, status, async blob() { return { type: contentType }; } }; },
   });

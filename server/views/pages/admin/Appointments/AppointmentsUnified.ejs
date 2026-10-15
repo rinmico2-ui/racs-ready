@@ -618,8 +618,9 @@
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
+<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261014-actions">
 
-<div class="au-page">
+<div class="au-page appointments-workspace">
   <!-- Hero -->
   <div class="au-hero">
     <div class="au-hero-inner">
@@ -630,14 +631,6 @@
           <p>Full booking lifecycle pipeline &mdash; from request to completion</p>
         </div>
       </div>
-      <div class="au-hero-actions">
-        <a class="btn btn-light fw-bold" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-search me-1"></i> Unit Identification</a>
-        <a class="btn btn-light fw-bold" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-geo-alt me-1"></i> Relocation Requests</a>
-        <a class="btn btn-light fw-bold" href="<%= appointmentsOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
-        <% if (appointmentsResolutionEnabled) { %>
-          <a class="btn btn-light fw-bold" href="<%= appointmentsResolutionUrl %>?source=booking" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="bookingResolutionCount">0</span></a>
-        <% } %>
-      </div>
       <div class="au-hero-stats">
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroPending">-</div><div class="au-hero-stat-lbl">Pending</div></div>
@@ -645,9 +638,17 @@
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroRevenue">-</div><div class="au-hero-stat-lbl">Revenue</div></div>
       </div>
     </div>
+    <nav class="appointment-tools" aria-label="Appointment tools">
+      <a class="appointment-shortcut" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance"><i class="bi bi-search" aria-hidden="true"></i><span>Unit Identification</span></a>
+      <a class="appointment-shortcut" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Relocation Requests</span></a>
+      <a class="appointment-shortcut" href="<%= appointmentsOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
+      <% if (appointmentsResolutionEnabled) { %>
+        <a class="appointment-shortcut" href="<%= appointmentsResolutionUrl %>?source=booking"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="bookingResolutionCount">0</span></a>
+      <% } %>
+      <button type="button" class="appointment-shortcut" id="openServiceChangeQueue" aria-haspopup="dialog" aria-controls="serviceChangeQueueModal"><i class="bi bi-list-check" aria-hidden="true"></i><span>Service Change Requests</span><span class="appointment-shortcut-count" id="serviceChangeCount" style="display:none">0</span></button>
+    </nav>
   </div>
 
-  <div class="d-flex justify-content-end mb-3"><button class="au-btn au-btn-ghost" id="openServiceChangeQueue"><i class="bi bi-list-check me-1"></i>Service Change Requests <span class="badge bg-danger ms-1" id="serviceChangeCount" style="display:none">0</span></button></div>
   <div class="modal fade" id="serviceChangeQueueModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 rounded-4"><div class="modal-header"><div><h5 class="modal-title fw-bold">Service Change Review</h5><div class="small text-muted">Compare customer requests, verify capacity, and decide before notifying technicians.</div></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="serviceChangeQueueBody"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div></div></div></div>
 
   <!-- Tab Navigation -->
@@ -676,8 +677,8 @@
             <i class="bi bi-calendar3 au-date-icon"></i>
             <input type="text" class="form-control form-control-sm" id="filterEndDate" placeholder="End date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Overview.load();" style="width:150px;">
           </div>
-          <button class="au-btn au-btn-ghost" onclick="document.getElementById('filterStartDate').value='';document.getElementById('filterEndDate').value='';document.getElementById('filterStartDate').type='text';document.getElementById('filterEndDate').type='text';AU.Overview.load();" title="Clear dates"><i class="bi bi-x-circle"></i></button>
-          <button class="au-btn au-btn-ghost" onclick="AU.Overview.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+          <button type="button" class="au-btn au-btn-ghost" onclick="document.getElementById('filterStartDate').value='';document.getElementById('filterEndDate').value='';document.getElementById('filterStartDate').type='text';document.getElementById('filterEndDate').type='text';AU.Overview.load();" title="Clear dates"><i class="bi bi-x-circle" aria-hidden="true"></i><span>Clear dates</span></button>
+          <button type="button" class="au-btn au-btn-ghost" onclick="AU.Overview.load()" title="Refresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Refresh</span></button>
         </div>
       </div>
       <div class="au-pipeline-card workflow-overview-pipeline">
@@ -1239,7 +1240,7 @@
               <input type="text" class="form-control form-control-sm" id="cjDateFilter" placeholder="Filter by date" onfocus="this.type='date'; if(this.showPicker)this.showPicker();" onblur="if(!this.value){this.type='text';}" onchange="if(this.value){this.type='date';} AU.Completed.load();">
             </div>
             <input type="text" class="form-control form-control-sm" placeholder="Search..." id="cjSearchInput" style="width:200px;border-radius:10px;">
-            <button class="au-btn au-btn-ghost" onclick="AU.Completed.load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+            <button type="button" class="au-btn au-btn-ghost" onclick="AU.Completed.load()" title="Refresh"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Refresh</span></button>
           </div>
         </div>
       </div>
@@ -1787,10 +1788,10 @@
 (function() {
   'use strict';
 
-  var APPOINTMENTS_IS_ADMIN = <%- JSON.stringify((typeof appointmentsWorkspaceRole === 'string' ? appointmentsWorkspaceRole : 'admin') === 'admin') %>;
+  var APPOINTMENTS_IS_ADMIN = <%- (JSON.stringify((typeof appointmentsWorkspaceRole === 'string' ? appointmentsWorkspaceRole : 'admin') === 'admin')).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   var APPOINTMENTS_API = <%- JSON.stringify(typeof appointmentsApiBase === 'string' ? appointmentsApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
   var APPOINTMENTS_TOOLS_API = <%- JSON.stringify(typeof appointmentsToolsApiBase === 'string' ? appointmentsToolsApiBase : '/api/admin/tools').replace(/</g, '\\u003c') %>;
-  var APPOINTMENTS_CAN_RESOLVE = <%- JSON.stringify(appointmentsResolutionEnabled) %>;
+  var APPOINTMENTS_CAN_RESOLVE = <%- (JSON.stringify(appointmentsResolutionEnabled)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   var APPOINTMENTS_RESOLUTION_PATH = <%- JSON.stringify(appointmentsResolutionUrl).replace(/</g, '\\u003c') %>;
   var APPOINTMENTS_RESOLUTION_API = <%- JSON.stringify(appointmentsResolutionApi).replace(/</g, '\\u003c') %>;
 
@@ -3180,8 +3181,8 @@
     var priority=document.getElementById('rqAssignPriority').value;
     var notes=document.getElementById('rqAssignNotes').value;
     if(!techId||!date){showNotification({type:'warning',title:'Required',message:'Please select a technician and date.',duration:3000});return;}
-    fetch('/api/admin/repair-queue/'+id+'/assign-technician',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:techId,scheduledDate:date,scheduledTime:time,priority:priority,notes:notes})})
-    .then(function(r){return r.json().then(function(data){if(!r.ok)throw new Error(data.error||'Failed to assign technician.');return data;});}).then(function(){
+    RACSRequest.json('/api/admin/repair-queue/'+id+'/assign-technician',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technicianId:techId,scheduledDate:date,scheduledTime:time,priority:priority,notes:notes})})
+    .then(function(){
       bootstrap.Modal.getInstance(document.getElementById('rqAssignModal')).hide();
       showNotification({type:'success',title:'Technician Assigned',message:'Technician has been assigned successfully.',duration:4000});
       AU.Pending.loadRepairRequests();

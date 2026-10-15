@@ -209,11 +209,11 @@ test('deferred booking photos retain repair, per-unit, and payment evidence with
 
 test('staff order modal excludes inline evidence without changing order totals', async () => {
   const original = Order.findById;
-  let selection;
+  const selections = [];
   Order.findById = () => {
     const query = chain({ _id: '507f1f77bcf86cd799439011', userId: 'customer', subtotal: 1000, total: 1000,
       balanceAmount: 1000, status: 'preparing_unit', paymentStatus: 'pending', salesChannel: 'online' });
-    query.select = value => { selection = value; return query; };
+    query.select = value => { selections.push(value); return query; };
     return query;
   };
   try {
@@ -223,7 +223,9 @@ test('staff order modal excludes inline evidence without changing order totals',
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.photosDeferred, true);
     assert.equal(res.body.order.total, 1000);
-    for (const field of ORDER_PHOTO_FIELDS) assert.ok(selection.split(' ').includes('-' + field));
+    const projection = new Order.Query().select(selections.join(' ')).projection();
+    for (const field of ORDER_PHOTO_FIELDS) assert.equal(projection['-' + field], 0);
+    assert.ok(selections.includes('+cancellationStockReview'));
   } finally { Order.findById = original; }
 });
 

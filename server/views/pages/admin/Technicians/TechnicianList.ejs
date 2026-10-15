@@ -234,7 +234,7 @@
   <script>
     (function () {
       const techniciansApiBase = <%- JSON.stringify(resolvedTechniciansApiBase).replace(/</g, "\\u003c") %>;
-      const techniciansCanManageAccounts = <%- JSON.stringify(resolvedTechniciansCanManageAccounts) %>;
+      const techniciansCanManageAccounts = <%- (JSON.stringify(resolvedTechniciansCanManageAccounts)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
       const el = (id) => document.getElementById(id);
       const body = el("techTableBody");
       // map state must be defined before any functions use it

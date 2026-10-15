@@ -205,12 +205,19 @@ test('navigation counts retain queue policies and do not call full dashboards', 
     });
   }
   t.mock.method(require('../utils/maintenanceSummary'), 'maintenanceSummary', async () => ({ actionable: 8 }));
+  t.mock.method(require('../models/KitReturn'), 'countDocuments', async filter => {
+    assert.equal(filter.status, 'pending');
+    assert.deepEqual(filter.category.$in, ['consumable', 'repair_part']);
+    return 2;
+  });
+  // Inventory badge policies have their own tests; isolate those additional reads.
+  t.mock.method(require('../utils/inventoryNavigationCounts'), 'inventoryNavigationSources', () => []);
   const result = await require('../utils/adminNavigationSummary').buildAdminNavigationSummary(now);
   assert.deepEqual(result.counts, { pendingBookings: 1, activeJobs: 1, assignmentQueue: 2,
     escalatedBookings: 2, pendingExpenses: 2, pendingLeaveRequests: 3, auditToday: 4 });
   assert.deepEqual(result.orders, { actionable: 5 });
   assert.deepEqual(result.projects, { pendingScheduling: 6 });
-  assert.deepEqual(result.returns, { overdue: 7 });
+  assert.deepEqual(result.returns, { overdue: 7, actionable: 9 });
   assert.deepEqual(result.repairScheduling, { pendingScheduling: 1 });
   assert.equal(result.maintenance.actionable, 8);
   assert.equal(result.asOf, now.toISOString());
@@ -323,7 +330,8 @@ test('changed admin views compile and blocking browser/network patterns stay rem
   assert.doesNotMatch(read('public/js/admin-dashboard.js'), /XMLHttpRequest|\.open\([^\n]+false\)/);
   const inventory = read('views/pages/admin/Inventory/InventoryList.ejs');
   assert.doesNotMatch(inventory, /await waitForChart\(\)/);
-  assert.match(inventory, /applyAirconFilters\(\);[\s\S]*?waitForChart\(\)\.then/);
+  assert.match(inventory, /async function renderItems\(items\)[\s\S]*?applyAirconFilters\(\);/);
+  assert.doesNotMatch(inventory, /waitForChart|new Chart\(/);
   const projects = read('routes/projectRoutes.js');
   const detail = projects.slice(projects.indexOf('router.get("/projects/:id",'), projects.indexOf('router.get("/projects/:id",') + 2600);
   assert.match(detail, /Promise\.all/);

@@ -57,6 +57,7 @@ async function buildProjectPricingMap(bookings) {
 }
 
 function bookingApprovedValue(booking, projectPricingMap = new Map()) {
+  if (booking?.sourceOrderId) return 0; // Included installation is recognized with its product purchase.
   const projectEntry = projectPricingMap.get(String(booking?._id));
   if (projectEntry) return money(projectEntry.pricing.total);
   if (booking?.loyaltyDiscount && (booking.services || []).length) {

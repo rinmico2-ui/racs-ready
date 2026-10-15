@@ -185,6 +185,8 @@ const dailyKitSchema = new mongoose.Schema({
 
   // Tracking
   generatedAt: { type: Date, default: Date.now },
+  // Last successful automatic refresh, committed with the generated kit.
+  automaticSyncedAt: { type: Date, default: null },
   preparedAt: { type: Date },
   confirmedAt: { type: Date },
   completedAt: { type: Date },

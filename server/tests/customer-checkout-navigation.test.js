@@ -24,7 +24,7 @@ function paymentFixture() {
   const context = {
     window: { adminGcashNumber: "09171234567", GcashSenderInput: { check: () => ({ valid: true }) } },
     document: { getElementById: element, querySelectorAll: () => [], addEventListener: (type, callback) => events.set(type, callback) },
-    currentStep: 3, _autoAdvanceTimer: null, _guidedFocusTimer: null,
+    currentStep: 3, _cartCheckoutGeneration:0, _autoAdvanceTimer: null, _guidedFocusTimer: null,
     selectedFulfillment: "delivery_installation", SUB_TOTAL: 1000, _transportFee: 20,
     clearTimeout() {}, scheduleCartCheckoutDraftSave() {}, updateNextButtonState() {},
     orderPaymentChannelLabel: () => "GCash", focusCheckoutControl() {}, validateReceiptFile: () => true,
@@ -74,7 +74,7 @@ test("payment auto-advance is guarded even if a future caller schedules it", () 
 });
 
 test("the main Next action validates payment before advancing and does not submit from payment", async () => {
-  const context = { window: {}, currentStep: 3, validateCheckoutStep: async () => true,
+  const context = { window: {}, _cartCheckoutGeneration:0, currentStep: 3, validateCheckoutStep: async () => true,
     enterWizardStep(step) { context.currentStep = step; }, submitCartOrder() { throw new Error("Payment Next must not place the order"); } };
   vm.runInNewContext(cart.slice(cart.indexOf("    window.wizardNext ="), cart.indexOf("    window.wizardBack =")), context);
   await context.window.wizardNext();

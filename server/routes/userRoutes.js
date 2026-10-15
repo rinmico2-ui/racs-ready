@@ -80,6 +80,16 @@ router.patch("/me/profile", async (req, res, next) => {
     const nameChanged = firstName !== cleanText(user.firstName) || lastName !== cleanText(user.lastName);
     const customer = user.role === "customer";
     const policy = profileNamePolicy(user, now);
+    const addressChanged = address && ['province', 'city', 'barangay', 'postalCode'].some(key => address[key] !== cleanText(user.address && user.address[key]));
+    if (!nameChanged && phone === cleanText(user.phone) && !addressChanged) {
+      return res.json({ changed: false, message: 'No changes detected.', nameChangePolicy: policy,
+        user: { firstName: user.firstName, lastName: user.lastName, phone: user.phone, email: user.email, address: user.address } });
+    }
+    if (addressChanged) {
+      try {
+        address = await require('../utils/psgcCatalog').validateAddressSelection({ addressProvince: address.province, addressCity: address.city, addressBarangay: address.barangay, addressPostal: address.postalCode });
+      } catch (error) { return res.status(error.status || 400).json({ error: error.message, fields: error.fields, code: error.code }); }
+    }
     if (customer && nameChanged && !policy.canChangeName) {
       return res.status(409).json({
         code: "NAME_CHANGE_COOLDOWN",
@@ -142,6 +152,7 @@ router.patch("/me/profile", async (req, res, next) => {
 
     return res.json({
       message: "Profile updated successfully.",
+      changed: true,
       nameChangePolicy: profileNamePolicy(updated),
       user: {
         firstName: updated.firstName,

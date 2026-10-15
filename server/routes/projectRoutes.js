@@ -77,6 +77,7 @@ const { BookingStatus } = require("../models/BookingStatus");
 const audit = require("../utils/audit");
 const { paymentFilter: projectPaymentFilter, projectPaymentSummary, syncProjectPayment, verifyProjectPayment, projectCanUsePlanning } = require('../utils/projectPaymentReview');
 const { calculateProjectCustomerPricing } = require("../utils/projectPricing");
+const { loadProjectPurchase, assertProjectPurchaseReady, recordProjectOrderStage, validatePurchaseSerials, syncCompletedPurchaseAftercare, emitPurchaseProjectUpdate } = require('../utils/orderProjectLifecycle');
 const { normalizeProjectWorkSubmission } = require("../utils/projectWorkSubmission");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const {
@@ -86,6 +87,8 @@ const {
 } = require("../utils/projectScheduleRecovery");
 const { deriveProjectScheduleHealth, summarizeScheduleHealth } = require("../utils/projectScheduleHealth");
 const { addProjectItemsToDailyKit, syncDailyKit } = require("../utils/dailyKitService");
+const { dayBounds: projectDayBounds } = require("../utils/dailyKitService");
+const { projectDailyPreparation } = require("../utils/projectDailyPreparation");
 const { normalizeLifecycleReason } = require("../utils/dataLifecycle");
 
 function escapeRecoveryHtml(value) {
@@ -351,7 +354,8 @@ async function getProjectCompletionReadiness(project) {
   ]);
   const evidenceComplete = !project.isLargeScale || (submissions.length > 0 && missingEvidenceCount === 0);
   const paymentStatus = String(project.payment?.paymentStatus || "unpaid");
-  const paymentVerified = ["verified", "paid"].includes(paymentStatus);
+  const purchase = await loadProjectPurchase(project);
+  const paymentVerified = purchase ? purchase.balance <= .01 && ['verified', 'paid', 'remitted'].includes(purchase.order.paymentStatus) : ["verified", "paid"].includes(paymentStatus);
   const blockers = [];
   if (!workOrdersComplete) blockers.push("all work orders must be reviewed and submitted by the lead");
   if (!evidenceComplete) blockers.push(`${missingEvidenceCount || "some"} completed unit(s) are missing proof-backed submissions`);
@@ -504,7 +508,7 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       project.bookingId ? BookingService.findById(project.bookingId).lean() : null,
       ProjectWorkSubmission.find({ projectId: id }).populate("technicianId", "name").sort({ createdAt: -1 }).lean(),
       getProjectCompletionReadiness(project),
-      Payment.find({ $or: [{ projectId: id }, ...(project.bookingId ? [{ bookingId: project.bookingId }] : [])] })
+      Payment.find(projectPaymentFilter(project))
         .select('amount method status type reference proofUrl createdAt collectedAt verifiedAt refundAmount refundStatus')
         .sort({ createdAt: -1 }).lean(),
     ]);
@@ -519,7 +523,12 @@ router.get("/projects/:id", auth.requireRole(["admin", "secretary", "technician"
       // existing explicit planning write endpoints, not while viewing a record.
     }
 
-    res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness, payments, paymentSummary: projectPaymentSummary(project, booking, payments) });
+    const purchase = await loadProjectPurchase(project);
+    const purchaseInfo = purchase ? { id: purchase.order._id, reference: purchase.order.orderReference,
+      paymentStatus: purchase.order.paymentStatus, dispatchStatus: purchase.order.preparation?.dispatch?.status,
+      items: purchase.order.items.map(item => ({ brand: item.brand, modelLine: item.modelLine, capacity: item.capacity, capacityUnit: item.capacityUnit, quantity: item.quantity })) } : null;
+    res.json({ project, workOrders, materials, booking, workSubmissions, completionReadiness, payments,
+      purchase: purchaseInfo, paymentSummary: purchase ? { ...projectPaymentSummary(project, booking, payments), ...require('../utils/orderProjectLifecycle').purchasePaymentSummary(purchase.order, payments), paymentOwner: 'order', orderId: purchase.order._id } : projectPaymentSummary(project, booking, payments) });
   } catch (error) {
     console.error("Error fetching project:", error);
     res.status(500).json({ error: "Failed to fetch project" });
@@ -727,6 +736,8 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
     if (project.isLargeScale && ["accepted", "planning", "ready", "in_progress"].includes(status) && !project.verifiedAt) {
       return res.status(409).json({ error: "Verify this large-scale project before moving it into planning." });
     }
+    if (project.sourceOrderId && status === 'cancelled') return res.status(409).json({ error: 'Cancel this purchase in Aircon Orders so stock and refund review stay consistent.' });
+    if (project.sourceOrderId && ['planning', 'ready', 'in_progress'].includes(status)) await assertProjectPurchaseReady(project, { prepared: status === 'ready' || status === 'in_progress' });
     const allowedTransitions = {
       pending_project_scheduling: ["on_hold", "cancelled"],
       accepted: ["planning", "ready", "on_hold", "cancelled"],
@@ -892,6 +903,7 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
     }
     await project.save();
     if (status === "ready" || status === "in_progress") await releaseUnblockedWorkOrders(project._id);
+    if (status === 'ready') { await recordProjectOrderStage(project, 'ready'); emitPurchaseProjectUpdate(project, req.app.get('io'), 'technician_accepted'); }
 
     if (status === "ready") {
       const io = req.app.get("io");
@@ -952,7 +964,7 @@ router.put("/projects/:id/status", auth.requireRole(["admin", "secretary"]), asy
     res.json({ project });
   } catch (error) {
     console.error("Error updating project status:", error);
-    res.status(500).json({ error: "Failed to update project status" });
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to update project status", code: error.code });
   }
 });
 
@@ -999,7 +1011,8 @@ router.post("/projects/:id/verify", auth.requireRole(["admin", "secretary"]), as
         throw Object.assign(new Error("Project planning is for 8–40 units or a smaller job that exceeds the daily work limit."), { status: 409 });
       }
       const payments = await Payment.find(projectPaymentFilter(project)).session(session).lean();
-      const summary = projectPaymentSummary(project, booking, payments);
+      const purchase = await assertProjectPurchaseReady(project, { session });
+      const summary = purchase || projectPaymentSummary(project, booking, payments);
       if (summary.requiresVerification || summary.amountPaid + 0.01 < summary.downpaymentRequired) {
         throw Object.assign(new Error("Review the submitted payment before approving this project. Open View payment to check the receipt."), { status: 409, code: "PROJECT_PAYMENT_REVIEW_REQUIRED" });
       }
@@ -4735,7 +4748,7 @@ function woTransition(allowedFrom, newStatus, tsField) {
       const workOrder = await WorkOrder.findById(id);
       if (!workOrder) return res.status(404).json({ error: "Work order not found" });
       const technician = await Technician.findOne({ user: req.user._id }).select("_id").lean();
-      const projectForAccess = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId status").lean();
+      const projectForAccess = await Project.findById(workOrder.projectId).select("assignedTechnicians leadTechnicianId status sourceOrderId").lean();
       const onTeam = technician && (projectForAccess?.assignedTechnicians || []).some(member => String(member._id) === String(technician._id));
       if (!onTeam) return res.status(403).json({ error: "You are not on this project team." });
       if (allowedFrom && !allowedFrom.includes(workOrder.status)) {
@@ -4745,6 +4758,7 @@ function woTransition(allowedFrom, newStatus, tsField) {
       // Block en-route / arrived / start if admin planning is not complete on the parent project.
       if (workOrder.projectId && ["en_route", "arrived", "in_progress"].includes(newStatus)) {
         const proj = projectForAccess;
+        await assertProjectPurchaseReady(proj, { prepared: true });
         if (proj && ["pending_project_scheduling", "planning", "pending", "assigned"].includes(proj.status)) {
           return res.status(400).json({ error: "Admin planning is not yet complete — cannot proceed" });
         }
@@ -4879,10 +4893,9 @@ function emitProjectPhase(req, project, phase) {
 }
 
 async function scheduledWorkOrdersForDay(projectId, statuses, value = new Date()) {
-  const start = new Date(value); start.setHours(0, 0, 0, 0);
-  const end = new Date(start); end.setDate(end.getDate() + 1);
+  const { start, end } = projectDayBounds(value);
   const rows = await DailyAssignment.find({
-    projectId, date: { $gte: start, $lt: end }, planningOnly: false, status: { $ne: "skipped" },
+    projectId, date: { $gte: start, $lt: end }, planningOnly: { $ne: true }, status: { $ne: "skipped" },
   }).select("workOrderId").lean();
   const ids = [...new Set(rows.map(row => String(row.workOrderId)))];
   if (ids.length) return WorkOrder.find({ _id: { $in: ids }, projectId, status: { $in: statuses } });
@@ -4899,35 +4912,19 @@ async function scheduledWorkOrdersForDay(projectId, statuses, value = new Date()
 }
 
 async function assertProjectDailyKitsReady(projectId, technicianIds = null, value = new Date()) {
-  const start = new Date(value); start.setHours(0, 0, 0, 0);
-  const end = new Date(start); end.setDate(end.getDate() + 1);
-  const filter = {
-    projectId,
-    date: { $gte: start, $lt: end },
-    planningOnly: { $ne: true },
-    status: { $in: ["pending", "in_progress"] },
-  };
-  if (technicianIds?.length) filter.technicianId = { $in: technicianIds };
-  const rows = await DailyAssignment.find(filter).select("technicianId").lean();
-  const ids = [...new Set(rows.map(row => String(row.technicianId)))];
-  if (!ids.length) return;
-
-  const notReady = [];
-  for (const technicianId of ids) {
-    const kit = await syncDailyKit(technicianId, start);
-    const unresolvedDelta = kit.hasDelta && (kit.deltaItems || []).some(item =>
-      !item.resolution?.status && !item.exception?.approved
-    );
-    if (!["confirmed", "in_progress"].includes(kit.status) || unresolvedDelta) notReady.push(technicianId);
-  }
-  if (!notReady.length) return;
-  const technicians = await Technician.find({ _id: { $in: notReady } }).select("name").lean();
-  const names = technicians.map(row => row.name).filter(Boolean);
-  throw Object.assign(new Error(`Daily Preparation is incomplete for ${names.join(", ") || `${notReady.length} technician(s)`}. Confirm the shared kit before mobilizing.`), {
-    status: 409,
-    code: "DAILY_KIT_REQUIRED",
-  });
+  const preparation = await projectDailyPreparation(projectId, { technicianIds, date: value, synchronize: true });
+  if (!preparation.ready) throw Object.assign(new Error(preparation.error), { status: 409, code: preparation.code, preparation });
+  return preparation;
 }
+
+router.get("/projects/:id/daily-preparation", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
+    const { technician } = await requireTechnicianProjectMember(req.user, req.params.id);
+    const preparation = await projectDailyPreparation(req.params.id, { date: req.query.date || new Date(), viewerTechnicianId: technician._id });
+    return res.set("Cache-Control", "private, no-store").json(preparation);
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not load project Daily Preparation." }); }
+});
 
 async function openNextDayAcceptance(req, project) {
   const nextDate = nextWorkingDay(new Date());
@@ -4970,6 +4967,7 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
+    await assertProjectPurchaseReady(project, { prepared: true });
     if (!project.leadAcceptedAt) return res.status(400).json({ error: "Accept the project first" });
     if (!teamAllAccepted(project)) return res.status(400).json({ error: "Waiting for all team members to accept" });
     if (project.isLargeScale && project.projectPhase === "assessment") {
@@ -5001,11 +4999,13 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
     if (wos.length === 0) return res.status(400).json({ error: "No active work to mobilize today" });
     await assertProjectDailyKitsReady(project._id);
     for (const w of wos) { w.status = "en_route"; w.enRouteAt = new Date(); await w.save(); }
+    await recordProjectOrderStage(project, 'en_route');
+    emitPurchaseProjectUpdate(project, req.app.get('io'), 'out_for_delivery');
     emitProjectPhase(req, project, "en_route");
     res.json({ phase: "en_route", message: "Team is en route" });
   } catch (e) {
     console.error("mobilize en-route error:", e);
-    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to mobilize team", code: e.code });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to mobilize team", code: e.code, preparation: e.preparation });
   }
 });
 
@@ -5028,11 +5028,13 @@ router.put("/projects/:id/mobilize/arrived", auth.authenticate, auth.requireRole
     const wos = await scheduledWorkOrdersForDay(project._id, ["en_route"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must be en route first" });
     for (const w of wos) { w.status = "arrived"; w.arrivedAt = new Date(); await w.save(); }
+    await recordProjectOrderStage(project, 'arrived');
+    emitPurchaseProjectUpdate(project, req.app.get('io'), 'arrived');
     emitProjectPhase(req, project, "arrived");
     res.json({ phase: "arrived", message: "Team arrived on site" });
   } catch (e) {
     console.error("mobilize arrived error:", e);
-    res.status(500).json({ error: "Failed to update team status" });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to update team status", code: e.code });
   }
 });
 
@@ -5041,10 +5043,14 @@ router.put("/projects/:id/mobilize/start", auth.authenticate, auth.requireRole("
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
     const { project } = ctx;
+    await assertProjectPurchaseReady(project, { prepared: true });
     const wos = await scheduledWorkOrdersForDay(project._id, ["arrived"]);
     if (wos.length === 0) return res.status(400).json({ error: "Team must arrive on site first" });
+    await assertProjectDailyKitsReady(project._id);
     for (const w of wos) { w.status = "in_progress"; w.startedAt = new Date(); if (!w.actualStartDate) w.actualStartDate = new Date(); await w.save(); }
     if (project.status !== "in_progress") { project.status = "in_progress"; if (!project.actualStartDate) project.actualStartDate = new Date(); await project.save(); }
+    await recordProjectOrderStage(project, 'in_progress');
+    emitPurchaseProjectUpdate(project, req.app.get('io'), 'installing');
     // ── Cascade: ensure BookingService reflects in-progress ──
     if (project.bookingId) {
       await BookingService.findByIdAndUpdate(project.bookingId, { status: "in-progress" }).catch(() => {});
@@ -5063,7 +5069,7 @@ router.put("/projects/:id/mobilize/start", auth.authenticate, auth.requireRole("
     res.json({ phase: "in_progress", message: "Work started" });
   } catch (e) {
     console.error("mobilize start error:", e);
-    res.status(500).json({ error: "Failed to start work" });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to start work", code: e.code, preparation: e.preparation });
   }
 });
 
@@ -5393,6 +5399,15 @@ async function buildAuthoritativeProjectPaymentSummary(project, session = null) 
     bookingQuery ? bookingQuery.lean() : null,
   ]);
   const pricing = calculateProjectCustomerPricing({ project, booking, workOrders, dailyRows });
+  const purchase = await loadProjectPurchase(project, session);
+  if (purchase) Object.assign(pricing, {
+    total: purchase.total, alreadyPaid: purchase.amountPaid, balance: purchase.balance,
+    serviceCharge: Math.max(0, purchase.total - Number(purchase.order.transportationFee || 0)),
+    travelFare: Number(purchase.order.transportationFee || 0), travelFarePerDay: 0,
+    pricingReady: purchase.total > 0, pricingSource: 'Product purchase (installation included)',
+    sourceOrderId: purchase.order._id, orderReference: purchase.order.orderReference,
+    purchaseItems: purchase.order.items.map(item => ({ modelLine: item.modelLine, brand: item.brand, capacity: item.capacity, capacityUnit: item.capacityUnit, quantity: item.quantity })),
+  });
   const projectCrewSize = Math.max(1, (project.assignedTechnicians || []).length);
   const activeWorkOrders = workOrders.filter(order => order.status !== "cancelled");
   const allSubmitted = activeWorkOrders.length > 0 && activeWorkOrders.every(order => order.status === "completed");
@@ -5400,7 +5415,7 @@ async function buildAuthoritativeProjectPaymentSummary(project, session = null) 
     ...pricing,
     crewSize: projectCrewSize,
     laborCategory: booking?.quotation?.laborCategory || "standard",
-    pricingMessage: pricing.pricingReady
+    pricingMessage: purchase ? 'This is the purchase balance. Installation is included; crew size and extra workdays do not add a second charge.' : pricing.pricingReady
       ? "Locked to the approved unit pricing and actual productive site visits."
       : "No approved customer price is stored. An admin must set the project total before payment can be collected.",
     allDone: pricing.totalUnits > 0 && pricing.completedUnits >= pricing.totalUnits,
@@ -5515,7 +5530,7 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     if (!clientSubmissionId || clientSubmissionId.length > 100) {
       return res.status(400).json({ error: "A valid client submission id is required." });
     }
-    const existingPayment = await Payment.findOne({ projectId: project._id, clientSubmissionId }).lean();
+    const existingPayment = await Payment.findOne({ ...(project.sourceOrderId ? { orderId: project.sourceOrderId } : { projectId: project._id }), clientSubmissionId }).lean();
     if (existingPayment) {
       return res.json({ message: "Payment was already recorded", replayed: true, payment: existingPayment });
     }
@@ -5542,6 +5557,11 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     }
     const total = summary.total;
     const amount = num(b.amount, summary.balance);
+    if (project.sourceOrderId) {
+      const purchase = await loadProjectPurchase(project);
+      validatePurchaseSerials(purchase.order, b.serialNumbers);
+      if (Math.abs(amount - summary.balance) > .01) return res.status(400).json({ error: 'Collect the full outstanding purchase balance at installation handover.' });
+    }
     if (amount <= 0) return res.status(400).json({ error: "Enter an amount greater than zero." });
     if (amount > summary.balance) return res.status(400).json({ error: `Amount cannot exceed the ₱${summary.balance.toLocaleString()} balance.` });
     const method = (b.paymentMethod || "cash").toString().slice(0, 40);
@@ -5554,6 +5574,10 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     const paymentSession = await mongoose.startSession();
     try {
       await paymentSession.withTransaction(async () => {
+    if (project.sourceOrderId) {
+      const current = await loadProjectPurchase(project, paymentSession);
+      if (Math.abs(current.balance - amount) > .01) throw Object.assign(new Error('The purchase payment changed. Refresh before collecting again.'), { status: 409 });
+    }
     project.$session(paymentSession);
     project.payment = {
       ...(project.payment || {}),
@@ -5572,6 +5596,7 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
       recordedBy: req.user._id,
       recordedAt: new Date(),
     };
+    if (project.sourceOrderId) Object.assign(project.payment, { totalAmount: 0, amountPaid: 0, balanceAmount: 0 });
     if (balanceAmount <= 0) { project.status = "completed"; if (!project.actualCompletionDate) project.actualCompletionDate = new Date(); }
     await project.save();
 
@@ -5580,8 +5605,8 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
       const bsUpdate = balanceAmount <= 0 ? "completed" : "in-progress";
       await BookingService.findByIdAndUpdate(project.bookingId, {
         status: bsUpdate,
-        amountPaid,
-        balanceAmount,
+        amountPaid: project.sourceOrderId ? 0 : amountPaid,
+        balanceAmount: project.sourceOrderId ? 0 : balanceAmount,
         paymentStatus: balanceAmount <= 0 ? "waiting_for_remittance" : "partial",
         balanceCollected: balanceAmount <= 0,
         balanceCollectedAt: balanceAmount <= 0 ? new Date() : null,
@@ -5590,10 +5615,10 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     }
 
     // ── Cascade: create standalone Payment record ──
+    let recordedPurchasePayment = null;
     if (amount > 0) {
-      await Payment.create([{
-        bookingId: project.bookingId || undefined,
-        projectId: project._id,
+      const createdPayments = await Payment.create([{
+        ...(project.sourceOrderId ? { orderId: project.sourceOrderId } : { bookingId: project.bookingId || undefined, projectId: project._id }),
         clientSubmissionId,
         amount,
         method,
@@ -5611,6 +5636,11 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
         notes: `Collected by ${ctx.tech.name || "lead"}. ${b.remarks || ""}`.trim(),
         submittedAt: new Date(),
       }], { session: paymentSession });
+      if (project.sourceOrderId) recordedPurchasePayment = createdPayments[0];
+    }
+    if (project.sourceOrderId) {
+      await require('../models/Order').updateOne({ _id: project.sourceOrderId }, { $set: { paymentStatus: 'waiting_for_remittance', balanceAmount: 0, paymentId: recordedPurchasePayment._id } }, { session: paymentSession });
+      await recordProjectOrderStage(project, 'completed', paymentSession, b.serialNumbers);
     }
 
     // ── Cascade: complete Assignment records for project team ──
@@ -5637,6 +5667,8 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
       await paymentSession.endSession();
     }
 
+    if (project.sourceOrderId) await syncCompletedPurchaseAftercare(project).catch(error => console.warn('Purchase aftercare sync failed:', error.message));
+    emitPurchaseProjectUpdate(project, req.app.get('io'), 'completed');
     // Notify admin to generate the final invoice.
     await createNotification({
       type: "project_payment", title: "Project payment collected",
@@ -5651,7 +5683,7 @@ router.post("/projects/:id/collect-payment", auth.authenticate, auth.requireRole
     });
   } catch (e) {
     console.error("collect-payment error:", e);
-    res.status(500).json({ error: "Failed to record payment" });
+    res.status(e.status || 500).json({ error: e.status ? e.message : "Failed to record payment", code: e.code });
   }
 });
 
@@ -5687,6 +5719,10 @@ router.post("/projects/:id/complete", auth.authenticate, auth.requireRole("techn
       recordedBy: req.user._id,
       recordedAt: new Date(),
     };
+    if (project.sourceOrderId) {
+      Object.assign(project.payment, { totalAmount: 0, amountPaid: 0, balanceAmount: 0 });
+      await recordProjectOrderStage(project, 'completed', completionSession, req.body.serialNumbers);
+    }
     await project.save();
     if (project.bookingId) {
       await BookingService.findByIdAndUpdate(project.bookingId, {
@@ -5728,10 +5764,12 @@ router.post("/projects/:id/complete", auth.authenticate, auth.requireRole("techn
       priority: "high",
       io: req.app.get("io"),
     });
+    if (project.sourceOrderId) await syncCompletedPurchaseAftercare(project).catch(error => console.warn('Purchase aftercare sync failed:', error.message));
+    emitPurchaseProjectUpdate(project, req.app.get('io'), 'completed');
     return res.json({ project, message: "Project completed and sent to admin for closeout review." });
   } catch (error) {
     console.error("project complete error:", error);
-    return res.status(500).json({ error: "Failed to complete project" });
+    return res.status(error.status || 500).json({ error: error.status ? error.message : "Failed to complete project", code: error.code });
   }
 });
 

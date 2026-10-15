@@ -157,21 +157,21 @@ function signupState(req) {
 }
 
 function cleanName(value) {
-  const name = String(value || "").trim();
+  const name = typeof value === 'string' ? value.trim() : '';
   return /^[A-Za-z\s]{1,20}$/.test(name) ? name : "";
 }
 
 function signupDetails(body) {
   const firstName = cleanName(body?.firstName);
   const lastName = cleanName(body?.lastName);
-  const phone = String(body?.phone || "").replace(/\D/g, "");
+  const phone = typeof body?.phone === 'string' ? body.phone.replace(/\D/g, "") : '';
   const province = String(body?.addressProvince || "").trim();
   const city = String(body?.addressCity || "").trim();
   const barangay = String(body?.addressBarangay || "").trim();
   const postalCode = String(body?.addressPostal || "").trim();
   if (!firstName || !lastName || !/^(?:0\d{10}|63\d{10}|9\d{9})$/.test(phone)
     || !province || province.length > 100 || !city || city.length > 100
-    || !barangay || barangay.length > 100 || !/^\d{1,4}$/.test(postalCode)
+    || !barangay || barangay.length > 100 || !/^\d{4}$/.test(postalCode)
     || body?.termsAccepted !== true) return null;
   return { firstName, lastName, phone, address: { province, city, barangay, postalCode } };
 }
@@ -498,7 +498,7 @@ exports.signupPage = async (req, res) => {
     email: state.email,
     firstName: state.firstName || "",
     lastName: state.lastName || "",
-    extraScripts: ["/js/psgc-handler.js", "/js/google-signup.js"],
+    extraScripts: ["/js/psgc-handler.js?v=20261014-it-review", "/js/google-signup.js?v=20261014-it-review"],
   });
 };
 
@@ -514,6 +514,8 @@ exports.completeSignup = async (req, res, next) => {
     if (!details) {
       return res.status(400).json({ error: "Complete your name, phone, address, and agreement." });
     }
+    try { details.address = await require('../utils/psgcCatalog').validateAddressSelection(req.body); }
+    catch (error) { return res.status(error.status || 400).json({ error: error.message, fields: error.fields, code: error.code }); }
 
     const bySubject = await User.findOne({ googleSubject: state.sub }).select("+googleSubject");
     const byEmail = await User.findOne({ email: state.email }).select("+googleSubject");

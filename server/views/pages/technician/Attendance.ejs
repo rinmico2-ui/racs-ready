@@ -771,8 +771,9 @@
   // ── Init ──────────────────────────────────────────────────────────────
   document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
   document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  document.getElementById('leaveStart').min = new Date().toISOString().split('T')[0];
-  document.getElementById('leaveEnd').min = new Date().toISOString().split('T')[0];
+  const leaveToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+  document.getElementById('leaveStart').min = leaveToday;
+  document.getElementById('leaveEnd').min = leaveToday;
 
   // ── Load Status ───────────────────────────────────────────────────────
   async function loadStatus() {
@@ -1172,6 +1173,7 @@
   // ── Leave Modal ───────────────────────────────────────────────────────
   window.openLeaveModal = function() {
     document.getElementById('leaveForm').reset();
+    FormFeedback.clear(document.getElementById('leaveForm'));
     new bootstrap.Modal(document.getElementById('leaveModal')).show();
   };
 
@@ -1182,18 +1184,18 @@
     const reason = document.getElementById('leaveReason').value;
 
     try {
-      const res = await fetch('/api/technician/leave-requests', {
+      FormFeedback.clear(document.getElementById('leaveForm'));
+      await RACSRequest.json('/api/technician/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate: start, endDate: end, reason })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+
       bootstrap.Modal.getInstance(document.getElementById('leaveModal')).hide();
       showToast('Leave request submitted!', 'success');
       loadLeaves();
     } catch(e) {
-      showToast(e.message, 'danger');
+      FormFeedback.show(document.getElementById('leaveForm'), e, { startDate:'leaveStart', endDate:'leaveEnd', reason:'leaveReason' });
     }
   };
 

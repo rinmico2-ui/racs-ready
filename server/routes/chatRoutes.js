@@ -1,3 +1,4 @@
+const { externalChatHistory } = require("../utils/customerChatPrivacy");
 const express = require("express");
 const router = express.Router();
 const { createWorkLimiter } = require("../utils/workLimiter");
@@ -454,7 +455,7 @@ async function callOpenRouter(systemPrompt, conversationHistory, userMessage) {
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...conversationHistory.slice(-10).map((m) => ({
+    ...externalChatHistory(conversationHistory).slice(-10).map((m) => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.content,
     })),
@@ -503,7 +504,7 @@ async function callGroq(systemPrompt, conversationHistory, userMessage) {
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...conversationHistory.slice(-10).map((message) => ({
+    ...externalChatHistory(conversationHistory).slice(-10).map((message) => ({
       role: message.role === "user" ? "user" : "assistant",
       content: message.content,
     })),
@@ -558,7 +559,7 @@ async function callOpenRouterStream(systemPrompt, conversationHistory, userMessa
 
   const messages = [
     { role: "system", content: systemPrompt },
-    ...conversationHistory.slice(-10).map((m) => ({
+    ...externalChatHistory(conversationHistory).slice(-10).map((m) => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.content,
     })),
@@ -626,7 +627,7 @@ async function callOpenRouterStream(systemPrompt, conversationHistory, userMessa
 // ─── Build Gemini Contents Array ───────────────────────────────────────────
 function buildGeminiContents(conversationHistory, userMessage) {
   const contents = [];
-  const recentHistory = conversationHistory.slice(-10);
+  const recentHistory = externalChatHistory(conversationHistory).slice(-10);
 
   for (const msg of recentHistory) {
     contents.push({
@@ -1857,7 +1858,7 @@ router.post("/", limitChatWork(async (req, res) => {
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
-    const requestContext = [EXTERNAL_CHAT_CONTEXT, customerData.context].filter(Boolean).join("\n\n");
+    const requestContext = EXTERNAL_CHAT_CONTEXT;
 
     const result = isCustomerAccountQuestion(message)
       ? { text: buildCustomerStatusResponse(customerData), suggests: ["Track full details", "Book a Service", "Contact"], intent: "account_status" }
@@ -1934,7 +1935,7 @@ router.post("/stream", limitChatWork(async (req, res) => {
 
     syncClientHistory(session, history, message);
     const customerData = await loadCustomerContext(req.user);
-    const requestContext = [EXTERNAL_CHAT_CONTEXT, customerData.context].filter(Boolean).join("\n\n");
+    const requestContext = EXTERNAL_CHAT_CONTEXT;
 
     // Update session state
     const [intent] = detectChatIntent(message);
@@ -2120,34 +2121,9 @@ router.post("/stream", limitChatWork(async (req, res) => {
 }));
 
 // ─── Health Check ──────────────────────────────────────────────────────────
-router.get("/health", async (req, res) => {
-  const knowledge = await loadKnowledge();
-  res.json({
-    status: "ok",
-    mode: OPENROUTER_API_KEY
-      ? "openrouter-ai"
-      : canUseGemini()
-        ? "gemini-ai"
-        : canUseGroq()
-          ? "groq-ai"
-          : "local-ai",
-    openrouterConfigured: !!OPENROUTER_API_KEY,
-    openrouterModel: OPENROUTER_API_KEY ? OPENROUTER_MODEL : null,
-    geminiConfigured: GEMINI_KEYS.length > 0,
-    geminiKeysCount: GEMINI_KEYS.length,
-    geminiModel: GEMINI_KEYS.length ? GEMINI_MODEL : null,
-    geminiAvailable: canUseGemini(),
-    geminiLastError,
-    groqConfigured: GROQ_KEYS.length > 0,
-    groqKeysCount: GROQ_KEYS.length,
-    groqModel: GROQ_KEYS.length ? GROQ_MODEL : null,
-    groqAvailable: canUseGroq(),
-    groqLastError,
-    products: knowledge.products.length,
-    services: knowledge.services.length,
-    activeSessions: sessions.size,
-    timestamp: new Date().toISOString(),
-  });
+router.get("/health", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ status: "ok" });
 });
 
 module.exports = router;

@@ -1945,7 +1945,7 @@
 
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="/js/checkout-calendar.js?v=20261011-single-payment-action-date-colors"></script>
+  <script src="/js/checkout-calendar.js?v=20261014-checkout-draft-context"></script>
   <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
   <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
   <script src="/js/order-route-map.js?v=20261009-visible-route"></script>
@@ -2007,7 +2007,7 @@
       });
 
       // ── Data from server ────────────────────────────────────────────────
-      const GROUPS = <%- JSON.stringify(airconGroups) %>;
+      const GROUPS = <%- (JSON.stringify(airconGroups)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
       const IS_LOGGED_IN = <%= !!locals.user %>;
       const DIRECT_CHECKOUT_CUSTOMER_ID = <%- JSON.stringify((locals.user && (user._id || user.id)) ? String(user._id || user.id) : '').replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %>;
       const USER_PHONE = '<%= (locals.user && locals.user.phone) ? locals.user.phone : "" %>';
@@ -2075,6 +2075,7 @@
       }
       function directRewardDiscount() { return Number(currentDirectReward()?.discount) || 0; }
       async function refreshDirectReward() {
+        const generation = _directCheckoutGeneration;
         const selection = directRewardSelection();
         const key = JSON.stringify(selection);
         if (currentDirectReward() && Date.now() - directLoyaltyQuote.checkedAt < 10 * 60 * 1000) return directLoyaltyQuote;
@@ -2082,6 +2083,7 @@
         const previousTotal = Number(variant.sellingPrice) * selectedQuantity - directRewardDiscount();
         const response = await fetch('/api/orders/loyalty-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
         const data = await response.json();
+        if (generation !== _directCheckoutGeneration) throw new Error('Your checkout changed. Review the current aircon.');
         if (!response.ok) throw new Error(data.error || 'Unable to check your loyalty price. Please try again.');
         if (key !== JSON.stringify(directRewardSelection())) throw new Error('Your product selection changed. Review it again.');
         directLoyaltyQuote = { ...data, key, checkedAt: Date.now() };
@@ -2113,6 +2115,8 @@
       let _directCheckoutSubmitting = false;
       let _directDraftSaveTimer = null;
       let _restoringDirectDraft = false;
+      let _directCheckoutGeneration = 0;
+      let _directRestoreTimer = null;
       let _directCheckoutSessionActive = Boolean(IS_LOGGED_IN && DIRECT_CHECKOUT_CUSTOMER_ID);
 
       const DIRECT_CHECKOUT_DRAFT_KEY = `racs_direct_order_draft_v2_${DIRECT_CHECKOUT_CUSTOMER_ID}`;
@@ -2159,13 +2163,17 @@
           if (!raw) return null;
           const draft = JSON.parse(raw);
           const expired = !draft?.savedAt || Date.now() - Number(draft.savedAt) > DIRECT_CHECKOUT_DRAFT_MAX_AGE_MS;
-          const currentVariant = GROUPS[Number(draft.groupIdx)]?.variants?.[Number(draft.variantIdx)];
-          const variantExists = String(currentVariant?._id || '') === String(draft.variantId || '') && Number(currentVariant?.quantity) > 0;
+          const groupIdx = GROUPS.findIndex(group => group.variants.some(variant => String(variant._id) === String(draft.variantId || '')));
+          const variantIdx = groupIdx < 0 ? -1 : GROUPS[groupIdx].variants.findIndex(variant => String(variant._id) === String(draft.variantId));
+          const currentVariant = GROUPS[groupIdx]?.variants?.[variantIdx];
+          const variantExists = currentVariant && ProductAvailability.availability(currentVariant).available
+            && Number.isInteger(Number(draft.selectedQuantity)) && Number(draft.selectedQuantity) > 0
+            && Number(currentVariant.quantity) >= Number(draft.selectedQuantity);
           if (expired || !variantExists) {
             localStorage.removeItem(DIRECT_CHECKOUT_DRAFT_KEY);
             return null;
           }
-          return draft;
+          return { ...draft, groupIdx, variantIdx };
         } catch (_) {
           try { localStorage.removeItem(DIRECT_CHECKOUT_DRAFT_KEY); } catch (_) {}
           return null;
@@ -2208,7 +2216,10 @@
 
       function scheduleDirectCheckoutDraftSave() {
         clearTimeout(_directDraftSaveTimer);
-        _directDraftSaveTimer = setTimeout(saveDirectCheckoutDraft, 120);
+        const generation = _directCheckoutGeneration;
+        _directDraftSaveTimer = setTimeout(() => {
+          if (generation === _directCheckoutGeneration) saveDirectCheckoutDraft();
+        }, 120);
       }
 
       function clearDirectCheckoutDraft() {
@@ -2286,8 +2297,37 @@
         if (input && value !== undefined && value !== null) input.value = String(value);
       }
 
-      async function restoreDirectCheckoutDraft(draft) {
-        if (!draft) return;
+      function resetDirectCheckoutFields(clearAddress = true) {
+        directLoyaltyQuote = null; _checkoutRequestId = '';
+        checkoutCalendar?.clear(); fpDatePickup?.clear();
+        const fields = ['wizardDate', 'wizardTimeSlot', 'wizardPickupDate', 'wizardPaymentMethod',
+          'directWizardPaymentChannel', 'wizardGcashSenderNumber', 'wizardGcashProof'];
+        if (clearAddress) fields.push('wizardAddress', 'wizardLat', 'wizardLng', 'wizardNotes');
+        fields.forEach(id => setDirectCheckoutFieldValue(id, ''));
+        if (clearAddress) {
+          ++_routeRequestId; _routeQuotePending = null; _routeQuoteError = null;
+          _routeDistanceKm = 0; _routeDurationMin = 0; _transportFee = 0;
+          setDirectCheckoutFieldValue('wizardContact', USER_PHONE || '');
+          document.getElementById('wizardNotes')?.dispatchEvent(new Event('input', { bubbles:true }));
+          document.getElementById('wizardAddress')?._addressAutocomplete?.close();
+          window.OrderRouteMap?.clear(leafletMap, window._routeLayer); window._routeLayer = null;
+          leafletMap?.remove(); leafletMap = null; leafletMarker = null;
+        }
+        const preview = document.getElementById('wizardGcashProofPreview'); if (preview) preview.removeAttribute('src');
+        const previewArea = document.getElementById('wizardGcashProofPreviewArea'); if (previewArea) previewArea.style.display = 'none';
+        document.getElementById('directCheckoutRestoreNotice')?.classList.add('d-none');
+        document.getElementById('directLoyaltyPriceNote')?.remove();
+      }
+
+      function invalidateDirectSelection() {
+        clearDirectCheckoutDraft(); ++_directCheckoutGeneration;
+        clearTimeout(_directRestoreTimer); _restoringDirectDraft = false;
+        resetDirectCheckoutFields(false);
+      }
+
+      async function restoreDirectCheckoutDraft(draft, generation = _directCheckoutGeneration) {
+        if (!draft || generation !== _directCheckoutGeneration || Number(draft.groupIdx) !== Number(selectedGroupIdx)
+            || String(directCheckoutVariantId(selectedGroupIdx, Number(draft.variantIdx))) !== String(draft.variantId)) return;
         _restoringDirectDraft = true;
         try {
           window.selectVariant(Number(draft.variantIdx));
@@ -2323,6 +2363,7 @@
             try { await refreshDirectReward(); }
             catch (_) { targetStep = 3; }
           }
+          if (generation !== _directCheckoutGeneration) return;
 
           if (targetStep >= 3) {
             const isDelivery = selectedFulfillment !== 'customer_pickup';
@@ -2342,12 +2383,16 @@
           if (targetStep === 5) populateReview();
           updateWizardUI();
         } finally {
-          _restoringDirectDraft = false;
+          if (generation === _directCheckoutGeneration) _restoringDirectDraft = false;
         }
       }
 
       window.openProductWizard = async function (gIdx) {
-        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        const generation = ++_directCheckoutGeneration;
+        clearTimeout(_directRestoreTimer); clearTimeout(_directDraftSaveTimer); _restoringDirectDraft = false;
+        const activeSession = await hasActiveDirectCheckoutSession();
+        if (generation !== _directCheckoutGeneration) return;
+        _directCheckoutSessionActive = activeSession;
         if (!_directCheckoutSessionActive) {
           closeDirectCheckoutAfterLogout();
           window.location.href = '/login?returnTo=' + encodeURIComponent('/products');
@@ -2373,6 +2418,8 @@
 
         const g = GROUPS[gIdx];
         if (!g) return;
+        resetDirectCheckoutFields();
+        _checkoutRequestId = savedDraft?.checkoutRequestId || createCheckoutRequestId();
         document.getElementById('directCheckoutRestoreNotice')?.classList.add('d-none');
         setDirectCheckoutFieldValue('wizardPaymentMethod', '');
         setDirectCheckoutFieldValue('directWizardPaymentChannel', '');
@@ -2403,7 +2450,7 @@
         const hpContainer = document.getElementById('wizardHpOptions');
         hpContainer.innerHTML = '';
         g.variants.forEach((v, vIdx) => {
-          const isAvailable = v.quantity > 0;
+          const isAvailable = ProductAvailability.availability(v).available;
           const card = document.createElement('div');
           card.className = 'hp-card' + (isAvailable ? '' : ' opacity-50');
           card.dataset.vidx = vIdx;
@@ -2523,12 +2570,13 @@
         const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('productOrderModal'));
         modal.show();
         if (savedDraft && Number(savedDraft.groupIdx) === Number(gIdx)) {
-          setTimeout(() => restoreDirectCheckoutDraft(savedDraft), 80);
+          _directRestoreTimer = setTimeout(() => restoreDirectCheckoutDraft(savedDraft, generation), 80);
         }
       };
 
       // ── Select HP variant ───────────────────────────────────────────────
       window.selectVariant = function (vIdx) {
+        if (!_restoringDirectDraft) invalidateDirectSelection();
         selectedVariantIdx = vIdx;
         const g = GROUPS[selectedGroupIdx];
         const v = g.variants[vIdx];
@@ -2562,6 +2610,7 @@
         let newQ = selectedQuantity + change;
         if (newQ < 1) newQ = 1;
         if (newQ > max) newQ = max;
+        if (newQ !== selectedQuantity && !_restoringDirectDraft) invalidateDirectSelection();
         selectedQuantity = newQ;
         document.getElementById('wizardQuantity').textContent = String(newQ);
         if (checkoutCalendar) checkoutCalendar.setQuantity(newQ);
@@ -2585,6 +2634,7 @@
 
       // ── Wizard navigation ───────────────────────────────────────────────
       window.wizardNext = async function () {
+        const generation = _directCheckoutGeneration;
         _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
         if (!_directCheckoutSessionActive) {
           closeDirectCheckoutAfterLogout();
@@ -2595,7 +2645,8 @@
         // Validate current step
         if (currentStep >= 3) {
           try { await refreshDirectReward(); }
-          catch (error) { await guideDirectCheckoutIssue(error.message, 'Review your loyalty price', '#wizardStep4'); return; }
+          catch (error) { if (generation === _directCheckoutGeneration) await guideDirectCheckoutIssue(error.message, 'Review your loyalty price', '#wizardStep4'); return; }
+          if (generation !== _directCheckoutGeneration) return;
         }
         if (currentStep === 1 && selectedVariantIdx === null) {
           await guideDirectCheckoutIssue('Choose the HP (aircon size) you want.', 'Choose an aircon size', '#wizardHpOptions');
@@ -2676,6 +2727,7 @@
           return;
         }
 
+        if (generation !== _directCheckoutGeneration) return;
         currentStep++;
 
         // Setup step 3 based on fulfillment
@@ -2896,8 +2948,10 @@
         const previewArea = document.getElementById('wizardGcashProofPreviewArea');
         const previewImg = document.getElementById('wizardGcashProofPreview');
         if (file) {
+          const generation = _directCheckoutGeneration;
           const reader = new FileReader();
           reader.onload = function(e) {
+            if (generation !== _directCheckoutGeneration) return;
             previewImg.src = e.target.result;
             previewArea.style.display = 'block';
           }
@@ -3414,11 +3468,17 @@
       }
 
       // ── Cart & Utilities ────────────────────────────────────────────────
+      let cartAdditionPending = false;
       async function addToCart() {
+        if (cartAdditionPending) return;
         const g = GROUPS[selectedGroupIdx];
         const v = g.variants[selectedVariantIdx];
         if (!v) return;
-
+        const requestQuantity = selectedQuantity;
+        const cartButton = document.getElementById('wizardAddToCartBtn');
+        cartAdditionPending = true;
+        if (cartButton) cartButton.disabled = true;
+        try {
         _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
         if (!_directCheckoutSessionActive) {
           closeDirectCheckoutAfterLogout();
@@ -3426,22 +3486,19 @@
           return;
         }
 
-        try {
-          const res = await fetch('/api/aircon-cart/add', {
+          await RACSRequest.json('/api/aircon-cart/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inventoryId: v._id, quantity: selectedQuantity })
+            body: JSON.stringify({ inventoryId: v._id, quantity: requestQuantity })
           });
-          const data = await res.json();
-          if (res.ok) {
-            showPremiumAlert(`Added ${selectedQuantity} unit(s) to your cart successfully!`, 'Added to Cart', 'success');
-            updateCartBadge();
-            bootstrap.Modal.getInstance(document.getElementById('productOrderModal')).hide();
-          } else {
-            showPremiumAlert(data.error || 'Failed to add to cart', 'Error', 'error');
-          }
+          showPremiumAlert(`Added ${requestQuantity} unit(s) to your cart successfully!`, 'Added to Cart', 'success');
+          updateCartBadge();
+          bootstrap.Modal.getInstance(document.getElementById('productOrderModal')).hide();
         } catch (err) {
-          showPremiumAlert('Network error while adding to cart', 'Error', 'error');
+          showPremiumAlert(err.message, 'Unable to add this item', 'error');
+        } finally {
+          cartAdditionPending = false;
+          if (cartButton) cartButton.disabled = false;
         }
       }
 
@@ -3499,6 +3556,10 @@
       // Fix aria-hidden focus trap on wizard modal
       const wizardModal = document.getElementById('productOrderModal');
       if (wizardModal) {
+        wizardModal.addEventListener('hide.bs.modal', () => {
+          saveDirectCheckoutDraft(); ++_directCheckoutGeneration;
+          clearTimeout(_directRestoreTimer); clearTimeout(_directDraftSaveTimer); _restoringDirectDraft = false;
+        });
         wizardModal.addEventListener('show.bs.modal', () => wizardModal.removeAttribute('aria-hidden'));
         wizardModal.addEventListener('hidden.bs.modal', () => wizardModal.setAttribute('aria-hidden', 'true'));
         const persistDirectCheckoutField = () => scheduleDirectCheckoutDraftSave();
@@ -3514,7 +3575,10 @@
       }
 
       async function reopenSavedDirectCheckout() {
-        _directCheckoutSessionActive = await hasActiveDirectCheckoutSession();
+        const generation = _directCheckoutGeneration;
+        const activeSession = await hasActiveDirectCheckoutSession();
+        if (generation !== _directCheckoutGeneration) return;
+        _directCheckoutSessionActive = activeSession;
         if (!_directCheckoutSessionActive) {
           closeDirectCheckoutAfterLogout();
           return;
@@ -3535,7 +3599,10 @@
           if (!active) closeDirectCheckoutAfterLogout();
         });
       });
-      window.addEventListener('pageshow', () => setTimeout(reopenSavedDirectCheckout, 80));
+      window.addEventListener('pageshow', () => {
+        const generation = _directCheckoutGeneration;
+        setTimeout(() => { if (generation === _directCheckoutGeneration) reopenSavedDirectCheckout(); }, 80);
+      });
       window.addEventListener('racs:logout', closeDirectCheckoutAfterLogout);
 
       // Call badge update on load

@@ -207,6 +207,7 @@
       checklist.push(checklistItem('BREVO_API_KEY', config.brevo.apiKeyConfigured, config.brevo.apiKeyConfigured ? 'Secret exists and remains hidden.' : 'Set the API key in the hosting environment (Render/Railway).'));
       checklist.push(checklistItem('Verified Brevo sender', Boolean(config.sender.email), 'The FROM_EMAIL domain/address must also be verified inside Brevo.'));
     }
+    (config.warnings || []).forEach(function(message) { checklist.push(checklistItem('Sender delivery warning', false, message)); });
     document.getElementById('configurationChecklist').innerHTML = checklist.join('');
     if (!config.configured) {
       var mainAlert = document.getElementById('emailPageAlert');
@@ -220,9 +221,23 @@
     if (!records.length) { body.innerHTML = '<tr><td colspan="6" class="em-empty">No email delivery attempts have been recorded yet.</td></tr>'; return; }
     body.innerHTML = records.map(function(record) {
       var detail = record.status === 'accepted' ? (record.messageId || 'Accepted without message ID') : (record.error || 'Provider rejected the message');
-      return '<tr><td class="text-nowrap">' + esc(new Date(record.createdAt).toLocaleString('en-PH')) + '</td><td><span class="em-status ' + esc(record.status) + '">' + esc(record.status.toUpperCase()) + '</span></td><td>' + esc(record.provider.toUpperCase()) + '</td><td>' + esc(record.recipient) + '</td><td>' + esc(record.subject) + '</td><td style="max-width:300px;word-break:break-word" title="' + esc(detail) + '">' + esc(detail) + '</td></tr>';
+      var check = record.provider === 'brevo' && record.status === 'accepted'
+        ? '<button type="button" class="btn btn-sm btn-outline-primary mt-2" data-delivery-id="' + esc(record.id) + '">Check delivery</button><div class="small mt-2" role="status" aria-live="polite" data-delivery-result></div>' : '';
+      return '<tr><td class="text-nowrap">' + esc(new Date(record.createdAt).toLocaleString('en-PH')) + '</td><td><span class="em-status ' + esc(record.status) + '">' + esc(record.status.toUpperCase()) + '</span></td><td>' + esc(record.provider.toUpperCase()) + '</td><td>' + esc(record.recipient) + '</td><td>' + esc(record.subject) + '</td><td style="max-width:300px;word-break:break-word" title="' + esc(detail) + '">' + esc(detail) + check + '</td></tr>';
     }).join('');
   }
+  document.getElementById('deliveryLogBody').addEventListener('click', async function(event) {
+    var button = event.target.closest('[data-delivery-id]');
+    if (!button || button.disabled) return;
+    var result = button.parentElement.querySelector('[data-delivery-result]');
+    busy(button, true, 'Checking...');
+    try {
+      var data = await api('/api/admin/settings/email-logs/' + encodeURIComponent(button.dataset.deliveryId) + '/delivery');
+      var details = (data.events || []).map(function(row) { return row.event + (row.reason ? ': ' + row.reason : ''); }).join('; ');
+      result.textContent = data.message + (details ? ' Events: ' + details : '');
+    } catch (error) { result.textContent = error.message; }
+    finally { busy(button, false); }
+  });
   async function refresh() {
     var button = document.getElementById('refreshEmailBtn');
     busy(button, true, 'Refreshing…');

@@ -141,20 +141,9 @@
           if (icon) icon.className = 'bi bi-arrow-clockwise spinner';
           var eqEl = container.querySelector('.captcha-equation');
           if (eqEl) eqEl.classList.add('captcha-fading');
-          fetch('/math-captcha')
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              setTimeout(function () {
-                window.renderMathCaptcha(eqEl, j.num1, j.num2);
-                if (eqEl) eqEl.classList.remove('captcha-fading');
-              }, 300);
-              var hidAnswer = container.querySelector('input[name="mathAnswer"]');
-              if (hidAnswer && typeof j.answer !== 'undefined') hidAnswer.value = j.answer;
-              var inp = container.querySelector('input[name="mathCaptcha"]');
-              if (inp) inp.value = '';
-            })
-            .catch(function () { /* ignore */ })
+          window.AuthSecurityQuestion.refresh(container.closest('form'))
             .finally(function () {
+              if (eqEl) eqEl.classList.remove('captcha-fading');
               btn.disabled = false;
               if (icon) icon.className = 'bi bi-arrow-clockwise';
             });

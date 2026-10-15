@@ -206,6 +206,8 @@ async function loadTechnicianContext(userId) {
 // ── Auth guards ───────────────────────────────────────────────────────────────
 router.use(auth.authenticate);
 router.use(auth.requireRole("technician"));
+// Compatibility for project clients that used the shorter GPS endpoint.
+router.post("/location", require("../controllers/technicianLocationController").updateLocation);
 router.use(require('../utils/repairUnitLegacyGuard'));
 router.use('/kit-returns', require('./kitReturnRoutes')({ technician: true, getContext: loadTechnicianContext }));
 router.use((req, res, next) => {
@@ -996,26 +998,24 @@ router.post("/leave-requests", async (req, res, next) => {
     if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const { startDate, endDate, reason } = req.body;
+    if (reason !== undefined && (typeof reason !== 'string' || reason.length > 500)) return res.status(400).json({ error: 'Check your leave reason.', fields: { reason: 'Enter a reason up to 500 characters.' } });
     if (!startDate) return res.status(400).json({ error: "Start date is required." });
 
-    const start = new Date(startDate + "T00:00:00");
-    const end = endDate ? new Date(endDate + "T00:00:00") : new Date(start);
+    const { validateLeaveDates } = require('../utils/leaveRequestValidation');
+    const { start, end, fields } = validateLeaveDates(startDate, endDate);
+    if (Object.keys(fields).length) return res.status(400).json({ error: 'Check your leave dates.', fields });
 
-    if (isNaN(start.getTime())) return res.status(400).json({ error: "Invalid start date." });
-    if (isNaN(end.getTime())) return res.status(400).json({ error: "Invalid end date." });
-    if (end < start) return res.status(400).json({ error: "End date cannot be before start date." });
-
-    // Block duplicate pending requests covering the same date range
+    // Block overlapping pending and approved requests.
     const conflict = await LeaveRequest.findOne({
       technicianId: tech._id,
-      status: "pending",
+      status: { $in: ["pending", "approved"] },
       startDate: { $lte: end },
       endDate: { $gte: start },
     }).lean();
 
     if (conflict) {
       return res.status(409).json({
-        error: "You already have a pending leave request that overlaps with these dates.",
+        error: "You already have a pending or approved leave request that overlaps with these dates.",
       });
     }
 
@@ -9655,7 +9655,8 @@ router.get("/daily-kit/upcoming", async (req, res, next) => {
 
 /**
  * GET /api/technician/daily-kit
- * Get or generate the kit for the selected work date. Returns an existing kit or creates a draft.
+ * Load the automatically generated kit and refresh it against current work.
+ * An immediate fallback sync also covers a new acceptance before the next background sweep.
  * Query: ?date=YYYY-MM-DD (defaults to today)
  * Enhanced to include job details and AI contingency part suggestions.
  */

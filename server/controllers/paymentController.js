@@ -401,80 +401,87 @@ exports.handleGatewayWebhook = async (evt) => {
     const metadata = resource?.attributes?.metadata || {};
 
     if (!eventType) return;
-
-    const payment = await Payment.findOne({
+    const found = await Payment.findOne({
       $or: [
-        ...(metadata.paymentId ? [{ _id: metadata.paymentId }] : []),
+        ...(typeof metadata.paymentId === "string" && mongoose.Types.ObjectId.isValid(metadata.paymentId) ? [{ _id: metadata.paymentId }] : []),
         ...(gatewayId ? [{ gatewayId }] : []),
-        ...(metadata.bookingId ? [{ bookingId: metadata.bookingId }] : []),
-        ...(metadata.orderId ? [{ orderId: metadata.orderId }] : []),
+        ...(typeof metadata.bookingId === "string" && mongoose.Types.ObjectId.isValid(metadata.bookingId) ? [{ bookingId: metadata.bookingId }] : []),
+        ...(typeof metadata.orderId === "string" && mongoose.Types.ObjectId.isValid(metadata.orderId) ? [{ orderId: metadata.orderId }] : []),
       ],
     }).sort({ submittedAt: -1 });
+    if (!found) return;
+    const targetKey = found.bookingId ? `booking:${found.bookingId}` : found.orderId ? `order:${found.orderId}` : `payment:${found._id}`;
+    return await require("../utils/operationLock").withOperationLock(`gateway-target:${targetKey}`, async () => {
+      const payment = await Payment.findById(found._id);
+      if (!payment) return;
+      if (["paid", "verified", "completed", "refunded"].includes(payment.status) && !["payment.paid", "checkout_session.payment.paid"].includes(eventType)) return;
+      const attrs = checkoutPayment?.attributes || resource?.attributes || {};
+      const resourceIds = [gatewayId, resource?.id, attrs.source?.id].filter(value => typeof value === "string");
+      if (!payment.gatewayId || !resourceIds.includes(payment.gatewayId)) throw new Error("Payment gateway resource mismatch");
+      if (attrs.currency && attrs.currency !== "PHP") throw new Error("Payment currency mismatch");
+      if (attrs.amount !== undefined && attrs.amount !== Math.round(Number(payment.amount) * 100)) throw new Error("Payment amount mismatch");
+      const eventId = evt?.data?.id || evt?.id;
+      payment.webhookEvents = (payment.webhookEvents || [])
+        .filter(existingEvent => (existingEvent?.data?.id || existingEvent?.id) !== eventId)
+        .concat(evt)
+        .slice(-25);
 
-    if (!payment) return;
+      const gatewayStatus = checkoutPayment?.attributes?.status || resource?.attributes?.status || eventType;
+      payment.gatewayStatus = gatewayStatus;
 
-    const eventId = evt?.data?.id || evt?.id;
-    payment.webhookEvents = (payment.webhookEvents || [])
-      .filter(existingEvent => (existingEvent?.data?.id || existingEvent?.id) !== eventId)
-      .concat(evt)
-      .slice(-25);
+      const paidEvent = eventType === "payment.paid" || eventType === "checkout_session.payment.paid" || gatewayStatus === "paid";
+      const failedEvent = eventType === "payment.failed" || eventType === "checkout_session.payment.failed" || gatewayStatus === "failed";
+      if (paidEvent) {
+        // use canonical "paid" value for status (completed is legacy)
+        payment.status = "paid";
+        payment.completedAt = payment.completedAt || new Date();
+        payment.gatewayType = "payment";
+        if (gatewayId) payment.gatewayId = gatewayId;
+      } else if (failedEvent) {
+        payment.status = "failed";
+        payment.gatewayType = "payment";
+        if (gatewayId) payment.gatewayId = gatewayId;
+      } else if (eventType === "source.chargeable") {
+        payment.status = "pending";
+        payment.gatewayType = "source";
+        if (gatewayId) payment.gatewayId = gatewayId;
+      }
+      await payment.save();
 
-    const gatewayStatus = checkoutPayment?.attributes?.status || resource?.attributes?.status || eventType;
-    payment.gatewayStatus = gatewayStatus;
-
-    const paidEvent = eventType === "payment.paid" || eventType === "checkout_session.payment.paid" || gatewayStatus === "paid";
-    const failedEvent = eventType === "payment.failed" || eventType === "checkout_session.payment.failed" || gatewayStatus === "failed";
-    const wasPaid = payment.status === "paid";
-    if (paidEvent) {
-      // use canonical "paid" value for status (completed is legacy)
-      payment.status = "paid";
-      payment.completedAt = payment.completedAt || new Date();
-      payment.gatewayType = "payment";
-      if (gatewayId) payment.gatewayId = gatewayId;
-    } else if (failedEvent) {
-      payment.status = "failed";
-      payment.gatewayType = "payment";
-      if (gatewayId) payment.gatewayId = gatewayId;
-    } else if (eventType === "source.chargeable") {
-      payment.status = "pending";
-      payment.gatewayType = "source";
-      if (gatewayId) payment.gatewayId = gatewayId;
-    }
-
-    await payment.save();
-
-    if (paidEvent) {
-      const paymentStatus = payment.type === "downpayment" ? "partial" : "paid";
-      if (payment.bookingId) {
-        const booking = await BookingService.findById(payment.bookingId);
-        if (booking) {
-          booking.paymentStatus = paymentStatus;
-          booking.paymentGatewayStatus = "paid";
-          booking.paymentGatewayId = gatewayId;
-          booking.gateway = "paymongo";
-          booking.gatewayId = gatewayId;
-          booking.gatewayStatus = "paid";
-          if (!wasPaid) booking.amountPaid = Math.max(Number(booking.amountPaid || 0), Number(payment.amount || 0));
-          if (booking.status === "pending") booking.status = "confirmed";
-          await booking.save();
+      if (paidEvent) {
+        const paymentStatus = payment.type === "downpayment" ? "partial" : "paid";
+        if (payment.bookingId) {
+          const booking = await BookingService.findById(payment.bookingId);
+          if (booking) {
+            if (booking.paymentStatus !== "paid") booking.paymentStatus = paymentStatus;
+            booking.paymentGatewayStatus = "paid";
+            booking.paymentGatewayId = gatewayId;
+            booking.gateway = "paymongo";
+            booking.gatewayId = gatewayId;
+            booking.gatewayStatus = "paid";
+            booking.amountPaid = Math.max(Number(booking.amountPaid || 0), Number(payment.amount || 0));
+            if (booking.status === "pending") booking.status = "confirmed";
+            await booking.save();
+          }
+        } else if (payment.orderId) {
+          const Order = require("../models/Order");
+          const order = await Order.findById(payment.orderId);
+          if (order) {
+            if (order.paymentStatus !== "paid") order.paymentStatus = paymentStatus;
+            if (order.status === "pending_payment") order.status = "preparing_unit";
+            await order.save();
+          }
         }
-      } else if (payment.orderId) {
-        const Order = require("../models/Order");
-        const order = await Order.findById(payment.orderId);
-        if (order) {
-          order.paymentStatus = paymentStatus;
-          if (order.status === "pending_payment") order.status = "preparing_unit";
-          await order.save();
+      } else if (failedEvent) {
+        if (payment.bookingId) await BookingService.findOneAndUpdate({ _id: payment.bookingId, paymentStatus: { $nin: ["paid", "verified", "refunded"] } }, { paymentStatus: "failed", paymentGatewayStatus: "failed" });
+        if (payment.orderId) {
+          const Order = require("../models/Order");
+          await Order.findOneAndUpdate({ _id: payment.orderId, paymentStatus: { $nin: ["paid", "verified", "refunded"] } }, { paymentStatus: "failed" });
         }
       }
-    } else if (failedEvent) {
-      if (payment.bookingId) await BookingService.findByIdAndUpdate(payment.bookingId, { paymentStatus: "failed", paymentGatewayStatus: "failed" });
-      if (payment.orderId) {
-        const Order = require("../models/Order");
-        await Order.findByIdAndUpdate(payment.orderId, { paymentStatus: "failed" });
-      }
-    }
+    }, { waitMs: 3000, leaseMs: 45000 });
   } catch (e) {
     console.warn("gateway webhook handler error", e.message);
+    throw e;
   }
 };

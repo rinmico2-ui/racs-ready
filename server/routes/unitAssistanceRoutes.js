@@ -9,6 +9,10 @@ const UnitAssistanceRequest = require('../models/UnitAssistanceRequest');
 const CustomerAsset = require('../models/CustomerAsset');
 const { resolveCoreServicePricing } = require('../utils/coreServicePricing');
 const { createNotification } = require('../utils/notify');
+const { normalizeUnitAssistance } = require('../utils/unitAssistancePolicy');
+const unitAssistanceUpload = require('../middleware/unitAssistanceUpload');
+const { storePhoto, deletePhoto, downloadPhoto } = require('../utils/unitAssistancePhotos');
+const A = require('../public/js/appliance-services');
 
 const router = express.Router();
 router.use(auth.authenticate);
@@ -16,10 +20,13 @@ const customer = auth.requireRole('customer');
 const staff = auth.requireRole(['admin', 'secretary']);
 const limiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyGenerator: authenticatedOrIpKey, standardHeaders: true, legacyHeaders: false });
 const validId = id => mongoose.isValidObjectId(id);
-const customerFields = '_id serviceId serviceName existingBookingId existingBookingReference brand airconType hp quantity relocation notes status createdAt quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
+const customerFields = '_id serviceId serviceName existingBookingId existingBookingReference applianceKind model photos brand airconType hp quantity relocation notes status createdAt quote.applianceKind quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
 
-router.post('/', customer, limiter, async (req, res) => {
+router.post('/', customer, limiter, unitAssistanceUpload, async (req, res) => {
+  const storedPhotos = [];
   try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Enter your appliance details.' });
+    if (typeof req.body.serviceId !== 'string') return res.status(400).json({ error: 'Choose a valid service.' });
     const serviceId = String(req.body.serviceId || '');
     const quantity = Number(req.body.quantity);
     const clientRequestId = req.body.clientRequestId;
@@ -32,9 +39,9 @@ router.post('/', customer, limiter, async (req, res) => {
       if (existing) return res.json({ id:existing._id, status:existing.status });
     }
     const catalog = await CoreService.findOne({ _id: serviceId, active: true }).lean();
-    if (!catalog?.isAirconService || !(catalog.airconTypes?.length || catalog.hpPricing?.length)) {
-      return res.status(400).json({ error: 'Unit identification is unavailable for this service.' });
-    }
+    if (!catalog) return res.status(400).json({ error: 'This service is unavailable.' });
+    const details = normalizeUnitAssistance(catalog, req.body);
+    if (catalog.slug === 'aircon-relocation' && details.applianceKind !== 'aircon') return res.status(400).json({ error: 'Relocation requires an aircon.' });
     let relocation = undefined;
     if (catalog.slug === 'aircon-relocation') {
       const fromPosition = String(req.body.relocation?.fromPosition || '').trim().slice(0, 500);
@@ -53,14 +60,8 @@ router.post('/', customer, limiter, async (req, res) => {
         model: String(req.body.relocation.model || '').trim().slice(0, 80),
         serialNumber: String(req.body.relocation.serialNumber || '').trim().slice(0, 100) };
     }
-    const brand = String(req.body.brand || '').trim().slice(0, 80);
-    const airconType = String(req.body.airconType || '').trim();
-    const hp = req.body.hp == null || req.body.hp === '' ? null : Number(req.body.hp);
-    if (airconType && !catalog.airconTypes?.some(type => type.type === airconType)) {
-      return res.status(400).json({ error: 'Choose a supported aircon type.' });
-    }
-    if (hp !== null && (!Number.isFinite(hp) || hp <= 0)) return res.status(400).json({ error: 'Invalid HP.' });
-    if (brand && brand.toLowerCase() !== "i don't know" && airconType && hp != null) {
+    const { brand, airconType, hp } = details;
+    if (details.applianceKind === 'aircon' && brand && brand.toLowerCase() !== "i don't know" && airconType && hp != null) {
       const type = catalog.airconTypes?.find(item => item.type === airconType);
       const tiers = type?.hpPricing || catalog.hpPricing || [];
       if (tiers.some(tier => Number(tier.hp) === hp && Number.isFinite(Number(tier.price)))) {
@@ -76,29 +77,44 @@ router.post('/', customer, limiter, async (req, res) => {
         return res.status(409).json({ error: 'This booking is no longer open for a service change.' });
       }
     }
+    for (const file of req.files || []) storedPhotos.push(await storePhoto(file, req.user._id));
     const request = await UnitAssistanceRequest.create({
       customerId: req.user._id, serviceId, serviceName: catalog.name,
       ...(clientRequestId ? { clientRequestId } : {}),
       existingBookingId: existingBooking?._id || null,
       existingBookingReference: existingBooking?.bookingReference || '',
-      brand, airconType, hp, quantity, relocation,
-      notes: String(req.body.notes || '').trim().slice(0, 1000),
-      events: [{ action: 'requested', actorId: req.user._id, notes: String(req.body.notes || '').trim().slice(0, 1000) }],
+      ...details, relocation, photos: storedPhotos,
+      events: [{ action: 'requested', actorId: req.user._id, notes: details.notes }],
     });
     for (const role of ['admin', 'secretary']) {
       createNotification({ type: 'system', role, title: 'Unit identification requested',
-        message: `${catalog.name}: customer needs help identifying an aircon${existingBooking ? ` for booking ${existingBooking.bookingReference}` : ' before booking'}.`,
+        message: `${catalog.name}: customer needs help identifying a ${A.labels[details.applianceKind].toLowerCase()}${existingBooking ? ` for booking ${existingBooking.bookingReference}` : ' before booking'}.`,
         link: `/${role}/unit-assistance`, priority: 'normal', io: req.app.get('io') }).catch(() => {});
     }
     return res.status(201).json({ id: request._id, status: request.status });
   } catch (error) {
+    await Promise.all(storedPhotos.map(photo => deletePhoto(photo.fileId).catch(() => {})));
     if (error.code === 11000 && req.body.clientRequestId) {
       const existing = await UnitAssistanceRequest.findOne({ customerId:req.user._id, clientRequestId:req.body.clientRequestId }).select('_id status').lean();
       if (existing) return res.json({ id:existing._id, status:existing.status });
     }
+    if (error.status === 400) return res.status(400).json({ error: error.message });
     console.error('Unit assistance request failed:', error);
     return res.status(500).json({ error: 'Could not submit your request. Please try again.' });
   }
+});
+
+router.get('/:id/photos/:index', auth.requireRole(['customer', 'admin', 'secretary']), async (req, res, next) => {
+  try {
+    if (!validId(req.params.id) || !/^[01]$/.test(req.params.index)) return res.status(404).json({ error: 'Photo not found.' });
+    const request = await UnitAssistanceRequest.findOne({ _id: req.params.id, ...(req.user.role === 'customer' ? { customerId: req.user._id } : {}) }).select('photos').lean();
+    const photo = request?.photos?.[Number(req.params.index)];
+    if (!photo) return res.status(404).json({ error: 'Photo not found.' });
+    res.set({ 'Content-Type': photo.contentType, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    const stream = downloadPhoto(photo.fileId);
+    stream.once('error', error => { if (res.headersSent) res.destroy(); else next(error); });
+    res.once('close', () => stream.destroy()); stream.pipe(res);
+  } catch (error) { next(error); }
 });
 
 router.get('/mine', customer, async (req, res) => {
@@ -140,13 +156,14 @@ router.post('/mine/:id/decision', customer, async (req, res) => {
 router.get('/staff', staff, async (req, res) => {
   const requests = await UnitAssistanceRequest.find({ status: { $in: ['pending', 'quoted', 'accepted'] } })
     .populate('customerId', 'firstName lastName email phone mobile')
-    .populate('serviceId', 'name airconTypes hpPricing active')
+    .populate('serviceId', 'name isAirconService basePrice durationMinutes durationRange airconTypes hpPricing applianceProfiles active')
     .sort({ createdAt: -1 }).limit(100).lean();
   return res.json({ requests });
 });
 
 router.post('/staff/:id/quote', staff, async (req, res) => {
   try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Enter the verified unit details.' });
     if (!validId(req.params.id)) return res.status(400).json({ error: 'Invalid request.' });
     const request = await UnitAssistanceRequest.findOne({ _id: req.params.id, status: { $in: ['pending', 'quoted', 'accepted'] } });
     if (!request) return res.status(409).json({ error: 'This request can no longer be quoted. Refresh the queue.' });
@@ -160,14 +177,20 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
       return res.status(409).json({ error: 'This quote changed while you were editing. Refresh the queue before updating it.' });
     }
     const catalog = await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
-    const verificationMethod = String(req.body.verificationMethod || '');
+    const verificationMethod = typeof req.body.verificationMethod === 'string' ? req.body.verificationMethod : '';
     if (!['customer_contact', 'model_label', 'site_visit'].includes(verificationMethod)) {
       return res.status(400).json({ error: 'Select how the unit details were verified.' });
     }
-    const brand = String(req.body.brand || request.brand || '').trim().slice(0, 80);
-    const selection = { brand, airconType: req.body.airconType, hp: req.body.hp, quantity: request.quantity };
+    const brandValue = req.body.brand || request.brand || '';
+    if (typeof brandValue !== 'string' || brandValue.length > 80 || req.body.notes != null && (typeof req.body.notes !== 'string' || req.body.notes.length > 1000) ||
+        req.body.hp != null && !['string', 'number'].includes(typeof req.body.hp) || req.body.airconType != null && typeof req.body.airconType !== 'string') {
+      return res.status(400).json({ error: 'Check the verified brand, type, HP and notes.' });
+    }
+    const brand = brandValue.trim();
+    const selection = { brand, airconType: req.body.airconType, hp: req.body.hp, quantity: request.quantity, ...(request.applianceKind ? { applianceKind: request.applianceKind } : {}) };
     const pricing = resolveCoreServicePricing(catalog, selection);
     const quote = {
+      applianceKind: request.applianceKind || 'aircon',
       brand, airconType: pricing.airconType, airconTypeName: pricing.airconTypeName,
       hp: pricing.hp, unitPrice: pricing.unitPrice, durationMinutes: pricing.duration,
       notes: String(req.body.notes || '').trim().slice(0, 1000),
@@ -184,7 +207,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
         $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { returnDocument: "after" });
     if (!updated) return res.status(409).json({ error: 'This request was updated. Reload the queue.' });
     createNotification({ type: 'system', userId: updated.customerId,
-      title: 'Your aircon service quote is ready',
+      title: 'Your appliance service quote is ready',
       message: `Review the identified unit and price for ${updated.serviceName}.`,
       link: '/unit-assistance', priority: 'high', io: req.app.get('io') }).catch(() => {});
     return res.json({ request: updated });

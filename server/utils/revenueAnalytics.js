@@ -50,7 +50,7 @@ const {
 const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
 const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
 const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
-const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod";
+const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod refundStatus testDataExcludedAt";
 const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.quantity items.totalPrice items.costPrice";
 
 /**
@@ -113,9 +113,10 @@ async function computeRevenueAnalytics(query = {}) {
   const serviceOnlyScope = stFilter !== "all" || techFilter !== "all";
 
   // ── Fetch data ──
-  const bookingsQuery = { createdAt: dateFilter, status: { $ne: "cancelled" } };
+  const bookingsQuery = { createdAt: dateFilter, status: { $ne: "cancelled" }, testDataExcludedAt: null };
   if (techFilter !== "all") bookingsQuery.technicianId = techFilter;
   const paymentsQuery = {
+    testDataExcludedAt: null,
     $or: [
       { verifiedAt: dateFilter }, { completedAt: dateFilter },
       { collectedAt: dateFilter }, { submittedAt: dateFilter }, { refundedAt: dateFilter },
@@ -149,6 +150,7 @@ async function computeRevenueAnalytics(query = {}) {
   }
 
   const recognizedBookingQuery = {
+    testDataExcludedAt: null,
     status: { $in: ["completed", "repair_completed", "closed"] },
     $or: [
       { completedAt: dateFilter },
@@ -313,6 +315,7 @@ async function computeRevenueAnalytics(query = {}) {
   if (cohortProjectIds.length) cohortEntityFilters.push({ projectId: { $in: cohortProjectIds } });
   const cohortPayments = cohortEntityFilters.length
     ? await Payment.find({
+      testDataExcludedAt: null,
       $and: [
         { $or: cohortEntityFilters },
         { $or: [
@@ -455,7 +458,7 @@ async function computeRevenueAnalytics(query = {}) {
     recognizedInventoryIds.length
       ? HVACProduct.find({ "variants._id": { $in: recognizedInventoryIds } }).select("variants._id variants.costPrice").lean()
       : [],
-    Expense.find({ expenseDate: dateFilter }).select("amount type status bookingId projectId source").lean(),
+    Expense.find({ expenseDate: dateFilter, testDataExcludedAt: null }).select("amount type status bookingId projectId source").lean(),
     Payroll.find({ status: { $ne: "voided" }, payDate: dateFilter }).select("grossPay netPay status").lean(),
     recognizedProjectIds.length
       ? ProjectMaterial.find({
@@ -513,10 +516,10 @@ async function computeRevenueAnalytics(query = {}) {
     + serviceCostAnalytics.totals.laborCost;
   const totalPartsCost = serviceDirectCost + posCost + orderCostSummary.totalCost + orderConsumableSummary.totalCost + linkedInstallationCost.totalCost + projectMaterialCost;
   const grossProfit = recognizedRevenue - totalPartsCost;
-  const grossProfitMargin = recognizedRevenue > 0 ? ((grossProfit / recognizedRevenue) * 100).toFixed(1) : "0.0";
+  const grossProfitMargin = recognizedRevenue > 0 ? ((grossProfit / recognizedRevenue) * 100).toFixed(1) : null;
   const operatingExpenses = approvedExpenseTotal + payrollCost;
   const operatingProfit = grossProfit - operatingExpenses;
-  const operatingMargin = recognizedRevenue > 0 ? (operatingProfit / recognizedRevenue) * 100 : 0;
+  const operatingMargin = recognizedRevenue > 0 ? (operatingProfit / recognizedRevenue) * 100 : null;
   const costDataCoverage = recognizedGrossRevenue > 0
     ? ((recognizedServiceRevenue + posRevenue + (recognizedOrderRevenue * orderCostSummary.coveragePercent / 100)) / recognizedGrossRevenue) * 100
     : 100;

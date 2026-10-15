@@ -209,6 +209,11 @@ function detectIntent(text) {
     if (score >= 2) scores[intent] = score;
   }
 
+  // Explicit cost questions take precedence over the appliance/service names
+  // inside the question, which otherwise accumulate more keyword matches.
+  if (scores.pricing && /\b(how much|magkano|(?:what(?: is|'s| s)?|ano ang)\s+(?:the\s+)?(?:price|cost|fee|rate|presyo|halaga))\b/u.test(normalized)) {
+    return ["pricing", scores.pricing];
+  }
   const sorted = Object.entries(scores).sort((left, right) => right[1] - left[1]);
   return sorted.length ? sorted[0] : ["unknown", 0];
 }

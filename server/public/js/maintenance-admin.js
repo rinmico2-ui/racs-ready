@@ -288,13 +288,13 @@
 
   function showMap() {
     if ($("maintenanceLocationEditor").hidden) return;
-    if (typeof L === "undefined") {
+    if (typeof L === "undefined" || typeof window.createEsriHybridLayer !== "function") {
       $("maintenanceLocationHelp").textContent = "The map could not load. Choose a suggested address to set the location.";
       return;
     }
     if (!bookingMap) {
       bookingMap = L.map("maintenanceBookingMap", { scrollWheelZoom: false });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(bookingMap);
+      window.createEsriHybridLayer().addTo(bookingMap);
       bookingMap.on("click", event => selectPin(event.latlng.lat, event.latlng.lng));
     }
     bookingMap.invalidateSize();

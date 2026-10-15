@@ -1,4 +1,6 @@
 const test = require("node:test");
+const { install: installMathChallenge, signedRequest } = require("./helpers/mathChallenge");
+installMathChallenge(test);
 const assert = require("node:assert/strict");
 const crypto = require("crypto");
 
@@ -35,8 +37,14 @@ function responseRecorder() {
   };
 }
 
+function mockRegistrationCatalog(t) {
+  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'0305400000', name:'Pampanga' }]
+    : kind === 'cities' ? [{ code:'0330100000', name:'Angeles', province:'Pampanga' }]
+      : [{ code:'0330100001', name:'Balibago' }]);
+}
+
 function registrationRequest(overrides = {}) {
-  return {
+  return signedRequest({
     body: {
       email: "new.customer@example.com",
       password: "Password1!",
@@ -54,7 +62,7 @@ function registrationRequest(overrides = {}) {
     headers: {},
     connection: { remoteAddress: "127.0.0.77" },
     ip: "127.0.0.77",
-  };
+  }, "register");
 }
 
 test("registration verification routes are exposed", () => {
@@ -70,6 +78,7 @@ test("registration verification routes are exposed", () => {
 });
 
 test("registration creates a pending account and sends an OTP without storing it in plaintext", async (t) => {
+  mockRegistrationCatalog(t);
   invalidateSystemConfiguration();
   const previousSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = "registration-verification-test-secret";
@@ -132,6 +141,7 @@ test("registration policy can disable public account creation", async (t) => {
 });
 
 test("public signup cannot replace a pending invited account", async (t) => {
+  mockRegistrationCatalog(t);
   invalidateSystemConfiguration();
   t.after(invalidateSystemConfiguration);
   t.mock.method(SiteSetting, "findOne", () => ({ lean: async () => null }));
@@ -154,6 +164,7 @@ test("public signup cannot replace a pending invited account", async (t) => {
 });
 
 test("registration policy can activate new customers without an email OTP", async (t) => {
+  mockRegistrationCatalog(t);
   const previousSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = "registration-verification-test-secret";
   t.after(() => {

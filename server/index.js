@@ -23,10 +23,14 @@ const {
 const { requireTrustedOrigin } = require("./middleware/apiSecurity");
 const apiAuth = require("./middleware/authenticate");
 const { requireBookingEvidenceAccess } = require("./middleware/privateUploadAccess");
+const { requireProofAccess } = require("./middleware/projectProofAccess");
 const { isAccountEnabled } = require("./middleware/accountState");
 const { buildMongoConnectionUri, disableRetryableWritesForDirectConnection, isTlsProtectedMongoUri, isSingleLabelMongoUri } = require("./utils/mongoConnection");
 const { requestTelemetry, trackMongoPool } = require("./middleware/requestTelemetry");
 const { createHttpAdmission } = require("./middleware/httpAdmission");
+const { createAuthAdmission } = require("./middleware/authAdmission");
+const { assertAuthenticatedMongoUri, bootstrapAdminCredentials } = require("./utils/deploymentSecurity");
+const { assertDeploymentSecrets } = require("./utils/deploymentSecrets");
 const {
   authenticatedOrIpKey,
   emailOrIpKey,
@@ -41,6 +45,7 @@ if (!process.env.JWT_SECRET) {
   console.error("FATAL: JWT_SECRET environment variable is required. Exiting.");
   process.exit(1);
 }
+if (process.env.NODE_ENV === "production") assertDeploymentSecrets();
 if (!process.env.SESSION_SECRET && !process.env.JWT_SECRET) {
   console.error("FATAL: SESSION_SECRET (or JWT_SECRET) environment variable is required. Exiting.");
   process.exit(1);
@@ -53,6 +58,8 @@ const ALLOWED_ORIGINS = [
 ].filter(Boolean);
 
 const app = express();
+// Reject config/backup probes before any database-backed middleware runs.
+app.use(require("./middleware/sensitivePaths"));
 let shuttingDown = false;
 
 function positiveInteger(value, fallback) {
@@ -73,6 +80,7 @@ const mongoConnection = buildMongoConnectionUri(configuredMongoUri, {
 const MONGODB_URI = disableRetryableWritesForDirectConnection(
   mongoConnection.uri || "mongodb://localhost:27017/appointment_scheduler",
 );
+if (process.env.NODE_ENV === "production") assertAuthenticatedMongoUri(MONGODB_URI);
 const redactMongoError = (value) => {
   let message = String(value || "");
   try {
@@ -134,8 +142,7 @@ const databaseReady = new Promise((resolve) => setImmediate(resolve))
       const User = require("./models/User");
       const adminCount = await User.countDocuments({ role: "admin" });
       if (adminCount === 0) {
-        const email = (process.env.ADMIN_EMAIL || "xiejustina50@gmail.com").trim().toLowerCase();
-        const password = process.env.ADMIN_PASSWORD || "ChangeMe123!";
+        const { email, password } = bootstrapAdminCredentials(process.env);
         let admin = await User.findOne({ email });
         if (!admin) {
           admin = new User({
@@ -150,11 +157,7 @@ const databaseReady = new Promise((resolve) => setImmediate(resolve))
           await admin.save();
           logger.info("Auto-seeded admin account: %s", email);
         } else {
-          admin.role = "admin";
-          admin.active = true;
-          await admin.setPassword(password);
-          await admin.save();
-          logger.info("Reactivated admin account (was last admin): %s", email);
+          throw new Error("The bootstrap admin email already belongs to an existing account. Provision an admin explicitly instead of promoting or resetting that account.");
         }
       }
     } catch (e) {
@@ -195,6 +198,7 @@ app.use((req, res, next) => {
   // Map tile providers require a valid origin referrer. This policy reveals
   // only the site origin cross-origin and remains a safe browser default.
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(self), geolocation=(self), microphone=(), payment=(), usb=()");
   next();
 });
 
@@ -204,7 +208,7 @@ app.use((req, res, next) => {
     "Content-Security-Policy",
     "default-src 'self'; " +
     // allow leaflet from unpkg if any page still references it, and other CDNs
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
     "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com https://maps.googleapis.com https://maps.gstatic.com; " +
     "img-src 'self' data: blob: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://*.arcgisonline.com https://api.qrserver.com https://res.cloudinary.com; " +
     "connect-src 'self' data: https://cdn.jsdelivr.net https://maps.googleapis.com https://maps.gstatic.com https://www.google.com https://www.gstatic.com https://www.recaptcha.net https://psgc.cloud https://*.arcgisonline.com https://nominatim.openstreetmap.org https://api.qrserver.com https://unpkg.com https://router.project-osrm.org ws://localhost:* wss://localhost:*; " +
@@ -231,6 +235,13 @@ const configuredProxyHops = Number(process.env.TRUST_PROXY_HOPS);
 app.set('trust proxy', process.env.TRUST_PROXY_HOPS !== undefined
   && Number.isSafeInteger(configuredProxyHops) && configuredProxyHops >= 0 && configuredProxyHops <= 10
   ? configuredProxyHops : process.env.NODE_ENV === "production" ? 1 : false);
+
+// Lightweight platform probes. Liveness never performs a database query;
+const httpAdmission = createHttpAdmission();
+app.locals.httpAdmission = httpAdmission;
+app.use(httpAdmission);
+// Account-creation and resend limits run before parsing, sessions, or mail work.
+app.use("/api/auth", createAuthAdmission());
 
 // Lightweight platform probes. Liveness never performs a database query;
 // readiness only reports whether the already-established shared connection can
@@ -274,11 +285,8 @@ if (process.env.NODE_ENV === "production") {
 
 // Public assets and platform probes do not read sessions or query MongoDB.
 app.use(require('./middleware/publicAssets')(path.join(__dirname, 'public')));
-// Reject floods before parsing bodies, opening sessions, or resolving users.
-// Account-specific API/auth limits below remain an additional layer.
-const httpAdmission = createHttpAdmission();
-app.locals.httpAdmission = httpAdmission;
-app.use(httpAdmission);
+// Static delivery remains ahead of database-backed sessions. Admission above
+// also protects repeated static requests and public health probes.
 
 // ── Rate Limiters ──────────────────────────────────────────────────────────
 const authAttemptLimiter = rateLimit({
@@ -323,7 +331,7 @@ const registrationEmailLimiter = rateLimit({
 
 const registrationBurstLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.REGISTRATION_IP_RATE_LIMIT) || 300,
+  max: Number(process.env.REGISTRATION_IP_RATE_LIMIT) || 20,
   message: {
     error: "Registration traffic is unusually high. Please try again in a few minutes.",
   },
@@ -451,7 +459,7 @@ app.use(
 app.use(
   "/uploads/remittance-proofs",
   apiAuth.authenticate,
-  apiAuth.requireRole(["admin", "secretary", "technician"]),
+  requireProofAccess,
 );
 app.use(
   [
@@ -465,11 +473,11 @@ app.use(
 );
 app.use(
   [
-    "/uploads/expense-receipts",
     "/uploads/project-work-submissions",
     "/uploads/project-completion-proofs",
   ],
   apiAuth.authenticate,
+  requireProofAccess,
 );
 const publicDirectory = path.join(__dirname, "public");
 app.use(express.static(publicDirectory, {
@@ -722,6 +730,8 @@ async function gracefulShutdown(signal) {
   shuttingDown = true;
   logger.info("%s received — shutting down gracefully", signal);
   try {
+    await stopDailyKitScheduler();
+    require("./utils/assignmentExpiry").stopAssignmentExpiryScheduler();
     if (server) {
       await new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
@@ -770,6 +780,7 @@ setInterval(async () => {
 const { startOverdueScheduler } = require('./utils/overdueBookingScheduler');
 const { startMaintenanceScheduler } = require('./utils/maintenanceScheduler');
 const { startEquipmentReturnScheduler } = require('./utils/equipmentReturnScheduler');
+const { startDailyKitScheduler, stopDailyKitScheduler } = require('./utils/dailyKitScheduler');
 const { startAttendanceAlerts } = require('./utils/attendanceAlerts');
 
 // ── Overtime Delay Monitor ─────────────────────────────────────────────────
@@ -783,8 +794,10 @@ function startBackgroundSchedulers() {
   startOverdueScheduler();
   startMaintenanceScheduler();
   startEquipmentReturnScheduler();
+  startDailyKitScheduler();
   startAttendanceAlerts();
   startDelayMonitor();
+  require("./utils/assignmentExpiry").startAssignmentExpiryScheduler(app.get("io"));
 }
 
 const http = require("http");
@@ -861,14 +874,18 @@ io.use(async (socket, next) => {
       return next(new Error("Token expired"));
     }
     socket.user = user;
+    socket.authPayload = payload;
+    socket.permissionFingerprint = JSON.stringify((await require("./middleware/requirePermission").getEffectivePermissions(user)).sort());
     next();
   } catch (err) {
     next(new Error("Invalid token"));
   }
 });
 
+const socketAuthorization = require("./utils/socketAuthorization").installSocketAuthorization(io);
 io.on("connection", async (socket) => {
   socketTraffic.protectPackets(socket);
+  socketAuthorization.protect(socket);
   console.log("[socket] client connected:", socket.id, "user:", socket.user._id);
 
   socket.join("user:" + socket.user._id);
@@ -1005,197 +1022,6 @@ app.set("io", io);
 global._io = io;
 
 // ── Acceptance deadline expiry watchdog ─────────────────────────────────────
-setInterval(async () => {
-  try {
-    const Assignment = require("./models/Assignment");
-    const BookingService = require("./models/BookingService");
-    const Technician = require("./models/Technician");
-    const { createNotification } = require("./utils/notify");
-
-    function calculateAcceptanceDeadline(bookingDate, assignedAt) {
-      const now = new Date(assignedAt || new Date());
-      const bd = new Date(bookingDate);
-      const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
-      const startOfBooking = new Date(bd); startOfBooking.setHours(0, 0, 0, 0);
-      const daysUntil = Math.round((startOfBooking - startOfToday) / (1000 * 60 * 60 * 24));
-      if (daysUntil <= 0) return new Date(now.getTime() + 30 * 60 * 1000);
-      if (daysUntil === 1) {
-        const today6pm = new Date(now); today6pm.setHours(18, 0, 0, 0);
-        if (today6pm > now) return today6pm;
-        return new Date(now.getTime() + 30 * 60 * 1000);
-      }
-      return new Date(now.getTime() + 12 * 60 * 60 * 1000);
-    }
-
-    const now = new Date();
-    const expired = await Assignment.find({
-      status: "pending_acceptance",
-      acceptanceDeadline: { $lt: now },
-    }).lean();
-    for (const a of expired) {
-      const assignment = await Assignment.findById(a._id);
-      assignment.status = "expired";
-      assignment.expiredAt = now;
-      assignment.expiredReason = "No response before deadline";
-      assignment.notes.push({
-        text: "Assignment expired: no response before deadline",
-        by: null,
-        byName: "System",
-        createdAt: now,
-      });
-      await assignment.save();
-
-      let reassigned = false;
-      const booking = await BookingService.findById(assignment.bookingId);
-      if (booking) {
-        const isRepair = booking.serviceModel === "RepairService";
-        const dayS = new Date(booking.bookingDate); dayS.setHours(0, 0, 0, 0);
-        const dayE = new Date(booking.bookingDate); dayE.setHours(23, 59, 59, 999);
-        // Keep admin control: an expired assignment returns to the queue.
-        // The queue planner recommends the next eligible technician, but does
-        // not send a new assignment until the admin reviews and confirms it.
-        const candidates = [];
-
-        let newTech = null;
-        for (const t of candidates) {
-          const conflictBooking = await BookingService.findOne({
-            _id: { $ne: booking._id },
-            technicianId: t._id,
-            bookingDate: { $gte: dayS, $lte: dayE },
-            status: { $in: ['pending','payment_verified','awaiting_assignment','assigned','pending_reassignment','confirmed','scheduled','on-the-way','arrived','in-progress','ongoing','repair_requested','inspection_scheduled','inspection_in_progress','repair_approved','ready_for_repair','repair_scheduled','repair_in_progress'] },
-          }).lean();
-          if (conflictBooking) continue;
-          const conflictAssign = await Assignment.findOne({
-            technicianId: t._id,
-            bookingDate: { $gte: dayS, $lte: dayE },
-            status: { $in: ['pending_acceptance','accepted','en_route','on_site','in_progress'] },
-          }).lean();
-          if (!conflictAssign) { newTech = t; break; }
-        }
-
-        if (newTech) {
-          const acceptanceDeadline = calculateAcceptanceDeadline(booking.bookingDate);
-          const newAssignment = new Assignment({
-            bookingId: booking._id,
-            technicianId: newTech._id,
-            customerName: booking.customer?.name || '',
-            customerPhone: booking.customer?.phone || '',
-            customerEmail: booking.customer?.email || '',
-            serviceName: booking.service?.name || '',
-            serviceType: booking.serviceType || (booking.serviceModel === "RepairService" ? "repair" : "core"),
-            servicePrice: booking.totalPrice || booking.estimatedFee || 0,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime || '',
-            endTime: booking.endTime || '',
-            address: booking.location?.address || '',
-            priority: 'normal',
-            slaDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000),
-            acceptanceDeadline,
-            estimatedFee: booking.totalPrice || booking.estimatedFee || 0,
-            status: 'pending_acceptance',
-          });
-          newAssignment.notes.push({ text: 'Auto-reassigned after previous technician expired', by: null, byName: 'System', createdAt: new Date() });
-          await newAssignment.save();
-
-          booking.recordStatusHistory({
-            fromStatus: booking.status,
-            toStatus: isRepair ? 'inspection_scheduled' : 'assigned',
-            changedByModel: 'System',
-            changedByName: 'System',
-            reason: 'Auto-reassigned after expiry',
-          });
-          booking.status = isRepair ? 'inspection_scheduled' : 'assigned';
-          booking.technicianId = newTech._id;
-          booking.assignmentId = newAssignment._id;
-          booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
-          await booking.save();
-
-          const newTechDoc = await Technician.findById(newTech._id);
-          if (newTechDoc) {
-            newTechDoc.availabilityStatus = 'Assigned';
-            await newTechDoc.save();
-          }
-
-          const _io2 = app.get("io") || global._io;
-          await createNotification({
-            type: 'assignment_new',
-            title: 'New Assignment',
-            message: `You have been auto-assigned to ${booking.service?.name || 'a service'} after the previous technician did not respond. Please accept before the deadline.`,
-            userId: newTech._id,
-            role: 'technician',
-            referenceId: newAssignment._id,
-            referenceModel: 'Assignment',
-            link: '/technician/assignments',
-            io: _io2,
-          });
-          if (_io2) _io2.to(`tech:${newTech._id}`).emit('assignment:new', { bookingId: booking._id, bookingReference: booking.bookingReference, serviceName: booking.service?.name });
-          reassigned = true;
-        }
-
-        if (!reassigned) {
-          booking.recordStatusHistory({
-            fromStatus: booking.status,
-            toStatus: 'pending_reassignment',
-            changedByModel: 'System',
-            changedByName: 'System',
-            reason: 'No response before deadline; no available technician for auto-reassign',
-          });
-          booking.status = 'pending_reassignment';
-          booking.technicianId = null;
-          booking.assignmentId = null;
-          booking.reassignmentCount = (booking.reassignmentCount || 0) + 1;
-          booking.cancellationHistory.push({
-            technicianId: assignment.technicianId,
-            technicianName: 'Technician (response timed out)',
-            action: 'auto_reschedule',
-            reason: 'No response before acceptance deadline',
-            timestamp: now,
-          });
-          await booking.save();
-        }
-      }
-
-      const tech = await Technician.findById(assignment.technicianId);
-      if (tech) {
-        tech.availabilityStatus = "available";
-        await tech.save();
-      }
-
-      const _io = app.get("io") || global._io;
-      await createNotification({
-        type: "assignment_expired",
-        title: "Assignment Expired",
-        message: `Assignment for ${assignment.serviceName || "a service"} expired due to no response before the deadline.`,
-        role: "admin",
-        referenceId: assignment._id,
-        referenceModel: "Assignment",
-        link: "/admin/appointments?tab=queue",
-        io: _io,
-      });
-      if (_io) {
-        _io.to("admin-room").emit("assignment:expired", {
-          assignmentId: assignment._id,
-          bookingId: assignment.bookingId,
-          reason: "No response before deadline",
-        });
-      }
-      await createNotification({
-        type: "assignment_expired",
-        title: "Assignment Expired",
-        message: `Your assignment for ${assignment.serviceName || "a service"} expired because it was not accepted before the deadline.`,
-        userId: assignment.technicianId,
-        role: "technician",
-        referenceId: assignment._id,
-        referenceModel: "Assignment",
-        link: "/technician/assignments",
-        io: _io,
-      });
-    }
-  } catch (err) {
-    console.error("[watchdog] acceptance expiry error:", err.message);
-  }
-}, 60 * 1000);
-
 databaseReady
   .then(() => {
     startBackgroundSchedulers();

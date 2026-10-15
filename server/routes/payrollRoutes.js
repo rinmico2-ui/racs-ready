@@ -9,6 +9,9 @@ const Technician = require("../models/Technician");
 const TechnicianAttendance = require("../models/TechnicianAttendance");
 const SecretaryAttendance = require("../models/SecretaryAttendance");
 const EmployeeCompensation = require("../models/EmployeeCompensation");
+const PayrollTemplate = require('../models/PayrollTemplate');
+const { withOperationLock } = require('../utils/operationLock');
+const bulkPolicy = require('../utils/bulkPayrollPolicy');
 const { createNotification } = require("../utils/notify");
 const { attendanceDay, attendanceRange } = require("../utils/attendanceTime");
 const { payslipNumberFor, canViewPayslip } = require("../utils/payslipPresentation");
@@ -44,7 +47,7 @@ function parseDate(value, field) {
 function money(value, field, fallback = 0) {
   if (value === undefined || value === null || value === "") return fallback;
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 10000000) {
+  if (!['string', 'number'].includes(typeof value) || !Number.isFinite(parsed) || parsed < 0 || parsed > 10000000) {
     const error = new Error(`${field} must be a non-negative amount.`);
     error.status = 400;
     throw error;
@@ -670,6 +673,89 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+async function payrollTemplates() {
+  return bulkPolicy.defaults.concat(await PayrollTemplate.find({ active: true }).sort({ kind: 1, name: 1 }).lean());
+}
+router.get('/templates', requireAdmin, async (req, res, next) => {
+  try { res.json({ templates: await payrollTemplates() }); } catch (error) { next(error); }
+});
+router.post('/templates', requireAdmin, async (req, res, next) => {
+  try {
+    const { name, kind, amount } = req.body;
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || /[<>\u0000-\u001f]/.test(name) || !['allowance', 'deduction'].includes(kind) || !['number', 'string'].includes(typeof amount) || String(amount).trim() === '') return res.status(400).json({ error: 'Enter a name, type, and valid amount for the template.' });
+    const template = await PayrollTemplate.create({ name: name.trim(), kind, amount: money(amount, 'Template amount'), createdBy: req.user._id });
+    await audit.logEvent({ actor: req.user._id, action: 'payroll.template_created', module: 'payroll', req, entityType: 'PayrollTemplate', entityId: template._id, details: { name: template.name, kind, amount: template.amount } });
+    res.status(201).json({ template });
+  } catch (error) { if (error.code === 11000) return res.status(409).json({ error: 'A template with this name and type already exists.' }); next(error); }
+});
+router.patch('/templates/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.status(400).json({ error: 'Select a saved template.' });
+    const { name, kind, amount } = req.body || {};
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || /[<>\u0000-\u001f]/.test(name) || !['allowance', 'deduction'].includes(kind) || !['number', 'string'].includes(typeof amount) || String(amount).trim() === '') return res.status(400).json({ error: 'Enter a name, type, and valid amount for the template.' });
+    const template = await PayrollTemplate.findOneAndUpdate({ _id: req.params.id, active: true }, { $set: { name: name.trim(), kind, amount: money(amount, 'Template amount') } }, { new: true, runValidators: true });
+    if (!template) return res.status(404).json({ error: 'Template not found.' });
+    await audit.logEvent({ actor: req.user._id, action: 'payroll.template_updated', module: 'payroll', req, entityType: 'PayrollTemplate', entityId: template._id, details: { name: template.name, kind, amount: template.amount } });
+    res.json({ template });
+  } catch (error) { if (error.code === 11000) return res.status(409).json({ error: 'A template with this name and type already exists.' }); next(error); }
+});
+router.delete('/templates/:id', requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.isObjectIdOrHexString(req.params.id)) return res.status(400).json({ error: 'Select a saved template.' });
+    const template = await PayrollTemplate.findOneAndUpdate({ _id: req.params.id, active: true }, { $set: { active: false } }, { new: true });
+    if (!template) return res.status(404).json({ error: 'Template not found.' });
+    await audit.logEvent({ actor: req.user._id, action: 'payroll.template_archived', module: 'payroll', req, entityType: 'PayrollTemplate', entityId: template._id });
+    res.json({ message: 'Template archived. Existing payroll records keep their saved amounts.' });
+  } catch (error) { next(error); }
+});
+async function batchTemplateItems(spec) {
+  const templates = await payrollTemplates();
+  const selected = spec.templateIds.map(id => templates.find(t => String(t._id) === id));
+  if (selected.some(t => !t || Number(t.amount) <= 0)) throw Object.assign(new Error('Select active saved templates with amounts greater than zero.'), { status: 400 });
+  const items = kind => selected.filter(t => t.kind === kind).map(t => ({ name: t.name, amount: t.amount }));
+  return { allowances: items('allowance'), deductions: items('deduction') };
+}
+function safeBatchError(error) { return error.status || error.code === 11000 ? error.code === 11000 ? 'Payroll already exists for this employee and period.' : error.message : 'Payroll could not be processed. Refresh the records and try again.'; }
+router.post('/bulk/preview', requireAdmin, async (req, res) => {
+  try {
+    const spec = bulkPolicy.normalizeBatchRequest(req.body), items = await batchTemplateItems(spec);
+    const drafts = await bulkPolicy.mapLimited(spec.employeeIds, async employee => {
+      try {
+        const data = await preparePayrollDraft({ ...req, body: { ...spec, ...items, employee } });
+        const staff = await User.findById(employee).select('firstName lastName').lean();
+        return { employee, name: [staff.firstName, staff.lastName].filter(Boolean).join(' '), basicPay: data.basicPay, netPay: data.netPay, warnings: data.calculationWarnings, fingerprint: bulkPolicy.draftFingerprint(data) };
+      } catch (error) { return { employee, error: safeBatchError(error) }; }
+    });
+    const ready = drafts.filter(row => !row.error);
+    const fingerprints = Object.fromEntries(ready.map(row => [row.employee, row.fingerprint]));
+    const previewToken = ready.length ? require('jsonwebtoken').sign({ purpose: 'payroll-batch', actor: String(req.user._id), spec: bulkPolicy.hash(spec), fingerprints }, process.env.JWT_SECRET, { expiresIn: '10m' }) : null;
+    res.json({ drafts: drafts.map(({ fingerprint, ...row }) => row), previewToken, ready: ready.length, netPay: ready.reduce((sum, row) => sum + row.netPay, 0) });
+  } catch (error) { res.status(error.status || 503).json({ error: safeBatchError(error) }); }
+});
+router.post('/bulk/create', requireAdmin, async (req, res) => {
+  try {
+    const spec = bulkPolicy.normalizeBatchRequest(req.body);
+    let certificate;
+    try { certificate = require('jsonwebtoken').verify(req.body.previewToken, process.env.JWT_SECRET); }
+    catch (_) { return res.status(409).json({ error: 'Review the payroll batch again. Its preview has expired.' }); }
+    if (certificate.purpose !== 'payroll-batch' || certificate.actor !== String(req.user._id) || certificate.spec !== bulkPolicy.hash(spec)) return res.status(409).json({ error: 'The batch changed after review. Review it again before creating drafts.' });
+    const items = await batchTemplateItems(spec);
+    const results = await bulkPolicy.mapLimited(spec.employeeIds, async employee => {
+      if (!certificate.fingerprints[employee]) return { employee, success: false, error: 'This employee was not ready during review. Correct their pay policy or attendance and review again.' };
+      try {
+        return await withOperationLock('payroll-draft:' + employee, async () => {
+          const data = await preparePayrollDraft({ ...req, body: { ...spec, ...items, employee } });
+          if (bulkPolicy.draftFingerprint(data) !== certificate.fingerprints[employee]) throw Object.assign(new Error('Attendance, pay rate, or template amounts changed after review. Review this employee again.'), { status: 409 });
+          const record = await createPayrollDraft(req, data);
+          return { employee, success: true, recordId: record._id, netPay: record.netPay };
+        }, { leaseMs: 120000, waitMs: 1000 });
+      } catch (error) { return { employee, success: false, error: error.code === 'OPERATION_LOCK_TIMEOUT' ? 'Another payroll request for this employee is in progress.' : safeBatchError(error) }; }
+    });
+    const created = results.filter(row => row.success).length;
+    res.json({ results, created, failed: results.length - created, message: 'Drafts created. Review and approve them using the existing payroll controls.' });
+  } catch (error) { res.status(error.status || 503).json({ error: safeBatchError(error) }); }
+});
+
 router.get("/:id/payslip", async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -719,15 +805,14 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-router.post("/", requireAdmin, async (req, res, next) => {
-  try {
-    if (!mongoose.isValidObjectId(req.body.employee)) return res.status(400).json({ error: "Select a valid staff member." });
+async function preparePayrollDraft(req) {
+    if (!mongoose.isValidObjectId(req.body.employee)) throw Object.assign(new Error("Select a valid staff member."), { status: 400 });
     const employee = await User.findOne({
       _id: req.body.employee,
       role: { $in: ["technician", "secretary"] },
       active: { $ne: false },
     }).lean();
-    if (!employee) return res.status(404).json({ error: "Staff member not found." });
+    if (!employee) throw Object.assign(new Error("Staff member not found."), { status: 404 });
 
     const { periodStart, periodEnd } = normalizePeriod(req.body.periodStart, req.body.periodEnd);
     const payDate = parseDate(req.body.payDate, "Pay date");
@@ -738,7 +823,7 @@ router.post("/", requireAdmin, async (req, res, next) => {
     const calculation = await calculatePayroll(employee._id, periodStart, periodEnd, req.body.overtimeHours);
     const overtimeNote = String(req.body.overtimeNote || "").trim().slice(0, 300);
     if (calculation.overtimeHours > 0 && !overtimeNote) {
-      return res.status(400).json({ error: "An overtime approval reason is required when overtime hours are added." });
+      throw Object.assign(new Error("An overtime approval reason is required when overtime hours are added."), { status: 400 });
     }
 
     const data = {
@@ -766,7 +851,14 @@ router.post("/", requireAdmin, async (req, res, next) => {
       calculatedAt: new Date(),
     };
     Object.assign(data, totals(data));
+    if (data.totalDeductions > data.grossPay) throw Object.assign(new Error('Deductions cannot exceed gross pay. Reduce the deductions before creating this draft.'), { status: 400 });
+
+    return data;
+}
+async function createPayrollDraft(req, data) {
     const record = await Payroll.create(data);
+    const employee = { _id: data.employee };
+    const { periodStart, periodEnd } = data;
     await audit.logEvent({
       actor: req.user._id, target: employee._id, action: "payroll.created", module: "payroll", req,
       entityId: record._id, entityType: "Payroll", category: "payment",
@@ -778,10 +870,21 @@ router.post("/", requireAdmin, async (req, res, next) => {
         calculationVersion: record.calculationVersion,
       },
     });
-    const populated = await populatePayroll(Payroll.findById(record._id)).lean();
-    res.status(201).json({ message: "Draft payroll created.", record: populated });
+    return record;
+}
+
+router.post("/", requireAdmin, async (req, res, next) => {
+  try {
+    if (!mongoose.isObjectIdOrHexString(req.body.employee)) return res.status(400).json({ error: 'Select a valid staff member.' });
+    await withOperationLock('payroll-draft:' + String(req.body.employee).toLowerCase(), async () => {
+      const data = await preparePayrollDraft(req);
+      const record = await createPayrollDraft(req, data);
+      const populated = await populatePayroll(Payroll.findById(record._id)).lean();
+      res.status(201).json({ message: 'Draft payroll created.', record: populated });
+    }, { leaseMs: 120000 });
   } catch (error) {
-    if (error && error.code === 11000) return res.status(409).json({ error: "Payroll already exists for this staff member and period." });
+    if (error.code === 11000) return res.status(409).json({ error: 'Payroll already exists for this staff member and period.' });
+    if (error.code === 'OPERATION_LOCK_TIMEOUT') return res.status(409).json({ error: 'Another payroll request for this employee is in progress. Try again shortly.' });
     next(error);
   }
 });

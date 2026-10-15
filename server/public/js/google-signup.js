@@ -8,6 +8,7 @@
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
     errorBox.classList.add("d-none");
+    FormFeedback.clear(form);
     if (!form.reportValidity()) return;
     var data = new FormData(form);
     button.disabled = true;
@@ -27,10 +28,10 @@
           termsAccepted: data.get("termsAccepted") === "on",
         }),
       });
-      var result = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(result.error || "Your account could not be created.");
+      var result = await RACSRequest.read(response);
       window.location.assign(result.redirect || "/");
     } catch (error) {
+      if (error.fields) FormFeedback.show(form, error, { addressProvince:'register-addressProvince', addressCity:'register-addressCity', addressBarangay:'register-addressBarangay', addressPostal:'register-addressPostal' });
       errorBox.textContent = error.message || "Please try again.";
       errorBox.classList.remove("d-none");
       button.disabled = false;

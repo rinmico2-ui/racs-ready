@@ -95,7 +95,8 @@ async function saveOrderProjectWindow(order, input, user) {
     await require('../models/Assignment').updateMany({ bookingId: booking._id, status: { $nin: ['completed', 'cancelled', 'expired'] } },
       { $set: { status: 'cancelled' } }, { session });
     await booking.save({ session });
-    await syncResolutionProject(booking, schedule, session);
+    const project = await syncResolutionProject(booking, schedule, session);
+    if (project?._id) order.projectId = project._id;
     await order.save({ session });
   });
   return schedule;

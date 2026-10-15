@@ -45,7 +45,7 @@ const GENERAL_API_LIMIT_EXEMPT_ROUTES = new Set([
 
 function pathnameOf(req) {
   const raw = String(req?.originalUrl || req?.url || req?.path || "/");
-  const pathname = raw.split("?", 1)[0] || "/";
+  const pathname = (raw.split("?", 1)[0] || "/").toLowerCase();
   return pathname.startsWith("/") ? pathname : `/${pathname}`;
 }
 

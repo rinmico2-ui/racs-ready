@@ -9,6 +9,8 @@ const rateLimiter = require("../middleware/loginRateLimiter");
 const mailer = require("../utils/mailer");
 const audit = require("../utils/audit");
 const trustedDevices = require("../utils/trustedDevices");
+const loginOtpChallenge = require("../utils/loginOtpChallenge");
+const { verifyMathChallenge, sendChallengeError } = require("../utils/mathChallenge");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { positiveLimit } = require("../utils/boundedWindow");
 const { hashInvitationToken } = require("../utils/customerAccountInvitation");
@@ -183,7 +185,8 @@ function clearRegistrationVerification(user) {
   user.registrationFlowHash = undefined;
 }
 
-async function sendOTPEmail(email, otp, type = "verification") {
+async function sendOTPEmail(email, otp, type = "verification", deliveryOptions = {}) {
+  const expiresIn = deliveryOptions.validUntil ? Math.max(1, Math.ceil((Date.parse(deliveryOptions.validUntil) - Date.now()) / 60000)) : 10;
   const subject =
     type === "login"
       ? "Your Login OTP - CALIDRO RACS"
@@ -217,7 +220,7 @@ async function sendOTPEmail(email, otp, type = "verification") {
           <p>Hello,</p>
           <p>${type === "login" ? "To complete your sign-in process, please use the following One-Time Password (OTP):" : "Thank you for registering with CALIDRO RACS. To activate your account, please verify your email using the following One-Time Password (OTP):"}</p>
           <div class="otp-code">${otp}</div>
-          <p><strong>Important:</strong> This OTP will expire in 10 minutes for security reasons. Please do not share this code with anyone.</p>
+          <p><strong>Important:</strong> This OTP will expire in ${expiresIn} minutes for security reasons. Please do not share this code with anyone.</p>
           <p>If you did not request this ${type === "login" ? "sign-in" : "registration"}, please ignore this email or contact our support team.</p>
           <p>Best regards,<br>The CALIDRO RACS Team</p>
         </div>
@@ -229,7 +232,7 @@ async function sendOTPEmail(email, otp, type = "verification") {
     </body>
     </html>
   `;
-  const text = `${type === "login" ? "Your login OTP is:" : "Your verification OTP is:"} ${otp}. This code expires in 10 minutes.`;
+  const text = `${type === "login" ? "Your login OTP is:" : "Your verification OTP is:"} ${otp}. This code expires in ${expiresIn} minutes.`;
   try {
     const res = await mailer.sendMail({
       to: email,
@@ -237,52 +240,35 @@ async function sendOTPEmail(email, otp, type = "verification") {
       html,
       text,
       source: type === "login" ? "login_otp" : "registration_otp",
+      ...deliveryOptions,
     });
     console.log(
       "sendOTPEmail: mailer.sendMail result for",
-      email,
-      res ? res.messageId || "sent" : "no-transporter",
+      mailer.maskEmail(email),
+      res ? res.messageId || "accepted" : "no-transporter",
     );
     return res;
   } catch (e) {
     console.error(
       "sendOTPEmail: error sending to",
-      email,
+      mailer.maskEmail(email),
       e && e.message ? e.message : e,
     );
     throw e;
   }
 }
 
-// Helper: generate and store a login OTP for staff step-up authentication.
-exports.generateLoginOTP = async function (email, userId, rememberMe = false) {
-  const emailKey = normalizeEmailKey(email);
-  const otp = generateOTP();
-  const now = new Date();
-  await User.updateOne(
-    { _id: userId, email: emailKey },
-    {
-      $set: {
-        loginOtpHash: hashRegistrationOTP(emailKey, otp),
-        loginOtpExpires: new Date(now.getTime() + 10 * 60 * 1000),
-        loginOtpLastSentAt: now,
-        loginOtpRememberMe: Boolean(rememberMe),
-      },
-    },
-  );
-  try {
-    const sendResult = await sendOTPEmail(email, otp, "login");
-    if (!sendResult) throw new Error("No email transport accepted the message.");
-  } catch (e) {
-    await User.updateOne(
-      { _id: userId, loginOtpHash: hashRegistrationOTP(emailKey, otp) },
-      { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
-    ).catch(() => {});
-    console.warn("generateLoginOTP: failed to send email", e && e.message);
-    throw e;
-  }
-  return otp;
-};
+// Called after password verification; never return a plaintext OTP.
+exports.generateLoginOTP = (user, rememberMe, req, res) =>
+  loginOtpChallenge.begin(user, rememberMe, req, res, sendOTPEmail);
+
+function loginOtpInputValid(req, needsCode = false) {
+  return validationResult(req).isEmpty()
+    && typeof req.body?.email === "string"
+    && req.body.email.length <= 254
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email.trim())
+    && (!needsCode || (typeof req.body.otp === "string" && /^\d{6}$/.test(req.body.otp.trim())));
+}
 
 function sendGenericError(res, status = 400) {
   // Generic, non-enumerating error message
@@ -459,12 +445,18 @@ exports.register = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      const fields = {};
+      for (const item of errors.array()) {
+        const field = item.path || item.param;
+        if (!fields[field]) fields[field] = item.msg;
+      }
       const passwordError = errors
         .array()
         .some((error) => (error.path || error.param) === "password");
       return res
         .status(400)
         .json({
+          fields,
           error: passwordError
             ? REGISTRATION_PASSWORD_MESSAGE
             : "Registration failed. Please check your input.",
@@ -480,14 +472,8 @@ exports.register = async (req, res, next) => {
     }
     const requiresEmailVerification = systemConfiguration.application.requireEmailVerification;
 
-    // Verify math captcha
-    const mathCaptcha = String(req.body.mathCaptcha || "").trim();
-    const mathAnswer = String(req.body.mathAnswer || "");
-    if (mathCaptcha !== mathAnswer) {
-      return res
-        .status(400)
-        .json({ error: "Incorrect math captcha. Please try again." });
-    }
+    try { await verifyMathChallenge(req, "register"); }
+    catch (error) { if (sendChallengeError(res, error)) return; throw error; }
 
     // Basic server-side sanitization and size checks
     let email = normalizeEmailKey(req.body.email);
@@ -507,15 +493,9 @@ exports.register = async (req, res, next) => {
     const phone = _rawPhone
       ? _rawPhone.replace(/\D+/g, "").substring(0, 32)
       : undefined;
-    const address = {
-      province: String(req.body.addressProvince || "").trim() || undefined,
-      city: String(req.body.addressCity || "").trim() || undefined,
-      barangay: String(req.body.addressBarangay || "").trim() || undefined,
-      postalCode:
-        String(req.body.addressPostal || "")
-          .trim()
-          .substring(0, 4) || undefined,
-    };
+    let address;
+    try { address = await require('../utils/psgcCatalog').validateAddressSelection(req.body); }
+    catch (error) { return res.status(error.status || 400).json({ error: error.message, fields: error.fields, code: error.code }); }
     // Remove empty address fields
     Object.keys(address).forEach((k) => {
       if (!address[k]) delete address[k];
@@ -836,127 +816,22 @@ exports.resendRegisterOTP = async (req, res, next) => {
   }
 };
 
-// Resend login OTP (throttled)
+// Resend requires the same browser challenge and CSRF token as password login.
 exports.resendLoginOTP = async (req, res, next) => {
+  if (!loginOtpInputValid(req)) return res.status(400).json({ error: "Invalid verification request." });
   try {
-    let email = String(req.body.email || "").trim();
-
-    if (!email) {
-      return res.status(400).json({ error: "Invalid request." });
-    }
-
-    email = email.replace(/[\$\{\}]/g, "");
-    const emailKey = email.toLowerCase();
-
-    const user = await User.findOne({ email: emailKey })
-      .select("+loginOtpHash +loginOtpExpires +loginOtpLastSentAt +loginOtpRememberMe");
-    if (!user?.loginOtpHash || !user.loginOtpExpires || user.loginOtpExpires.getTime() <= Date.now()) {
-      return res
-        .status(400)
-        .json({ error: "No pending login for that email." });
-    }
-
-    const now = Date.now();
-    const lastSent = user.loginOtpLastSentAt?.getTime() || 0;
-    // Throttle resends to once per 60 seconds
-    if (now - lastSent < 60 * 1000) {
-      return res
-        .status(429)
-        .json({ error: "Please wait before requesting another code." });
-    }
-
-    const otp = generateOTP();
-    user.loginOtpHash = hashRegistrationOTP(emailKey, otp);
-    user.loginOtpExpires = new Date(now + 10 * 60 * 1000);
-    user.loginOtpLastSentAt = new Date(now);
-    await user.save();
-    try {
-      await sendOTPEmail(email, otp, "login");
-    } catch (error) {
-      await User.updateOne(
-        { _id: user._id, loginOtpHash: user.loginOtpHash },
-        { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
-      ).catch(() => {});
-      throw error;
-    }
-
-    res.status(200).json({ message: "OTP resent to your email." });
-  } catch (err) {
-    next(err);
+    return res.status(200).json(await loginOtpChallenge.resend(req, sendOTPEmail));
+  } catch (error) {
+    if (!loginOtpChallenge.sendError(res, error)) next(error);
   }
 };
 
 // Verify login OTP
 exports.verifyLoginOTP = async (req, res, next) => {
   try {
-    let email = String(req.body.email || "").trim();
-    let otp = String(req.body.otp || "").trim();
-
-    if (!email || !otp) {
-      return res.status(400).json({ error: "Invalid request." });
-    }
-
-    const emailKey = email.replace(/[\$\{\}]/g, "").toLowerCase();
-    const ip =
-      req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
-    const scopedIp = rateLimiter.scopedIpIdentifier(ip, emailKey);
-
-    // Check rate-limiter for this network/account pair and email.
-    const blockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
-    if (blockedIp.blocked)
-      return res.status(429).json({
-        error: `Too many login attempts. Please try again in ${blockedIp.retryAfterLabel || "a few minutes"}.`,
-        retryAfter: Math.ceil(blockedIp.retryAfter / 1000),
-      });
-    const blockedEmail = rateLimiter.isBlocked("email", emailKey);
-    if (blockedEmail.blocked)
-      return res.status(429).json({
-        error: `Too many login attempts. Please try again in ${blockedEmail.retryAfterLabel || "a few minutes"}.`,
-        retryAfter: Math.ceil(blockedEmail.retryAfter / 1000),
-      });
-
-    const pendingUser = await User.findOne({ email: emailKey })
-      .select("+loginOtpHash +loginOtpExpires +loginOtpRememberMe");
-    const otpValid = pendingUser?.loginOtpHash
-      && pendingUser.loginOtpExpires?.getTime() > Date.now()
-      && registrationOTPMatches(pendingUser.loginOtpHash, emailKey, otp);
-    if (!otpValid) {
-      // record failed attempt for both email and IP
-      try {
-        rateLimiter.recordFailed("email", emailKey);
-      } catch (e) {}
-      try {
-        rateLimiter.recordFailed("ip_email", scopedIp);
-      } catch (e) {}
-      const nowBlockedEmail = rateLimiter.isBlocked("email", emailKey);
-      const nowBlockedIp = rateLimiter.isBlocked("ip_email", scopedIp);
-      if (nowBlockedEmail.blocked || nowBlockedIp.blocked) {
-        const retryAfter = Math.ceil(
-          (nowBlockedEmail.retryAfter || nowBlockedIp.retryAfter || 0) / 1000,
-        );
-        return res.status(429).json({
-          error: "Too many attempts. Please try again later.",
-          retryAfter,
-        });
-      }
-      return res.status(400).json({ error: "Invalid or expired OTP." });
-    }
-
-    const rememberMe = Boolean(pendingUser.loginOtpRememberMe);
-    // Consume the exact hash atomically. Two concurrent submissions cannot
-    // both establish sessions with the same one-time code.
-    const user = await User.findOneAndUpdate(
-      {
-        _id: pendingUser._id,
-        loginOtpHash: pendingUser.loginOtpHash,
-        loginOtpExpires: { $gt: new Date() },
-      },
-      { $unset: { loginOtpHash: 1, loginOtpExpires: 1, loginOtpLastSentAt: 1, loginOtpRememberMe: 1 } },
-      { returnDocument: "after" },
-    );
-    if (!isAccountEnabled(user)) {
-      return res.status(400).json({ error: "User not found." });
-    }
+    if (!loginOtpInputValid(req, true)) return res.status(400).json({ error: "Enter a valid email and six-digit code." });
+    const { user, rememberMe } = await loginOtpChallenge.consume(req);
+    loginOtpChallenge.clearCookie(res);
 
     let trustedDeviceAdded = false;
     const trustDeviceRequested =
@@ -998,7 +873,7 @@ exports.verifyLoginOTP = async (req, res, next) => {
 
     return res.redirect(303, redirect);
   } catch (err) {
-    next(err);
+    if (!loginOtpChallenge.sendError(res, err)) next(err);
   }
 };
 
@@ -1041,19 +916,11 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    // math captcha validation
-    const mathCaptcha = String(req.body.mathCaptcha || "").trim();
-    const mathAnswer = String(req.body.mathAnswer || "").trim();
-    if (!mathCaptcha || mathCaptcha !== mathAnswer) {
-      // record attempt to deter brute-force/enumeration
+    try { await verifyMathChallenge(req, "forgot"); }
+    catch (error) {
       recordForgotAttempt(email);
-      void logPasswordResetEvent(req, {
-        action: "auth.password_reset_request_failed",
-        outcome: "failure",
-        riskLevel: "medium",
-        details: { reason: "captcha_failed" },
-      });
-      return res.status(400).json({ error: "Invalid captcha. Please try again." });
+      if (sendChallengeError(res, error)) return;
+      throw error;
     }
 
     // Find user by normalized lowercase email
@@ -1179,19 +1046,8 @@ exports.resetPassword = async (req, res, next) => {
         .json({ error: "Please fill in all required fields correctly." });
     }
 
-    // Validate math captcha
-    if (!mathCaptcha || mathCaptcha !== mathAnswer) {
-      console.log("[AUTH] resetPassword captcha failed");
-      await logPasswordResetEvent(req, {
-        action: "auth.password_reset_failed",
-        outcome: "failure",
-        riskLevel: "medium",
-        details: { reason: "captcha_failed" },
-      });
-      return res
-        .status(400)
-        .json({ error: "Incorrect captcha. Please try again." });
-    }
+    try { await verifyMathChallenge(req, "reset"); }
+    catch (error) { if (sendChallengeError(res, error)) return; throw error; }
 
     // server-side complexity check (align with client rules)
     if (
@@ -1453,18 +1309,12 @@ exports.login = async (req, res, next) => {
       } catch (e) {}
     }
 
-    // Math captcha validation (we use math captcha instead of reCAPTCHA)
-    const mathCaptcha = String(req.body.mathCaptcha || "").trim();
-    const mathAnswer = String(req.body.mathAnswer || "");
-    if (mathCaptcha !== mathAnswer) {
-      // Record failed attempt for captcha failure
+    try { await verifyMathChallenge(req, "login"); }
+    catch (error) {
       rateLimiter.recordFailed("ip_email", scopedIp);
       if (email) rateLimiter.recordFailed("email", email);
-      
-      // do not reveal details
-      return res
-        .status(400)
-        .json({ error: "Incorrect math captcha. Please try again." });
+      if (sendChallengeError(res, error)) return;
+      throw error;
     }
 
     // Check block status (by IP and by email)
@@ -1571,21 +1421,23 @@ exports.login = async (req, res, next) => {
       }
     }
 
-    await exports.generateLoginOTP(email, user._id, rememberMe);
+    const delivery = await exports.generateLoginOTP(user, rememberMe, req, res);
 
     res.status(200).json({
-      message: "OTP sent to your email. Please verify to complete login.",
+      ...delivery,
       requiresOTP: true,
       canTrustDevice: user.role === "technician",
     });
   } catch (err) {
-    next(err);
+    if (!loginOtpChallenge.sendError(res, err)) next(err);
   }
 };
 
 exports.logout = async (req, res) => {
+  loginOtpChallenge.clearCookie(res);
   try {
     const actor = req.user && req.user._id;
+    require("../utils/socketAuthorization").disconnectUser(req, actor);
     // clear server-side session id so token is no longer valid
     try {
       if (req.user) {

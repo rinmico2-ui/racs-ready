@@ -4,31 +4,6 @@ document.addEventListener("DOMContentLoaded", function () {
   var btn = document.getElementById("resetBtn");
   if (!form) return;
 
-  // Math captcha refresh
-  var refreshBtn = document.querySelector(".refresh-captcha");
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", async function () {
-      try {
-        var res = await fetch("/math-captcha");
-        var data = await res.json();
-        var dice1El = document.querySelector('.dice-face[data-die="1"]');
-        var dice2El = document.querySelector('.dice-face[data-die="2"]');
-        if (dice1El && window.renderDice) window.renderDice(dice1El, data.dice1);
-        if (dice2El && window.renderDice) window.renderDice(dice2El, data.dice2);
-        var answerEl = document.querySelector("input[name='mathAnswer']");
-        var d1El = document.querySelector("input[name='dice1']");
-        var d2El = document.querySelector("input[name='dice2']");
-        if (answerEl) answerEl.value = data.answer;
-        if (d1El) d1El.value = data.dice1;
-        if (d2El) d2El.value = data.dice2;
-        var captchaInput = document.getElementById("reset-math");
-        if (captchaInput) captchaInput.value = "";
-      } catch (e) {
-        console.error("Failed to refresh captcha", e);
-      }
-    });
-  }
-
   // Password visibility toggles
   var toggle = document.getElementById("togglePasswordReset") || document.getElementById("togglePassword");
   var toggleConfirm = document.getElementById("toggleConfirmPasswordReset") || document.getElementById("toggleConfirmPasswordReg");
@@ -283,7 +258,7 @@ document.addEventListener("DOMContentLoaded", function () {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, token, mathCaptcha, mathAnswer, csrfToken }),
+        body: JSON.stringify({ email, password, token, mathCaptcha, mathAnswer, csrfToken, mathChallenge: window.AuthSecurityQuestion ? window.AuthSecurityQuestion.token(form) : '' }),
       });
 
       var body = {};
@@ -303,6 +278,7 @@ document.addEventListener("DOMContentLoaded", function () {
       console.error("Reset error", err);
       window.authUtils.swalError("Network error", "Unable to reach the server. Please try again later.");
     } finally {
+      if (window.AuthSecurityQuestion) await window.AuthSecurityQuestion.refresh(form);
       btn.disabled = false;
       btn.innerText = prevText || "Reset Password";
     }

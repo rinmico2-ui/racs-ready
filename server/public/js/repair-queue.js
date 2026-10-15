@@ -506,12 +506,12 @@
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Assigning...';
 
     try {
-      const res = await fetch(`/api/admin/repair-queue/${bookingId}/assign-technician`, {
+      await RACSRequest.json(`/api/admin/repair-queue/${bookingId}/assign-technician`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ technicianId, scheduledDate, scheduledTime, priority, notes }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'Assignment failed');
+
       bootstrap.Modal.getInstance(document.getElementById('rqAssignModal'))?.hide();
       fetchRepairs();
     } catch (err) {

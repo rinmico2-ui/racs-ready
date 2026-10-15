@@ -292,6 +292,7 @@
             <div class="expense-receipt-wrap">
               <div class="expense-detail-label mb-2"><i class="bi bi-image me-1"></i>Receipt / Proof</div>
               <div id="viewReceiptPreview" aria-live="polite"></div>
+              <div id="viewReceiptRecovery"></div>
             </div>
           </div>
         </div>
@@ -355,15 +356,20 @@
 
 <% if (typeof expensesCanApprove !== 'boolean' || expensesCanApprove) { %><%- include('../../../partials/admin-add-expense') %><% } %>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/js/evidence-viewer.js?v=20261013-receipt-types"></script>
+<script src="/js/evidence-viewer.js?v=20261015-receipt-recovery"></script>
+<script src="/js/expense-receipt-recovery.js?v=20261015"></script>
 <script>
   const EXPENSES_API = <%- JSON.stringify(typeof expensesApiBase === 'string' ? expensesApiBase : '/api/admin/appointments').replace(/</g, '\\u003c') %>;
-  const EXPENSES_CAN_APPROVE = <%- JSON.stringify(typeof expensesCanApprove === 'boolean' ? expensesCanApprove : true) %>;
+  const EXPENSES_CAN_APPROVE = <%- (JSON.stringify(typeof expensesCanApprove === 'boolean' ? expensesCanApprove : true)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   let currentFilter = '';
   let _expenseData = {};
   let activeRejectExpenseId = null;
+  let activeExpenseId = null;
+  const EXPENSES_CAN_RECOVER = <%= JSON.stringify(typeof user !== 'undefined' && user.role === 'admin') %>;
   document.getElementById('expenseDetailModal').addEventListener('hidden.bs.modal', () => {
     window.evidenceViewer.clear(document.getElementById('viewReceiptPreview'));
+    activeExpenseId = null;
+    window.expenseReceiptRecovery.clear(document.getElementById('viewReceiptRecovery'));
   });
 
   const expenseEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[char]);
@@ -591,7 +597,16 @@
       fuelSection.style.display = 'none';
     }
 
-    window.evidenceViewer.show(document.getElementById('viewReceiptPreview'), e.receiptImage);
+    activeExpenseId = id;
+    const recovery = document.getElementById('viewReceiptRecovery');
+    window.expenseReceiptRecovery.clear(recovery);
+    const showReceipt = () => window.evidenceViewer.show(document.getElementById('viewReceiptPreview'), e.receiptImage, {
+      onMissing() {
+        if (activeExpenseId !== id) return;
+        window.expenseReceiptRecovery.show(recovery, e, { allowed: EXPENSES_CAN_RECOVER, apiBase: EXPENSES_API, onRecovered: showReceipt });
+      },
+    });
+    showReceipt();
 
     document.getElementById('viewRejectionReason').textContent = e.rejectionReason || '—';
     document.getElementById('viewApprovedAt').textContent = e.approvedAt ? new Date(e.approvedAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '—';

@@ -1,4 +1,7 @@
-﻿<div class="admin-dashboard container-fluid py-4 walkin-page">
+﻿<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261013-walkin-guided">
+<script src="/js/appliance-services.js?v=20261013-walkin-guided"></script>
+<script src="/js/core-appliance-booking.js?v=20261013-walkin-guided"></script>
+<div class="admin-dashboard container-fluid py-4 walkin-page">
   <%- include('../../../partials/dashboard-styles') %>
 
   <style>
@@ -313,6 +316,7 @@
       .walkin-page .service-route-stats{grid-template-columns:repeat(2,1fr)}
     }
   </style>
+  <link rel="stylesheet" href="/css/walkin-booking.css?v=20261013-guided">
 
   <% if (typeof airconOrdersEnabled !== 'undefined' && airconOrdersEnabled) { %>
     <nav class="walkin-mode-tabs" aria-label="Walk-in transaction type">
@@ -328,10 +332,10 @@
     <div class="container" style="position:relative;z-index:1;">
       <div class="text-center">
         <div class="ent-hero-badge">
-          <i class="bi bi-lightning-charge-fill"></i> Admin Walk-in Booking
+          <i class="bi bi-lightning-charge-fill"></i> Walk-in Service Booking
         </div>
         <h1 class="ent-hero-title">Create <span class="ent-gradient-text">Walk-in Appointment</span></h1>
-        <p class="ent-hero-subtitle mx-auto">Fill in customer details, pick a service, schedule, and review before creating.</p>
+        <p class="ent-hero-subtitle mx-auto">Find the customer, set up their appliances, then choose a location and schedule.</p>
         <div class="ent-trust-badges">
           <span class="ent-trust-item"><i class="bi bi-check-circle-fill"></i> Multi-service support</span>
           <span class="ent-trust-divider"></span>
@@ -387,6 +391,14 @@
           </div>
         </div>
 
+        <nav class="walkin-repair-guide d-none" id="walkinRepairGuide" aria-label="Repair setup steps">
+          <button type="button" data-repair-stage="0">1 · Appliance</button>
+          <button type="button" data-repair-stage="1">2 · Unit type</button>
+          <button type="button" data-repair-stage="2">3 · Details</button>
+          <button type="button" data-repair-stage="3">4 · Issue</button>
+          <button type="button" data-repair-stage="4">5 · Photos</button>
+        </nav>
+        <p class="d-none" id="walkinRepairHint" role="status" aria-live="polite"></p>
         <div class="modal-body" style="padding:1.25rem 1.75rem 0.75rem;max-height:calc(100vh - 220px);overflow-y:auto;">
           <input type="hidden" id="configServiceId"><input type="hidden" id="configServiceType">
 
@@ -514,6 +526,8 @@
             </div>
             <span class="cfg-price-v" id="coreEstimatedPrice">₱0</span>
           </div>
+          <button type="button" class="cfg-btn-ghost d-none" id="walkinRepairBack">Back</button>
+          <button type="button" class="cfg-btn-primary d-none" id="walkinRepairNext">Continue</button>
           <button type="button" class="cfg-btn-primary" id="saveConfiguredService"><i class="bi bi-check-lg me-2"></i>Add to Booking</button>
         </div>
       </div>
@@ -521,7 +535,7 @@
   </div>
 
   <form
-    id="walkinForm"
+    id="walkinForm" novalidate
     class="walkin-shell"
     style="max-width:1100px;margin:0 auto;">
     <div class="booking-layout">
@@ -529,7 +543,7 @@
       <div class="ent-stepper" id="walkinStepper" aria-label="Walk-in booking steps">
         <div class="ent-h">
           <span>Booking Progress</span>
-          <span>Step <span id="entStepCurrent">1</span> of 7</span>
+          <div class="walkin-progress-actions"><button type="button" id="walkinProgressBack" class="walkin-progress-back" disabled><i class="bi bi-arrow-left"></i>Back</button><span>Step <span id="entStepCurrent">1</span> of 7</span></div>
         </div>
         <div class="ent-tr">
           <button type="button" class="ent-n active" data-step="0">
@@ -546,11 +560,11 @@
           </button>
           <button type="button" class="ent-n" data-step="3">
             <span class="ent-ni"><i class="bi bi-calendar-check"></i></span>
-            Calendar
+            Schedule
           </button>
           <button type="button" class="ent-n" data-step="4">
             <span class="ent-ni"><i class="bi bi-receipt"></i></span>
-            Fee
+            Fees
           </button>
           <button type="button" class="ent-n" data-step="5">
             <span class="ent-ni"><i class="bi bi-cash-coin"></i></span>
@@ -561,6 +575,7 @@
             Review
           </button>
         </div>
+        <p class="walkin-stepper-help"><i class="bi bi-arrow-counterclockwise"></i> Select a green completed step to review or make changes.</p>
       </div>
 
       <div class="booking-body">
@@ -658,11 +673,12 @@
             <div class="ent-step-icon step-services"><i class="bi bi-tools"></i></div>
             <div class="ent-step-info">
               <h5>Step 2</h5>
-              <p>Select Services</p>
+              <p>Choose an appliance and the services it needs</p>
             </div>
           </div>
           <div class="ent-step-body">
-          <p class="text-muted small mb-3">Choose multiple services. For aircon services, HP rating will be selected per item.</p>
+          <p class="booking-step-lead">Add the appliance details once, then choose one or more services for it.</p>
+          <div class="walkin-selection-layout"><div class="walkin-catalog-panel">
 
           <!-- Service Categories Tabs -->
           <ul class="nav nav-tabs mb-3" id="serviceTabs" role="tablist">
@@ -681,7 +697,7 @@
           <!-- Tab Content -->
           <div class="tab-content" id="serviceTabContent">
             <div class="tab-pane fade show active" id="core-services" role="tabpanel" aria-labelledby="core-tab">
-              <div class="row g-3" id="coreServiceCards"></div>
+              <div id="coreApplianceBuilder"></div><div id="coreServiceCards" hidden></div>
             </div>
             <div class="tab-pane fade" id="repair-services" role="tabpanel" aria-labelledby="repair-tab">
               <div id="repairInlineConfigurator"></div>
@@ -689,13 +705,14 @@
             </div>
           </div>
 
+          </div>
           <!-- Selected Services Summary -->
-          <div class="ent-svc-section mt-4" id="selectedServicesSummary">
+          <aside class="walkin-selected-summary" id="selectedServicesSummary" aria-label="Selected appliances and services">
             <div class="ent-svc-section-header">
               <div class="ent-svc-section-icon"><i class="bi bi-cart-check"></i></div>
               <div>
-                <h6 class="ent-svc-section-title">Selected Services <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span></h6>
-                <p class="ent-svc-section-sub">Review your selected services and pricing</p>
+                <h6 class="ent-svc-section-title">Your Booking <span class="badge bg-primary ms-2" id="selectedServiceCount">0</span></h6>
+                <p class="ent-svc-section-sub"><span id="walkinServiceCount">0</span> services · up to 40 appliances</p>
               </div>
             </div>
             <div id="selectedServicesList">
@@ -711,15 +728,15 @@
                 </div>
               </div>
             </div>
-          </div>
 
           <!-- Issue Notes -->
           <div class="mt-3">
             <label class="form-label" for="issueDescription">Issue / Notes <span class="text-muted fw-normal">(optional)</span></label>
             <textarea id="issueDescription" name="issueDescription" rows="3" class="form-control" maxlength="600" placeholder="Describe the issue or any special instructions..."></textarea>
           </div>
+          </aside></div>
 
-          <div class="walkin-actions">
+          <div class="walkin-actions" id="walkinServiceActions">
             <button type="button" class="ent-btn-outline" data-prev-step="0"><i class="bi bi-arrow-left"></i>Back</button>
             <button type="button" class="ent-btn-primary" data-next-step="2">Continue to Location<i class="bi bi-arrow-right"></i></button>
           </div>
@@ -1165,7 +1182,7 @@
       );
     }
 
-    function totalBookedUnits() { return state.selectedServices.reduce((sum, item) => sum + Number(item.quantity || 1), 0); }
+    function totalBookedUnits() { return window.ApplianceServices.unitCount(state.selectedServices); }
     function servicesSubtotal() { return state.selectedServices.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0); }
     function bookingDuration() { return Math.max(60, state.selectedServices.reduce((sum, item) => sum + Number(item.duration || 60), 0)); }
     function isLargeScaleSelection() {
@@ -1191,13 +1208,15 @@
       const total = document.getElementById("totalEstimatedPrice");
       if (count) count.textContent = totalBookedUnits();
       if (!host) return;
+      document.getElementById("walkinServiceCount").textContent = state.selectedServices.length;
+      window.CoreApplianceBooking?.sync();
       if (!state.selectedServices.length) {
         host.innerHTML = '<p class="text-muted mb-0">No services selected yet</p>';
         if (pricing) pricing.classList.add("d-none");
         updateTechnicianSelectionMode();
         return;
       }
-      host.innerHTML = state.selectedServices.map((item, index) => `<div class="d-flex justify-content-between align-items-start gap-3 py-3 ${index ? 'border-top' : ''}"><div><div class="fw-semibold">${item.name}</div><div class="small text-muted">${item.type === 'repair' ? 'Repair inspection' : 'Core service'} · ${item.quantity} unit${item.quantity > 1 ? 's' : ''}${item.airconTypeName ? ' · ' + item.airconTypeName : ''}${item.hpDescription ? ' · ' + item.hpDescription : ''}${item.brand ? ' · ' + item.brand : ''}${item.model ? ' ' + item.model : ''}</div>${item.problemDescription ? `<div class="small mt-1">${String(item.problemDescription).replace(/</g,'&lt;')}</div>` : ''}</div><div class="text-end flex-shrink-0"><div class="fw-bold text-primary">₱${Number(item.totalPrice).toLocaleString()}</div><button type="button" class="btn btn-link btn-sm text-danger p-0 remove-service" data-index="${index}"><i class="bi bi-x-circle me-1"></i>Remove</button></div></div>`).join('');
+      host.innerHTML = state.selectedServices.map((item, index) => `<article class="walkin-selected-item"><div class="walkin-selected-item-heading"><strong>${escapeMarkup(item.name)}</strong><span>₱${Number(item.totalPrice).toLocaleString('en-PH')}</span></div><p>${escapeMarkup([item.brand, item.applianceTypeName || item.airconTypeName, item.hp ? item.hp + ' HP' : '', item.model].filter(Boolean).join(' · '))}</p><small>${item.quantity} appliance${item.quantity > 1 ? 's' : ''} · ${item.type === 'repair' ? 'Inspection fee' : 'Service estimate'}</small>${item.problemDescription ? `<p>${escapeMarkup(item.problemDescription)}</p>` : ''}<div class="walkin-selected-item-actions">${item.applianceGroupId ? `<button type="button" class="edit-appliance" data-index="${index}"><i class="bi bi-pencil"></i>Edit appliance</button>` : ''}<button type="button" class="remove-service" data-index="${index}"><i class="bi bi-trash3"></i>Remove service</button></div></article>`).join('');
       if (pricing) pricing.classList.remove("d-none");
       if (total) total.textContent = '₱' + servicesSubtotal().toLocaleString();
       state.selectedServiceId = state.selectedServices[0].serviceId;
@@ -1219,7 +1238,13 @@
         const isCompleted = stepNum < state.currentStep;
         el.classList.toggle("active", isActive);
         el.classList.toggle("completed", isCompleted);
+        el.disabled = stepNum > state.maxReachedStep;
+        if (isActive) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current");
       });
+      document.getElementById("walkinProgressBack").disabled = state.currentStep === 0;
+      const activeStep = document.querySelector(`.booking-step[data-step="${state.currentStep}"]`);
+      activeStep?.querySelector(".ent-step-info p")?.setAttribute("tabindex", "-1");
+      activeStep?.querySelector(".ent-step-info p")?.focus({ preventScroll: true });
       const stepCounter = document.getElementById("entStepCurrent");
       if (stepCounter) stepCounter.textContent = String(state.currentStep + 1);
       if (state.currentStep === 0) {
@@ -1239,6 +1264,7 @@
         if (state.selectedDate) renderTimeSlotsForDate(state.selectedDate);
       }
       updateSummary();
+      document.getElementById("walkinStepper").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     }
 
     function setCustomerLookupStatus(message, type = "info", spinning = false) {
@@ -1428,6 +1454,8 @@
             return showWarn("First/last name, phone and city are required.");
         }
       }
+      if (step === 1 && document.getElementById("core-tab").classList.contains("active") && window.CoreApplianceBooking.pending())
+        return showWarn("Add this appliance to the booking, or select Start over, before continuing.");
       if (step === 1 && !state.selectedServices.length)
         return showWarn("Please add at least one Core or Repair service.");
       if (step === 2) {
@@ -1545,7 +1573,18 @@
           .join("");
       }
 
-      renderListInto(coreCardsEl, state.coreServices || [], "core");
+      window.CoreApplianceBooking.mount(state.coreServices || [], {
+        state, embedded: true, allowQuotedRelocation: false,
+        commit(rows, editingGroupId) {
+          const next = state.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId)
+            .concat(rows.map(item => ({ ...item, duration: item.duration * item.quantity })));
+          window.ApplianceServices.unitCount(next);
+          state.selectedServices = next;
+          invalidateWalkinSchedule();
+          renderSelectedServices(); updateSummary();
+        },
+        next() { if (validateStep(1)) goToStep(2); },
+      });
       renderListInto(repairCardsEl, state.repairServices || [], "repair");
 
       renderSelectedServices();
@@ -2955,7 +2994,7 @@
       if (!service) return;
       document.getElementById("configServiceId").value = service._id;
       document.getElementById("configServiceType").value = type;
-      document.getElementById("serviceConfigTitle").textContent = type === "repair" ? "Repair Service Configuration" : "Configure Service";
+      document.getElementById("serviceConfigTitle").textContent = type === "repair" ? "Set up a repair" : "Configure Service";
       document.getElementById("configQuantity").value = 1;
       document.getElementById("repairConfigQuantity").value = 1;
       document.getElementById("configBrand").value = "";
@@ -2964,7 +3003,7 @@
       document.getElementById("walkinRepairCharCount").textContent = "0 / 500";
       document.getElementById("configRepairPhotos").value = "";
       document.getElementById("configRepairPhotoPreview").innerHTML = "";
-      document.getElementById("serviceConfigSubtitle").textContent = type === "repair" ? "Configure your repair request step by step. Our technician will be prepared with the right tools and parts." : "Select aircon type & HP rating";
+      document.getElementById("serviceConfigSubtitle").textContent = type === "repair" ? "Tell us about the appliance and the issue." : "Select aircon type & HP rating";
       document.getElementById("priceLabel").textContent = type === "repair" ? "Inspection Fee" : "Estimated Price";
       document.getElementById("priceSub").textContent = type === "repair" ? "Diagnosis only; final repair is quoted after inspection" : "Configured service total";
       configuredRepairCategory = ""; configuredRepairUnitType = ""; configuredRepairPhotos = [];
@@ -2999,12 +3038,55 @@
       }
     }
 
+    let repairStage = 0, repairReached = 0;
+    function showRepairStage(stage, focus = false) {
+      repairStage = stage; repairReached = Math.max(repairReached, stage);
+      const content = document.getElementById("serviceConfigContent");
+      const panels = [...content.querySelectorAll(".modal-body > .repair-config")];
+      panels.forEach((panel, index) => panel.classList.toggle("walkin-repair-panel-hidden", index !== stage));
+      document.getElementById("walkinRepairGuide").classList.remove("d-none");
+      document.getElementById("walkinRepairHint").classList.remove("d-none", "text-danger");
+      document.getElementById("walkinRepairHint").textContent = ["Choose the appliance that needs repair.", "Choose the unit type.", "Add the brand, model and number of units.", "Describe the issue so the technician can prepare.", "Photos are optional. Add the repair to your booking when ready."][stage];
+      document.querySelectorAll("[data-repair-stage]").forEach(button => {
+        button.disabled = Number(button.dataset.repairStage) > repairReached;
+        if (Number(button.dataset.repairStage) === stage) button.setAttribute("aria-current", "step");
+        else button.removeAttribute("aria-current");
+      });
+      document.getElementById("walkinRepairBack").classList.toggle("d-none", stage === 0);
+      document.getElementById("walkinRepairNext").classList.toggle("d-none", stage === 4);
+      document.getElementById("saveConfiguredService").classList.toggle("d-none", stage !== 4);
+      if (focus) panels[stage]?.querySelector("input:not([type=file]), textarea, button")?.focus({ preventScroll: true });
+    }
+    function validateRepairStage(stage) {
+      let message = "";
+      if (stage === 0 && !configuredRepairCategory) message = "Choose an appliance category first.";
+      if (stage === 1 && !configuredRepairUnitType.trim()) message = "Choose or enter the specific unit type.";
+      if (stage === 2 && !document.getElementById("configBrand").value.trim()) message = "Enter the appliance brand.";
+      if (stage === 2 && Number(document.getElementById("repairConfigQuantity").value) > window.ApplianceServices.remainingUnits(state.selectedServices)) message = "The selected repair quantity exceeds the remaining appliance limit.";
+      if (stage === 3 && document.getElementById("configProblem").value.trim().length < 10) message = "Describe the issue using at least 10 characters.";
+      if (message) {
+        const hint = document.getElementById("walkinRepairHint");
+        hint.textContent = message; hint.classList.add("text-danger"); return false;
+      }
+      return true;
+    }
+    document.getElementById("walkinRepairNext").addEventListener("click", () => {
+      if (validateRepairStage(repairStage)) showRepairStage(Math.min(4, repairStage + 1), true);
+    });
+    document.getElementById("walkinRepairBack").addEventListener("click", () => showRepairStage(Math.max(0, repairStage - 1), true));
+    document.querySelectorAll("[data-repair-stage]").forEach(button => button.addEventListener("click", () => {
+      const stage = Number(button.dataset.repairStage);
+      for (let index = repairStage; index < stage; index++) {
+        if (!validateRepairStage(index)) { showRepairStage(index, true); validateRepairStage(index); return; }
+      }
+      showRepairStage(stage, true);
+    }));
     function mountInlineRepairConfigurator(forceReset = false) {
       const service = state.repairServices[0];
       const host = document.getElementById("repairInlineConfigurator");
       const content = document.getElementById("serviceConfigContent");
       if (!forceReset && host.contains(content) && document.getElementById("configServiceType").value === "repair") return;
-      if (service) configureService(service, "repair", true);
+      if (service) { configureService(service, "repair", true); repairReached = 0; showRepairStage(0); }
       else document.getElementById("repairInlineConfigurator").innerHTML = '<div class="alert alert-info">No active repair service configuration is available.</div>';
     }
 
@@ -3179,12 +3261,22 @@
       if (type === "repair") mountInlineRepairConfigurator(true);
     });
 
+    function invalidateWalkinSchedule() {
+      state.selectedDate = null; state.selectedStartMinutes = null; state.projectScheduling = null;
+      state.enterpriseCalendarSignature = "";
+    }
     document.getElementById("selectedServicesList")?.addEventListener("click", e => {
+      const edit = e.target.closest(".edit-appliance");
+      if (edit) {
+        const item = state.selectedServices[Number(edit.dataset.index)];
+        bootstrap.Tab.getOrCreateInstance(document.getElementById("core-tab")).show();
+        window.CoreApplianceBooking.edit(item.applianceGroupId);
+        return;
+      }
       const remove = e.target.closest(".remove-service");
       if (!remove) return;
       state.selectedServices.splice(Number(remove.dataset.index), 1);
-      state.selectedDate = null; state.selectedStartMinutes = null;
-      renderServiceCards();
+      invalidateWalkinSchedule(); renderSelectedServices(); updateSummary();
     });
 
     techEl.addEventListener("change", async () => {
@@ -3225,6 +3317,7 @@
       setCustomerLookupStatus("Email changed. Find the customer again before continuing.", "info");
     });
 
+    document.getElementById("walkinProgressBack").addEventListener("click", () => goToStep(Math.max(0, state.currentStep - 1)));
     document.querySelectorAll("[data-next-step]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const target = Number(btn.getAttribute("data-next-step"));
@@ -3267,7 +3360,7 @@
     });
 
     form.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && state.currentStep !== 6) {
+      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && !e.target.closest("#coreApplianceBuilder") && state.currentStep !== 6) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -3445,6 +3538,7 @@
         );
         await renderCalendar();
         renderServiceCards();
+        window.CoreApplianceBooking.start();
         renderRepairCategories();
         mountInlineRepairConfigurator(true);
         renderTechnicians();

@@ -834,13 +834,13 @@
 <script>
   // Service Analytics Data from Server
   var serviceAnalytics = {
-    weeklyData: <%- JSON.stringify(analytics && analytics.weeklyData ? Object.entries(analytics.weeklyData).map(([key, val]) => ({ week: key, bookings: val.bookings, revenue: val.revenue, completed: val.completed })) : []) %>,
-    ratingDistribution: <%- JSON.stringify(analytics && analytics.ratingDistribution ? [analytics.ratingDistribution[5], analytics.ratingDistribution[4], analytics.ratingDistribution[3], analytics.ratingDistribution[2], analytics.ratingDistribution[1]] : [0,0,0,0,0]) %>,
-    statusBreakdown: <%- JSON.stringify(analytics && analytics.statusBreakdown ? Object.entries(analytics.statusBreakdown).map(([status, count]) => ({ status: status, count: count })) : []) %>,
-    dailyTrend: <%- JSON.stringify(analytics && analytics.dailyTrend ? analytics.dailyTrend : []) %>,
-    topServices: <%- JSON.stringify(analytics && analytics.topServices ? analytics.topServices : []) %>,
-    techUtilization: <%- JSON.stringify(analytics && analytics.techUtilization ? analytics.techUtilization : []) %>,
-    weeklyCsat: <%- JSON.stringify(analytics && analytics.weeklyCsat ? analytics.weeklyCsat : []) %>,
+    weeklyData: <%- (JSON.stringify(analytics && analytics.weeklyData ? Object.entries(analytics.weeklyData).map(([key, val]) => ({ week: key, bookings: val.bookings, revenue: val.revenue, completed: val.completed })) : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    ratingDistribution: <%- (JSON.stringify(analytics && analytics.ratingDistribution ? [analytics.ratingDistribution[5], analytics.ratingDistribution[4], analytics.ratingDistribution[3], analytics.ratingDistribution[2], analytics.ratingDistribution[1]] : [0,0,0,0,0])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    statusBreakdown: <%- (JSON.stringify(analytics && analytics.statusBreakdown ? Object.entries(analytics.statusBreakdown).map(([status, count]) => ({ status: status, count: count })) : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    dailyTrend: <%- (JSON.stringify(analytics && analytics.dailyTrend ? analytics.dailyTrend : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    topServices: <%- (JSON.stringify(analytics && analytics.topServices ? analytics.topServices : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    techUtilization: <%- (JSON.stringify(analytics && analytics.techUtilization ? analytics.techUtilization : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    weeklyCsat: <%- (JSON.stringify(analytics && analytics.weeklyCsat ? analytics.weeklyCsat : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
     totalBookings: <%= analytics ? analytics.totalBookings : 0 %>,
     completedBookings: <%= analytics ? analytics.completedBookings : 0 %>,
     pendingBookings: <%= analytics ? analytics.pendingBookings : 0 %>,
@@ -855,9 +855,9 @@
     coreServiceBookings: <%= analytics ? analytics.coreServiceBookings : 0 %>,
     repairBookings: <%= analytics ? analytics.repairBookings : 0 %>,
     multiServiceBookings: <%= analytics ? analytics.multiServiceBookings : 0 %>,
-    technicians: <%- JSON.stringify(analytics && analytics.technicians ? analytics.technicians : []) %>,
-    technicianStats: <%- JSON.stringify(analytics && analytics.technicianStats ? analytics.technicianStats : {}) %>,
-    topTechnicians: <%- JSON.stringify(analytics && analytics.topTechnicians ? analytics.topTechnicians : []) %>
+    technicians: <%- (JSON.stringify(analytics && analytics.technicians ? analytics.technicians : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    technicianStats: <%- (JSON.stringify(analytics && analytics.technicianStats ? analytics.technicianStats : {})).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+    topTechnicians: <%- (JSON.stringify(analytics && analytics.topTechnicians ? analytics.topTechnicians : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>
   };
 
   function initCharts() {

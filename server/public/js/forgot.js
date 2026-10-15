@@ -161,6 +161,7 @@ document.addEventListener("DOMContentLoaded", function () {
           csrfToken: csrfToken,
           mathCaptcha: mathCaptcha,
           mathAnswer: mathAnswer,
+          mathChallenge: window.AuthSecurityQuestion ? window.AuthSecurityQuestion.token(form) : '',
         }),
       });
 
@@ -193,6 +194,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (btnIcon) btnIcon.className = "bi bi-send-fill";
       if (btnText) btnText.textContent = "Send Reset Link";
       window.authUtils.swalError("Request failed", "Unable to process your request at this time. Please try again later.");
+    } finally {
+      if (window.AuthSecurityQuestion) await window.AuthSecurityQuestion.refresh(form);
     }
   });
 });

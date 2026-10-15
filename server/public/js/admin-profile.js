@@ -69,9 +69,15 @@
     }
 
     if (editForm) {
+      var snapshot = function () { return JSON.stringify(['adminFirstName', 'adminLastName', 'adminPhone'].map(function (id) { return byId(id).value.trim().replace(/\s+/g, ' '); })); };
+      var initialProfile = snapshot();
+      var refreshSave = function () { saveProfileButton.disabled = snapshot() === initialProfile; };
+      editForm.addEventListener('input', refreshSave);
+      refreshSave();
       editForm.addEventListener("submit", async function (event) {
         event.preventDefault();
         clearInlineError(editError);
+        if (snapshot() === initialProfile) { showPageFeedback('info', 'No changes detected.'); return; }
 
         var firstName = byId("adminFirstName").value.trim().replace(/\s+/g, " ");
         var lastName = byId("adminLastName").value.trim().replace(/\s+/g, " ");
@@ -99,6 +105,8 @@
             lastName: lastName,
             phone: phone,
           });
+          initialProfile = snapshot();
+          if (result.changed === false) { showPageFeedback('info', result.message); return; }
           byId("profileFirstNameValue").textContent = result.user.firstName;
           byId("profileLastNameValue").textContent = result.user.lastName;
           byId("profilePhoneValue").textContent = result.user.phone;
@@ -117,6 +125,7 @@
           showInlineError(editError, error.message);
         } finally {
           setBusy(saveProfileButton, false);
+          refreshSave();
         }
       });
     }

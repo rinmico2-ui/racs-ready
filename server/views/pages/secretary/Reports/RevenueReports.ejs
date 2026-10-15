@@ -759,7 +759,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script id="revenue-data" type="application/json">
       {
-        "monthlyRevenue": <%- JSON.stringify(analytics && analytics.monthlyRevenue ? Object.entries(analytics.monthlyRevenue).map(([month, data]) => ({ month: month, service: data.service, orders: data.orders, total: data.total })) : []) %>,
+        "monthlyRevenue": <%- (JSON.stringify(analytics && analytics.monthlyRevenue ? Object.entries(analytics.monthlyRevenue).map(([month, data]) => ({ month: month, service: data.service, orders: data.orders, total: data.total })) : [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
         "revenueSources": {
           "service": <%= analytics ? analytics.serviceRevenue : 0 %>,
           "orders": <%= analytics ? analytics.orderRevenue : 0 %>,

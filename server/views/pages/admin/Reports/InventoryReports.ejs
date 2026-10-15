@@ -656,19 +656,19 @@
     <script src="/js/chart-drilldown.js"></script>
     <script id="inventory-data" type="application/json">
       {
-        "stockTurnover": <%- JSON.stringify(analytics && analytics.stockTurnover ? analytics.stockTurnover.slice(0, 5).map(t => ({ name: t.name, rate: parseFloat(t.turnoverRate.toFixed(2)) })) : [{name:'Item 1', rate:1.2}, {name:'Item 2', rate:0.9}, {name:'Item 3', rate:0.7}, {name:'Item 4', rate:0.5}, {name:'Item 5', rate:0.3}]) %>,
+        "stockTurnover": <%- (JSON.stringify(analytics && analytics.stockTurnover ? analytics.stockTurnover.slice(0, 5).map(t => ({ name: t.name, rate: parseFloat(t.turnoverRate.toFixed(2)) })) : [{name:'Item 1', rate:1.2}, {name:'Item 2', rate:0.9}, {name:'Item 3', rate:0.7}, {name:'Item 4', rate:0.5}, {name:'Item 5', rate:0.3}])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
         "healthScore": <%= analytics ? analytics.inventoryHealthScore : 0 %>,
-        "typeCounts": <%- JSON.stringify(analytics && analytics.typeCounts ? Object.keys(analytics.typeCounts) : ['Split', 'Window', 'Cassette', 'Floor']) %>,
-        "typeCountValues": <%- JSON.stringify(analytics && analytics.typeCounts ? Object.values(analytics.typeCounts) : [45, 25, 15, 15]) %>,
-        "typeValuesKeys": <%- JSON.stringify(analytics && analytics.typeValues ? Object.keys(analytics.typeValues).slice(0, 5) : ['Type A', 'Type B', 'Type C', 'Type D', 'Type E']) %>,
-        "typeValuesData": <%- JSON.stringify(analytics && analytics.typeValues ? Object.values(analytics.typeValues).slice(0, 5).map(v => Math.round(v / 1000)) : [450, 320, 280, 190, 150]) %>,
+        "typeCounts": <%- (JSON.stringify(analytics && analytics.typeCounts ? Object.keys(analytics.typeCounts) : ['Split', 'Window', 'Cassette', 'Floor'])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "typeCountValues": <%- (JSON.stringify(analytics && analytics.typeCounts ? Object.values(analytics.typeCounts) : [45, 25, 15, 15])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "typeValuesKeys": <%- (JSON.stringify(analytics && analytics.typeValues ? Object.keys(analytics.typeValues).slice(0, 5) : ['Type A', 'Type B', 'Type C', 'Type D', 'Type E'])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "typeValuesData": <%- (JSON.stringify(analytics && analytics.typeValues ? Object.values(analytics.typeValues).slice(0, 5).map(v => Math.round(v / 1000)) : [450, 320, 280, 190, 150])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
         "totalValue": <%= analytics ? (analytics.totalValue || 0) : 0 %>,
         "inventoryValue": <%= analytics ? (analytics.inventoryValue || 0) : 0 %>,
-        "stockLevels": <%- JSON.stringify(analytics?.stockLevels || []) %>,
-        "lowStockAlerts": <%- JSON.stringify(analytics?.lowStockAlerts || []) %>,
-        "stockMovementActual": <%- JSON.stringify(analytics?.stockMovementActual || []) %>,
-        "topUsedTools": <%- JSON.stringify(analytics?.topConsumedItems || []) %>,
-        "itemAnalytics": <%- JSON.stringify((analytics?.itemAnalytics || []).map(function(r){return {name:r.name,type:r.type,kind:r.kind,quantity:r.quantity,available:r.available,status:r.status,stockCost:r.stockCost,retailValue:r.retailValue,marginPct:r.marginPct,usage:r.usage,coverDays:r.coverDays,updatedAt:r.updatedAt,supplier:r.supplier};})) %>
+        "stockLevels": <%- (JSON.stringify(analytics?.stockLevels || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "lowStockAlerts": <%- (JSON.stringify(analytics?.lowStockAlerts || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "stockMovementActual": <%- (JSON.stringify(analytics?.stockMovementActual || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "topUsedTools": <%- (JSON.stringify(analytics?.topConsumedItems || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
+        "itemAnalytics": <%- (JSON.stringify((analytics?.itemAnalytics || []).map(function(r){return {name:r.name,type:r.type,kind:r.kind,quantity:r.quantity,available:r.available,status:r.status,stockCost:r.stockCost,retailValue:r.retailValue,marginPct:r.marginPct,usage:r.usage,coverDays:r.coverDays,updatedAt:r.updatedAt,supplier:r.supplier};}))).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>
       }
     </script>
     <script>

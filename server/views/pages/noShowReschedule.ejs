@@ -89,8 +89,8 @@
 <script src="/js/enterprise-calendar.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
-  const token = <%- JSON.stringify(token) %>;
-  const serviceId = <%- JSON.stringify(String(booking.serviceId || (booking.service && booking.service._id) || '')) %>;
+  const token = <%- (JSON.stringify(token)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
+  const serviceId = <%- (JSON.stringify(String(booking.serviceId || (booking.service && booking.service._id) || ''))).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   const serviceDuration = <%= Math.max(1, Number(booking.serviceDurationMinutes) || 60) %>;
   const quantity = <%= Number(booking.serviceDurationMinutes) > 0 ? 1 : Math.max(1, Number(booking.quantity) || 1) %>;
   const confirmButton = document.getElementById('btnConfirmReschedule');

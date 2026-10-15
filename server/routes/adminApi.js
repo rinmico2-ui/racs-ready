@@ -843,62 +843,12 @@ router.post("/order-refund-reviews/:id/queue", requirePermission("payments.manag
 // Unified invoice register: service bookings/projects, ecommerce product
 // orders, and completed walk-in POS sales.
 router.get("/invoices", async (req, res, next) => {
-  try {
-    const Payment = require("../models/Payment");
-    const BookingService = require("../models/BookingService");
-    const Order = require("../models/Order");
-    const WalkInSale = require("../models/WalkInSale");
-    const [payments, legacyBookings, orders, posSales] = await Promise.all([
-      Payment.find({ status: { $in: ["verified", "paid"] } })
-        .populate("bookingId", "bookingReference customer service services status")
-        .populate("orderId", "orderReference customer items subtotal deliveryFee installationFee transportationFee total status")
-        .populate("projectId", "projectReference customer service status")
-        .sort({ verifiedAt: -1, submittedAt: -1 }).lean(),
-      BookingService.find({ paymentStatus: { $in: ["verified", "paid"] } })
-        .select("bookingReference customer service services totalPrice estimatedFee amountPaid paymentMethod paymentStatus completedAt createdAt").lean(),
-      Order.find({ $or: [{ paymentStatus: { $in: ["verified", "paid"] } }, { status: "completed" }] })
-        .select("orderReference customer items subtotal deliveryFee installationFee transportationFee total paymentMethod paymentStatus status createdAt updatedAt").lean(),
-      WalkInSale.find({ status: "completed" }).sort({ completedAt: -1, createdAt: -1 }).lean(),
-    ]);
-
-    const linkedBookingIds = new Set(payments.map(p => p.bookingId && String(p.bookingId._id)).filter(Boolean));
-    const linkedOrderIds = new Set(payments.map(p => p.orderId && String(p.orderId._id)).filter(Boolean));
-    const invoiceRows = payments.map(p => {
-      const subject = p.bookingId || p.orderId || p.projectId || {};
-      const source = p.orderId ? "Product Order" : p.projectId ? "Large Project" : "Service Booking";
-      const reference = p.bookingId?.bookingReference || p.orderId?.orderReference || p.projectId?.projectReference || `PAY-${String(p._id).slice(-8).toUpperCase()}`;
-      return { _id: `payment:${p._id}`, invoiceNumber: `INV-${String(p._id).slice(-8).toUpperCase()}`, source, reference,
-        customer: subject.customer || {}, amount: p.amount, paymentMethod: p.method, status: p.status,
-        issuedAt: p.verifiedAt || p.completedAt || p.submittedAt, paymentReference: p.reference,
-        items: p.orderId?.items || [{ description: p.bookingId?.service?.name || p.projectId?.service?.name || "Service payment", quantity: 1, totalPrice: p.amount }],
-        breakdown: p.orderId ? { subtotal: p.orderId.subtotal, deliveryFee: p.orderId.deliveryFee, installationFee: p.orderId.installationFee, transportationFee: p.orderId.transportationFee } : null };
-    });
-    for (const b of legacyBookings) if (!linkedBookingIds.has(String(b._id))) invoiceRows.push({
-      _id: `booking:${b._id}`, invoiceNumber: `INV-B-${String(b._id).slice(-7).toUpperCase()}`, source: "Service Booking", reference: b.bookingReference,
-      customer: b.customer || {}, amount: b.amountPaid || b.totalPrice || b.estimatedFee || 0, paymentMethod: b.paymentMethod, status: b.paymentStatus,
-      issuedAt: b.completedAt || b.createdAt, items: [{ description: b.service?.name || b.services?.map(s => s.name).filter(Boolean).join(", ") || "Service", quantity: 1, totalPrice: b.totalPrice || b.estimatedFee || 0 }]
-    });
-    for (const o of orders) if (!linkedOrderIds.has(String(o._id))) invoiceRows.push({
-      _id: `order:${o._id}`, invoiceNumber: `INV-O-${String(o._id).slice(-7).toUpperCase()}`, source: "Product Order", reference: o.orderReference,
-      customer: o.customer || {}, amount: o.total || 0, paymentMethod: o.paymentMethod, status: o.paymentStatus === "pending" && o.status === "completed" ? "completed" : o.paymentStatus,
-      issuedAt: o.updatedAt || o.createdAt, items: o.items || [], breakdown: { subtotal: o.subtotal, deliveryFee: o.deliveryFee, installationFee: o.installationFee, transportationFee: o.transportationFee }
-    });
-    for (const s of posSales) invoiceRows.push({
-      _id: `pos:${s._id}`, invoiceNumber: s.invoiceNumber, source: "POS Sale", reference: s.invoiceNumber,
-      customer: { name: s.customerName, phone: s.customerPhone, address: s.customerAddress, tin: s.customerTin }, amount: s.totalAmount,
-      paymentMethod: s.paymentMethod, status: s.status, issuedAt: s.completedAt || s.createdAt, items: s.items || [],
-      breakdown: { subtotal: s.subtotal, discount: s.discount, tax: s.tax, amountPaid: s.amountPaid, change: s.change }
-    });
-    invoiceRows.sort((a, b) => new Date(b.issuedAt || 0) - new Date(a.issuedAt || 0));
-
-    const counts = { total: invoiceRows.length, bookings: invoiceRows.filter(i => ["Service Booking", "Large Project"].includes(i.source)).length, orders: invoiceRows.filter(i => i.source === "Product Order").length, pos: invoiceRows.filter(i => i.source === "POS Sale").length };
-
-    const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 200);
-    const page = Math.max(0, Number(req.query.page) || 0);
-    const paged = invoiceRows.slice(page * limit, (page + 1) * limit);
-
-    res.json({ invoices: paged, total: invoiceRows.length, page, limit, counts });
-  } catch (err) { next(err); }
+  try { res.json(await require('../utils/invoiceRegister').loadInvoiceRegister(req.query)); }
+  catch (error) {
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[invoices]', error.name, error.code || '');
+    return res.status(503).json({ error: 'Invoices are temporarily unavailable. Please refresh to try again.' });
+  }
 });
 
 router.patch("/remittances/:id/status", async (req, res, next) => {
@@ -8664,6 +8614,7 @@ router.get("/reports/revenue", async (req, res, next) => {
     res.set("Server-Timing", `revenue-analytics;dur=${durationMs.toFixed(1)}`);
     res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
     res.vary("Cookie");
+    if (req.query.format === 'pdf') return await require('../utils/reportPdf').sendReportPdf(res, 'revenue', analytics, filters);
     return res.json({ success: true, filters, technicians, analytics });
   } catch (err) {
     if (err.statusCode === 400) return res.status(400).json({ error: err.message });
@@ -9922,6 +9873,21 @@ router.get("/settings/email-logs", async (req, res, next) => {
 });
 
 // System settings control plane ------------------------------------------------
+router.get("/settings/email-logs/:id/delivery", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid email log ID." });
+  try {
+    const record = await require("../models/EmailDeliveryLog").findById(req.params.id).lean();
+    if (!record) return res.status(404).json({ error: "Email log not found." });
+    if (record.provider !== "brevo" || record.status !== "accepted" || !record.messageId) {
+      return res.status(400).json({ error: "Delivery events are available for emails accepted by Brevo." });
+    }
+    return res.json(await require("../utils/brevoDelivery").lookupDelivery(record.messageId));
+  } catch {
+    return res.status(502).json({ error: "Unable to check delivery right now. Open Brevo transactional logs and search by the provider message ID." });
+  }
+});
+
 router.get("/settings/system-configuration", async (_req, res, next) => {
   try {
     const { getSystemConfiguration } = require("../utils/systemConfiguration");

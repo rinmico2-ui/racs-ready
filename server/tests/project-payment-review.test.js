@@ -113,6 +113,7 @@ function approval(f) {
     auth: { requireRole: roles => { assert.deepEqual(Array.from(roles), ['admin', 'secretary']); return 'staff'; } },
     ...f.dependencies, schedulingEngine: { MAX_BOOKING_UNITS: 40, isLargeProject: async input => input.totalUnits >= 8 || input.totalEstimatedMinutes > 480 },
     projectCanUsePlanning, projectPaymentSummary, syncProjectPayment, projectPaymentFilter: paymentFilter,
+    assertProjectPurchaseReady: require('../utils/orderProjectLifecycle').assertProjectPurchaseReady,
     audit: { logEvent: async () => {} }, createNotification: async value => notifications.push(value), console: { error() {} },
   });
   return async () => {

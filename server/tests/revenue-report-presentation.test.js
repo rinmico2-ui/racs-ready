@@ -119,7 +119,7 @@ test("revenue overview exposes decision controls derived from the full ledger", 
   }
   assert.match(revenueAnalyticsSource, /\{ completedAt: dateFilter \}/);
   assert.match(revenueAnalyticsSource, /changedAt: dateFilter/);
-  assert.match(revenueAnalyticsSource, /Expense\.find\(\{ expenseDate: dateFilter \}\)/);
+  assert.match(revenueAnalyticsSource, /Expense\.find\(\{ expenseDate: dateFilter, testDataExcludedAt: null \}\)/);
   assert.match(revenueAnalyticsSource, /Payroll\.find\(\{ status: \{ \$ne: "voided" \}/);
   assert.match(revenueAnalyticsSource, /buildServiceProfitability/);
   assert.match(revenueAnalyticsSource, /buildRevenueForecast/);

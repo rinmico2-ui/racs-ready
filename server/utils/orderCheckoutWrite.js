@@ -9,10 +9,12 @@ const { isKnownStandalone } = require("./bookingSubmissionWrite");
 async function persistOrderCheckout({
   mongoose, Order, Payment, Inventory, HVACProduct, AirconCart,
   orderData, enrichedItems, requestedItems, cartItemIds, user, receiptPresent,
+  BookingService = require('../models/BookingService'), Project = require('../models/Project'),
 }) {
   orderData._id ||= new mongoose.Types.ObjectId();
   const userId = user._id;
   const orderId = orderData._id;
+  const planningIds = orderData.isProject ? { bookingId: new mongoose.Types.ObjectId(), projectId: new mongoose.Types.ObjectId() } : null;
   const paymentNeeded = ["cod", "gcash_full"].includes(orderData.paymentMethod) && receiptPresent;
 
   async function selectedCart(session) {
@@ -99,6 +101,16 @@ async function persistOrderCheckout({
       order.paymentId = payment._id;
       await order.save(session ? { session } : undefined);
     }
+    if (planningIds) {
+      const plan = require('./orderInstallationProject').buildInstallationProject(order, user, planningIds);
+      attempted.booking = true;
+      await new BookingService(plan.booking).save(session ? { session } : undefined);
+      attempted.project = true;
+      await new Project(plan.project).save(session ? { session } : undefined);
+      order.bookingId = planningIds.bookingId;
+      order.projectId = planningIds.projectId;
+      await order.save(session ? { session } : undefined);
+    }
     await removeSelectedCart(cart, session);
     return { order, payment };
   }
@@ -117,8 +129,10 @@ async function persistOrderCheckout({
       // acknowledgement can be checked and cleaned up by this request.
       if (attempted.order) await undo(() => Order.deleteOne({ _id: orderId, userId, checkoutRequestId: orderData.checkoutRequestId }));
       if (!cleanupErrors.length) {
+        if (attempted.project) await undo(() => Project.deleteOne({ _id: planningIds.projectId, sourceOrderId: orderId }));
+        if (attempted.booking) await undo(() => BookingService.deleteOne({ _id: planningIds.bookingId, sourceOrderId: orderId }));
         if (attempted.payment) await undo(() => Payment.deleteMany({ orderId }));
-        for (const item of reserved.reverse()) {
+        for (const item of cleanupErrors.length ? [] : reserved.reverse()) {
           await undo(async () => {
             const result = item.isHvac
               ? await HVACProduct.updateOne({ _id: item.parentHvacId, "variants._id": item.inventoryId }, { $inc: { "variants.$.quantity": item.quantity } })
@@ -150,7 +164,10 @@ async function persistOrderCheckout({
       if (!isUnsupportedMongoWriteFeature(error)) throw error;
       const existing = await Order.findOne({ userId, checkoutRequestId: orderData.checkoutRequestId });
       if (existing) {
-        if (!paymentNeeded || (existing.paymentId && await Payment.exists({ _id: existing.paymentId, orderId: existing._id }))) return existing;
+        const completePlan = !planningIds || (existing.projectId && existing.bookingId &&
+          await Project.exists({ _id: existing.projectId, sourceOrderId: existing._id }) &&
+          await BookingService.exists({ _id: existing.bookingId, sourceOrderId: existing._id }));
+        if (completePlan && (!paymentNeeded || (existing.paymentId && await Payment.exists({ _id: existing.paymentId, orderId: existing._id })))) return existing;
         throw Object.assign(new Error("Order write status is uncertain. Contact support before retrying."), {
           status: 503, code: "ORDER_WRITE_INCOMPLETE", preserveReceipt: true,
         });

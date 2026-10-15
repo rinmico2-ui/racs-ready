@@ -214,14 +214,21 @@ const toolSchema = new mongoose.Schema(
 toolSchema.index({ active: 1, status: 1 });
 toolSchema.index({ itemName: "text" });
 
-// Some legacy catalogue records contain an object instead of a creation date.
-// Recover it before validation so POS stock saves and reversals can proceed.
+// Some legacy catalogue records contain objects instead of timestamp dates.
+// Recover both before validation so POS stock saves and reversals can proceed.
 // Persist the repair in the same save/transaction; valid dates remain intact.
 toolSchema.pre("validate", function () {
-  if (this.isNew || (this.createdAt instanceof Date && Number.isFinite(this.createdAt.getTime()))) return;
-  const createdAt = this._id?.getTimestamp?.();
-  if (createdAt instanceof Date && Number.isFinite(createdAt.getTime())) {
-    this.set("createdAt", createdAt, { overwriteImmutable: true });
+  if (this.isNew) return;
+  if (!(this.createdAt instanceof Date && Number.isFinite(this.createdAt.getTime()))) {
+    const createdAt = this._id?.getTimestamp?.();
+    if (createdAt instanceof Date && Number.isFinite(createdAt.getTime())) {
+      this.set("createdAt", createdAt, { overwriteImmutable: true });
+    }
+  }
+  if (!(this.updatedAt instanceof Date && Number.isFinite(this.updatedAt.getTime()))) {
+    // The current write is the first reliable update time for a malformed value.
+    // Save's timestamp middleware will also refresh this date before persistence.
+    this.set("updatedAt", new Date());
   }
 });
 

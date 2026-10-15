@@ -15,6 +15,9 @@
     ORDER_PICKUP_STORE_CLOSED: ['pickup', 'Choose another pickup date'],
     ORDER_TIME_REQUIRED: ['schedule', 'Choose a start time'],
     ORDER_SLOT_UNAVAILABLE: ['schedule', 'Choose another start time'],
+    ORDER_PROJECT_WINDOW_REQUIRED: ['projectWindow', 'Choose an installation window'],
+    ORDER_PROJECT_WINDOW_INVALID: ['projectWindow', 'Check the installation dates'],
+    ORDER_PROJECT_WINDOW_UNAVAILABLE: ['projectWindow', 'Choose a wider installation window'],
     ORDER_PAYMENT_METHOD_INVALID: ['paymentPlan', 'Choose how much to pay'],
     ORDER_PAYMENT_CHANNEL_INVALID: ['paymentChannel', 'Choose how to pay'],
     ORDER_PAYMENT_CHANNEL_UNAVAILABLE: ['paymentChannel', 'Choose another payment method'],
@@ -30,6 +33,7 @@
       product: '#wizardStep1', fulfillment: '#wizardStep1 .fulfill-card',
       address: '#wizardAddress', contact: '#wizardContact', map: '#checkoutMapCard',
       schedule: '#checkoutCalendarContainer', pickup: '#wizardPickupDate',
+      projectWindow: '#orderProjectWindow',
       paymentPlan: '#paymentOptionsContainer .payment-method-card',
       paymentChannel: '#orderPaymentChannelSection .payment-channel-card:not(:disabled)',
       paymentReference: '#wizardGcashSenderNumber', receipt: '#gcashProofWizard',
@@ -38,6 +42,7 @@
       product: '#wizardHpOptions', fulfillment: '#productOrderModal .fulfill-card',
       address: '#wizardAddress', contact: '#wizardContact', map: '#wizardMap',
       schedule: '#checkoutCalendarContainer', pickup: '#wizardPickupDate',
+      projectWindow: '#checkoutCalendarContainer',
       paymentPlan: '#paymentOptionsContainer .payment-method-card',
       paymentChannel: '#directPaymentChannelSection .payment-channel-card:not(:disabled)',
       paymentReference: '#wizardGcashSenderNumber', receipt: '#wizardGcashProof',
@@ -49,8 +54,8 @@
     if (!entry || !selectors[mode]) return null;
     const [field, title] = entry;
     const step = mode === 'cart'
-      ? (field === 'product' || field === 'fulfillment' ? 1 : ['address', 'contact', 'map', 'schedule', 'pickup'].includes(field) ? 2 : 3)
-      : (field === 'product' ? 1 : field === 'fulfillment' ? 2 : ['address', 'contact', 'map', 'schedule', 'pickup'].includes(field) ? 3 : 4);
+      ? (field === 'product' || field === 'fulfillment' ? 1 : ['address', 'contact', 'map', 'schedule', 'pickup', 'projectWindow'].includes(field) ? 2 : 3)
+      : (field === 'product' ? 1 : field === 'fulfillment' ? 2 : ['address', 'contact', 'map', 'schedule', 'pickup', 'projectWindow'].includes(field) ? 3 : 4);
     return {
       step,
       title,

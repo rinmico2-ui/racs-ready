@@ -19,8 +19,8 @@ const calendarScript = fs.readFileSync(
 );
 
 test("cart checkout has one clear hierarchy and accessible choices", () => {
-  assert.match(wizard, /cart-checkout-ux\.css\?v=20260925-field-focus-v4/);
-  assert.match(wizard, /checkout-calendar\.js\?v=20260929-single-payment-action/);
+  assert.match(wizard, /cart-checkout-ux\.css\?v=[a-z0-9-]+/);
+  assert.match(wizard, /src="\/js\/checkout-calendar\.js\?v=[^"\s]+"/);
   assert.match(wizard, /aria-labelledby="wizardModalTitle"/);
   assert.match(wizard, /modal-fullscreen-sm-down/);
   assert.match(wizard, /role="navigation" aria-label="Checkout steps"/);
@@ -57,9 +57,11 @@ test("phone checkout is full-screen, compact, and keeps one dominant action", ()
   assert.match(checkoutCss, /checkout-primary-btn \{ width: 100%; min-width: 0; min-height: 48px; \}/);
 });
 
-test("mobile calendar removes secondary noise while retaining availability", () => {
+test("mobile calendar keeps the availability legend readable and all date states explained", () => {
   assert.match(calendarScript, /\.co-cal-mode \{ display: none; \}/);
-  assert.match(calendarScript, /\.co-cal-legend-item:nth-child\(n\+4\) \{ display: none; \}/);
+  assert.match(calendarScript, /\.co-cal-legend \{ flex-wrap: wrap;/);
+  for (const label of ['Available', 'Few times left', 'Fully booked', 'Holiday', 'No service']) assert.ok(calendarScript.includes(label));
+  assert.doesNotMatch(calendarScript, /\.co-cal-legend-item:nth-child\(n\+4\) \{ display: none; \}/);
   assert.match(calendarScript, /\.co-time-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(checkoutCss, /@media \(prefers-reduced-motion: reduce\)/);
 });

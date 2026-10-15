@@ -716,7 +716,7 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      const calendarIsTechnician = <%- JSON.stringify(calendarIsTechnicianView) %>;
+      const calendarIsTechnician = <%- (JSON.stringify(calendarIsTechnicianView)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
       const calendarTechniciansApi = <%- JSON.stringify(typeof calendarTechniciansApi === 'string' ? calendarTechniciansApi : '/api/admin/technicians').replace(/</g, '\\u003c') %>;
       const calendarSchedulesApi = <%- JSON.stringify(typeof calendarSchedulesApi === 'string' ? calendarSchedulesApi : '/api/admin/technician-schedules').replace(/</g, '\\u003c') %>;
       const calendarAppointmentsApi = <%- JSON.stringify(typeof calendarAppointmentsApi === 'string' ? calendarAppointmentsApi : '/api/admin/appointments').replace(/</g, '\\u003c') %>;

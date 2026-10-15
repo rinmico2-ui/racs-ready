@@ -178,4 +178,5 @@
   </div>
 </div>
 
-<script src="/js/secretary-pending-payments.js"></script>
+<script>window.RACSPaymentsConfig = { canManage: <%- (JSON.stringify(typeof can === 'function' && can('payments.manage'))).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %> };</script>
+<script src="/js/secretary-pending-payments.js?v=20261014-20261014-it-review"></script>

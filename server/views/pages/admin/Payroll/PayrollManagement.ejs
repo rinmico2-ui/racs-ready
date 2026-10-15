@@ -612,6 +612,8 @@
         <select id="filterYear" class="form-select-sm-custom filter-input"></select>
       </div>
       <button id="btnRefresh" class="btn btn-outline-secondary filter-btn" title="Refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+      <button id="btnPayrollTemplates" type="button" class="btn btn-outline-secondary filter-btn">Templates</button>
+      <button id="btnBatchPayroll" type="button" class="btn btn-outline-primary filter-btn">Bulk drafts</button>
       <button id="btnCreatePayroll" class="btn btn-primary filter-btn"><i class="bi bi-plus-lg me-1"></i>New Payroll Run</button>
     </div>
 
@@ -884,6 +886,7 @@
                 </div>
                 <button type="button" class="pw-btn-add" id="btnAddAllowance"><i class="bi bi-plus-lg"></i> Add</button>
               </div>
+              <div class="d-flex gap-2 p-3"><select class="form-select" aria-label="Allowance template" id="payrollAllowanceTemplate"><option value="">Choose a template</option></select><button class="btn btn-outline-primary text-nowrap" type="button" id="applyAllowanceTemplate">Use template</button></div>
               <div class="pw-line-items" id="allowancesContainer">
                 <div class="pw-line-empty"><i class="bi bi-inbox"></i> No allowances added yet</div>
               </div>
@@ -899,6 +902,7 @@
                 </div>
                 <button type="button" class="pw-btn-add pw-btn-add-danger" id="btnAddDeduction"><i class="bi bi-plus-lg"></i> Add</button>
               </div>
+              <div class="d-flex gap-2 p-3"><select class="form-select" aria-label="Deduction template" id="payrollDeductionTemplate"><option value="">Choose a template</option></select><button class="btn btn-outline-primary text-nowrap" type="button" id="applyDeductionTemplate">Use template</button></div>
               <div class="pw-line-items" id="deductionsContainer">
                 <div class="pw-line-empty"><i class="bi bi-inbox"></i> No deductions added yet</div>
               </div>
@@ -2663,6 +2667,8 @@
 
   // Expose to onclick handlers
   window._pw = {
+    refreshRecords: () => Promise.all([loadRecords(), loadDueToday()]),
+    applyTemplate: (kind, name, amount) => { addLineItem(kind === 'allowance' ? 'allowancesContainer' : 'deductionsContainer', name, amount); updateSummary(); },
     viewRecord,
     editRecord: (id) => editRecord(id),
     openApprove,
@@ -2682,3 +2688,5 @@
   window.pwContinueToReview = pwContinueToReview;
 })();
 </script>
+
+<%- include('../../../partials/payroll-batch') %>

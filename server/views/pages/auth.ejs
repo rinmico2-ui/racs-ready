@@ -68,11 +68,12 @@
             <div class="auth-security-copy"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Security check</span><strong class="captcha-equation" id="loginEquation"><%= num1 %> + <%= num2 %> =</strong></div>
             <input type="text" id="login-math" name="mathCaptcha" class="auth-security-input" placeholder="Answer" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}" aria-label="Answer to the security question" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
             <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
+            <input type="hidden" name="mathChallenge" value="<%= locals.captchaChallenges ? captchaChallenges.login : '' %>" />
             <button type="button" class="auth-captcha-refresh refresh-captcha" title="New question" aria-label="Get a new security question"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
           </div>
 
           <div class="auth-otp d-none" id="otpBlock">
-            <div class="auth-notice auth-notice-info"><i class="bi bi-envelope-check" aria-hidden="true"></i><span>We sent a 6-digit verification code to your email.</span></div>
+            <div class="auth-notice auth-notice-info" role="status" aria-live="polite"><i class="bi bi-envelope-check" aria-hidden="true"></i><span id="loginOtpNotice">Check your inbox and spam folder for the newest 6-digit verification code.</span></div>
             <div class="auth-field">
               <label class="auth-field-label" for="login-otp">Verification code</label>
               <div class="auth-otp-row">
@@ -111,7 +112,7 @@
         <header class="auth-form-card-header">
           <span class="auth-page-kicker">Join CALIDRO RACS</span>
           <h1 class="auth-form-card-title">Create your account</h1>
-          <p class="auth-form-card-subtitle">Set up your profile to book and manage services.</p>
+          <p class="auth-form-card-subtitle">Set up your profile to book and manage services. Fields marked <span aria-hidden="true">*</span> are required.</p>
         </header>
 
         <a class="auth-google-button mb-3" href="/api/auth/google"><i class="bi bi-google" aria-hidden="true"></i><span>Sign up with Google</span></a>
@@ -203,6 +204,7 @@
             <div class="auth-security-copy"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Security check</span><strong class="captcha-equation" id="registerEquation"><%= num1 %> + <%= num2 %> =</strong></div>
             <input type="text" id="register-math" name="mathCaptcha" class="auth-security-input" placeholder="Answer" required maxlength="3" inputmode="numeric" pattern="[0-9]{1,3}" aria-label="Answer to the security question" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
             <input type="hidden" name="mathAnswer" value="<%= mathAnswer %>" />
+            <input type="hidden" name="mathChallenge" value="<%= locals.captchaChallenges ? captchaChallenges.register : '' %>" />
             <button type="button" class="auth-captcha-refresh refresh-captcha" title="New question" aria-label="Get a new security question"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></button>
           </div>
 

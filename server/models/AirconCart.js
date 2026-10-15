@@ -31,7 +31,7 @@ const airconCartSchema = new mongoose.Schema(
     },
     items: [airconCartItemSchema],
   },
-  { timestamps: true }
+  { timestamps: true, optimisticConcurrency: true }
 );
 
 module.exports = mongoose.model("AirconCart", airconCartSchema);

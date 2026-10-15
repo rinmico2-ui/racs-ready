@@ -1,12 +1,16 @@
   <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script src="/js/request-json.js?v=20261014"></script>
+    <script src="/js/form-feedback.js?v=20261014"></script>
+    <script src="/js/report-pdf-export.js?v=20261014" defer></script>
+    <link rel="stylesheet" href="/css/staff-form-consistency.css?v=20261014">
     <%
       const renderedPage = typeof body === 'string' ? body : '';
       const pageUsesAos = /data-aos(?:=|\s|>)/i.test(renderedPage);
       const pageUsesLeaflet = /leaflet|typeof\s+L\b|\bL\s*\./i.test(renderedPage);
       const pageUsesSocket = /\bio\s*\(|window\.socket|\bsocket\s*\./i.test(renderedPage);
-      const pageUsesPsgc = /(?:register|profile)-address(?:Province|City|Barangay|Postal)|id=["'](?:address)?(?:Province|City|Barangay|PostalCode)["']/i.test(renderedPage);
+      const pageUsesPsgc = /(?:register|profile)-address(?:Province|City|Barangay|Postal)|id=["'](?:address|addr)?(?:Province|City|Barangay|PostalCode)["']/i.test(renderedPage);
       const pageUsesBookingCalendar = /enterprise-calendar|checkout-calendar|booking-policy/i.test(renderedPage);
     %>
     <meta charset="UTF-8" />
@@ -252,7 +256,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="/js/enterprise-alerts.js?v=20260915-semantic-icons-v2"></script>
     <script src="/js/admin.js?v=20261013-mobile-close"></script>
-    <% if (pageUsesPsgc) { %><script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2"></script><% } %>
+    <% if (pageUsesPsgc) { %><script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review"></script><% } %>
 
     <!-- Fetch booking policy (minimum advance notice) for calendar components -->
     <% if (pageUsesBookingCalendar) { %>

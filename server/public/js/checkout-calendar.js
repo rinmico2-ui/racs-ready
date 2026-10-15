@@ -300,6 +300,7 @@ class CheckoutCalendar {
     }
 
     _resetScheduleSelection() {
+        this._timeRequestId = (this._timeRequestId || 0) + 1;
         this.state.selectedDate = null;
         this.state.selectedTimeSlot = null;
         if (this.dom.timeSection) this.dom.timeSection.style.display = 'none';
@@ -309,6 +310,7 @@ class CheckoutCalendar {
     }
 
     async fetchData() {
+        const requestId = this._dataRequestId = (this._dataRequestId || 0) + 1;
         this.dom.grid.style.opacity = '0.5';
         try {
             const params = new URLSearchParams({
@@ -322,9 +324,14 @@ class CheckoutCalendar {
                 fetch('/api/schedule/holidays-and-nonworking', { cache: 'no-store' }),
                 fetch('/api/schedule/booking-policy', { cache: 'no-store' })
             ]);
-            this.scheduleData = schRes.ok ? await schRes.json() : { availableDates: [], loadError: true };
-            this.holidaysData = holRes.ok ? await holRes.json() : { holidays: [], nonWorkingDays: [] };
-            if (policyRes.ok) window.__bookingPolicy = await policyRes.json();
+            const [schedule, holidays, policy] = await Promise.all([
+                schRes.ok ? schRes.json() : { availableDates: [], loadError: true },
+                holRes.ok ? holRes.json() : { holidays: [], nonWorkingDays: [] },
+                policyRes.ok ? policyRes.json() : null
+            ]);
+            if (requestId !== this._dataRequestId) return;
+            this.scheduleData = schedule; this.holidaysData = holidays;
+            if (policy) window.__bookingPolicy = policy;
             const projectThresholdHours = Number(window.__bookingPolicy?.largeProjectThresholdHours) || 8;
             if (this.state.quantity >= 8 || this.state.duration * this.state.quantity > projectThresholdHours * 60) {
                 this.scheduleData = {
@@ -334,6 +341,7 @@ class CheckoutCalendar {
                 };
             }
         } catch (e) {
+            if (requestId !== this._dataRequestId) return;
             console.error('CheckoutCalendar: load error', e);
             this.scheduleData = { availableDates: [], loadError: true };
             this.holidaysData = { holidays: [], nonWorkingDays: [] };
@@ -724,6 +732,7 @@ class CheckoutCalendar {
     }
 
     async validateSelectedSlot(dateValue, timeValue) {
+        const requestId = this._timeRequestId || 0;
         const selectedDate = dateValue
             ? new Date(`${String(dateValue).slice(0, 10)}T00:00:00`)
             : this.state.selectedDate;
@@ -746,6 +755,7 @@ class CheckoutCalendar {
             });
             if (!response.ok) throw new Error('Schedule validation failed');
             const data = await response.json();
+            if (requestId !== (this._timeRequestId || 0)) return false;
             const stillAvailable = Array.isArray(data.timeSlots) && data.timeSlots.some(slot =>
                 slot.available === true && !slot.isPast && this._timeToMinutes(slot.startTime) === selectedMinutes
             );
@@ -759,6 +769,7 @@ class CheckoutCalendar {
                 return true;
             }
         } catch (error) {
+            if (requestId !== (this._timeRequestId || 0)) return false;
             console.warn('CheckoutCalendar: selected-slot validation failed', error);
         }
 
@@ -770,6 +781,7 @@ class CheckoutCalendar {
     }
 
     clear() {
+        this._timeRequestId = (this._timeRequestId || 0) + 1;
         this.state.selectedDate = null;
         this.state.selectedTimeSlot = null;
         if (this.dom.timeSection) this.dom.timeSection.style.display = 'none';

@@ -14,11 +14,11 @@
   }
   function clear(container) {
     const old = viewers.get(container);
-    if (old) { old.controller.abort(); if (old.objectUrl) URL.revokeObjectURL(old.objectUrl); }
+    if (old) { clearTimeout(old.timer); old.controller.abort(); if (old.objectUrl) URL.revokeObjectURL(old.objectUrl); }
     viewers.delete(container);
     container.replaceChildren();
   }
-  async function show(container, value) {
+  async function show(container, value, options = {}) {
     clear(container);
     const source = safeSource(value);
     const status = document.createElement('div');
@@ -29,6 +29,7 @@
     if (!value) return;
     if (!source) { status.textContent = 'This receipt is not a supported photo or PDF.'; return; }
     const state = { controller: new AbortController(), objectUrl: null };
+    state.timer = setTimeout(() => { state.timedOut = true; state.controller.abort(); }, 15000);
     viewers.set(container, state);
     try {
       let src = source;
@@ -49,7 +50,7 @@
       preview.style.cssText = pdf ? 'width:100%;height:480px;border:1px solid #e2e8f0;border-radius:10px;' : 'display:block;width:100%;max-height:480px;object-fit:contain;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;';
       preview.addEventListener('error', () => { status.textContent = 'The receipt could not be displayed. Try opening the file below.'; });
       const link = document.createElement('a');
-      link.href = src;
+      link.href = source.startsWith('data:') ? src : source;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       link.className = 'btn btn-sm btn-outline-primary mt-2';
@@ -57,8 +58,8 @@
       status.textContent = '';
       container.append(preview, link);
     } catch (error) {
-      if (state.controller.signal.aborted || viewers.get(container) !== state) return;
-      status.textContent = error.status === 404
+      if ((state.controller.signal.aborted && !state.timedOut) || viewers.get(container) !== state) return;
+      status.textContent = state.timedOut ? 'The receipt is taking too long to load. Please try again.' : error.status === 404
         ? 'The saved receipt is missing from the server. Ask the person who submitted it to provide the original file.'
         : error.status === 401 ? 'Your session has expired. Sign in again to view the receipt.'
           : error.status === 403 ? 'You do not have permission to view this receipt.'
@@ -68,9 +69,10 @@
       retry.type = 'button';
       retry.className = 'btn btn-sm btn-outline-secondary mt-2';
       retry.textContent = 'Try again';
-      retry.addEventListener('click', () => show(container, value));
+      retry.addEventListener('click', () => show(container, value, options));
       container.appendChild(retry);
-    }
+      if (error.status === 404 && typeof options.onMissing === 'function') options.onMissing();
+    } finally { clearTimeout(state.timer); }
   }
   window.evidenceViewer = { show, clear, safeSource };
 })();

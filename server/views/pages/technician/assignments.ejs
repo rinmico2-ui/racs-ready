@@ -1,5 +1,5 @@
-<script>window._companyLocation = <%- JSON.stringify({ lat: companyLat, lng: companyLng, address: companyAddress }) %>;</script>
-<script>window._technicianName = <%- JSON.stringify(technician?.name || 'Technician') %>;</script>
+<script>window._companyLocation = <%- (JSON.stringify({ lat: companyLat, lng: companyLng, address: companyAddress })).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;</script>
+<script>window._technicianName = <%- (JSON.stringify(technician?.name || 'Technician')).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;</script>
 <style>
   /* ── Enterprise Day Schedule Slide Panel ── */
   .cal-slide-overlay {

@@ -7,6 +7,9 @@ const schema = new mongoose.Schema({
   existingBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'BookingService', default: null },
   existingBookingReference: String,
   serviceName: { type: String, required: true },
+  applianceKind: { type: String, enum: ['aircon', 'refrigerator', 'freezer'], default: 'aircon' },
+  model: { type: String, trim: true, maxlength: 50, default: '' },
+  photos: [{ fileId: { type: mongoose.Schema.Types.ObjectId, required: true }, contentType: String, length: Number }],
   brand: { type: String, trim: true, maxlength: 80, default: '' },
   airconType: { type: String, trim: true, maxlength: 40, default: '' },
   hp: { type: Number, default: null },
@@ -22,6 +25,7 @@ const schema = new mongoose.Schema({
   notes: { type: String, trim: true, maxlength: 1000, default: '' },
   status: { type: String, enum: ['pending', 'quoted', 'accepted', 'declined', 'converted', 'resolved'], default: 'pending', index: true },
   quote: {
+    applianceKind: { type: String, enum: ['aircon', 'refrigerator', 'freezer'] },
     brand: String,
     airconType: String,
     airconTypeName: String,

@@ -11,8 +11,7 @@ const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 let timer = null;
 let ticking = false;
 
-function encryptionKey() {
-  const secret = process.env.EMAIL_OUTBOX_SECRET || process.env.JWT_SECRET;
+function encryptionKey(secret = process.env.EMAIL_OUTBOX_SECRET || process.env.JWT_SECRET) {
   if (!secret) throw new Error("EMAIL_OUTBOX_SECRET or JWT_SECRET is required");
   return crypto.createHash("sha256").update(String(secret)).digest();
 }
@@ -28,13 +27,32 @@ function encryptPayload(payload) {
     payloadCiphertext: ciphertext.toString("base64"),
     payloadIv: iv.toString("base64"),
     payloadTag: cipher.getAuthTag().toString("base64"),
+    payloadKeyId: keyId(process.env.EMAIL_OUTBOX_SECRET || process.env.JWT_SECRET),
   };
 }
 
 function decryptPayload(job) {
+  const current = process.env.EMAIL_OUTBOX_SECRET || process.env.JWT_SECRET;
+  const previous = process.env.EMAIL_OUTBOX_PREVIOUS_SECRET;
+  const until = Date.parse(process.env.EMAIL_OUTBOX_PREVIOUS_SECRET_UNTIL || "");
+  const candidates = [current];
+  // A previous key is only a temporary reader for jobs queued before rotation.
+  if (previous && until > Date.now() && until <= Date.now() + 7 * 86400000) candidates.push(previous);
+  for (const secret of candidates) {
+    if (job.payloadKeyId && job.payloadKeyId !== keyId(secret)) continue;
+    try { return decryptWithKey(job, secret); } catch { /* Try the bounded previous key. */ }
+  }
+  throw new Error("Unable to decrypt queued email. Check the outbox key rotation settings.");
+}
+
+function keyId(secret) {
+  return crypto.createHash("sha256").update(`outbox-key-id:${secret}`).digest("hex").slice(0, 24);
+}
+
+function decryptWithKey(job, secret) {
   const decipher = crypto.createDecipheriv(
     ALGORITHM,
-    encryptionKey(),
+    encryptionKey(secret),
     Buffer.from(job.payloadIv, "base64"),
   );
   decipher.setAuthTag(Buffer.from(job.payloadTag, "base64"));
@@ -56,6 +74,8 @@ async function enqueueEmail(payload) {
     html: payload.html || "",
     text: payload.text || "",
     source: String(payload.source || "application").slice(0, 80),
+    ...(payload.validUntil ? { validUntil: payload.validUntil } : {}),
+    ...(payload.loginOtp ? { loginOtp: payload.loginOtp } : {}),
   };
   const encrypted = encryptPayload(normalized);
   const job = await EmailOutbox.create({
@@ -90,19 +110,44 @@ function retryDelayMs(attempts) {
   return Math.min(15 * 60 * 1000, 5000 * (2 ** Math.max(0, attempts - 1)));
 }
 
+async function cancellationReason(payload, now = Date.now()) {
+  if (payload.validUntil && !(Date.parse(payload.validUntil) > now)) return "Verification email expired before delivery.";
+  if (payload.source !== "login_otp") return "";
+  // Old jobs from before browser-bound challenges cannot complete a new login.
+  if (!payload.loginOtp?.userId || !payload.loginOtp.hash || !payload.validUntil) return "Login verification request was replaced or expired.";
+  const User = require("../models/User");
+  const active = await User.exists({
+    _id: payload.loginOtp.userId,
+    loginOtpHash: payload.loginOtp.hash,
+    loginOtpExpires: { $gt: new Date(now) },
+    $or: [{ loginOtpAttempts: { $lt: 5 } }, { loginOtpAttempts: null }],
+  });
+  return active ? "" : "Login verification request was replaced or completed.";
+}
+
 async function processOne() {
   const job = await claimJob();
   if (!job) return false;
   try {
     const payload = decryptPayload(job);
+    const reason = await cancellationReason(payload);
+    if (reason) {
+      await EmailOutbox.updateOne({ _id: job._id, status: "processing" }, {
+        $set: { status: "cancelled", lockedAt: null, lastError: reason, expiresAt: new Date(Date.now() + RETENTION_MS) },
+        $unset: { payloadCiphertext: 1, payloadIv: 1, payloadTag: 1 },
+      });
+      return true;
+    }
     // Lazy import prevents a module cycle while mailer.sendMail delegates new
     // production messages to this outbox.
     const mailer = require("./mailer");
-    await mailer.deliverMailNow(payload);
+    const delivery = await mailer.deliverMailNow(payload);
     await EmailOutbox.updateOne({ _id: job._id, status: "processing" }, {
       $set: {
         status: "sent",
         sentAt: new Date(),
+        provider: delivery.provider,
+        providerMessageId: delivery.messageId,
         lockedAt: null,
         expiresAt: new Date(Date.now() + RETENTION_MS),
         lastError: "",
@@ -119,6 +164,7 @@ async function processOne() {
         nextAttemptAt: new Date(Date.now() + retryDelayMs(job.attempts)),
         ...(exhausted ? { expiresAt: new Date(Date.now() + RETENTION_MS) } : {}),
       },
+      ...(exhausted ? { $unset: { payloadCiphertext: 1, payloadIv: 1, payloadTag: 1 } } : {}),
     });
     logger.warn("Email job %s attempt %d failed: %s", job._id, job.attempts, error?.message);
   }
@@ -155,5 +201,5 @@ module.exports = {
   enqueueEmail,
   startEmailOutboxWorker,
   stopEmailOutboxWorker,
-  _private: { decryptPayload, encryptPayload, recipientHash, retryDelayMs },
+  _private: { decryptPayload, encryptPayload, recipientHash, retryDelayMs, cancellationReason, processOne },
 };

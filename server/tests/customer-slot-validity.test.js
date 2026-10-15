@@ -37,6 +37,7 @@ test("stale selections are cleared and customers are asked to choose again", () 
   assert.match(checkoutCalendar, /this\.state\.selectedTimeSlot = null/);
   assert.match(enterpriseCalendar, /window\.BookingState\.selectedTimeSlot = null/);
   for (const source of [cartWizard, directWizard, serviceBooking]) {
-    assert.match(source, /Time Slot No Longer Available|time slot has passed or was just reserved/i);
+    assert.match(source, /Time Slot No Longer Available|time slot has passed or was just reserved|(?:start )?time is no longer available/i);
+    assert.match(source, /choose (?:a new available |another )time/i);
   }
 });

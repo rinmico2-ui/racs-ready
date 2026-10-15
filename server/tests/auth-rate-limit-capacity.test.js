@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const { install: installMathChallenge, signedRequest } = require("./helpers/mathChallenge");
+installMathChallenge(test);
 const express = require("express");
 const { rateLimit } = require("../utils/boundedRateLimit");
 const { emailOrIpKey } = require("../utils/rateLimitIdentity");
@@ -82,6 +84,7 @@ test("forgot-password failure state rejects new identities when full", async t =
         status(code) { this.statusCode = code; return this; },
         json(body) { this.body = body; return this; },
       };
+      signedRequest(req, "forgot");
       await authController.forgotPassword(req, res, error => { throw error; });
       return res;
     }

@@ -86,7 +86,7 @@ test('project synchronization updates existing preferences and creates mixed-ser
   const booking = { ...base, services: [{ name: 'Cleaning', type: 'core', quantity: 5, duration: 60 }, { name: 'Repair', type: 'repair', quantity: 3, duration: 90 }] };
   const schedule = await scheduling.validateResolutionSchedule(booking, { date: '2030-01-02', endDate: '2030-01-05' }, NOW);
   let created, update, options;
-  t.mock.method(Project, 'create', async (docs, opts) => { created = docs[0]; options = opts; });
+  t.mock.method(Project, 'create', async (docs, opts) => { created = docs[0]; options = opts; return docs; });
   t.mock.method(Project, 'findOneAndUpdate', async (_, value, opts) => { update = value; options = opts; return {}; });
   const session = {};
   await scheduling.syncResolutionProject(booking, schedule, session);

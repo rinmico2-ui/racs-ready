@@ -129,8 +129,9 @@
   function unitDetails(request, verified) {
     const unit = verified ? request.quote : request;
     const grid = item('div','uac-unit-grid');
-    const type = unit.airconTypeName || typeName(unit.airconType);
-    const unitType = [type,unit.hp ? unit.hp + ' HP' : 'HP to confirm'].filter(Boolean).join(' · ');
+    const kind = request.applianceKind || 'aircon';
+    const type = kind === 'aircon' ? unit.airconTypeName || typeName(unit.airconType) : ({ refrigerator: 'Refrigerator', freezer: 'Freezer' })[kind];
+    const unitType = [type,unit.hp ? unit.hp + ' HP' : verified ? '' : 'Details to confirm'].filter(Boolean).join(' · ');
     for (const [label,value] of [['Brand',unit.brand && unit.brand !== "I don't know" ? unit.brand : 'To be identified'],
       [verified ? 'Verified unit' : 'Unit details',unitType || 'To be identified'],['Quantity',(Number(request.quantity) || 1) + (Number(request.quantity) === 1 ? ' unit' : ' units')]]) {
       const field = item('div','uac-unit-field'); field.append(item('span','uac-label',label),item('strong','',value)); grid.append(field);
@@ -160,6 +161,14 @@
     const details = item('div','uac-detail-notes');
     if (request.notes) details.append(detailNote('Your notes',request.notes));
     if (request.quote?.notes) details.append(detailNote('Staff notes',request.quote.notes));
+    if (request.model) details.append(detailNote('Model',request.model));
+    if (request.photos?.length) {
+      const photos = item('div', 'uac-unit-photos');
+      request.photos.slice(0, 2).forEach((_photo, index) => {
+        const image = item('img'); image.src = `/api/unit-assistance/${encodeURIComponent(request._id)}/photos/${index}`;
+        image.alt = `Your unit photo ${index + 1}`; image.loading = 'lazy'; image.style.cssText = 'max-width:100%;width:180px;max-height:160px;object-fit:contain;border-radius:8px;margin:6px'; photos.append(image);
+      }); details.append(photos);
+    }
     if (request.relocation?.scope === 'same_property') {
       details.append(detailNote('Current position',request.relocation.fromPosition || 'Not provided'),detailNote('New position',request.relocation.toPosition || 'Not provided'));
     }
@@ -212,7 +221,7 @@
     if (!visible.length) {
       const empty = item('div','uac-empty'); empty.append(icon(requests.length ? 'bi-funnel' : 'bi-clipboard2-plus'));
       empty.append(item('h3','',requests.length ? 'No matching requests' : 'Your requests will appear here'));
-      empty.append(item('p','',requests.length ? 'Try a different search or filter to find your request.' : 'Unsure about your aircon type or HP? Choose a service and request help identifying your unit.'));
+      empty.append(item('p','',requests.length ? 'Try a different search or filter to find your request.' : 'Unsure about your appliance details? Choose a service and request help identifying your unit.'));
       if (!requests.length) empty.append(link('Browse services','/services',true));
       else {
         const reset = item('button','uac-button uac-button-light','Clear filters'); reset.type = 'button';

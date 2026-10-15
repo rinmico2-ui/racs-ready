@@ -101,6 +101,7 @@ function lockBookingAfterLogout() {
   clearTimeout(bookingProgressSaveTimer);
   BookingState.draftPersistenceDisabled = true;
   BookingState.selectedServices = [];
+  BookingState.applianceDraft = null;
   BookingState.currentStep = 1;
   BookingState.maxReachedStep = 1;
   try {
@@ -161,6 +162,7 @@ function saveBookingProgress() {
     const data = {
       version: BOOKING_STORAGE_VERSION,
       selectedServices,
+      applianceDraft: BookingState.applianceDraft || null,
       totalEstimatedPrice: BookingState.totalEstimatedPrice,
       hasRepairServices: BookingState.hasRepairServices,
       selectedTechnicianId: BookingState.selectedTechnicianId,
@@ -221,6 +223,7 @@ function restoreBookingProgress() {
       const restoredDate = data.selectedDate || data.scheduleDate;
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
       BookingState.selectedServices = Array.isArray(data.selectedServices) ? data.selectedServices : [];
+      BookingState.applianceDraft = data.applianceDraft && typeof data.applianceDraft === 'object' ? data.applianceDraft : null;
       BookingState.totalEstimatedPrice = Number(data.totalEstimatedPrice) ||
         BookingState.selectedServices.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
       BookingState.hasRepairServices = Boolean(data.hasRepairServices);
@@ -445,6 +448,7 @@ let addressSuggestionAbortController = null;
 let addressAutocompleteDebounceTimer = null;
 let addressAutocompleteEnabled = true;
 let addressAutocompleteStatusLoaded = false;
+let addressAutocompleteRetryAt = 0;
 const reverseGeocodeCache = new Map();
 function selectedUnitTotal() {
   return window.ApplianceServices.unitCount(BookingState.selectedServices || []);
@@ -664,6 +668,20 @@ async function openAcceptedUnitAssistance() {
     if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
     if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) {
       throw new Error(`A booking can contain at most ${MAX_BOOKING_UNITS} units. Remove another service before continuing.`);
+    }
+    if (request.applianceKind) {
+      const selected = { applianceKind: request.applianceKind, brand: request.quote.brand, model: request.model || '',
+        quantity: request.quantity, hp: request.quote.hp, airconType: request.quote.airconType };
+      const relocation = request.relocation?.scope === 'same_property' ? { scope: 'same_property', assetId: request.relocation.assetId || null,
+        from: { details: request.relocation.fromPosition }, to: { details: request.relocation.toPosition }, model: request.model || request.relocation.model || '' } : undefined;
+      const rows = window.ApplianceServices.serviceLines([service], selected, [String(service._id)], `assistance_${request._id}`, relocation);
+      if (rows[0].unitPrice !== request.quote.unitPrice) throw new Error('The catalog price changed. Contact staff for an updated quote before booking.');
+      rows[0].assistanceRequestId = request._id;
+      commitCoreAppliance(rows);
+      if (String(BookingState.applianceDraft?.assistanceReceipt?.id) === String(request._id)) window.CoreApplianceBooking?.start();
+      history.replaceState({}, '', '/services');
+      showBookingToast('Your verified service was added. Review it in your booking.');
+      return;
     }
     BookingState.selectedBrand = request.quote.brand;
     BookingState.applianceType = request.quote.airconType;
@@ -2253,15 +2271,44 @@ function guideToSelectedAddressMap() {
   }, 450);
 }
 
+function showServiceAddressRecovery(message = 'Live suggestions are temporarily unavailable. Search this address or place a pin on the map.') {
+  const container = document.getElementById('locationSuggest');
+  const input = document.getElementById('locationInput');
+  if (!container || !input) return;
+  container.replaceChildren();
+  const note = document.createElement('div');
+  note.className = 'list-group-item border-0 py-3 small text-secondary';
+  note.setAttribute('role', 'status'); note.textContent = message;
+  container.appendChild(note);
+  const actions = [
+    ['Search this address', () => fetchAddressSuggestions(input.value.trim())],
+    ['Keep this address and place a pin', () => { cancelServiceAddressSuggestions(); guideToManualAddressPin(); }]
+  ];
+  actions.forEach(([label, action]) => {
+    const button = document.createElement('button'); button.type = 'button';
+    button.className = 'list-group-item list-group-item-action border-0 py-2 small text-primary fw-semibold';
+    button.style.minHeight = '44px'; button.textContent = label;
+    button.addEventListener('click', action); container.appendChild(button);
+  });
+  container.classList.remove('d-none'); input.setAttribute('aria-expanded', 'true');
+  const status = document.getElementById('locationStatus');
+  if (status) { status.hidden = false; status.textContent = message; }
+}
+
 function scheduleLiveAddressSuggestions(query) {
   clearTimeout(addressAutocompleteDebounceTimer);
-  if (!addressAutocompleteEnabled || query.length < 3) return;
+  if (query.length < 3 || query.length > 250) return;
+  if (addressAutocompleteRetryAt > 0 && Date.now() >= addressAutocompleteRetryAt) addressAutocompleteEnabled = true;
+  if (!addressAutocompleteEnabled || Date.now() < addressAutocompleteRetryAt) {
+    showServiceAddressRecovery();
+    return;
+  }
   addressAutocompleteDebounceTimer = setTimeout(() => fetchLiveAddressSuggestions(query), 400);
 }
 
 function fetchLiveAddressSuggestions(query) {
   const input = document.getElementById('locationInput');
-  if (!addressAutocompleteEnabled || !input || input.value.trim() !== query) return;
+  if (!addressAutocompleteEnabled || Date.now() < addressAutocompleteRetryAt || !input || input.value.trim() !== query) return;
   const requestToken = ++addressSuggestionRequestToken;
   if (addressSuggestionAbortController) addressSuggestionAbortController.abort();
   addressSuggestionAbortController = new AbortController();
@@ -2272,20 +2319,26 @@ function fetchLiveAddressSuggestions(query) {
       if (!response.ok) {
         const error = new Error(data.error || 'Live suggestions unavailable');
         error.status = response.status;
+        error.retryAfter = window.AddressAutocomplete?.retryDelay(response, data) || 30000;
         throw error;
       }
+      if (!Array.isArray(data.suggestions)) throw new Error('Invalid suggestions response');
       return data;
     })
     .then(data => {
       if (requestToken !== addressSuggestionRequestToken || input.value.trim() !== query) return;
-      if (Array.isArray(data.suggestions) && data.suggestions.length) displaySuggestions(data.suggestions);
+      addressAutocompleteRetryAt = 0;
+      if (data.suggestions.length) {
+        displaySuggestions(data.suggestions);
+        const status = document.getElementById('locationStatus');
+        if (status) { status.hidden = false; status.textContent = 'Choose an address below, then check the pin.'; }
+      }
       else closeAddressSuggestions();
     })
     .catch(error => {
-      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
-      closeAddressSuggestions();
-      const status = document.getElementById('locationStatus');
-      if (status) status.textContent = 'Live suggestions are unavailable. Press Enter or Search to find the address.';
+      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken || input.value.trim() !== query) return;
+      addressAutocompleteRetryAt = Date.now() + (error.retryAfter || 30000);
+      showServiceAddressRecovery();
     });
 }
 
@@ -2300,6 +2353,7 @@ function setupAddressAutocomplete(input) {
       .then(response => response.ok ? response.json() : { enabled:true })
       .then(data => {
         addressAutocompleteEnabled = data.enabled !== false;
+        if (!addressAutocompleteEnabled) addressAutocompleteRetryAt = Date.now() + (Number(data.retryAfter) || 30000);
         if (addressAutocompleteEnabled && !input.value.trim()) {
           const status = document.getElementById('locationStatus');
           if (status) status.textContent = 'Start typing to see Philippine address suggestions. You can also enter the full address and press Search.';
@@ -2391,6 +2445,7 @@ function fetchAddressSuggestions(query) {
     .then(async response => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Address search is temporarily unavailable');
+      if (!Array.isArray(data)) throw new Error('Invalid address search response');
       return data;
     })
     .then(data => {
@@ -2410,11 +2465,9 @@ function fetchAddressSuggestions(query) {
       }
     })
     .catch(error => {
-      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken) return;
+      if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken || document.getElementById('locationInput')?.value.trim() !== query) return;
       bookingDebug('Address suggestions error:', error);
-      suggestContainer.innerHTML = '<div class="list-group-item border-0 py-3 small text-danger"><i class="bi bi-wifi-off me-2"></i>Address search is temporarily unavailable. Select the point on the map.</div>';
-      suggestContainer.classList.remove('d-none');
-      document.getElementById('locationInput')?.setAttribute('aria-expanded', 'true');
+      showServiceAddressRecovery('Address search is temporarily unavailable. Try Search again or keep your address and place a pin on the map.');
     })
     .finally(() => {
       if (requestToken !== addressSuggestionRequestToken) return;
@@ -5836,10 +5889,13 @@ async function fetchServicesFromAPI() {
 
     const html = await response.text();
 
-    // Extract the initialServices data from the HTML
-    const match = html.match(/window\.initialCatalog\s*=\s*({[^;]+});/);
-    if (match) {
-      const initialData = eval('(' + match[1] + ')'); // Safe since it's server-generated
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const catalog = document.getElementById('initial-services-json');
+    if (catalog) {
+      const initialData = JSON.parse(catalog.textContent);
+      if (!Array.isArray(initialData.coreServices) || !Array.isArray(initialData.repairs)) {
+        throw new Error('Invalid services catalog');
+      }
       BookingState.catalog.coreServices = initialData.coreServices || [];
       BookingState.catalog.repairServices = initialData.repairs || [];
 
@@ -5918,7 +5974,8 @@ function renderCoreServices() {
       guide.hidden = document.getElementById('core-tab')?.classList.contains('active') !== false;
       document.getElementById("serviceTabs")?.addEventListener("shown.bs.tab", event => { guide.hidden = event.target.id === "core-tab"; });
     }
-    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep() });
+    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep(), review: openSelectedServiceSummary,
+      assistance: requestCoreUnitAssistance, changed: draft => { BookingState.applianceDraft = draft; scheduleBookingProgressSave(); } });
     return;
   }
 
@@ -10542,7 +10599,24 @@ function hideModalWithoutBackdrop(modalElement) {
 /**
  * Add service to booking
  */
+async function requestCoreUnitAssistance(payload, photos) {
+  saveBookingProgress();
+  const form = new FormData();
+  Object.entries(payload).forEach(([key, value]) => { if (value != null) form.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value)); });
+  photos.forEach(file => form.append('photos', file));
+  const result = await window.RACSRequest.json('/api/unit-assistance', { method: 'POST', credentials: 'same-origin', body: form, timeoutMs: 30000 });
+  if (!/^[a-f\d]{24}$/i.test(String(result.id || ''))) throw new Error('The request response was incomplete. Retry to check your request.');
+  return result;
+}
 function commitCoreAppliance(rows, editingGroupId) {
+  if (editingGroupId) for (const original of BookingState.selectedServices.filter(item => item.applianceGroupId === editingGroupId && item.assistanceRequestId)) {
+    const replacement = rows.find(item => String(item.serviceId) === String(original.serviceId));
+    if (!replacement) continue;
+    if (['brand', 'airconType', 'hp', 'quantity', 'unitPrice', 'applianceKind'].some(key => replacement[key] !== original[key])) {
+      throw new Error('These details were verified by staff. Keep them unchanged or remove this service and request a new verification.');
+    }
+    replacement.assistanceRequestId = original.assistanceRequestId;
+  }
   const existing = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId);
   if (existing.some(item => item.relocation?.scope === 'custom_quote')) throw new Error('Finish or remove the selected relocation before adding another service.');
   if (rows.some(item => item.relocation?.scope === 'custom_quote') && (existing.length || rows.length !== 1)) throw new Error('A move to another address needs its own quote. Complete or remove other services first.');
@@ -11148,7 +11222,7 @@ function updateBookingCartChrome() {
   if (countCopy) countCopy.textContent = count === 0
     ? 'No service selected'
     : (needsQuote ? 'Continue to the locations and preferred date for staff review.' : 'Check the details and estimated price before you continue.');
-  if (mobileCount) mobileCount.textContent = `${selectedUnitTotal()} appliances / ${count} services`;
+  if (mobileCount) mobileCount.textContent = `${selectedUnitTotal()} / 40 appliances in your booking`;
   if (mobileTotal) mobileTotal.textContent = needsQuote ? 'Custom quote' : formatBookingPrice(total);
   syncBookingActionBarLayer();
   if (reviewButton) {
@@ -11184,8 +11258,12 @@ function syncBookingActionBarLayer() {
 
   const serviceStep = document.getElementById('serviceSelection');
   const isServiceStepActive = BookingState.currentStep === 2 || serviceStep?.classList.contains('step-active');
-  const shouldShow = BookingState.selectedServices.length > 0 && isServiceStepActive;
-  actionBar.classList.toggle('has-services', shouldShow);
+  const hasServices = BookingState.selectedServices.length > 0;
+  const shouldShow = Boolean(isServiceStepActive);
+  actionBar.classList.toggle('is-visible', shouldShow);
+  actionBar.classList.toggle('has-services', shouldShow && hasServices);
+  const continueButton = actionBar.querySelector('.mobile-booking-continue');
+  if (continueButton) continueButton.disabled = !hasServices;
   actionBar.setAttribute('aria-hidden', String(!shouldShow));
   actionBar.toggleAttribute('inert', !shouldShow);
 }
@@ -11198,7 +11276,8 @@ function toggleBookingSummary(forceOpen) {
   const backdrop = document.getElementById('bookingSheetBackdrop');
   const triggers = [
     document.getElementById('mobileBookingSummaryButton'),
-    document.getElementById('serviceGuideReview')
+    document.getElementById('serviceGuideReview'),
+    ...document.querySelectorAll('#coreApplianceBuilder [data-booking-review]')
   ].filter(Boolean);
   if (!summary) return;
   const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : !summary.classList.contains('is-open');
@@ -11293,7 +11372,7 @@ window.focusServiceCatalog = focusServiceCatalog;
 
 function openSelectedServiceSummary(event) {
   event?.preventDefault();
-  bookingSummaryReturnFocus = event?.currentTarget || (
+  bookingSummaryReturnFocus = event?.target?.closest?.('[data-booking-review]') || event?.currentTarget || (
     window.matchMedia('(max-width: 991.98px)').matches
       ? document.getElementById('mobileBookingSummaryButton')
       : document.querySelector('#coreApplianceBuilder .cab-progress .is-active') || document.getElementById('serviceGuideReview')

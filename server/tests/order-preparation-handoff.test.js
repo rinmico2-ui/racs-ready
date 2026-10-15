@@ -219,25 +219,26 @@ test("technician progress separates staff preparation and kit checks, retaining 
   assert.equal(context.orderPreparationAction(current).t, "Schedule expired");
 });
 
-test("technician live updates refresh the selected order after dialogs close", () => {
+test("technician live updates refresh the selected order after dialogs close", async () => {
   const view = source("views/pages/technician/technicianorders.ejs");
-  const start = view.indexOf("  var orderPreparationRefreshTimer");
-  const end = view.indexOf("  fetchOrders().then", start);
+  assert.match(view, /window\._refreshTechnicianWork = function\(\) \{ return window\.fetchOrders\(\{quiet:true\}\); \}/);
+  assert.match(view, /src="\/js\/technician-work-updates\.js/);
   const handlers = {}, fetches = [], scheduled = new Map();
   let nextTimer = 0, dialogOpen = true;
   const context = {
     window: { socket: { on(event, fn) { handlers[event] = fn; } },
-      Swal: { isVisible: () => dialogOpen }, fetchOrders: options => fetches.push(options),
+      Swal: { isVisible: () => dialogOpen }, _refreshTechnicianWork: async () => fetches.push({quiet:true}),
+      addEventListener() {}, setInterval() {},
       setTimeout(fn) { scheduled.set(++nextTimer, fn); return nextTimer; }, clearTimeout(id) { scheduled.delete(id); } },
-    document: { hidden: false, readyState: "complete", addEventListener() {} },
+    document: { hidden: false, readyState: "complete", addEventListener() {}, querySelector: () => null },
   };
-  vm.runInNewContext(view.slice(start, end), context);
+  vm.runInNewContext(source("public/js/technician-work-updates.js"), context);
   handlers["order:status-change"]();
-  function tick() { const [id, fn] = scheduled.entries().next().value; scheduled.delete(id); fn(); }
-  tick();
+  async function tick() { const [id, fn] = scheduled.entries().next().value; scheduled.delete(id); await fn(); }
+  await tick();
   assert.equal(fetches.length, 0);
   dialogOpen = false;
-  tick(); tick();
+  await tick();
   assert.equal(fetches.length, 1);
   assert.equal(fetches[0].quiet, true);
   assert.equal(typeof handlers["order:assigned"], "function");

@@ -89,6 +89,7 @@ async function syncResolutionProject(booking, schedule, session) {
   if (!schedule.isProject) return;
   const Project = require('../models/Project');
   const fields = {
+    ...(booking.sourceOrderId ? { sourceOrderId: booking.sourceOrderId, payment: { totalAmount: 0, amountPaid: 0, balanceAmount: 0, paymentStatus: 'unpaid', paymentMethod: 'other' } } : {}),
     ...schedule.projectScheduling, status: 'pending_project_scheduling',
     estimatedTotalHours: schedule.projectScheduling.estimatedTotalHours,
     totalUnits: schedule.totalUnits, quantity: schedule.totalUnits, isLargeScale: true,
@@ -101,6 +102,7 @@ async function syncResolutionProject(booking, schedule, session) {
       status: { $in: ['pending_project_scheduling', 'accepted', 'planning', 'cancelled'] },
     }, { $set: fields, $unset: { plannedCompletionDate: 1, schedulePlan: 1 } }, { session });
     if (!updated) throw schedulingError('The project schedule changed while you were selecting dates. Refresh the queue before rescheduling.', 409);
+    return updated;
   } else {
     const source = typeof booking.toObject === 'function' ? booking.toObject() : booking;
     const details = source.services?.length
@@ -111,7 +113,8 @@ async function syncResolutionProject(booking, schedule, session) {
     delete details.plannedCompletionDate;
     const document = { ...details, ...fields, bookingId: booking._id, customerId: booking.customerId || booking.customer?._id,
       projectPhase: booking.serviceType === 'repair' ? 'assessment' : 'execution', reservedTechnicians: 1 };
-    await Project.create([document], { session });
+    const created = await Project.create([document], { session });
+    return created[0];
   }
 }
 

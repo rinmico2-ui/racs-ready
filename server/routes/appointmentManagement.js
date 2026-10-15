@@ -789,11 +789,9 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
       return new Date(now.getTime() + 12 * 60 * 60 * 1000);
     }
 
-    // â”€â”€ Auto-generate AI recommendations for repair service assignments â”€â”€
-    let aiRecommendations = null;
-    if (isRepair) {
-      aiRecommendations = await generateRepairRecommendations(booking);
-    }
+    // Recommendations have their own endpoint. External AI calls must not
+    // delay assignment or make a completed assignment look like a gateway failure.
+    const aiRecommendations = null;
     // Create assignment
     const slaDeadline = new Date();
     slaDeadline.setHours(slaDeadline.getHours() + 2);

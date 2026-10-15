@@ -554,6 +554,17 @@ router.post("/delivery-quote", authenticate, requireRole("customer"), async (req
 /**
  * POST /api/orders â€” Create a new aircon order
  */
+router.post("/installation-window", authenticate, requireRole("customer"), async (req, res) => {
+  try {
+    const items = validateCheckoutItems(req.body.items);
+    const result = await require('../utils/orderInstallationProject').checkInstallationWindow(items, req.body.projectScheduling);
+    res.set('Cache-Control', 'no-store, private');
+    return res.json(result);
+  } catch (error) {
+    return res.status(Number(error.status) || 503).json({ error: error.status ? error.message : 'Could not check the installation window. Please try again.', code: error.code });
+  }
+});
+
 router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receiveGcashProof, async (req, res) => {
   let checkoutRequestId = "";
   let storedReceiptId = null;
@@ -567,6 +578,9 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     if (typeof body.delivery === "string") {
       try { body.delivery = JSON.parse(body.delivery); } catch (e) {}
     }
+    if (typeof body.projectScheduling === "string") {
+      try { body.projectScheduling = JSON.parse(body.projectScheduling); } catch (e) {}
+    }
 
     const { items, fulfillmentType, delivery, pickupDate, paymentMethod, timeSlot, gcashNumber, paymentChannel, paymentReference } = body;
     checkoutRequestId = String(body.checkoutRequestId || "").trim();
@@ -576,6 +590,11 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
 
     const existingOrder = await Order.findOne({ userId: req.user._id, checkoutRequestId });
     if (existingOrder) {
+      if (existingOrder.isProject && (!existingOrder.bookingId || !existingOrder.projectId ||
+        !await require('../models/Project').exists({ _id: existingOrder.projectId, sourceOrderId: existingOrder._id }) ||
+        !await BookingService.exists({ _id: existingOrder.bookingId, sourceOrderId: existingOrder._id }))) {
+        throw Object.assign(new OrderCheckoutError('The order confirmation is incomplete. Contact the store before submitting another payment.', 503, 'ORDER_WRITE_INCOMPLETE'), { preserveReceipt: true });
+      }
       if (req.file?.path) fs.unlink(req.file.path, () => {});
       return res.status(200).json({ success: true, duplicate: true, order: existingOrder.toObject() });
     }
@@ -604,6 +623,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       throw new OrderCheckoutError("That payment method is currently unavailable. Choose another method or contact the store.", 503, "ORDER_PAYMENT_CHANNEL_UNAVAILABLE");
     }
     const requestedItems = validateCheckoutItems(items);
+    const installationPlan = await require('../utils/orderInstallationProject').installationWorkload(requestedItems, fulfillmentType);
     const cartItemIds = parseCartItemIds(body.cartItemIds);
 
     const [settings, downpaymentPercentage, gcashRecipientNumber] = await Promise.all([
@@ -617,7 +637,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       delivery,
       pickupDate,
       timeSlot,
-    }, { storeHours: settings.storeHours });
+      projectScheduling: body.projectScheduling,
+    }, { storeHours: settings.storeHours, isProject: installationPlan.isProject });
     if (["cod", "gcash_full"].includes(selection.paymentMethod) && normalizedPaymentChannel === "gcash" && !gcashRecipientNumber) {
       throw new OrderCheckoutError(
         "GCash checkout is temporarily unavailable. Please choose another available payment option or contact the store.",
@@ -646,8 +667,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
             sellingPrice: variant.sellingPrice,
             costPrice: variant.costPrice,
             quantity: variant.quantity,
-            status: variant.status,
-            active: variant.active,
+            status: require('../public/js/product-availability').availability(variant, product).status,
+            active: require('../public/js/product-availability').availability(variant, product).available,
             imageUrl: product.imageUrl,
             warranty: product.specifications?.warranty || "",
             isHvac: true,
@@ -658,9 +679,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       if (!inventory) {
         throw new OrderCheckoutError(`Product not found: ${inventoryId}`, 404, "ORDER_PRODUCT_NOT_FOUND");
       }
-      const unavailable = inventory.active === false
-        || ["out_of_stock", "discontinued", "coming_soon"].includes(inventory.status)
-        || Number(inventory.quantity || 0) < quantity;
+      const productAvailability = require('../public/js/product-availability').availability(inventory);
+      const unavailable = !productAvailability.available || productAvailability.stock < quantity;
       if (unavailable) {
         throw new OrderCheckoutError(
           `Insufficient stock for ${inventory.modelLine || "the selected product"} ${inventory.capacity || ""} ${inventory.capacityUnit || "HP"}.`,
@@ -694,20 +714,11 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         destination: selection.delivery.coordinates,
         farePerKm: settings.farePerKm,
       });
-      if (selection.fulfillmentType === "delivery_installation") {
-        const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
-        if (await schedulingEngine.isLargeProject({
-          totalUnits,
-          totalEstimatedMinutes: totalUnits * 60,
-        })) {
-          throw new OrderCheckoutError(
-            "This installation quantity requires large-scale project scheduling. Please contact Operations.",
-            409,
-            "ORDER_PROJECT_SCHEDULING_REQUIRED",
-          );
-        }
-      }
-
+      if (installationPlan.isProject) {
+        const windowCheck = await require('../utils/orderInstallationProject').checkInstallationWindow(requestedItems, selection.projectScheduling);
+        if (windowCheck.sufficient !== true) throw new OrderCheckoutError(
+          'This date range does not have enough installation capacity. Choose a later finish-by date.', 409, 'ORDER_PROJECT_WINDOW_UNAVAILABLE');
+      } else {
       const scheduleRoutes = require("./scheduleRoutes");
       const slotCheck = await scheduleRoutes.getTimeSlotsForQuery({
         date: String(delivery.preferredDate).slice(0, 10),
@@ -726,6 +737,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
           "ORDER_SLOT_UNAVAILABLE",
         );
       }
+      }
     }
 
     const lifecycle = initialOrderLifecycle(selection.fulfillmentType, selection.paymentMethod);
@@ -743,6 +755,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       discount: loyaltyDiscount?.amount || 0,
       loyaltyDiscount,
       fulfillmentType: selection.fulfillmentType,
+      isProject: installationPlan.isProject,
+      ...(installationPlan.isProject ? { projectScheduling: { ...selection.projectScheduling, estimatedTotalHours: installationPlan.estimatedTotalHours } } : {}),
       paymentMethod: selection.paymentMethod,
       ...(normalizedPaymentChannel ? {
         paymentChannel: normalizedPaymentChannel,
@@ -809,7 +823,21 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     };
 
     if (selection.delivery) {
-      await withOperationLock(bookingCapacityLockKey(selection.delivery.preferredDate), async () => {
+      await withOperationLock(installationPlan.isProject ? 'booking-project-capacity' : bookingCapacityLockKey(selection.delivery.preferredDate), async () => {
+        if (installationPlan.isProject) {
+          const duplicate = await Order.findOne({ userId: req.user._id, checkoutRequestId });
+          if (duplicate) {
+            order = duplicate;
+            orderCommitted = true;
+            if (storedReceiptId) await paymentProofStorage.deletePaymentProof(storedReceiptId).catch(() => {});
+            return;
+          }
+          const freshWindow = await require('../utils/orderInstallationProject').checkInstallationWindow(requestedItems, selection.projectScheduling);
+          if (freshWindow.sufficient !== true) throw new OrderCheckoutError(
+            'Installation capacity changed. Choose a wider project window and try again.', 409, 'ORDER_PROJECT_WINDOW_UNAVAILABLE');
+          await commitOrder();
+          return;
+        }
         // The earlier check is for fast feedback. This read and the order
         // commit share the same date lock as service-booking creation.
         const freshSlots = await require("./scheduleRoutes").getTimeSlotsForQuery({
@@ -884,6 +912,7 @@ router.get("/technician/tasks", authenticate, requireRole("technician"), async (
 
     const orders = await Order.find({
       technicianId: tech._id,
+      isProject: { $ne: true },
       status: { $nin: ["cancelled", "completed"] },
     })
       .select(TECHNICIAN_ORDER_EXCLUDE_SELECT)
@@ -913,6 +942,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     // exact delivery/installation scope.
     const technicianOrderScope = {
       technicianId: tech._id,
+      isProject: { $ne: true },
       fulfillmentType: { $in: TECHNICIAN_ORDER_FULFILLMENT_TYPES },
     };
     const filter = { ...technicianOrderScope };
@@ -1553,6 +1583,7 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
     // Verify this technician is the one assigned
     const tech = await Technician.findOne({ user: req.user._id }).lean();
@@ -1612,6 +1643,7 @@ router.post("/:id/decline", authenticate, requireRole("technician"), async (req,
     const { reason } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
     // Verify this technician is the one assigned
     const tech = await Technician.findOne({ user: req.user._id }).lean();
@@ -1667,6 +1699,7 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
     const maintainableUnitCount = (order.items || []).reduce(
       (sum, item) => sum + ((item.isHvac !== false || item.parentHvacId || item.capacity) ? Math.max(1, Number(item.quantity) || 1) : 0),
@@ -1883,6 +1916,7 @@ router.post("/:id/collect-payment", authenticate, requireRole("technician"), asy
     const order = await Order.findById(req.params.id);
     const tech = await Technician.findOne({ user: req.user._id });
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
     if (!tech || String(order.technicianId) !== String(tech._id)) return res.status(403).json({ error: "Order is not assigned to you" });
     if (!["arrived", "installing", "completed"].includes(order.status)) {
       return res.status(400).json({ error: "Payment can only be collected at customer handover." });
@@ -2141,6 +2175,16 @@ router.post("/:id/cancel", authenticate, async (req, res) => {
       }
 
       const cancelNote = `Cancelled by ${isOwner ? "customer" : req.user.role}. Reason: ${cancellationReason}`;
+      if (cancelledOrder.isProject && cancelledOrder.projectId) {
+        const project = await require('../models/Project').findOneAndUpdate({
+          _id: cancelledOrder.projectId, sourceOrderId: cancelledOrder._id,
+          status: { $in: ['pending_project_scheduling', 'accepted', 'planning', 'on_hold'] }, scheduleLocked: { $ne: true },
+        }, { $set: { status: 'cancelled' } }, { returnDocument: 'after', session });
+        if (!project) throw new OrderCheckoutError('This project already has a confirmed work plan. Operations must review installed units, issued stock and payment before cancellation.', 409, 'ORDER_PROJECT_CANCELLATION_REVIEW_REQUIRED');
+        await require('../models/WorkOrder').updateMany({ projectId: project._id, status: { $ne: 'completed' } }, { $set: { status: 'cancelled' } }, { session });
+        await require('../models/DailyAssignment').updateMany({ projectId: project._id }, { $set: { status: 'skipped', planningOnly: true } }, { session });
+        await require('../models/Assignment').updateMany({ projectId: project._id, status: { $ne: 'completed' } }, { $set: { status: 'cancelled' } }, { session });
+      }
       // pushStatus emits a separate audit write immediately. Record the status
       // here, then audit only after the cancellation transaction commits.
       cancelledOrder.status = "cancelled";
@@ -2279,6 +2323,10 @@ router.get("/:id/reschedule-availability", authenticate, async (req, res) => {
       return res.status(409).json({ error: "This order can no longer be rescheduled." });
     }
     if (order.fulfillmentType === "customer_pickup") return res.status(400).json({ error: "Choose pickup dates using store hours." });
+    if (order.isProject) {
+      const project = order.projectId ? await require('../models/Project').findById(order.projectId).select('scheduleLocked status').lean() : null;
+      return res.json({ isProject: true, canRequestWindow: !project?.scheduleLocked && ['pending_project_scheduling', 'accepted', 'planning'].includes(project?.status), projectScheduling: order.projectScheduling });
+    }
     const totalUnits = (order.items || []).reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
     const query = {
       duration: "60", mode: "manual",
@@ -2303,7 +2351,7 @@ router.get("/:id/reschedule-availability", authenticate, async (req, res) => {
 router.post("/:id/reschedule-request", authenticate, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order reference." });
-    const { requestedDate, requestedTime, reason } = req.body;
+    const { requestedDate, requestedTime, requestedEndDate, reason } = req.body;
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
 
@@ -2325,12 +2373,17 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
 
     // Validate required fields
     const pickupRequest = order.fulfillmentType === "customer_pickup";
-    if (typeof requestedDate !== "string" || (!pickupRequest && typeof requestedTime !== "string") || typeof reason !== "string" || !reason.trim()) {
+    if (typeof requestedDate !== "string" || (!pickupRequest && !order.isProject && typeof requestedTime !== "string") || typeof reason !== "string" || !reason.trim()) {
       return res.status(400).json({ error: pickupRequest
         ? "Requested date and reason are required"
         : "Requested date, time, and reason are required" });
     }
 
+    let projectWindow = null;
+    if (order.isProject) {
+      const { source } = await require('../utils/orderResolutionScheduling').loadOrderScheduling(order);
+      projectWindow = await require('../utils/resolutionScheduling').validateResolutionSchedule(source, { date: requestedDate, endDate: requestedEndDate });
+    }
     const proposedSchedule = order.toObject();
     proposedSchedule.timeSlot = pickupRequest ? null : requestedTime;
     let requestedDateValue;
@@ -2343,12 +2396,12 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
     }
     if (pickupRequest) proposedSchedule.pickupDate = requestedDateValue;
     else proposedSchedule.delivery = { ...(proposedSchedule.delivery || {}), preferredDate: requestedDateValue };
-    const requestedCutoff = requestedOrderCutoff(proposedSchedule);
+    const requestedCutoff = order.isProject ? projectWindow.dateObj : requestedOrderCutoff(proposedSchedule);
     if (!requestedCutoff || requestedCutoff.getTime() <= Date.now()) {
       return res.status(400).json({ error: "Choose a reschedule date and time that is still in the future." });
     }
 
-    if (!pickupRequest) {
+    if (!pickupRequest && !order.isProject) {
       const slotCheck = await checkOrderRescheduleSlot(order, requestedDate, requestedTime);
       if (!slotCheck.available) return res.status(409).json({
         error: slotCheck.message || "That delivery time is no longer available. Choose another date or time.",
@@ -2361,6 +2414,7 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
       requested: true,
       requestedDate: requestedDate,
       requestedTime: pickupRequest ? "" : String(requestedTime).trim(),
+      ...(order.isProject ? { requestedTime: '', requestedEndDate: projectWindow.endDate } : {}),
       reason: String(reason).trim().slice(0, 500),
       requestedBy: req.user._id,
       requestedAt: new Date(),
@@ -2405,6 +2459,14 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
     if (!order || order.rescheduleRequest?.status !== "pending"
       || String(order.rescheduleRequest.requestedDate) !== lockedRequestedDate) {
       return res.status(409).json({ error: "This reschedule request was already processed." });
+    }
+    if (order.isProject) {
+      await require('../utils/orderResolutionScheduling').saveOrderProjectWindow(order, {
+        scheduledDate: order.rescheduleRequest.requestedDate, endDate: order.rescheduleRequest.requestedEndDate,
+        reason: order.rescheduleRequest.reason,
+      }, req.user);
+      emitOrderStatus(req, order, { rescheduleRequestStatus: 'approved' });
+      return res.json({ message: 'Preferred installation window approved. Operations will confirm the daily work plan.', order: presentOrderForRequest(req, order) });
     }
 
     const proposedSchedule = order.toObject();
@@ -2456,7 +2518,7 @@ router.post("/:id/reschedule-approve", authenticate, requireRole(["admin", "secr
     });
     };
     if (order.fulfillmentType === "customer_pickup") return await applyApproval();
-    return await withOperationLock(bookingCapacityLockKey(lockedRequestedDate), applyApproval);
+    return await withOperationLock(order.isProject ? 'booking-project-capacity' : bookingCapacityLockKey(lockedRequestedDate), applyApproval);
   } catch (err) {
     res.status(Number(err?.status) || 500).json({ error: err.message });
   }
@@ -2790,6 +2852,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
     // Use the scheduledDate if given, otherwise fall back to order's existing preferredDate
     const finalScheduledDate = scheduledDate || (order.delivery && order.delivery.preferredDate

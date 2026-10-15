@@ -62,7 +62,7 @@ test("secretary profile exposes working edit and password forms", async () => {
   assert.match(html, /id="changePasswordForm"/);
   assert.match(html, /id="profileFirstNameValue"/);
   assert.match(html, /id="profileAvatar"/);
-  assert.match(html, /src="\/js\/admin-profile\.js"/);
+  assert.match(html, /src="\/js\/admin-profile\.js(?:\?v=[^"]+)?"/);
   assert.match(html, /href="\/secretary\/attendance"/);
   assert.doesNotMatch(html, /href="#"|\/secretary\/logs/);
 });
@@ -174,7 +174,7 @@ test("secretary navigation mirrors the admin workspace structure without admin-o
     ],
   });
 
-  for (const section of ["Core", "Operations", "People", "Finance", "Analytics"]) {
+  for (const section of ["Core", "Operations", "People", "Finance", "Reports and Ratings"]) {
     assert.match(html, new RegExp(`class="section-label">${section}<`));
   }
   assert.match(html, /href="\/secretary\/appointments"/);
@@ -186,7 +186,8 @@ test("secretary navigation mirrors the admin workspace structure without admin-o
   assert.match(html, /href="\/secretary\/appointments\/cancellation-log"/);
   assert.match(html, /href="\/secretary\/operations\/resolution-center"/);
   assert.doesNotMatch(html, /href="\/admin\//);
-  assert.doesNotMatch(html, /(Roles &amp; Permissions|Audit Trail|Payment Remittance|Add Staff|Warranty|Maintenance)/);
+  assert.doesNotMatch(html, /(Roles &amp; Permissions|Audit Trail|Payment Remittance|Add Staff|Warranty)/);
+  assert.match(html, /href="\/secretary\/maintenance"[^>]*data-permission="appointments.view"/);
   assert.doesNotMatch(html, /(Booking Requests|Service Tracking)/);
 });
 

@@ -32,6 +32,7 @@ const paymentSchema = new mongoose.Schema({
     default: "cod",
   },
   gatewayId: String,       // resource ID returned by gateway
+  gatewaySourceId: { type: String, maxlength: 255 },
   gatewayType: String,     // e.g. payment_intent, source
   gatewayStatus: String,   // raw status from provider
   gatewayCheckoutUrl: { type: String, select: false },
@@ -115,6 +116,9 @@ const paymentSchema = new mongoose.Schema({
 }, { optimisticConcurrency: true });
 
 paymentSchema.index({ bookingId: 1 });
+paymentSchema.index({ remittanceProofUrl: 1 }, { sparse: true });
+paymentSchema.index({ gatewayId: 1 }, { sparse: true });
+paymentSchema.index({ gatewaySourceId: 1 }, { sparse: true });
 paymentSchema.index({ bookingId: 1, submittedAt: 1, collectedAt: 1 });
 paymentSchema.index({ orderId: 1 });
 paymentSchema.index({ refundStatus: 1, submittedAt: -1 });

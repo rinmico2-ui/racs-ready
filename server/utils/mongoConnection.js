@@ -19,6 +19,7 @@ function isTlsProtectedMongoUri(value) {
   if (!uri.startsWith("mongodb+srv://") && !uri.startsWith("mongodb://")) return false;
   const query = uri.includes("?") ? uri.slice(uri.indexOf("?") + 1) : "";
   const params = new URLSearchParams(query);
+  if (["tlsInsecure", "tlsAllowInvalidCertificates", "tlsAllowInvalidHostnames"].some(option => params.get(option) === "true")) return false;
   if (params.get("tls") === "false" || params.get("ssl") === "false") return false;
   if (uri.startsWith("mongodb+srv://")) return true;
   return params.get("tls") === "true" || params.get("ssl") === "true";

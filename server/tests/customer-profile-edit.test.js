@@ -41,7 +41,11 @@ function response() {
   };
 }
 
-test("customer profile saves name, phone, and address on the account", async () => {
+test("customer profile saves name, phone, and address on the account", async (t) => {
+  const catalog = require('../utils/psgcCatalog');
+  t.mock.method(catalog, 'getList', async kind => kind === 'provinces' ? [{ code:'0304900000', name:'Nueva Ecija' }]
+    : kind === 'cities' ? [{ code:'0304901000', name:'Cabanatuan', province:'Nueva Ecija' }]
+      : [{ code:'0304901030', name:'Sumacab Sur' }]);
   const originalFind = User.findById;
   const originalUpdate = User.findOneAndUpdate;
   const originalAudit = audit.logEvent;

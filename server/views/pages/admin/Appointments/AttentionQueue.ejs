@@ -451,7 +451,7 @@
   const RESOLUTION_APPOINTMENTS_API = <%- JSON.stringify(resolutionAppointmentsApi).replace(/</g, '\\u003c') %>;
   const RESOLUTION_BOOKINGS_PATH = <%- JSON.stringify(resolutionBookingsUrl).replace(/</g, '\\u003c') %>;
   const RESOLUTION_ORDERS_PATH = <%- JSON.stringify(resolutionOrdersUrl).replace(/</g, '\\u003c') %>;
-  const RESOLUTION_CAN_VIEW_ORDERS = <%- JSON.stringify(resolutionShowsOrders) %>;
+  const RESOLUTION_CAN_VIEW_ORDERS = <%- (JSON.stringify(resolutionShowsOrders)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   function showToast(type, message) {
     const toast = document.createElement('div');
     toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;

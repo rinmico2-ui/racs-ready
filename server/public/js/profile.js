@@ -40,19 +40,41 @@
   function showAlert(type, msg) {
     if (!alertEl) return;
     alertEl.className =
-      "alert alert-" + (type === "error" ? "danger" : "success");
+      "alert alert-" + (type === "error" ? "danger" : type === "info" ? "info" : "success");
     alertEl.textContent = msg;
     alertEl.classList.remove("d-none");
     alertEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  editBtn.addEventListener("click", function () {
+  function openProfileEditor(targetId) {
+    if (editForm.classList.contains("d-none")) {
+      initialProfile = profileSnapshot();
+      profileTouched = false;
+      refreshSaveButton();
+      alertEl && alertEl.classList.add("d-none");
+    }
     viewCard.classList.add("d-none");
     editForm.classList.remove("d-none");
-    alertEl && alertEl.classList.add("d-none");
     editForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    var target = targetId && qs(targetId);
     var firstEditable = firstInput && !firstInput.readOnly ? firstInput : qs("profilePhone");
-    firstEditable && firstEditable.focus({ preventScroll: true });
+    if (target && target.readOnly) {
+      if (target === firstInput || target === lastInput) {
+        namePolicyHint && namePolicyHint.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      target = firstEditable;
+    }
+    (target || firstEditable).focus({ preventScroll: true });
+    if (target && !target.readOnly) target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  editBtn.addEventListener("click", function () {
+    openProfileEditor();
+  });
+  document.querySelectorAll("[data-profile-complete-field]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      openProfileEditor(button.dataset.profileCompleteField);
+    });
   });
 
   // rating buttons on profile page
@@ -91,9 +113,25 @@
     return (select.dataset.selected || "").trim();
   }
 
+  function profileSnapshot() {
+    return JSON.stringify([firstInput.value.trim().replace(/\s+/g, ' '), lastInput.value.trim().replace(/\s+/g, ' '), qs('profilePhone').value.trim(),
+      selectedName('profile-addressProvince'), selectedName('profile-addressCity'), selectedName('profile-addressBarangay'), qs('profile-addressPostal').value.trim()]);
+  }
+  var initialProfile = profileSnapshot();
+  var profileTouched = false;
+  function refreshSaveButton(event) {
+    if (event && event.isTrusted === false && !profileTouched) initialProfile = profileSnapshot();
+    else if (event) profileTouched = true;
+    saveBtn.disabled = saving || profileSnapshot() === initialProfile;
+  }
+  form.addEventListener('input', refreshSaveButton);
+  form.addEventListener('change', refreshSaveButton);
+  refreshSaveButton();
+
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
     if (saving) return;
+    if (profileSnapshot() === initialProfile) { showAlert('info', 'No changes detected.'); return; }
     var firstName = firstInput.value.trim().replace(/\s+/g, " ");
     var lastName = lastInput.value.trim().replace(/\s+/g, " ");
     var phoneInput = qs("profilePhone");
@@ -175,13 +213,14 @@
         throw new Error(result.error || "Your changes could not be saved. Please try again.");
       }
       try { localStorage.removeItem("profile_ui_overrides"); } catch (storageError) {}
+      if (result.changed === false) { initialProfile = profileSnapshot(); showAlert('info', result.message); return; }
       showAlert("success", "Profile saved. Updating your page...");
       window.setTimeout(function () { window.location.reload(); }, 700);
     } catch (error) {
       showAlert("error", error.message || "Your changes could not be saved. Please try again.");
     } finally {
       saving = false;
-      saveBtn.disabled = false;
+      refreshSaveButton();
       saveBtn.removeAttribute("aria-busy");
       saveBtn.innerHTML = '<i class="bi bi-check-lg"></i> Save Changes';
     }

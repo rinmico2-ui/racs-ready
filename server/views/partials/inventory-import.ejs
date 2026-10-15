@@ -1,0 +1,21 @@
+<% const importApi = typeof inventoryApiBase === 'string' ? inventoryApiBase : '/api/admin/hvac'; const importAllowed = typeof can === 'function' && can('inventory.manage'); %>
+<% if (importAllowed) { %>
+<div class="d-flex flex-wrap justify-content-end gap-2 mb-3">
+  <a class="btn btn-outline-secondary" href="<%= importApi %>/import/template"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>CSV template</a>
+  <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#inventoryImportModal"><i class="bi bi-upload me-1" aria-hidden="true"></i>Import products</button>
+</div>
+<div class="modal fade" id="inventoryImportModal" tabindex="-1" aria-labelledby="inventoryImportTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title fs-5" id="inventoryImportTitle">Import aircon products</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+      <p>Use one row per HP variant. Rows with the same model and brand form one product. Existing products are kept. New brand and category names are created on import. Up to 500 variants and 100 products per file.</p>
+      <label class="form-label" for="inventoryCsvFile">CSV file <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control" type="file" id="inventoryCsvFile" accept=".csv,text/csv" required>
+      <div class="alert alert-danger mt-3" id="inventoryImportError" role="alert" hidden></div>
+      <div class="mt-3" id="inventoryImportPreview" aria-live="polite"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button><button class="btn btn-outline-primary" type="button" id="inventoryImportReview">Review file</button><button class="btn btn-primary" type="button" id="inventoryImportCommit" disabled>Import reviewed products</button></div>
+  </div></div>
+</div>
+<script>window.InventoryImportConfig = { api: <%- JSON.stringify(importApi).replace(/</g, '\\u003c') %> };</script>
+<script src="/js/inventory-import.js?v=20261014" defer></script>
+<% } %>

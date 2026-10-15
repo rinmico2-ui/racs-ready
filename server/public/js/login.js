@@ -14,6 +14,36 @@
   var trustDeviceInput = document.getElementById('trustTechnicianDevice');
   var mathInput = document.querySelector('#auth-login-form input[name="mathCaptcha"]');
   var csrfInput = document.querySelector('#auth-login-form input[name="csrfToken"]');
+  var otpNotice = document.getElementById('loginOtpNotice');
+  var resendTimer = null;
+  var flowVersion = 0;
+  var pendingEmail = '';
+
+  function setOtpNotice(message) {
+    if (otpNotice) otpNotice.textContent = message;
+  }
+
+  function resetOtpFlow() {
+    pendingEmail = '';
+    if (otpBlock) otpBlock.classList.add('d-none');
+    if (otpInput) { otpInput.value = ''; removeFieldError(otpInput); }
+    if (trustDeviceInput) trustDeviceInput.checked = false;
+    clearTimeout(resendTimer);
+    resendTimer = null;
+    if (resendBtn) { resendBtn.disabled = false; resendBtn.textContent = 'Resend OTP'; }
+  }
+
+  function otpFailure(body, fallback) {
+    var message = body.error || fallback;
+    if (body.restartLogin) {
+      resetOtpFlow();
+      showFieldError(passwordInput, message);
+      passwordInput.focus();
+    } else {
+      showFieldError(otpInput, message);
+      otpInput.focus();
+    }
+  }
 
   // --- Helpers ---
   function showFieldError(input, message) {
@@ -86,42 +116,52 @@
 
   // --- OTP Resend ---
   function startResendCooldown(button, duration) {
-    var remaining = duration;
+    clearTimeout(resendTimer);
+    var remaining = Math.min(600, Math.max(1, Math.ceil(Number(duration) || 60)));
     button.disabled = true;
     function tick() {
       if (remaining <= 0) {
+        resendTimer = null;
         button.disabled = false;
         button.textContent = 'Resend OTP';
       } else {
         button.textContent = 'Resend in ' + remaining + 's';
         remaining -= 1;
-        setTimeout(tick, 1000);
+        resendTimer = setTimeout(tick, 1000);
       }
     }
     tick();
   }
 
   if (resendBtn) {
-    resendBtn.addEventListener('click', function () {
+    resendBtn.addEventListener('click', async function () {
       var emailVal = emailInput ? emailInput.value : '';
-      if (!emailVal) {
-        window.authUtils.swalError('Missing email', 'Please enter your email to resend the OTP.');
-        return;
-      }
-      startResendCooldown(resendBtn, 60);
-      fetch('/api/auth/resend-login-otp', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailVal }),
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          window.authUtils.swalSuccess('OTP sent', j.message || 'A new code was sent to your email.');
-        })
-        .catch(function () {
-          window.authUtils.swalError('Unable to resend', 'Please try again later.');
+      if (resendBtn.disabled || !pendingEmail || emailVal.trim().toLowerCase() !== pendingEmail) return;
+      var version = flowVersion;
+      resendBtn.disabled = true;
+      removeFieldError(otpInput);
+      try {
+        var response = await fetch('/api/auth/resend-login-otp', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ email: emailVal, csrfToken: csrfInput ? csrfInput.value : '' }),
         });
+        var result = await response.json().catch(function () { return {}; });
+        if (version !== flowVersion) return;
+        if (!response.ok || !result.message) {
+          if (response.status === 429) startResendCooldown(resendBtn, result.retryAfter || 60);
+          otpFailure(result, 'Unable to resend the code right now. Please try again shortly.');
+          return;
+        }
+        otpInput.value = '';
+        setOtpNotice(result.message);
+        startResendCooldown(resendBtn, result.retryAfter || 60);
+        otpInput.focus();
+      } catch (error) {
+        if (version === flowVersion) otpFailure({}, 'Unable to reach the server. Check your connection and try again.');
+      } finally {
+        if (version === flowVersion && !resendTimer) resendBtn.disabled = false;
+      }
     });
   }
 
@@ -136,6 +176,8 @@
       }
     });
     emailInput.addEventListener('input', function () {
+      flowVersion += 1;
+      if (pendingEmail) resetOtpFlow();
       if (this.classList.contains('error')) {
         var val = this.value.trim();
         if (val && window.authUtils.validateEmail(val)) {
@@ -148,6 +190,8 @@
 
   if (passwordInput) {
     passwordInput.addEventListener('input', function () {
+      flowVersion += 1;
+      if (pendingEmail) resetOtpFlow();
       if (this.classList.contains('error')) {
         removeFieldError(this);
       }
@@ -166,16 +210,17 @@
     var mathAnswer = (document.querySelector('#auth-login-form input[name="mathAnswer"]') || {}).value || '';
     var csrfToken = csrfInput ? csrfInput.value : '';
     var rememberMe = document.getElementById('rememberMe') ? document.getElementById('rememberMe').checked : false;
+    var version = flowVersion;
 
     // OTP verification flow
     if (otpBlock && !otpBlock.classList.contains('d-none')) {
       if (!email || !otp) {
-        window.authUtils.swalError('Missing code', 'Please enter the verification code sent to your email.');
+        showFieldError(otpInput, 'Please enter the verification code from your email.');
         if (otpInput) otpInput.focus();
         return;
       }
       if (!/^\d{6}$/.test(otp)) {
-        window.authUtils.swalError('Invalid code', 'Please enter the 6-digit code.');
+        showFieldError(otpInput, 'Please enter the 6-digit code.');
         if (otpInput) otpInput.focus();
         return;
       }
@@ -188,6 +233,7 @@
           body: JSON.stringify({
             email: email,
             otp: otp,
+            csrfToken: csrfToken,
             returnTo: returnTo,
             trustDevice: Boolean(
               trustDeviceOption &&
@@ -198,21 +244,14 @@
           }),
         });
         var body = await resp.json().catch(function () { return {}; });
+        if (version !== flowVersion) return;
         if (resp.ok && body.redirect) {
           window.location.assign(body.redirect);
           return;
         }
-        if (resp.ok) {
-          window.location.assign('/');
-          return;
-        }
-        if (resp.status === 429) {
-          handleRateLimit(body);
-        } else {
-          window.authUtils.swalError('Verification failed', body.error || 'Invalid or expired code.');
-        }
+        otpFailure(body, 'Unable to verify the code right now. Please try again shortly.');
       } catch (e) {
-        window.authUtils.swalError('Network error', 'Unable to reach the server. Please try again.');
+        if (version === flowVersion) otpFailure({}, 'Unable to reach the server. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -246,6 +285,7 @@
 
     setLoading(true);
 
+    var loginFinished = false;
     try {
       var res = await fetch('/api/auth/secure/login', {
         method: 'POST',
@@ -257,32 +297,32 @@
           csrfToken: csrfToken,
           mathCaptcha: mathCaptcha,
           mathAnswer: mathAnswer,
+          mathChallenge: window.AuthSecurityQuestion ? window.AuthSecurityQuestion.token(form) : '',
           rememberMe: rememberMe,
           returnTo: returnTo,
         }),
       });
       var body = await res.json().catch(function () { return {}; });
+      if (version !== flowVersion) return;
 
       // OTP required for privileged roles
       if (res.ok && body.requiresOTP) {
+        loginFinished = true;
+        pendingEmail = email.toLowerCase();
         if (otpBlock) otpBlock.classList.remove('d-none');
         if (trustDeviceOption) {
           trustDeviceOption.classList.toggle('d-none', !body.canTrustDevice);
         }
         if (trustDeviceInput) trustDeviceInput.checked = false;
         if (otpInput) { otpInput.focus(); otpInput.value = ''; }
-        window.authUtils.swalSuccess('OTP sent', body.message || 'A verification code was sent to your email.');
-        if (resendBtn) startResendCooldown(resendBtn, 60);
+        setOtpNotice(body.message || 'Check your inbox and spam folder for the newest verification code.');
+        if (resendBtn) startResendCooldown(resendBtn, body.retryAfter || 60);
         return;
       }
 
       if (res.ok && body.redirect) {
+        loginFinished = true;
         window.location.assign(body.redirect);
-        return;
-      }
-
-      if (res.ok) {
-        window.location.assign('/');
         return;
       }
 
@@ -311,6 +351,7 @@
     } catch (e) {
       window.authUtils.swalError('Network error', 'Unable to reach the server. Please try again later.');
     } finally {
+      if (!loginFinished && window.AuthSecurityQuestion) await window.AuthSecurityQuestion.refresh(form);
       setLoading(false);
     }
   });

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require('node:vm');
 
 const serverRoot = path.join(__dirname, "..");
 
@@ -78,4 +79,25 @@ test("appointment queue maps use Esri hybrid without a layer selector", () => {
   assert.doesNotMatch(queue, /id="tdLayerSelector"/);
   assert.doesNotMatch(queue, /tileLayer\(|basemaps\.cartocdn\.com/);
   assert.doesNotMatch(queue, /__assignMap[\s\S]{0,800}tile\.openstreetmap\.org/);
+});
+
+test('maintenance location maps reuse the shared provider and degrade to address selection if it is unavailable', () => {
+  for (const [file, name] of [['maintenance-admin.js','showMap'],['maintenance-customer.js','initializeBookingMap']]) {
+    const source = fs.readFileSync(path.join(serverRoot, 'public/js', file), 'utf8');
+    const body = source.match(new RegExp('function ' + name + '\\(\\) \\{[\\s\\S]*?\\n  \\}'))[0];
+    for (const available of [true, false]) {
+      let maps = 0, layers = 0, pins = 0, message = '';
+      const elements = new Map();
+      const context = { window: available ? { createEsriHybridLayer:()=>({ addTo(){ layers++; } }) } : {},
+        L:{ map(){ maps++; return { on(){},invalidateSize(){},setView(){} }; } }, bookingMap:null,
+        bookingLocation:{lat:15.3,lng:120.9},companyLocation:null,bookingCompanyLocation:null,
+        $(id){ if(!elements.has(id))elements.set(id,{hidden:false,textContent:''});return elements.get(id); },
+        drawPin(){ pins++; },drawBookingPin(){ pins++; },updateBookingLocationState(value){message=value;} };
+      const show = vm.runInNewContext('(' + body + ')', context);
+      show(); show();
+      assert.equal(maps, available ? 1 : 0); assert.equal(layers, available ? 1 : 0);
+      assert.equal(pins, available ? 2 : 0);
+      if (!available) assert.match(message || [...elements.values()].map(node=>node.textContent).join(' '),/map could not load/i);
+    }
+  }
 });

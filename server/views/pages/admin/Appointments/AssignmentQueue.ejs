@@ -1018,7 +1018,7 @@
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
 
     try {
-      const res = await fetch(`/api/admin/appointments/${currentBookingId}/assign`, {
+      await RACSRequest.json(`/api/admin/appointments/${currentBookingId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1027,8 +1027,6 @@
           notes: document.getElementById('assignNotes').value,
         })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to assign technician');
 
       bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
 

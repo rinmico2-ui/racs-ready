@@ -1,7 +1,7 @@
-<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261013-sticky-actions">
+<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261014-unit-help-v2">
 <script src="/js/relocation-booking-locations.js?v=20261013-guided-relocation"></script>
-<script src="/js/appliance-services.js?v=20261013-guided-relocation"></script>
-<script src="/js/core-appliance-booking.js?v=20261013-sticky-actions"></script>
+<script src="/js/appliance-services.js?v=20261014-unit-help-v2"></script>
+<script src="/js/core-appliance-booking.js?v=20261014-unit-help-text-v3"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <%
@@ -75,14 +75,14 @@
       <% } %>
 
       <% if (typeof initialServices !=='undefined' ) { %>
-        <script id="initial-services-json" type="application/json"><%- JSON.stringify(initialServices, null, 2) %></script>
+        <script id="initial-services-json" type="application/json"><%- (JSON.stringify(initialServices, null, 2)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
         <script>window.initialCatalog = JSON.parse(document.getElementById('initial-services-json').textContent||'{"coreServices":[],"repairs":[]}');</script>
       <% } else { %>
         <script>window.initialCatalog = { coreServices: [], repairs: [] };</script>
       <% } %>
 
       <% if (typeof serviceCategories !== 'undefined' && serviceCategories.length) { %>
-        <script>window._serviceCategories = <%- JSON.stringify(serviceCategories) %>;</script>
+        <script>window._serviceCategories = <%- (JSON.stringify(serviceCategories)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;</script>
       <% } else { %>
         <script>window._serviceCategories = [];</script>
       <% } %>
@@ -570,7 +570,7 @@
               <div class="mobile-booking-bar" id="mobileBookingBar" aria-label="Selected service and next step">
                 <span class="visually-hidden" id="bookingNextStepAnnouncement" aria-live="polite" aria-atomic="true"></span>
                 <button type="button" class="mobile-booking-overview" id="mobileBookingSummaryButton" aria-controls="selectedServicesSummary" aria-expanded="false" onclick="openSelectedServiceSummary(event)">
-                  <span><i class="bi bi-bag-check-fill" aria-hidden="true"></i> <strong id="mobileSelectedServiceCount">0 services selected</strong></span>
+                  <span><i class="bi bi-bag-check-fill" aria-hidden="true"></i> <strong id="mobileSelectedServiceCount">0 / 40 appliances in your booking</strong></span>
                   <span class="mobile-booking-open-label">Check Booking <i class="bi bi-chevron-up" aria-hidden="true"></i></span>
                   <strong id="mobileEstimatedPrice">₱0</strong>
                 </button>
@@ -638,7 +638,7 @@
                   </div>
                   <div id="locationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions" role="listbox" aria-label="Philippine address suggestions"></div>
                 </div>
-                <p class="location-hint mb-0 mt-2" id="locationStatus" data-search-instruction="Search for an address or place a pin on the map"><i class="bi bi-search me-1"></i>Search or place a pin on the map.</p>
+                <p class="location-hint mb-0 mt-2" id="locationStatus" role="status" aria-live="polite" data-search-instruction="Search for an address or place a pin on the map"><i class="bi bi-search me-1"></i>Search or place a pin on the map.</p>
                 <button type="button" class="service-manual-pin-link" id="pinTypedAddressBtn" onclick="guideToManualAddressPin()">
                   <i class="bi bi-pin-map-fill" aria-hidden="true"></i>Can't find your address? Place a pin on the map
                 </button>
@@ -2750,7 +2750,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261013-guided-relocation':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261014-address-recovery':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
@@ -3354,6 +3354,6 @@ document.addEventListener("DOMContentLoaded",()=>{
 </script>
 
 <!-- Final touch-first overrides for this multi-step booking experience. -->
-<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261009-mobile-workspace">
+<link rel="stylesheet" href="/css/services-mobile-ux.css?v=20261014-booking-counter">
 <link rel="stylesheet" href="/css/services-dialogs.css?v=20261009-green-step-actions">
 <link rel="stylesheet" href="/css/racs-loading-motion.css?v=20261010-single-card">

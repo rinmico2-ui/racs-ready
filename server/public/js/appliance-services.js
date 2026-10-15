@@ -81,6 +81,13 @@
       airconTypeName: selectedType?.name || selection.airconTypeName || null };
   }
   function isRelocation(service) { return service?.slug === 'aircon-relocation'; }
+  function needsVerification(catalog, selection) {
+    const supported = profile(catalog, selection.applianceKind || 'aircon');
+    if (!supported) return false;
+    if (selection.applianceKind && selection.applianceKind !== 'aircon') return supported.pricingMode === 'hp' && !Number.isFinite(parseHp(selection.hp));
+    return Boolean(catalog.isAirconService && (catalog.airconTypes?.length || catalog.hpPricing?.length) &&
+      (catalog.airconTypes?.length && !catalog.airconTypes.some(row => row.type === selection.airconType) || !Number.isFinite(parseHp(selection.hp))));
+  }
   function serviceLines(catalog, selection, serviceIds, groupId, relocation) {
     if (!serviceIds.length || new Set(serviceIds).size !== serviceIds.length) throw new Error('Choose at least one service, without duplicates.');
     const rows = serviceIds.map(id => {
@@ -117,5 +124,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation };
+  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, needsVerification };
 });

@@ -62,6 +62,9 @@ const userSchema = new mongoose.Schema({
   loginOtpExpires: { type: Date, select: false },
   loginOtpLastSentAt: { type: Date, select: false },
   loginOtpRememberMe: { type: Boolean, default: false, select: false },
+  loginOtpChallengeHash: { type: String, select: false },
+  loginOtpAttempts: { type: Number, default: 0, min: 0, select: false },
+  loginOtpPasswordVersion: { type: String, select: false },
   // Accounts provisioned by staff for walk-in customers remain unusable until
   // the customer proves control of the email address and chooses a password.
   accountOrigin: {
@@ -195,6 +198,9 @@ userSchema.methods.toJSON = function () {
   delete obj.loginOtpExpires;
   delete obj.loginOtpLastSentAt;
   delete obj.loginOtpRememberMe;
+  delete obj.loginOtpChallengeHash;
+  delete obj.loginOtpAttempts;
+  delete obj.loginOtpPasswordVersion;
   delete obj.invitationTokenHash;
   delete obj.invitationExpiresAt;
   delete obj.currentSessionId;

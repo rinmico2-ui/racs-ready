@@ -246,9 +246,9 @@
 <script>
 (function(){
   const customerApiBase = <%- JSON.stringify(resolvedCustomerApiBase).replace(/</g, "\\u003c") %>;
-  const customerCanManage = <%- JSON.stringify(resolvedCustomerCanManage) %>;
-  const customerCanBlock = <%- JSON.stringify(resolvedCustomerCanBlock) %>;
-  const customerCanUnblock = <%- JSON.stringify(resolvedCustomerCanUnblock) %>;
+  const customerCanManage = <%- (JSON.stringify(resolvedCustomerCanManage)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
+  const customerCanBlock = <%- (JSON.stringify(resolvedCustomerCanBlock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
+  const customerCanUnblock = <%- (JSON.stringify(resolvedCustomerCanUnblock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   var allCustomers = [];
   var filteredCustomers = [];
   var currentPage = 1;

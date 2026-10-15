@@ -496,7 +496,7 @@
     const barangays = alphabetizeByName(normalizeList(raw));
 
     selectElement.innerHTML =
-      '<option value="">Select Barangay (optional)</option>';
+      '<option value="">Select Barangay</option>';
 
     barangays.forEach((b) => {
       const option = document.createElement("option");

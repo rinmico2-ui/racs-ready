@@ -19,6 +19,8 @@ const FailedLoginAttempt = require("../models/FailedLoginAttempt");
 const AuthSession = require("../models/AuthSession");
 const mailer = require("../utils/mailer");
 const trustedDevices = require("../utils/trustedDevices");
+const loginOtpChallenge = require("../utils/loginOtpChallenge");
+const { verifyMathChallenge, sendChallengeError } = require("../utils/mathChallenge");
 const rateLimiter = require("../middleware/loginRateLimiter");
 
 // Configuration / policy (tunable)
@@ -215,14 +217,12 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ error: msg });
     }
 
-    if (String(mathCaptcha).trim() !== String(mathAnswer).trim()) {
-      // Record failed attempt
+    try { await verifyMathChallenge(req, "login"); }
+    catch (error) {
       rateLimiter.recordFailed("email", normalizedEmail);
       rateLimiter.recordFailed("ip_email", scopedIp);
-
-      const msg = "captcha";
-      if (!wantsJson(req)) return res.redirect("/login?error=" + encodeURIComponent(msg));
-      return res.status(400).json({ error: msg });
+      if (sendChallengeError(res, error)) return;
+      throw error;
     }
 
     const user = await User.findOne({
@@ -298,13 +298,14 @@ exports.login = async (req, res, next) => {
 
     if (alwaysRequireOtp || technicianRequiresOtp) {
       try {
-        await authController.generateLoginOTP(user.email, user._id, rememberMe);
+        const delivery = await authController.generateLoginOTP(user, rememberMe, req, res);
         return res.status(200).json({
-          message: "OTP sent to your email. Please verify to complete login.",
+          ...delivery,
           requiresOTP: true,
           canTrustDevice: user.role === "technician",
         });
       } catch (e) {
+        if (loginOtpChallenge.sendError(res, e)) return;
         console.warn(
           "secureAuth.login: failed to send required staff OTP",
           user.email,
@@ -340,6 +341,7 @@ exports.login = async (req, res, next) => {
           // rememberMe flag so token rotation preserves the extended expiry.
           const jwt = require("jsonwebtoken");
           const sessionId = require("crypto").randomBytes(24).toString("hex");
+          user.lastLogin = new Date();
           user.currentSessionId = sessionId;
           await user.save();
           const jwtMaxAge = rememberMe
@@ -437,11 +439,13 @@ exports.login = async (req, res, next) => {
 };
 
 exports.logout = async (req, res) => {
+  loginOtpChallenge.clearCookie(res);
   try {
     const sid = req.sessionID;
     // capture userId before session is destroyed (may not always be present)
     const userId =
       (req.session && req.session.userId) || (req.user && req.user._id);
+    require("../utils/socketAuthorization").disconnectUser(req, userId);
 
     // destroy express-session
     req.session.destroy(() => {});

@@ -17,7 +17,7 @@ function bucket() {
 async function storeFinancialReceipt(file, uploadedBy, options = {}) {
   if (!uploadedBy) throw new Error("A receipt owner is required.");
   const contentType = receiptType(file);
-  const stream = (options.bucket || bucket()).openUploadStream(`receipt-${crypto.randomBytes(12).toString("hex")}`, { contentType, metadata: { contentType, uploadedBy: String(uploadedBy), originalName: String(file.originalname || "receipt").slice(0, 200) } });
+  const stream = (options.bucket || bucket()).openUploadStream(`receipt-${crypto.randomBytes(12).toString("hex")}`, { contentType, metadata: { ...options.metadata, contentType, uploadedBy: String(uploadedBy), originalName: String(file.originalname || "receipt").slice(0, 200) } });
   return new Promise((resolve, reject) => {
     stream.once("error", reject);
     stream.once("finish", () => resolve({ fileId: stream.id, url: `/api/receipts/${stream.id}` }));
@@ -26,7 +26,9 @@ async function storeFinancialReceipt(file, uploadedBy, options = {}) {
 }
 async function findFinancialReceipt(id) {
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
-  return bucket().find({ _id: new mongoose.Types.ObjectId(id) }).next();
+  const receipts = bucket();
+  const original = await receipts.find({ _id: new mongoose.Types.ObjectId(id) }).next();
+  return original || receipts.find({ "metadata.recoveredFrom": `/api/receipts/${String(id).toLowerCase()}` }).next();
 }
 async function findLegacyFinancialReceipt(filename) {
   if (!/^expense-\d+-\d+\.(?:jpe?g|png|webp|pdf)$/i.test(String(filename || ""))) return null;

@@ -227,7 +227,7 @@
 </section>
 
 <script>window.adminGcashNumber = "<%= typeof adminGcashNumber !== 'undefined' ? adminGcashNumber : '' %>";</script>
-<script src="/js/cart-selection.js?v=20260929-selected-checkout"></script>
+<script src="/js/cart-selection.js?v=20261014-checkout-draft-context"></script>
 <script>
   window.CartSelection.init({
     customerId: <%- JSON.stringify(String(locals.user && user._id || '')).replace(/</g, '\\u003c') %>,
@@ -260,9 +260,7 @@
     if (newQty < 1) return removeItem(itemId);
     input.value = newQty;
     try {
-      var response = await fetch('/api/aircon-cart/add', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ inventoryId:inventoryId, quantity:delta }) });
-      var data = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(data.error || 'Failed to update quantity');
+      await RACSRequest.json('/api/aircon-cart/add', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ inventoryId:inventoryId, quantity:delta }) });
       window.location.reload();
     } catch (error) {
       input.value = previousQty;
@@ -274,9 +272,7 @@
     var result = await Swal.fire({ title:'Remove this product?', text:'It will be removed from your current order.', icon:'warning', showCancelButton:true, confirmButtonColor:'#dc2626', confirmButtonText:'Remove product' });
     if (!result.isConfirmed) return;
     try {
-      var response = await fetch('/api/aircon-cart/' + itemId, { method:'DELETE' });
-      var data = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(data.error || 'Failed to remove product');
+      await RACSRequest.json('/api/aircon-cart/' + itemId, { method:'DELETE' });
       window.location.reload();
     } catch (error) {
       Swal.fire({ icon:'error', title:'Product not removed', text:error.message || 'Please try again.' });

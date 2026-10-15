@@ -43,6 +43,7 @@ const scheduleRecoveryHistorySchema = new mongoose.Schema({
 }, { _id: true });
 
 const projectSchema = new mongoose.Schema({
+  sourceOrderId: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null, index: true },
   bookingId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "BookingService",
@@ -763,5 +764,6 @@ projectSchema.statics.getDashboardStats = async function () {
 };
 
 projectSchema.index({ "repair.serviceType": 1 });
+projectSchema.index({ "payment.completionProofUrl": 1 }, { sparse: true });
 
 module.exports = mongoose.model("Project", projectSchema);

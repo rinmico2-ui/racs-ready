@@ -5,6 +5,18 @@ const { requireRole } = require('../middleware/authenticate');
 const service = require('../utils/adminExpenseService').createService();
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 16 } }).single('receipt');
+router.post('/:id/receipt/recover', requireRole(['admin']), (req, res, next) => upload(req, res, async error => {
+  if (error) return res.status(400).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'Receipt must be 5 MB or smaller.' : 'Choose one valid receipt file.' });
+  try {
+    const result = await require('../utils/expenseReceiptRecovery').recoverExpenseReceipt({ expenseId: req.params.id, file: req.file, confirmOriginal: req.body?.confirmOriginal, user: req.user });
+    if (!result.repeated) await require('../utils/audit').logEvent({ actor: req.user._id, target: req.params.id, action: 'expense.receipt.restore', module: 'admin', req,
+      details: { originalUrl: result.url, restoredFileId: result.fileId, originalConfirmed: true } }).catch(() => {});
+    return res.status(result.repeated ? 200 : 201).json({ success: true, ...result, message: 'Receipt restored.' });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+}));
 router.get('/options', requireRole(['admin']), async (req, res, next) => {
   try {
     const [technicians, bookings] = await Promise.all([

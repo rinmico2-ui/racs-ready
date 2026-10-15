@@ -44,7 +44,7 @@ test('updated order views render and scripts parse without errors', async () => 
   for (const role of ['admin', 'secretary']) {
     const html = await ejs.renderFile(path.join(__dirname, '../views/pages/admin/Inventory/AirconOrders.ejs'), { ordersWorkspaceRole: role });
     assert.match(html, /ao-accepted-stat-icon/);
-    assert.match(html, /admin-aircon-orders\.js\?v=20261011-preparation-handoff/);
+    assert.match(html, /admin-aircon-orders\.js\?v=[a-z0-9-]+/);
     for (const match of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)) {
       assert.doesNotThrow(() => new vm.Script(match[1]));
     }

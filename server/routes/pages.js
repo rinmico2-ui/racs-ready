@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const { availability: productAvailability } = require('../public/js/product-availability');
+const { sendReportPdf } = require('../utils/reportPdf');
 
 const defaultTechnicianLocation = {
   lat: 14.676049,
@@ -12,6 +14,8 @@ const { getPublicBusinessStats } = require("../utils/publicBusinessStats");
 const { getSystemConfiguration } = require("../utils/systemConfiguration");
 const { cacheKey } = require("../utils/reportCache");
 const { profileNamePolicy } = require("../utils/profileNamePolicy");
+const { customerProfilePresentation } = require("../utils/customerProfilePresentation");
+const { issueMathChallenge, PURPOSES: CAPTCHA_PURPOSES } = require("../utils/mathChallenge");
 
 const serviceReportFragmentCache = new Map();
 const SERVICE_REPORT_FRAGMENT_TTL_MS = 30000;
@@ -61,8 +65,12 @@ function generateMathCaptcha() {
 // used by client-side scripts so the user can reload the captcha without
 // reloading the whole auth page.
 router.get("/math-captcha", (req, res) => {
-  const { num1, num2, answer } = generateMathCaptcha();
-  res.json({ num1, num2, answer });
+  const purpose = typeof req.query.purpose === "string" ? req.query.purpose : "login";
+  if (!CAPTCHA_PURPOSES.has(purpose)) return res.status(400).json({ error: "Invalid security question." });
+  const csrfToken = req.cookies?.["XSRF-TOKEN"] || crypto.randomBytes(24).toString("hex");
+  res.cookie("XSRF-TOKEN", csrfToken, { httpOnly: false, secure: process.env.NODE_ENV === "production", sameSite: "Strict", path: "/" });
+  res.set("Cache-Control", "no-store");
+  res.json({ ...issueMathChallenge(purpose, csrfToken), csrfToken });
 });
 
 // Landing page
@@ -263,7 +271,8 @@ router.get("/products", pageAuth.requireCustomerOrGuest, async (req, res, next) 
           btu: v.btu || 0,
           sellingPrice: v.sellingPrice || 0,
           quantity: v.quantity || 0,
-          status: v.status || "out_of_stock",
+          status: productAvailability(v, item).status,
+          active: productAvailability(v, item).available,
           sku: v.sku || "",
           specifications: v.specifications || {},
         })).sort((a, b) => parseFloat(a.capacity) - parseFloat(b.capacity))
@@ -294,6 +303,9 @@ router.get("/products", pageAuth.requireCustomerOrGuest, async (req, res, next) 
 
 // Product detail page
 router.get("/products/:id", pageAuth.requireCustomerOrGuest, async (req, res, next) => {
+  if (!/^[a-f0-9]{24}$/i.test(req.params.id || "")) {
+    return res.status(404).render("pages/404", { title: "Product Not Found" });
+  }
   try {
     const HVACProduct = require("../models/HVACProduct");
     const product = await HVACProduct.findById(req.params.id)
@@ -312,7 +324,8 @@ router.get("/products/:id", pageAuth.requireCustomerOrGuest, async (req, res, ne
       btu: v.btu || 0,
       sellingPrice: v.sellingPrice || 0,
       quantity: v.quantity || 0,
-      status: v.status || "out_of_stock",
+      status: productAvailability(v, product).status,
+          active: productAvailability(v, product).available,
       sku: v.sku || "",
       specifications: v.specifications || {},
     })).sort((a, b) => parseFloat(a.capacity) - parseFloat(b.capacity));
@@ -361,7 +374,8 @@ router.get("/products/:id", pageAuth.requireCustomerOrGuest, async (req, res, ne
             let inv = await Inventory.findById(id).lean();
             if (inv) {
               if (inv.brand) inv.brand = await Brand.findById(inv.brand).select("name").lean();
-              item.inventoryId = inv;
+              inv.status = productAvailability(inv).status;
+          item.inventoryId = inv;
               totalAmount += (inv.sellingPrice || 0) * (item.quantity || 1);
             } else {
               const hvacDoc = await HVACProduct.findOne({ "variants._id": id }).populate("brand", "name").lean();
@@ -374,6 +388,9 @@ router.get("/products/:id", pageAuth.requireCustomerOrGuest, async (req, res, ne
                   capacity: variant.capacity,
                   capacityUnit: variant.capacityUnit,
                   sellingPrice: variant.sellingPrice,
+                  quantity: variant.quantity,
+                  status: productAvailability(variant, hvacDoc).status,
+                  active: productAvailability(variant, hvacDoc).available,
                   imageUrl: hvacDoc.imageUrl,
                   inverter: hvacDoc.inverter
                 };
@@ -452,6 +469,7 @@ router.get("/my-orders", pageAuth.requireRole("customer"), async (req, res, next
       });
       orders.forEach((order) => { order.maintenanceAssets = assetsByOrder.get(String(order._id)) || []; });
     }
+    await require("../utils/purchaseProjectSummary").attachPurchaseProjectSummaries(orders);
     res.render("pages/my-orders", { title: "My Orders", orders });
   } catch (err) {
     next(err);
@@ -486,6 +504,7 @@ router.get("/my-orders/:id", pageAuth.requireRole("customer"), async (req, res, 
       .populate("technicianId", "name phone email")
       .lean();
     if (!order) return res.status(404).render("pages/404", { title: "Order Not Found" });
+    await require("../utils/purchaseProjectSummary").attachPurchaseProjectSummaries([order]);
 
     if ((!order.technician || !order.technician.name) && order.technicianId && typeof order.technicianId === "object") {
       order.technician = {
@@ -559,6 +578,7 @@ router.get("/aircon-cart", pageAuth.requireRole("customer"), async (req, res, ne
         let inv = await Inventory.findById(id).lean();
         if (inv) {
           if (inv.brand) inv.brand = await Brand.findById(inv.brand).select("name").lean();
+          inv.status = productAvailability(inv).status;
           item.inventoryId = inv;
           totalAmount += (inv.sellingPrice || 0) * (item.quantity || 1);
         } else {
@@ -573,7 +593,8 @@ router.get("/aircon-cart", pageAuth.requireRole("customer"), async (req, res, ne
               capacityUnit: variant.capacityUnit,
               sellingPrice: variant.sellingPrice,
               quantity: variant.quantity,
-              status: variant.status,
+              status: productAvailability(variant, hvacDoc).status,
+              active: productAvailability(variant, hvacDoc).available,
               imageUrl: hvacDoc.imageUrl,
               inverter: hvacDoc.inverter,
               productId: hvacDoc._id
@@ -808,6 +829,7 @@ router.get("/login", async (req, res) => {
     num1,
     num2,
     mathAnswer: answer,
+    captchaChallenges: { login: issueMathChallenge("login", csrfToken, { num1, num2 }).challenge, register: issueMathChallenge("register", csrfToken, { num1, num2 }).challenge },
     active: "sign-in",
     returnTo: req.query.returnTo || null,
     registrationAllowed: (await getSystemConfiguration()).application.allowCustomerRegistrations,
@@ -815,9 +837,9 @@ router.get("/login", async (req, res) => {
     testimonial: await getRandomTestimonial(),
     extraScripts: [
       "/js/auth-panel.js",
-      "/js/login.js?v=20260906-login-policy",
-      "/js/register.js?v=20260927-password-validation",
-      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2",
+      "/js/login.js?v=20261015-security",
+      "/js/register.js?v=20261015-security",
+      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review",
     ],
   });
 });
@@ -843,15 +865,16 @@ router.get("/register", async (req, res) => {
     num1,
     num2,
     mathAnswer: answer,
+    captchaChallenges: { login: issueMathChallenge("login", csrfToken, { num1, num2 }).challenge, register: issueMathChallenge("register", csrfToken, { num1, num2 }).challenge },
     active: "sign-up",
     registrationAllowed,
     companyAddress: await getCompanyAddress(),
     testimonial: await getRandomTestimonial(),
     extraScripts: [
       "/js/auth-panel.js",
-      "/js/login.js?v=20260906-login-policy",
-      "/js/register.js?v=20260927-password-validation",
-      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2",
+      "/js/login.js?v=20261015-security",
+      "/js/register.js?v=20261015-security",
+      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review",
     ],
   });
 });
@@ -871,10 +894,11 @@ router.get("/forgot-password", (req, res) => {
     title: "Forgot your password",
     csrfToken,
     layout: "layouts/auth",
-    extraScripts: ["/js/forgot.js"],
+    extraScripts: ["/js/forgot.js?v=20261015-security"],
     num1,
     num2,
     mathAnswer: answer,
+    mathChallenge: issueMathChallenge("forgot", csrfToken, { num1, num2 }).challenge,
     recaptchaSiteKey: "",
   });
 });
@@ -895,10 +919,11 @@ router.get("/reset-password", (req, res) => {
     csrfToken,
     token: req.query.token || "",
     layout: "layouts/auth",
-    extraScripts: ["/js/reset.js"],
+    extraScripts: ["/js/reset.js?v=20261015-security"],
     num1,
     num2,
     mathAnswer: answer,
+    mathChallenge: issueMathChallenge("reset", csrfToken, { num1, num2 }).challenge,
     // no reCAPTCHA on reset page
     recaptchaSiteKey: "",
   });
@@ -971,6 +996,7 @@ router.get("/profile", pageAuth.requireRole("customer"), async (req, res, next) 
       title: "My Profile",
       user: req.user,
       nameChangePolicy: profileNamePolicy(req.user),
+      profilePresentation: customerProfilePresentation(req.user),
       ratings,
       productItems,
       bookings,
@@ -986,7 +1012,7 @@ router.get("/user", (req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
-  res.render("pages/profile", { title: "My Profile", nameChangePolicy: profileNamePolicy(req.user) });
+  res.render("pages/profile", { title: "My Profile", nameChangePolicy: profileNamePolicy(req.user), profilePresentation: customerProfilePresentation(req.user) });
 });
 
 // Admin-only profile (separate view)
@@ -2636,9 +2662,11 @@ router.get(
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
+      if (req.query.format === 'pdf') return await sendReportPdf(res, 'orders', analytics, filters);
       res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
+      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The order report could not be exported. Please try again.' });
       empty.appliedFilters = serializableOrderFilters(reportFilters);
       res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "The order report could not load. Please try again." });
     }
@@ -2682,7 +2710,7 @@ router.get(
   pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     const cachedFragment = readServiceReportFragment({ ...req.query, reportRole: req.user.role });
-    if (cachedFragment.html) {
+    if (cachedFragment.html && req.query.format !== 'pdf') {
       res.set("X-Report-Cache", "hit");
       return res.send(cachedFragment.html);
     }
@@ -3424,6 +3452,7 @@ router.get(
         reportError: null,
         deferredAnalytics: false,
       };
+      if (req.query.format === 'pdf') return await sendReportPdf(res, 'service', viewModel.analytics, req.query);
       const html = await new Promise((resolve, reject) => {
         res.render("pages/admin/Reports/ServiceReport", viewModel, (renderError, renderedHtml) => {
           if (renderError) reject(renderError);
@@ -3434,6 +3463,7 @@ router.get(
       return res.send(html);
     } catch (err) {
       console.error("Service reports error:", err);
+      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The service report could not be exported. Please try again.' });
       res.render("pages/admin/Reports/ServiceReport", {
         title: "Service Reports",
         layout: false,
@@ -3809,7 +3839,7 @@ router.get(
       const stockMovementActual = Object.values(movementByDay).sort((a,b)=>a.date.localeCompare(b.date));
       const topConsumedItems = itemAnalytics.filter(r => r.usage > 0).sort((a,b)=>b.usage-a.usage).slice(0,10).map(r=>({name:r.name,quantity:r.usage,kind:r.kind}));
       
-      res.render("pages/admin/Reports/InventoryReports", {
+      const inventoryViewModel = {
         title: "Stock Reports",
         layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
         analytics: {
@@ -3858,9 +3888,12 @@ router.get(
           totalUnits: itemAnalytics.reduce((s,r)=>s+r.quantity,0),
           availableUnits: itemAnalytics.reduce((s,r)=>s+r.available,0),
         }
-      });
+      };
+      if (req.query.format === 'pdf') return await sendReportPdf(res, 'inventory', inventoryViewModel.analytics, req.query);
+      res.render("pages/admin/Reports/InventoryReports", inventoryViewModel);
     } catch (err) {
       console.error("Inventory reports error:", err);
+      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The stock report could not be exported. Please try again.' });
       res.render("pages/admin/Reports/InventoryReports", {
         title: "Stock Reports",
         layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",

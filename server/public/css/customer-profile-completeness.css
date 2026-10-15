@@ -1,0 +1,80 @@
+.profile-page .prof-sidebar-header {
+  position: relative;
+  padding-top: 38px;
+  background: linear-gradient(180deg, #eaf1fc 0, #f5f8ff 104px, #fff 104px);
+}
+.profile-page .prof-generated-avatar {
+  width: 108px;
+  height: 108px;
+  border: 5px solid #fff;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 4px 14px #1e3a8a12;
+  background: #eaf1fc;
+}
+.profile-page .prof-generated-avatar svg { display: block; width: 100%; height: 100%; flex-shrink: 0; }
+.profile-page .prof-email { overflow-wrap: anywhere; }
+.profile-page .prof-name { overflow-wrap: anywhere; }
+.profile-page .prof-identity-completion { max-width: 260px; margin: 20px auto 0; text-align: left; }
+.profile-page .prof-identity-completion a {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 44px; color: #526078; font-size: .76rem; text-decoration: none;
+}
+.profile-page .prof-identity-completion a:hover { color: #1d4ed8; }
+.profile-page .prof-identity-completion strong { color: #1d4ed8; }
+.profile-page .prof-progress-bar { height: 8px; background: #e9eef5; }
+.profile-page .prof-progress-fill { background: #3b82f6; }
+.profile-page .prof-profile-sidebar { position: static; }
+.profile-page #profileCompletion { scroll-margin-top: 90px; }
+.profile-page #profileCompletion:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
+.profile-page .prof-completion-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 22px 20px 12px; border: 0; background: #fff;
+}
+.profile-page .prof-completion-eyebrow { margin: 0 0 6px; color: #64748b; font-size: .65rem; font-weight: 700; letter-spacing: .09em; }
+.profile-page .prof-completion-title { font-size: 1rem; text-transform: none; letter-spacing: -.02em; line-height: 1.45; }
+.profile-page .prof-completion-percent {
+  color: #1d4ed8; font-size: 1rem; font-weight: 800; background: #eff6ff;
+  padding: 8px 10px; border-radius: 10px; white-space: nowrap;
+}
+.profile-page .prof-completion-body { padding-top: 4px; padding-bottom: 20px; }
+.profile-page .prof-completion-count { margin: 10px 0 8px; font-size: .78rem; color: #64748b; }
+.profile-page .prof-completion-count strong { color: #334155; }
+.profile-page .prof-completion-hint { color: #64748b; font-size: .78rem; line-height: 1.65; }
+.profile-page .prof-completion-checklist { list-style: none; padding: 0; margin: 16px 0 0; }
+.profile-page .prof-completion-task {
+  display: flex; align-items: flex-start; gap: 10px; padding: 14px 0;
+  border-top: 1px solid #edf1f5;
+}
+.profile-page .prof-task-status {
+  display: flex; align-items: center; justify-content: center; flex: 0 0 24px;
+  height: 24px; border-radius: 50%; background: #f1f5f9; color: #64748b;
+  font-size: .7rem; font-weight: 700;
+}
+.profile-page .is-done .prof-task-status { background: #dcfce7; color: #15803d; }
+.profile-page .prof-task-details { flex: 1; min-width: 0; }
+.profile-page .prof-task-details strong { display: block; font-size: .8rem; color: #334155; line-height: 1.6; }
+.profile-page .prof-task-details > span { display: block; font-size: .72rem; color: #64748b; margin-top: 2px; line-height: 1.6; }
+.profile-page .is-done .prof-task-details > span { color: #15803d; }
+.profile-page .prof-task-weight { font-size: .72rem; font-weight: 600; color: #64748b; padding-top: 4px; white-space: nowrap; }
+.profile-page .prof-task-action {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 44px;
+  padding: 4px 0; border: 0; background: transparent; font: inherit;
+  font-size: .75rem; font-weight: 600; color: #1d4ed8; cursor: pointer;
+}
+.profile-page .prof-task-action:hover { color: #1e40af; text-decoration: underline; }
+.profile-page .prof-complete-action { min-height: 44px; margin-top: 6px; background: #2563eb; box-shadow: none; }
+.profile-page .prof-complete-action:hover { background: #1d4ed8; box-shadow: none; transform: none; }
+.profile-page .prof-completion-footnote { margin: 10px 0 0; color: #64748b; font-size: .68rem; text-align: center; line-height: 1.6; }
+.profile-page .is-complete .prof-completion-percent { color: #15803d; background: #f0fdf4; }
+.profile-page .is-complete .prof-progress-fill { background: #22a06b; }
+.profile-page .prof-task-action:focus-visible,
+.profile-page .prof-identity-completion a:focus-visible,
+.profile-page .prof-complete-action:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; border-radius: 4px; }
+@media (max-width: 575.98px) {
+  .profile-page .prof-completion-header { padding: 20px 18px 12px; }
+  .profile-page .prof-completion-body { padding-right: 18px; padding-left: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-page .prof-progress-fill { transition: none; }
+}

@@ -53,6 +53,15 @@ const technicianSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+// Repair malformed legacy dates when an existing record is next saved.
+// New input still has to pass normal Date validation; valid history is preserved.
+technicianSchema.pre("validate", function () {
+  if (this.isNew) return;
+  if (!this.$errors?.createdAt && this.createdAt instanceof Date && Number.isFinite(this.createdAt.getTime())) return;
+  const originalDate = this._id?.getTimestamp?.();
+  if (originalDate instanceof Date && Number.isFinite(originalDate.getTime())) this.set("createdAt", originalDate);
+});
+
 // helper static functions for common queries
 technicianSchema.statics.getActiveWithLocation = function () {
   // returns active technicians that have a location coordinate set

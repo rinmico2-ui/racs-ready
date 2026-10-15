@@ -4,6 +4,13 @@
   else root.AddressAutocomplete = api;
 })(typeof window === 'undefined' ? globalThis : window, function () {
   'use strict';
+  function retryDelay(response, data, fallback = 30000) {
+    const raw = response?.headers?.get?.('Retry-After');
+    const headerDelay = raw == null ? NaN : Number.isFinite(Number(raw)) ? Number(raw) * 1000 : Date.parse(raw) - Date.now();
+    const delay = Number.isFinite(Number(data?.retryAfter)) && Number(data.retryAfter) > 0 ? Number(data.retryAfter)
+      : Number.isFinite(headerDelay) ? headerDelay : fallback;
+    return Math.min(300000, Math.max(1000, delay));
+  }
   function appendAttribution(container, provider) {
     const doc = container.ownerDocument;
     const note = doc.createElement('div'); note.className = 'px-3 py-2 border-top small text-muted'; note.style.fontSize = '10px';
@@ -32,9 +39,21 @@
       if (searchButton) { searchButton.disabled = value; searchButton.innerHTML = value ? '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>' : originalSearch; }
     }
     function cancel() { win.clearTimeout(timer); ++sequence; controller?.abort(); busy(false); close(); }
-    function message(text) {
+    function message(text, allowSearch = false) {
       rows = []; list.replaceChildren(); const note = doc.createElement('div');
-      note.className = 'list-group-item border-0 py-3 small text-secondary'; note.setAttribute('role','status'); note.textContent = text; list.append(note); open();
+      note.className = 'list-group-item border-0 py-3 small text-secondary'; note.setAttribute('role','status'); note.textContent = text; list.append(note);
+      if (allowSearch) {
+        const button = doc.createElement('button'); button.type = 'button';
+        button.className = 'list-group-item list-group-item-action border-0 py-2 small text-primary text-start';
+        button.style.minHeight = '44px'; button.textContent = 'Search this address';
+        button.addEventListener('click', event => {
+          // lookup replaces this row before the document's outside-click
+          // handler runs; keep that same click from cancelling its request.
+          event.stopPropagation(); return lookup(true);
+        });
+        list.append(button); rows.push(button);
+      }
+      open();
     }
     function select(result) { cancel(); input.value = result.display_name; onSelect?.(result); }
     function render(results) {
@@ -60,6 +79,10 @@
       win.clearTimeout(timer); const query = input.value.trim();
       if (query.length < 3) { cancel(); return; }
       if (query.length > 250) { cancel(); message('Use a shorter address to search, then add any extra details.'); return; }
+      if (!explicit && Date.now() < retryAt) {
+        message('Live suggestions are temporarily unavailable. Search this address or place a pin on the map.', true);
+        return;
+      }
       const token = ++sequence; controller?.abort(); controller = new win.AbortController(); busy(true);
       message('Finding matching addresses…');
       try {
@@ -69,19 +92,27 @@
         if (token !== sequence || input.value.trim() !== query) return;
         const results = Array.isArray(data) ? data : data?.suggestions;
         if (!response.ok || !Array.isArray(results)) {
-          if (response.status === 429 || response.status === 503) retryAt = Date.now() + 3000;
-          throw new Error(data?.error || 'Address suggestions are unavailable. Try Search again or use the map.');
+          if ([429, 502, 503, 504].includes(response.status)) retryAt = Date.now() + retryDelay(response, data);
+          const error = new Error('Address lookup failed');
+          error.userMessage = typeof data?.error === 'string' ? data.error : 'Address search is temporarily unavailable. Search this address or use the map.';
+          throw error;
         }
+        if (!explicit) retryAt = 0;
         render(results);
       } catch (error) {
         if (error.name === 'AbortError' || token !== sequence || input.value.trim() !== query) return;
-        message(error.message || 'Address search is unavailable. Try again or use the map.');
+        if (!explicit && retryAt < Date.now()) retryAt = Date.now() + 30000;
+        message(error.userMessage || 'Address search is temporarily unavailable. Search this address or use the map.', true);
       } finally { if (token === sequence) busy(false); }
     }
     function typed() {
       cancel(); onInput?.(input.value.trim());
       if (composing || input.value.trim().length < 3) return;
-      timer = win.setTimeout(lookup,Math.max(350,retryAt - Date.now()));
+      if (Date.now() < retryAt) {
+        message('Live suggestions are temporarily unavailable. Search this address or place a pin on the map.', true);
+        return;
+      }
+      timer = win.setTimeout(lookup,350);
     }
     function keydown(event) {
       if (event.isComposing) return;
@@ -97,5 +128,5 @@
     searchButton?.addEventListener('click',search); doc.addEventListener('click',outside);
     const api = { search,close:cancel }; input._addressAutocomplete = api; return api;
   }
-  return { create,appendAttribution };
+  return { create,appendAttribution,retryDelay };
 });

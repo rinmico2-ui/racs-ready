@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict'), test = require('node:test');
-const { create } = require('../public/js/address-autocomplete');
+const { create, retryDelay } = require('../public/js/address-autocomplete');
 const tick = () => new Promise(setImmediate);
 function fixture() {
   let doc; const nodes = [];
@@ -13,7 +13,13 @@ function fixture() {
       contains(target) { return this === target || this.children.some(child => child.contains?.(target)); },
       focus() { this.focused = true; },
       addEventListener(type,fn) { (events[type] ||= []).push(fn); },
-      emit(type,event = {}) { return Promise.all((events[type] || []).map(fn => fn({ target:node,preventDefault() {},...event }))); },
+      emit(type,event = {}) {
+        let stopped = false;
+        const dispatched = { target:node,preventDefault() {},...event,stopPropagation() { stopped = true; } };
+        const pending = (events[type] || []).map(fn => fn(dispatched));
+        if (type === 'click' && doc && node !== doc && !stopped) pending.push(doc.emit(type, dispatched));
+        return Promise.all(pending);
+      },
     }; node.ownerDocument = doc; nodes.push(node); return node;
   }
   doc = element(); doc.createElement = element; doc.createTextNode = text => ({ textContent:text });
@@ -65,4 +71,28 @@ test('empty results and foreign coordinates never select a location', async () =
   const f = fixture(); await f.type('Unknown place'); f.flush();
   f.respond(0,{ suggestions:[{...address,lat:40,lon:-74}] }); await tick();
   assert.match(f.list.children[0].textContent,/No matches/); assert.equal(f.selections.length,0);
+});
+
+test('an HTML gateway error offers explicit Search and pauses live requests without losing typed text', async () => {
+  const f = fixture(); await f.type('Puncan'); f.flush();
+  f.calls[0].resolve({ ok:false, status:502, json:async () => { throw new SyntaxError('Bad Gateway'); } });
+  await tick();
+  assert.equal(f.input.value, 'Puncan'); assert.equal(f.search.disabled, false);
+  assert.doesNotMatch(f.list.children[0].textContent, /SyntaxError|Bad Gateway|Unexpected token/);
+  assert.equal(f.list.children[1].textContent, 'Search this address');
+  await f.type('Puncan Carranglan'); f.flush();
+  assert.equal(f.calls.length, 1, 'typing during cooldown must not call either provider');
+  const manual = f.list.children[1].emit('click');
+  assert.match(f.calls[1].url, /\/search\?q=Puncan%20Carranglan$/);
+  f.respond(1, [{ ...address, display_name:'Puncan, Carranglan, Nueva Ecija, Philippines' }]);
+  await manual; await tick();
+  await f.list.children[0].emit('click'); assert.equal(f.selections.length, 1);
+});
+
+test('the retry interval accepts provider headers, caps long waits, and treats body intervals as milliseconds', () => {
+  const response = value => ({ headers: { get: () => value } });
+  assert.equal(retryDelay(response('75'), {}), 75000);
+  assert.equal(retryDelay(response(null), { retryAfter:30000 }), 30000);
+  assert.equal(retryDelay(response('999999'), {}), 300000);
+  assert.equal(retryDelay(response('not a date'), {}), 30000);
 });

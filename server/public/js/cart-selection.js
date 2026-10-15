@@ -74,6 +74,7 @@
           selectedIds: current.items.map(item => String(item._id)),
         }));
       } catch (_) {}
+      if (root.CustomEvent && document.dispatchEvent) document.dispatchEvent(new root.CustomEvent('cart:selection-changed'));
     }
     root.getSelectedCartForCheckout = currentCart;
     checkboxes.forEach(checkbox => checkbox.addEventListener("change", refresh));

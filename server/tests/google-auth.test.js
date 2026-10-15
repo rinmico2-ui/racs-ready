@@ -322,6 +322,12 @@ function signupRequest(email) {
   };
 }
 
+function mockSignupCatalog(t) {
+  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'01', name:'Test Province' }]
+    : kind === 'cities' ? [{ code:'0101', name:'Test City', province:'Test Province' }]
+      : [{ code:'010101', name:'Test Barangay' }]);
+}
+
 function signupResponse() {
   return {
     statusCode: 200,
@@ -332,6 +338,7 @@ function signupResponse() {
 }
 
 test("first-time Google signup creates a verified customer without an emailed OTP", async (t) => {
+  mockSignupCatalog(t);
   invalidateSystemConfiguration();
   t.after(invalidateSystemConfiguration);
   t.mock.method(SiteSetting, "findOne", () => ({ lean: async () => null }));
@@ -352,6 +359,7 @@ test("first-time Google signup creates a verified customer without an emailed OT
 });
 
 test("Google claim of an unverified email signup replaces its old password", async (t) => {
+  mockSignupCatalog(t);
   invalidateSystemConfiguration();
   t.after(invalidateSystemConfiguration);
   t.mock.method(SiteSetting, "findOne", () => ({ lean: async () => null }));

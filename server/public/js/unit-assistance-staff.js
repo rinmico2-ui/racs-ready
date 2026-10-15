@@ -12,6 +12,7 @@
   const refreshButton = document.getElementById('unitStaffRefresh');
   const appointmentsUrl = document.querySelector('.ua-page')?.dataset.appointmentsUrl || '/admin/appointments';
   const state = { requests: [], selectedId: null, editingQuote: false, loading: false };
+  const A = window.ApplianceServices;
   const pesos = amount => `₱${Number(amount || 0).toLocaleString('en-PH')}`;
   const dateLabel = value => value && !Number.isNaN(new Date(value).getTime())
     ? new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -161,6 +162,7 @@
       data('Email', customer.email, customer.email ? `mailto:${customer.email}` : null),
       data('Phone', phone, phone && /^[+\d\s()-]+$/.test(phone) ? `tel:${phone.replace(/[^+\d]/g, '')}` : null),
       data('Service quantity', `${request.quantity} ${request.quantity === 1 ? 'unit' : 'units'}`),
+      data('Appliance', A.labels[request.applianceKind || 'aircon']), data('Model', request.model),
       data('Customer reported brand', request.brand || 'Not sure'),
       data('Customer reported type / HP', `${request.airconType || 'Not sure'} / ${request.hp ? `${request.hp} HP` : 'Not sure'}`));
     if (request.relocation?.scope === 'same_property') {
@@ -170,6 +172,14 @@
     if (request.existingBookingId) details.append(data('Existing booking', request.existingBookingReference || String(request.existingBookingId)));
     customerSection.append(details);
     if (request.notes) customerSection.append(text('p', 'ua-customer-note', request.notes));
+    if (request.photos?.length) {
+      const photos = text('div', 'ua-unit-photos');
+      request.photos.slice(0, 2).forEach((_photo, index) => {
+        const link = text('a'); link.href = `/api/unit-assistance/${encodeURIComponent(request._id)}/photos/${index}`; link.target = '_blank'; link.rel = 'noopener';
+        const image = text('img'); image.src = link.href; image.alt = `Customer unit photo ${index + 1}`; image.loading = 'lazy'; image.style.cssText = 'width:100%;max-width:260px;max-height:180px;object-fit:contain;border-radius:8px;margin:8px';
+        link.append(image); photos.append(link);
+      }); customerSection.append(photos);
+    }
     body.append(customerSection);
 
     if (request.quote) body.append(renderQuoteSummary(request));
@@ -200,7 +210,7 @@
     const quote = request.quote;
     const block = section('Quote sent to customer', 'bi-receipt');
     const grid = text('div', 'ua-data-grid');
-    grid.append(data('Identified unit', `${quote.brand || 'Brand unknown'} · ${quote.airconTypeName || quote.airconType || 'Aircon'} · ${quote.hp} HP`),
+    grid.append(data('Identified unit', [quote.brand || 'Brand unknown', quote.airconTypeName || quote.airconType || A.labels[request.applianceKind || 'aircon'], quote.hp ? `${A.formatHp(quote.hp)} HP` : ''].filter(Boolean).join(' · ')),
       data('Catalog price', `${pesos(quote.unitPrice)} per unit`),
       data('Service total', `${pesos(Number(quote.unitPrice) * Number(request.quantity))} before travel fare`),
       data('Verified by', ({ customer_contact:'Customer contact', model_label:'Model label', site_visit:'Site visit' })[quote.verificationMethod] || 'Not recorded'),
@@ -211,6 +221,9 @@
   }
   function renderQuoteForm(request) {
     const catalog = request.serviceId;
+    const kind = request.applianceKind || 'aircon';
+    const supported = catalog ? A.profile(catalog, kind) : null;
+    const needsHp = kind === 'aircon' ? Boolean(catalog?.airconTypes?.length || catalog?.hpPricing?.length) : supported?.pricingMode === 'hp';
     const block = section(canRenewAccepted(request) ? 'Renew verified quote' : request.status === 'quoted' ? 'Update verified details' : 'Verify and price this unit', 'bi-patch-check');
     if (!catalog || catalog.active === false) {
       block.append(guidance('This service is no longer active in the catalog. A price cannot be sent until the service is available again.', true));
@@ -223,16 +236,18 @@
     brand.value = request.quote?.brand || (request.brand?.toLowerCase() === "i don't know" ? "I don't know" : request.brand || '');
     brand.placeholder = "Brand or I don't know";
     const type = text('select');
-    type.required = Boolean(catalog.airconTypes?.length);
+    type.required = kind === 'aircon' && Boolean(catalog.airconTypes?.length);
     type.append(option('', 'Choose aircon type'));
     for (const item of catalog.airconTypes || []) type.append(option(item.type, item.name));
     type.value = request.quote?.airconType || request.airconType || '';
-    const hp = text('select'); hp.required = true;
+    const hp = text('select'); hp.required = needsHp;
     const verification = text('select'); verification.required = true;
     verification.append(option('', 'Choose how you verified'), option('customer_contact', 'Confirmed with customer'), option('model_label', 'Checked model label'), option('site_visit', 'Checked during site visit'));
     verification.value = request.quote?.verificationMethod || '';
-    grid.append(field('Brand', brand, "Use “I don't know” only if brand could not be confirmed."),
-      field('Aircon type', type), field('HP', hp), field('Verification method', verification));
+    grid.append(field('Brand', brand, "Use “I don't know” only if brand could not be confirmed."));
+    if (type.required) grid.append(field('Aircon type', type));
+    if (needsHp) grid.append(field(kind === 'aircon' ? 'HP' : 'Compressor HP', hp));
+    grid.append(field('Verification method', verification));
     form.append(grid);
     const preview = text('div', 'ua-price-preview');
     const price = text('strong', '', 'Choose type and HP');
@@ -253,17 +268,19 @@
     }
     form.append(actions);
     const tiers = () => {
+      if (kind !== 'aircon') return supported?.hpPricing || [];
       const selected = (catalog.airconTypes || []).find(item => item.type === type.value);
       return selected?.hpPricing || (catalog.airconTypes?.length ? [] : catalog.hpPricing || []);
     };
     const updatePreview = () => {
-      const tier = tiers().find(item => String(item.hp) === hp.value);
-      price.textContent = tier ? `${pesos(Number(tier.price) * Number(request.quantity))} total · ${pesos(tier.price)} per unit` : 'Choose type and HP';
-      submit.disabled = !brand.value.trim() || !verification.value || !tier || (type.required && !type.value);
+      let pricing;
+      try { pricing = A.price(catalog, { applianceKind: kind, brand: brand.value.trim() || 'Price preview', airconType: type.value, hp: hp.value || null }); } catch (_) {}
+      price.textContent = pricing ? `${pesos(pricing.unitPrice * Number(request.quantity))} total · ${pesos(pricing.unitPrice)} per unit` : 'Choose the verified type and HP';
+      submit.disabled = !brand.value.trim() || !verification.value || !pricing || (type.required && !type.value);
     };
     const updateTiers = preferredHp => {
       hp.replaceChildren(option('', 'Choose HP'));
-      for (const tier of tiers()) hp.append(option(String(tier.hp), `${tier.hp} HP · ${pesos(tier.price)} per unit`));
+      for (const tier of tiers()) hp.append(option(String(tier.hp), `${A.formatHp(tier.hp)} HP · ${pesos(tier.price)} per unit`));
       if (tiers().some(tier => String(tier.hp) === String(preferredHp))) hp.value = String(preferredHp);
       updatePreview();
     };

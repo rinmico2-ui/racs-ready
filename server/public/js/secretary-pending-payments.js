@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", function () {
       <td class="small text-muted">${formatDate(payment.submittedAt)}</td>
       <td>${priorityBadge(priority)}</td>
       <td class="text-end pe-4">
-        <div class="btn-group btn-group-sm">
+        <div class="btn-group btn-group-sm" ${window.RACSPaymentsConfig && window.RACSPaymentsConfig.canManage === true ? '' : 'hidden'}>
           <button class="btn btn-outline-success approve-payment" data-id="${payment._id}">Approve</button>
           <button class="btn btn-outline-danger reject-payment" data-id="${payment._id}">Reject</button>
         </div>
@@ -189,6 +189,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Approve payment
   async function approvePayment(paymentId) {
+    if (!window.RACSPaymentsConfig || window.RACSPaymentsConfig.canManage !== true) return;
     if (!paymentId || !confirm("Approve this payment?")) return;
     
     try {
@@ -211,6 +212,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Reject payment
   async function rejectPayment(paymentId) {
+    if (!window.RACSPaymentsConfig || window.RACSPaymentsConfig.canManage !== true) return;
     if (!paymentId || !confirm("Reject this payment?")) return;
     
     try {

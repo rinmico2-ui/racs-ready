@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const { validateBookingUnitLimit } = require("../utils/bookingUnitLimit");
+const { resolveWalkInCoreSelection, pinWalkInRelocations } = require("../utils/walkInCoreSelection");
 const auth = require("../middleware/authenticate");
 const mongoose = require("mongoose");
 const audit = require("../utils/audit");
@@ -1602,7 +1604,7 @@ router.get(
       const Technician = require("../models/Technician");
       const [coreServices, repairServices, serviceCategories, technicians] = await Promise.all([
         CoreService.find({ active: true })
-          .select("_id name description basePrice durationMinutes unit isAirconService hpPricing airconTypes brands applianceTypes")
+          .select("_id name description basePrice durationMinutes unit isAirconService hpPricing airconTypes brands applianceTypes applianceProfiles active slug")
           .sort({ name: 1 })
           .lean(),
         RepairService.find({ active: true })
@@ -1680,7 +1682,10 @@ router.post(
         projectScheduling,
       } = req.body || {};
 
-      services = Array.isArray(services) ? services.slice(0, 40) : [];
+      services = Array.isArray(services) ? services : [];
+      if (services.length > 240) {
+        return res.status(400).json({ error: "Too many service selections. Split this booking into separate visits." });
+      }
 
       // coerce isNewCustomer to a strict boolean (handles string "true"/"false" from clients)
       isNewCustomer = isNewCustomer === true || isNewCustomer === "true";
@@ -1787,7 +1792,7 @@ router.post(
       // Resolve every configured service item server-side. Never trust names,
       // prices, types, or durations supplied by the browser.
       const requestedItems = services.length ? services : [{ serviceId, quantity: 1 }];
-      const totalUnits = requestedItems.reduce((sum, item) => sum + Math.max(1, Number(item.quantity) || 1), 0);
+      let totalUnits = validateBookingUnitLimit(requestedItems);
       if (totalUnits > 40) return res.status(400).json({ error: "A booking can contain a maximum of 40 units." });
       const resolvedItems = [];
       for (const requested of requestedItems) {
@@ -1799,19 +1804,17 @@ router.post(
         const quantity = Math.max(1, Math.min(40, Number(requested.quantity) || 1));
         let unitPrice = Math.max(0, Number(type === "repair" ? (doc.initialPrice ?? doc.basePrice) : doc.basePrice) || 0);
         let durationPerUnit = Math.max(15, Number(doc.durationMinutes || doc.estimatedDurationMinutes) || 60);
-        if (type === "core" && doc.isAirconService && requested.hp) {
-          const airconType = (doc.airconTypes || []).find(row => row.type === requested.airconType || row.name === requested.airconTypeName);
-          const pricing = airconType?.hpPricing?.length ? airconType.hpPricing : doc.hpPricing;
-          const hpOption = (pricing || []).find(row => Number(row.hp) === Number(requested.hp));
-          if (!hpOption) return res.status(400).json({ error: `The selected HP pricing for ${doc.name} is unavailable.` });
-          unitPrice = Math.max(0, Number(hpOption.price) || 0);
-          durationPerUnit = Math.max(15, Number(hpOption.durationMinutes || hpOption.duration) || durationPerUnit);
+        const coreSelection = type === "core" ? resolveWalkInCoreSelection(doc, requested) : null;
+        if (coreSelection) {
+          unitPrice = coreSelection.unitPrice;
+          durationPerUnit = coreSelection.duration;
         }
-        const duration = durationPerUnit * quantity;
+        const duration = durationPerUnit;
         const problemDescription = String(requested.problemDescription || requested.repairIssue || "").trim().slice(0, 1000);
         if (type === "repair" && problemDescription.length < 10) return res.status(400).json({ error: `Describe the problem for ${doc.name} using at least 10 characters.` });
         const itemName = type === "repair" && requested.applianceType ? `${String(requested.applianceType).slice(0, 100)} Repair` : doc.name;
         resolvedItems.push({ serviceId: doc._id, name: itemName, type, quantity, unitPrice, totalPrice: unitPrice * quantity, duration,
+          ...(coreSelection ? { applianceKind: coreSelection.applianceKind, applianceGroupId: coreSelection.applianceGroupId, relocation: coreSelection.relocation } : {}),
           hp: Number(requested.hp) || undefined, hpDescription: String(requested.hpDescription || "").slice(0, 100), airconType: String(requested.airconType || "").slice(0, 100), airconTypeName: String(requested.airconTypeName || "").slice(0, 100),
           applianceType: String(requested.applianceType || doc.applianceType || "").slice(0, 100), applianceTypeName: String(requested.applianceTypeName || "").slice(0, 100),
           brand: String(requested.brand || "").slice(0, 100), model: String(requested.model || "").slice(0, 100), problemDescription,
@@ -1819,10 +1822,11 @@ router.post(
           photos: Array.isArray(requested.photos) ? requested.photos.slice(0, 5).filter(url => /^\/uploads\/repairs\/[\w.-]+$/.test(String(url))) : [],
           repairIssue: problemDescription, isAirconService: Boolean(doc.isAirconService), phase: type === "repair" ? "repair_phase_1" : "core" });
       }
+      totalUnits = validateBookingUnitLimit(resolvedItems);
       const primaryItem = resolvedItems[0];
       const serviceDoc = primaryItem;
       const serviceModelName = primaryItem.type === "repair" ? "RepairService" : "CoreService";
-      const serviceDuration = resolvedItems.reduce((sum, item) => sum + item.duration, 0);
+      const serviceDuration = resolvedItems.reduce((sum, item) => sum + item.duration * item.quantity, 0);
       const servicePrice = resolvedItems.reduce((sum, item) => sum + item.totalPrice, 0);
       serviceId = primaryItem.serviceId;
       const serviceEndMin = startMin + serviceDuration;
@@ -1988,6 +1992,8 @@ router.post(
       } else if (customerAddressStr) {
         locationPayload = { address: customerAddressStr };
       }
+
+      pinWalkInRelocations(resolvedItems, locationPayload);
 
       // Price is rebuilt from server-resolved services. Do not accept a client
       // supplied estimated total that can drift from the fee breakdown.

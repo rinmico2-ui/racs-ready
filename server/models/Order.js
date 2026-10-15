@@ -190,6 +190,7 @@ const orderSchema = new mongoose.Schema(
 
     // Preferred installation window; Operations confirms the daily work plan.
     isProject: { type: Boolean, default: false },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null, index: true },
     projectScheduling: {
       preferredStartDate: Date,
       preferredCompletionDeadline: Date,

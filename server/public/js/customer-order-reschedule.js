@@ -16,6 +16,7 @@
     const date = get('rescheduleDate'), time = get('rescheduleTime');
     const reason = get('rescheduleReason'), submit = get('submitReschedule');
     const calendar = get('rescheduleCalendar');
+    const projectRange = get('rescheduleProjectRange'), projectStart = get('rescheduleProjectStart'), projectEnd = get('rescheduleProjectEnd');
     let current = null, generation = 0, controller = null, submitting = false, opening = false;
 
     async function jsonRequest(url, options) {
@@ -43,11 +44,15 @@
       const data = await jsonRequest('/api/orders/' + encodeURIComponent(order.id) + '/reschedule-availability?date=' + encodeURIComponent(key));
       return Array.isArray(data.timeSlots) ? data.timeSlots : [];
     });
-    function updateSubmit() { submit.disabled = submitting || !current || !(date.value && time.value && reason.value.trim()); }
+    function updateSubmit() {
+      const scheduleValid = current?.project ? projectStart?.value && projectEnd?.value > projectStart.value && new Date(projectEnd.value) - new Date(projectStart.value) <= 366 * 86400000 : date.value && time.value;
+      submit.disabled = submitting || !current || !(scheduleValid && reason.value.trim());
+    }
     function showError(message) { errorBox.textContent = message; errorBox.classList.remove('d-none'); errorBox.focus(); }
     function setBusy(busy) {
       submitting = busy;
       calendar.inert = busy;
+      if (projectRange) projectRange.inert = busy;
       reason.readOnly = busy;
       modalElement.querySelectorAll('[data-bs-dismiss="modal"]').forEach(button => { button.disabled = busy; });
       submit.innerHTML = busy ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Submitting request' : 'Submit request';
@@ -74,9 +79,15 @@
       loading.classList.remove('d-none'); fields.classList.add('d-none');
       errorBox.classList.add('d-none'); retry.classList.add('d-none');
       picker.reset(); updateSubmit();
+      calendar.hidden = order.project;
+      if (projectRange) projectRange.hidden = !order.project;
       try {
         const data = await jsonRequest(order.fulfillment === 'customer_pickup' ? '/api/public/company/store-open-hours' : '/api/orders/' + encodeURIComponent(order.id) + '/reschedule-availability', { signal });
         if (requestGeneration !== generation) return;
+        if (order.project) {
+          if (!data.canRequestWindow) throw new Error('This project already has a confirmed daily plan. Contact Operations to review a schedule change.');
+          projectStart.value = ''; projectEnd.value = ''; loading.classList.add('d-none'); fields.classList.remove('d-none'); updateSubmit(); return;
+        }
         const rows = order.fulfillment === 'customer_pickup' ? pickupDates(Array.isArray(data.hours) ? data.hours : []) : data.availableDates || [];
         if (!picker.setDates(rows)) throw new Error('No open schedules are available. Contact us for help arranging a new date.');
         fields.classList.remove('d-none');
@@ -88,6 +99,7 @@
       }
     }
     reason.addEventListener('input', updateSubmit);
+    [projectStart, projectEnd].filter(Boolean).forEach(input => input.addEventListener('input', updateSubmit));
     retry.addEventListener('click', loadDates);
     modalElement.addEventListener('shown.bs.modal', () => { opening = false; });
     modalElement.addEventListener('hide.bs.modal', event => { if (submitting) event.preventDefault(); });
@@ -97,7 +109,7 @@
     });
     doc.querySelectorAll('.ord-reschedule-btn').forEach(button => button.addEventListener('click', () => {
       if (submitting) return;
-      current = { id:button.dataset.id, fulfillment:button.dataset.fulfillment, button };
+      current = { id:button.dataset.id, fulfillment:button.dataset.fulfillment, project: button.dataset.project === '1', button };
       get('rescheduleOrderRef').textContent = 'Order ' + button.dataset.ref;
       get('rescheduleCurrentSchedule').textContent = button.dataset.currentSchedule || 'To be confirmed';
       reason.value = ''; setBusy(false); opening = true; modal.show(); loadDates();
@@ -105,20 +117,20 @@
     submit.addEventListener('click', async () => {
       if (submitting || submit.disabled || !current) return;
       const order = current;
-      const requestedDate = date.value, requestedTime = time.value;
+      const requestedDate = order.project ? projectStart.value : date.value, requestedTime = order.project ? '' : time.value;
       const reasonText = reason.value.trim();
       errorBox.classList.add('d-none'); setBusy(true);
       try {
         // Submission validates live capacity on the server using the same owned-order exclusions.
         const data = await jsonRequest('/api/orders/' + encodeURIComponent(order.id) + '/reschedule-request', {
           method:'POST', headers:{ 'Content-Type':'application/json' },
-          body:JSON.stringify({ requestedDate: requestedDate, requestedTime: requestedTime, reason: reasonText })
+          body:JSON.stringify({ requestedDate: requestedDate, requestedTime: requestedTime, reason: reasonText, ...(order.project ? { requestedEndDate: projectEnd.value } : {}) })
         });
         const card = order.button.closest('.ord-card');
         if (card) {
           const note = doc.createElement('div'); note.className = 'ord-request-note';
           const requestedLabel = new Date(requestedDate + 'T00:00:00Z').toLocaleDateString('en-PH', { timeZone:'Asia/Manila', year:'numeric', month:'short', day:'numeric' });
-          note.textContent = 'Reschedule request under review · ' + requestedLabel + (order.fulfillment === 'customer_pickup' ? ' during store hours' : ' at ' + requestedTime) + '. Your current schedule stays in place until approval.';
+          note.textContent = 'Reschedule request under review · ' + requestedLabel + (order.project ? ' through ' + projectEnd.value : order.fulfillment === 'customer_pickup' ? ' during store hours' : ' at ' + requestedTime) + '. Your current schedule stays in place until approval.';
           card.querySelector('.ord-request-note')?.remove();
           card.insertBefore(note, card.querySelector('.ord-action-row'));
           order.button.remove();

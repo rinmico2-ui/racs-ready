@@ -537,7 +537,7 @@
 <script src="/js/order-evidence-viewer.js?v=20261013-receipt-types"></script>
 <script>window.RACSOrdersWorkspace = {
   role: <%- JSON.stringify(typeof ordersWorkspaceRole === 'string' ? ordersWorkspaceRole : 'admin').replace(/</g, '\\u003c') %>,
-  canResolve: <%- JSON.stringify(ordersResolutionEnabled) %>,
+  canResolve: <%- (JSON.stringify(ordersResolutionEnabled)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>,
   resolutionPath: <%- JSON.stringify(ordersResolutionUrl).replace(/</g, '\\u003c') %>,
   resolutionApiBase: <%- JSON.stringify(ordersResolutionApi).replace(/</g, '\\u003c') %>
 };
@@ -545,4 +545,4 @@
 window.RACSOrdersSocket = window.socket || (typeof window.io === 'function' ? window.io() : null);
 </script>
 <script src="/js/operations-request.js?v=20260926"></script>
-<script src="/js/admin-aircon-orders.js?v=20261011-preparation-handoff"></script>
+<script src="/js/admin-aircon-orders.js?v=20261014-project-orders"></script>

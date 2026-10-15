@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { body } = require("express-validator");
+const { limitAuthWork } = require("../utils/authWork");
 const authController = require("../controllers/authController");
 const googleAuthController = require("../controllers/googleAuthController");
 const auth = require("../middleware/authenticate");
@@ -18,13 +19,14 @@ router.get("/google/callback", googleAuthController.callback);
 router.get("/google/device", auth.authenticate, auth.requireRole("technician"), googleAuthController.deviceSetupPage);
 router.post("/google/device", auth.authenticate, auth.requireRole("technician"), googleAuthController.deviceSetupSubmit);
 router.get("/google/signup", googleAuthController.signupPage);
-router.post("/google/complete-signup", googleAuthController.completeSignup);
+router.post("/google/complete-signup", limitAuthWork(googleAuthController.completeSignup));
 
 // Register - basic customer registration
 router.post(
   "/register",
   [
     body("email")
+      .isString().withMessage('Enter an email address.').bail()
       .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
@@ -36,56 +38,65 @@ router.post(
         all_lowercase: true,
       }),
     body("password")
+      .isString().withMessage(REGISTRATION_PASSWORD_MESSAGE).bail()
       .isLength({ min: 8, max: 30 })
       .withMessage(REGISTRATION_PASSWORD_MESSAGE)
       .custom(isValidRegistrationPassword)
       .withMessage(REGISTRATION_PASSWORD_MESSAGE),
     body("mathCaptcha")
+      .isString().withMessage('Complete the security question.').bail()
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 3 }) 
       .withMessage("Invalid captcha")
       .trim(),
     body("mathAnswer")
+      .isString().withMessage('Complete the security question.').bail()
       .matches(/^\d+$/)
       .isLength({ min: 1, max: 3 })
       .withMessage("Invalid captcha answer")
       .trim(),
     // Profile fields required for customers
     body("firstName")
+      .isString().withMessage('Enter a first name.').bail().trim()
       .isLength({ min: 1, max: 20 })
       .withMessage("Invalid first name")
       .matches(/^[A-Za-z\s]+$/)
       .withMessage("First name must contain letters only")
       .trim(),
     body("lastName")
+      .isString().withMessage('Enter a last name.').bail().trim()
       .isLength({ min: 1, max: 20 })
       .withMessage("Invalid last name")
       .matches(/^[A-Za-z\s]+$/)
       .withMessage("Last name must contain letters only")
       .trim(),
     body("phone")
+      .isString().withMessage('Enter a mobile number.').bail().trim()
       .matches(/^(?:0\d{10}|63\d{10}|9\d{9})$/)
       .withMessage("Invalid Philippine mobile number")
       .trim(),
     body("addressProvince")
+      .isString().withMessage('Choose a province.').bail().trim()
       .isLength({ min: 1, max: 100 })
       .withMessage("Invalid province")
       .trim(),
     body("addressCity")
+      .isString().withMessage('Choose a city or municipality.').bail().trim()
       .isLength({ min: 1, max: 100 })
       .withMessage("Invalid city")
       .trim(),
     body("addressBarangay")
-      .optional()
+      .isString().withMessage('Choose a barangay.').bail().trim()
       .isLength({ min: 1, max: 100 })
       .withMessage("Invalid barangay")
       .trim(),
     body("addressPostal")
-      .matches(/^[0-9]{1,4}$/)
-      .withMessage("Postal code must be 1 to 4 digits")
+      .isString().withMessage('Enter a postal code.').bail().trim()
+      .matches(/^[0-9]{4}$/)
+      .withMessage("Postal code must be 4 digits")
       .trim(),
   ],
-  authController.register,
+  limitAuthWork(authController.register),
 );
 
 router.post(
@@ -158,7 +169,7 @@ router.post(
       .trim(),
     body("csrfToken").isString().withMessage("Invalid input"),
   ],
-  authController.login,
+  limitAuthWork(authController.login),
 );
 
 // Verify login OTP (used when an OTP was requested during initial login)
@@ -166,6 +177,7 @@ router.post(
   "/verify-login-otp",
   [
     body("email")
+      .isString().bail()
       .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
@@ -177,11 +189,13 @@ router.post(
         all_lowercase: true,
       }),
     body("otp")
+      .isString().bail()
       .isNumeric()
       .isLength({ min: 6, max: 6 })
       .withMessage("Invalid OTP")
       .trim(),
     body("trustDevice").optional().isBoolean().withMessage("Invalid device preference"),
+    body("csrfToken").isString().isLength({ min: 1, max: 256 }),
   ],
   authController.verifyLoginOTP,
 );
@@ -191,6 +205,7 @@ router.post(
   "/resend-login-otp",
   [
     body("email")
+      .isString().bail()
       .isLength({ max: 254 })
       .withMessage("Invalid input")
       .trim()
@@ -201,6 +216,7 @@ router.post(
         gmail_remove_subaddress: false,
         all_lowercase: true,
       }),
+    body("csrfToken").isString().isLength({ min: 1, max: 256 }),
   ],
   authController.resendLoginOTP,
 );
@@ -232,7 +248,7 @@ router.post(
       .trim(),
     body("csrfToken").optional().isString().withMessage("Invalid input"),
   ],
-  authController.forgotPassword,
+  limitAuthWork(authController.forgotPassword),
 );
 
 // Reset password
@@ -267,7 +283,7 @@ router.post(
       .trim(),
     body("csrfToken").isString().withMessage("Invalid input"),
   ],
-  authController.resetPassword,
+  limitAuthWork(authController.resetPassword),
 );
 
 router.post(
@@ -284,99 +300,7 @@ router.post(
 router.post("/logout", authController.logout);
 
 // technician location update (device reports its coordinates)
-router.post(
-  "/technician/location",
-  require("../middleware/authenticate").authenticate,
-  async (req, res) => {
-    try {
-      const user = req.user;
-      if (!user || user.role !== "technician")
-        return res.status(403).json({ error: "forbidden" });
-      // Accept lat/lng in request body; caller (tracker page) sends {lat, lng}
-      const { lat, lng } = req.body || {};
-      if (
-        typeof lng !== "number" ||
-        typeof lat !== "number" ||
-        Number.isNaN(lng) ||
-        Number.isNaN(lat) ||
-        lng < -180 ||
-        lng > 180 ||
-        lat < -90 ||
-        lat > 90
-      ) {
-        return res.status(400).json({ error: "invalid_coordinates" });
-      }
-      const Technician = require("../models/Technician");
-      const tech = await Technician.findOneAndUpdate(
-        { user: user._id },
-        // GeoJSON order is [lng, lat]
-        { location: { type: "Point", coordinates: [lng, lat] } },
-        { returnDocument: "after" },
-      );
-      if (!tech) return res.status(404).json({ error: "technician_not_found" });
-
-      // after updating location, check for any nearby bookings that have not
-      // yet been notified.  Use a simple haversine distance test.
-      try {
-        const BookingService = require("../models/BookingService");
-        const mailer = require("../utils/mailer");
-
-        function distanceMeters(lat1, lng1, lat2, lng2) {
-          const R = 6371e3; // metres
-          const φ1 = (lat1 * Math.PI) / 180;
-          const φ2 = (lat2 * Math.PI) / 180;
-          const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-          const Δλ = ((lng2 - lng1) * Math.PI) / 180;
-          const a =
-            Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          return R * c;
-        }
-
-        const threshold = 200; // metres
-        const active = await BookingService.find({
-          technicianId: tech._id,
-          status: { $in: ["scheduled", "on-the-way"] },
-          arrivalNotified: { $ne: true },
-          "location.coordinates": { $exists: true, $size: 2 },
-        }).lean();
-        for (const appt of active) {
-          const coords =
-            appt.location && appt.location.coordinates && appt.location.coordinates.coordinates;
-          if (Array.isArray(coords) && coords.length === 2) {
-            const [custLng, custLat] = coords;
-            const d = distanceMeters(lat, lng, custLat, custLng);
-            if (d <= threshold) {
-              // send mail and mark notified
-              try {
-                await mailer.sendTechArrivalNotificationEmail({
-                  to: appt.customerEmail || (appt.customer && appt.customer.email),
-                  customerName: appt.customerName || (appt.customer && appt.customer.name),
-                  bookingReference: appt.bookingReference || appt._id,
-                  techName: tech.name || "",
-                });
-              } catch (e) {
-                console.warn("arrival mail failed", e && e.message);
-              }
-              try {
-                await BookingService.findByIdAndUpdate(appt._id, { arrivalNotified: true });
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (mailErr) {
-        console.warn("proximity notification error", mailErr && mailErr.message);
-      }
-
-      return res.json({ location: tech.location });
-    } catch (err) {
-      console.error("technician location update error", err);
-      return res.status(500).json({ error: "server_error" });
-    }
-  },
-);
+router.post("/technician/location", auth.authenticate, require("../controllers/technicianLocationController").updateLocation);
 
 // Verify token
 router.get("/verify", authController.verify);

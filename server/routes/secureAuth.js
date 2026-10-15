@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { body } = require("express-validator");
+const { limitAuthWork } = require("../utils/authWork");
 const secureAuth = require("../controllers/secureAuthController");
 
 router.post(
@@ -32,7 +33,7 @@ router.post(
       .isString()
       .withMessage("Invalid CSRF token"),
   ],
-  secureAuth.login,
+  limitAuthWork(secureAuth.login),
 );
 
 router.post("/logout", secureAuth.logout);

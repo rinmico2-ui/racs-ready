@@ -58,6 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
     : "—";
   const orderRef = o => o.orderReference || `#${o._id.toString().slice(-8).toUpperCase()}`;
   const orderStatusLabel = o => {
+    if (o && o.isProject && o.status === "preparing_unit") return "Project planning";
     if (o && o.status === "preparing_unit") {
       return o.fulfillmentType === "customer_pickup" ? "Preparing for Pickup" : "Awaiting Assignment";
     }
@@ -366,7 +367,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const dispatchStatus = o.preparation?.dispatch?.status || (o.fulfillmentType === 'customer_pickup' ? 'not_required' : 'pending');
     const kitStatus = o.preparation?.installation?.status || (o.fulfillmentType === 'delivery_installation' ? 'pending' : 'not_required');
     const departureReady = dispatchStatus === 'ready' && (o.fulfillmentType !== 'delivery_installation' || kitStatus === 'confirmed' || kitStatus === 'completed');
-    const prepBadge = o.fulfillmentType === 'customer_pickup' ? ''
+    const prepBadge = o.isProject ? (dispatchStatus === 'ready' ? '<span class="badge bg-primary-subtle text-primary">Project daily preparation</span>' : '<span class="badge bg-warning text-dark">Purchased units not prepared</span>') : o.fulfillmentType === 'customer_pickup' ? ''
       : departureReady
         ? '<span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Ready for departure</span>'
         : dispatchStatus !== 'ready'
@@ -394,7 +395,7 @@ document.addEventListener("DOMContentLoaded", function () {
       ${o.isPastDate ? `<div class="ao-overdue-alert"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>${esc(o.attentionTitle || 'Requested schedule passed')}.</strong> ${esc(o.attentionReason || 'Admin review is required before this order can continue.')}</span></div>` : ''}
       <div class="ao-detail-grid workflow-record-grid">
         <div class="ao-detail-item"><i class="bi bi-box-seam"></i> ${esc(items.substring(0,40))}${items.length>40?'...':''}</div>
-        <div class="ao-detail-item"><i class="bi bi-calendar"></i> ${date}</div>
+        <div class="ao-detail-item"><i class="bi bi-calendar"></i> ${o.isProject ? `${date} through ${fmtDateShort(o.projectScheduling?.preferredCompletionDeadline)} (preferred window)` : date}</div>
         ${time !== "—" ? `<div class="ao-detail-item"><i class="bi bi-clock"></i> ${time} <small class="text-muted">PHT</small></div>` : ''}
         <div class="ao-detail-item"><i class="bi bi-tag"></i> ${FULFILL_LABELS[o.fulfillmentType]||o.fulfillmentType}</div>
         <div class="ao-detail-item"><i class="bi bi-cash"></i> ${currency(o.total)}</div>
@@ -402,7 +403,7 @@ document.addEventListener("DOMContentLoaded", function () {
         <div class="ao-detail-item"><i class="bi bi-person"></i> ${techName || '<span class="text-muted">Unassigned</span>'}</div>
         <div class="ao-detail-item"><i class="bi bi-boxes"></i> ${(o.items||[]).reduce((s,i)=>s+(i.quantity||1),0)} unit(s)</div>
       </div>
-      <div class="ao-action-bar workflow-record-actions">${actions}</div>
+      <div class="ao-action-bar workflow-record-actions">${actions}${o.isProject && o.projectId && !canAssign(o) ? `<a class="btn btn-sm btn-outline-primary ao-action-btn" href="${isAdminWorkspace ? "/admin" : "/secretary"}/projects/${esc(o.projectId)}">Open installation project</a>` : ""}</div>
     </div>`;
   }
 
@@ -413,6 +414,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return `<button class="btn btn-sm btn-success ao-action-btn" onclick="window._aoVerifyPayment('${esc(id)}')"><i class="bi bi-check2-circle me-1"></i>Verify</button>`;
   }
   function assignBtn(o) {
+    if (o.isProject) return o.projectId ? `<a class="btn btn-sm btn-primary ao-action-btn" href="${isAdminWorkspace ? "/admin" : "/secretary"}/projects/${esc(o.projectId)}">Plan installation project</a>` : "";
     const args = [
       String(o._id || ""),
       orderRef(o),
@@ -443,6 +445,7 @@ document.addEventListener("DOMContentLoaded", function () {
       ["preparing_unit","technician_declined"].includes(o.status) && paymentIsVerified(o);
   }
   function isAssignmentQueueOrder(o) {
+    if (o.isProject) return false;
     const hasTech = o.technicianId || (o.technician && o.technician.name);
     return !hasTech && o.fulfillmentType !== "customer_pickup" &&
       ["preparing_unit","technician_declined"].includes(o.status) && paymentIsVerified(o);
@@ -785,7 +788,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function submitReviewedOrderAssignment(row, technicianId) {
-    const response = await fetch(`/api/orders/${encodeURIComponent(row.orderId)}/assign-technician`, {
+    const data = await RACSRequest.json(`/api/orders/${encodeURIComponent(row.orderId)}/assign-technician`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -796,8 +799,7 @@ document.addEventListener("DOMContentLoaded", function () {
         assignmentSource: 'reviewed_plan',
       }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Assignment failed');
+
     return data;
   }
 
@@ -1326,6 +1328,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (isPickup && o.status === "ready_for_pickup") {
         footerBtns += `<button type="button" class="btn btn-sm btn-dark fw-bold" onclick="window._aoConfirmPickup('${esc(o._id)}')" style="border-radius:8px;"><i class="bi bi-bag-check me-1"></i>Confirm Pickup</button>`;
       }
+      if (o.isProject && o.projectId && !canAssign(o)) footerBtns += `<a class="btn btn-sm btn-primary" href="${isAdminWorkspace ? "/admin" : "/secretary"}/projects/${esc(o.projectId)}">Open installation project</a>`;
       if (canAssign(o)) {
         footerBtns += assignBtn(o);
       }
@@ -1824,12 +1827,11 @@ document.addEventListener("DOMContentLoaded", function () {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
     try {
-      const res = await fetch(`/api/orders/${encodeURIComponent(_aoAssignTargetOrderId)}/assign-technician`, {
+      await RACSRequest.json(`/api/orders/${encodeURIComponent(_aoAssignTargetOrderId)}/assign-technician`, {
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({technicianId:_aoSelectedTechId,scheduledDate,timeSlot,note,priority})
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error||"Failed to assign");
+
       Swal.fire({title:"Assigned!",text:"Technician assigned successfully.",icon:"success",timer:1600,showConfirmButton:false,customClass:{popup:"rounded-4"}});
       assignTechModal.hide();
       loadTab(currentTab);

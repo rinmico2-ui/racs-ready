@@ -455,6 +455,52 @@ test('future previews write a draft without issuing stock and cancelled work can
   await assert.rejects(confirmation(f), /no accepted jobs/);
 });
 
+test('automatic generation commits its refresh marker while preserving physical checks and issuing no stock', async () => {
+  const f = fixture({ quantity: 3 });
+  f.data.DailyKit[0].items[0].preparedChecked = true;
+  const kit = await f.api.syncDailyKit(T, DATE, { automatic: true });
+  assert.equal(kit.status, 'draft'); assert.equal(kit.items[0].preparedChecked, true);
+  assert.equal(kit.automaticSyncedAt.toISOString(), NOW.toISOString());
+  assert.equal(f.data.Tool[0].quantity, 3); assert.equal(f.data.Tool[0].checkedOutQuantity, 0);
+  assert.equal(f.data.EquipmentAssignment.length, 0); assert.equal(f.data.ServiceToolUsage.length, 0);
+  assert.equal(f.calls.some(call => call === 'Tool.update'), false);
+  const second = await f.api.syncDailyKit(T, DATE, { automatic: true });
+  assert.equal(second.items.length, kit.items.length); assert.equal(second.items[0].preparedChecked, true);
+  assert.equal(f.data.DailyKit.length, 1);
+});
+
+test('automatic generation creates a missing future kit before viewing and refreshes its old day after rescheduling', async () => {
+  const f = fixture({ quantity: 3 }); f.data.DailyKit.length = 0;
+  f.data.Assignment[0].bookingDate = new Date('2026-10-12T00:00:00+08:00');
+  const created = await f.api.syncDailyKit(T, '2026-10-12', { automatic: true });
+  assert.equal(created.status, 'draft'); assert.equal(created.assignmentIds.length, 1);
+  assert.equal(created.automaticSyncedAt.toISOString(), NOW.toISOString());
+  f.data.Assignment[0].bookingDate = new Date('2026-10-13T00:00:00+08:00');
+  const old = await f.api.syncDailyKit(T, '2026-10-12', { automatic: true });
+  assert.equal(old.assignmentIds.length, 0); assert.equal(old.items.length, 0);
+  const moved = await f.api.syncDailyKit(T, '2026-10-13', { automatic: true });
+  assert.equal(moved.assignmentIds.length, 1); assert.equal(f.data.DailyKit.length, 2);
+  assert.equal(f.data.Tool[0].quantity, 3); assert.equal(f.data.EquipmentAssignment.length, 0);
+});
+
+test('a failed automatic refresh does not record success or erase confirmed kit custody', async () => {
+  const f = fixture({ quantity: 3 });
+  await confirmation(f);
+  const before = clone(f.data.DailyKit[0]);
+  f.fail('DailyKit');
+  await assert.rejects(f.api.syncDailyKit(T, DATE, { automatic: true }), /Injected DailyKit failure/);
+  assert.deepEqual(f.data.DailyKit[0], before);
+  assert.equal(f.data.DailyKit[0].automaticSyncedAt, undefined);
+  assert.equal(f.data.Tool[0].quantity, 2); assert.equal(f.data.EquipmentAssignment.length, 1);
+});
+
+test('automatic discovery racing with a cancellation does not create an empty kit', async () => {
+  const f = fixture(); f.data.DailyKit.length = 0; f.data.BookingService[0].status = 'cancelled';
+  assert.equal(await f.api.syncDailyKit(T, DATE, { automatic: true }), null);
+  assert.equal(f.data.DailyKit.length, 0); assert.equal(f.data.Tool[0].quantity, 1);
+  assert.equal(f.calls.some(call => call === 'DailyKit.create'), false);
+});
+
 test('transaction callback retries do not issue duplicate stock or checkout records', async () => {
   const f = fixture({ quantity: 2 }); f.retry();
   await confirmation(f);

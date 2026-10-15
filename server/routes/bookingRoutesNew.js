@@ -440,13 +440,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       }
       if (item.assistanceRequestId) {
         const request = assistanceById.get(String(item.assistanceRequestId));
-        if (!request || request.existingBookingId || String(request.serviceId) !== String(item.serviceId) ||
-            request.quantity !== Number(item.quantity) ||
-            String(request.quote?.airconType || '') !== String(pricing.airconType || '') ||
-            Number(request.quote?.hp) !== pricing.hp ||
-            request.quote?.brand !== String(item.brand || '').trim() ||
-            request.quote?.unitPrice !== pricing.unitPrice ||
-            request.quote?.expiresAt <= new Date()) {
+        if (!require('../utils/unitAssistancePolicy').quoteMatchesRequest(request, item, pricing)) {
           return res.status(409).json({ error: 'The unit quote is unavailable or has changed. Review your request before booking.' });
         }
       }

@@ -106,6 +106,7 @@ const assignmentSchema = new mongoose.Schema(
     cancelledAt: { type: Date },
     expiredAt: { type: Date },
     expiredReason: { type: String, trim: true, maxlength: 500 },
+    expiryProcessedAt: { type: Date, default: null },
 
     // ── No-show waiting / report lifecycle ───────────────────────────────────
     waitingForCustomerAt: { type: Date },
@@ -166,6 +167,7 @@ const assignmentSchema = new mongoose.Schema(
 
 // ── Indexes ──────────────────────────────────────────────────────────────────
 assignmentSchema.index({ technicianId: 1, status: 1 });
+assignmentSchema.index({ status: 1, expiryProcessedAt: 1, acceptanceDeadline: 1 });
 assignmentSchema.index({ technicianId: 1, bookingDate: -1 });
 assignmentSchema.index({ bookingId: 1, serviceItemId: 1, status: 1 });
 assignmentSchema.index({ bookingId: 1, createdAt: -1, _id: -1 });

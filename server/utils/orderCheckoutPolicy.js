@@ -115,7 +115,7 @@ function validatePickupDate(value, storeHours, now = new Date()) {
   return date;
 }
 
-function validateCheckoutSelection(input, { storeHours, now = new Date() } = {}) {
+function validateCheckoutSelection(input, { storeHours, now = new Date(), isProject = false } = {}) {
   const fulfillmentType = String(input?.fulfillmentType || "").trim();
   const paymentMethod = String(input?.paymentMethod || "").trim();
   if (!FULFILLMENT_TYPES.has(fulfillmentType)) {
@@ -163,7 +163,7 @@ function validateCheckoutSelection(input, { storeHours, now = new Date() } = {})
   if (!preferredDate || !isFutureBusinessDate(preferredDate, now)) {
     throw new OrderCheckoutError("Choose a valid future delivery date.", 400, "ORDER_DELIVERY_DATE_INVALID");
   }
-  if (!timeSlot) {
+  if (!timeSlot && !isProject) {
     throw new OrderCheckoutError("Choose an available delivery time.", 400, "ORDER_TIME_REQUIRED");
   }
 
@@ -171,7 +171,8 @@ function validateCheckoutSelection(input, { storeHours, now = new Date() } = {})
     fulfillmentType,
     paymentMethod,
     pickupDate: null,
-    timeSlot,
+    timeSlot: isProject ? null : timeSlot,
+    ...(isProject ? { projectScheduling: require('./orderInstallationProject').validateInstallationWindow(input.projectScheduling, preferredDate, now) } : {}),
     delivery: {
       address: address.slice(0, 500),
       contactNumber: contactNumber.slice(0, 50),

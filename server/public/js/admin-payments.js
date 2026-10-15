@@ -210,17 +210,13 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
     try {
-      const resp = await fetch(`${paymentsApiBase}/${encodeURIComponent(paymentId)}`, {
+      await RACSRequest.json(`${paymentsApiBase}/${encodeURIComponent(paymentId)}`, {
         method: "PATCH",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!resp.ok) {
-        const txt = await resp.text();
-        window.notify?.error("Status update failed: " + txt);
-        return false;
-      }
+
       window.notify?.success("Payment status set to " + newStatus);
       // hide details modal if open
       if (detailsModal) detailsModal.hide();
@@ -228,7 +224,7 @@ document.addEventListener("DOMContentLoaded", function () {
       return true;
     } catch (e) {
       console.warn("changePaymentStatus error", e && e.message);
-      window.notify?.error("Failed to update payment status");
+      window.notify?.error(e.message || "Failed to update payment status");
       return false;
     }
   }

@@ -495,13 +495,13 @@ function publishKitEvents(events) {
   }
 }
 
-async function syncDailyKit(technicianId, date, { session = null } = {}) {
+async function syncDailyKit(technicianId, date, { session = null, automatic = false } = {}) {
   if (!session) {
     const events = [];
     const kit = await kitTransaction(async tx => {
       events.length = 0;
-      const kit = await syncDailyKit(technicianId, date, { session: tx });
-      await syncOrderPreparationSummaries(kit, kit.$locals.resolutionOrderIds || kit.orderIds || [], { session: tx, events });
+      const kit = await syncDailyKit(technicianId, date, { session: tx, automatic });
+      if (kit) await syncOrderPreparationSummaries(kit, kit.$locals.resolutionOrderIds || kit.orderIds || [], { session: tx, events });
       return kit;
     });
     publishKitEvents(events);
@@ -515,6 +515,7 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
       bookingDate: { $gte: start, $lt: end },
     }).session(session).sort({ startTime: 1 }).lean(),
     () => Order.find({
+      isProject: { $ne: true },
       technicianId,
       fulfillmentType: "delivery_installation",
       status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES },
@@ -567,6 +568,10 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
   });
   const itemKey = item => item.toolId ? `${item.category}:id:${item.toolId}` : `${item.category}:name:${String(item.name).trim().toLowerCase()}`;
   let kit = await DailyKit.findOne({ technicianId, workDate: { $gte: start, $lt: end } }).session(session).sort({ workDate: 1 });
+  // Discovery can race with a cancellation or a draft project schedule.
+  // Revalidate the work before automatically creating an empty kit.
+  if (automatic && !kit && !assignments.length && !orders.length && !projectAssignments.length) return null;
+  if (kit && automatic) kit.automaticSyncedAt = new Date();
   if (kit && ['confirmed', 'in_progress'].includes(kit.status)) {
     for (const item of [...(kit.items || []), ...(kit.deltaItems || [])]) {
       if (Number(item.quantityIssued || 0) > 0 || ['checked_out', 'in_custody'].includes(item.checkoutStatus)) {
@@ -671,6 +676,7 @@ async function syncDailyKit(technicianId, date, { session = null } = {}) {
     [kit] = await DailyKit.create([{
       technicianId,
       workDate: start,
+      ...(automatic ? { automaticSyncedAt: new Date() } : {}),
       items: required,
       noItemsOrderIds: requirements.noItemsOrderIds || [],
       assignmentIds: assignments.map(a => a._id),
@@ -1184,6 +1190,12 @@ async function dailyKitDepartureReadiness({ technicianId, assignment }) {
     };
   }
 
+  return dailyKitReadiness(kit);
+}
+
+/** Shared preparation, delta and return gates for bookings and project crews. */
+function dailyKitReadiness(kit) {
+  if (!kit) return { ready: false, code: "DAILY_KIT_REQUIRED", error: "Review and confirm your Daily Preparation before departure.", kit: null };
   if (!["confirmed", "in_progress"].includes(kit.status)) {
     return {
       ready: false,
@@ -1470,6 +1482,7 @@ module.exports = {
   removeDailyKitItem,
   confirmDailyKit,
   dailyKitDepartureReadiness,
+  dailyKitReadiness,
   recordBookingConsumableUsage,
   recordOrderConsumableUsage,
   addProjectItemsToDailyKit,

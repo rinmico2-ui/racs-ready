@@ -4,11 +4,11 @@ const { normalizedIpKey } = require("../utils/rateLimitIdentity");
 const { createBoundedWindow, positiveLimit } = require("../utils/boundedWindow");
 
 function createHttpAdmission(options = {}) {
-  const maxActive = positiveLimit(options.maxActive ?? process.env.HTTP_MAX_CONCURRENT_REQUESTS, 128);
-  const maxPerIp = positiveLimit(options.maxPerIp ?? process.env.HTTP_MAX_CONCURRENT_PER_IP, 64);
+  const maxActive = positiveLimit(options.maxActive ?? process.env.HTTP_MAX_CONCURRENT_REQUESTS, 64);
+  const maxPerIp = positiveLimit(options.maxPerIp ?? process.env.HTTP_MAX_CONCURRENT_PER_IP, 24);
   const maxLargeBodies = positiveLimit(options.maxLargeBodies ?? process.env.HTTP_MAX_LARGE_BODY_REQUESTS, 4);
   const limiter = createBoundedWindow({
-    limit: positiveLimit(options.rateLimit ?? process.env.HTTP_PER_IP_RATE_LIMIT, 1200),
+    limit: positiveLimit(options.rateLimit ?? process.env.HTTP_PER_IP_RATE_LIMIT, 600),
     windowMs: 60000,
     maxKeys: positiveLimit(options.maxKeys ?? process.env.HTTP_RATE_LIMIT_MAX_KEYS, 10000),
     now: options.now || Date.now,
@@ -27,6 +27,10 @@ function createHttpAdmission(options = {}) {
   }
 
   function admission(req, res, next) {
+    const loopback = value => /^(?:127\.|::ffff:127\.|::1$)/i.test(String(value || ""));
+    const healthProbe = ["GET", "HEAD"].includes(req.method) && ["/health", "/ready"].includes(req.path)
+      && loopback(req.socket?.remoteAddress) && loopback(req.ip);
+    if (healthProbe) return next();
     const ip = normalizedIpKey(req);
     const budget = limiter.consume(ip);
     if (!budget.allowed) return reject(req, res, 429, "rate", "Too many requests. Please wait and try again.", budget.retryAfter);

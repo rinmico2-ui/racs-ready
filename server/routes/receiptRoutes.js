@@ -10,7 +10,8 @@ router.get("/:id", auth.authenticate, auth.requireRole(["admin", "secretary", "t
     const file = await storage.findFinancialReceipt(req.params.id);
     if (!file) return res.status(404).json({ error: "Receipt not found." });
     if (!["admin", "secretary"].includes(req.user.role) && String(file.metadata?.uploadedBy) !== String(req.user._id)) return res.status(403).json({ error: "You cannot view this receipt." });
-    const type = await resolveStoredReceiptType(file, options => storage.downloadFinancialReceipt(req.params.id, options));
+    const downloadId = file._id || req.params.id;
+    const type = await resolveStoredReceiptType(file, options => storage.downloadFinancialReceipt(downloadId, options));
     if (!["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(type)) return res.status(415).json({ error: "Unsupported receipt file." });
     res.setHeader("Content-Type", type);
     res.setHeader("Content-Length", file.length);
@@ -18,7 +19,7 @@ router.get("/:id", auth.authenticate, auth.requireRole(["admin", "secretary", "t
     res.setHeader("X-Content-Type-Options", "nosniff");
     const extension = type === "application/pdf" ? "pdf" : type.split("/")[1];
     res.setHeader("Content-Disposition", `inline; filename="receipt.${extension}"`);
-    const stream = storage.downloadFinancialReceipt(req.params.id);
+    const stream = storage.downloadFinancialReceipt(downloadId);
     stream.on("error", error => { if (res.headersSent) res.destroy(); else next(error); });
     res.on("close", () => stream.destroy());
     stream.pipe(res);

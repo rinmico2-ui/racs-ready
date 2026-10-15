@@ -255,7 +255,7 @@ async function createPaymentFromSource({ sourceId, amount, description, metadata
 
   const resp = await axios.post(`${API_BASE}/payments`, payload, {
     auth:    { username: key, password: "" },
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Idempotency-Key": `source-charge:${sourceId}` },
     timeout: 15000,
   });
 
@@ -286,9 +286,11 @@ function verifyWebhook(rawBody, signatureHeader, secret) {
   const sigKey    = process.env.NODE_ENV === "production" ? "li" : "te";
   const signature = parts[sigKey];
 
-  if (!timestamp || !signature) {
+  if (!/^\d{10}$/.test(timestamp || "") || !/^[a-f0-9]{64}$/i.test(signature || "") || !secret) {
     throw new Error("Malformed PayMongo Signature header");
   }
+  const age = Date.now() / 1000 - Number(timestamp);
+  if (age > 300 || age < -30) throw new Error("Expired PayMongo webhook signature");
 
   const toSign   = `${timestamp}.${Buffer.isBuffer(rawBody) ? rawBody.toString("utf8") : rawBody}`;
   const expected = crypto.createHmac("sha256", secret).update(toSign).digest("hex");

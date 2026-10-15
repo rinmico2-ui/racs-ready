@@ -23,11 +23,13 @@ test("service booking and product checkout charge the shown road distance at the
     origin: { lat: 15, lng: 121 },
     destination: { lat: 15.1, lng: 121.2 },
     farePerKm: 30,
-    httpClient: { get: async () => ({ data: { routes: [{ distance: 74933, duration: 10800 }] } }) },
+    httpClient: { get: async () => ({ data: { code: 'Ok', routes: [{ distance: 74933, duration: 10800,
+      geometry: { type: 'LineString', coordinates: [[121, 15], [121.1, 15.05], [121.2, 15.1]] } }] } }) },
   });
   assert.equal(booking, 2247);
   assert.equal(order.distanceKm, 74.9);
   assert.equal(order.transportationFee, booking);
+  assert.equal(order.source, 'road');
   assert.doesNotMatch(serviceScript, /adjustedDistance\s*\*\s*farePerKm|travel adjustment/);
   assert.match(serviceScript, /distanceInfoElement\.textContent = `\$\{distance\.toFixed\(1\)\} km × ₱\$\{rate\.toLocaleString\(\)\}\/km = ₱\$\{fare\.toLocaleString\(\)\}`/);
 });

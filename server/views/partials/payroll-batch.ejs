@@ -1,0 +1,21 @@
+<div class="alert alert-info" id="payrollBatchFeedback" role="status" hidden></div>
+<div class="modal fade" id="payrollBatchModal" tabindex="-1" aria-labelledby="payrollBatchTitle" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title fs-5" id="payrollBatchTitle">Create payroll drafts in bulk</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body"><form id="payrollBatchForm">
+    <p>Calculate up to 25 employees together using their effective pay rates and attendance. Review the totals before creating drafts. Each draft keeps the existing approval and payment controls.</p>
+    <div class="row g-3"><div class="col-md-4"><label class="form-label" for="batchPeriodStart">Period start</label><input class="form-control" type="date" id="batchPeriodStart" name="periodStart" required></div><div class="col-md-4"><label class="form-label" for="batchPeriodEnd">Period end</label><input class="form-control" type="date" id="batchPeriodEnd" name="periodEnd" required></div><div class="col-md-4"><label class="form-label" for="batchPayDate">Pay date</label><input class="form-control" type="date" id="batchPayDate" name="payDate" required></div></div>
+    <fieldset class="mt-4"><legend class="fs-6 fw-semibold">Employees</legend><button class="btn btn-sm btn-outline-secondary mb-2" id="batchSelectStaff" type="button">Select first 25</button><div class="row g-2" id="batchStaffList" aria-live="polite"></div></fieldset>
+    <fieldset class="mt-4"><legend class="fs-6 fw-semibold">Allowance and deduction templates</legend><p class="small text-muted">Selected saved amounts apply to each employee. Individual drafts can be edited before approval.</p><div class="row g-2" id="batchTemplateList"></div></fieldset>
+    <label class="form-label" for="batchNotes">Notes <span class="text-muted fw-normal">(optional)</span></label><textarea class="form-control" id="batchNotes" name="notes" maxlength="1000" rows="2"></textarea>
+    <div class="mt-3" id="batchPayrollPreview" aria-live="polite"></div>
+  </form></div>
+  <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button><button class="btn btn-outline-primary" id="batchPayrollReview" type="button">Calculate and review</button><button class="btn btn-primary" id="batchPayrollCreate" type="button" disabled>Create reviewed drafts</button></div>
+</div></div></div>
+<div class="modal fade" id="payrollTemplateModal" tabindex="-1" aria-labelledby="payrollTemplateTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-header"><h2 class="modal-title fs-5" id="payrollTemplateTitle">Allowance and deduction templates</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
+  <div class="modal-body"><p>Save recurring amounts for future payroll drafts. Existing payroll records retain their saved amounts when a template changes.</p>
+    <form id="payrollTemplateForm"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="templateName">Name</label><input class="form-control" id="templateName" name="name" maxlength="80" required></div><div class="col-md-4"><label class="form-label" for="templateKind">Type</label><select class="form-select" id="templateKind" name="kind" required><option value="allowance">Allowance</option><option value="deduction">Deduction</option></select></div><div class="col-md-3"><label class="form-label" for="templateAmount">Amount (PHP)</label><input class="form-control" id="templateAmount" name="amount" type="number" min="0.01" max="10000000" step="0.01" required></div></div><button class="btn btn-primary mt-3" type="submit">Save template</button></form>
+    <div class="table-responsive mt-4" id="payrollSavedTemplates" aria-live="polite"></div>
+  </div><div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Close</button></div>
+</div></div></div>
+<script src="/js/payroll-batch.js?v=20261014" defer></script>

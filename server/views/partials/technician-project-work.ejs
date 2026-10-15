@@ -1,3 +1,4 @@
+<script src="/js/project-purchase-handover.js?v=20261014-project-orders"></script>
 <style>
   /* ═══════════════ Enterprise Design System — Large-Scale Projects ═══════════════ */
   :root {
@@ -1219,9 +1220,9 @@
   const PHASE_LABEL = { assessment:'Site Assessment', assessment_en_route:'Assessment En Route', assessment_arrived:'Assessment On Site', quotation_review:'Quotation Review', ready:'Ready to Mobilize', en_route:'En Route', arrived:'Arrived', execution:'Execution', in_progress:'On Site — Working', daily_acceptance:'Daily Confirmation', completed:'Completed' };
 
   function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  function fmt(d){ if(!d) return 'TBD'; const x=new Date(d); return x.toLocaleDateString('en-PH',{month:'short',day:'numeric'}); }
-  function fmtFull(d){ if(!d) return 'TBD'; const x=new Date(d); return x.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
-  function fmtShort(d){ if(!d) return ''; const x=new Date(d); return x.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}); }
+  function fmt(d){ if(!d) return 'TBD'; const x=new Date(d); return x.toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric'}); }
+  function fmtFull(d){ if(!d) return 'TBD'; const x=new Date(d); return x.toLocaleDateString('en-PH',{timeZone:'Asia/Manila',weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+  function fmtShort(d){ if(!d) return ''; const x=new Date(d); return x.toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'}); }
   function money(n){ return '₱' + (Number(n||0)).toLocaleString('en-PH',{maximumFractionDigits:2}); }
   function isToday(d){ if(!d) return false; const x=new Date(d), t=new Date(); return x.toDateString()===t.toDateString(); }
   function isPast(d){ if(!d) return false; return new Date(d) < new Date(new Date().toDateString()); }
@@ -1230,7 +1231,7 @@
     let t = qs('#pwToast');
     if (!t) { t = document.createElement('div'); t.id = 'pwToast'; t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;padding:.7rem 1.1rem;border-radius:12px;font-weight:600;font-size:.8rem;color:#fff;display:flex;align-items:center;gap:.5rem;box-shadow:0 8px 24px rgba(15,23,42,.15);font-family:Inter,system-ui,-apple-system,sans-serif;'; document.body.appendChild(t); }
     t.style.background = type === 'error' ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#059669,#10b981)';
-    t.innerHTML = `<i class="bi ${type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill'}"></i>${msg}`;
+    t.innerHTML = `<i class="bi ${type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill'}"></i>${esc(msg)}`;
     t.style.display = 'flex';
     t.style.animation = 'pwSlideUp .25s cubic-bezier(.4,0,.2,1)';
     setTimeout(() => { t.style.display = 'none'; }, 3200);
@@ -1238,8 +1239,8 @@
 
   async function api(path, opts) {
     const r = await fetch(path, opts);
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'Request failed');
+    const data = await r.json().catch(() => { throw new Error('The server returned an unexpected response. Please try again shortly.'); });
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Request failed. Please try again.'), { status: r.status, code: data.code, preparation: data.preparation });
     return data;
   }
 
@@ -1247,7 +1248,8 @@
   function postLocation() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      try { await fetch('/api/technician/location', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }) }); } catch (_) {}
+      try { await api('/api/auth/technician/location', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }) }); }
+      catch (_) { console.warn('Project travel was saved, but location sharing could not be updated.'); }
     }, () => {}, { enableHighAccuracy: true, timeout: 8000 });
   }
 
@@ -1321,7 +1323,54 @@
       else parts.push(renderMemberCard(a, acknowledged, myDeclined));
     }
     qs('#pwContainer').innerHTML = parts.join('');
+    for (const assignment of filtered) {
+      if (['completed', 'assessment', 'assessment_en_route', 'assessment_arrived', 'quotation_review'].includes(assignment.phase)) continue;
+      const card = document.getElementById(`pwCard-${assignment.project._id}`);
+      const body = card?.querySelector('.pw-project-body');
+      if (!body) continue;
+      const preparation = document.createElement('div');
+      preparation.id = `pwPreparation-${assignment.project._id}`;
+      preparation.className = 'pw-daily-preparation border rounded-3 p-3 mt-3';
+      preparation.setAttribute('aria-live', 'polite');
+      body.appendChild(preparation);
+      pwRefreshProjectPreparation(assignment.project._id);
+    }
   }
+
+  const PW_PREPARATION_REQUESTS = new Map();
+  function pwRenderProjectPreparation(pid, data) {
+    const host = document.getElementById(`pwPreparation-${pid}`);
+    if (!host) return;
+    const own = (data.crew || []).find(member => member.isViewer || String(member.technicianId) === String(ME_ID));
+    host.innerHTML = `<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><strong class="small">Today's Daily Preparation</strong><span class="badge ${data.ready ? 'bg-success' : 'bg-warning text-dark'}">${data.ready ? 'Crew ready' : 'Preparation required'}</span></div>
+      <p class="small text-muted mb-2">${esc(data.ready ? 'Every scheduled technician has confirmed their shared daily kit.' : data.error || 'Review the preparation below.')}</p>
+      ${(data.crew || []).map(member => `<div class="d-flex flex-wrap gap-2 justify-content-between border-top py-2 small"><span>${esc(member.name)}${member.isViewer ? ' (you)' : ''}</span><span>${member.ready ? 'Prepared' : esc(member.error || 'Confirmation needed')}</span></div>`).join('')}
+      <div class="d-flex flex-wrap gap-2 mt-2">${own ? `<button type="button" class="pw-btn ${own.ready ? 'secondary' : 'primary'}" data-pw-open-kit="${esc(pid)}" data-work-date="${esc(data.date)}"><i class="bi bi-briefcase"></i>${own.ready ? 'View my daily kit' : 'Prepare my daily kit'}</button>` : ''}<button type="button" class="pw-btn secondary" data-pw-refresh-preparation="${esc(pid)}">Refresh crew status</button></div>`;
+    host.querySelector('[data-pw-open-kit]')?.addEventListener('click', () => {
+      if (typeof window.openTechnicianDailyKit === 'function') window.openTechnicianDailyKit(data.date);
+      else toast('Daily Preparation could not be opened. Refresh the assignments page.', 'error');
+    });
+    host.querySelector('[data-pw-refresh-preparation]')?.addEventListener('click', () => pwRefreshProjectPreparation(pid));
+  }
+  async function pwRefreshProjectPreparation(pid) {
+    const host = document.getElementById(`pwPreparation-${pid}`);
+    if (!host) return;
+    const requestId = Symbol(pid); PW_PREPARATION_REQUESTS.set(pid, requestId);
+    host.textContent = 'Checking crew Daily Preparation...';
+    try {
+      const data = await api(`/api/projects/${pid}/daily-preparation`);
+      if (PW_PREPARATION_REQUESTS.get(pid) === requestId) pwRenderProjectPreparation(pid, data);
+    } catch (error) {
+      if (PW_PREPARATION_REQUESTS.get(pid) !== requestId || !host.isConnected) return;
+      host.textContent = error.message;
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'pw-btn secondary mt-2'; retry.textContent = 'Try again';
+      retry.addEventListener('click', () => pwRefreshProjectPreparation(pid)); host.appendChild(retry);
+    }
+  }
+  document.addEventListener('hidden.bs.modal', event => {
+    if (event.target?.id !== 'odkModal') return;
+    for (const assignment of PW_ASSIGNMENTS) pwRefreshProjectPreparation(assignment.project._id);
+  });
 
   // ════════════════════ LEAD CARD ════════════════════
   function renderLeadCard(a) {
@@ -2223,12 +2272,24 @@
 
   window.pwLeadMobilize = async (pid, stage) => {
     try {
-      postLocation();
       await api(`/api/projects/${pid}/mobilize/${stage}`, { method:'PUT' });
+      if (stage === 'en-route') postLocation();
       const labels = { 'en-route':'Crew en route', 'arrived':'Crew arrived on site', 'start':'Work started for the crew' };
       toast(labels[stage] || 'Updated');
+      document.getElementById(`pwActionError-${pid}`)?.remove();
       window.__loadProjectWork();
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+      toast(e.message, 'error');
+      const body = document.getElementById(`pwCard-${pid}`)?.querySelector('.pw-project-body');
+      if (body) {
+        let message = document.getElementById(`pwActionError-${pid}`);
+        if (!message) { message = document.createElement('div'); message.id = `pwActionError-${pid}`; message.className = 'alert alert-warning small mt-3'; message.setAttribute('role', 'alert'); body.prepend(message); }
+        message.textContent = e.message;
+      }
+      if (e.preparation) pwRenderProjectPreparation(pid, e.preparation);
+      else pwRefreshProjectPreparation(pid);
+      document.getElementById(`pwPreparation-${pid}`)?.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
   };
 
   // ── No Show handler ──
@@ -3337,10 +3398,16 @@
   window.pwOpenPayment = async function (pid) {
     let s;
     try { s = await api(`/api/projects/${pid}/payment-summary`); } catch (e) { toast(e.message,'error'); return; }
+    let purchaseSerials = null;
+    if (s.sourceOrderId) {
+      if (!s.allSubmitted) { toast('Review and submit all completed work orders before purchase handover.', 'warning'); return; }
+      purchaseSerials = await window.ProjectPurchaseHandover.collectSerials(s);
+      if (!purchaseSerials) return;
+    }
     if (s.allSubmitted && s.pricingReady && Number(s.balance || 0) <= 0) {
       if (!confirm('The customer balance is already fully paid. Finalize this project and send it to admin closeout review?')) return;
       try {
-        await api(`/api/projects/${pid}/complete`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+        await api(`/api/projects/${pid}/complete`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serialNumbers: purchaseSerials }) });
         toast('Project completed and sent for admin closeout review');
         window.__loadProjectWork();
       } catch (error) { toast(error.message, 'error'); }
@@ -3358,8 +3425,8 @@
             <i class="bi ${s.pricingReady ? 'bi-lock-fill' : 'bi-exclamation-triangle-fill'} me-1"></i>${esc(s.pricingMessage)}
           </div>
           <div class="pw-pay-row"><span>Pricing source</span><strong>${esc(s.pricingSource || 'Not configured')}</strong></div>
-          <div class="pw-pay-row"><span>Approved service/project charge</span><strong>${money(s.serviceCharge || 0)}</strong></div>
-          <div class="pw-pay-row"><span>Travel (${money(s.travelFarePerDay || 0)} × ${s.daysWorked} productive day${s.daysWorked === 1 ? '' : 's'})</span><strong>${money(s.travelFare || 0)}</strong></div>
+          <div class="pw-pay-row"><span>${s.sourceOrderId ? "Purchased aircons (installation included)" : "Approved service/project charge"}</span><strong>${money(s.serviceCharge || 0)}</strong></div>
+          <div class="pw-pay-row"><span>${s.sourceOrderId ? "Delivery fare for the purchase" : `Travel (${money(s.travelFarePerDay || 0)} × ${s.daysWorked} productive day${s.daysWorked === 1 ? '' : 's'})`}</span><strong>${money(s.travelFare || 0)}</strong></div>
           <div class="pw-pay-row" style="border:none;"><span class="pw-pay-total">Approved total</span><span class="pw-pay-total" id="ppTotal">${money(s.total)}</span></div>
           <div style="font-size:.64rem;color:var(--pw-muted);margin:-.25rem 0 .55rem;">Operational record: ${s.daysWorked} working day(s) · ${s.crewSize} crew member(s). This does not change the customer price.</div>
           <div class="pw-pay-row" style="border:none;color:var(--pw-muted);"><span>Already collected</span><span>${money(s.alreadyPaid)}</span></div>
@@ -3417,6 +3484,7 @@
           paymentMethod: method, reference, proofUrl, customerSignature,
           remarks: document.getElementById('ppRemarks').value,
           clientSubmissionId: paymentSubmissionId,
+          ...(s.sourceOrderId ? { serialNumbers: purchaseSerials } : {}),
         };
         await api(`/api/projects/${pid}/collect-payment`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
         overlay.remove();

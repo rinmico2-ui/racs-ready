@@ -7,7 +7,7 @@
   var cartData = locals.cartData || { items: [], totalAmount: 0 };
 %>
 <script>window.adminGcashNumber = "<%= locals.adminGcashNumber || '' %>";</script>
-<script>window.CART_DATA = <%- JSON.stringify(cartData) %>;</script>
+<script>window.CART_DATA = <%- (JSON.stringify(cartData)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;</script>
 
 <style>
   :root {
@@ -756,7 +756,7 @@
                   <div><span class="pd-var-cap"><%= v.capacity %></span><span class="pd-var-unit"> <%= v.capacityUnit %></span></div>
                   <div class="pd-var-btu"><%= v.btu ? v.btu.toLocaleString() + ' BTU' : '' %></div>
                   <div class="pd-var-price">₱<%= v.sellingPrice.toLocaleString() %></div>
-                  <div class="pd-var-stock <%= v.quantity > 0 ? 'in' : 'out' %>"><%= v.quantity > 0 ? v.quantity + ' in stock' : 'Out of stock' %></div>
+                  <div class="pd-var-stock <%= v.active !== false && v.quantity > 0 ? 'in' : 'out' %>"><%= v.active !== false && v.quantity > 0 ? v.quantity + ' in stock' : v.status === 'coming_soon' ? 'Coming soon' : v.status === 'discontinued' ? 'Discontinued' : 'Unavailable' %></div>
                 </div>
                 <% }); %>
               </div>
@@ -851,18 +851,18 @@
 <script>
   (function() {
     var productId = "<%= p._id %>";
-    var variants = <%- JSON.stringify(variants) %>;
+    var variants = <%- (JSON.stringify(variants)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
     var isLoggedIn = <%= !!locals.user %>;
-    var selectedIdx = 0;
+    var selectedIdx = Math.max(0, variants.findIndex(function(v) { return ProductAvailability.availability(v).available; }));
     var selectedQty = 1;
-    var selectedVariant = variants[0] || null;
+    var selectedVariant = variants[selectedIdx] || null;
     var pdPurchasePending = false;
 
     function setPdPurchaseBusy(isBusy, action) {
       document.querySelectorAll('[data-pd-purchase]').forEach(function(button) {
         if (!button.dataset.pdIdleHtml) button.dataset.pdIdleHtml = button.innerHTML;
         var isActiveAction = button.dataset.pdAction === action;
-        var unavailable = !selectedVariant || Number(selectedVariant.quantity) < 1;
+        var unavailable = !selectedVariant || !ProductAvailability.availability(selectedVariant).available;
         button.disabled = Boolean(isBusy || unavailable);
         button.classList.toggle('pd-action-locked', Boolean(isBusy));
         if (isBusy && isActiveAction) {
@@ -938,12 +938,11 @@
       pdPurchasePending = true;
       setPdPurchaseBusy(true, 'cart');
       try {
-        var res = await fetch('/api/aircon-cart/add', {
+        await RACSRequest.json('/api/aircon-cart/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
-        if (!res.ok) throw new Error('Failed');
         document.dispatchEvent(new CustomEvent('cart:updated'));
         await Swal.fire({
           title: 'Added to Cart!',
@@ -952,7 +951,7 @@
           confirmButtonText: 'OK'
         });
       } catch(e) {
-        await Swal.fire({ title:'Error', text:'Failed to add to cart. Please try again.', icon:'error', confirmButtonText:'OK' });
+        await Swal.fire({ title:'Unable to add this item', text:e.message, icon:'error', confirmButtonText:'OK' });
       } finally {
         pdPurchasePending = false;
         setPdPurchaseBusy(false);
@@ -971,19 +970,17 @@
       pdPurchasePending = true;
       setPdPurchaseBusy(true, 'buy');
       try {
-        var res = await fetch('/api/aircon-cart/buy-now', {
+        await RACSRequest.json('/api/aircon-cart/buy-now', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inventoryId: requestVariant._id, quantity: requestQty })
         });
-        if (!res.ok) throw new Error('Failed');
         document.dispatchEvent(new CustomEvent('cart:updated'));
-        var cartRes = await fetch('/api/aircon-cart');
-        if (!cartRes.ok) throw new Error('Failed');
-        var cartData = await cartRes.json();
+        var cartData = await RACSRequest.json('/api/aircon-cart');
         if (typeof openCheckoutWizard === 'function') openCheckoutWizard(cartData.cart);
+        else window.location.assign('/aircon-cart?checkout=now');
       } catch(e) {
-        await Swal.fire({ title:'Error', text:'Failed to process order. Please try again.', icon:'error', confirmButtonText:'OK' });
+        await Swal.fire({ title:'Unable to start checkout', text:e.message, icon:'error', confirmButtonText:'OK' });
       } finally {
         pdPurchasePending = false;
         setPdPurchaseBusy(false);
@@ -1002,6 +999,7 @@
     // ── Init ──
     if (selectedVariant) {
       var total = selectedVariant.sellingPrice * selectedQty;
+      selectPdVariant(selectedIdx);
       updateQtyButtons();
       setPdPurchaseBusy(false);
     }

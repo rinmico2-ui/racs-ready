@@ -315,7 +315,7 @@
                 <div class="od-fact"><span class="od-label">Customer</span><div class="od-value"><%= order.customer && order.customer.name || 'Not provided' %></div></div>
                 <div class="od-fact"><span class="od-label">Contact</span><div class="od-value"><%= order.customer && order.customer.phone || order.delivery && order.delivery.contactNumber || 'Not provided' %></div></div>
                 <div class="od-fact"><span class="od-label">Fulfillment</span><div class="od-value"><%= fulfillmentLabels[order.fulfillmentType] || order.fulfillmentType %></div></div>
-                <div class="od-fact"><span class="od-label">Schedule</span><div class="od-value"><%= scheduleDate ? new Date(scheduleDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' }) : 'To be confirmed' %><%= order.timeSlot ? ' · ' + order.timeSlot : '' %></div></div>
+                <div class="od-fact"><span class="od-label"><%= order.isProject ? 'Preferred installation window' : 'Schedule' %></span><div class="od-value"><%= scheduleDate ? new Date(scheduleDate).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', year:'numeric', month:'short', day:'numeric' }) : 'To be confirmed' %><%= order.isProject && order.projectScheduling?.preferredCompletionDeadline ? ' through ' + new Date(order.projectScheduling.preferredCompletionDeadline).toLocaleDateString('en-PH', { timeZone:'Asia/Manila', year:'numeric', month:'short', day:'numeric' }) : order.timeSlot ? ' · ' + order.timeSlot : '' %></div><% if (order.projectSummary) { %><small><%= order.projectSummary.completedUnits %> / <%= order.projectSummary.totalUnits %> aircons completed. <%= order.projectSummary.confirmed ? 'Confirmed work: ' + new Date(order.projectSummary.startDate).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) + ' through ' + new Date(order.projectSummary.endDate).toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }) + '.' : 'Staff will confirm the daily work plan.' %></small><% } %></div>
                 <div class="od-fact wide"><span class="od-label"><%= order.fulfillmentType === 'customer_pickup' ? 'Pickup location' : 'Installation address' %></span><div class="od-value"><%= order.fulfillmentType === 'customer_pickup' ? (order.pickupLocation || 'CALIDRO RACS Store') : (order.delivery && order.delivery.address || 'Not provided') %></div></div>
                 <% if (order.delivery && order.delivery.notes) { %><div class="od-fact wide"><span class="od-label">Customer notes</span><div class="od-value"><%= order.delivery.notes %></div></div><% } %>
                 <% if (order.cancellationReason) { %><div class="od-fact wide"><span class="od-label">Cancellation reason</span><div class="od-value"><%= order.cancellationReason %></div></div><% } %>
@@ -394,7 +394,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const orderId = <%- JSON.stringify(String(order._id)) %>;
+    const orderId = <%- (JSON.stringify(String(order._id))).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
     const claimTypeLabels = { product_defect:'Product defect', installation_workmanship:'Installation workmanship', replacement_part:'Replacement part', safety_defect:'Safety defect', repair_workmanship:'Repair workmanship', diagnostic_accuracy:'Diagnostic accuracy' };
     let warrantyEligibility = null;
     async function loadOrderWarranty() {

@@ -15,7 +15,7 @@ test("booking unit limit counts quantities across Core, Repair, and HP variants"
   assert.throws(() => validateBookingUnitLimit([
     { type: "core", hp: 0.5, quantity: 40 },
     { type: "core", hp: 1, quantity: 1 },
-  ]), error => error.status === 400 && /at most 40 units/.test(error.message));
+  ]), error => error.status === 400 && /at most 40 (?:units|appliances)/.test(error.message));
 });
 
 test("booking unit limit rejects fractional, zero, missing, and negative quantities", () => {

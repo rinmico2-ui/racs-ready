@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const catalog = require('../utils/psgcCatalog');
 
 const cache = new Map();
 
@@ -40,8 +41,7 @@ router.get('/provinces', async (req, res) => {
     const cacheKey = 'psgc:provinces';
     let provinces = getCache(cacheKey);
     if (!provinces) {
-      const response = await fetchWithRetry('https://psgc.cloud/api/v2/provinces', { timeout: 15000 }, 3);
-      provinces = unwrapPayload(response);
+      provinces = await catalog.getList('provinces');
       setCache(cacheKey, provinces, 1000 * 60 * 60);
     }
     res.json({ data: provinces });
@@ -59,8 +59,7 @@ router.get('/cities', async (req, res) => {
     const cacheKey = 'psgc:cities';
     let cities = getCache(cacheKey);
     if (!cities) {
-      const response = await fetchWithRetry('https://psgc.cloud/api/v2/cities-municipalities', { timeout: 15000 }, 3);
-      cities = unwrapPayload(response);
+      cities = await catalog.getList('cities');
       setCache(cacheKey, cities, 1000 * 60 * 60);
     }
     res.json({ data: cities });
@@ -82,11 +81,7 @@ router.get('/barangays', async (req, res) => {
     const cacheKey = `psgc:barangays:${city_code}`;
     let barangays = getCache(cacheKey);
     if (!barangays) {
-      const response = await fetchWithRetry(
-        `https://psgc.cloud/api/v2/cities-municipalities/${city_code}/barangays`,
-        { timeout: 15000 }, 3
-      );
-      barangays = unwrapPayload(response);
+      barangays = await catalog.getList('barangays', city_code);
       setCache(cacheKey, barangays, 1000 * 60 * 60);
     }
     res.json({ data: barangays });

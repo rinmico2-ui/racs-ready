@@ -716,7 +716,7 @@
 </style>
 
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4" />
-<link rel="stylesheet" href="/css/cart-checkout-ux.css?v=20260925-field-focus-v4" />
+<link rel="stylesheet" href="/css/cart-checkout-ux.css?v=20261014-project-orders" />
 
 <!-- RACS Van Loading Modal -->
 <div class="modal fade" id="orderLoadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
@@ -1038,6 +1038,7 @@
                 <input type="hidden" id="wizardLng">
               </div>
 
+              <div id="orderStandardSchedule">
               <div class="checkout-section-heading checkout-schedule-heading">
                 <span class="checkout-section-number">2</span>
               <div><h6>Choose a date and time</h6><p>Pick an open date, then choose when we should start. We will confirm your requested time.</p></div>
@@ -1048,6 +1049,19 @@
                 hoursNote: 'Choose an available start time below. The team will confirm your request.'
               }) %>
               <div id="checkoutCalendarContainer" class="checkout-calendar-wrap"></div>
+              </div>
+              <section id="orderProjectWindow" class="order-project-window" hidden aria-labelledby="orderProjectWindowTitle" tabindex="-1">
+                <span class="badge bg-primary-subtle text-primary mb-2" id="orderProjectUnits"></span>
+                <h6 id="orderProjectWindowTitle">Choose your preferred installation window</h6>
+                <p>Choose when work can start and when you need it finished. Staff will confirm the crew and daily dates after payment and site review.</p>
+                <div class="order-project-dates">
+                  <label for="orderProjectStart">Preferred start date *<input type="date" class="form-control" id="orderProjectStart"></label>
+                  <label for="orderProjectEnd">Finish-by date *<input type="date" class="form-control" id="orderProjectEnd"></label>
+                </div>
+                <p id="orderProjectWindowStatus" role="status" aria-live="polite">Choose both dates to check the available installation capacity.</p>
+                <button type="button" id="orderProjectWindowRetry" class="btn btn-outline-primary btn-sm" hidden>Check dates again</button>
+                <small>Closed days and unavailable technicians are considered in the capacity check. This is a preferred window, subject to staff confirmation.</small>
+              </section>
 
               <!-- Hidden inputs to store selection -->
               <input type="hidden" id="wizardDate">
@@ -1270,9 +1284,10 @@
   </div>
 </div>
 
-<script src="/js/checkout-calendar.js?v=20261011-single-payment-action-date-colors"></script>
+<script src="/js/checkout-calendar.js?v=20261014-checkout-draft-context"></script>
+<script src="/js/large-order-checkout.js?v=20261014-checkout-draft-context"></script>
 <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
-<script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
+<script src="/js/order-checkout-errors.js?v=20261014-project-orders-20260925-valid-date-v3"></script>
 <script src="/js/order-route-map.js?v=20261009-visible-route"></script>
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
@@ -1348,6 +1363,8 @@
     let fpDateDelivery = null;
     let fpDatePickup = null;
     let checkoutCalendar = null;
+    let orderProjectCheckout = null;
+    let installationThresholdHours = 8;
     let _routeDistanceKm = 0;
     let _routeDurationMin = 0;
     let _transportFee = 0;
@@ -1366,6 +1383,8 @@
     let _autoAdvanceTimer = null;
     let _cartDraftSaveTimer = null;
     let _restoringCartDraft = false;
+    let _cartCheckoutGeneration = 0;
+    let _cartRestoreTimer = null;
     let _cartCheckoutSessionActive = Boolean(CART_CHECKOUT_CUSTOMER_ID);
 
     const CART_CHECKOUT_DRAFT_KEY = `racs_cart_checkout_draft_v2_${CART_CHECKOUT_CUSTOMER_ID}`;
@@ -1396,8 +1415,8 @@
       }
     }
 
-    function cartCheckoutSignature() {
-      return CART_ITEMS.map(item => {
+    function cartCheckoutSignature(items = CART_ITEMS) {
+      return items.map(item => {
         const inventoryId = item?.inventoryId?._id || item?.inventoryId || '';
         return `${item?._id || inventoryId}:${inventoryId}:${Number(item?.quantity) || 1}`;
       }).sort().join('|');
@@ -1415,7 +1434,8 @@
         if (!raw) return null;
         const draft = JSON.parse(raw);
         const expired = !draft?.savedAt || Date.now() - Number(draft.savedAt) > CART_CHECKOUT_DRAFT_MAX_AGE_MS;
-        if (expired || draft.cartSignature !== cartCheckoutSignature()) {
+        const selectedItems = window.getSelectedCartForCheckout?.()?.items || CART_ITEMS;
+        if (expired || draft.cartSignature !== cartCheckoutSignature(selectedItems)) {
           localStorage.removeItem(CART_CHECKOUT_DRAFT_KEY);
           return null;
         }
@@ -1428,6 +1448,10 @@
 
     function saveCartCheckoutDraft() {
       if (!_cartCheckoutSessionActive || _checkoutSubmitting || _restoringCartDraft || !selectedFulfillment) return false;
+      const selectedItems = window.getSelectedCartForCheckout?.()?.items;
+      if (selectedItems && cartCheckoutSignature(selectedItems) !== cartCheckoutSignature()) {
+        clearCartCheckoutDraft(); return false;
+      }
       try {
         const draft = {
           savedAt: Date.now(),
@@ -1442,6 +1466,7 @@
           latitude: checkoutFieldValue('wizardLat'),
           longitude: checkoutFieldValue('wizardLng'),
           preferredDate: checkoutFieldValue('wizardDate'),
+          projectScheduling: orderProjectCheckout?.selection(),
           timeSlot: checkoutFieldValue('wizardTimeSlot'),
           pickupDate: checkoutFieldValue('wizardPickupDate'),
           routeDistanceKm: _routeDistanceKm,
@@ -1459,7 +1484,10 @@
 
     function scheduleCartCheckoutDraftSave() {
       clearTimeout(_cartDraftSaveTimer);
-      _cartDraftSaveTimer = setTimeout(saveCartCheckoutDraft, 120);
+      const generation = _cartCheckoutGeneration;
+      _cartDraftSaveTimer = setTimeout(() => {
+        if (generation === _cartCheckoutGeneration) saveCartCheckoutDraft();
+      }, 120);
     }
 
     function clearCartCheckoutDraft() {
@@ -1571,12 +1599,14 @@
     }
     function orderRewardDiscount() { return Number(currentOrderReward()?.discount) || 0; }
     async function refreshOrderReward() {
+      const generation = _cartCheckoutGeneration;
       const selection = orderRewardSelection();
       const key = JSON.stringify(selection);
       if (currentOrderReward() && Date.now() - orderLoyaltyQuote.checkedAt < 10 * 60 * 1000) return orderLoyaltyQuote;
       const previousTotal = SUB_TOTAL - orderRewardDiscount();
       const response = await fetch('/api/orders/loyalty-quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selection) });
       const data = await response.json();
+      if (generation !== _cartCheckoutGeneration) throw new Error('Your checkout changed. Review the current aircons.');
       if (!response.ok) throw new Error(data.error || 'Unable to check your loyalty price. Please try again.');
       if (key !== JSON.stringify(orderRewardSelection())) throw new Error('Your cart changed. Please check your selected products again.');
       orderLoyaltyQuote = { ...data, key, checkedAt: Date.now() };
@@ -1630,8 +1660,38 @@
       if (input && value !== undefined && value !== null) input.value = String(value);
     }
 
-    async function restoreCartCheckoutDraft(draft) {
-      if (!draft?.selectedFulfillment) return;
+    function resetCartCheckoutFields() {
+      ++_routeRequestId; ++_reverseGeocodeRequestId;
+      _routeQuotePending = null; _routeQuoteError = null;
+      _routeDistanceKm = 0; _routeDurationMin = 0; _transportFee = 0;
+      _customerLocationSelected = false; _lastCustomerLat = null; _lastCustomerLng = null;
+      orderLoyaltyQuote = null;
+      window.AddressAutocomplete && document.getElementById('wizardAddress')?._addressAutocomplete?.close();
+      window.OrderRouteMap?.clear(leafletMap, window._routeLayer); window._routeLayer = null;
+      leafletMap?.remove(); leafletMap = null; leafletMarker = null; window._companyMarker = null;
+      checkoutCalendar?.clear(); orderProjectCheckout?.reset(); fpDatePickup?.clear();
+      ['wizardAddress', 'wizardNotes', 'wizardLat', 'wizardLng', 'wizardDate', 'wizardTimeSlot',
+        'wizardPickupDate', 'wizardPaymentMethod', 'wizardPaymentChannel', 'wizardGcashSenderNumber', 'gcashProofWizard']
+        .forEach(id => setCheckoutFieldValue(id, ''));
+      setCheckoutFieldValue('wizardContact', USER_PHONE || '');
+      document.getElementById('wizardNotes')?.dispatchEvent(new Event('input', { bubbles:true }));
+      const preview = document.getElementById('gcashProofPreviewWizard');
+      if (preview) { preview.removeAttribute('src'); preview.classList.add('d-none'); }
+      document.getElementById('cartItemsReviewList')?.replaceChildren();
+      document.getElementById('orderLoyaltyPriceNote')?.remove();
+      document.getElementById('mapSelectionPanel')?.classList.remove('has-location');
+      document.getElementById('mapSpinner')?.classList.remove('show');
+      const status = document.getElementById('mapSelectionStatus');
+      if (status) status.textContent = 'Choose your delivery location';
+      const address = document.getElementById('mapAddressPreview');
+      if (address) address.textContent = 'Choose a search result or select an exact point on the map.';
+      const coordinates = document.getElementById('mapCoordinateDisplay');
+      if (coordinates) coordinates.textContent = '';
+      const fit = document.getElementById('fitRouteBtn'); if (fit) fit.disabled = true;
+    }
+
+    async function restoreCartCheckoutDraft(draft, generation = _cartCheckoutGeneration) {
+      if (!draft?.selectedFulfillment || generation !== _cartCheckoutGeneration || draft.cartSignature !== cartCheckoutSignature()) return;
       _restoringCartDraft = true;
       try {
         window.selectFulfillment(draft.selectedFulfillment);
@@ -1645,7 +1705,8 @@
         setCheckoutFieldValue('wizardLng', draft.longitude);
         setCheckoutFieldValue('wizardDate', draft.preferredDate);
         setCheckoutFieldValue('wizardTimeSlot', draft.timeSlot);
-        if (draft.selectedFulfillment !== 'customer_pickup') checkoutCalendar?.restoreSelection(draft.preferredDate, draft.timeSlot);
+        if (orderProjectCheckout?.active) orderProjectCheckout.restore(draft.projectScheduling);
+        else if (draft.selectedFulfillment !== 'customer_pickup') checkoutCalendar?.restoreSelection(draft.preferredDate, draft.timeSlot);
         setCheckoutFieldValue('wizardPickupDate', draft.pickupDate);
         if (fpDatePickup && draft.pickupDate) fpDatePickup.setDate(draft.pickupDate, false);
 
@@ -1663,6 +1724,7 @@
           try { await refreshOrderReward(); }
           catch (_) { targetStep = 2; }
         }
+        if (generation !== _cartCheckoutGeneration) return;
         if (targetStep >= 3) {
           renderPaymentOptions();
           if (draft.paymentMethod) window.selectPaymentMethods(draft.paymentMethod);
@@ -1673,22 +1735,50 @@
         }
         enterWizardStep(targetStep);
       } finally {
-        clearTimeout(_autoAdvanceTimer);
-        _restoringCartDraft = false;
+        if (generation === _cartCheckoutGeneration) {
+          clearTimeout(_autoAdvanceTimer); _restoringCartDraft = false;
+        }
       }
     }
 
     window.openCheckoutWizard = async function (dynamicCart) {
-      _cartCheckoutSessionActive = await hasActiveCartCheckoutSession();
+      const generation = ++_cartCheckoutGeneration;
+      clearTimeout(_cartRestoreTimer); clearTimeout(_cartDraftSaveTimer);
+      clearTimeout(_guidedFocusTimer); clearTimeout(_autoAdvanceTimer);
+      _restoringCartDraft = false;
+      const activeSession = await hasActiveCartCheckoutSession();
+      if (generation !== _cartCheckoutGeneration) return;
+      _cartCheckoutSessionActive = activeSession;
       if (!_cartCheckoutSessionActive) {
         closeCartCheckoutAfterLogout();
         window.location.replace('/login?returnTo=' + encodeURIComponent('/aircon-cart'));
         return;
       }
-      const checkoutCart = dynamicCart || window.getSelectedCartForCheckout?.();
+      const selectedCart = window.getSelectedCartForCheckout?.();
+      let checkoutCart = dynamicCart || selectedCart;
+      if (!dynamicCart) {
+        try {
+          const response = await window.RACSRequest.json('/api/aircon-cart');
+          if (generation !== _cartCheckoutGeneration) return;
+          if (!Array.isArray(response.cart?.items)) throw new Error('The cart could not be loaded. Please try again.');
+          if (selectedCart && cartCheckoutSignature(response.cart.items) !== cartCheckoutSignature(cartObj.items || [])) {
+            // A page restored by browser Back can still contain the previous
+            // cart's rows. Refresh those rows before restoring any checkout.
+            clearCartCheckoutDraft(); selectedFulfillment = null;
+            window.location.reload(); return;
+          }
+          checkoutCart = selectedCart
+            ? window.CartSelection.selectedCart(response.cart, selectedCart.items.map(item => String(item._id)))
+            : response.cart;
+        } catch (error) {
+          if (generation === _cartCheckoutGeneration) Swal.fire('Unable to load checkout', error.message, 'error');
+          return;
+        }
+      }
       if (checkoutCart) {
         const previousSignature = cartCheckoutSignature();
-        CART_ITEMS = checkoutCart.items || [];
+        if (!selectedCart) cartObj = checkoutCart;
+        CART_ITEMS = JSON.parse(JSON.stringify(checkoutCart.items || []));
         SUB_TOTAL = checkoutCart.totalAmount || 0;
         if (previousSignature !== cartCheckoutSignature()) _checkoutRequestId = '';
       }
@@ -1697,19 +1787,21 @@
         return;
       }
 
-      const savedDraft = dynamicCart ? null : readCartCheckoutDraft();
+      const savedDraft = readCartCheckoutDraft();
 
       currentStep = 1;
       clearTimeout(_guidedFocusTimer);
       clearTimeout(_autoAdvanceTimer);
       selectedFulfillment = null;
+      resetCartCheckoutFields();
+      orderProjectCheckout?.setMode(null, CART_ITEMS, installationThresholdHours);
       renderedPaymentFulfillment = null;
       document.getElementById('wizardPaymentMethod').value = '';
       document.getElementById('wizardPaymentChannel').value = '';
       document.getElementById('paymentOptionsContainer').innerHTML = '';
       const receiptInput = document.getElementById('gcashProofWizard');
       if (receiptInput) receiptInput.value = '';
-      _checkoutRequestId = savedDraft?.checkoutRequestId || _checkoutRequestId || createCheckoutRequestId();
+      _checkoutRequestId = savedDraft?.checkoutRequestId || createCheckoutRequestId();
       document.getElementById('cartCheckoutRestoreNotice')?.classList.add('d-none');
 
       // Reset status badges
@@ -1745,6 +1837,12 @@
       // Calculate estimated installation duration based on total quantity
       const totalQty = CART_ITEMS.reduce((sum, it) => sum + (it.quantity || 1), 0);
       const estDuration = Math.max(60, totalQty * 60); // 60 min per unit, min 60
+      try {
+        const policy = await window.RACSRequest.json('/api/schedule/booking-policy');
+        installationThresholdHours = Number(policy.largeProjectThresholdHours) || 8;
+      } catch (_) { installationThresholdHours = Number(window.__bookingPolicy?.largeProjectThresholdHours) || 8; }
+      if (generation !== _cartCheckoutGeneration) return;
+      if (!orderProjectCheckout) orderProjectCheckout = new LargeOrderCheckout({ onChange: () => { scheduleCartCheckoutDraftSave(); updateNextButtonState(); } });
 
       if (!checkoutCalendar) {
         checkoutCalendar = new CheckoutCalendar('checkoutCalendarContainer', {
@@ -1800,7 +1898,7 @@
 
       const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('checkoutOrderModal'));
       modal.show();
-      if (savedDraft) setTimeout(() => restoreCartCheckoutDraft(savedDraft), 80);
+      if (savedDraft) _cartRestoreTimer = setTimeout(() => restoreCartCheckoutDraft(savedDraft, generation), 80);
     };
     window.selectFulfillment = function (type) {
       selectedFulfillment = type;
@@ -1808,11 +1906,12 @@
         c.classList.toggle('selected', c.dataset.fulfill === type);
         c.setAttribute('aria-pressed', c.dataset.fulfill === type ? 'true' : 'false');
       });
-      if (checkoutCalendar) {
+      if (checkoutCalendar && !(type === 'delivery_installation' && (CART_ITEMS.reduce((sum, item) => sum + Number(item.quantity), 0) >= 8 || CART_ITEMS.reduce((sum, item) => sum + Number(item.quantity), 0) > installationThresholdHours))) {
         checkoutCalendar.setFulfillmentType(type);
         const totalQty = CART_ITEMS.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
         checkoutCalendar.setDuration(type === 'delivery_installation' ? Math.max(60, totalQty * 60) : 60);
       }
+      orderProjectCheckout?.setMode(type, CART_ITEMS, installationThresholdHours);
       scheduleCartCheckoutDraftSave();
       scheduleCheckoutAdvance(1, 420);
     };
@@ -1876,7 +1975,9 @@
             focusSelector: '#checkoutMapCard'
           };
         }
-        if (!window.OrderCheckoutErrors.isFutureDate(date)) {
+        const projectIssue = orderProjectCheckout?.issue();
+        if (projectIssue) return projectIssue;
+        if (!window.OrderCheckoutErrors.isFutureDate(date) && !orderProjectCheckout?.active) {
           return {
             step: 2,
             title: 'Choose a Delivery Date',
@@ -1885,7 +1986,7 @@
             focusSelector: '#checkoutCalendarContainer'
           };
         }
-        if (!timeSlot) {
+        if (!timeSlot && !orderProjectCheckout?.active) {
           return {
             step: 2,
             title: 'Choose a Delivery Time',
@@ -2034,9 +2135,11 @@
     }
 
     async function validateCheckoutStep(step) {
+      const generation = _cartCheckoutGeneration;
       if (step >= 2) {
         try { await refreshOrderReward(); }
         catch (error) {
+          if (generation !== _cartCheckoutGeneration) return false;
           await presentCheckoutStepIssue({ step: currentStep >= 3 ? 3 : 2, title: 'Review your loyalty price', message: error.message, confirmButtonText: 'Review price', focusSelector: '#gcashFieldsWizard' });
           return false;
         }
@@ -2051,6 +2154,7 @@
           document.getElementById('wizardDate').value,
           document.getElementById('wizardTimeSlot').value
         );
+        if (generation !== _cartCheckoutGeneration) return false;
         if (!stillAvailable) {
           await presentCheckoutStepIssue({
             step: 2,
@@ -2063,13 +2167,16 @@
         }
       }
       const issue = getCheckoutStepIssue(step);
+      if (generation !== _cartCheckoutGeneration) return false;
       if (!issue) return true;
       await presentCheckoutStepIssue(issue);
       return false;
     }
 
     window.wizardNext = async function () {
+      const generation = _cartCheckoutGeneration;
       if (!(await validateCheckoutStep(currentStep))) return;
+      if (generation !== _cartCheckoutGeneration) return;
       if (currentStep === 4) {
         for (let step = 1; step < 4; step += 1) {
           if (!(await validateCheckoutStep(step))) return;
@@ -2271,8 +2378,12 @@
           return;
         }
         if (file && preview) {
+          const generation = _cartCheckoutGeneration;
           const reader = new FileReader();
-          reader.onload = ev => { preview.src = ev.target.result; preview.classList.remove('d-none'); };
+          reader.onload = ev => {
+            if (generation !== _cartCheckoutGeneration) return;
+            preview.src = ev.target.result; preview.classList.remove('d-none');
+          };
           reader.readAsDataURL(file);
           if (warning) warning.classList.add('d-none');
         } else if (preview) {
@@ -2493,7 +2604,7 @@
           _transportFee,
           quote.source === 'road'
         );
-        if (checkoutCalendar) checkoutCalendar.setTravelTime(_routeDurationMin);
+        if (checkoutCalendar && !orderProjectCheckout?.active) checkoutCalendar.setTravelTime(_routeDurationMin);
       }).catch(function(error) {
         if (routeRequestId !== _routeRequestId) return;
         _routeDistanceKm = NaN;
@@ -2536,7 +2647,7 @@
         const timeSlot = document.getElementById('wizardTimeSlot').value;
         details.push({ label: 'Address', value: addr });
         details.push({ label: 'Contact', value: contact });
-        details.push({ label: selectedFulfillment === 'delivery_installation' ? 'Installation' : 'Delivery', value: `${date} ${timeSlot ? 'at ' + timeSlot : ''}` });
+        details.push({ label: orderProjectCheckout?.active ? 'Preferred installation window' : selectedFulfillment === 'delivery_installation' ? 'Installation' : 'Delivery', value: orderProjectCheckout?.active ? `${date} through ${orderProjectCheckout.selection().preferredCompletionDeadline} (staff will confirm daily dates)` : `${date} ${timeSlot ? 'at ' + timeSlot : ''}` });
       } else {
         details.push({ label: 'Pickup Date', value: document.getElementById('wizardPickupDate').value });
         details.push({ label: 'Pickup Location', value: 'CALIDRO RACS Store' });
@@ -2932,6 +3043,7 @@
       fd.append('checkoutRequestId', _checkoutRequestId || (_checkoutRequestId = createCheckoutRequestId()));
       fd.append('technicianId', '');
       fd.append('timeSlot', document.getElementById('wizardTimeSlot')?.value || '');
+      if (orderProjectCheckout?.active) fd.append('projectScheduling', JSON.stringify(orderProjectCheckout.selection()));
 
       if (deliveryData) {
         fd.append('delivery', JSON.stringify(deliveryData));
@@ -2960,6 +3072,11 @@
         const data = await res.json();
 
         if (!res.ok) {
+          if (orderProjectCheckout?.active && /^ORDER_PROJECT_WINDOW_/.test(data.code || '')) {
+            orderProjectCheckout.verdict = null;
+            orderProjectCheckout.status.textContent = data.error || 'Check the installation dates and try again.';
+            orderProjectCheckout.retry.hidden = false;
+          }
           if (res.status === 409 && /loyalty price/i.test(data.error || '')) {
             orderLoyaltyQuote = null;
             try { await refreshOrderReward(); } catch (_) {}
@@ -3030,10 +3147,34 @@
       };
       cartCheckoutModalElement.addEventListener('input', persistChangedCheckoutField);
       cartCheckoutModalElement.addEventListener('change', persistChangedCheckoutField);
+      cartCheckoutModalElement.addEventListener('hide.bs.modal', () => {
+        saveCartCheckoutDraft(); ++_cartCheckoutGeneration;
+        clearTimeout(_cartRestoreTimer); clearTimeout(_cartDraftSaveTimer);
+        clearTimeout(_autoAdvanceTimer); clearTimeout(_guidedFocusTimer);
+        _restoringCartDraft = false;
+      });
     }
 
+    function invalidateChangedCartCheckout() {
+      clearCartCheckoutDraft(); ++_cartCheckoutGeneration;
+      clearTimeout(_cartRestoreTimer); clearTimeout(_autoAdvanceTimer);
+      _restoringCartDraft = false; _checkoutRequestId = ''; selectedFulfillment = null;
+      resetCartCheckoutFields();
+      currentStep = 1;
+      document.querySelectorAll('.fulfill-card').forEach(card => { card.classList.remove('selected'); card.setAttribute('aria-pressed', 'false'); });
+      if (cartCheckoutModalElement?.classList.contains('show')) updateWizardUI();
+    }
+    document.addEventListener('cart:updated', invalidateChangedCartCheckout);
+    document.addEventListener('cart:selection-changed', () => {
+      const selected = window.getSelectedCartForCheckout?.();
+      if (selected && cartCheckoutSignature(selected.items) !== cartCheckoutSignature()) invalidateChangedCartCheckout();
+    });
+
     async function reopenSavedCartCheckout() {
-      _cartCheckoutSessionActive = await hasActiveCartCheckoutSession();
+      const generation = _cartCheckoutGeneration;
+      const activeSession = await hasActiveCartCheckoutSession();
+      if (generation !== _cartCheckoutGeneration) return;
+      _cartCheckoutSessionActive = activeSession;
       if (!_cartCheckoutSessionActive) {
         closeCartCheckoutAfterLogout();
         window.location.replace('/login?returnTo=' + encodeURIComponent('/aircon-cart'));
@@ -3056,7 +3197,10 @@
         if (!active) closeCartCheckoutAfterLogout();
       });
     });
-    window.addEventListener('pageshow', () => setTimeout(reopenSavedCartCheckout, 80));
+    window.addEventListener('pageshow', () => {
+      const generation = _cartCheckoutGeneration;
+      setTimeout(() => { if (generation === _cartCheckoutGeneration) reopenSavedCartCheckout(); }, 80);
+    });
     window.addEventListener('racs:logout', closeCartCheckoutAfterLogout);
   })();
 </script>

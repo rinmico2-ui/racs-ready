@@ -323,7 +323,7 @@
 <script>
 (() => {
   const API = <%- JSON.stringify(resolvedServiceCategoriesApiBase).replace(/</g, "\\u003c") %>;
-  const CAN_MANAGE = <%- JSON.stringify(resolvedServiceCategoriesCanManage) %>;
+  const CAN_MANAGE = <%- (JSON.stringify(resolvedServiceCategoriesCanManage)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   let allCategories = <%- JSON.stringify(cats).replace(/</g, "\\u003c") %>;
 
   function authFetch(url, opts = {}) {

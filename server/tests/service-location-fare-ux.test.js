@@ -77,6 +77,7 @@ test("the fixed action shows the calculated fare only for a confirmed pin", () =
   const sync = vm.runInNewContext(`(${source})`, {
     BookingState: { currentStep: 3, customerLocation: location },
     pendingRelocationQuoteItem: () => null,
+    relocationLocationController: () => null,
     document: { body, getElementById: id => elements[id] },
     window: { clearTimeout() {}, setTimeout: () => 1 },
   });

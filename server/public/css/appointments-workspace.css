@@ -1,0 +1,80 @@
+/* Appointment controls have their own colors so labels remain readable if a CDN stylesheet fails. */
+.appointments-workspace .au-hero {
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: none;
+  overflow: visible;
+}
+.appointments-workspace .au-hero::before,
+.appointments-workspace .au-hero::after { display: none; }
+.appointments-workspace .au-hero-inner { padding: 24px; gap: 16px; }
+.appointments-workspace .au-hero-left { min-width: 0; gap: 14px; }
+.appointments-workspace .au-hero-icon { width: 46px; height: 46px; border: 0; border-radius: 12px; background: #eff6ff; color: #2563eb; font-size: 1.3rem; backdrop-filter: none; }
+.appointments-workspace .au-hero h1 { color: #0f172a; font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
+.appointments-workspace .au-hero p { color: #64748b; font-size: .85rem; line-height: 1.5; }
+.appointment-tools { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; padding: 16px 24px; border-top: 1px solid #e2e8f0; }
+.appointment-shortcut {
+  display: inline-flex;
+  flex: 1 1 160px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.appointment-shortcut > i { flex: 0 0 auto; color: #2563eb; font-size: 1rem; }
+.appointment-shortcut > span { min-width: 0; overflow-wrap: anywhere; }
+.appointment-shortcut:hover { color: #1d4ed8; background: #eff6ff; border-color: #93b4ee; }
+.appointment-shortcut-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; color: #b91c1c; background: #fee2e2; font-size: .68rem; font-weight: 700; }
+.appointments-workspace .workflow-tabs-shell { padding: 6px; border-radius: 12px; box-shadow: none; overflow: visible; }
+.appointments-workspace .workflow-tabs-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; overflow: visible; }
+.appointments-workspace .workflow-tabs-list > li { min-width: 0; }
+.appointments-workspace .workflow-tab { flex: 1; min-width: 0; min-height: 50px; padding: 10px; border-radius: 8px; color: #475569; font-family: inherit; font-size: .76rem; font-weight: 600; line-height: 1.4; white-space: normal; }
+.appointments-workspace .workflow-tab.active { color: #fff; background: #2563eb; box-shadow: none; }
+.appointments-workspace .workflow-tab:hover:not(.active) { color: #1d4ed8; background: #eff6ff; }
+.appointments-workspace .workflow-tab > i,
+.appointments-workspace .workflow-tab-badge { flex: 0 0 auto; }
+.appointments-workspace .workflow-tab-badge:empty { display: none; }
+.appointments-workspace .au-btn { min-height: 38px; padding: 9px 14px; border-radius: 8px; font-weight: 600; box-shadow: none; line-height: 1.4; }
+.appointments-workspace .au-btn-primary { background: #2563eb; color: #fff; }
+.appointments-workspace .au-btn-success { background: #15803d; color: #fff; }
+.appointments-workspace .au-btn-danger { background: #dc2626; color: #fff; }
+.appointments-workspace .au-btn-ghost { background: #fff; border: 1px solid #d8e1eb; color: #334155; }
+.appointments-workspace .au-btn:hover { box-shadow: none; }
+.appointments-workspace .au-btn:disabled { opacity: .55; cursor: default; }
+.appointment-shortcut:focus-visible,
+.appointments-workspace .workflow-tab:focus-visible,
+.appointments-workspace .au-btn:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+@media (max-width: 1199px) {
+  .appointments-workspace .workflow-tabs-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 575px) {
+  .appointments-workspace.au-page { padding-inline: 0; }
+  .appointments-workspace .au-hero-inner { padding: 18px 16px; }
+  .appointments-workspace .au-hero-left { align-items: flex-start; gap: 10px; }
+  .appointments-workspace .au-hero-icon { width: 38px; height: 38px; border-radius: 10px; }
+  .appointments-workspace .au-hero h1 { font-size: 1.18rem; }
+  .appointments-workspace .au-hero p { font-size: .78rem; }
+  .appointment-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  .appointment-shortcut { padding: 10px 8px; font-size: .73rem; }
+  .appointment-shortcut:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .appointments-workspace .workflow-tabs-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .appointments-workspace .workflow-tab { min-height: 52px; padding: 8px; font-size: .72rem; }
+}
+@media (prefers-reduced-motion: reduce) { .appointment-shortcut { transition: none; } }
