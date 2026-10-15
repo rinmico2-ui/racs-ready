@@ -131,6 +131,43 @@ test("reset refuses unresolved custody, pending returns and deducted reservation
   assert.ok(result.blockers.some(row => row.code.includes("deducted_reservations")));
 });
 
+test("only the five owner-confirmed simulated custody IDs are acknowledged", async () => {
+  const f = fixture(), confirmed = reset.TEST_CUSTODY_ACKNOWLEDGEMENT;
+  f.state.projectmaterials = confirmed.projectmaterials.map(value => ({ _id: new mongoose.Types.ObjectId(value), status: "reserved", pickedUp: true }));
+  f.state.dailykits = confirmed.dailykits.map(value => ({ _id: new mongoose.Types.ObjectId(value), items: [{ quantityIssued: 1, quantityReturned: 0 }] }));
+  let plan = reset.buildResetPlan(await reset.snapshotResetData(f.db, undefined, f));
+  assert.equal(plan.blockers.length, 0);
+  assert.deepEqual(plan.acknowledgedTestCustody.projectmaterials, [...confirmed.projectmaterials]);
+  assert.deepEqual(plan.acknowledgedTestCustody.dailykits, [...confirmed.dailykits]);
+  assert.equal(plan.acknowledgedTestCustody.stockQuantityChanges, 0);
+  const otherMaterial = { _id: oid(), status: "reserved", pickedUp: true };
+  const otherKit = { _id: oid(), items: [{ quantityIssued: 1 }] };
+  f.state.projectmaterials.push(otherMaterial); f.state.dailykits.push(otherKit);
+  // A genuine open custody ledger stays blocked even if a confirmed kit links it.
+  f.state.equipmentassignments.push({ _id: oid(), dailyKitId: f.state.dailykits[0]._id, status: "checked_out" });
+  plan = reset.buildResetPlan(await reset.snapshotResetData(f.db, undefined, f));
+  assert.deepEqual(plan.blockers.find(row => row.code === "resolve_picked_up_project_materials_first").ids, [String(otherMaterial._id)]);
+  assert.deepEqual(plan.blockers.find(row => row.code === "resolve_unsettled_daily_kit_items_first").ids, [String(otherKit._id)]);
+  assert.equal(plan.blockers.find(row => row.code === "return_issued_equipment_or_consumables_first").count, 1);
+  assert.equal(f.writes, 0);
+});
+
+test("simulated custody removal keeps stock unchanged and records the acknowledgement in backup and audit", async t => {
+  const f = fixture(), confirmed = reset.TEST_CUSTODY_ACKNOWLEDGEMENT;
+  f.state.projectmaterials = confirmed.projectmaterials.map(value => ({ _id: new mongoose.Types.ObjectId(value), status: "reserved", pickedUp: true }));
+  f.state.dailykits = confirmed.dailykits.map(value => ({ _id: new mongoose.Types.ObjectId(value), items: [{ quantityIssued: 2, quantityReturned: 0 }] }));
+  const physical = f.state.tools[0].quantity, checkedOut = f.state.tools[0].checkedOutQuantity;
+  const prepared = await prepare(t, f);
+  assert.equal(reset.readResetBackup(prepared.backup).artifact.acknowledgedTestCustody.dailykits.length, 3);
+  const result = await reset.applyReset({ ...f, backupFile: prepared.backup, now });
+  assert.equal(result.mode, "reset-and-seeded");
+  assert.equal(f.state.tools[0].quantity, physical); assert.equal(f.state.tools[0].checkedOutQuantity, checkedOut);
+  assert.equal(f.state.projectmaterials.length, 0); assert.equal(f.state.dailykits.length, 0);
+  const log = f.state.activitylogs.find(row => row.action === "BOOKING_ORDER_DATA_RESET");
+  assert.equal(log.details.acknowledgedTestCustody.projectmaterials.length, 2);
+  assert.match(log.details.acknowledgedTestCustody.reason, /nothing was physically taken/);
+});
+
 test("preparing writes only a private checksummed recovery file", async t => {
   const f = fixture(), result = await prepare(t, f);
   assert.equal(result.mode, "prepared"); assert.equal(f.writes, 0);

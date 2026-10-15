@@ -7,6 +7,16 @@ const mongoose = require("mongoose");
 const { COUNT, BATCH, demoId, catalogPrice, buildCompletedDemoSeed } = require("./completedBookingDemoSeed");
 
 const RESET_KEY = "booking-order-reset-20261015-v1";
+// Exact records from the live read-only preview. On October 15, 2026 the
+// owner explicitly confirmed that these were test entries and nothing was
+// physically taken. This acknowledges simulated links; it never fabricates
+// a return, credits stock, or bypasses other issued-equipment checks.
+const TEST_CUSTODY_ACKNOWLEDGEMENT = Object.freeze({
+  projectmaterials: Object.freeze(["6a984f53e9580116f93d3d00", "6a984f53e9580116f93d3d01"]),
+  dailykits: Object.freeze(["6aa7ad8317db5ded206482e4", "6ab09a1d95e7ac96d8fe92ce", "6ab60ef8a4ff927d7bf2ebb1"]),
+  reason: "Owner confirmed these exact previewed records are test entries only; nothing was physically taken.",
+  stockQuantityChanges: 0,
+});
 // These collections belong exclusively to the service/order workflows. Clearing
 // their orphan rows is intentional, including payments whose booking is missing.
 const WORK_COLLECTIONS = Object.freeze([
@@ -74,6 +84,11 @@ async function snapshotResetData(db, session, { decryptEmail } = {}) {
 
 function buildResetPlan(data) {
   const blockers = [...data.emailBlockers];
+  const acknowledgedTestCustody = Object.fromEntries(["projectmaterials", "dailykits"].map(name => [name,
+    data.remove[name].filter(row => TEST_CUSTODY_ACKNOWLEDGEMENT[name].includes(id(row._id))).map(row => id(row._id)),
+  ]));
+  acknowledgedTestCustody.reason = TEST_CUSTODY_ACKNOWLEDGEMENT.reason;
+  acknowledgedTestCustody.stockQuantityChanges = 0;
   if (!data.settings[0]?.value?.maintenance?.enabled) blockers.push({ code: "enable_maintenance_in_admin_system_settings_first" });
   if (!data.services.some(row => row.active !== false && !row.archivedAt && catalogPrice(row) > 0)) blockers.push({ code: "configure_an_active_core_service_price_first" });
   const add = (code, rows) => { if (rows.length) blockers.push({ code, count: rows.length, ids: rows.slice(0, 10).map(row => id(row._id)) }); };
@@ -81,9 +96,11 @@ function buildResetPlan(data) {
   add("review_pending_kit_returns_first", data.remove.kitreturns.filter(row => row.status === "pending"));
   add("resolve_checked_out_repair_parts_first", data.remove.stockreservations.filter(row => row.status === "checked_out"));
   add("cancel_unissued_deducted_reservations_in_normal_workflow_first", data.remove.stockreservations.filter(row => row.status === "reserved" && row.stockTreatment !== "soft_hold"));
-  add("resolve_picked_up_project_materials_first", data.remove.projectmaterials.filter(row => row.status === "reserved" && row.pickedUp));
+  add("resolve_picked_up_project_materials_first", data.remove.projectmaterials.filter(row => row.status === "reserved" && row.pickedUp
+    && !TEST_CUSTODY_ACKNOWLEDGEMENT.projectmaterials.includes(id(row._id))));
   const assignments = new Map(data.remove.equipmentassignments.map(row => [id(row._id), row]));
-  add("resolve_unsettled_daily_kit_items_first", data.remove.dailykits.filter(kit => [...(kit.items || []), ...(kit.returnedItems || []), ...(kit.deltaItems || [])].some(item => {
+  add("resolve_unsettled_daily_kit_items_first", data.remove.dailykits.filter(kit => !TEST_CUSTODY_ACKNOWLEDGEMENT.dailykits.includes(id(kit._id))
+    && [...(kit.items || []), ...(kit.returnedItems || []), ...(kit.deltaItems || [])].some(item => {
     if (item.returnPendingQuantity > 0) return true;
     const custody = [item.equipmentAssignmentId, ...(item.custodyAssignmentIds || [])].map(value => assignments.get(id(value))).filter(Boolean);
     if (custody.length && custody.every(row => ["returned", "released", "consumed", "damaged", "lost"].includes(row.status))) return false;
@@ -96,7 +113,7 @@ function buildResetPlan(data) {
     mode: "dry-run", operation: RESET_KEY, deletionCounts: Object.fromEntries(Object.entries(data.remove).map(([name, rows]) => [name, rows.length])),
     seed: { batch: BATCH, completedServiceBookings: COUNT, completedOrders: 0, disabledDemoCustomers: 3, inactiveDemoTechnicians: 2, customerNotifications: 0 },
     reservationCountersToClear: data.tools.filter(row => Number(row.reservedQuantity) > 0).length,
-    physicalQuantityChanges: 0, blockers,
+    physicalQuantityChanges: 0, acknowledgedTestCustody, blockers,
     preserved: ["existing accounts and staff", "catalogs", "physical stock and checkout counters", "independent counter sales and their returns", "unlinked expenses and payroll", "security/activity/stock audit history", "uploads"],
     note: "All service/order workflow records, including orphan rows, are targeted. Demo transactions are clearly labeled and included in reports; they are not actual income. Independent counter sales, payroll and expenses still affect analytics.",
   };
@@ -137,7 +154,8 @@ async function prepareReset({ db, backupDirectory, now = new Date(), decryptEmai
   for (const name of ["users", "technicians"]) {
     if (await db.collection(name).findOne({ _id: { $in: ids(seed[name]) } })) throw Error("A reserved demo identity already exists. No database changes made.");
   }
-  const artifact = { schemaVersion: 1, operation: RESET_KEY, database: db.databaseName, preparedAt: now, original, seed };
+  const artifact = { schemaVersion: 1, operation: RESET_KEY, database: db.databaseName, preparedAt: now, original, seed,
+    acknowledgedTestCustody: plan.acknowledgedTestCustody };
   return { ...plan, mode: "prepared", databaseChanges: 0, ...writeResetBackup(artifact, backupDirectory), next: "Download both private backup files before applying. Do not post their contents or place them in public/uploads." };
 }
 
@@ -194,7 +212,8 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
       await db.collection("activitylogs").insertOne({
         action: restore ? "BOOKING_ORDER_DATA_RESET_RESTORED" : "BOOKING_ORDER_DATA_RESET", actionType: "system",
         actorName: "Owner-authorized database maintenance", source: "system", outcome: "success", createdAt: now,
-        details: { operation: RESET_KEY, backup: path.basename(backupFile), backupSha256, counts: plan.deletionCounts, completedDemoBookings: restore ? 0 : COUNT },
+        details: { operation: RESET_KEY, backup: path.basename(backupFile), backupSha256, counts: plan.deletionCounts,
+          acknowledgedTestCustody: plan.acknowledgedTestCustody, completedDemoBookings: restore ? 0 : COUNT },
       }, options);
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, maxCommitTimeMS: 15000 });
   } finally { await session.endSession(); }
@@ -203,5 +222,5 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
   };
 }
 
-module.exports = { RESET_KEY, WORK_COLLECTIONS, PARTIAL_COLLECTIONS, SEED_COLLECTIONS, serialize, deserialize, digest,
+module.exports = { RESET_KEY, TEST_CUSTODY_ACKNOWLEDGEMENT, WORK_COLLECTIONS, PARTIAL_COLLECTIONS, SEED_COLLECTIONS, serialize, deserialize, digest,
   snapshotResetData, buildResetPlan, writeResetBackup, readResetBackup, prepareReset, applyReset };

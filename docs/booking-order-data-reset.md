@@ -59,7 +59,13 @@ contains the original document references.
    Return issued equipment/unused materials and settle pending kit returns through
    the existing returns screens first. Cancel unissued, physically deducted legacy
    reservations through the normal workflow. The script refuses to fabricate
-   returns, replenish stock, ignore custody or override those blockers.
+   returns or replenish stock. The owner explicitly identified the two picked-up
+   project-material IDs and three unsettled kit IDs from the October 15 preview
+   as test entries where nothing was physically taken. Those exact five IDs are
+   recorded in `acknowledgedTestCustody` and the recovery/audit records. Only their
+   simulated custody links are allowed through; other issued-equipment, pending
+   return and reservation checks still apply. Saved inventory quantities remain
+   unchanged; this reset does not reconstruct pre-test inventory counts.
 3. Prepare the recovery snapshot. This writes files only, with no database changes:
 
    ```sh
