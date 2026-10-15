@@ -383,6 +383,10 @@ async function computeRevenueAnalytics(query = {}) {
       orders: mOrders.reduce((s, o) => s + (o.total || o.totalAmount || 0), 0),
       pos: mPos.reduce((s, p) => s + Number(p.totalAmount || 0), 0),
       total: 0,
+      monthKey: localDateKey(monthStart).slice(0,7),
+      completedService: mRecognizedBookings.reduce((sum,row) => sum + getBookingRevenue(row),0),
+      completedOrders: mRecognizedOrders.reduce((sum,row) => sum + Number(row.total || 0),0),
+      completedPos: mPos.reduce((sum,row) => sum + Number(row.totalAmount || 0),0),
       recognized: mRecognizedBookings.reduce((s, b) => s + getBookingRevenue(b), 0)
         + mRecognizedOrders.reduce((s, o) => s + Number(o.total || 0), 0)
         + mPos.reduce((s, p) => s + Number(p.totalAmount || 0), 0)
@@ -549,13 +553,13 @@ async function computeRevenueAnalytics(query = {}) {
   serviceCostAnalytics.services.forEach((service) => {
     const completedAt = new Date(service.completedAt);
     if (Number.isNaN(completedAt.getTime())) return;
-    const key = completedAt.toLocaleString("en-PH", { month: "short", year: "numeric" });
+    const key = completedAt.toLocaleString("en-PH", { month: "short", year: "numeric", timeZone: reportDates.TIME_ZONE });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) {
       monthlyPartsCost[key] += Number(directCostByBooking.get(String(service.bookingId)) || 0);
     }
   });
   recognizedOrders.forEach((order) => {
-    const key = new Date(orderCompletionDate(order)).toLocaleString("en-PH", { month: "short", year: "numeric" });
+    const key = new Date(orderCompletionDate(order)).toLocaleString("en-PH", { month: "short", year: "numeric", timeZone: reportDates.TIME_ZONE });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) {
       monthlyPartsCost[key] += summarizeOrderCosts([order], orderCostCatalog).totalCost
         + Number(orderConsumableSummary.byOrder.get(String(order._id)) || 0)
@@ -563,13 +567,13 @@ async function computeRevenueAnalytics(query = {}) {
     }
   });
   posSales.forEach((sale) => {
-    const key = new Date(sale.completedAt || sale.createdAt).toLocaleString("en-PH", { month: "short", year: "numeric" });
+    const key = new Date(sale.completedAt || sale.createdAt).toLocaleString("en-PH", { month: "short", year: "numeric", timeZone: reportDates.TIME_ZONE });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) monthlyPartsCost[key] += Number(sale.totalCost || 0);
   });
   projectMaterials.forEach((material) => {
     const booking = recognizedBookingById.get(String(projectToBooking.get(String(material.projectId)) || ""));
     if (!booking) return;
-    const key = new Date(bookingCompletionDate(booking)).toLocaleString("en-PH", { month: "short", year: "numeric" });
+    const key = new Date(bookingCompletionDate(booking)).toLocaleString("en-PH", { month: "short", year: "numeric", timeZone: reportDates.TIME_ZONE });
     if (Object.prototype.hasOwnProperty.call(monthlyPartsCost, key)) {
       monthlyPartsCost[key] += Number(material.totalPrice || (Number(material.quantity || 0) * Number(material.unitPrice || 0)));
     }
@@ -605,9 +609,26 @@ async function computeRevenueAnalytics(query = {}) {
     })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  const cashProjectIds = [...new Set([...payments,...cohortPayments].map(row => row.projectId).filter(Boolean).map(String))];
+  const parentProjects = cashProjectIds.length ? await require('../models/Project').find({ _id: { $in: cashProjectIds } }).select('bookingId projectReference status archivedAt testDataExcludedAt customer.name').lean() : [];
+  const cashBookingIds = [...new Set([...payments.map(row => row.bookingId), ...parentProjects.map(row => row.bookingId)].filter(Boolean).map(String))];
+  const cashOrderIds = [...new Set([...payments.map(row => row.orderId), ...productRefunds.filter(row => row.sourceType === 'order').map(row => row.sourceId)].filter(Boolean).map(String))];
+  const cashCounterIds = [...new Set(productRefunds.filter(row => row.sourceType === 'walk_in').map(row => row.sourceId).filter(Boolean).map(String))];
+  const parentFields = 'status archivedAt testDataExcludedAt bookingReference orderReference paymentStatus paymentMethod customer.name createdAt completedAt';
+  const [parentBookings,parentOrders,parentCounterSales] = await Promise.all([
+    cashBookingIds.length ? BookingService.find({ _id: { $in: cashBookingIds } }).select(parentFields + ' repairCompletion.completedAt slaTracking.resolutionAt').lean() : [],
+    cashOrderIds.length ? Order.find({ _id: { $in: cashOrderIds } }).select(parentFields).lean() : [],
+    cashCounterIds.length ? WalkInSale.find({ _id: { $in: cashCounterIds } }).select('invoiceNumber customerName status completedAt createdAt paymentMethod totalAmount').lean() : [],
+  ]);
+  const reportReconciliation = require('./revenueReconciliation').buildRevenueReconciliation({
+    bookings:filteredBookings, orders, recognizedBookings, recognizedOrders, posSales, payments, cohortPayments, productRefunds,
+    parentBookings,parentOrders,parentProjects,parentCounterSales,projectPricing:projectPricingMap,startDate,endDate,
+    methodFilter:pmFilter === 'all' ? null : normalizePaymentMethod(pmFilter),
+  });
+
   // ── POS payment methods ──
   const posPaymentMethods = posSales.reduce((map, s) => {
-    const method = s.paymentMethod || "other";
+    const method = normalizePaymentMethod(s.paymentMethod);
     map[method] = (map[method] || 0) + Number(s.totalAmount || 0);
     return map;
   }, {});
@@ -723,15 +744,15 @@ async function computeRevenueAnalytics(query = {}) {
   const { productMap: orderProductMap, topProducts: topOrderProducts, brands: orderBrandAnalysis, capacities: orderCapacityAnalysis } =
     require('./airconSalesAnalytics').buildAirconProductSales(recognizedOrders, orderCostCatalog);
   const orderFulfillmentMap = { delivery_only: { count: 0, revenue: 0 }, delivery_installation: { count: 0, revenue: 0 }, customer_pickup: { count: 0, revenue: 0 } };
-  orders.forEach(order => {
+  recognizedOrders.forEach(order => {
     const row = orderFulfillmentMap[order.fulfillmentType || 'delivery_only'];
-    if (row) { row.count++; row.revenue += Number(order.total || 0); }
+    if (row) { row.count++; row.revenue += Number(order.total || 0); row.quantity = Number(row.quantity || 0) + (order.items || []).reduce((sum,item) => sum + Number(item.quantity || 0),0); }
   });
 
   // ── Combined product intelligence ──
   const allProductsMap = {};
-  Object.values(posProductMap).forEach((p) => {
-    const key = `pos:${p.name}`;
+  Object.entries(posProductMap).forEach(([productKey,p]) => {
+    const key = `pos:${productKey}`;
     allProductsMap[key] = { name: p.name, category: p.category || "POS", channel: "POS", quantity: p.quantity, revenue: p.revenue, cost: p.cost, profit: p.profit, orders: 1 };
   });
   Object.values(orderProductMap).forEach((p) => {
@@ -750,6 +771,8 @@ async function computeRevenueAnalytics(query = {}) {
   const totalProductRevenue = allProducts.reduce((s, p) => s + p.revenue, 0);
   const onlineOrderProductUnits = Object.values(orderProductMap).filter(p => p.channel === "order").reduce((s, p) => s + p.quantity, 0);
   const onlineOrderProductRevenue = Object.values(orderProductMap).filter(p => p.channel === "order").reduce((s, p) => s + p.revenue, 0);
+  const orderProductUnits = Object.values(orderProductMap).reduce((sum,row) => sum + row.quantity,0);
+  const orderProductRevenue = Object.values(orderProductMap).reduce((sum,row) => sum + row.revenue,0);
   const posProductRevenue = Object.values(posProductMap).reduce((s, p) => s + p.revenue, 0);
 
   // ── Payment status counts ──
@@ -769,7 +792,8 @@ async function computeRevenueAnalytics(query = {}) {
 
   // ── Derived executive metrics ──
   const totalTransactions = filteredBookings.length + orders.length + posSales.length;
-  const collectionRate = totalRevenue > 0 ? Math.min(100, (cohortNetCollections / totalRevenue) * 100) : 0;
+  const collectionRate = reportReconciliation.reconciliation.paidCoveragePercent;
+  const cohortNetCollectionRate = totalRevenue > 0 ? (cohortNetCollections / totalRevenue) * 100 : 0;
   const refundRate = grossCollections > 0 ? (refunds / grossCollections) * 100 : 0;
   const serviceShare = totalRevenue > 0 ? (serviceRevenue / totalRevenue) * 100 : 0;
   const orderShare = totalRevenue > 0 ? (orderRevenue / totalRevenue) * 100 : 0;
@@ -833,17 +857,19 @@ async function computeRevenueAnalytics(query = {}) {
     const revenue = Math.max(0, Number(service.revenue || 0) - refund);
     const partsCost = Number(service.partsCost || 0) + projectCost;
     const directCost = partsCost + Number(service.consumablesCost || 0) + Number(service.laborCost || 0) + Number(service.localPurchaseCost || 0);
-    return { ...service, revenue, partsCost, refundAmount: refund, projectMaterialCost: projectCost, grossProfit: revenue - directCost, serviceLines };
+    return { ...service, revenue, partsCost, refundAmount: refund, projectMaterialCost: projectCost, grossProfit: revenue - directCost, grossProfitMargin: revenue > 0 ? (revenue-directCost)/revenue*100 : null, serviceLines };
   });
   const serviceProfitability = buildServiceProfitability(profitabilityServiceRows, { startDate, endDate });
   const salesForecast = buildRevenueForecast(dailyRevenue, { anchorDate: endDate, horizonDays: 30 });
 
   // ── Executive insights (strategic call-outs shown at the top of the report) ──
   const executiveInsights = [];
+  if (reportReconciliation.reconciliation.unmatchedPaymentRecords) executiveInsights.push({tone:'danger',title:'Payments linked to missing work',text:`${reportReconciliation.reconciliation.unmatchedPaymentRecords} payment records in these dates refer to work that cannot be found. Their collections total ${reportReconciliation.reconciliation.unmatchedCollections.toLocaleString('en-PH',{style:'currency',currency:'PHP'})}. They remain in recorded cash and need review.`});
+  if (reportReconciliation.reconciliation.paidStatusMismatchCount) executiveInsights.push({tone:'warning',title:'Paid labels need checking',text:`${reportReconciliation.reconciliation.paidStatusMismatchCount} requested bookings or orders are marked paid without enough dated payment records. The unpaid balance uses the payment ledger.`});
   if (growthRate >= 10) {
-    executiveInsights.push({ tone: "success", title: "Sales increased", text: `Combined service, online-order, and POS revenue increased ${growthRate.toFixed(1)}% between the first and second half of these dates.` });
+    executiveInsights.push({ tone: "success", title: "Requested work increased", text: `Requested service and order value plus completed POS increased ${growthRate.toFixed(1)}% between the first and second half of these dates.` });
   } else if (growthRate <= -10) {
-    executiveInsights.push({ tone: "danger", title: "Sales decreased", text: `Combined revenue declined ${Math.abs(growthRate).toFixed(1)}% between the first and second half of these dates.` });
+    executiveInsights.push({ tone: "danger", title: "Requested work decreased", text: `Requested service and order value plus completed POS declined ${Math.abs(growthRate).toFixed(1)}% between the first and second half of these dates.` });
   }
   if (collectionRate < 70 && outstandingValue > 0) {
     executiveInsights.push({ tone: "warning", title: "Unpaid amounts", text: `${outstandingValue.toLocaleString("en-PH", { style: "currency", currency: "PHP" })} of approved work value does not have a confirmed payment.` });
@@ -889,6 +915,14 @@ async function computeRevenueAnalytics(query = {}) {
     filters: { startDate, endDate, source: sourceFilter, paymentMethod: pmFilter, paymentStatus: psFilter, serviceType: stFilter, technician: techFilter },
     technicians: technicians.map((t) => ({ id: t._id, name: t.name })),
     analytics: {
+      reportPeriod: { startDate,endDate,timeZone:reportDates.TIME_ZONE },
+      salesView: { ...reportReconciliation.salesView,posCost,posProfit,posMargin:posRevenue ? posProfit/posRevenue*100 : 0 },
+      activity: reportReconciliation.activity,
+      reconciliation: { ...reportReconciliation.reconciliation, savedDirectCosts:totalPartsCost, approvedExpenses:approvedExpenseTotal, payroll:payrollCost, operatingExpenses, operatingProfit,
+        serviceGrossSales:recognizedServiceRevenue, serviceRefundsOnCompletedWork:profitabilityServiceRows.reduce((sum,row) => sum + Number(row.refundAmount || 0),0),
+        serviceNetSales:profitabilityServiceRows.reduce((sum,row) => sum + Number(row.revenue || 0),0), serviceCosts:serviceDirectCost + projectMaterialCost,
+        orderItemSales:orderProductRevenue, orderFeesAndAdjustments:recognizedOrderRevenue-orderProductRevenue,
+        counterItemSales:posProductRevenue, counterFeesAndAdjustments:posRevenue-posProductRevenue },
       totalRevenue, serviceRevenue, orderRevenue, onlineOrderRevenue, walkInOrderRevenue,
       onlineOrderTransactions, walkInOrderTransactions, posRevenue, posCost, posProfit,
       recognizedRevenue, recognizedGrossRevenue, recognizedServiceRevenue, recognizedOrderRevenue,
@@ -924,7 +958,7 @@ async function computeRevenueAnalytics(query = {}) {
       serviceCosts: serviceCostAnalytics.totals,
       serviceProfitability,
       salesForecast,
-      completedServiceCosts: serviceCostAnalytics.services.map(s => {
+      completedServiceCosts: profitabilityServiceRows.map(s => {
         const booking = recognizedBookingById.get(String(s.bookingId));
         return {
           bookingId: s.bookingId,
@@ -938,6 +972,7 @@ async function computeRevenueAnalytics(query = {}) {
           consumablesCost: s.consumablesCost,
           laborCost: s.laborCost,
           localPurchaseCost: s.localPurchaseCost,
+          refundAmount: s.refundAmount || 0,
           grossProfit: s.grossProfit,
           grossProfitMargin: s.grossProfitMargin,
           laborHours: s.laborHours,
@@ -959,11 +994,12 @@ async function computeRevenueAnalytics(query = {}) {
       avgServiceTicket: filteredBookings.length ? serviceRevenue / filteredBookings.length : 0,
       avgOrderValue: orders.length ? orderRevenue / orders.length : 0,
       avgPosSale: posSales.length ? posRevenue / posSales.length : 0,
-      collectionRate, outstandingValue, serviceShare, orderShare, posShare,
+      collectionRate, cohortNetCollectionRate, outstandingValue, serviceShare, orderShare, posShare,
       topTechnicians, recentTransactions, growthRate: growthRate.toFixed(1), posPaymentMethods,
       topPosProducts: Object.values(posProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10),
       posCategoryBreakdown, posCategoryProducts, lowestSellingPosProducts,
       topOrderProducts, orderBrandAnalysis, orderCapacityAnalysis, orderFulfillmentMap,
+      productRows:allProducts, orderProductRows:Object.values(orderProductMap), orderProductRevenue, orderProductUnits,
       combinedTopProducts, totalProductUnits, totalProductRevenue,
       onlineOrderProductUnits, onlineOrderProductRevenue, posProductRevenue,
       executiveInsights,

@@ -35,8 +35,13 @@ async function main() {
     const projectPricing=await require('../utils/revenueRecognition').buildProjectPricingMap(bookings.filter(row=>row.isProject));
     const report=require('../utils/reportDataAudit').auditReportRecords({bookings,orders,payments,posSales,productRefunds,inventory,products,tools,ratings,projectPricing,startDate:period.start,endDate:period.end});
     const live=await require('../utils/revenueAnalytics').buildRevenueAnalytics({from:dates.dateKey(period.start),to:dates.dateKey(period.end)});
+    const explanation=live.analytics.reconciliation;
+    report.explanation=explanation ? {cashBreakdown:explanation.cashBreakdown,unmatchedPaymentRecordsInPeriod:explanation.unmatchedPaymentRecords,unmatchedCollectionsInPeriod:explanation.unmatchedCollections,requestedWorkValue:explanation.requestedValue,paymentsAppliedToRequestedWork:explanation.appliedPayments,unpaidOnRequestedWork:explanation.unpaidBalance,paidStatusMismatchCount:explanation.paidStatusMismatchCount} : null;
     report.reconciliation={completedSalesDifference:Math.round((live.analytics.recognizedRevenue-report.totals.completedSalesAfterPeriodRefunds)*100)/100,refundDifference:Math.round((live.analytics.refunds-report.totals.completedRefunds)*100)/100,netCollectionsDifference:Math.round((live.analytics.netCollections-report.totals.paymentsAfterRefunds)*100)/100};
     report.reconciliation.matches=Object.values(report.reconciliation).every(value=>value===0);
+    const reviewKeys=['orphanBookingPayments','orphanOrderPayments','completedOrderLinesMissingSavedCost','stockRowsWithNegativeQuantity','stockRowsWithReservationsAboveOnHand','duplicateReviewTargets','orphanWorkReviews','reviewsOnUnfinishedWork'];
+    report.dataQuality={requiresReview:reviewKeys.some(key=>report.findings[key]>0),findingsToReview:reviewKeys.filter(key=>report.findings[key]>0),scope:'Historical inspected records; explanation cash groups use the selected dates.'};
+    report.notes.push('reconciliation.matches compares arithmetic only. Missing work references and other data-quality findings still need review even when the totals match.');
     console.log(JSON.stringify(report,null,2));
   }finally{await mongoose.disconnect();}
 }

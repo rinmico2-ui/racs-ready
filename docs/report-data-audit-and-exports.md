@@ -61,3 +61,33 @@ Check `reconciliation.matches`, the three reconciliation differences, and
 `findings`. Legacy dates, missing saved costs, orphan payments/reviews, excessive
 reservations, or duplicate reviews require checking original business records.
 This command does not delete, repair, or change financial or stock records.
+
+## Comparing the Sales and Payments tabs
+
+Sales charts and their detail rows now use completed work in the selected dates.
+Their source totals add up to sales before refunds. The displayed reconciliation
+then deducts completed period refunds to reach the Completed sales card.
+
+Collections lists actual payment/refund events and separates money for completed,
+unfinished, older, cancelled, archived, or missing work. Payments linked to missing
+bookings remain recorded cash; they require review rather than automatic deletion
+or invented replacement bookings. A payment label of `paid` is not used to invent
+missing payment-ledger entries.
+
+The payment coverage percentage is the amount applied to the requested work divided
+by its value. The requested-work value equals applied payments plus unpaid balances.
+Each order or booking is settled separately, so another transaction's overpayment
+cannot hide its balance. This percentage is separate from period cash received.
+
+Activity provides Completed sales, Payments and refunds, New requests and counter
+sales, and Unmatched payments. All totals cover the full selected view; 25 rows are
+shown per page. Chart details use the same event dates and amounts as their charts.
+Product item totals are reconciled with order fees and counter adjustments; walk-in
+aircon orders are included. Service detail costs include local purchases as well
+as parts, supplies, and actual labor. Profit is an estimate based on saved costs.
+
+The audit's `reconciliation.matches` means its arithmetic agrees with the report.
+It does not certify that every source record is intact. Inspect `dataQuality`,
+`findings`, and the new aggregate `explanation` cash groups. Historical orphan counts
+can exceed the unmatched-payment count within a selected date range. Run the audit
+with the same start and end dates shown in the report when comparing totals.

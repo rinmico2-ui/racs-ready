@@ -71,5 +71,44 @@ test('payment-state filters scope cash and refunds to the matching work',async t
 test('cohort collection percentages include completed product returns without reopening the paid balance',async t=>{
   mockDatabase(t,{Order:orders.map(row=>({...row,createdAt:date('2026-10-01')}))});
   const {analytics:a}=await buildRevenueAnalytics({...range,source:'order'});
-  assert.equal(a.totalRevenue,1000);assert.equal(a.cohortNetCollections,900);assert.equal(a.collectionRate,90);assert.equal(a.outstandingValue,0);
+  assert.equal(a.totalRevenue,1000);assert.equal(a.cohortNetCollections,900);assert.equal(a.collectionRate,100);assert.equal(a.cohortNetCollectionRate,90);assert.equal(a.outstandingValue,0);
+});
+test('all report views reconcile completion, cash, requested work and profit independently',async t=>{
+  mockDatabase(t);const {analytics:a}=await buildRevenueAnalytics(range),r=a.reconciliation;
+  const total=rows=>rows.reduce((sum,row)=>sum+row.amount,0);
+  assert.equal(total(a.activity.completed),a.recognizedGrossRevenue);assert.equal(total(a.activity.payments),a.netCollections);assert.equal(total(a.activity.requested),a.totalRevenue);
+  assert.equal(a.salesView.serviceRevenue+a.salesView.orderRevenue+a.salesView.posRevenue,a.recognizedGrossRevenue);
+  assert.equal(r.netSales,a.recognizedRevenue);assert.equal(r.netCollections,a.netCollections);assert.equal(r.requestedValue,a.totalRevenue);assert.equal(r.unpaidBalance,a.outstandingValue);
+  assert.equal(r.netSales-r.savedDirectCosts-r.approvedExpenses-r.payroll,a.operatingProfit);
+  assert.equal(Object.values(a.monthlyRevenue).reduce((sum,row)=>sum+row.completedService+row.completedOrders+row.completedPos,0),a.recognizedGrossRevenue);
+});
+test('walk-in aircon orders and distinct counter SKUs with the same name remain in product totals',async t=>{
+  mockDatabase(t,{BookingService:[],Payment:[],ProductRefund:[],Order:[...orders,{...orders[0],_id:'walkin',bookingId:null,salesChannel:'walk_in',total:1500}],WalkInSale:[{
+    _id:'counter',status:'completed',completedAt:date('2026-10-14'),createdAt:date('2026-10-14'),paymentMethod:'cash',totalAmount:50,subtotal:50,totalCost:5,
+    items:[{toolId:'one',itemName:'Supply',itemType:'consumable',inventoryClass:'merchandise',quantity:1,totalPrice:20,costPrice:2},{toolId:'two',itemName:'Supply',itemType:'consumable',inventoryClass:'merchandise',quantity:1,totalPrice:30,costPrice:3}]
+  }]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  assert.equal(a.orderProductRevenue,2000);assert.equal(a.onlineOrderProductRevenue,1000);assert.equal(a.totalProductRevenue,2050);
+  assert.equal(a.productRows.filter(row=>row.channel==='POS').length,2);assert.equal(a.productRows.reduce((sum,row)=>sum+row.revenue,0),a.totalProductRevenue);
+  assert.equal(a.reconciliation.orderItemSales+a.reconciliation.orderFeesAndAdjustments,a.salesView.orderRevenue);
+  assert.equal(a.reconciliation.counterItemSales+a.reconciliation.counterFeesAndAdjustments,a.salesView.posRevenue);
+  assert.equal(Object.values(a.orderFulfillmentMap).reduce((sum,row)=>sum+row.revenue,0),a.salesView.orderRevenue);
+});
+test('saved costs follow the Philippine completion month on a UTC server',async t=>{
+  const previous=process.env.TZ;process.env.TZ='UTC';t.after(()=>{if(previous===undefined)delete process.env.TZ;else process.env.TZ=previous;});
+  mockDatabase(t,{BookingService:[],Payment:[],ProductRefund:[],Order:[{...orders[0],completedAt:new Date('2026-09-30T16:30:00Z')}]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  assert.equal(a.totalPartsCost,600);assert.equal(Object.values(a.monthlyPartsCost).reduce((sum,cost)=>sum+cost,0),600);
+});
+test('service detail rows include settled refunds, actual labor and local purchases in the same profit equation',async t=>{
+  mockDatabase(t,{BookingService:bookings.map(row=>row._id==='prepaid'?{...row,localPurchase:[{partName:'Fixture',actualPurchaseCost:100}]}:row),ServiceReport:[{_id:'report',bookingId:'prepaid',actualLaborCost:40,laborHours:1}]});
+  const {analytics:a}=await buildRevenueAnalytics(range),row=a.completedServiceCosts.find(row=>row.bookingId==='prepaid');
+  assert.equal(row.revenue,800);assert.equal(row.laborCost,40);assert.equal(row.localPurchaseCost,100);assert.equal(row.grossProfit,660);
+  assert.equal(row.grossProfit,row.revenue-row.partsCost-row.consumablesCost-row.laborCost-row.localPurchaseCost);
+  assert.equal(a.reconciliation.serviceNetSales,a.serviceProfitability.rows.reduce((sum,row)=>sum+row.revenue,0));
+});
+test('a POS-only period has finite costs and profit when no service rows exist',async t=>{
+  mockDatabase(t,{BookingService:[],Order:[],Payment:[],ProductRefund:[],WalkInSale:[{_id:'counter',status:'completed',completedAt:date('2026-10-14'),createdAt:date('2026-10-14'),paymentMethod:'cash',totalAmount:100,totalCost:12,items:[]}]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  assert.equal(a.recognizedRevenue,100);assert.equal(a.netCollections,100);assert.equal(a.totalPartsCost,12);assert.equal(a.operatingProfit,88);
 });

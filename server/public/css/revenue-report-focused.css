@@ -273,3 +273,21 @@
   .revenue-report .rr-cost-metric:hover { transform: none; }
   .revenue-report .rr-control-grid a:hover i { transform: none; }
 }
+
+/* Reconcile completion, cash-event and requested-work totals without mixing dates. */
+.rr-reconcile{padding:18px 20px;margin:12px 0 18px;border:1px solid #dce6f1;border-radius:14px;background:#f8fafc;color:#334155;font-size:.8rem;line-height:1.55}
+.rr-reconcile h3{font-size:.95rem;font-weight:700;margin:0 0 6px;color:#0f172a}
+.rr-reconcile p{margin:6px 0 12px;max-width:90ch}
+.rr-report-basis{border-left:4px solid #2563eb;background:#eff6ff}
+.rr-report-basis>span{font-size:.73rem;color:#475569}
+.rr-reconcile-lines>div{display:flex;gap:18px;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e2e8f0}
+.rr-reconcile-lines>div:last-child{border-bottom:0}
+.rr-reconcile-lines strong{white-space:nowrap;color:#172033;font-variant-numeric:tabular-nums}
+.rr-reconcile-result{font-weight:700;border-top:1px solid #cbd5e1}
+.rr-ledger-note,.rr-ledger-warning{display:block;font-size:.73rem;font-weight:400;line-height:1.5;margin-top:5px}
+.rr-ledger-note{color:#64748b}.rr-ledger-warning{color:#b45309}
+.rr-activity-view{display:flex;align-items:center;gap:12px;font-size:.8rem;font-weight:600;flex-wrap:wrap}
+.rr-activity-view select{width:auto;min-width:210px;max-width:100%}
+.rr-activity-pagination{padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.75rem;color:#64748b;border-top:1px solid #e2e8f0}
+.rr-activity-pagination>div{display:flex;gap:8px}
+@media(max-width:480px){.rr-reconcile{padding:14px}.rr-reconcile-lines>div{gap:10px;font-size:.75rem}.rr-reconcile-lines strong{font-size:.76rem}.rr-activity-view{display:block}.rr-activity-view select{margin-top:6px;width:100%}.rr-reconcile p{font-size:.75rem}}

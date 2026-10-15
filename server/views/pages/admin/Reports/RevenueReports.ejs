@@ -83,10 +83,10 @@
     .rr-data-state{display:flex;align-items:center;gap:12px;padding:13px 16px;margin:-8px 0 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:.78rem;font-weight:600}.rr-data-state[hidden]{display:none}.rr-data-state.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}.rr-data-state .spinner-border{width:1rem;height:1rem;border-width:2px}
   </style>
   <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
-  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20260928-pos-categories">
-  <% const A=analytics||{}; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Math.round(Number(n||0)).toLocaleString('en-PH'); const pct=n=>n==null?'N/A':Number(n||0).toFixed(1)+'%'; const profitBadge=a=>a.operatingProfitMargin==null?'Margin unavailable':pct(a.operatingProfitMargin)+' margin'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
+  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20261015-reconciliation">
+  <% const A=analytics||{}; const SA=A.salesView||A; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); const pct=n=>n==null?'N/A':Number(n||0).toFixed(1)+'%'; const profitBadge=a=>a.operatingProfitMargin==null?'Margin unavailable':pct(a.operatingProfitMargin)+' margin'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
-  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Sales and Payments</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/<%= reportRole %>/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/<%= reportRole %>/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="<%= reportLinks.pos %>"><i class="bi bi-shop me-1"></i> Walk-in sales</a><button class="rr-btn light" id="exportRevenue"><i class="bi bi-download me-1"></i> Download</button></div></div></div>
+  <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Sales and Payments</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/<%= reportRole %>/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/<%= reportRole %>/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="<%= reportLinks.pos %>"><i class="bi bi-shop me-1"></i> Walk-in sales</a><button class="rr-btn light" id="exportRevenue" type="button" data-report-csv="revenue"><i class="bi bi-download me-1"></i> Download CSV</button></div></div></div>
   <div class="rr-data-state" id="revenueDataState" role="status" aria-live="polite" <%= isDeferred ? '' : 'hidden' %>><span class="spinner-border" aria-hidden="true"></span><span>Loading live revenue, including completed walk-in and Walk-in sales sales&hellip;</span></div>
 
   <!-- --- SECTION NAV --- -->
@@ -186,6 +186,7 @@
   </div>
 
   <!-- --- KPI GRID (Enterprise style matching Service Report) --- -->
+  <aside id="revenueBasis" class="rr-reconcile rr-report-basis" aria-live="polite"></aside>
   <div class="kpi-grid report-kpi-grid" id="kpiGrid">
     <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
       <div class="kpi-enterprise-top">
@@ -225,12 +226,12 @@
     <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
       <div class="kpi-enterprise-top">
         <div class="kpi-enterprise-icon red"><i class="bi bi-hourglass-split"></i></div>
-        <span class="kpi-enterprise-badge red"><%= pct(A.collectionRate) %> collected</span>
+        <span class="kpi-enterprise-badge red"><%= pct(A.collectionRate) %> of requested work paid</span>
       </div>
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Unpaid balance</p>
         <div class="kpi-enterprise-value"><span><%= peso(A.outstandingValue) %></span></div>
-        <small style="color:#64748b;">Approved work value less recorded payments</small>
+        <small style="color:#64748b;">Requested work value less payments applied to that work</small>
       </div>
     </div>
     <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
@@ -252,7 +253,7 @@
       <div class="kpi-enterprise-body">
         <p class="kpi-enterprise-label">Profit after expenses</p>
         <div class="kpi-enterprise-value"><span style="color:<%= Number(A.operatingProfit||0) >= 0 ? '#059669' : '#dc2626' %>"><%= peso(A.operatingProfit) %></span></div>
-        <small style="color:#64748b;">After saved job and product costs, approved expenses and payroll</small>
+        <small style="color:#64748b;">Estimate using saved job costs, approved expenses and payroll</small>
       </div>
     </div>
   </div>
@@ -280,38 +281,39 @@
   </section>
 
   <!-- ═══ SECTION 2: REVENUE PERFORMANCE — THE REVENUE STORY ═══ -->
-  <div id="section-performance" class="rr-section"><h2><i class="bi bi-bar-chart-line me-2" style="color:#2563eb;"></i>Approved work value Performance</h2><span class="text-muted small">Approved work by the month it was requested. Payments are shown separately.</span></div>
+  <div id="section-performance" class="rr-section"><h2><i class="bi bi-bar-chart-line me-2" style="color:#2563eb;"></i>Completed sales by source</h2><span class="text-muted small">Completed services, completed orders and counter sales. Refunds are deducted separately below.</span></div>
+  <div id="salesReconciliation" class="rr-reconcile rr-reconcile-lines" aria-label="Completed sales reconciliation"></div>
   <div class="rr-two">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-graph-up me-2 text-primary"></i>Monthly approved work by type</h3><span class="rr-badge">Month requested · last 12 months</span></div>
+      <div class="rr-head"><h3><i class="bi bi-graph-up me-2 text-primary"></i>Monthly completed sales by type</h3><span class="rr-badge">Month completed · last 12 months</span></div>
       <div class="rr-chart"><canvas id="revenueTrend"></canvas></div>
     </article>
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-pie-chart me-2 text-primary"></i>Business Mix</h3><span class="rr-badge">Share of sales</span></div>
+      <div class="rr-head"><h3><i class="bi bi-pie-chart me-2 text-primary"></i>Business Mix</h3><span class="rr-badge">Before period refunds</span></div>
       <div class="rr-chart"><canvas id="sourceMix"></canvas></div>
     </article>
   </div>
   <div class="rr-source mt-3">
     <article class="rr-source-card service">
       <div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div>
-      <div class="rr-source-value"><%= peso(A.serviceRevenue) %></div>
-      <div class="rr-meta"><%= A.serviceTransactions||0 %> bookings · <%= peso(A.avgServiceTicket) %> avg ticket</div>
-      <div class="rr-progress"><span style="width:<%= Math.min(100,A.serviceShare||0) %>%;background:#2563eb"></span></div>
-      <div class="rr-meta"><%= pct(A.serviceShare) %> of total · Standard <%= peso(A.coreRevenue) %> · Repair <%= peso(A.repairRevenue) %></div>
+      <div class="rr-source-value"><%= peso(SA.serviceRevenue) %></div>
+      <div class="rr-meta"><%= SA.serviceTransactions||0 %> bookings · <%= peso(SA.avgServiceTicket) %> avg ticket</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,SA.serviceShare||0) %>%;background:#2563eb"></span></div>
+      <div class="rr-meta"><%= pct(SA.serviceShare) %> of total · Standard <%= peso(SA.coreRevenue) %> · Repair <%= peso(SA.repairRevenue) %> ? Mixed <%= peso(SA.mixRevenue) %></div>
     </article>
     <article class="rr-source-card orders">
       <div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div>
-      <div class="rr-source-value"><%= peso(A.orderRevenue) %></div>
-      <div class="rr-meta"><%= A.onlineOrderTransactions||0 %> online · <%= A.walkInOrderTransactions||0 %> walk-in orders</div>
-      <div class="rr-progress"><span style="width:<%= Math.min(100,A.orderShare||0) %>%;background:#10b981"></span></div>
-      <div class="rr-meta"><%= pct(A.orderShare) %> of total · Online <%= peso(A.onlineOrderRevenue) %> · Walk-in <%= peso(A.walkInOrderRevenue) %></div>
+      <div class="rr-source-value"><%= peso(SA.orderRevenue) %></div>
+      <div class="rr-meta">Online orders: <%= SA.onlineOrderTransactions||0 %> · <%= SA.walkInOrderTransactions||0 %> walk-in orders</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,SA.orderShare||0) %>%;background:#10b981"></span></div>
+      <div class="rr-meta"><%= pct(SA.orderShare) %> of total · Online <%= peso(SA.onlineOrderRevenue) %> · Walk-in <%= peso(SA.walkInOrderRevenue) %></div>
     </article>
     <article class="rr-source-card pos">
       <div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in sales</div>
-      <div class="rr-source-value"><%= peso(A.posRevenue) %></div>
-      <div class="rr-meta"><%= A.posTransactions||0 %> sales · <%= peso(A.avgPosSale) %> avg sale</div>
-      <div class="rr-progress"><span style="width:<%= Math.min(100,A.posShare||0) %>%;background:#f59e0b"></span></div>
-      <div class="rr-meta"><%= pct(A.posShare) %> of total · Product cost <%= peso(A.posCost) %> · Profit <%= peso(A.posProfit) %> (<%= pct(A.posMargin) %> profit %)</div>
+      <div class="rr-source-value"><%= peso(SA.posRevenue) %></div>
+      <div class="rr-meta"><%= SA.posTransactions||0 %> sales · <%= peso(SA.avgPosSale) %> avg sale</div>
+      <div class="rr-progress"><span style="width:<%= Math.min(100,SA.posShare||0) %>%;background:#f59e0b"></span></div>
+      <div class="rr-meta"><%= pct(SA.posShare) %> of total · Product cost <%= peso(SA.posCost) %> · Profit <%= peso(SA.posProfit) %> (<%= pct(SA.posMargin) %> profit %)</div>
     </article>
   </div>
 
@@ -333,6 +335,7 @@
 
   <!-- ═══ SECTION 3: CASH COLLECTION & PAYMENT INTELLIGENCE ═══ -->
   <div id="section-collection" class="rr-section"><h2><i class="bi bi-bank me-2" style="color:#0891b2;"></i>Payments and refunds</h2><span class="text-muted small">See the payments received, refunds, and payment methods used</span></div>
+  <div id="cashReconciliation" class="rr-reconcile"></div>
   <div class="rr-equal">
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-credit-card me-2 text-info"></i>Payments received by Method</h3><span class="rr-badge"><%= peso(A.grossCollections) %> gross · refunds shown separately</span></div>
@@ -340,36 +343,13 @@
     </article>
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-hourglass-split me-2 text-warning"></i>Payment summary</h3></div>
-      <div class="rr-body" id="collectionHealthBody" style="padding:20px;">
-        <div class="rr-collection-grid">
-          <div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:8px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#059669;margin-bottom:4px;">Payments received</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#059669;"><%= peso(A.grossCollections) %></div>
-          </div>
-          <div style="text-align:center;padding:12px;background:#fef2f2;border-radius:8px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#b91c1c;margin-bottom:4px;">Refunds</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#dc2626;"><%= peso(A.refunds) %></div>
-          </div>
-          <div style="text-align:center;padding:12px;background:#fefce8;border-radius:8px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#92400e;margin-bottom:4px;">Outstanding</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#d97706;"><%= peso(A.outstandingValue) %></div>
-          </div>
-          <div style="text-align:center;padding:12px;background:#eff6ff;border-radius:8px;">
-            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#1d4ed8;margin-bottom:4px;">Payments after refunds</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#2563eb;"><%= peso(A.netCollections) %></div>
-          </div>
-        </div>
-        <div style="font-size:.78rem;color:#475569;line-height:1.6;">
-          <div style="margin-bottom:6px;"><strong>Share paid:</strong> <%= pct(A.collectionRate) %> of the approved work has been paid after refunds, up to the last report date.</div>
-          <div style="margin-bottom:6px;"><strong>GCash:</strong> <%= peso(A.gcashRevenue) %> · <strong>Cash/COD:</strong> <%= peso(A.codRevenue) %> · <strong>Bank:</strong> <%= peso(A.bankRevenue) %></div>
-          <div><strong>Unpaid balance:</strong> <%= peso(A.outstandingValue) %> remains between approved value and accepted collections.</div>
-        </div>
-      </div>
+      <div class="rr-body" id="collectionHealthBody"><div id="requestedReconciliation"></div></div>
     </article>
   </div>
 
   <!-- ═══ SECTION 4: COST INTELLIGENCE & MARGIN ANALYSIS ═══ -->
   <div id="section-cost" class="rr-section"><h2><i class="bi bi-calculator me-2" style="color:#7c3aed;"></i>Costs and profit</h2><span class="text-muted small">Saved costs and profit estimates over time</span></div>
+  <div id="profitReconciliation" class="rr-reconcile rr-reconcile-lines"></div>
   <div class="rr-equal">
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Completed sales vs Saved job and product cost</h3><span class="rr-badge">Completion-date basis</span></div>
@@ -398,6 +378,7 @@
 
   <!-- ═══ SECTION 5: SERVICE PROFITABILITY DEEP DIVE ═══ -->
   <div id="section-service-profit" class="rr-section"><h2><i class="bi bi-clipboard-check me-2" style="color:#2563eb;"></i>Service sales, costs, and profit</h2><span class="text-muted small">See sales and saved costs for each standard or repair service</span></div>
+  <div id="serviceReconciliation" class="rr-reconcile rr-reconcile-lines"></div>
   <div class="rr-note mb-3"><i class="bi bi-graph-down-arrow me-2"></i>Looking for services with the fewest bookings? <a href="/<%= reportRole %>/reports/service">Open Least Booked Services</a> in Service Reports. This section ranks completed service profit estimate.</div>
   <% const SP=A.serviceProfitability||{}; const SPR=SP.rows||[]; %>
   <div class="rr-profit-kpis" id="servicePortfolioKpis">
@@ -426,7 +407,7 @@
   <article class="rr-card mt-3">
     <div class="rr-head"><div><span class="rr-eyebrow">Saved job costs</span><h3><i class="bi bi-list-check me-2 text-primary"></i>Completed Booking Detail</h3><p>The saved booking costs used to estimate profit for each service</p></div><div class="d-flex align-items-center gap-2"><span class="rr-badge" id="serviceProfitabilityBadge">Latest 5 of <%= (A.completedServiceCosts||[]).length %></span><button class="btn btn-primary btn-sm" id="serviceProfitabilityViewAllBtn" data-bs-toggle="modal" data-bs-target="#serviceProfitabilityModal" style="display:<%= (A.completedServiceCosts||[]).length>5?'inline-flex':'none' %>;"><i class="bi bi-arrows-angle-expand me-1"></i>View All</button></div></div>
     <div class="rr-body table-responsive">
-      <table class="rr-table"><thead><tr><th>Service</th><th class="text-end">Sales</th><th class="text-end">Repair Parts</th><th class="text-end">Job supplies</th><th class="text-end">Labor</th><th class="text-end">Profit before expenses</th></tr></thead><tbody id="serviceProfitabilityBody"><% if(!(A.completedServiceCosts||[]).length){ %><tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr><% } (A.completedServiceCosts||[]).slice(0,5).forEach(function(s){ %><tr><td><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div>Technician: <%= s.technician %> · Duration: <%= s.laborHours.toFixed(1) %>h</div><div>Job supplies: <%= s.consumables.length ? s.consumables.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div><div>Repair parts: <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table>
+      <table class="rr-table"><thead><tr><th>Service</th><th class="text-end">Sales</th><th class="text-end">Repair Parts</th><th class="text-end">Job supplies</th><th class="text-end">Labor</th><th class="text-end">Local purchases</th><th class="text-end">Profit before expenses</th></tr></thead><tbody id="serviceProfitabilityBody"><% if(!(A.completedServiceCosts||[]).length){ %><tr><td colspan="7" class="rr-empty">No completed services in this reporting period.</td></tr><% } (A.completedServiceCosts||[]).slice(0,5).forEach(function(s){ %><tr><td><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div>Technician: <%= s.technician %> · Duration: <%= s.laborHours.toFixed(1) %>h</div><div>Job supplies: <%= s.consumables.length ? s.consumables.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div><div>Repair parts: <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' ('+i.quantity+' '+i.unit+')').join(', ') : 'None' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end"><%= peso(s.localPurchaseCost) %></td><td class="text-end fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table>
     </div>
   </article>
   <div class="rr-equal mt-3">
@@ -444,6 +425,7 @@
 
   <!-- ═══ SECTION 6: POS & PRODUCT PERFORMANCE ═══ -->
   <div id="section-pos" class="rr-section"><h2><i class="bi bi-shop me-2" style="color:#f59e0b;"></i>Walk-in and product sales</h2><span class="text-muted small">Repair parts, consumables, and aircon products — completed sales only</span></div>
+  <div id="productReconciliation" class="rr-reconcile rr-reconcile-lines"></div>
   <div class="rr-pos-category-grid" id="posCategoryBreakdown">
     <% (A.posCategoryBreakdown||[
       {key:'repair_parts',label:'Repair Parts',transactionCount:0,units:0,revenue:0,cost:0,profit:0,margin:0},
@@ -558,10 +540,9 @@
   </div>
 
   <!-- Online Order Product Deep Dive -->
-  <% if((A.topOrderProducts||[]).length){ %>
   <div class="rr-equal mt-3">
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-bag-check me-2 text-success"></i>Online Order Products</h3><span class="rr-badge" id="onlineProductSummary"><%= Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH') %> units · <%= peso(A.onlineOrderProductRevenue) %> merchandise</span></div>
+      <div class="rr-head"><h3><i class="bi bi-bag-check me-2 text-success"></i>Aircon order items ? all channels</h3><span class="rr-badge" id="onlineProductSummary"><%= Number(A.orderProductUnits||0).toLocaleString('en-PH') %> units · <%= peso(A.orderProductRevenue) %> merchandise</span></div>
       <div class="rr-body table-responsive">
         <table class="rr-table"><thead><tr><th>Model</th><th>Brand</th><th class="text-center">Capacity</th><th class="text-center">Units</th><th class="text-end">Sales</th><th class="text-end">Average price</th></tr></thead><tbody>
         <% (A.topOrderProducts||[]).slice(0,8).forEach(function(p){ %>
@@ -606,20 +587,24 @@
       <div class="rr-chart"><canvas id="fulfillmentMix"></canvas></div>
     </article>
   </div>
-  <% } %>
+
 
 
   <!-- ═══ SECTION 7: RECENT COMMERCIAL ACTIVITY ═══ -->
-  <div id="section-activity" class="rr-section"><h2><i class="bi bi-journal-text me-2" style="color:#334155;"></i>Recent bookings and sales</h2><span class="text-muted small">Service bookings, online orders, and walk-in sales, listed by date</span></div>
+  <div id="section-activity" class="rr-section"><h2><i class="bi bi-journal-text me-2" aria-hidden="true"></i>Activity behind the totals</h2></div>
   <article class="rr-card">
-    <div class="rr-body table-responsive">
-      <table class="rr-table"><thead><tr><th>Created</th><th>Source</th><th>Reference</th><th>Customer</th><th>Method</th><th>Payment Status</th><th class="text-end">Approved work value</th></tr></thead><tbody id="recentTransactionsBody"><% if(!(A.recentTransactions||[]).length){ %><tr><td colspan="7" class="rr-empty">No bookings or sales to show.</td></tr><% } (A.recentTransactions||[]).forEach(function(t){ %><tr><td><%= new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) %></td><td><span class="rr-type <%= t.type==='order'?'order':t.type==='pos'?'pos':'' %>"><%= t.type %></span></td><td class="fw-bold"><%= t.reference||'—' %></td><td><%= t.customer %></td><td><%= String(t.method||'—').replaceAll('_',' ') %></td><td><span class="rr-status <%= t.status %>"><%= String(t.status||'pending').replaceAll('_',' ') %></span></td><td class="text-end fw-bold"><%= peso(t.amount) %></td></tr><% }); %></tbody></table>
+    <div class="rr-body">
+      <label class="rr-activity-view" for="revenueActivityView">Show records for <select id="revenueActivityView" class="form-select form-select-sm"><option value="completed">Completed sales</option><option value="payments">Payments and refunds</option><option value="requested">New requests and counter sales</option><option value="unmatched">Unmatched payments</option></select></label>
+      <p id="revenueActivityNote" class="rr-ledger-note" aria-live="polite">Load the report to inspect the records behind each total.</p>
     </div>
+    <div class="rr-body table-responsive"><table class="rr-table"><thead><tr><th>Date (PHT)</th><th>Source</th><th>Reference</th><th>Customer</th><th>Work status</th><th>Payment status</th><th>Method</th><th>Event</th><th class="text-end">Amount</th></tr></thead><tbody id="recentTransactionsBody"><tr><td colspan="9" class="rr-empty">Loading report records...</td></tr></tbody></table></div>
+    <div id="revenueActivityTotal" class="rr-reconcile-lines rr-body" aria-live="polite"></div>
+    <div class="rr-activity-pagination"><span id="revenueActivityPage" aria-live="polite"></span><div><button type="button" class="btn btn-sm btn-outline-secondary" id="revenueActivityPrevious">Previous</button><button type="button" class="btn btn-sm btn-outline-secondary" id="revenueActivityNext">Next</button></div></div>
   </article>
 </div>
 
 <div class="modal fade" id="serviceProfitabilityModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content border-0" style="border-radius:16px;overflow:hidden"><div class="modal-header"><div><h5 class="modal-title"><i class="bi bi-calculator me-2"></i>All finished service profit details</h5><div class="small text-white-50">Sales and job costs · 10 services per page</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><div class="table-responsive"><table class="rr-table mb-0"><thead><tr><th class="ps-4">Service</th><th class="text-end">Sales</th><th class="text-end">Repair Parts</th><th class="text-end">Job supplies</th><th class="text-end">Labor</th><th class="text-end pe-4">Profit before expenses</th></tr></thead><tbody id="serviceProfitabilityRows"><% (A.completedServiceCosts||[]).forEach(function(s,index){ %><tr class="profitability-modal-row" data-row-index="<%= index %>"><td class="ps-4"><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Job supplies:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div><div><strong>Repair parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end pe-4 fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table></div></div><div class="modal-footer d-flex justify-content-between"><span class="small text-muted" id="profitabilityPageInfo"></span><nav aria-label="Completed service profitability pages"><ul class="pagination pagination-sm mb-0" id="profitabilityPagination"></ul></nav></div></div></div>
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content border-0" style="border-radius:16px;overflow:hidden"><div class="modal-header"><div><h5 class="modal-title"><i class="bi bi-calculator me-2"></i>All finished service profit details</h5><div class="small text-white-50">Sales and job costs · 10 services per page</div></div><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-0"><div class="table-responsive"><table class="rr-table mb-0"><thead><tr><th class="ps-4">Service</th><th class="text-end">Sales</th><th class="text-end">Repair Parts</th><th class="text-end">Job supplies</th><th class="text-end">Labor</th><th class="text-end">Local purchases</th><th class="text-end pe-4">Profit before expenses</th></tr></thead><tbody id="serviceProfitabilityRows"><% (A.completedServiceCosts||[]).forEach(function(s,index){ %><tr class="profitability-modal-row" data-row-index="<%= index %>"><td class="ps-4"><details class="rr-service-detail"><summary><strong><%= s.serviceName %></strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta"><%= s.reference %> · <%= s.customer %></div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> <%= s.technician %> · <strong>Duration:</strong> <%= Number(s.laborHours||0).toFixed(1) %>h</div><div><strong>Job supplies:</strong> <%= s.consumables.length ? s.consumables.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div><div><strong>Repair parts:</strong> <%= s.repairParts.length ? s.repairParts.map(i=>i.name+' — '+i.quantity+' '+i.unit+' / '+peso(i.cost)).join(', ') : 'None recorded' %></div></div></details></td><td class="text-end"><%= peso(s.revenue) %></td><td class="text-end"><%= peso(s.partsCost) %></td><td class="text-end"><%= peso(s.consumablesCost) %></td><td class="text-end"><%= peso(s.laborCost) %></td><td class="text-end"><%= peso(s.localPurchaseCost) %></td><td class="text-end pe-4 fw-bold <%= s.grossProfit>=0?'text-success':'text-danger' %>"><%= peso(s.grossProfit) %><div class="rr-meta"><%= pct(s.grossProfitMargin) %></div></td></tr><% }); %></tbody></table></div></div><div class="modal-footer d-flex justify-content-between"><span class="small text-muted" id="profitabilityPageInfo"></span><nav aria-label="Completed service profitability pages"><ul class="pagination pagination-sm mb-0" id="profitabilityPagination"></ul></nav></div></div></div>
 </div>
 
 <div class="modal fade" id="serviceLineDrilldownModal" tabindex="-1" aria-hidden="true" aria-labelledby="serviceLineDrilldownTitle">
@@ -670,9 +655,9 @@
     </div>
   </div>
 </div>
+<script src="/js/revenue-reconciliation.js?v=20261015"></script>
 <script>
 (()=>{
-  const A=<%- JSON.stringify(analytics||{}).replace(/</g,'\\u003c') %>;
   if (<%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>) {
     // Start the database work before Chart.js downloads so network and server
     // latency overlap instead of making the user wait for them sequentially.
@@ -681,16 +666,6 @@
       headers: { Accept: 'application/json' },
     }).then(async response => ({ response, data: await response.json().catch(() => ({})) }));
   }
-  const labels=Object.keys(A.monthlyRevenue||{}).reverse();
-  const months=Object.values(A.monthlyRevenue||{}).reverse();
-  const costs=Object.values(A.monthlyPartsCost||{}).reverse();
-  document.getElementById('exportRevenue')?.addEventListener('click',()=>{
-    const q=v=>'"'+String(v??'').replaceAll('"','""')+'"';
-    const rows=[['Month','Booked Service Value','Booked Order Value','POS Revenue','Total Booking value','Completed sales after refunds','Payments received','Refunds','Payments after refunds','Saved job and product cost'],
-      ...months.map((m,i)=>[labels[i],m.service||0,m.orders||0,m.pos||0,m.total||0,m.recognized||0,(m.collections||0)+(m.refunds||0),m.refunds||0,m.collections||0,costs[i]||0])];
-    const b=new Blob([rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='sales-and-payments.csv';a.click();URL.revokeObjectURL(a.href);
-  });
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
@@ -728,7 +703,7 @@
 <!-- ═══ REVENUE FILTER LOGIC ═══ -->
 <script>
 (() => {
-  const peso = n => '\u20B1' + Math.round(Number(n || 0)).toLocaleString('en-PH');
+  const peso = n => '\u20B1' + Number(n || 0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
   const pct = n => n == null ? 'N/A' : Number(n || 0).toFixed(1) + '%';
   const profitBadge = a => a.operatingProfitMargin == null ? 'Margin unavailable' : pct(a.operatingProfitMargin) + ' margin';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -886,6 +861,7 @@
   // ── Update dashboard with new data ──
   function updateDashboard(A, technicians) {
     currentA = A;
+    const SA = window.RACSRevenueReconciliation.salesView(A);
     // Update KPIs — enterprise card style matching Service Report
     const kpiHtml = `
       <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
@@ -925,12 +901,12 @@
       <div class="kpi-enterprise" data-accent="red" data-aos="fade-up" data-aos-delay="120">
         <div class="kpi-enterprise-top">
           <div class="kpi-enterprise-icon red"><i class="bi bi-hourglass-split"></i></div>
-          <span class="kpi-enterprise-badge red">${pct(A.collectionRate)} collected</span>
+          <span class="kpi-enterprise-badge red">${pct(A.collectionRate)} of requested work paid</span>
         </div>
         <div class="kpi-enterprise-body">
           <p class="kpi-enterprise-label">Unpaid balance</p>
           <div class="kpi-enterprise-value"><span>${peso(A.outstandingValue)}</span></div>
-          <small style="color:#64748b;">Approved work value less recorded payments</small>
+          <small style="color:#64748b;">Requested work value less payments applied to that work</small>
         </div>
       </div>
       <div class="kpi-enterprise" data-accent="green" data-aos="fade-up" data-aos-delay="130">
@@ -952,7 +928,7 @@
         <div class="kpi-enterprise-body">
           <p class="kpi-enterprise-label">Profit after expenses</p>
           <div class="kpi-enterprise-value"><span style="color:${Number(A.operatingProfit||0) >= 0 ? '#059669' : '#dc2626'}">${peso(A.operatingProfit)}</span></div>
-          <small style="color:#64748b;">After saved job and product costs, approved expenses and payroll</small>
+          <small style="color:#64748b;">Estimate using saved job costs, approved expenses and payroll</small>
         </div>
       </div>`;
     document.getElementById('kpiGrid').innerHTML = kpiHtml;
@@ -981,21 +957,17 @@
     if (controlBadge) controlBadge.textContent = `${pct(A.completionEvidenceCoverage === undefined ? 100 : A.completionEvidenceCoverage)} sales with a saved completion date`;
 
     // Update source cards
-    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(A.serviceRevenue)}</div><div class="rr-meta">${A.serviceTransactions || 0} bookings · ${peso(A.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, A.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(A.serviceShare)} of combined revenue · Core ${peso(A.coreRevenue)} · Repair ${peso(A.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div><div class="rr-source-value">${peso(A.orderRevenue)}</div><div class="rr-meta">${A.onlineOrderTransactions || 0} online · ${A.walkInOrderTransactions || 0} walk-in orders</div><div class="rr-progress"><span style="width:${Math.min(100, A.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(A.orderShare)} of combined revenue · Online ${peso(A.onlineOrderRevenue)} · Walk-in ${peso(A.walkInOrderRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in sales</div><div class="rr-source-value">${peso(A.posRevenue)}</div><div class="rr-meta">${A.posTransactions || 0} completed sales · ${peso(A.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, A.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(A.posShare)} of combined revenue · COGS ${peso(A.posCost)} · Profit ${peso(A.posProfit)} (${pct(A.posMargin)})</div></article>`;
+    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(SA.serviceRevenue)}</div><div class="rr-meta">${SA.serviceTransactions || 0} completed services · ${peso(SA.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, SA.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(SA.serviceShare)} of completed sales before refunds · Core ${peso(SA.coreRevenue)} · Repair ${peso(SA.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div><div class="rr-source-value">${peso(SA.orderRevenue)}</div><div class="rr-meta">Online orders: ${SA.onlineOrderTransactions || 0} · ${SA.walkInOrderTransactions || 0} walk-in orders</div><div class="rr-progress"><span style="width:${Math.min(100, SA.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(SA.orderShare)} of completed sales before refunds · Online ${peso(SA.onlineOrderRevenue)} · Walk-in ${peso(SA.walkInOrderRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in sales</div><div class="rr-source-value">${peso(SA.posRevenue)}</div><div class="rr-meta">${SA.posTransactions || 0} completed sales · ${peso(SA.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, SA.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(SA.posShare)} of completed sales before refunds · COGS ${peso(SA.posCost)} · Profit ${peso(SA.posProfit)} (${pct(SA.posMargin)})</div></article>`;
     document.querySelector('.rr-source').innerHTML = sourceCards;
 
     const collectionBody = document.getElementById('collectionHealthBody');
-    if (collectionBody) collectionBody.innerHTML = `<div class="rr-collection-grid"><div style="text-align:center;padding:12px;background:#f0fdf4;border-radius:8px"><div class="rr-label" style="color:#059669">Payments received</div><div class="rr-value" style="color:#059669">${peso(A.grossCollections)}</div></div><div style="text-align:center;padding:12px;background:#fef2f2;border-radius:8px"><div class="rr-label" style="color:#b91c1c">Refunds</div><div class="rr-value" style="color:#dc2626">${peso(A.refunds)}</div></div><div style="text-align:center;padding:12px;background:#fefce8;border-radius:8px"><div class="rr-label" style="color:#92400e">Outstanding</div><div class="rr-value" style="color:#d97706">${peso(A.outstandingValue)}</div></div><div style="text-align:center;padding:12px;background:#eff6ff;border-radius:8px"><div class="rr-label" style="color:#1d4ed8">Payments after refunds</div><div class="rr-value" style="color:#2563eb">${peso(A.netCollections)}</div></div></div><div style="font-size:.78rem;color:#475569;line-height:1.6"><div><strong>Share paid:</strong> ${pct(A.collectionRate)} of the approved work has been paid after refunds, up to the last report date.</div><div><strong>GCash:</strong> ${peso(A.gcashRevenue)} · <strong>Cash/COD:</strong> ${peso(A.codRevenue)} · <strong>Bank:</strong> ${peso(A.bankRevenue)}</div><div><strong>Unpaid balance:</strong> ${peso(A.outstandingValue)}</div></div>`;
+    if (collectionBody) collectionBody.innerHTML = '<div id="requestedReconciliation"></div>';
+    window.RACSRevenueReconciliation.render(A);
 
     const technicianBody = document.getElementById('topTechniciansBody');
     if (technicianBody) technicianBody.innerHTML = (A.topTechnicians || []).length
       ? A.topTechnicians.map(t => `<tr><td class="fw-bold">${esc(t.name)}</td><td class="text-center">${Number(t.bookings||0)}</td><td class="text-end">${peso(t.revenue)}</td><td class="text-end">${peso(t.partsCost)}</td><td class="text-end fw-bold ${Number(t.profit||0)>=0?'text-success':'text-danger'}">${peso(t.profit)}</td></tr>`).join('')
       : '<tr><td colspan="5" class="rr-empty">No technician value in this period.</td></tr>';
-
-    const transactionBody = document.getElementById('recentTransactionsBody');
-    if (transactionBody) transactionBody.innerHTML = (A.recentTransactions || []).length
-      ? A.recentTransactions.map(t => { const type=String(t.type||'service'); const status=String(t.status||'pending'); return `<tr><td>${new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'})}</td><td><span class="rr-type ${type==='order'?'order':type==='pos'?'pos':''}">${esc(type)}</span></td><td class="fw-bold">${esc(t.reference||'—')}</td><td>${esc(t.customer||'Unknown')}</td><td>${esc(String(t.method||'—').replaceAll('_',' '))}</td><td><span class="rr-status ${esc(status)}">${esc(status.replaceAll('_',' '))}</span></td><td class="text-end fw-bold">${peso(t.amount)}</td></tr>`; }).join('')
-      : '<tr><td colspan="7" class="rr-empty">No bookings or sales to show.</td></tr>';
 
     // Update cost breakdown summary
     const costGrid = document.getElementById('costBreakdownGrid');
@@ -1017,8 +989,8 @@
     const completedServiceCosts = A.completedServiceCosts || [];
     if (profitBody) {
       profitBody.innerHTML = completedServiceCosts.length
-        ? completedServiceCosts.slice(0, 5).map(s => `<tr><td><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div>Technician: ${esc(s.technician)} · Duration: ${Number(s.laborHours||0).toFixed(1)}h</div><div>Consumables: ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div><div>Repair parts: ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('')
-        : '<tr><td colspan="6" class="rr-empty">No completed services in this reporting period.</td></tr>';
+        ? completedServiceCosts.slice(0, 5).map(s => `<tr><td><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div>Technician: ${esc(s.technician)} · Duration: ${Number(s.laborHours||0).toFixed(1)}h</div><div>Consumables: ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div><div>Repair parts: ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} (${i.quantity} ${esc(i.unit)})`).join(', ') : 'None'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end">${peso(s.localPurchaseCost)}</td><td class="text-end fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('')
+        : '<tr><td colspan="7" class="rr-empty">No completed services in this reporting period.</td></tr>';
     }
     const serviceCountBadge = document.getElementById('serviceProfitabilityBadge');
     if (serviceCountBadge) serviceCountBadge.textContent = `Latest 5 of ${completedServiceCosts.length}`;
@@ -1026,7 +998,7 @@
     if (viewAllBtn) viewAllBtn.style.display = completedServiceCosts.length > 5 ? 'inline-flex' : 'none';
     const modalBody = document.getElementById('serviceProfitabilityRows');
     if (modalBody) {
-      modalBody.innerHTML = completedServiceCosts.map((s, index) => `<tr class="profitability-modal-row" data-row-index="${index}"><td class="ps-4"><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> ${esc(s.technician)} · <strong>Duration:</strong> ${Number(s.laborHours||0).toFixed(1)}h</div><div><strong>Consumables:</strong> ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div><div><strong>Repair parts:</strong> ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end pe-4 fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('');
+      modalBody.innerHTML = completedServiceCosts.map((s, index) => `<tr class="profitability-modal-row" data-row-index="${index}"><td class="ps-4"><details class="rr-service-detail"><summary><strong>${esc(s.serviceName)}</strong> <i class="bi bi-chevron-down ms-1"></i><div class="rr-meta">${esc(s.reference)} · ${esc(s.customer)}</div></summary><div class="rr-resource-list"><div><strong>Technician:</strong> ${esc(s.technician)} · <strong>Duration:</strong> ${Number(s.laborHours||0).toFixed(1)}h</div><div><strong>Consumables:</strong> ${s.consumables && s.consumables.length ? s.consumables.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div><div><strong>Repair parts:</strong> ${s.repairParts && s.repairParts.length ? s.repairParts.map(i=>`${esc(i.name)} — ${i.quantity} ${esc(i.unit)} / ${peso(i.cost)}`).join(', ') : 'None recorded'}</div></div></details></td><td class="text-end">${peso(s.revenue)}</td><td class="text-end">${peso(s.partsCost)}</td><td class="text-end">${peso(s.consumablesCost)}</td><td class="text-end">${peso(s.laborCost)}</td><td class="text-end">${peso(s.localPurchaseCost)}</td><td class="text-end pe-4 fw-bold ${Number(s.grossProfit||0)>=0?'text-success':'text-danger'}">${peso(s.grossProfit)}<div class="rr-meta">${pct(s.grossProfitMargin)}</div></td></tr>`).join('');
       if (window.refreshProfitabilityPagination) window.refreshProfitabilityPagination();
     }
 
@@ -1146,7 +1118,7 @@
     }
 
     const onlineProductSummary = document.getElementById('onlineProductSummary');
-    if (onlineProductSummary) onlineProductSummary.textContent = `${Number(A.onlineOrderProductUnits||0).toLocaleString('en-PH')} units · ${peso(A.onlineOrderProductRevenue)} merchandise`;
+    if (onlineProductSummary) onlineProductSummary.textContent = `${Number(A.orderProductUnits||0).toLocaleString('en-PH')} units · ${peso(A.orderProductRevenue)} merchandise`;
 
     // Update combined products table
     document.querySelectorAll('.rr-equal .rr-table tbody').forEach(tbody => {
@@ -1228,9 +1200,9 @@
 
     charts.revenueTrend = new Chart(document.getElementById('revenueTrend'), {
       type: 'bar', data: { labels, datasets: [
-        { label: 'Services', data: months.map(x => x.service || 0), backgroundColor: '#2563eb', borderRadius: 5 },
-        { label: 'Product Orders', data: months.map(x => x.orders || 0), backgroundColor: '#10b981', borderRadius: 5 },
-        { label: 'POS', data: months.map(x => x.pos || 0), backgroundColor: '#f59e0b', borderRadius: 5 },
+        { label: 'Services', data: months.map(x => x.completedService || 0), backgroundColor: '#2563eb', borderRadius: 5 },
+        { label: 'Product Orders', data: months.map(x => x.completedOrders || 0), backgroundColor: '#10b981', borderRadius: 5 },
+        { label: 'POS', data: months.map(x => x.completedPos || 0), backgroundColor: '#f59e0b', borderRadius: 5 },
       ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.revenueTrend, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales: { x: { ...scales.x, stacked: true }, y: { ...scales.y, stacked: true } }, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
     });
 
@@ -1242,7 +1214,8 @@
       });
     }
 
-    donut('sourceMix', ['Services', 'Product Orders', 'Walk-in sales'], [A.serviceRevenue || 0, A.orderRevenue || 0, A.posRevenue || 0]);
+    const SA = window.RACSRevenueReconciliation.salesView(A);
+    donut('sourceMix', ['Services', 'Product Orders', 'Walk-in sales'], [SA.serviceRevenue || 0, SA.orderRevenue || 0, SA.posRevenue || 0]);
     const grossMethods = A.grossCollectionMethods || {};
     donut('paymentMix', ['GCash', 'COD / Cash', 'Bank', 'Other'], [grossMethods.gcash || 0, grossMethods.cash || 0, grossMethods.bank || 0, grossMethods.other || 0]);
 
@@ -1289,21 +1262,21 @@
     const completedByCat = { core: [], repair: [], mix: [] };
     (A.completedServiceCosts || []).forEach(s => { if (completedByCat[s.serviceCategory]) completedByCat[s.serviceCategory].push(s); });
     const catRevenue = c => completedByCat[c].reduce((sum, s) => sum + (s.revenue || 0), 0);
-    const catPartsCost = c => completedByCat[c].reduce((sum, s) => sum + (s.partsCost || 0), 0);
+    const catPartsCost = c => completedByCat[c].reduce((sum, s) => sum + window.RACSRevenueReconciliation.serviceCost(s), 0);
     charts.serviceEconomics = new Chart(document.getElementById('serviceEconomics'), {
       type: 'bar', data: { labels: ['Core', 'Repair', 'Mix'], datasets: [
         { label: 'Sales', data: [catRevenue('core'), catRevenue('repair'), catRevenue('mix')], backgroundColor: '#2563eb', borderRadius: 5 },
-        { label: 'Saved parts cost', data: [catPartsCost('core'), catPartsCost('repair'), catPartsCost('mix')], backgroundColor: '#ef4444', borderRadius: 5 },
+        { label: 'Saved job costs', data: [catPartsCost('core'), catPartsCost('repair'), catPartsCost('mix')], backgroundColor: '#ef4444', borderRadius: 5 },
       ]}, options: { responsive: true, maintainAspectRatio: false, onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.serviceEconomics, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, scales, plugins: { legend: legendOpts, tooltip: tooltipFmt } }
     });
 
     // Product channel mix
     const productChannelEl = document.getElementById('productChannelMix');
     if (productChannelEl) {
-      const orderProdRev = Number(A.onlineOrderProductRevenue || 0);
+      const orderProdRev = Number(A.orderProductRevenue || 0);
       const posProdRev = Number(A.posProductRevenue || 0);
       charts.productChannelMix = new Chart(productChannelEl, {
-        type: 'doughnut', data: { labels: ['Product Orders', 'Walk-in sales Sales'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
+        type: 'doughnut', data: { labels: ['Aircon order items', 'Counter items'], datasets: [{ data: [orderProdRev, posProdRev], backgroundColor: ['#10b981', '#f59e0b'], borderColor: '#fff', borderWidth: 3 }] },
         options: { responsive: true, maintainAspectRatio: false, cutout: '68%', onClick: (e, els) => { if (els.length > 0) showChartDetail(chartConfigs.productChannelMix, els[0].index, els[0].datasetIndex); }, onHover: (e, els) => { if (e.native) e.native.target.style.cursor = els.length > 0 ? 'pointer' : 'default'; }, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 7, font: { size: 10 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${pesoFmt(ctx.parsed)}` } } } }
       });
     }
@@ -1402,7 +1375,7 @@
     openServiceLineDrilldown(Number(button.dataset.serviceIndex));
   });
 
-  function pesoFmt(v) { return '\u20B1' + Math.round(Number(v || 0)).toLocaleString('en-PH'); }
+  function pesoFmt(v) { return peso(v); }
 
   function showChartDetail(config, initialIndex, initialDataset) {
     if (!cdmModal) {
@@ -1476,52 +1449,52 @@
   // ── Chart detail configs ──
   const chartConfigs = {
     revenueTrend: {
-      icon: 'bar-chart-line', title: 'Monthly Approved work value', subtitle: 'Approved work by type — click a month to see records',
-      chartTitle: 'Monthly approved work by type', chartSubtitle: 'Services · Product Orders · Walk-in sales',
+      icon: 'bar-chart-line', title: 'Monthly completed sales', subtitle: 'Completed sales by type — click a month to see records',
+      chartTitle: 'Monthly completed sales by type', chartSubtitle: 'Services · Product Orders · Walk-in sales',
       dataTitle: 'Transactions', headers: ['Date','Source','Reference','Customer','Method','Amount'],
       type: 'bar',
       chartData: () => {
         const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
         return { labels, datasets: [
-          { label: 'Services', data: months.map(x => x.service||0), backgroundColor: '#2563eb', borderRadius: 5 },
-          { label: 'Product Orders', data: months.map(x => x.orders||0), backgroundColor: '#10b981', borderRadius: 5 },
-          { label: 'POS', data: months.map(x => x.pos||0), backgroundColor: '#f59e0b', borderRadius: 5 },
+          { label: 'Services', data: months.map(x => x.completedService||0), backgroundColor: '#2563eb', borderRadius: 5 },
+          { label: 'Product Orders', data: months.map(x => x.completedOrders||0), backgroundColor: '#10b981', borderRadius: 5 },
+          { label: 'POS', data: months.map(x => x.completedPos||0), backgroundColor: '#f59e0b', borderRadius: 5 },
         ]};
       },
       scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } }, y: { stacked: true, beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
       getFilterLabel: (i) => { const labels = Object.keys(currentA.monthlyRevenue || {}).reverse(); return labels[i] || 'Unknown'; },
       getSummary: (i) => {
         const months = Object.values(currentA.monthlyRevenue || {}).reverse();
-        if (i === null) return [{label:'Total Booking value',value:pesoFmt(currentA.totalRevenue)},{label:'Transactions',value:(currentA.totalTransactions||0)}];
+        if (i === null) return [{label:'Completed sales before refunds',value:pesoFmt(currentA.recognizedGrossRevenue)},{label:'Transactions',value:(currentA.recognizedTransactions||0)}];
         const m = months[i] || {};
-        return [{label:'Month Booking value',value:pesoFmt(m.total||0)},{label:'Services',value:pesoFmt(m.service||0)},{label:'Orders',value:pesoFmt(m.orders||0)},{label:'POS',value:pesoFmt(m.pos||0)}];
+        return [{label:'Completed sales before refunds',value:pesoFmt((m.completedService||0)+(m.completedOrders||0)+(m.completedPos||0))},{label:'Services',value:pesoFmt(m.completedService||0)},{label:'Orders',value:pesoFmt(m.completedOrders||0)},{label:'POS',value:pesoFmt(m.completedPos||0)}];
       },
       getRows: (i) => {
         const labels = Object.keys(currentA.monthlyRevenue || {}).reverse();
-        let txns = currentA.recentTransactions || [];
-        if (i !== null) { const monthKey = labels[i]; txns = txns.filter(t => { const d = new Date(t.date); const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); return monthKey === key; }); }
-        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
+        let txns = currentA.activity?.completed || [];
+        if (i !== null) { const monthKey = Object.values(currentA.monthlyRevenue || {}).reverse()[i]?.monthKey; txns = txns.filter(t => t.monthKey === monthKey); }
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',timeZone:'Asia/Manila'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
       }
     },
     sourceMix: {
-      icon: 'pie-chart', title: 'Business Mix', subtitle: 'Booking value share by source — click a slice to see transactions',
-      chartTitle: 'Booking value by Source', chartSubtitle: 'Services · Product Orders · Walk-in sales',
+      icon: 'pie-chart', title: 'Business Mix', subtitle: 'Completed sales before refunds by source — click a slice to see transactions',
+      chartTitle: 'Completed sales by source', chartSubtitle: 'Services · Product Orders · Walk-in sales',
       dataTitle: 'Transactions', headers: ['Date','Reference','Customer','Method','Amount'],
       type: 'doughnut', cutout: '68%',
-      chartData: () => ({ labels: ['Services','Product Orders','Walk-in sales'], datasets: [{ data: [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
+      chartData: () => ({ labels: ['Services','Product Orders','Walk-in sales'], datasets: [{ data: [(currentA.salesView || currentA).serviceRevenue||0, (currentA.salesView || currentA).orderRevenue||0, (currentA.salesView || currentA).posRevenue||0], backgroundColor: ['#2563eb','#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] }),
       getFilterLabel: (i) => ['Services','Product Orders','Walk-in sales'][i] || 'All',
       getSummary: (i) => {
-        const vals = [currentA.serviceRevenue||0, currentA.orderRevenue||0, currentA.posRevenue||0];
-        const counts = [currentA.serviceTransactions||0, currentA.orderTransactions||0, currentA.posTransactions||0];
-        if (i === null) return [{label:'Total Booking value',value:pesoFmt(currentA.totalRevenue)},{label:'Total records',value:(currentA.totalTransactions||0)}];
-        return [{label:'Booking value',value:pesoFmt(vals[i])},{label:'Transactions',value:counts[i]},{label:'Average',value:pesoFmt(vals[i]/Math.max(1,counts[i]))}];
+        const vals = [(currentA.salesView || currentA).serviceRevenue||0, (currentA.salesView || currentA).orderRevenue||0, (currentA.salesView || currentA).posRevenue||0];
+        const counts = [(currentA.salesView || currentA).serviceTransactions||0, (currentA.salesView || currentA).orderTransactions||0, (currentA.salesView || currentA).posTransactions||0];
+        if (i === null) return [{label:'Completed sales before refunds',value:pesoFmt(currentA.recognizedGrossRevenue)},{label:'Total records',value:(currentA.recognizedTransactions||0)}];
+        return [{label:'Completed sales',value:pesoFmt(vals[i])},{label:'Transactions',value:counts[i]},{label:'Average',value:pesoFmt(vals[i]/Math.max(1,counts[i]))}];
       },
       getRows: (i) => {
         const types = ['service','order','pos'];
-        let txns = currentA.recentTransactions || [];
+        let txns = currentA.activity?.completed || [];
         if (i !== null) txns = txns.filter(t => t.type === types[i]);
-        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',timeZone:'Asia/Manila'}), esc(t.reference||'—'), esc(t.customer||'Unknown'), esc(String(t.method||'—').replaceAll('_',' ')), pesoFmt(t.amount)]);
       }
     },
     paymentMix: {
@@ -1539,31 +1512,17 @@
       },
       getRows: (i) => {
         const methodGroups = [['gcash'],['cash'],['bank'],['other']];
-        let txns = currentA.recentTransactions || [];
+        let txns = (currentA.activity?.payments || []).filter(row => row.kind === 'collection');
         if (i !== null) { const target = methodGroups[i]; txns = txns.filter(t => target.includes(String(t.method||'other').toLowerCase())); }
-        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), pesoFmt(t.amount)]);
+        return txns.map(t => [new Date(t.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',timeZone:'Asia/Manila'}), esc(t.type), esc(t.reference||'—'), esc(t.customer||'Unknown'), pesoFmt(t.amount)]);
       }
     },
     posPaymentMix: {
-      icon: 'credit-card', title: 'Walk-in payment methods', subtitle: 'Counter sales payment methods — click a slice to see POS sales',
-      chartTitle: 'Walk-in payment methods', chartSubtitle: 'Payments by method',
-      dataTitle: 'POS Products', headers: ['Product','Category','Qty','Sales','Profit'],
-      type: 'doughnut', cutout: '68%',
-      chartData: () => {
-        const pm = currentA.posPaymentMethods || {};
-        const labels = Object.keys(pm).map(x => x.replaceAll('_',' ').replace(/\b\w/g, c => c.toUpperCase()));
-        return { labels, datasets: [{ data: Object.values(pm), backgroundColor: ['#2563eb','#10b981','#f59e0b','#8b5cf6','#06b6d4','#ef4444'], borderColor: '#fff', borderWidth: 3 }] };
-      },
-      getFilterLabel: (i) => { const pm = currentA.posPaymentMethods || {}; return Object.keys(pm).map(x => x.replaceAll('_',' ').replace(/\b\w/g, c => c.toUpperCase()))[i] || 'All'; },
-      getSummary: (i) => {
-        const prods = currentA.topPosProducts || [];
-        if (i === null) return [{label:'Walk-in sales',value:pesoFmt(currentA.posRevenue)},{label:'Completed Sales',value:(currentA.posTransactions||0)},{label:'Profit %',value:pct(currentA.posMargin)}];
-        return [{label:'Products',value:prods.length},{label:'Walk-in sales',value:pesoFmt(currentA.posRevenue)}];
-      },
-      getRows: (i) => {
-        const prods = currentA.topPosProducts || [];
-        return prods.map(p => [esc(p.name), esc(p.category||''), p.quantity, pesoFmt(p.revenue), `<span style="color:${(p.profit||0)>=0?'#059669':'#dc2626'}">${pesoFmt(p.profit)}</span>`]);
-      }
+      icon:'credit-card',title:'Counter payments by method',subtitle:'Completed counter sale collections',chartTitle:'Counter payments',chartSubtitle:'Collection method',dataTitle:'Counter collections',headers:['Date','Reference','Customer','Method','Amount'],type:'doughnut',cutout:'68%',
+      chartData:()=>({labels:Object.keys(currentA.posPaymentMethods||{}),datasets:[{data:Object.values(currentA.posPaymentMethods||{}),backgroundColor:['#2563eb','#10b981','#f59e0b','#8b5cf6']}]}),
+      getFilterLabel:i=>Object.keys(currentA.posPaymentMethods||{})[i]||'All',
+      getSummary:i=>{const rows=(currentA.activity?.payments||[]).filter(row=>row.kind==='collection'&&row.type==='pos'&&(i===null||row.method===Object.keys(currentA.posPaymentMethods||{})[i]));return[{label:'Counter collections',value:pesoFmt(rows.reduce((sum,row)=>sum+row.amount,0))},{label:'Records',value:rows.length}];},
+      getRows:i=>(currentA.activity?.payments||[]).filter(row=>row.kind==='collection'&&row.type==='pos'&&(i===null||row.method===Object.keys(currentA.posPaymentMethods||{})[i])).map(row=>[new Date(row.date).toLocaleDateString('en-PH',{timeZone:'Asia/Manila'}),esc(row.reference),esc(row.customer),esc(row.method),pesoFmt(row.amount)])
     },
     marginTrend: {
       icon: 'graph-up-arrow', title: 'Completed sales vs Cost Trend', subtitle: 'Sales from finished work and saved job costs — click a month for details',
@@ -1607,19 +1566,19 @@
       }
     },
     serviceEconomics: {
-      icon: 'diagram-3', title: 'Sales and costs by service type', subtitle: 'Sales and saved parts costs by service type — click a bar to see services',
-      chartTitle: 'Standard, repair, and mixed services', chartSubtitle: 'Revenue vs Saved parts cost',
-      dataTitle: 'Completed Services', headers: ['Service','Customer','Sales','Parts','Profit before expenses'],
+      icon: 'diagram-3', title: 'Sales and costs by service type', subtitle: 'Sales and saved job costs by service type — click a bar to see services',
+      chartTitle: 'Standard, repair, and mixed services', chartSubtitle: 'Net service sales vs saved job costs',
+      dataTitle: 'Completed Services', headers: ['Service','Customer','Sales','Saved job costs','Profit before expenses'],
       type: 'bar',
       chartData: () => {
         const cats = ['core','repair','mix'];
         const svcs = currentA.completedServiceCosts || [];
         const byCat = c => svcs.filter(s => s.serviceCategory === c);
         const rev = c => byCat(c).reduce((sum, s) => sum + (s.revenue||0), 0);
-        const cost = c => byCat(c).reduce((sum, s) => sum + (s.partsCost||0), 0);
+        const cost = c => byCat(c).reduce((sum, s) => sum + window.RACSRevenueReconciliation.serviceCost(s), 0);
         return { labels: ['Core','Repair','Mix'], datasets: [
           { label: 'Sales', data: cats.map(rev), backgroundColor: '#2563eb', borderRadius: 5 },
-          { label: 'Saved parts cost', data: cats.map(cost), backgroundColor: '#ef4444', borderRadius: 5 },
+          { label: 'Saved job costs', data: cats.map(cost), backgroundColor: '#ef4444', borderRadius: 5 },
         ]};
       },
       scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => pesoFmt(v) } } },
@@ -1629,41 +1588,41 @@
         let svcs = currentA.completedServiceCosts || [];
         if (i !== null) svcs = svcs.filter(s => s.serviceCategory === cats[i]);
         const rev = svcs.reduce((s,x) => s + (x.revenue||0), 0);
-        const cost = svcs.reduce((s,x) => s + (x.partsCost||0), 0);
+        const cost = svcs.reduce((s,x) => s + window.RACSRevenueReconciliation.serviceCost(x), 0);
         const profit = rev - cost;
-        if (i === null) return [{label:'Total Revenue',value:pesoFmt(rev)},{label:'Parts Cost',value:pesoFmt(cost)},{label:'Profit before expenses',value:pesoFmt(profit)}];
-        return [{label:'Sales',value:pesoFmt(rev)},{label:'Parts Cost',value:pesoFmt(cost)},{label:'Profit before expenses',value:pesoFmt(profit)},{label:'Services',value:svcs.length}];
+        if (i === null) return [{label:'Total Revenue',value:pesoFmt(rev)},{label:'Saved job costs',value:pesoFmt(cost)},{label:'Profit before expenses',value:pesoFmt(profit)}];
+        return [{label:'Sales',value:pesoFmt(rev)},{label:'Saved job costs',value:pesoFmt(cost)},{label:'Profit before expenses',value:pesoFmt(profit)},{label:'Services',value:svcs.length}];
       },
       getRows: (i) => {
         let svcs = currentA.completedServiceCosts || [];
         const cats = ['core','repair','mix'];
         if (i !== null) svcs = svcs.filter(s => s.serviceCategory === cats[i]);
-        return svcs.map(s => [esc(s.serviceName), esc(s.customer||''), pesoFmt(s.revenue), pesoFmt(s.partsCost), `<span style="color:${(s.grossProfit||0)>=0?'#059669':'#dc2626'}">${pesoFmt(s.grossProfit)}</span>`]);
+        return svcs.map(s => [esc(s.serviceName), esc(s.customer||''), pesoFmt(s.revenue), pesoFmt(window.RACSRevenueReconciliation.serviceCost(s)), `<span style="color:${(s.grossProfit||0)>=0?'#059669':'#dc2626'}">${pesoFmt(s.grossProfit)}</span>`]);
       }
     },
     productChannelMix: {
-      icon: 'pie-chart', title: 'Product sales by Channel', subtitle: 'Online orders vs POS — click a slice for products',
+      icon: 'pie-chart', title: 'Product sales by Channel', subtitle: 'All aircon orders vs counter stock sales — click a slice for products',
       chartTitle: 'Channel Split', chartSubtitle: 'Product orders vs counter sales',
       dataTitle: 'Products', headers: ['Product','Category','Channel','Qty','Sales'],
       type: 'doughnut', cutout: '68%',
       chartData: () => {
-        const orderRev = Number(currentA.onlineOrderProductRevenue || 0);
+        const orderRev = Number(currentA.orderProductRevenue || 0);
         const posRev = Number(currentA.posProductRevenue || 0);
-        return { labels: ['Product Orders','Walk-in sales Sales'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
+        return { labels: ['Product Orders','Counter items'], datasets: [{ data: [orderRev, posRev], backgroundColor: ['#10b981','#f59e0b'], borderColor: '#fff', borderWidth: 3 }] };
       },
-      getFilterLabel: (i) => ['Product Orders','Walk-in sales Sales'][i] || 'All',
+      getFilterLabel: (i) => ['Product Orders','Counter items'][i] || 'All',
       getSummary: (i) => {
-        const prods = currentA.combinedTopProducts || [];
+        const prods = currentA.productRows || [];
         if (i === null) return [{label:'Total Product sales',value:pesoFmt(currentA.totalProductRevenue)},{label:'Total Units',value:(currentA.totalProductUnits||0).toLocaleString()}];
-        const ch = ['Online Order','POS'][i]; const filtered = prods.filter(p => p.channel === ch);
+        const ch = ['Order','POS'][i]; const filtered = prods.filter(p => ch === 'POS' ? p.channel === 'POS' : p.channel !== 'POS');
         const rev = filtered.reduce((s,p) => s+p.revenue, 0);
         return [{label:'Products',value:filtered.length},{label:'Sales',value:pesoFmt(rev)},{label:'Units',value:filtered.reduce((s,p) => s+p.quantity, 0)}];
       },
       getRows: (i) => {
-        let prods = currentA.combinedTopProducts || [];
-        if (i === 0) prods = prods.filter(p => p.channel === 'Online Order');
+        let prods = currentA.productRows || [];
+        if (i === 0) prods = prods.filter(p => p.channel !== 'POS');
         else if (i === 1) prods = prods.filter(p => p.channel === 'POS');
-        return prods.slice(0,20).map(p => [esc(p.name), esc(p.category||''), `<span class="cdm-badge" style="background:${p.channel==='POS'?'rgba(245,158,11,0.1);color:#d97706':'rgba(16,185,129,0.1);color:#059669'}">${esc(p.channel)}</span>`, p.quantity, pesoFmt(p.revenue)]);
+        return prods.map(p => [esc(p.name), esc(p.category||''), `<span class="cdm-badge" style="background:${p.channel==='POS'?'rgba(245,158,11,0.1);color:#d97706':'rgba(16,185,129,0.1);color:#059669'}">${esc(p.channel)}</span>`, p.quantity, pesoFmt(p.revenue)]);
       }
     },
     brandRevenue: {
@@ -1688,7 +1647,7 @@
         return [{label:'Brand',value:esc(b.brand||'')},{label:'Sales',value:pesoFmt(b.revenue)},{label:'Units',value:b.quantity||0}];
       },
       getRows: (i) => {
-        let prods = currentA.topOrderProducts || [];
+        let prods = currentA.orderProductRows || [];
         if (i !== null) { const brands = currentA.orderBrandAnalysis || []; const brand = brands[i] ? brands[i].brand : ''; prods = prods.filter(p => p.brand === brand); }
         return prods.map(p => [esc(p.name), esc(p.brand), esc(p.capacity||''), p.quantity, pesoFmt(p.revenue), pesoFmt(p.avgUnitPrice)]);
       }
@@ -1696,7 +1655,7 @@
     fulfillmentMix: {
       icon: 'truck', title: 'Delivery and pickup', subtitle: 'Delivery vs pickup — click a slice for order details',
       chartTitle: 'Delivery and pickup totals', chartSubtitle: 'Delivery · Delivery+Install · Pickup',
-      dataTitle: 'Orders', headers: ['Model','Brand','Capacity','Units','Sales'],
+      dataTitle: 'Orders', headers: ['Date','Reference','Customer','Fulfillment','Sales'],
       type: 'doughnut', cutout: '68%',
       chartData: () => {
         const fm = currentA.orderFulfillmentMap || {};
@@ -1705,19 +1664,20 @@
       getFilterLabel: (i) => ['Delivery Only','Delivery + Installation','Customer Pickup'][i] || 'All',
       getSummary: (i) => {
         const fm = currentA.orderFulfillmentMap || {};
-        if (i === null) return [{label:'Total Order sales',value:pesoFmt(currentA.orderRevenue)},{label:'Orders',value:(currentA.orderTransactions||0)}];
+        if (i === null) return [{label:'Total Order sales',value:pesoFmt((currentA.salesView || currentA).orderRevenue)},{label:'Orders',value:((currentA.salesView || currentA).orderTransactions||0)}];
         const keys = ['delivery_only','delivery_installation','customer_pickup'];
         const k = keys[i]; const v = fm[k] || {};
-        return [{label:'Sales',value:pesoFmt(v.revenue||0)},{label:'Orders',value:v.orders||0},{label:'Units',value:v.quantity||0}];
+        return [{label:'Sales',value:pesoFmt(v.revenue||0)},{label:'Orders',value:v.count||0},{label:'Units',value:v.quantity||0}];
       },
       getRows: (i) => {
-        let prods = currentA.topOrderProducts || [];
-        return prods.map(p => [esc(p.name), esc(p.brand), esc(p.capacity||''), p.quantity, pesoFmt(p.revenue)]);
+        const keys=['delivery_only','delivery_installation','customer_pickup'];
+        return (currentA.activity?.completed || []).filter(row=>row.type==='order'&&(i===null||row.fulfillment===keys[i])).map(row=>[new Date(row.date).toLocaleDateString('en-PH',{timeZone:'Asia/Manila'}),esc(row.reference),esc(row.customer),esc(row.fulfillment),pesoFmt(row.amount)]);
       }
     },
   };
 
   // Initialize charts on page load
+  window.RACSRevenueReconciliation.render(initA);
   updateCharts(initA);
   renderSparklines(initA);
   if (deferredAnalytics) requestAnimationFrame(() => applyFilters({ initialLoad: true }));

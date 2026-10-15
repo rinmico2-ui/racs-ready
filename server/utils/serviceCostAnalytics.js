@@ -81,7 +81,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
   const completed = (bookings || []).filter(booking => RECOGNIZED_BOOKING_STATUSES.has(booking.status));
   const ids = completed.map(booking => booking._id);
   if (!ids.length) {
-    const empty = { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, unpricedConsumablesCount: 0, grossProfit: 0, grossProfitMargin: 0 } };
+    const empty = { services: [], equipment: [], totals: { revenue: 0, partsCost: 0, consumablesCost: 0, laborCost: 0, localPurchaseCost: 0, unpricedConsumablesCount: 0, grossProfit: 0, grossProfitMargin: 0 } };
     if (options.includeSourceRows) empty.sourceRows = { reports: [], assignments: [] };
     return empty;
   }

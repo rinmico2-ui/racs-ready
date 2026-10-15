@@ -29,6 +29,14 @@ test("revenue report renders with valid browser JavaScript", () => {
   });
 });
 
+test('deferred report retains product charts and uses the server CSV action after filters load',()=>{
+  const html=ejs.render(revenueTemplate,{analytics:null,deferredAnalytics:true},{filename:revenuePath});
+  for(const id of ['brandRevenue','fulfillmentMix','onlineProductSummary','revenueActivityView','revenueActivityTotal'])assert.ok(html.includes('id="'+id+'"'),id+' must exist before analytics arrives');
+  assert.match(html,/id="exportRevenue"[^>]*data-report-csv="revenue"/);
+  assert.doesNotMatch(html,/sales-and-payments\.csv|new Blob\(\[rows\.map/);
+  assert.match(html,/\/js\/revenue-reconciliation\.js\?v=/);
+});
+
 test("revenue report starts with four decision KPIs", () => {
   for (const metric of ["Completed sales", "Payments after refunds", "Profit after expenses", "Unpaid balance"]) {
     assert.match(revenueTemplate, new RegExp(metric));
