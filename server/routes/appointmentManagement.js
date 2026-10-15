@@ -1410,6 +1410,7 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
         acceptanceDeadline: b.assignmentId?.acceptanceDeadline || null,
         assignmentId: b.assignmentId?._id || null,
         assignmentStatus: b.assignmentId?.status || null,
+        isPastDate: require('../utils/bookingDateTime').isAssignmentWindowExpired(b),
         technician: b.technicianId ? { _id: b.technicianId._id, name: b.technicianId.name, phone: b.technicianId.phone, email: b.technicianId.email } : null,
         address: b.location?.address || b.bookingLocation?.address || null,
         status: b.status,
@@ -1434,20 +1435,20 @@ router.post('/assignments/:assignmentId/extend-deadline', requireRole(["admin", 
     const assignment = await Assignment.findById(assignmentId);
     if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
     if (assignment.status !== 'pending_acceptance') return res.status(400).json({ error: 'Only pending acceptance can be extended' });
-    const base = assignment.acceptanceDeadline ? new Date(assignment.acceptanceDeadline).getTime() : Date.now();
-    const deadline = newDeadline ? new Date(newDeadline) : new Date(base + parseInt(minutes) * 60 * 1000);
-    assignment.acceptanceDeadline = deadline;
-    assignment.notes.push({
-      text: `Acceptance deadline extended to ${deadline.toLocaleString()}`,
-      by: req.user._id,
-      byName: req.user.name || req.user.email,
-      createdAt: new Date(),
-    });
-    await assignment.save();
-    res.json({ success: true, assignment });
+    if (newDeadline) return res.status(400).json({ error: 'Specify additional minutes from 5 to 720.' });
+    const booking = await BookingService.findById(assignment.bookingId);
+    if (!booking || require('../utils/bookingDateTime').isAssignmentWindowExpired(booking)) return res.status(409).json({ error: 'Resolve the expired customer schedule before extending this assignment.' });
+    const deadline = require('../utils/acceptanceDeadline').extendAcceptanceDeadline(assignment.acceptanceDeadline, minutes);
+    const updated = await Assignment.findOneAndUpdate({ _id: assignment._id, status: 'pending_acceptance', acceptanceDeadline: assignment.acceptanceDeadline }, {
+      $set: { acceptanceDeadline: deadline },
+      $push: { notes: { text: `Acceptance deadline extended to ${deadline.toISOString()}`, by: req.user._id,
+        byName: req.user.name || req.user.email, createdAt: new Date() } },
+    }, { returnDocument: 'after' });
+    if (!updated) return res.status(409).json({ error: 'The assignment changed. Refresh before trying again.' });
+    res.json({ success: true, assignment: updated });
   } catch (error) {
     console.error('âŒ Error extending deadline:', error);
-    res.status(500).json({ error: 'Failed to extend deadline' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Failed to extend deadline' });
   }
 });
 
@@ -1465,18 +1466,16 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
       return res.status(400).json({ error: `Cannot reassign from "${booking.status}" status` });
     }
 
-    const current = await Assignment.findOne({ bookingId: booking._id, status: { $in: ['pending_acceptance', 'accepted'] } });
+    if (require('../utils/bookingDateTime').isAssignmentWindowExpired(booking)) return res.status(409).json({ error: 'Resolve the expired customer schedule before changing the assignment.' });
+    const current = await Assignment.findOne({ bookingId: booking._id, status: 'pending_acceptance' });
+    if (!current) return res.status(409).json({ error: 'This assignment has already been answered. Refresh the page.' });
     if (current) {
-      current.status = 'expired';
-      current.expiredAt = new Date();
-      current.expiredReason = 'Reassigned by admin';
-      current.notes.push({
-        text: 'Reassigned by admin before acceptance',
-        by: req.user._id,
-        byName: req.user.name || req.user.email,
-        createdAt: new Date(),
-      });
-      await current.save();
+      const released = await Assignment.findOneAndUpdate({ _id: current._id, status: 'pending_acceptance' }, {
+        $set: { status: 'expired', expiredAt: new Date(), expiredReason: 'Reassigned by admin' },
+        $push: { notes: { text: 'Returned to assignment queue before acceptance', by: req.user._id,
+          byName: req.user.name || req.user.email, createdAt: new Date() } },
+      }, { returnDocument: 'after' });
+      if (!released) return res.status(409).json({ error: 'The technician already answered this assignment. Refresh the page.' });
     }
 
     booking.recordStatusHistory({

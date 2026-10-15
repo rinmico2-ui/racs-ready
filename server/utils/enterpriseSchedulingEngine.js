@@ -1135,7 +1135,9 @@ async function getProjectWindowAvailability(params) {
 
   const startKey = toLocalDateKey(sDate);
   const endKey = toLocalDateKey(eDate);
-  const allDays = snap.days || [];
+  const allDays = params.preferences
+    ? require("./walkInProjectWindow").preferredProjectDays(snap.days || [], params.preferences)
+    : snap.days || [];
   const windowDays = allDays.filter((d) => d.date >= startKey && d.date <= endKey);
 
   const totalTechs = allDays.reduce((m, d) => Math.max(m, d.totalTechnicians || 0), 0);

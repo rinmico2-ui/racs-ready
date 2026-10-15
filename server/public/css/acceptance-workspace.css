@@ -1,0 +1,18 @@
+.acceptance-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.acceptance-heading h2 {margin:0;color:#0f172a;font-size:1.1rem;font-weight:750}
+.acceptance-help {color:#64748b;font-size:.85rem;margin-bottom:18px}
+.acceptance-stats {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.acceptance-stat {display:flex;gap:12px;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.acceptance-stat > i {display:grid;place-items:center;align-self:flex-start;flex:0 0 40px;height:40px;border-radius:10px;background:#eff6ff;color:#2563eb;font-size:1.2rem}
+.acceptance-stat span,.acceptance-stat strong,.acceptance-stat small {display:block}
+.acceptance-stat span {color:#475569;font-size:.8rem;font-weight:650}
+.acceptance-stat strong {color:#0f172a;font-size:1.65rem;line-height:1.4}
+.acceptance-stat small {color:#64748b;font-size:.75rem}
+.acceptance-badge {padding:6px 10px;border-radius:8px;background:#eef2ff;color:#4338ca;font-size:.72rem;font-weight:700;text-align:center}
+.acceptance-badge.overdue {background:#fff7ed;color:#9a3412}
+.acceptance-record .workflow-record-title {font-size:1rem}
+.acceptance-record .workflow-record-grid > span {overflow-wrap:anywhere}
+.acceptance-record .workflow-record-actions {flex-wrap:wrap!important}
+.acceptance-empty {padding:48px 16px;text-align:center;color:#64748b}
+.acceptance-empty > i {display:block;margin-bottom:12px;font-size:2rem;color:#16a34a}
+@media(max-width:767.98px){.acceptance-stats{grid-template-columns:1fr;gap:8px}.acceptance-stat{padding:12px}.acceptance-stat strong{font-size:1.3rem}.acceptance-record .workflow-record-head{flex-wrap:wrap}.acceptance-record .workflow-record-actions .btn{min-height:44px;white-space:normal;flex:1 1 140px}}

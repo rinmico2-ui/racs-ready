@@ -618,6 +618,8 @@
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
+<link rel="stylesheet" href="/css/acceptance-workspace.css?v=20261015">
+<script src="/js/acceptance-workspace.js?v=20261015"></script>
 <link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-calendar-header">
 <link rel="stylesheet" href="/css/operations-workspace-header.css?v=20261015">
 
@@ -1142,12 +1144,9 @@
 
     <!-- ═══ WAITING FOR ACCEPTANCE TAB ═══ -->
     <div class="tab-pane fade" id="tab-waiting" role="tabpanel">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <h5 class="fw-bold mb-0"><i class="bi bi-hourglass-split me-2"></i>Waiting for Technician Acceptance</h5>
-        <small class="text-muted" id="waitingAcceptCount">0 bookings</small>
-      </div>
-      <div class="row g-3 mb-3" id="waitingKpiContainer"></div>
-      <p class="text-muted small mb-3">Bookings assigned to technicians awaiting their confirmation.</p>
+      <div class="acceptance-heading"><h2>Waiting for Acceptance</h2><small class="text-muted" id="waitingAcceptCount">0 assignments</small></div>
+      <p class="acceptance-help">Assigned work awaiting technician confirmation. Review the deadline or return an unanswered assignment to the queue.</p>
+      <div id="waitingKpiContainer" class="acceptance-stats"></div>
       <div id="waitingAcceptContainer" class="workflow-record-list">
         <div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>
       </div>
@@ -2570,102 +2569,59 @@
       .catch(function(){badge.textContent='0';});
   }
 
+  var waitingAcceptRequest=0;
   function loadWaitingAcceptTab(){
+    var request=++waitingAcceptRequest;
     var container=document.getElementById('waitingAcceptContainer');
-    container.innerHTML='<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
-    fetch(APPOINTMENTS_API+'/waiting-acceptance/list?limit=50').then(function(r){return r.json();}).then(function(data){
-      var bookings=data.bookings||[];
-      var total=data.pagination?.total||0;
-      document.getElementById('waitingAcceptCount').textContent=total+' bookings';
+    container.innerHTML='<div class="text-center py-5 text-muted" role="status">Loading assignments...</div>';
+    fetch(APPOINTMENTS_API+'/waiting-acceptance/list?limit=100').then(RACSAcceptance.readJson).then(function(data){
+      if(request!==waitingAcceptRequest)return;
+      var bookings=data.bookings||[],total=data.pagination?.total||0;
+      document.getElementById('waitingAcceptCount').textContent=total+' assignments';
       var badge=document.getElementById('tabWaitingBadge');
       if(badge){badge.textContent=total;badge.style.display=total>0?'inline-block':'none';}
-
-      // KPIs
-      var now=Date.now();
-      var overdue=bookings.filter(function(b){return b.acceptanceDeadline&&now>new Date(b.acceptanceDeadline).getTime();}).length;
-      var kpi=document.getElementById('waitingKpiContainer');
-      if(kpi){
-        kpi.innerHTML=
-          '<div class="col-lg-6 col-md-6"><div class="stat-card h-100" data-spark-color="#f59e0b"><div class="d-flex justify-content-between align-items-start mb-2"><div><h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Waiting for Acceptance</h6><div class="d-flex align-items-baseline gap-2"><span class="h3 mb-0 fw-bold text-dark">'+total+'</span><span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span><span class="kpi-percent-badge">Waiting</span></div><small class="text-muted">Awaiting tech confirmation</small></div><div class="stat-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706);"><i class="bi bi-hourglass-split text-white"></i></div></div><div class="stat-sparkline"><canvas height="40"></canvas></div></div></div>'+
-          '<div class="col-lg-6 col-md-6"><div class="stat-card h-100" data-spark-color="#ef4444"><div class="d-flex justify-content-between align-items-start mb-2"><div><h6 class="text-muted mb-1" style="font-size:0.85rem;font-weight:500;">Past Deadline</h6><div class="d-flex align-items-baseline gap-2"><span class="h3 mb-0 fw-bold text-dark">'+overdue+'</span><span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span><span class="kpi-percent-badge">Urgent</span></div><small class="text-muted">Expired acceptance window</small></div><div class="stat-icon" style="background:linear-gradient(135deg,#ef4444,#dc2626);"><i class="bi bi-clock-history text-white"></i></div></div><div class="stat-sparkline"><canvas height="40"></canvas></div></div></div>';
-        if(window.AU && window.AU.drawStatSparklines) window.AU.drawStatSparklines(kpi);
-      }
-      if(!bookings.length){
-        container.innerHTML='<div class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-1 d-block mb-2"></i><p>All assigned bookings have been accepted.</p></div>';
-        return;
-      }
-      container.innerHTML='<div class="workflow-record-list">'+bookings.map(function(b){
-        var tech=b.technician;
-        var bDate=formatDate(b.bookingDate);
-        var scheduleTime=formatTime(b.startTime)+' – '+formatTime(b.endTime);
-        var deadline=b.acceptanceDeadline?new Date(b.acceptanceDeadline):null;
-        var remaining=deadline?(deadline.getTime()-Date.now()):null;
-        var deadlineText='No deadline set';
-        var deadlineClass='bg-light text-dark';
-        if(deadline){
-          if(remaining<0){deadlineText='Deadline passed';deadlineClass='bg-danger text-white';}
-          else if(remaining<30*60*1000){deadlineText='Expires in '+Math.ceil(remaining/60000)+' min';deadlineClass='bg-warning text-dark';}
-          else {deadlineText='Accept by '+deadline.toLocaleString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' PHT';deadlineClass='bg-info text-dark';}
-        }
-        var assignmentId=b.assignmentId||'';
-        return '<div class="workflow-record-card">'+
-          '<div class="workflow-record-head">'+
-            '<div>'+
-              '<div class="workflow-record-ref">'+(b.bookingReference||b._id.slice(-8).toUpperCase())+'</div>'+
-              '<div class="workflow-record-title">'+(b.customer?.name||'Unknown')+'</div>'+
-              '<div style="font-size:.82rem;color:#64748b;">'+(b.service?.name||'—')+'</div>'+
-            '</div>'+
-            '<span class="badge '+deadlineClass+'" style="white-space:nowrap;"><i class="bi bi-clock me-1"></i>'+deadlineText+'</span>'+
-          '</div>'+
-          '<div class="workflow-record-grid">'+
-            '<span><i class="bi bi-calendar3 me-1" style="color:#94a3b8;"></i>'+bDate+'</span>'+
-            '<span><i class="bi bi-clock me-1" style="color:#94a3b8;"></i>'+scheduleTime+' <small class="text-muted">PHT</small></span>'+
-            '<span><i class="bi bi-geo-alt me-1" style="color:#94a3b8;"></i>'+(b.address||'—')+'</span>'+
-          '</div>'+
-          (tech?'<div class="workflow-record-actions">'+
-            '<div style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">'+(tech.name||'T')[0].toUpperCase()+'</div>'+
-            '<div style="font-size:.78rem;">'+
-              '<div style="font-weight:600;color:#1e293b;">'+tech.name+'</div>'+
-              '<div style="font-size:.7rem;color:#64748b;">'+(tech.phone||tech.email||'—')+'</div>'+
-            '</div>'+
-            '<div style="margin-left:auto;display:flex;gap:8px;">'+
-              '<button class="au-btn au-btn-outline au-btn-sm" onclick="extendDeadline(\''+assignmentId+'\')"><i class="bi bi-clock-history me-1"></i>Extend</button>'+
-              '<button class="au-btn au-btn-primary au-btn-sm" onclick="forceReassign(\''+b._id+'\')"><i class="bi bi-person-plus me-1"></i>Reassign</button>'+
-            '</div>'+
-          '</div>':'')+
-        '</div>';
-      }).join('')+'</div>';
-    }).catch(function(){
-      container.innerHTML='<div class="alert alert-danger small">Failed to load bookings</div>';
-    });
+      RACSAcceptance.render({container:container,stats:document.getElementById('waitingKpiContainer'),total:total,
+        records:bookings.map(function(b){return {
+          id:b._id,source:b,reference:b.bookingReference||b._id.slice(-8).toUpperCase(),customer:b.customer?.name,
+          description:b.service?.name||'Service booking',schedule:formatDate(b.bookingDate)+' '+formatTime(b.startTime)+(b.endTime?' - '+formatTime(b.endTime):''),
+          technician:b.technician?.name,address:b.address,deadline:b.acceptanceDeadline,isPastDate:b.isPastDate===true,
+          canExtend:!!b.assignmentId&&b.assignmentStatus==='pending_acceptance',canRequeue:b.assignmentStatus==='pending_acceptance',canResolve:APPOINTMENTS_CAN_RESOLVE
+        };}),onAction:function(action,record){
+          if(action==='view')AU.Overview.viewDetail(record.id);
+          if(action==='extend')window.extendDeadline(record.source.assignmentId);
+          if(action==='requeue')window.forceReassign(record.id);
+          if(action==='recover')window.location.href=bookingResolutionUrl(record.source).replace(/&amp;/g,'&');
+        }});
+    }).catch(function(){if(request===waitingAcceptRequest)container.innerHTML='<div class="alert alert-danger" role="alert">Could not load assignments. Refresh and try again.</div>';});
   }
 
   window.extendDeadline = async function(assignmentId){
-    var minutes = prompt('Extend deadline by how many minutes?', '60');
-    if(!minutes) return;
+    var minutes = await RACSAcceptance.askExtension();
+    if(minutes === null) return;
     try{
       var res = await fetch(APPOINTMENTS_API+'/assignments/' + assignmentId + '/extend-deadline', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({minutes: parseInt(minutes)})
+        body:JSON.stringify({minutes: minutes})
       });
-      var data = await res.json();
+      var data = await RACSAcceptance.readJson(res);
       if(res.ok){ showNotification({type:'success',title:'Deadline Extended',message:'New acceptance deadline saved.',duration:3000}); loadWaitingAcceptTab(); }
       else { showNotification({type:'error',title:'Failed',message:data.error||'Could not extend deadline',duration:4000}); }
-    }catch(e){ showNotification({type:'error',title:'Error',message:'Network error',duration:4000}); }
+    }catch(e){ showNotification({type:'error',title:'Request failed',message:e.message||'Please refresh and try again.',duration:4000}); }
   };
 
   window.forceReassign = async function(bookingId){
-    if(!confirm('Reassign this booking? The current assignment will be expired.')) return;
+    var confirmation = await RACSAcceptance.confirmReturn('this booking');
+    if(!confirmation.isConfirmed) return;
     try{
-      var res = await fetch(APPOINTMENTS_API+'/' + bookingId + '/force-reassign', {method:'POST'});
-      var data = await res.json();
+      var res = await fetch(APPOINTMENTS_API+'/' + bookingId + '/force-reassign', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:confirmation.value||''})});
+      var data = await RACSAcceptance.readJson(res);
       if(res.ok){
-        showNotification({type:'success',title:'Reassigned',message:'Booking is now available for reassignment.',duration:3000});
+        showNotification({type:'success',title:'Returned to assignment queue',message:'Booking is now available for reassignment.',duration:3000});
         loadWaitingAcceptTab();
         if(AU.Queue){ AU.Queue.loadQueue(1); AU.Queue.loadStats(); }
       } else { showNotification({type:'error',title:'Failed',message:data.error||'Could not reassign',duration:4000}); }
-    }catch(e){ showNotification({type:'error',title:'Error',message:'Network error',duration:4000}); }
+    }catch(e){ showNotification({type:'error',title:'Request failed',message:e.message||'Please refresh and try again.',duration:4000}); }
   };
 
   window.AU={};

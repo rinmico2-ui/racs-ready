@@ -104,8 +104,8 @@
               </div>
             </div>
             <div class="wa-wide" id="waQuote"><div class="wa-quote"><span>Select an address for the route quote.</span><strong>—</strong></div></div>
-            <div class="wa-wide"><label class="wa-label" for="waTechnician">Assign technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help"><i class="bi bi-info-circle me-1"></i>The calendar below is calculated specifically for the selected technician, cart quantity, and travel time.</p></div>
-            <div class="wa-wide">
+            <div class="wa-wide" id="waTechnicianWrap"><label class="wa-label" for="waTechnician">Assign technician</label><select class="wa-field" id="waTechnician"><option value="">Loading technicians…</option></select><p class="wa-help"><i class="bi bi-info-circle me-1"></i>The calendar below is calculated specifically for the selected technician, cart quantity, and travel time.</p></div>
+            <div class="wa-wide" id="waStandardSchedule">
               <label class="wa-label">Installation date and time</label>
               <div class="wa-schedule-card">
                 <div class="wa-calendar-head">
@@ -125,6 +125,15 @@
                 <div class="wa-schedule-summary wa-hidden" id="waScheduleSummary" aria-live="polite"></div>
               </div>
             </div>
+            <div class="wa-wide wa-hidden" id="waProjectSchedule">
+              <label class="wa-label">Installation project window</label>
+              <p class="wa-help">This quantity needs a project work plan. Choose the customer's preferred dates. Operations will confirm the daily schedule and technician team.</p>
+              <div class="wa-fields">
+                <div><label class="wa-label" for="waProjectStart">Preferred start date *</label><input class="wa-field" id="waProjectStart" type="date"></div>
+                <div><label class="wa-label" for="waProjectEnd">Finish-by date *</label><input class="wa-field" id="waProjectEnd" type="date"></div>
+              </div>
+              <p class="wa-help mt-2" id="waProjectAvailability" role="status">Choose both dates to check project capacity.</p>
+            </div>
           </div>
         </section>
         <section class="wa-section wa-hidden" id="waPickupSection"><label class="wa-label" for="waPickupDate">Pickup date</label><input class="wa-field" id="waPickupDate" type="date"></section>
@@ -132,10 +141,10 @@
         <section class="wa-section">
           <h4 class="wa-section-title"><i class="bi bi-credit-card"></i>Payment</h4>
           <div class="wa-fields">
-            <div><label class="wa-label" for="waPayment">Method</label><select class="wa-field" id="waPayment"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option><option value="card">Card</option></select></div>
+            <div><label class="wa-label" for="waPayment">Method</label><select class="wa-field" id="waPayment"><option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option></select></div>
             <div><label class="wa-label" for="waAmountPaid">Amount paid</label><input class="wa-field" id="waAmountPaid" type="number" min="0" step="0.01"></div>
             <div><label class="wa-label" for="waDiscount">Discount</label><input class="wa-field" id="waDiscount" type="number" min="0" step="0.01" value="0"></div>
-            <div id="waReferenceWrap" class="wa-hidden"><label class="wa-label" for="waReference">Payment reference</label><input class="wa-field" id="waReference" maxlength="160"></div>
+            <div id="waReferenceWrap" class="wa-hidden"><label class="wa-label" for="waReference">Payment reference</label><input class="wa-field" id="waReference" maxlength="120"></div>
           </div>
         </section>
         <div class="wa-summary">
@@ -179,7 +188,7 @@
     company: null, companyPromise: null, quoteRequest: 0, reverseRequest: 0,
     lastReceipt: null, customerLookupEmail: "", customerAccountFound: false,
     customerIsNew: null, customerAccountState: "unchecked", customerProfileRequired: false,
-    customerLookupRequest: 0,
+    customerLookupRequest: 0, projectThresholdHours: 8, projectVerdict: null, projectRequest: 0,
   };
   const $ = (id) => document.getElementById(id);
   const money = (value) => `₱${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -538,10 +547,12 @@
   async function initialize() {
     state.loaded = true;
     try {
-      const [products, options] = await Promise.all([
+      const [products, options, policy] = await Promise.all([
         jsonFetch("/api/walk-in-aircon/products"),
         jsonFetch("/api/appointments/walk-in-options"),
+        jsonFetch("/api/schedule/booking-policy"),
       ]);
+      state.projectThresholdHours = Number(policy.largeProjectThresholdHours) > 0 ? Number(policy.largeProjectThresholdHours) : 8;
       state.products = products.items || [];
       const types = [...new Set(state.products.map(item => item.type).filter(Boolean))].sort();
       $("waTypeFilter").innerHTML = '<option value="">All aircon types</option>' + types.map(type => `<option value="${esc(type)}">${esc(type)}</option>`).join("");
@@ -700,15 +711,49 @@
   function scheduleInputsChanged() {
     state.scheduleRequest += 1;
     state.slotRequest += 1;
+    state.projectRequest += 1;
+    state.projectVerdict = null;
     state.date = "";
     state.availableDates.clear();
     resetTimeSlots();
     renderAvailabilityCalendar();
+    const project = needsProject();
+    $("waTechnicianWrap").classList.toggle("wa-hidden", project);
+    $("waStandardSchedule").classList.toggle("wa-hidden", project);
+    $("waProjectSchedule").classList.toggle("wa-hidden", !project);
+    $("waProjectAvailability").textContent = "Choose both dates to check project capacity.";
     if (state.fulfillment !== "delivery_installation") return;
     if (!state.cart.length) return setCalendarStatus("Add an aircon before checking installation availability.");
     if (!$("waLat").value) return setCalendarStatus("Search and select a verified installation address.");
+    if (project) { checkProjectWindow(); return; }
     if (!$("waTechnician").value) return setCalendarStatus("Choose a technician to view their available schedule.");
     loadDates();
+  }
+
+  function needsProject() {
+    const units = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+    return state.fulfillment === "delivery_installation" && (units >= 8 || units > state.projectThresholdHours);
+  }
+
+  async function checkProjectWindow() {
+    const request = ++state.projectRequest;
+    state.projectVerdict = null;
+    const start = $("waProjectStart").value, end = $("waProjectEnd").value;
+    const units = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+    if (!needsProject() || !start || !end) return;
+    if (start <= dateKey(new Date()) || end <= start || localDate(end) - localDate(start) > 366 * 86400000) {
+      $("waProjectAvailability").textContent = "Choose a future start date and a later finish-by date within one year.";
+      return;
+    }
+    $("waProjectAvailability").textContent = "Checking available project capacity…";
+    try {
+      const verdict = await jsonFetch("/api/projects/window-availability", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({startDate:start,endDate:end,requiredHours:units,totalUnits:units}) });
+      if (request !== state.projectRequest) return;
+      state.projectVerdict = verdict;
+      $("waProjectAvailability").textContent = verdict.sufficient
+        ? `Capacity available for ${units} units (${units} labor hours). Operations will confirm the work plan.`
+        : "Not enough project capacity in this window. Choose a later finish-by date.";
+    } catch (error) { if (request === state.projectRequest) $("waProjectAvailability").textContent = error.message; }
   }
 
   async function searchAddress() {
@@ -819,7 +864,9 @@
     if (state.customerLookupEmail !== customerEmail || state.customerIsNew === null) return "Find the customer account by email before checkout.";
     if ($("waCustomerName").value.trim().length < 2 || $("waCustomerPhone").value.replace(/\D/g,"").length < 7) return "Enter the customer's complete name and phone number.";
     if (!$("waAccountConsent").checked) return "Confirm the customer's consent to create or link their online account.";
-    if (state.fulfillment === "delivery_installation" && (!$("waLat").value || !$("waTechnician").value || !state.date || !$("waTimeSlot").value)) return "Select a verified address, technician, available date, and time.";
+    if (state.fulfillment === "delivery_installation" && (!$("waLat").value || !$("waLng").value)) return "Select a verified installation address.";
+    if (needsProject() && (!$("waProjectStart").value || !$("waProjectEnd").value || !state.projectVerdict?.sufficient)) return "Choose a project start and finish-by date with enough capacity.";
+    if (state.fulfillment === "delivery_installation" && !needsProject() && (!$("waTechnician").value || !state.date || !$("waTimeSlot").value)) return "Select a technician, available date, and time.";
     if (state.fulfillment === "customer_pickup" && !$("waPickupDate").value) return "Choose the customer pickup date.";
     const units = state.cart.reduce((sum,item)=>sum+item.quantity,0), serials = $("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean);
     if (state.fulfillment === "carry_out" && serials.length !== units) return `Enter exactly ${units} serial number(s) for immediate handover.`;
@@ -832,7 +879,7 @@
   async function submit(event) {
     event.preventDefault(); const error = validate(); if (error) return toast(error, "danger");
     const button = $("waSubmit"); button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validating stock and schedule…';
-    const payload = { checkoutRequestId:state.checkoutId, accountConsent:$("waAccountConsent").checked, customer:{name:$("waCustomerName").value.trim(),email:$("waCustomerEmail").value.trim(),phone:$("waCustomerPhone").value.trim(),address:$("waAddress").value.trim()}, items:state.cart.map(item=>({toolId:item._id,quantity:item.quantity})), fulfillmentType:state.fulfillment, pickupDate:$("waPickupDate").value, technicianId:state.fulfillment === "delivery_installation" ? $("waTechnician").value : null, delivery:state.fulfillment === "delivery_installation" ? {address:$("waAddress").value.trim(),preferredDate:state.date,coordinates:{lat:$("waLat").value,lng:$("waLng").value}} : null, timeSlot:state.fulfillment === "delivery_installation" ? $("waTimeSlot").value : null, serialNumbers:$("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean), paymentMethod:$("waPayment").value, paymentReference:$("waReference").value.trim(), amountPaid:Number($("waAmountPaid").value), discount:Number($("waDiscount").value || 0) };
+    const payload = { checkoutRequestId:state.checkoutId, accountConsent:$("waAccountConsent").checked, customer:{name:$("waCustomerName").value.trim(),email:$("waCustomerEmail").value.trim(),phone:$("waCustomerPhone").value.trim(),address:$("waAddress").value.trim()}, items:state.cart.map(item=>({toolId:item._id,quantity:item.quantity})), fulfillmentType:state.fulfillment, pickupDate:$("waPickupDate").value, technicianId:state.fulfillment === "delivery_installation" && !needsProject() ? $("waTechnician").value : null, delivery:state.fulfillment === "delivery_installation" ? {address:$("waAddress").value.trim(),preferredDate:needsProject() ? $("waProjectStart").value : state.date,coordinates:{lat:$("waLat").value,lng:$("waLng").value}} : null, timeSlot:state.fulfillment === "delivery_installation" && !needsProject() ? $("waTimeSlot").value : null, projectScheduling:needsProject() ? {preferredStartDate:$("waProjectStart").value,preferredCompletionDeadline:$("waProjectEnd").value} : null, serialNumbers:$("waSerials").value.split(/\r?\n|,/).map(v=>v.trim()).filter(Boolean), paymentMethod:$("waPayment").value, paymentReference:$("waReference").value.trim(), amountPaid:Number($("waAmountPaid").value), discount:Number($("waDiscount").value || 0) };
     try {
       const result = await jsonFetch("/api/walk-in-aircon/checkout", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
       showReceipt(result);
@@ -854,7 +901,7 @@
     state.lastReceipt = result;
     const items = Array.isArray(order.items) ? order.items : [];
     const createdAt = order.createdAt ? new Date(order.createdAt) : new Date();
-    $("waReceiptContent").innerHTML = `<div class="wa-receipt-brand"><h4>CALIDRO RACS</h4><p>Official walk-in aircon order receipt</p></div><div class="wa-receipt-grid"><div><span>Order reference</span><strong>${esc(order.orderReference || "Pending reference")}</strong></div><div><span>Date issued</span><strong>${esc(createdAt.toLocaleString("en-PH"))}</strong></div><div><span>Customer</span><strong>${esc(order.customer?.name || "Customer")}</strong></div><div><span>Payment</span><strong>${esc(String(order.paymentMethod || "paid").replace(/_/g," ").toUpperCase())} · PAID</strong></div><div><span>Fulfillment</span><strong>${esc(String(order.fulfillmentType || "").replace(/_/g," ").toUpperCase())}</strong></div><div><span>Schedule</span><strong>${esc(order.delivery?.preferredDate ? `${new Date(order.delivery.preferredDate).toLocaleDateString("en-PH")} ${order.timeSlot || ""}` : (order.pickupDate ? new Date(order.pickupDate).toLocaleDateString("en-PH") : "Released"))}</strong></div></div><table class="wa-receipt-items"><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${items.map(item=>`<tr><td>${esc(`${item.brand || ""} ${item.modelLine || "Aircon"} ${item.capacity || ""}${item.capacityUnit || ""}`.trim())}</td><td>${Number(item.quantity || 0)}</td><td>${money(item.totalPrice)}</td></tr>`).join("")}</tbody></table><div class="wa-receipt-total"><span>Total paid</span><span>${money(order.total)}</span></div>${Number(result.change || 0) > 0 ? `<div class="wa-sum-row mt-2"><span>Change</span><strong>${money(result.change)}</strong></div>` : ""}<div class="wa-account-result"><i class="bi bi-person-check me-1"></i>${esc(accountResultText(result.customerAccount))}</div>`;
+    $("waReceiptContent").innerHTML = `<div class="wa-receipt-brand"><h4>CALIDRO RACS</h4><p>Official walk-in aircon order receipt</p></div><div class="wa-receipt-grid"><div><span>Order reference</span><strong>${esc(order.orderReference || "Pending reference")}</strong></div><div><span>Date issued</span><strong>${esc(createdAt.toLocaleString("en-PH"))}</strong></div><div><span>Customer</span><strong>${esc(order.customer?.name || "Customer")}</strong></div><div><span>Payment</span><strong>${esc(String(order.paymentMethod || "paid").replace(/_/g," ").toUpperCase())} · PAID</strong></div><div><span>Fulfillment</span><strong>${esc(String(order.fulfillmentType || "").replace(/_/g," ").toUpperCase())}</strong></div><div><span>Schedule</span><strong>${esc(order.isProject ? `Preferred window: ${new Date(order.projectScheduling.preferredStartDate).toLocaleDateString("en-PH",{timeZone:"Asia/Manila"})} to ${new Date(order.projectScheduling.preferredCompletionDeadline).toLocaleDateString("en-PH",{timeZone:"Asia/Manila"})}. Awaiting Operations confirmation` : order.delivery?.preferredDate ? `${new Date(order.delivery.preferredDate).toLocaleDateString("en-PH")} ${order.timeSlot || ""}` : (order.pickupDate ? new Date(order.pickupDate).toLocaleDateString("en-PH") : "Released"))}</strong></div></div><table class="wa-receipt-items"><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>${items.map(item=>`<tr><td>${esc(`${item.brand || ""} ${item.modelLine || "Aircon"} ${item.capacity || ""}${item.capacityUnit || ""}`.trim())}</td><td>${Number(item.quantity || 0)}</td><td>${money(item.totalPrice)}</td></tr>`).join("")}</tbody></table><div class="wa-receipt-total"><span>Total paid</span><span>${money(order.total)}</span></div>${Number(result.change || 0) > 0 ? `<div class="wa-sum-row mt-2"><span>Change</span><strong>${money(result.change)}</strong></div>` : ""}<div class="wa-account-result"><i class="bi bi-person-check me-1"></i>${esc(accountResultText(result.customerAccount))}</div>`;
     $("waResendInvitation").classList.toggle("d-none", result.customerAccount?.state !== "invited");
     $("waReceiptBackdrop").classList.add("show");
     $("waReceiptBackdrop").setAttribute("aria-hidden", "false");
@@ -881,6 +928,10 @@
 
   async function initializeAfterCheckout() {
     state.loaded = false;
+    state.projectVerdict = null;
+    state.projectRequest += 1;
+    $("waProjectStart").value = "";
+    $("waProjectEnd").value = "";
     state.availableDates.clear();
     state.availableSlots = [];
     state.time = "";
@@ -908,6 +959,10 @@
   });
   document.querySelectorAll("#waFulfillmentChoices button").forEach(button => button.addEventListener("click", () => setFulfillment(button.dataset.value)));
   $("waTechnician").addEventListener("change", scheduleInputsChanged);
+  ["waProjectStart", "waProjectEnd"].forEach(id => $(id).addEventListener("change", checkProjectWindow));
+  const firstProjectDay = new Date(); firstProjectDay.setDate(firstProjectDay.getDate() + 1);
+  $("waProjectStart").min = dateKey(firstProjectDay);
+  $("waProjectEnd").min = dateKey(firstProjectDay);
   $("waDiscount").addEventListener("input", renderTotals);
   $("waPayment").addEventListener("change", syncPaymentMode);
   $("waAddress").addEventListener("input", () => {

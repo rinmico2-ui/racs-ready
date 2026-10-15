@@ -60,9 +60,12 @@ function lastAssignmentAt(order) {
 
 function technicianAcceptanceState(order, now = new Date()) {
   const assignedAt = order?.status === "technician_assigned" ? lastAssignmentAt(order) : null;
-  const deadline = assignedAt
+  const defaultDeadline = assignedAt
     ? new Date(assignedAt.getTime() + TECHNICIAN_RESPONSE_MINUTES * 60 * 1000)
     : null;
+  const extended = order?.status === "technician_assigned" && order?.technicianAcceptance?.deadlineAt
+    ? new Date(order.technicianAcceptance.deadlineAt) : null;
+  const deadline = extended && defaultDeadline && extended > defaultDeadline ? extended : defaultDeadline;
   const reference = now instanceof Date ? now : new Date(now);
   return {
     responseMinutes: TECHNICIAN_RESPONSE_MINUTES,

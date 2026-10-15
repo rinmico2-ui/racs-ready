@@ -93,8 +93,12 @@ test('assignment UI does not let a stale auto-reschedule flag override a future 
 });
 
 test('waiting-for-acceptance UI renders schedules and deadlines in Philippine 12-hour time', () => {
-  assert.match(assignmentView, /var scheduleTime=formatTime\(b\.startTime\)\+' – '\+formatTime\(b\.endTime\)/);
-  assert.match(assignmentView, /deadline\.toLocaleString\('en-PH',\{timeZone:'Asia\/Manila'/);
-  assert.match(assignmentView, /scheduleTime\+' <small class="text-muted">PHT<\/small><\/span>'/);
-  assert.doesNotMatch(assignmentView, /\+\(b\.startTime\|\|'[^']*'\)\+' - '\+\(b\.endTime/);
+  const vm = require('node:vm');
+  const context = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/acceptance-workspace.js'), 'utf8'), context);
+  const container = {}, stats = {};
+  context.window.RACSAcceptance.render({ container, stats, records: [{ reference: 'TEST', customer: 'Customer',
+    schedule: 'Aug 25, 2026 9:00 AM', deadline: '2026-08-25T01:00:00Z', canExtend: true, canRequeue: true }], onAction() {} });
+  assert.match(container.innerHTML, /9:00 AM PHT/i);
+  assert.match(assignmentView, /schedule:formatDate\(b\.bookingDate\).*formatTime\(b\.startTime\)/);
 });

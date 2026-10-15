@@ -77,11 +77,11 @@ function paymentMapping(method) {
   const map = {
     cash: { order: "cash", payment: "cash", gateway: "cod" },
     gcash: { order: "gcash_full", payment: "gcash", gateway: "gcash" },
-    maya: { order: "other", payment: "other", gateway: "other" },
-    card: { order: "other", payment: "other", gateway: "other" },
+    maya: { order: "other", payment: "maya", gateway: "maya" },
+    card: { order: "other", payment: "card", gateway: "other" },
     bank_transfer: { order: "other", payment: "bank", gateway: "bank" },
   };
-  if (!map[value]) throw posOrderError("Choose a supported payment method.", 400, "POS_PAYMENT_METHOD_INVALID");
+  if (typeof method !== "string" || !Object.hasOwn(map, value)) throw posOrderError("Choose a supported payment method.", 400, "POS_PAYMENT_METHOD_INVALID");
   return { ...map[value], source: value };
 }
 
@@ -445,7 +445,10 @@ async function checkoutAirconOrder(req, res) {
       }
     }
 
-    const paymentReference = String(req.body?.paymentReference || "").trim().slice(0, 160);
+    if ((req.body?.paymentReference !== undefined && typeof req.body.paymentReference !== "string") || String(req.body?.paymentReference || "").length > 120) {
+      throw posOrderError("Enter a payment reference of at most 120 characters.", 400, "POS_PAYMENT_REFERENCE_INVALID");
+    }
+    const paymentReference = String(req.body?.paymentReference || "").trim();
     if (payment.source !== "cash" && paymentReference.length < 4) {
       throw posOrderError("Record the electronic payment or card authorization reference.", 400, "POS_PAYMENT_REFERENCE_REQUIRED");
     }
@@ -505,22 +508,27 @@ async function checkoutAirconOrder(req, res) {
     let routeDurationMin = 0;
     let installationFee = 0;
     let selectedTechnician = null;
+    const projectPolicy = require("../utils/orderInstallationProject");
+    const workload = await projectPolicy.installationWorkload(enrichedItems, fulfillmentChoice);
+    let projectScheduling = null;
     if (fulfillmentChoice === "carry_out") {
       pickupDate = new Date();
     } else if (fulfillmentChoice === "customer_pickup") {
       pickupDate = validatePickupDate(req.body?.pickupDate, settings.storeHours);
     } else {
       fulfillmentType = "delivery_installation";
-      const technicianId = String(req.body?.technicianId || "").trim();
-      if (!mongoose.isValidObjectId(technicianId)) {
-        throw posOrderError("Choose an available technician for this installation.", 400, "POS_TECHNICIAN_REQUIRED");
-      }
-      selectedTechnician = await Technician.findOne({ _id: technicianId, active: true })
-        .populate({ path: "user", select: "firstName lastName email phone active blocked role" })
-        .lean();
-      if (!selectedTechnician || !selectedTechnician.user || selectedTechnician.user.role !== "technician"
-        || selectedTechnician.user.active === false || selectedTechnician.user.blocked === true) {
-        throw posOrderError("The selected technician is no longer available for assignment.", 409, "POS_TECHNICIAN_UNAVAILABLE");
+      if (!workload.isProject) {
+        const technicianId = String(req.body?.technicianId || "").trim();
+        if (!mongoose.isValidObjectId(technicianId)) {
+          throw posOrderError("Choose an available technician for this installation.", 400, "POS_TECHNICIAN_REQUIRED");
+        }
+        selectedTechnician = await Technician.findOne({ _id: technicianId, active: true })
+          .populate({ path: "user", select: "firstName lastName email phone active blocked role" })
+          .lean();
+        if (!selectedTechnician || !selectedTechnician.user || selectedTechnician.user.role !== "technician"
+          || selectedTechnician.user.active === false || selectedTechnician.user.blocked === true) {
+          throw posOrderError("The selected technician is no longer available for assignment.", 409, "POS_TECHNICIAN_UNAVAILABLE");
+        }
       }
       const address = String(req.body?.delivery?.address || "").trim().slice(0, 500);
       const preferredDate = parseDateOnly(req.body?.delivery?.preferredDate);
@@ -529,7 +537,7 @@ async function checkoutAirconOrder(req, res) {
       const lng = Number(req.body?.delivery?.coordinates?.lng);
       if (address.length < 8) throw posOrderError("Enter and select a complete installation address.", 400, "POS_DELIVERY_ADDRESS_REQUIRED");
       if (!preferredDate || preferredDate <= new Date(new Date().setHours(0, 0, 0, 0))) throw posOrderError("Choose a future installation date.", 400, "POS_DELIVERY_DATE_REQUIRED");
-      if (!timeSlot) throw posOrderError("Choose an available installation time.", 400, "POS_DELIVERY_TIME_REQUIRED");
+      if (!workload.isProject && !timeSlot) throw posOrderError("Choose an available installation time.", 400, "POS_DELIVERY_TIME_REQUIRED");
       const quote = await authoritativeDeliveryQuote({
         origin: settings.companyLocation,
         destination: { lat, lng },
@@ -540,22 +548,26 @@ async function checkoutAirconOrder(req, res) {
       routeDurationMin = quote.durationMin;
       installationFee = 0;
 
-      const schedulingEngine = require("../utils/enterpriseSchedulingEngine");
-      if (await schedulingEngine.isLargeProject({ totalUnits, totalEstimatedMinutes: totalUnits * 60 })) {
-        throw posOrderError("This installation quantity requires project scheduling. Create a project quotation instead.", 409, "POS_PROJECT_SCHEDULING_REQUIRED");
+      if (workload.isProject) {
+        projectScheduling = projectPolicy.validateInstallationWindow(req.body?.projectScheduling, preferredDate);
+        const verdict = await projectPolicy.checkInstallationWindow(enrichedItems, projectScheduling);
+        if (!verdict.sufficient) throw posOrderError("This project window does not have enough capacity. Choose a later finish-by date.", 409, "POS_PROJECT_CAPACITY_UNAVAILABLE");
+        projectScheduling.estimatedTotalHours = workload.estimatedTotalHours;
+        timeSlot = null;
+      } else {
+        const scheduleRoutes = require("./scheduleRoutes");
+        const slotCheck = await scheduleRoutes.getTimeSlotsForQuery({
+          date: String(req.body.delivery.preferredDate).slice(0, 10),
+          duration: "60",
+          quantity: String(totalUnits),
+          travelTime: String(routeDurationMin),
+          technicianId: String(selectedTechnician._id),
+        });
+        const slotAvailable = slotCheck.statusCode < 400
+          && Array.isArray(slotCheck.payload?.timeSlots)
+          && slotCheck.payload.timeSlots.some((slot) => slot.available === true && String(slot.startTime || "").trim().toLowerCase() === timeSlot.toLowerCase());
+        if (!slotAvailable) throw posOrderError(slotCheck.payload?.message || "That installation time is no longer available.", 409, "POS_INSTALLATION_SLOT_UNAVAILABLE");
       }
-      const scheduleRoutes = require("./scheduleRoutes");
-      const slotCheck = await scheduleRoutes.getTimeSlotsForQuery({
-        date: String(req.body.delivery.preferredDate).slice(0, 10),
-        duration: "60",
-        quantity: String(totalUnits),
-        travelTime: String(routeDurationMin),
-        technicianId: String(selectedTechnician._id),
-      });
-      const slotAvailable = slotCheck.statusCode < 400
-        && Array.isArray(slotCheck.payload?.timeSlots)
-        && slotCheck.payload.timeSlots.some((slot) => slot.available === true && String(slot.startTime || "").trim().toLowerCase() === timeSlot.toLowerCase());
-      if (!slotAvailable) throw posOrderError(slotCheck.payload?.message || "That installation time is no longer available.", 409, "POS_INSTALLATION_SLOT_UNAVAILABLE");
       delivery = {
         address,
         contactNumber: customer.phone,
@@ -613,7 +625,7 @@ async function checkoutAirconOrder(req, res) {
     const now = new Date();
     const status = fulfillmentChoice === "carry_out"
       ? "completed"
-      : (fulfillmentType === "delivery_installation" ? "technician_assigned" : "preparing_unit");
+      : (fulfillmentType === "delivery_installation" && !workload.isProject ? "technician_assigned" : "preparing_unit");
     const technicianName = selectedTechnician
       ? `${selectedTechnician.user?.firstName || ""} ${selectedTechnician.user?.lastName || ""}`.trim() || selectedTechnician.name || "Technician"
       : "";
@@ -631,6 +643,8 @@ async function checkoutAirconOrder(req, res) {
       },
       items: enrichedItems,
       fulfillmentType,
+      isProject: workload.isProject,
+      projectScheduling: projectScheduling || undefined,
       pickupDate,
       delivery,
       timeSlot,
@@ -645,6 +659,8 @@ async function checkoutAirconOrder(req, res) {
       status,
       completedAt: status === "completed" ? now : null,
       paymentMethod: payment.order,
+      paymentChannel: payment.source === "cash" ? "other" : payment.source,
+      paymentReference: paymentReference || undefined,
       paymentStatus: "paid",
       downpaymentPercentage: 100,
       downpaymentAmount: total,
@@ -672,6 +688,15 @@ async function checkoutAirconOrder(req, res) {
       if (warrantySnapshot) order.warranty = warrantySnapshot;
     }
     await order.save({ session });
+
+    if (workload.isProject) {
+      const ids = { bookingId: new mongoose.Types.ObjectId(), projectId: new mongoose.Types.ObjectId() };
+      const plan = projectPolicy.buildInstallationProject(order, customerUser, ids);
+      await new BookingService(plan.booking).save({ session });
+      await new (require("../models/Project"))(plan.project).save({ session });
+      order.bookingId = ids.bookingId;
+      order.projectId = ids.projectId;
+    }
 
     if (selectedTechnician && fulfillmentType === "delivery_installation") {
       const serviceDurationMinutes = Math.max(60, totalUnits * 60);
@@ -783,7 +808,9 @@ async function checkoutAirconOrder(req, res) {
           ? "Released at the store counter"
           : (fulfillmentType === "customer_pickup"
               ? `Pickup on ${new Date(pickupDate).toLocaleDateString("en-PH")}`
-              : `${new Date(delivery.preferredDate).toLocaleDateString("en-PH")} at ${timeSlot}`);
+              : (workload.isProject
+                ? `Preferred project window: ${require("../utils/bookingDateTime").manilaDateKey(projectScheduling.preferredStartDate)} to ${require("../utils/bookingDateTime").manilaDateKey(projectScheduling.preferredCompletionDeadline)}. Operations will confirm the team and daily work plan.`
+                : `${new Date(delivery.preferredDate).toLocaleDateString("en-PH")} at ${timeSlot}`));
         const mailResult = await require("../utils/mailer").sendWalkInOrderAccountEmail({
           to: customer.email,
           customerName: customer.name,

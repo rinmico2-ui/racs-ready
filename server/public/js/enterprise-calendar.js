@@ -37,6 +37,7 @@ const EnterpriseCalendar = (() => {
   let _syncGlobalState = true;
   let _availabilityUrl = null;
   let _projectAvailabilityUrl = '/api/projects/window-availability';
+  let _validateProjectPreferences = false;
   let _autoDetectProject = true;
   let _showStartDatePrompt = true;
   let _onStateChangeCb = null;
@@ -203,6 +204,7 @@ const EnterpriseCalendar = (() => {
     _syncGlobalState = opts.syncGlobalState !== false;
     _availabilityUrl = opts.availabilityUrl || null;
     _projectAvailabilityUrl = opts.projectAvailabilityUrl || '/api/projects/window-availability';
+    _validateProjectPreferences = opts.validateProjectPreferences === true;
     _autoDetectProject = opts.autoDetectProject !== false;
     _showStartDatePrompt = opts.showStartDatePrompt !== false;
     _onStateChangeCb = typeof opts.onStateChange === 'function' ? opts.onStateChange : null;
@@ -1452,6 +1454,7 @@ const EnterpriseCalendar = (() => {
           endDate,
           requiredHours,
           totalUnits,
+          ...(_validateProjectPreferences ? { preferences: readProjectPrefs() } : {}),
         }),
       });
 
@@ -1586,7 +1589,8 @@ const EnterpriseCalendar = (() => {
           prefsHost.querySelectorAll('#prefWorkingDays .ent-pref-chip.active'),
           selected => selected.dataset.day,
         );
-        syncProjectSelection();
+        if (_validateProjectPreferences) validateProjectRange();
+        else syncProjectSelection();
       });
     });
     prefsHost.querySelectorAll('#prefWorkingHours .ent-pref-chip').forEach(chip => {
@@ -1597,7 +1601,8 @@ const EnterpriseCalendar = (() => {
           c.setAttribute('aria-pressed', String(c === chip));
         });
         _projectPreferences.preferredWorkingHours = chip.dataset.hours;
-        syncProjectSelection();
+        if (_validateProjectPreferences) validateProjectRange();
+        else syncProjectSelection();
       });
     });
     const units = prefsHost.querySelector('#prefTotalUnits');

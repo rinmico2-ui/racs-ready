@@ -177,6 +177,7 @@ const orderSchema = new mongoose.Schema(
     // technician acceptance tracking
     technicianAcceptance: {
       status: { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
+      deadlineAt: { type: Date },
       respondedAt: { type: Date },
       declineReason: { type: String },
     },

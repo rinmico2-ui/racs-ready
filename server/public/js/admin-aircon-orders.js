@@ -1014,45 +1014,43 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ═══ WAITING FOR ACCEPTANCE TAB ═══════════════════════════════════════════════
+  let waitingAcceptRequest = 0;
   async function loadWaitingAcceptTab() {
+    const request = ++waitingAcceptRequest;
     const container = document.getElementById("aoWaitingContainer");
-    container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading...</p></div>';
-
+    container.innerHTML = '<div class="text-center py-5 text-muted" role="status">Loading assignments...</div>';
     try {
-      const res = await fetch(scopedOrdersUrl({ status: "technician_assigned", limit: 100, includeKpi: false }));
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
+      const data = await fetch(scopedOrdersUrl({ status: "technician_assigned", limit: 100, includeKpi: false })).then(RACSAcceptance.readJson);
+      if (request !== waitingAcceptRequest) return;
       const orders = data.orders || [];
-
-      setText("aoTabWaitingBadge", orders.length);
-      renderStats("aoWaitingStats", [
-        { icon: "bi-person-badge", color: "purple", value: orders.length, label: "Waiting for Acceptance", sub: "Tech pending" },
-        { icon: "bi-clock-history", color: "amber", value: orders.filter(o => o.isAcceptanceOverdue && !o.isPastDate).length, label: "Response SLA Expired", sub: "Safe to requeue" },
-        { icon: "bi-exclamation-diamond", color: "red", value: orders.filter(o => o.isPastDate).length, label: "Schedule Recovery", sub: "New customer schedule required" },
-      ]);
-
-      if (!orders.length) {
-        container.innerHTML = '<div class="ao-empty"><i class="bi bi-check-circle"></i><p>No orders waiting for technician acceptance</p></div>';
-        return;
-      }
-
-      container.innerHTML = orders.map(o => {
-        const assignedAt = fmtManilaDateTime(o.assignedAt);
-        const isAcceptanceOverdue = o.isAcceptanceOverdue === true && !o.isPastDate;
-        const techName = o.technician?.name || 'Unknown';
-        return orderCard(o, `
-          <button class="btn btn-sm btn-primary ao-action-btn" onclick="window._aoViewOrder('${esc(o._id)}')"><i class="bi bi-eye me-1"></i>View</button>
-          ${o.isPastDate ? resolutionBtn(o) : unitPreparedBtn(o)}
-          ${isAcceptanceOverdue ? `<button class="btn btn-sm btn-warning ao-action-btn" onclick="window._aoRequeueAssignment('${esc(o._id)}','${esc(orderRef(o))}')"><i class="bi bi-arrow-repeat me-1"></i>Requeue</button>` : ''}
-          <span class="small text-muted ms-2">Assigned to ${esc(techName)} at ${esc(assignedAt)}</span>
-        `);
-      }).join("");
-    } catch(err) {
-      container.innerHTML = '<div class="alert alert-danger">Failed to load</div>';
+      const total = data.pagination?.total ?? data.total ?? orders.length;
+      setText("aoTabWaitingBadge", total);
+      setText("aoWaitingCount", `${total} assignments`);
+      RACSAcceptance.render({ container, stats: document.getElementById("aoWaitingStats"), total,
+        records: orders.map(o => ({ id:o._id, source:o, reference:orderRef(o), customer:o.customer?.name,
+          description:(o.items || []).map(i => `${i.modelLine || "Aircon"} ${i.capacity || ""}${i.capacityUnit || "HP"} \u00d7 ${i.quantity}`).join(", "),
+          schedule:`${fmtDate(o.delivery?.preferredDate)} ${fmtTime(o.timeSlot)}`, address:o.delivery?.address,
+          technician:o.technician?.name, deadline:o.acceptanceDeadlineAt, isPastDate:o.isPastDate === true,
+          canExtend:true, canRequeue:o.isAcceptanceOverdue === true, canResolve:canResolveOrders,
+          requeueHint:"Available after the technician response deadline. Extend the deadline to allow more time."
+        })), onAction:async (action, record) => {
+          if (action === "view") window._aoViewOrder(record.id);
+          if (action === "requeue") window._aoRequeueAssignment(record.id, record.reference);
+          if (action === "recover") window.location.href = resolutionUrl(record.source);
+          if (action === "extend") {
+            const minutes = await RACSAcceptance.askExtension();
+            if (minutes === null) return;
+            try {
+              await fetch(`/api/orders/${encodeURIComponent(record.id)}/extend-deadline`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({minutes})}).then(RACSAcceptance.readJson);
+              loadWaitingAcceptTab();
+            } catch (error) { Swal.fire({icon:"error",title:"Deadline not extended",text:error.message}); }
+          }
+        }});
+    } catch (error) {
+      if (request === waitingAcceptRequest) container.innerHTML = '<div class="alert alert-danger" role="alert">Could not load assignments. Refresh and try again.</div>';
     }
   }
 
-  // ═══ IN PROGRESS TAB ═════════════════════════════════════════════════════════
   async function loadActiveTab() {
     const container = document.getElementById("aoActiveContainer");
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary"></div><p class="mt-2">Loading active orders...</p></div>';
@@ -1427,18 +1425,7 @@ document.addEventListener("DOMContentLoaded", function () {
   };
 
   window._aoRequeueAssignment = async function(orderId, ref) {
-    const result = await Swal.fire({
-      title:"Return to Assignment Queue?",
-      html:`The technician has not accepted <strong>${esc(ref)}</strong>. Release this assignment so another technician can be selected?`,
-      icon:"warning",
-      input:"text",
-      inputPlaceholder:"Reason (optional)",
-      showCancelButton:true,
-      confirmButtonText:"Requeue Order",
-      cancelButtonText:"Keep Assignment",
-      buttonsStyling:false,
-      customClass:{ confirmButton:"btn btn-warning fw-bold px-4 me-2", cancelButton:"btn btn-light border fw-bold px-4", popup:"border-0 shadow-sm" },
-    });
+    const result = await RACSAcceptance.confirmReturn(ref);
     if (!result.isConfirmed) return;
     try {
       const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/requeue-assignment`, {
@@ -1446,8 +1433,7 @@ document.addEventListener("DOMContentLoaded", function () {
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ reason:result.value || "Technician did not accept within the review window" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to requeue order");
+      const data = await RACSAcceptance.readJson(res);
       Swal.fire({ title:"Order Requeued", text:data.message, icon:"success", timer:1500, showConfirmButton:false });
       loadTab(currentTab);
     } catch (err) {

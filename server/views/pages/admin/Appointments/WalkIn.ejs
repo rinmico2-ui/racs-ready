@@ -868,14 +868,14 @@
             <div class="ent-step-icon step-payment"><i class="bi bi-cash-coin"></i></div>
             <div class="ent-step-info">
               <h5>Step 6</h5>
-              <p>Cash Payment</p>
+              <p>Record payment</p>
             </div>
           </div>
           <div class="ent-step-body">
           <div
             class="ent-payment-tabs"
             role="tablist"
-            aria-label="Cash payment mode"
+            aria-label="Payment amount"
           >
             <button
               type="button"
@@ -888,23 +888,22 @@
               <i class="bi bi-cash"></i>Full Payment
             </button>
           </div>
-          <input
-            class="d-none"
-            type="hidden"
-            name="paymentMethod"
-            id="payCod"
-            value="cod"
-          />
-
-          <!-- amount input is shown; reference and mark-as-paid are removed -->
           <div class="row g-3">
             <div class="col-md-12" id="cashInfoNotice">
               <p class="small text-muted">
-                Reference number will be generated automatically. For
-                downpayment mode the booking will be marked
-                <strong>partial</strong>; for full payment the status becomes
-                <strong>paid</strong>.
+                Record only money already received at the counter. Electronic payments require a transaction or authorization reference. The remaining balance is collected separately.
               </p>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="payCod">Payment method <span aria-hidden="true">*</span></label>
+              <select id="payCod" name="paymentMethod" class="form-select" required>
+                <option value="cash">Cash</option><option value="gcash">GCash</option><option value="maya">Maya</option><option value="card">Card</option><option value="bank_transfer">Bank transfer</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-none" id="walkinPaymentReferenceWrap">
+              <label class="form-label" for="walkinPaymentReference">Transaction / authorization reference <span aria-hidden="true">*</span></label>
+              <input id="walkinPaymentReference" class="form-control" minlength="4" maxlength="160" autocomplete="off" aria-describedby="walkinReferenceHelp" />
+              <div class="form-text" id="walkinReferenceHelp">Use the reference from the received payment.</div>
             </div>
             <div class="col-md-4">
               <label class="form-label" for="downpaymentAmount"
@@ -1012,7 +1011,7 @@
 </div>
 
 <link rel="stylesheet" id="ent-calendar-styles" href="/css/enterprise-calendar.css?v=20260814-walkin">
-<script src="/js/enterprise-calendar.js?v=20260826-shared-slot-logic"></script>
+<script src="/js/enterprise-calendar.js?v=20261015-walkin-preferences"></script>
 <script>
   (function () {
     const state = {
@@ -1032,7 +1031,7 @@
       selectedServices: [],
       selectedDate: null,
       selectedStartMinutes: null,
-      paymentMethod: "cod",
+      paymentMethod: "cash",
       cashPaymentMode: "downpayment",
       travelFare: 0,
       travelTime: 0,
@@ -1466,10 +1465,12 @@
           );
       }
       if (step === 3) {
-        if (!state.selectedDate || (!state.projectScheduling && state.selectedStartMinutes == null))
+        if (!state.selectedDate || (isLargeScaleSelection() ? !state.projectScheduling?.endDate : state.selectedStartMinutes == null))
           return showWarn("Please choose a date and available time slot.");
       }
       if (step === 5) {
+        if (paymentMethodFromUI() !== "cash" && document.getElementById("walkinPaymentReference").value.trim().length < 4)
+          return showWarn("Enter the electronic payment or card authorization reference.");
         const amount = Number(
           document.getElementById("downpaymentAmount").value,
         );
@@ -1673,8 +1674,10 @@
       updateSummary();
     }
 
+    document.getElementById("payCod").addEventListener("change", () => { syncCashAmountInput(); updateSummary(); });
+
     function paymentMethodFromUI() {
-      return "cod";
+      return document.getElementById("payCod").value;
     }
 
     function getEstimatedTotal() {
@@ -1686,6 +1689,10 @@
       const hintEl = document.getElementById("paymentAmountHint");
       if (!amountEl) return;
       const total = getEstimatedTotal();
+      state.paymentMethod = paymentMethodFromUI();
+      const electronic = state.paymentMethod !== "cash";
+      document.getElementById("walkinPaymentReferenceWrap").classList.toggle("d-none", !electronic);
+      document.getElementById("walkinPaymentReference").required = electronic;
       if (state.cashPaymentMode === "full") {
         amountEl.value = total.toFixed(2);
         amountEl.readOnly = true;
@@ -1735,7 +1742,7 @@
         <div class="rv-row"><span class="text-muted">Schedule:</span> <span class="fw-semibold">${scheduleText}</span></div>
         <div class="rv-row"><span class="text-muted">Travel Fare:</span> <span class="fw-semibold">₱${Number(state.travelFare || 0).toFixed(2)}</span></div>
         <div class="rv-row rv-total" style="border-top:2px solid #e2e8f0;margin-top:0.5rem;padding-top:0.75rem"><span class="fw-bold">Estimated Total:</span> <span class="fw-bold text-primary">₱${total.toFixed(2)}</span></div>
-        <div class="rv-row"><span class="text-muted">Payment Method:</span> <span class="fw-semibold">CASH (${state.cashPaymentMode === "full" ? "FULL" : "DOWNPAYMENT"})</span></div>
+        <div class="rv-row"><span class="text-muted">Payment Method:</span> <span class="fw-semibold">${document.getElementById("payCod").selectedOptions[0].textContent} (${state.cashPaymentMode === "full" ? "Full payment" : "Downpayment"})</span></div>
       </div>`;
 
       const servicesTotalDisplay = document.getElementById("servicesTotalDisplay");
@@ -2233,6 +2240,8 @@
       calendarGridEl.innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary" role="status"></span><div class="small text-muted mt-2">Retrieving available dates…</div></div>';
 
       await window.EnterpriseCalendar.init({
+        projectAvailabilityUrl: "/api/appointments/walk-in-project-availability",
+        validateProjectPreferences: true,
         serviceId: state.selectedServiceId,
         technicianId: isProject ? null : techEl.value,
         duration: perUnitDuration,
@@ -3296,8 +3305,8 @@
         tab.classList.add("active");
         const mode = tab.getAttribute("data-cash-mode") || "downpayment";
         state.cashPaymentMode = mode === "full" ? "full" : "downpayment";
-        state.paymentMethod = "cod";
-        document.getElementById("payCod").value = "cod";
+        state.paymentMethod = paymentMethodFromUI();
+
         syncCashAmountInput();
         updateSummary();
       });
@@ -3414,8 +3423,9 @@
         issueDescription: document
           .getElementById("issueDescription")
           .value.trim(),
-        paymentMethod: "cod",
+        paymentMethod: paymentMethodFromUI(),
         cashPaymentMode: state.cashPaymentMode,
+        paymentReference: document.getElementById("walkinPaymentReference").value.trim(),
 
         downpaymentAmount: Number(
           document.getElementById("downpaymentAmount").value,
@@ -3428,10 +3438,6 @@
           ).toFixed(2),
         ),
       };
-      // auto-generate reference if not provided
-      // always auto‑generate a reference (field removed from UI)
-      payload.paymentReference = `OR-${Date.now()}`;
-
       saveBtn.disabled = true;
       saveBtn.innerHTML =
         '<span class="spinner-border spinner-border-sm me-1"></span>Creating…';
@@ -3469,7 +3475,7 @@
         showAlert("success", `Walk-in appointment created successfully. Reference: <strong>${ref}</strong>.${accountMsg}${bookingMsg}`);
 
         form.reset();
-        state.paymentMethod = "cod";
+        state.paymentMethod = paymentMethodFromUI();
         state.cashPaymentMode = "downpayment";
         state.selectedDate = null;
         state.selectedStartMinutes = null;
@@ -3500,7 +3506,8 @@
               t.getAttribute("data-cash-mode") === "downpayment",
             ),
           );
-        document.getElementById("payCod").value = "cod";
+        document.getElementById("payCod").value = "cash";
+        document.getElementById("walkinPaymentReference").value = "";
         serviceTypeEl.value = "core";
         document
           .querySelectorAll(".category-btn")

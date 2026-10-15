@@ -1650,6 +1650,20 @@ router.get(
   },
 );
 
+router.post("/walk-in-project-availability", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    const { startDate, endDate, requiredHours, totalUnits, preferences } = req.body || {};
+    const policy = require("../utils/walkInProjectWindow");
+    const window = policy.walkInProjectWindow({ startDate, endDate, preferences }, startDate, Number(requiredHours) || 0);
+    const verdict = await require("../utils/enterpriseSchedulingEngine").getProjectWindowAvailability({
+      startDate, endDate, requiredHours: Number(requiredHours) || null, totalUnits: Number(totalUnits) || null,
+      ...(requiredHours ? { preferences: window } : {}),
+    });
+    if (verdict.error) return res.status(400).json({ error: verdict.error });
+    res.json(verdict);
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not check project capacity. Try again." }); }
+});
+
 // POST /walk-in - create an on-site walk-in appointment (admin/secretary)
 router.post(
   "/walk-in",
@@ -1705,20 +1719,8 @@ router.post(
       paymentMethod = String(paymentMethod || "cod")
         .trim()
         .toLowerCase();
-      const normalizedCashMode =
-        String(cashPaymentMode || "downpayment")
-          .trim()
-          .toLowerCase() === "full"
-          ? "full"
-          : "downpayment";
-      let normalizedReference = String(paymentReference || "").trim();
-      if (!normalizedReference) {
-        normalizedReference = `OR-${Date.now()}`;
-      }
       const parsedTravelFare = Math.max(0, Number(travelFare) || 0);
       const parsedTravelTime = Math.max(0, Number(travelTime) || 0);
-      const parsedEstimatedFee = Number(estimatedFee);
-      const parsedDownpaymentAmount = Number(downpaymentAmount);
 
       if (!customerEmail || !normalizeEmailAddress(customerEmail)) {
         return res
@@ -1840,52 +1842,17 @@ router.post(
         totalEstimatedMinutes: serviceDuration,
       });
 
-      const projectPrefs = projectScheduling && typeof projectScheduling === "object"
-        ? (projectScheduling.preferences || {})
-        : {};
-      const preferredHours = {
-        morning: { start: "08:00", end: "12:00" },
-        afternoon: { start: "13:00", end: "17:00" },
-        evening: { start: "17:00", end: "19:00" },
-      }[String(projectPrefs.preferredWorkingHours || "").toLowerCase()] || undefined;
-      let normalizedProjectScheduling;
+      let normalizedProjectScheduling = null;
       if (isLargeScale) {
-        const projectStartRaw = projectScheduling?.preferredStartDate || projectScheduling?.startDate || date;
-        const projectEndRaw = projectScheduling?.preferredCompletionDeadline
-          || projectScheduling?.endDate
-          || projectPrefs.completionDeadline;
-        if (!projectEndRaw) {
-          return res.status(400).json({ error: "Please select both a start date and an end date for the large-scale project." });
-        }
-        const projectStartDate = new Date(projectStartRaw);
-        const projectEndDate = new Date(projectEndRaw);
-        if (Number.isNaN(projectStartDate.getTime()) || Number.isNaN(projectEndDate.getTime()) || projectEndDate < projectStartDate) {
-          return res.status(400).json({ error: "The large-scale project end date cannot be before its start date." });
-        }
-        const projectStartKey = /^\d{4}-\d{2}-\d{2}/.exec(String(projectStartRaw))?.[0]
-          || projectStartDate.toISOString().slice(0, 10);
-        const projectEndKey = /^\d{4}-\d{2}-\d{2}/.exec(String(projectEndRaw))?.[0]
-          || projectEndDate.toISOString().slice(0, 10);
-
-        const requiredHours = Math.max(1, Math.round((serviceDuration / 60) * 10) / 10);
-        const windowCheck = await schedulingEngine.getProjectWindowAvailability({
-          startDate: projectStartKey,
-          endDate: projectEndKey,
-          requiredHours,
-          totalUnits,
+        normalizedProjectScheduling = require("../utils/walkInProjectWindow").walkInProjectWindow(projectScheduling, date, serviceDuration / 60);
+        const { manilaDateKey } = require("../utils/bookingDateTime");
+        const verdict = await schedulingEngine.getProjectWindowAvailability({
+          startDate: manilaDateKey(normalizedProjectScheduling.preferredStartDate),
+          endDate: manilaDateKey(normalizedProjectScheduling.preferredCompletionDeadline),
+          requiredHours: serviceDuration / 60, totalUnits,
+          preferences: normalizedProjectScheduling,
         });
-        if (!windowCheck.sufficient) {
-          let message = `The selected project window does not provide enough capacity. Required: ${requiredHours} technician-hours; available: ${windowCheck.totals?.totalAvailableHours || 0} technician-hours.`;
-          if (windowCheck.earliestCompletionDate) message += ` Earliest estimated completion: ${windowCheck.earliestCompletionDate}.`;
-          return res.status(409).json({ error: message, validationResult: windowCheck });
-        }
-        normalizedProjectScheduling = {
-          preferredStartDate: new Date(projectStartKey),
-          preferredCompletionDeadline: new Date(projectEndKey),
-          preferredWorkingDays: Array.isArray(projectPrefs.workingDays) ? projectPrefs.workingDays.slice(0, 7).map(String) : [],
-          preferredWorkingHours: preferredHours,
-          estimatedTotalHours: requiredHours,
-        };
+        if (verdict.error || !require("../utils/walkInProjectWindow").hasPreferredCapacity(verdict, normalizedProjectScheduling)) return res.status(409).json({ error: verdict.error || "The preferred dates and working hours do not have enough project capacity. Choose a later finish-by date or more working days.", validationResult: verdict });
       }
 
       // Standard appointments require one technician; project requests are
@@ -1926,7 +1893,7 @@ router.post(
         });
         const selectedSlotIsAvailable = slotCheck.statusCode < 400
           && Array.isArray(slotCheck.payload?.timeSlots)
-          && slotCheck.payload.timeSlots.some(slot => parseMinuteValue(slot.startTime) === startMin);
+          && slotCheck.payload.timeSlots.some(slot => slot.available === true && parseMinuteValue(slot.startTime) === startMin);
         if (!selectedSlotIsAvailable) {
           return res.status(409).json({
             error: slotCheck.payload?.message
@@ -2000,27 +1967,10 @@ router.post(
       const computedEstimatedFee = servicePrice + parsedTravelFare;
 
       const effectiveTotalFee = Math.max(0, Number(computedEstimatedFee) || 0);
-      let effectiveDownpayment =
-        normalizedCashMode === "full"
-          ? effectiveTotalFee
-          : Number.isFinite(parsedDownpaymentAmount)
-            ? parsedDownpaymentAmount
-            : 0;
-
-      if (!Number.isFinite(effectiveDownpayment) || effectiveDownpayment <= 0) {
-        return res
-          .status(400)
-          .json({ error: "Downpayment amount is required for cash bookings" });
-      }
-      if (
-        normalizedCashMode === "downpayment" &&
-        effectiveTotalFee > 0 &&
-        effectiveDownpayment > effectiveTotalFee
-      ) {
-        return res
-          .status(400)
-          .json({ error: "Downpayment cannot exceed estimated total fee" });
-      }
+      const collectedPayment = require("../utils/walkInPayment").walkInPayment({ paymentMethod, cashPaymentMode, paymentReference, downpaymentAmount }, effectiveTotalFee);
+      const normalizedCashMode = collectedPayment.mode;
+      const normalizedReference = collectedPayment.reference;
+      const effectiveDownpayment = collectedPayment.amount;
 
       // Account type is authoritative server state. Unknown addresses create a
       // consented invitation; existing customer addresses are reused.
@@ -2054,7 +2004,7 @@ router.post(
         ? String(customerUser.phone || "").trim()
         : customerPhone;
 
-      const appointment = new BookingService({
+      let appointment = new BookingService({
         bookingReference,
         customerId: customerUser ? customerUser._id : undefined,
         serviceId: primaryItem.serviceId,
@@ -2104,34 +2054,24 @@ router.post(
         // persisted. This prevents an "assigned" booking with no technician
         // job if assignment creation fails midway.
         status: isLargeScale ? BookingStatus.PENDING_PROJECT_SCHEDULING : BookingStatus.AWAITING_ASSIGNMENT,
-        paymentMethod: "cod",
+        paymentMethod: collectedPayment.booking,
+        paymentChannel: collectedPayment.channel,
         paymentReference: normalizedReference,
         downpaymentAmount: effectiveDownpayment,
-        paymentStatus: normalizedCashMode === "full" ? "paid" : "partial",
+        paymentStatus: collectedPayment.status,
+        amountPaid: effectiveDownpayment,
+        balanceAmount: Math.max(0, effectiveTotalFee - effectiveDownpayment),
         travelFare: parsedTravelFare,
         travelTime: capacityTravelMinutes,
         estimatedFee: computedEstimatedFee,
       });
-
-      if (isLargeScale) {
-        await appointment.save();
-      } else {
-        try {
-          await withOperationLock(bookingCapacityLockKey(date), async () => {
-            await assertCompanyCapacity(bookingDate, startMin, endMin);
-            await assertNoTechnicianOverlap({ technicianId: technicianRefId, bookingDate, startMin, endMin });
-            await appointment.save();
-          });
-        } catch (capacityErr) {
-          return res.status(409).json({ error: capacityErr.message || "That schedule is no longer available." });
-        }
-      }
 
       // Standard walk-ins follow the same acceptance pipeline as customer
       // bookings: create the technician assignment, show the booking in the
       // admin waiting tab, and notify the technician. Large-scale bookings
       // stay in project planning because they require a technician team.
       let assignment = null;
+      let notifyAssignment = async () => {};
       if (!isLargeScale) {
         const Assignment = require("../models/Assignment");
         const assignedAt = new Date();
@@ -2172,7 +2112,6 @@ router.post(
             byName: req.user?.name || req.user?.email || "Admin/Secretary",
           }],
         });
-        await assignment.save();
 
         // Selection by an admin is only an assignment offer. The booking must
         // stay here until the technician explicitly accepts it.
@@ -2200,87 +2139,95 @@ router.post(
             reason: "Walk-in assignment awaiting technician acceptance",
           });
         }
-        await appointment.save();
 
-        const io = req.app.get("io");
-        if (io) {
-          io.to(`tech:${selectedTechnician._id}`).emit("assignment:new", {
-            assignmentId: assignment._id,
-            bookingId: appointment._id,
-            bookingReference,
-            serviceName: assignmentServiceName,
-            customerName: customerSnapshotName,
-            bookingDate,
-            acceptanceDeadline: assignment.acceptanceDeadline,
-            priority: "normal",
-          });
-        }
+        notifyAssignment = async () => {
+          const io = req.app.get("io");
+          if (io) {
+            io.to(`tech:${selectedTechnician._id}`).emit("assignment:new", {
+              assignmentId: assignment._id,
+              bookingId: appointment._id,
+              bookingReference,
+              serviceName: assignmentServiceName,
+              customerName: customerSnapshotName,
+              bookingDate,
+              acceptanceDeadline: assignment.acceptanceDeadline,
+              priority: "normal",
+            });
+          }
 
-        await createNotification({
-          type: "assignment_new",
-          title: "New Walk-in Assignment",
-          message: `A walk-in ${assignmentServiceName} booking for ${customerSnapshotName} is waiting for your acceptance.`,
-          userId: selectedTechnicianUser._id,
-          role: "technician",
-          referenceId: assignment._id,
-          referenceModel: "Assignment",
-          link: "/technician/assignments",
-          priority: "high",
-          io,
-        }).catch(err => console.warn("walk-in technician notification failed", err?.message));
+          await createNotification({
+            type: "assignment_new",
+            title: "New Walk-in Assignment",
+            message: `A walk-in ${assignmentServiceName} booking for ${customerSnapshotName} is waiting for your acceptance.`,
+            userId: selectedTechnicianUser._id,
+            role: "technician",
+            referenceId: assignment._id,
+            referenceModel: "Assignment",
+            link: "/technician/assignments",
+            priority: "high",
+            io,
+          }).catch(err => console.warn("walk-in technician notification failed", err?.message));
 
-        const technicianEmail = selectedTechnician.userEmail || selectedTechnicianUser.email || "";
-        if (technicianEmail) {
-          sendTechnicianNotificationEmail({
-            to: technicianEmail,
-            technicianName: selectedTechnician.name || "Technician",
-            customerName: customerSnapshotName,
-            bookingReference,
-            serviceName: assignmentServiceName,
-            dateLabel: bookingDate.toLocaleDateString("en-PH", {
-              weekday: "long", year: "numeric", month: "long", day: "numeric",
-            }),
-            timeLabel: selectedTimeLabel,
-            totalLabel: `₱${effectiveTotalFee.toLocaleString()}`,
-            locationAddress: locationPayload?.address || customerAddressStr,
-            issueDescription,
-          }).catch(err => console.warn("walk-in technician email failed", err?.message));
-        }
+          const technicianEmail = selectedTechnician.userEmail || selectedTechnicianUser.email || "";
+          if (technicianEmail) {
+            sendTechnicianNotificationEmail({
+              to: technicianEmail,
+              technicianName: selectedTechnician.name || "Technician",
+              customerName: customerSnapshotName,
+              bookingReference,
+              serviceName: assignmentServiceName,
+              dateLabel: bookingDate.toLocaleDateString("en-PH", {
+                weekday: "long", year: "numeric", month: "long", day: "numeric",
+              }),
+              timeLabel: selectedTimeLabel,
+              totalLabel: `₱${effectiveTotalFee.toLocaleString()}`,
+              locationAddress: locationPayload?.address || customerAddressStr,
+              issueDescription,
+            }).catch(err => console.warn("walk-in technician email failed", err?.message));
+          }
+        };
       }
 
-      // Large unit counts or workloads beyond one working day enter project
-      // planning. Operations owns the final multi-day technician team.
+      let project = null;
       if (isLargeScale) {
         const Project = require("../models/Project");
-        await Project.findOneAndUpdate(
-          { bookingId: appointment._id },
-          { $setOnInsert: {
-            bookingId: appointment._id, customerId: customerUser._id,
-            customer: { _id: customerUser._id, name: customerSnapshotName, email: customerSnapshotEmail, phone: customerSnapshotPhone, address: customerAddressStr },
-            service: { name: resolvedItems.map(item => item.name).join(", "), description: issueDescription || "Walk-in large-scale service project", category: appointment.serviceType },
-            status: "pending_project_scheduling", isLargeScale: true, projectPhase: appointment.serviceType === "repair" ? "assessment" : "execution",
-            estimatedTotalHours: serviceDuration / 60, totalUnits, quantity: totalUnits,
-            estimatedDurationPerUnit: serviceDuration / 60 / totalUnits,
-            preferredStartDate: normalizedProjectScheduling.preferredStartDate,
-            preferredCompletionDeadline: normalizedProjectScheduling.preferredCompletionDeadline,
-            preferredWorkingDays: normalizedProjectScheduling.preferredWorkingDays,
-            preferredWorkingHours: normalizedProjectScheduling.preferredWorkingHours,
-            location: locationPayload,
-            assignedTechnicians: [], totalAssignedTechnicians: 0, reservedTechnicians: 1,
-          } },
-          { upsert: true, returnDocument: "after" }
-        );
-        try {
-          await schedulingEngine.reserveProjectCapacity({
-            bookingId: appointment._id,
-            startDate: normalizedProjectScheduling.preferredStartDate,
-            endDate: normalizedProjectScheduling.preferredCompletionDeadline,
-            reservedTechnicians: 1,
-          });
-        } catch (reserveError) {
-          console.warn("walk-in project capacity reservation failed", reserveError?.message);
-        }
+        const plan = require("../utils/projectServiceChange").prepareProjectServiceChange(appointment, {
+          startDate: normalizedProjectScheduling.preferredStartDate,
+          endDate: normalizedProjectScheduling.preferredCompletionDeadline,
+          inspectionDurationMinutes: 60,
+        });
+        // Preferences are a request; Operations approves the actual daily plan.
+        delete plan.plannedStartDate;
+        delete plan.plannedCompletionDate;
+        const coordinates = locationPayload?.coordinates?.coordinates;
+        plan.location = { address: locationPayload?.address,
+          lat: coordinates?.[1], lng: coordinates?.[0] };
+        plan.preferredWorkingDays = normalizedProjectScheduling.preferredWorkingDays;
+        plan.preferredWorkingHours = normalizedProjectScheduling.preferredWorkingHours;
+        appointment.projectScheduling = normalizedProjectScheduling;
+        project = new Project(plan);
       }
+      const payment = new Payment({
+        bookingId: appointment._id, amount: effectiveDownpayment, method: collectedPayment.method,
+        gateway: collectedPayment.gateway, type: normalizedCashMode === "full" ? "final" : "downpayment",
+        status: "verified", collectedAt: collectedPayment.now, verifiedAt: collectedPayment.now,
+        completedAt: collectedPayment.now, verifiedBy: req.user._id, reference: normalizedReference,
+        notes: `Walk-in ${collectedPayment.source} ${normalizedCashMode} collected at the counter.`,
+        events: [{ status: "verified", actor: req.user._id, actorRole: req.user.role,
+          actorName: req.user.name || req.user.email, note: "Payment received and verified at the walk-in counter", at: collectedPayment.now }],
+      });
+      const documents = [appointment, ...(assignment ? [assignment] : []), ...(project ? [project] : []), payment];
+      const persist = () => require("../utils/walkInServiceWrite").persistWalkInService({ mongoose, documents });
+      let saved;
+      if (isLargeScale) saved = await persist();
+      else saved = await withOperationLock(bookingCapacityLockKey(date), async () => {
+        await assertCompanyCapacity(bookingDate, startMin, endMin);
+        await assertNoTechnicianOverlap({ technicianId: technicianRefId, bookingDate, startMin, endMin });
+        return persist();
+      });
+      appointment = saved[0];
+      if (assignment) assignment = saved[1];
+      await notifyAssignment().catch(error => console.warn("walk-in assignment notification failed", error?.message));
 
       let accountMessageDelivery = customerResult.state === "pending_verification"
         ? "pending_registration"
@@ -2318,35 +2265,7 @@ router.post(
       appointment.customerAccountAccess.invitationDelivery = accountMessageDelivery;
       appointment.customerAccountAccess.invitationSentAt =
         accountMessageDelivery === "accepted" ? new Date() : null;
-      await appointment.save();
-
-      // create payment row aligned with cash mode (status auto-calculated)
-      try {
-        const paymentType =
-          normalizedCashMode === "full" ? "final" : "downpayment";
-        const status = normalizedCashMode === "full" ? "paid" : "partial";
-
-        await Payment.create({
-          bookingId: appointment._id,
-          amount: effectiveDownpayment,
-          method: "cod",
-          gateway: "cod",
-          type: paymentType,
-          status,
-          paidAt: new Date(),
-          completedAt: new Date(),
-          reference: normalizedReference,
-          notes:
-            normalizedCashMode === "full"
-              ? "Walk-in cash full payment recorded by admin/secretary."
-              : "Walk-in cash downpayment recorded by admin/secretary.",
-        });
-      } catch (paymentErr) {
-        console.warn(
-          "walk-in payment create failed",
-          paymentErr && paymentErr.message,
-        );
-      }
+      await appointment.save().catch(error => console.warn("walk-in invitation tracking failed", error?.message));
 
       await audit.logEvent({
         actor: req.user && req.user._id,
@@ -2364,6 +2283,7 @@ router.post(
           date,
           startTime,
           cashPaymentMode: normalizedCashMode,
+          paymentMethod: collectedPayment.source,
           downpaymentAmount: effectiveDownpayment,
           customerAccountState: customerResult.state,
           customerAccountCreated: customerResult.created,

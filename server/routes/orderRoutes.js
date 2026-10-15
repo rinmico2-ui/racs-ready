@@ -2767,6 +2767,30 @@ require('./orderResolutionInvitations')(router, { authenticate, requireRole,
  * POST /api/orders/:id/requeue-assignment
  * Releases an unanswered technician assignment back to the assignment queue.
  */
+router.post("/:id/extend-deadline", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "Invalid order ID." });
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found." });
+    const timing = orderAttentionState(order);
+    if (order.status !== "technician_assigned" || order.technicianAcceptance?.status !== "pending") {
+      return res.status(409).json({ error: "Only unanswered assignments can have their deadline extended." });
+    }
+    if (timing.isPastDate) return res.status(409).json({ error: "Resolve the expired customer schedule before extending this assignment." });
+    const deadline = require("../utils/acceptanceDeadline").extendAcceptanceDeadline(timing.acceptanceDeadlineAt, req.body?.minutes ?? 60);
+    const result = await Order.updateOne({ _id: order._id, status: "technician_assigned", technicianId: order.technicianId,
+      "technicianAcceptance.status": "pending", updatedAt: order.updatedAt }, {
+      $set: { "technicianAcceptance.deadlineAt": deadline },
+    });
+    if (!result.modifiedCount) return res.status(409).json({ error: "The assignment changed. Refresh before trying again." });
+    await require("../utils/audit").logEvent({ actor: req.user._id, target: order._id, action: "order.acceptance.extend", module: "orders", req,
+      details: { acceptanceDeadlineAt: deadline } }).catch(() => {});
+    res.json({ success: true, acceptanceDeadlineAt: deadline });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.status ? error.message : "Could not extend the acceptance deadline." });
+  }
+});
+
 router.post("/:id/requeue-assignment", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
