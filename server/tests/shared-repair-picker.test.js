@@ -26,7 +26,7 @@ function fixture() {
   vm.runInNewContext(source, context);
   const state = { selectedServices: [] }, writes = [], requests = [];
   const component = context.window.RepairApplianceBooking.create();
-  component.mount({ host: { querySelector: selector => fields[selector.match(/name="([^"]+)"/)[1]] }, state, categories,
+  component.mount({ host: { querySelector: selector => fields[selector.match(/name="([^"]+)"/)[1]], addEventListener() {} }, state, categories,
     coreServices: [{ brands: ['Carrier'] }], defaultInspectionFee: 500, inspectionDuration: 120,
     commit: (...args) => writes.push(args), assistance: (...args) => { requests.push(args); return { id: 'request' }; } });
   return { captured, state, writes, requests, fields, component };

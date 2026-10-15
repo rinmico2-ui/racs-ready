@@ -114,3 +114,24 @@ body:has(#serviceSelection:not(.d-none) #core-tab.active):has(#coreApplianceBuil
 .cab-assistance [data-identification-heading] { scroll-margin-top: 90px; }
 .cab-photo-feedback { color: #b33041; font-size: .78rem; margin: 8px 0 0; }
 .cab-photo-feedback:empty { display: none; }
+.cab-repair-categories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.cab-form .cab-repair-category { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 155px; padding: 20px; border: 1px solid #dce5e0; border-radius: 14px; background: #fff; color: var(--cab-ink); text-align: left; }
+.cab-repair-category-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 4px; border-radius: 12px; background: #edf3ff; color: #2563eb; font-size: 1.3rem; }
+.cab-repair-category[data-repair-category="appliance"] .cab-repair-category-icon { color: #b77916; background: #fff5df; }
+.cab-repair-category strong { font-size: .92rem; line-height: 1.4; }
+.cab-repair-category small { font-size: .77rem; color: var(--cab-muted); }
+.cab-repair-check { color: var(--cab-green); visibility: hidden; }
+.cab-repair-category > .cab-repair-check { position: absolute; right: 16px; top: 18px; }
+.cab-form :is(.cab-repair-category, .cab-repair-type):hover { background: #f5faf7; border-color: #99c8ae; }
+.cab-form :is(.cab-repair-category, .cab-repair-type)[aria-pressed="true"] { border-color: var(--cab-green); background: #f0f9f3; box-shadow: 0 0 0 1px var(--cab-green); }
+.cab-repair-picker [aria-pressed="true"] > .cab-repair-check { visibility: visible; }
+.cab-repair-types { margin-top: 24px; padding-top: 22px; border-top: 1px solid #e0e8e2; }
+.cab-repair-types h4 { font-size: 1rem; line-height: 1.4; margin-bottom: 8px; scroll-margin-top: 90px; }
+.cab-repair-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.cab-form .cab-repair-type { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 64px; padding: 14px; border: 1px solid #dce5e0; border-radius: 10px; background: #fff; color: var(--cab-ink); text-align: left; font-size: .83rem; line-height: 1.5; }
+.cab-repair-type > i:first-child { flex: 0 0 auto; color: var(--cab-green); font-size: 1.1rem; }
+.cab-repair-type > span { flex: 1; overflow-wrap: anywhere; }
+@container (max-width: 360px) {
+  .cab-repair-categories, .cab-repair-type-grid { grid-template-columns: minmax(0, 1fr); }
+  .cab-form .cab-repair-category { min-height: 135px; }
+}
