@@ -23,6 +23,12 @@ test("repair model policy accepts legitimate values and enforces the length cap"
   assert.match(validateRepairModel("<script>alert(1)</script>").error, /letters, numbers/);
 });
 
+test('required booking models reject blank or structured input while historical optional values remain readable', () => {
+  for (const value of [undefined, null, '', '  ', {}, ['TEST-123']]) assert.equal(validateRepairModel(value, { required: true }).valid, false);
+  assert.equal(validateRepairModel(' MODEL-123 ', { required: true }).value, 'MODEL-123');
+  assert.equal(validateRepairModel('').valid, true);
+});
+
 test("repair model input exposes its limit and immediate validation feedback", () => {
   assert.match(view, /id="unitModel"[^>]*maxlength="50"[^>]*aria-errormessage="repairModelError"/);
   assert.match(view, /id="repairModelCount">0 \/ 50/);
@@ -31,8 +37,8 @@ test("repair model input exposes its limit and immediate validation feedback", (
 });
 
 test("repair model policy is enforced again by booking routes and the database schema", () => {
-  assert.match(routes, /router\.post\('\/create-new'[\s\S]*?validateRepairModel\(service\.model\)/);
-  assert.match(routes, /router\.post\('\/create-repair'[\s\S]*?validateRepairModel\(item\.model\)/);
-  assert.match(routes, /async function validatedServiceItems[\s\S]*?validateRepairModel\(Object\.hasOwn\(input, "model"\) \? input\.model : prior\?\.model \|\| ""\)/);
+  assert.match(routes, /router\.post\('\/create-new'[\s\S]*?validateRepairModel\(service\?\.model, \{ required: true \}\)/);
+  assert.match(routes, /router\.post\('\/create-repair'[\s\S]*?validateRepairModel\(item\.model, \{ required: true \}\)/);
+  assert.match(routes, /async function validatedServiceItems[\s\S]*?validateRepairModel\(Object\.hasOwn\(input, "model"\) \? input\.model : prior\?\.model \|\| "", \{ required: !prior \|\| Boolean\(prior\.model\) \}\)/);
   assert.match(schema, /model:\s*\{ type: String, trim: true, maxlength: 50 \}/);
 });

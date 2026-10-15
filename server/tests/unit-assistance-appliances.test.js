@@ -89,8 +89,9 @@ test('API supports unpaid appliance requests, photos, ownership and verified cat
   assert.equal(docs[0].hp, null); assert.equal(docs[0].applianceKind, 'refrigerator'); assert.equal(docs[0].quote, undefined); assert.equal(notifications.length, 2);
   assert.equal(docs[0].status, 'pending', 'client status and prices cannot approve an unidentified unit');
   response = await send({}); assert.equal(response.status, 200); assert.equal((await response.json()).id, id); assert.equal(docs.length, 1);
-  const quote = await fetch(`${base}/staff/${id}/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-role': 'admin' }, body: JSON.stringify({ brand: 'Midea', hp: '1/8', verificationMethod: 'model_label' }) });
+  const quote = await fetch(`${base}/staff/${id}/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-role': 'admin' }, body: JSON.stringify({ brand: 'Midea', model: 'REF-123', hp: '1/8', verificationMethod: 'model_label' }) });
   assert.equal(quote.status, 200, JSON.stringify(await quote.clone().json())); assert.equal(docs[0].quote.hp, 0.125); assert.equal(docs[0].quote.unitPrice, 800); assert.equal(docs[0].status, 'quoted');
+  assert.equal(docs[0].model, 'REF-123');
   const form = () => { const data = new FormData(); data.append('serviceId', serviceId); data.append('applianceKind', 'freezer'); data.append('quantity', '1'); data.append('clientRequestId', 'appliance-photo-request-1'); data.append('photos', new Blob([png], { type: 'image/png' }), 'label.png'); return data; };
   response = await fetch(base, { method: 'POST', body: form() }); assert.equal(response.status, 201); const photoId = (await response.json()).id;
   assert.equal(stored.length, 1); assert.equal(stored[0].owner, customerId);

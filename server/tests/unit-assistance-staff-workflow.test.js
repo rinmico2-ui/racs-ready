@@ -45,7 +45,7 @@ test('staff quotes respect customer acceptance and quote freshness', async t => 
   const endpoint = `http://127.0.0.1:${server.address().port}/api/unit-assistance/staff/${id}/quote`;
   const send = body => fetch(endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ brand: 'Carrier', airconType: 'split', hp: 1, verificationMethod: 'customer_contact', ...body }),
+    body: JSON.stringify({ brand: 'Carrier', model: 'MODEL-123', airconType: 'split', hp: 1, verificationMethod: 'customer_contact', ...body }),
   });
 
   writes = [];
@@ -57,12 +57,15 @@ test('staff quotes respect customer acceptance and quote freshness', async t => 
   assert.equal(writes.length, 0, 'an active accepted quote must stay accepted');
 
   request = { ...request, status: 'quoted' };
+  response = await send({ model: '  ', expectedQuotedAt: quoteDate.toISOString() });
+  assert.equal(response.status, 400); assert.match((await response.json()).error, /model.*required/i); assert.equal(writes.length, 0);
   response = await send({ expectedQuotedAt: '2026-10-05T08:00:00.000Z' });
   assert.equal(response.status, 409);
   assert.equal(writes.length, 0, 'stale edits must not replace a newer quote');
 
   response = await send({ expectedQuotedAt: quoteDate.toISOString() });
   assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal(writes.at(-1).change.$set.model, 'MODEL-123');
   assert.equal(writes.at(-1).filter['quote.quotedAt'].toISOString(), quoteDate.toISOString());
 
   request = { ...request, status: 'accepted', quote: {

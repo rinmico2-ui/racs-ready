@@ -145,10 +145,9 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     }
     for (let index = 0; index < parsedServices.length; index += 1) {
       const service = parsedServices[index];
-      if (service?.type !== 'repair' && !service?.applianceKind) continue;
-      const modelResult = validateRepairModel(service.model);
+      const modelResult = validateRepairModel(service?.model, { required: true });
       if (!modelResult.valid) {
-        return res.status(400).json({ error: `Repair service ${index + 1}: ${modelResult.error}` });
+        return res.status(400).json({ error: `Service ${index + 1}: ${modelResult.error}` });
       }
       service.model = modelResult.value;
     }
@@ -1194,7 +1193,7 @@ async function validatedServiceItems(inputItems, booking) {
 
   return Promise.all(contexts.map(async ({ input, type, prior }) => {
     const Catalog = type === "repair" ? RepairService : CoreService;
-    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "");
+    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "", { required: !prior || Boolean(prior.model) });
     if (!modelResult.valid) {
       const error = new Error(modelResult.error);
       error.status = 400;
@@ -1553,7 +1552,7 @@ router.post('/create-repair', (req, res, next) => {
     repairItems = repairItems.slice(0, 20).map(item => ({
       unitType: String(item.unitType || item.applianceTypeName || '').trim(),
       unitCategory: String(item.unitCategory || item.repairCategory || '').trim(),
-      brand: String(item.brand || '').trim(), model: normalizeRepairModel(item.model),
+      brand: String(item.brand || '').trim(), model: item.model,
       problemDescription: String(item.problemDescription || item.repairIssue || '').trim(),
       quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(item.quantity) || 1)),
     }));
@@ -1576,8 +1575,9 @@ router.post('/create-repair', (req, res, next) => {
     repairItems.forEach((item, index) => {
       if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);
       if (item.brand.length < 2) errors.push(`Appliance ${index + 1}: brand is required`);
-      const modelResult = validateRepairModel(item.model);
+      const modelResult = validateRepairModel(item.model, { required: true });
       if (!modelResult.valid) errors.push(`Appliance ${index + 1}: ${modelResult.error}`);
+      else item.model = modelResult.value;
       if (item.problemDescription.length < 10) errors.push(`Appliance ${index + 1}: problem description must be at least 10 characters`);
     });
     if (errors.length > 0) {

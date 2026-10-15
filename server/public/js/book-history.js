@@ -603,6 +603,13 @@
     return out;
   }
 
+  function modelValidationMessage(value) {
+    const model = String(value || '').trim();
+    if (!model) return 'Model number is required.';
+    if (model.length > 50 || !/^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model)) return 'Use up to 50 letters, numbers, spaces, and . - _ / # ( ) + only.';
+    return '';
+  }
+
   function escapeHtml(s) {
     if (s === null || s === undefined) return "";
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -1324,10 +1331,10 @@
                         <div class="bh-custom-unit d-none" id="bhCustomUnitWrap"><label class="form-label" for="bhCustomUnitType">Appliance name <span class="text-danger">*</span></label><div class="bh-custom-unit-row"><input class="form-control" id="bhCustomUnitType" maxlength="80" autocomplete="off" placeholder="Example: Water dispenser"><button type="button" id="bhCustomUnitNext" disabled>Continue <i class="bi bi-arrow-right"></i></button></div><small>Name the appliance that needs repair.</small></div>
                       </section>
                       <section class="bh-repair-section d-none" data-step="3">
-                        <div class="bh-repair-section-head"><span>3</span><div><h6>Add the appliance details</h6><p>Brand is required. The model number is optional.</p></div></div>
+                        <div class="bh-repair-section-head"><span>3</span><div><h6>Add the appliance details</h6><p>Enter the brand and model number shown on the appliance label.</p></div></div>
                         <div class="row g-3">
                           <div class="col-md-6"><label class="form-label">Brand <span class="text-danger">*</span></label><input class="form-control" id="bhRepairBrand" placeholder="Example: Carrier, Samsung, LG" maxlength="100" autocomplete="off"></div>
-                          <div class="col-md-6"><label class="form-label">Model Number <span class="text-muted">(optional)</span></label><input class="form-control" id="bhRepairModel" placeholder="Example: 42KDPV48" maxlength="50" autocomplete="off" aria-describedby="bhRepairModelHint"><small class="bh-field-hint" id="bhRepairModelHint">Up to 50 letters, numbers, spaces, and . - _ / # ( ) +</small></div>
+                          <div class="col-md-6"><label class="form-label" for="bhRepairModel">Model Number <span class="text-danger">*</span></label><input class="form-control" id="bhRepairModel" required placeholder="Example: 42KDPV48" maxlength="50" autocomplete="off" aria-describedby="bhRepairModelHint"><small class="bh-field-hint" id="bhRepairModelHint">Up to 50 letters, numbers, spaces, and . - _ / # ( ) +</small></div>
                           <div class="col-md-6">
                             <label class="form-label">Number of Units</label>
                             <div class="input-group" style="max-width:160px"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyMinus">&minus;</button><input class="form-control text-center" id="bhRepairQty" type="number" min="1" max="40" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Repair service quantity"><button class="btn btn-outline-secondary" type="button" id="bhRepairQtyPlus">+</button></div>
@@ -1683,6 +1690,7 @@
             <div class="bh-cfg-header"><div class="d-flex align-items-center gap-3"><span class="bh-cfg-icon"><i class="bi bi-sliders2"></i></span><div><h5>Set Up Your Service</h5><p>Enter how many units need service.</p></div></div><button type="button" class="bh-cfg-close" data-bs-dismiss="modal" aria-label="Close service setup"><i class="bi bi-x-lg"></i></button></div>
             <div class="modal-body bh-cfg-body">
               <div class="bh-cfg-context"><span><i class="bi bi-tools"></i></span><div><small>Service being set up</small><strong>${escapeHtml(svc.name)}</strong></div><b>Quantity</b></div>
+              <label for="bhSimpleModel">Model number <em>*</em></label><input class="form-control mb-3" id="bhSimpleModel" required maxlength="50" placeholder="Shown on the appliance label" aria-describedby="bhSimpleModelError"><small id="bhSimpleModelError" class="text-danger" role="status"></small>
               <div class="bh-cfg-qty-row"><div><strong>Quantity</strong><small>Up to ${remainingUnits()} more units in this booking.</small></div><div class="bh-editor-stepper"><button type="button" id="bhSimpleQtyMinus" disabled aria-label="Decrease quantity"><i class="bi bi-dash"></i></button><input type="number" id="bhSimpleQty" min="1" max="${remainingUnits()}" step="1" value="1" inputmode="numeric" autocomplete="off" aria-label="Service quantity"><button type="button" id="bhSimpleQtyPlus" aria-label="Increase quantity"><i class="bi bi-plus"></i></button></div></div>
             </div>
             <div class="modal-footer bh-cfg-footer"><div class="bh-cfg-price"><span><strong>Estimated price</strong><small>Updates with quantity</small></span><b id="bhHpEstimatedPrice">${unitPrice ? `₱${unitPrice.toLocaleString()}` : 'Price on quote'}</b></div><button class="bh-cfg-primary" id="bhHpAddToBooking"><i class="bi bi-check-lg"></i>Add to Booking</button></div>
@@ -1716,9 +1724,12 @@
             quantityInput.blur();
           });
           quantityModal.querySelector("#bhHpAddToBooking").onclick = () => {
+            const modelInput = quantityModal.querySelector('#bhSimpleModel'), model = modelInput.value.trim(), modelError = modelValidationMessage(model);
+            quantityModal.querySelector('#bhSimpleModelError').textContent = modelError;
+            if (modelError) { modelInput.focus(); return; }
             const quantity = Math.max(1, Math.min(remainingUnits(), Math.trunc(Number(quantityInput.value)) || 1));
             if (!canAddUnits(quantity)) return;
-            rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model: "", duration: Number(svc.durationMinutes || svc.estimatedDurationMinutes) || 60, unitPrice, totalPrice: unitPrice * quantity });
+            rows.push({ type: "core", serviceId: svc._id, name: svc.name, quantity, brand: "", model, duration: Number(svc.durationMinutes || svc.estimatedDurationMinutes) || 60, unitPrice, totalPrice: unitPrice * quantity });
             bootstrap.Modal.getOrCreateInstance(quantityModal).hide(); renderCurrentItems();
           };
           const childModal = bootstrap.Modal.getOrCreateInstance(quantityModal);
@@ -1757,6 +1768,7 @@
                 <section class="bh-cfg-panel" id="bhCfgBrandSection">
                   <div class="bh-cfg-panel-heading"><span><i class="bi bi-upc-scan"></i></span><div><small>First</small><h6>What is the aircon brand?</h6><p>Choose the brand shown on the unit. Choose “I don't know” if you are not sure.</p></div></div>
                   <label for="bhHpBrandSelect">Brand <em>*</em></label><select id="bhHpBrandSelect"><option value="">Choose a brand…</option>${(svc.brands || []).map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("")}<option value="__other__">Other / enter manually</option><option value="I don't know">I don't know</option></select><input class="d-none" id="bhHpBrandOther" placeholder="Enter brand" maxlength="100"><div class="bh-cfg-help"><i class="bi bi-arrow-right-circle"></i>The next step opens after you choose a brand.</div>
+                  <label for="bhHpModel" class="mt-3">Model number <em>*</em></label><input id="bhHpModel" class="form-control" required maxlength="50" placeholder="Shown on the appliance label" aria-describedby="bhHpModelError"><small id="bhHpModelError" class="text-danger" role="status"></small><button type="button" id="bhHpDetailsNext" class="btn btn-outline-primary mt-3">Next: Aircon type</button>
                 </section>
                 <section class="bh-cfg-panel d-none" id="bhCfgTypeSection">
                   <div class="bh-cfg-panel-heading"><span><i class="bi bi-snow"></i></span><div><small>Next</small><h6>What type of aircon is it?</h6><p>Choose the closest match. You will choose the HP next.</p></div></div>
@@ -1799,8 +1811,6 @@
           section.appendChild(button);
         };
         addHelpButton(brandSection, "I don't know the unit details", 1);
-        addHelpButton(typeSection, "I don't know the type", 2);
-        addHelpButton(hpSection, "I don't know the HP", 3);
         const backButton = hpModal.querySelector("#bhCfgBack");
         const addButton = hpModal.querySelector("#bhHpAddToBooking");
         let selectedAirconIndex = null;
@@ -1838,6 +1848,9 @@
         function showTypeStep() {
           const brand = brandSelect.value === "__other__" ? brandOther.value.trim() : brandSelect.value;
           if (!brand) return;
+          const modelInput = hpModal.querySelector('#bhHpModel'), modelError = modelValidationMessage(modelInput.value);
+          hpModal.querySelector('#bhHpModelError').textContent = modelError;
+          if (modelError) { modelInput.focus(); return; }
           helpSection.classList.add('d-none'); brandSection.classList.add("d-none"); typeSection.classList.remove("d-none"); hpSection.classList.add("d-none");
           backButton.classList.remove("d-none"); backButton.querySelector("span").textContent = "Back to Brand"; addButton.disabled = true; addButton.innerHTML = '<i class="bi bi-arrow-right"></i>Choose aircon type'; setConfigurationStep(2);
         }
@@ -1853,10 +1866,12 @@
           if (brandSelect.value === "__other__") { brandOther.classList.remove("d-none"); brandOther.focus(); return; }
           brandOther.classList.add("d-none"); brandOther.value = "";
           if (brandSelect.value === "I don't know") { showHelpStep(1); return; }
-          if (brandSelect.value) showTypeStep();
+          if (brandSelect.value) hpModal.querySelector('#bhHpModel').focus();
         };
-        helpSection.querySelector('#bhContinueKnown').onclick = showTypeStep;
-        const finishCustomBrand = () => { if (brandOther.value.trim()) showTypeStep(); };
+        hpModal.querySelector('#bhHpDetailsNext').onclick = showTypeStep;
+        hpModal.querySelector('#bhHpModel').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); showTypeStep(); } });
+        helpSection.querySelector('#bhContinueKnown').onclick = showBrandStep;
+        const finishCustomBrand = () => { if (brandOther.value.trim()) hpModal.querySelector('#bhHpModel').focus(); };
         brandOther.addEventListener("blur", finishCustomBrand);
         brandOther.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); finishCustomBrand(); } });
         backButton.onclick = () => {
@@ -2004,6 +2019,8 @@
           let brand = brandSelect.value;
           if (brand === "__other__") brand = brandOther.value.trim();
           if (!brand) { alert("Please select or enter a brand name."); brandSelect.focus(); return; }
+          const model = hpModal.querySelector('#bhHpModel').value.trim();
+          if (modelValidationMessage(model)) { showBrandStep(); hpModal.querySelector('#bhHpModel').focus(); return; }
           if (!selectedAirconIndex && selectedAirconIndex !== 0) { alert("Please select an aircon type."); return; }
           if (!selectedHps.size) { alert("Please select at least one HP rating."); return; }
           if (!canAddUnits(selectedHpUnits())) return;
@@ -2011,7 +2028,7 @@
           for (const selectedHp of selectedHps.values()) {
             rows.push({
               type: "core", serviceId: svc._id, name: svc.name, quantity: selectedHp.quantity,
-              brand, model: "",
+              brand, model,
               airconType: airconType.type || "", airconTypeName: airconType.name || "",
               applianceType: airconType.type || "", applianceTypeName: airconType.name || "",
               hp: selectedHp.hp, hpDescription: `${selectedHp.hp} HP`,
@@ -2225,7 +2242,7 @@
       function updateAddRepairButton() {
         const brand = bodyHost.querySelector("#bhRepairBrand").value.trim();
         const model = bodyHost.querySelector('#bhRepairModel').value.trim();
-        const modelValid = !model || /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model);
+        const modelError = modelValidationMessage(model), modelValid = !modelError;
         const modelHint = bodyHost.querySelector('#bhRepairModelHint');
         modelHint.classList.toggle('text-danger', !modelValid);
         bodyHost.querySelector('#bhRepairModel').classList.toggle('is-invalid', !modelValid);
@@ -2237,7 +2254,7 @@
         if (detailsNext) detailsNext.disabled = !(typeReady && brand && modelValid);
         if (detailsHint) detailsHint.textContent = !typeReady
           ? 'Choose the appliance type first.'
-          : !brand ? 'Enter the brand to continue.' : !modelValid ? 'Check the model number format.' : 'Details complete. Continue to describe the problem.';
+          : !brand ? 'Enter the brand to continue.' : modelError || 'Details complete. Continue to describe the problem.';
       }
 
       const repairBrandInput = bodyHost.querySelector("#bhRepairBrand");
@@ -2288,7 +2305,7 @@
         const brand = bodyHost.querySelector("#bhRepairBrand").value.trim();
         if (!brand) { alert("Please enter a brand."); bodyHost.querySelector("#bhRepairBrand").focus(); return; }
         const model = bodyHost.querySelector("#bhRepairModel").value.trim();
-        if (model && !/^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model)) { alert("Model number may use letters, numbers, spaces, and . - _ / # ( ) + only."); bodyHost.querySelector("#bhRepairModel").focus(); return; }
+        if (modelValidationMessage(model)) { updateAddRepairButton(); bodyHost.querySelector("#bhRepairModel").focus(); return; }
         const problem = bodyHost.querySelector("#bhRepairProblem").value.trim();
         if (problem.length < 10) { alert("Please describe the problem using at least 10 characters."); bodyHost.querySelector("#bhRepairProblem").focus(); return; }
         syncRepairQuantity(true);

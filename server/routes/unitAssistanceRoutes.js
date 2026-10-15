@@ -176,6 +176,8 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     if (request.status !== 'pending' && (!request.quote?.quotedAt || String(req.body.expectedQuotedAt || '') !== request.quote.quotedAt.toISOString())) {
       return res.status(409).json({ error: 'This quote changed while you were editing. Refresh the queue before updating it.' });
     }
+    const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model, { required: true });
+    if (!modelResult.valid) return res.status(400).json({ error: modelResult.error });
     const catalog = await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
     const verificationMethod = typeof req.body.verificationMethod === 'string' ? req.body.verificationMethod : '';
     if (!['customer_contact', 'model_label', 'site_visit'].includes(verificationMethod)) {
@@ -203,7 +205,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
       ...(request.status !== 'pending' ? { 'quote.quotedAt': request.quote.quotedAt } : {}),
       ...(renewingExpiredAcceptance ? { existingBookingId: null, 'quote.expiresAt': { $lte: new Date() } } : {}),
     },
-      { $set: { quote, status: 'quoted', acceptedAt: null },
+      { $set: { quote, model: modelResult.value, status: 'quoted', acceptedAt: null },
         $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { returnDocument: "after" });
     if (!updated) return res.status(409).json({ error: 'This request was updated. Reload the queue.' });
     createNotification({ type: 'system', userId: updated.customerId,

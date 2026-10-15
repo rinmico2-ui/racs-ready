@@ -1,7 +1,7 @@
 ﻿(function () {
   'use strict';
   let catalog = [], hooks, host, editingId = null, mounted = false, step = 1, reached = 1, saved = false;
-  let savedMove = null;
+  let savedMove = null, detailsUnknown = false;
   let sending = false, requestToken = null, requestFingerprint = null, assistanceReceipt = null;
   const canAsk = () => typeof hooks?.assistance === 'function';
   const A = window.ApplianceServices;
@@ -21,11 +21,12 @@
       if (input.name && !['kind', 'service', 'moveScope'].includes(input.name)) values[input.name] = input.type === 'checkbox' ? input.checked : input.value;
     });
     return { kind: field('kind').value, values, services: [...host.querySelectorAll('[name="service"]:checked')].map(input => input.value),
-      moveScope: host.querySelector('[name="moveScope"]:checked')?.value, step, reached, editingId, saved, assistanceReceipt, requestToken, requestFingerprint };
+      moveScope: host.querySelector('[name="moveScope"]:checked')?.value, detailsUnknown, step, reached, editingId, saved, assistanceReceipt, requestToken, requestFingerprint };
   }
   function changed() { hooks.changed?.(draft()); }
   function restoreDraft(data) {
     if (!data || !A.kinds.includes(data.kind) || data.saved && !data.assistanceReceipt) return;
+    detailsUnknown = canAsk() && (data.detailsUnknown === true || ['airconType', 'hp'].some(name => data.values?.[name] === '__unknown__'));
     host.querySelector(`[name="kind"][value="${data.kind}"]`).checked = true;
     refreshTypes();
     for (const name of ['brand', 'model', 'quantity', 'brandUnknown', 'airconType', 'assistanceNotes', 'moveFrom', 'moveTo']) {
@@ -113,7 +114,7 @@
   function refreshTypes() {
     const kind = field('kind').value, previous = field('airconType').value, types = new Map();
     catalog.filter(service => A.profile(service, 'aircon')).forEach(service => (service.airconTypes || []).forEach(type => types.set(type.type, type.name)));
-    field('airconType').innerHTML = '<option value="">Choose aircon type</option>' + (canAsk() ? '<option value="__unknown__">I don’t know the type</option>' : '') + [...types].map(([key, name]) => `<option value="${escape(key)}">${escape(name)}</option>`).join(''); field('airconType').value = previous;
+    field('airconType').innerHTML = '<option value="">Choose aircon type</option>' + [...types].map(([key, name]) => `<option value="${escape(key)}">${escape(name)}</option>`).join(''); field('airconType').value = previous;
     host.querySelector('[data-aircon-details]').hidden = kind !== 'aircon';
     host.querySelector('.cab-help').hidden = kind !== 'aircon';
     const compressorSizes = new Set();
@@ -128,7 +129,7 @@
   function refreshHp() {
     const previous = field('hp').value, type = field('airconType').value, sizes = new Set();
     catalog.forEach(service => (service.airconTypes?.find(row => row.type === type)?.hpPricing || service.hpPricing || []).forEach(row => sizes.add(Number(row.hp))));
-    field('hp').innerHTML = '<option value="">Choose HP</option>' + (canAsk() ? '<option value="__unknown__">I don’t know the HP</option>' : '') + [...sizes].sort((a, b) => a - b).map(hp => `<option value="${hp}">${hp} HP</option>`).join(''); field('hp').value = previous; refreshServices();
+    field('hp').innerHTML = '<option value="">Choose HP</option>' + [...sizes].sort((a, b) => a - b).map(hp => `<option value="${hp}">${hp} HP</option>`).join(''); field('hp').value = previous; refreshServices();
   }
   function refreshServices() {
     const checked = new Set([...host.querySelectorAll('[name="service"]:checked')].map(input => input.value)), selected = selection();
@@ -137,7 +138,7 @@
     host.querySelector('[data-service-appliance]').textContent = [selected.brand, A.labels[selected.applianceKind], typeName, selected.hp ? `${selected.hp} HP` : '', `${selected.quantity || 0} appliance${selected.quantity === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
     host.querySelector('[data-services]').innerHTML = candidates.map(service => {
       let pricing, error; try { pricing = A.price(service, { ...selected, brand: selected.brand || 'Brand not entered' }); } catch (err) { error = err.message; }
-      if (canAsk() && A.needsVerification(service, selected)) {
+      if (canAsk() && (detailsUnknown || A.needsVerification(service, selected))) {
         return `<label class="cab-service"><input type="checkbox" name="service" value="${escape(service._id)}" data-verification ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>Staff will confirm your unit details and send a price for approval.</small></span><span class="cab-service-price">Price pending verification</span></label>`;
       }
       if (A.isRelocation(service)) {
@@ -152,10 +153,15 @@
   function updateTotal() {
     if (field('brandUnknown')) { field('brand').disabled = field('brandUnknown').checked; field('brand').required = !field('brandUnknown').checked; }
     const model = field('model');
-    model.setCustomValidity(!model.value.trim() || /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Use letters, numbers, spaces, and . - _ / # ( ) + only.');
+    model.required = !detailsUnknown;
+    model.setCustomValidity(!model.value.trim() ? detailsUnknown ? '' : 'Enter the appliance model number.' : /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Use letters, numbers, spaces, and . - _ / # ( ) + only.');
+    host.querySelector('[data-model-required]').textContent = detailsUnknown ? '(if known)' : '*';
+    ['airconType', 'hp'].forEach(name => { field(name).required = field('kind').value === 'aircon' && !detailsUnknown; field(name).disabled = field('kind').value !== 'aircon' || detailsUnknown; });
+    const help = host.querySelector('[data-unit-help]');
+    if (help) { help.textContent = detailsUnknown ? 'Enter my unit details instead' : "I don't know my unit details"; help.setAttribute('aria-pressed', String(detailsUnknown)); }
     const validQuantity = syncLimit(), selected = selection(), ids = [...host.querySelectorAll('[name="service"]:checked')].map(input => input.value), moveValid = syncMove();
     const customMove = selectedRelocation() && relocationSelection().scope === 'custom_quote';
-    const verification = ids.some(id => canAsk() && A.needsVerification(catalog.find(service => String(service._id) === id), selected));
+    const verification = ids.some(id => canAsk() && (detailsUnknown || A.needsVerification(catalog.find(service => String(service._id) === id), selected)));
     if (host.querySelector('[data-assistance]')) host.querySelector('[data-assistance]').hidden = !verification;
     let total = 0, minutes = 0;
     if (validQuantity) ids.forEach(id => { try { const price = A.price(catalog.find(service => String(service._id) === id), { ...selected, brand: selected.brand || 'Brand not entered' }); total += price.unitPrice * selected.quantity; minutes += price.duration * selected.quantity; } catch (_) {} });
@@ -224,8 +230,8 @@
     host.innerHTML = `<${formTag} class="cab-form" ${options.embedded ? 'role="group" aria-label="Appliance configuration"' : "novalidate"}><div class="cab-heading"><div><span class="cab-eyebrow">CORE SERVICES</span><h2>Set up your service</h2><p>Choose an appliance and tell us what it needs.</p></div>${bookingCounter('data-capacity')}</div>
       <div data-wizard><nav class="cab-progress" aria-label="Appliance service steps">${['Appliance', 'Details', 'Services'].map((name, index) => `<button type="button" data-step="${index + 1}" ${index ? 'disabled' : ''}><span>${index + 1}</span><strong>${name}</strong></button>`).join('')}</nav><div class="cab-step-meta"><span data-step-label></span><span>Next booking step: Service address</span></div>
       <div class="cab-workspace"><div class="cab-main"><section data-panel="1" aria-labelledby="cabApplianceHeading"><h3 id="cabApplianceHeading" tabindex="-1">Which appliance needs service?</h3><p class="cab-note">You can add another appliance after this one.</p><fieldset class="cab-appliances"><legend class="cab-sr-only">Choose an appliance</legend>${A.kinds.map((kind, index) => `<label><input type="radio" name="kind" value="${kind}" ${index === 0 ? 'checked' : ''}><span><i class="bi ${kind === 'aircon' ? 'bi-snow' : kind === 'refrigerator' ? 'bi-door-closed' : 'bi-box'}" aria-hidden="true"></i><strong>${A.labels[kind]}</strong><small>${kind === 'aircon' ? 'Type and HP pricing' : 'Services set by staff'}</small></span></label>`).join('')}</fieldset></section>
-      <section data-panel="2" hidden aria-labelledby="cabDetailsHeading"><h3 id="cabDetailsHeading" tabindex="-1">Tell us about your appliance</h3><p class="cab-note">Fields marked * are required.</p>${canAsk() ? `<div class="cab-unit-help"><button type="button" class="cab-secondary" data-unit-help>I don&#39;t know my unit details</button><p>Enter what you know. Staff can confirm the details that affect the service price.</p></div><label class="cab-unknown"><input type="checkbox" name="brandUnknown"> I don&#39;t know the brand</label>` : ''}<div class="cab-fields"><label>Brand *<input name="brand" required maxlength="80" placeholder="e.g. Carrier or Midea" autocomplete="off"></label><label>Model <span class="cab-optional">optional</span><input name="model" maxlength="50" placeholder="Shown on the unit label"></label></div><div class="cab-fields" data-aircon-details><label>Aircon type *<select name="airconType" required></select></label><label>HP *<select name="hp" required></select></label></div>
-      <div class="cab-fields" data-compressor-details hidden><label>Compressor HP <span class="cab-optional">if known</span><select name="compressorHp"></select></label><p class="cab-note">Use the HP on the compressor label. It is needed only for services priced by HP.</p></div><div class="cab-quantity"><div><label for="cabQuantity">Number of appliances *</label><p>Use one group for appliances with the same details and services.</p></div><div class="cab-stepper"><button type="button" data-minus aria-label="Decrease appliance quantity">−</button><input id="cabQuantity" name="quantity" type="number" min="1" max="40" step="1" inputmode="numeric" value="1" required aria-describedby="cabUnitLimit cabQuantityFeedback"><button type="button" data-plus aria-label="Increase appliance quantity">+</button></div></div><p class="cab-limit" id="cabUnitLimit" data-limit></p><p class="cab-quantity-feedback" id="cabQuantityFeedback" data-quantity-feedback role="status" aria-live="polite"></p>${canAsk() ? '<p class="cab-note cab-identification-note">Choose &ldquo;I don&#39;t know&rdquo; for the type or HP if you are unsure. Fixed-price services can still be booked; other services need verification first.</p>' : '<a class="cab-help" href="/unit-assistance">Not sure about the type or HP? Request help with your unit.</a>'}</section>
+      <section data-panel="2" hidden aria-labelledby="cabDetailsHeading"><h3 id="cabDetailsHeading" tabindex="-1">Tell us about your appliance</h3><p class="cab-note">Fields marked * are required.</p>${canAsk() ? `<div class="cab-unit-help"><button type="button" class="cab-secondary" data-unit-help aria-pressed="false">I don&#39;t know my unit details</button><p>Use this button if you need staff to identify your unit before booking.</p></div><label class="cab-unknown"><input type="checkbox" name="brandUnknown"> I don&#39;t know the brand</label>` : ''}<div class="cab-fields"><label>Brand *<input name="brand" required maxlength="80" placeholder="e.g. Carrier or Midea" autocomplete="off"></label><label>Model <span data-model-required>*</span><input name="model" required maxlength="50" placeholder="Shown on the unit label"></label></div><div class="cab-fields" data-aircon-details><label>Aircon type *<select name="airconType" required></select></label><label>HP *<select name="hp" required></select></label></div>
+      <div class="cab-fields" data-compressor-details hidden><label>Compressor HP <span class="cab-optional">if known</span><select name="compressorHp"></select></label><p class="cab-note">Use the HP on the compressor label. It is needed only for services priced by HP.</p></div><div class="cab-quantity"><div><label for="cabQuantity">Number of appliances *</label><p>Use one group for appliances with the same details and services.</p></div><div class="cab-stepper"><button type="button" data-minus aria-label="Decrease appliance quantity">−</button><input id="cabQuantity" name="quantity" type="number" min="1" max="40" step="1" inputmode="numeric" value="1" required aria-describedby="cabUnitLimit cabQuantityFeedback"><button type="button" data-plus aria-label="Increase appliance quantity">+</button></div></div><p class="cab-limit" id="cabUnitLimit" data-limit></p><p class="cab-quantity-feedback" id="cabQuantityFeedback" data-quantity-feedback role="status" aria-live="polite"></p>${canAsk() ? '<p class="cab-note cab-identification-note">The unit-details button sends a request for staff identification. No payment or schedule is taken until the required details are confirmed.</p>' : '<a class="cab-help" href="/unit-assistance">Not sure about the type or HP? Request help with your unit.</a>'}</section>
       <section data-panel="3" hidden aria-labelledby="cabServicesHeading"><h3 id="cabServicesHeading" tabindex="-1">Choose the services you need</h3><p class="cab-note">Select one or more services for the same appliance.</p><div class="cab-appliance-summary" data-service-appliance></div><div data-services></div><section class="cab-relocation" data-relocation-config hidden aria-labelledby="cabMoveHeading"><h4 id="cabMoveHeading">Where will the aircon move?</h4><p class="cab-note">We will use the brand, model, type and HP you already entered.</p><fieldset class="cab-move-scopes"><legend class="cab-sr-only">Relocation distance</legend><label><input type="radio" name="moveScope" value="same_property"><span><strong>Nearby, on the same property</strong><small>For example, from the living room to a bedroom.</small></span></label><label><input type="radio" name="moveScope" value="custom_quote"><span><strong>Another address or a distant position</strong><small>Choose both addresses on the next map step. Staff will send a quote.</small></span></label></fieldset><div class="cab-fields" data-nearby-fields hidden><label>Current position *<input name="moveFrom" minlength="2" maxlength="500" placeholder="e.g. Living room, ground floor"></label><label>New position *<input name="moveTo" minlength="2" maxlength="500" placeholder="e.g. Bedroom, ground floor"></label></div><p class="cab-note" data-move-quote-note hidden>This move needs its own quote. Select only Aircon Relocation; book other services separately. No payment is taken when you send this request.</p></section>${canAsk() ? `<section class="cab-assistance" data-assistance hidden><h4>Help us identify your unit</h4><p class="cab-note">Request one service for verification. After your unit is identified, you can add other services using the confirmed details. No payment or schedule is taken yet.</p><label>Photos <span class="cab-optional">optional</span><input type="file" name="assistancePhotos" accept="image/jpeg,image/png,image/webp" multiple><small>Up to two photos: the appliance and its model sticker. JPG, PNG or WEBP, up to 5 MB each. If you cannot take a photo, staff will contact you.</small></label><label>What do you know about the unit? <span class="cab-optional">optional</span><textarea name="assistanceNotes" maxlength="1000" rows="3" placeholder="For example, wall-mounted aircon in the bedroom"></textarea></label></section>` : ''}</section></div>
       <aside class="cab-summary" aria-label="Appliance service estimate"><span class="cab-eyebrow">YOUR SELECTION</span><strong data-summary-appliance></strong><span data-count></span><div class="cab-summary-price"><small>Estimated service total</small><strong data-total></strong></div><small data-duration></small><p>Travel fee is added once for the visit.</p></aside></div>
       <div class="cab-footer">${typeof hooks.review === 'function' ? bookingCounter('data-footer-capacity') : ''}<p data-feedback role="status" aria-live="polite"></p><p data-guidance></p><div class="cab-actions"><button type="button" class="cab-secondary" data-cancel hidden>Cancel changes</button><button type="button" class="cab-secondary" data-back hidden>Back</button><button type="button" class="cab-primary" data-next>Next: appliance details</button><button type="submit" data-submit class="cab-primary" hidden>Add to booking</button></div></div></div>
@@ -254,10 +260,9 @@
       const review = event.target.closest('[data-booking-review]');
       if (review && host.contains(review)) hooks.review?.(event);
       if (event.target.closest('[data-unit-help]')) {
-        field('brandUnknown').checked = true;
-        if (field('kind').value === 'aircon') { field('airconType').value = '__unknown__'; refreshHp(); field('hp').value = '__unknown__'; }
-        else field('compressorHp').value = '';
-        refreshServices(); message('Choose the service you need. We will confirm any details needed for its price.'); changed();
+        detailsUnknown = !detailsUnknown; field('brandUnknown').checked = detailsUnknown;
+        if (detailsUnknown) { field('airconType').value = ''; refreshHp(); field('hp').value = ''; field('compressorHp').value = ''; }
+        refreshServices(); message(detailsUnknown ? 'Choose one service to request staff identification. Enter any details you know.' : 'Enter the model, aircon type and HP to continue booking.'); changed();
       }
       if (event.target.closest('[data-repair]')) { reset(); document.getElementById('repair-tab')?.click(); }
       if (event.target.closest('[data-cancel]') || event.target.closest('[data-new]')) reset();
@@ -287,7 +292,7 @@
     refreshTypes(); setStep(1, false); restoreDraft(initialDraft);
   }
   function reset() {
-    editingId = null; reached = 1; saved = false; savedMove = null;
+    editingId = null; reached = 1; saved = false; savedMove = null; detailsUnknown = false;
     assistanceReceipt = null; requestToken = null; requestFingerprint = null;
     const form = host.querySelector('form');
     if (form) form.reset();
@@ -301,7 +306,7 @@
   }
   function edit(groupId) {
     const rows = hooks.state.selectedServices.filter(item => item.applianceGroupId === groupId), item = rows[0]; if (!item) return;
-    editingId = groupId; saved = false; reached = 3; host.querySelector(`[name="kind"][value="${escape(item.applianceKind || 'aircon')}"]`).checked = true;
+    editingId = groupId; saved = false; reached = 3; detailsUnknown = false; host.querySelector(`[name="kind"][value="${escape(item.applianceKind || 'aircon')}"]`).checked = true;
     savedMove = rows.find(row => row.relocation)?.relocation || null;
     host.querySelectorAll('[name="moveScope"]').forEach(input => { input.checked = input.value === savedMove?.scope; });
     field('moveFrom').value = savedMove?.from?.details || ''; field('moveTo').value = savedMove?.to?.details || '';

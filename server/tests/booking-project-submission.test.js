@@ -71,7 +71,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
   async function call(overrides = {}) {
     let code = 200, body;
     const req = { user: { _id: customerId }, body: {
-      services: [{ serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000, duration: 1 }],
+      services: [{ serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 3, unitPrice: 1000, duration: 1 }],
       bookingDate: '2035-01-02', projectScheduling: { preferredStartDate: '2035-01-02', preferredCompletionDeadline: '2035-01-06', estimatedTotalHours: 1 },
       quantity: 1, location: { address: 'Test site', lat: 15, lng: 121 }, paymentMethod: 'cod', paymentChannel: 'bank', paymentReference: 'TEST-REFERENCE', proofImageBase64: 'mock-proof', ...overrides,
     }, app: { get: () => null } };
@@ -126,7 +126,7 @@ test('two core services on four appliances keep four physical units and use comb
 test('shared appliances with longer combined work still use the multi-day project flow', async t => {
   const catalog = ['core-id', 'second-id'].map(_id => ({ _id, name: 'Core service', active: true, isAirconService: true,
     airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1000, durationMinutes: 90 }] }] }));
-  const rows = require('../public/js/appliance-services').serviceLines(catalog, { applianceKind: 'aircon', brand: 'Carrier', airconType: 'split', hp: 1, quantity: 4 }, catalog.map(row => row._id), 'appliance_shared_test');
+  const rows = require('../public/js/appliance-services').serviceLines(catalog, { applianceKind: 'aircon', brand: 'Carrier', model: 'TEST-123', airconType: 'split', hp: 1, quantity: 4 }, catalog.map(row => row._id), 'appliance_shared_test');
   const { code, body, calls } = await fixture(t, { catalogOverride: catalog }).call({ services: rows });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.projects[0].totalUnits, 4); assert.equal(calls.windows[0].requiredHours, 12);
@@ -156,7 +156,7 @@ test('a long job below eight units submits as a project without a start time', a
 });
 
 test('eight short units still use project scheduling', async t => {
-  const { code, body, calls } = await fixture(t, { duration: 30 }).call({ services: [{ serviceId: 'core-id', type: 'core', quantity: 8, unitPrice: 1000 }] });
+  const { code, body, calls } = await fixture(t, { duration: 30 }).call({ services: [{ serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 8, unitPrice: 1000 }] });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.windows[0].requiredHours, 4);
 });
@@ -181,7 +181,7 @@ test('project submission cannot skip the end date or capacity validation', async
 
 test('repair workload uses the inspection policy and configurable project threshold', async t => {
   const { code, body, calls } = await fixture(t, { inspection: 120, threshold: 6 }).call({
-    services: [{ serviceId: 'repair-id', type: 'repair', name: 'Aircon repair', quantity: 4, duration: 1, problemDescription: 'Aircons are not cooling properly' }],
+    services: [{ serviceId: 'repair-id', type: 'repair', model: 'TEST-123', name: 'Aircon repair', quantity: 4, duration: 1, problemDescription: 'Aircons are not cooling properly' }],
   });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.windows[0].requiredHours, 8);
@@ -191,14 +191,14 @@ test('repair workload uses the inspection policy and configurable project thresh
 
 test('client duration and nested schedule cannot force project classification', async t => {
   const { code, calls } = await fixture(t, { duration: 60 }).call({
-    services: [{ serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000, duration: 9999, schedule: { durationMinutes: 9999 } }],
+    services: [{ serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 3, unitPrice: 1000, duration: 9999, schedule: { durationMinutes: 9999 } }],
   });
   assert.equal(code, 400); assert.equal(calls.windows.length, 0); assert.equal(calls.writes.length, 0);
 });
 
 test('a workload exactly at the hours threshold remains a standard appointment', async t => {
   const { code, body, calls } = await fixture(t, { duration: 120 }).call({
-    services: [{ serviceId: 'core-id', type: 'core', quantity: 4, unitPrice: 1000 }], startTime: '08:00',
+    services: [{ serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 4, unitPrice: 1000 }], startTime: '08:00',
   });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, false);
   assert.equal(calls.capacity.length, 2);
@@ -206,10 +206,19 @@ test('a workload exactly at the hours threshold remains a standard appointment',
 
 test('mixed core and repair groups share one combined project workload', async t => {
   const { code, body, calls } = await fixture(t, { duration: 90 }).call({ services: [
-    { serviceId: 'core-id', type: 'core', quantity: 3, unitPrice: 1000 },
-    { serviceId: 'repair-id', name: 'Aircon repair', type: 'repair', quantity: 3, problemDescription: 'Aircons are not cooling properly' },
+    { serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 3, unitPrice: 1000 },
+    { serviceId: 'repair-id', model: 'TEST-123', name: 'Aircon repair', type: 'repair', quantity: 3, problemDescription: 'Aircons are not cooling properly' },
   ] });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.windows[0].requiredHours, 9); assert.equal(calls.windows[0].totalUnits, 6);
   assert.equal(calls.projects[0].unitGroups.length, 2); assert.equal(calls.projects[0].projectPhase, 'assessment');
+});
+
+test('new core and repair bookings reject missing or malformed models before any capacity or booking write', async t => {
+  const f = fixture(t);
+  for (const type of ['core', 'repair']) for (const model of [undefined, '', '   ', null, {}, ['TEST-123'], '<script>']) {
+    const { code, body, calls } = await f.call({ services: [{ serviceId: 'core-id', type, quantity: 1, model }] });
+    assert.equal(code, 400); assert.match(body.error, /model/i);
+    assert.equal(calls.writes.length, 0); assert.equal(calls.capacity.length, 0); assert.equal(calls.windows.length, 0);
+  }
 });

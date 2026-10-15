@@ -455,7 +455,7 @@ function selectedUnitTotal() {
 }
 function repairModelValidationMessage(value) {
   const model = String(value || '').trim();
-  if (!model) return '';
+  if (!model) return 'Model number is required.';
   if (model.length > REPAIR_MODEL_MAX_LENGTH) return `Model number must be ${REPAIR_MODEL_MAX_LENGTH} characters or fewer.`;
   if (!SAFE_REPAIR_MODEL_PATTERN.test(model)) return 'Use letters, numbers, spaces, and . - _ / # ( ) + only.';
   return '';
@@ -687,6 +687,7 @@ async function openAcceptedUnitAssistance() {
     BookingState.applianceType = request.quote.airconType;
     BookingState.applianceTypeName = request.quote.airconTypeName;
     addServiceToBooking(service, request.quantity, {
+      model: request.model || '',
       hp: request.quote.hp, price: request.quote.unitPrice,
       durationMinutes: request.quote.durationMinutes,
       airconType: request.quote.airconType,
@@ -7267,12 +7268,6 @@ function showCombinedQuantityHpModal(service) {
             const hpCard = createProfessionalHpCard(hpOption, index);
             hpContainer.appendChild(hpCard);
           });
-          const unknownHp = document.createElement('button');
-          unknownHp.type = 'button';
-          unknownHp.className = 'btn btn-outline-primary mt-3';
-          unknownHp.textContent = "I don't know the HP";
-          unknownHp.addEventListener('click', () => showUnitAssistancePanel(3));
-          hpContainer.appendChild(unknownHp);
           const otherHp = document.createElement('button');
           otherHp.type = 'button';
           otherHp.className = 'btn btn-outline-secondary mt-3 ms-2';
@@ -7471,12 +7466,6 @@ function renderAirconTypeSelection(airconTypes, container) {
   });
 
   typeSection.appendChild(typesContainer);
-  const unknownTypeButton = document.createElement('button');
-  unknownTypeButton.type = 'button';
-  unknownTypeButton.className = 'btn btn-outline-primary';
-  unknownTypeButton.textContent = "I don't know the aircon type";
-  unknownTypeButton.addEventListener('click', () => showUnitAssistancePanel(2));
-  typeSection.appendChild(unknownTypeButton);
   container.appendChild(typeSection);
 
   // Create HP selection section (initially hidden)
@@ -7497,7 +7486,7 @@ function renderAirconTypeSelection(airconTypes, container) {
       <span>Counters start at 0. Tap <strong>+</strong> or check an HP to select it. Reduce it to 0 to remove it.</span>
     </div>
     <div id="hpOptionsForType" class="row g-3 cfg-hp-grid"></div>
-    <div class="d-flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-outline-primary" id="cfgUnknownHpBtn">I don't know the HP</button><button type="button" class="btn btn-outline-secondary" id="cfgOtherHpBtn">Other HP / request a price</button></div>
+    <div class="d-flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-outline-secondary" id="cfgOtherHpBtn">Other HP / request a price</button></div>
   `;
   container.appendChild(hpSectionDiv);
 
@@ -7526,7 +7515,6 @@ function renderAirconTypeSelection(airconTypes, container) {
     backButton.addEventListener('click', goBack);
   }
   if (changeButton) changeButton.addEventListener('click', () => showAirconTypeStep(container));
-  hpSectionDiv.querySelector('#cfgUnknownHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3));
   hpSectionDiv.querySelector('#cfgOtherHpBtn')?.addEventListener('click', () => showUnitAssistancePanel(3, 'hp_quote'));
 }
 
@@ -8798,6 +8786,14 @@ function handleServiceConfigurationPrimaryAction() {
 
 function showServiceConfigurationModal(modalElement) {
   if (typeof bootstrap === 'undefined') return showModalError('The booking dialog could not load. Refresh this page and try again.');
+  const body = modalElement.querySelector('.modal-body');
+  if (body && !modalElement.querySelector('#legacyCoreModel')) {
+    const label = document.createElement('label'); label.className = 'form-label d-block mb-3'; label.textContent = 'Model number *';
+    const input = document.createElement('input'); input.id = 'legacyCoreModel'; input.className = 'form-control'; input.required = true; input.maxLength = 50; input.placeholder = 'Shown on the appliance label';
+    label.appendChild(input); body.prepend(label);
+  }
+  const modelInput = modalElement.querySelector('#legacyCoreModel');
+  if (modelInput) modelInput.value = BookingState.selectedServices.find(item => item.id === BookingState.editingServiceId)?.model || '';
   document.body.appendChild(modalElement);
   // Keep showing/hiding synchronous while selection state is committed.
   modalElement.classList.remove('fade', 'hide');
@@ -10285,6 +10281,10 @@ function confirmQuantitySelection() {
     submitUnitAssistanceRequest(service, resetProcessingFlag);
     return;
   }
+  const modelInput = document.getElementById('legacyCoreModel');
+  if (modelInput && repairModelValidationMessage(modelInput.value)) {
+    showModalError(repairModelValidationMessage(modelInput.value)); modelInput.focus(); resetProcessingFlag(); return;
+  }
 
   if (!service) {
     showError('Service not found. Please close the modal and try again.');
@@ -10657,6 +10657,7 @@ function addServiceToBooking(service, quantity, hpData = null) {
     applianceType: BookingState.applianceType || (hpData && hpData.airconType) || null,
     applianceTypeName: BookingState.applianceTypeName || null,
     brand: BookingState.selectedBrand || null,
+    model: hpData?.model || document.getElementById('legacyCoreModel')?.value.trim() || '',
     relocation: hpData?.relocation || null,
     repairIssue: hpData && hpData.repairIssue ? hpData.repairIssue : null, // Handle individual repair issues
     duration: Number(hpData?.durationMinutes) || service.durationMinutes || service.duration || 60,
@@ -14758,7 +14759,7 @@ function getRepairGuideStep() {
   const hasProblem = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
   if (!hasCategory) return 1;
   if (!hasUnitType) return 2;
-  if (!hasBrand || !hasQuantity) return 3;
+  if (!hasBrand || !hasQuantity || repairModelValidationMessage(document.getElementById('unitModel')?.value)) return 3;
   if (!hasProblem) return 4;
   return 5;
 }
@@ -14805,7 +14806,7 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
     1: 'Step 1 of 5: Choose the appliance that needs repair.',
     2: 'Step 2 of 5: Choose the appliance type.',
     3: getSelectedRepairBrand()
-      ? 'Step 3 of 5: Model number is optional. Check the number of units, then continue.'
+      ? 'Step 3 of 5: Enter the model number and check the number of units, then continue.'
       : 'Step 3 of 5: Choose a brand, or choose “I don’t know.”',
     4: 'Step 4 of 5: Describe the problem. Choose any signs you noticed.',
     5: 'Step 5 of 5: Add a photo if you have one, or skip to review.'
@@ -14818,12 +14819,10 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
   const quantityReady = Number.isInteger(quantity) && quantity >= 1 && quantity <= remainingBookingUnits();
   const detailsButton = document.getElementById('repairDetailsNext');
   const detailsHint = document.getElementById('repairDetailsHint');
-  const skipModel = document.getElementById('repairSkipModel');
   if (detailsButton) detailsButton.disabled = !brandReady || Boolean(modelError) || !quantityReady;
-  if (skipModel) skipModel.disabled = !brandReady;
   if (detailsHint) detailsHint.textContent = !brandReady
     ? 'Choose a brand to continue.'
-    : modelError || (!quantityReady ? 'Enter a valid number of units.' : 'Model number is optional. You can continue now.');
+    : modelError || (!quantityReady ? 'Enter a valid number of units.' : 'Details complete. You can continue now.');
 
   const problemReady = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
   const problemButton = document.getElementById('repairProblemNext');
@@ -14856,15 +14855,6 @@ function focusRepairQuantity() {
   window.setTimeout(() => quantity.focus({ preventScroll: true }), 180);
 }
 window.focusRepairQuantity = focusRepairQuantity;
-
-function skipRepairModel() {
-  const model = document.getElementById('unitModel');
-  if (model) model.value = '';
-  syncRepairModelGuidance();
-  refreshRepairGuide(3);
-  focusRepairQuantity();
-}
-window.skipRepairModel = skipRepairModel;
 
 function continueRepairDetails() {
   if (!getSelectedRepairBrand()) return goToRepairGuideStep(3);

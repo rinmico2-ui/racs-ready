@@ -7,9 +7,10 @@ function normalizeRepairModel(value) {
   return String(value || "").trim();
 }
 
-function validateRepairModel(value) {
+function validateRepairModel(value, { required = false } = {}) {
+  if (value != null && typeof value !== "string") return { valid: false, value: "", error: "Enter the model number as text." };
   const normalized = normalizeRepairModel(value);
-  if (!normalized) return { valid: true, value: "" };
+  if (!normalized) return required ? { valid: false, value: "", error: "Model number is required." } : { valid: true, value: "" };
   if (normalized.length > REPAIR_MODEL_MAX_LENGTH) {
     return {
       valid: false,

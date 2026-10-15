@@ -235,6 +235,10 @@
     const brand = text('input'); brand.type = 'text'; brand.maxLength = 80; brand.required = true;
     brand.value = request.quote?.brand || (request.brand?.toLowerCase() === "i don't know" ? "I don't know" : request.brand || '');
     brand.placeholder = "Brand or I don't know";
+    const model = text('input'); model.type = 'text'; model.required = true; model.maxLength = 50; model.value = request.model || '';
+    model.placeholder = 'Model number shown on the unit label';
+    const validateModel = () => model.setCustomValidity(model.value.trim().length <= 50 && /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Enter a valid model number, up to 50 characters.');
+    model.addEventListener('input', validateModel);
     const type = text('select');
     type.required = kind === 'aircon' && Boolean(catalog.airconTypes?.length);
     type.append(option('', 'Choose aircon type'));
@@ -245,6 +249,7 @@
     verification.append(option('', 'Choose how you verified'), option('customer_contact', 'Confirmed with customer'), option('model_label', 'Checked model label'), option('site_visit', 'Checked during site visit'));
     verification.value = request.quote?.verificationMethod || '';
     grid.append(field('Brand', brand, "Use “I don't know” only if brand could not be confirmed."));
+    grid.append(field('Model number', model, 'Confirm the model before sending a quote. It is required for booking.'));
     if (type.required) grid.append(field('Aircon type', type));
     if (needsHp) grid.append(field(kind === 'aircon' ? 'HP' : 'Compressor HP', hp));
     grid.append(field('Verification method', verification));
@@ -291,6 +296,7 @@
     updateTiers(request.quote?.hp || request.hp || '');
     form.addEventListener('submit', async event => {
       event.preventDefault();
+      validateModel();
       if (!form.reportValidity() || submit.disabled) return;
       submit.disabled = true;
       feedback(errorBox, '');
@@ -298,7 +304,7 @@
       try {
         const result = await fetchJson(`/api/unit-assistance/staff/${encodeURIComponent(request._id)}/quote`, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brand: brand.value.trim(), airconType: type.value, hp: hp.value, notes: notes.value.trim(), verificationMethod: verification.value,
+          body: JSON.stringify({ brand: brand.value.trim(), model: model.value.trim(), airconType: type.value, hp: hp.value, notes: notes.value.trim(), verificationMethod: verification.value,
             expectedQuotedAt: request.quote?.quotedAt || null }),
         });
         state.selectedId = String(result.request._id);
