@@ -38,9 +38,9 @@ function responseRecorder() {
 }
 
 function mockRegistrationCatalog(t) {
-  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'0305400000', name:'Pampanga' }]
-    : kind === 'cities' ? [{ code:'0330100000', name:'Angeles', province:'Pampanga' }]
-      : [{ code:'0330100001', name:'Balibago' }]);
+  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'0305400000', name:'Nueva Ecija' }]
+    : kind === 'cities' ? [{ code:'0330100000', name:'Cabanatuan', province:'Nueva Ecija' }]
+      : [{ code:'0330100001', name:'Sumacab Sur' }]);
 }
 
 function registrationRequest(overrides = {}) {
@@ -51,10 +51,10 @@ function registrationRequest(overrides = {}) {
       firstName: "New",
       lastName: "Customer",
       phone: "09171234567",
-      addressProvince: "Pampanga",
-      addressCity: "Angeles",
-      addressBarangay: "Balibago",
-      addressPostal: "2009",
+      addressProvince: "Nueva Ecija",
+      addressCity: "Cabanatuan",
+      addressBarangay: "Sumacab Sur",
+      addressPostal: "3100",
       mathCaptcha: "4",
       mathAnswer: "4",
       ...overrides,

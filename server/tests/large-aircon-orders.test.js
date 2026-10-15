@@ -18,7 +18,7 @@ const purchaseData = () => ({ _id: new mongoose.Types.ObjectId(), userId, checko
 
 test('project installation selection requires two valid future dates, while ordinary checkout still requires time', () => {
   const input = { fulfillmentType: 'delivery_installation', paymentMethod: 'cod', timeSlot: '',
-    delivery: { address: 'Customer installation site', contactNumber: '09171234567', preferredDate: preferences.preferredStartDate, coordinates: { lat: 14, lng: 121 } }, projectScheduling: preferences };
+    delivery: { address: 'Customer installation site', contactNumber: '09171234567', preferredDate: preferences.preferredStartDate, coordinates: { lat: 15.4863, lng: 120.9671 } }, projectScheduling: preferences };
   const result = validateCheckoutSelection(input, { isProject: true });
   assert.equal(result.timeSlot, null);
   assert.equal(result.projectScheduling.preferredCompletionDeadline.toISOString(), '2035-01-09T16:00:00.000Z');

@@ -76,7 +76,7 @@
         }
 
         // Get city info directly from the fetched cities array
-        const raw = await fetchJSON("/api/psgc/cities");
+        const raw = await fetchJSON(catalogUrl("/api/psgc/cities", citySelect));
         const cities = normalizeList(raw);
 
         // Match city object by code
@@ -178,7 +178,7 @@
           return;
         }
 
-        const raw = await fetchJSON("/api/psgc/cities");
+        const raw = await fetchJSON(catalogUrl("/api/psgc/cities", profileCity));
         const cities = normalizeList(raw);
         const selectedCity = cities.find((c) => {
           return String(c.code || "") === String(cityCode);
@@ -318,6 +318,16 @@
     }
   }
 
+  function addressNameKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/^city of /, '').replace(/ city$/, '')
+      .replace(/\b(norte|sur|este|oeste)\b/g, word => ({ norte:'north',sur:'south',este:'east',oeste:'west' })[word]);
+  }
+
+  function catalogUrl(path, select) {
+    const customer = select?.id.startsWith('register-') || select?.id.startsWith('profile-') && document.getElementById('profile-addressProvince')?.dataset.serviceArea === 'nueva-ecija';
+    return customer ? path + (path.includes('?') ? '&' : '?') + 'scope=nueva-ecija' : path;
+  }
+
   async function fetchJSON(url) {
     try {
       const r = await fetch(url);
@@ -362,7 +372,7 @@
   // Use official psgc.cloud endpoints. We fetch provinces once and fetch cities/barangays on demand,
   // matching both PSGC id and correspondence code to handle different code formats.
   async function populateProvinces(selectElement) {
-    const raw = await fetchJSON("/api/psgc/provinces");
+    const raw = await fetchJSON(catalogUrl("/api/psgc/provinces", selectElement));
     const provinces = alphabetizeByName(normalizeList(raw));
     selectElement.innerHTML = '<option value="">Select Province</option>';
     provinces.forEach(function (p) {
@@ -381,12 +391,12 @@
       (selectElement.dataset && selectElement.dataset.selected) ||
       selectElement.getAttribute("data-selected") ||
       selectElement.value ||
-      "";
+      (selectElement.id.startsWith('register-') ? '0304900000' : '');
     if (sel) {
       const match = Array.from(selectElement.options).find(
         (o) =>
           o.value === String(sel) ||
-          o.textContent.trim() === String(sel).trim(),
+          addressNameKey(o.textContent) === addressNameKey(sel),
       );
       if (match) {
         selectElement.value = match.value;
@@ -417,7 +427,7 @@
         ""
       : "";
 
-    const raw = await fetchJSON("/api/psgc/cities");
+    const raw = await fetchJSON(catalogUrl("/api/psgc/cities", selectElement));
     const cities = normalizeList(raw);
 
     selectElement.innerHTML =
@@ -475,7 +485,7 @@
       const match = Array.from(selectElement.options).find(
         (o) =>
           o.value === String(sel) ||
-          o.textContent.trim() === String(sel).trim(),
+          addressNameKey(o.textContent) === addressNameKey(sel),
       );
       if (match) {
         selectElement.value = match.value;
@@ -492,7 +502,7 @@
     const cityPostal =
       citySelect?.selectedOptions[0]?.getAttribute("data-postal") || "";
 
-    const raw = await fetchJSON(`/api/psgc/barangays?city_code=${cityCode}`);
+    const raw = await fetchJSON(catalogUrl(`/api/psgc/barangays?city_code=${cityCode}`, selectElement));
     const barangays = alphabetizeByName(normalizeList(raw));
 
     selectElement.innerHTML =
@@ -529,7 +539,7 @@
       const match = Array.from(selectElement.options).find(
         (o) =>
           o.value === String(sel) ||
-          o.textContent.trim() === String(sel).trim(),
+          addressNameKey(o.textContent) === addressNameKey(sel),
       );
       if (match) {
         selectElement.value = match.value;

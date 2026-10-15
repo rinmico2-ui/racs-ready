@@ -13,7 +13,12 @@
   }
   function appendAttribution(container, provider) {
     const doc = container.ownerDocument;
-    const note = doc.createElement('div'); note.className = 'px-3 py-2 border-top small text-muted'; note.style.fontSize = '10px';
+    if (provider === 'psgc') {
+      const note = doc.createElement('div'); note.className = 'px-3 py-2 border-top small text-muted bg-white flex-shrink-0';
+      const link = doc.createElement('a'); link.href = 'https://psgc.cloud/'; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Locality names: PSGC';
+      note.append(link); container.append(note); return;
+    }
+    const note = doc.createElement('div'); note.className = 'px-3 py-2 border-top small text-muted bg-white flex-shrink-0'; note.style.fontSize = '10px';
     const link = doc.createElement('a'); link.href = 'https://www.openstreetmap.org/copyright'; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = '© OpenStreetMap';
     note.append(link);
     if (!['geoapify','photon'].includes(provider)) { container.append(note); return; }
@@ -23,7 +28,7 @@
     note.append(source); container.append(note);
   }
   function create(options, win = window) {
-    const { input, list, searchButton, onSelect, onInput } = options;
+    const { input, list, searchButton, onSelect, onInput, onLocality } = options;
     if (!input || !list) return null;
     if (input._addressAutocomplete) return input._addressAutocomplete;
     const doc = input.ownerDocument || win.document;
@@ -31,7 +36,7 @@
     const originalSearch = searchButton?.innerHTML;
     input.setAttribute('role','combobox'); input.setAttribute('aria-autocomplete','list'); input.setAttribute('aria-controls',list.id);
     input.setAttribute('aria-expanded','false'); input.setAttribute('autocomplete','off');
-    list.setAttribute('role','listbox'); list.setAttribute('aria-label','Philippine address suggestions');
+    list.setAttribute('role','listbox'); list.setAttribute('aria-label','Nueva Ecija address suggestions');
     function close() { list.style.display = 'none'; list.classList.add('d-none'); input.setAttribute('aria-expanded','false'); }
     function open() { list.style.display = 'block'; list.classList.remove('d-none'); input.setAttribute('aria-expanded','true'); }
     function busy(value) {
@@ -55,15 +60,29 @@
       }
       open();
     }
-    function select(result) { cancel(); input.value = result.display_name; onSelect?.(result); }
+    function select(result) {
+      cancel(); input.value = result.display_name;
+      if (result.match_level === 'locality') {
+        onInput?.(result.display_name);
+        if (onLocality) onLocality(result);
+        else message('Locality selected. Place the exact house or service pin on the map.');
+        return;
+      }
+      onSelect?.(result);
+    }
     function render(results) {
       rows = []; list.replaceChildren();
       results.forEach(result => {
         const lat = Number(result.lat), lon = Number(result.lon);
-        if (!result.display_name || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < 4.5 || lat > 21.5 || lon < 116 || lon > 127) return;
+        const locality = result.match_level === 'locality' && result.source === 'psgc' && result.address?.state === 'Nueva Ecija';
+        const covered = win.NuevaEcijaCoverage ? win.NuevaEcijaCoverage.contains(lat, lon) : Number.isFinite(lat) && Number.isFinite(lon) && lat >= 4.5 && lat <= 21.5 && lon >= 116 && lon <= 127;
+        if (!result.display_name || !locality && !covered) return;
         const button = doc.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action border-0 py-2 small text-start';
         button.setAttribute('role','option'); button.textContent = result.display_name;
-        button.addEventListener('click',() => select({ ...result,lat,lon }));
+        if (locality) {
+          const hint = doc.createElement('small'); hint.className = 'd-block text-muted'; hint.textContent = 'City / barangay match · place your exact pin on the map'; button.append(hint);
+        }
+        button.addEventListener('click',() => select({ ...result,lat:locality?null:lat,lon:locality?null:lon }));
         button.addEventListener('keydown',event => {
           if (event.key === 'Escape') { event.preventDefault(); cancel(); input.focus(); }
           else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -92,8 +111,9 @@
         if (token !== sequence || input.value.trim() !== query) return;
         const results = Array.isArray(data) ? data : data?.suggestions;
         if (!response.ok || !Array.isArray(results)) {
-          if ([429, 502, 503, 504].includes(response.status)) retryAt = Date.now() + retryDelay(response, data);
+          if ([429, 502, 503, 504].includes(response.status) && !data?.localFallbackAvailable) retryAt = Date.now() + retryDelay(response, data);
           const error = new Error('Address lookup failed');
+          error.localFallbackAvailable = data?.localFallbackAvailable === true;
           error.userMessage = typeof data?.error === 'string' ? data.error : 'Address search is temporarily unavailable. Search this address or use the map.';
           throw error;
         }
@@ -101,7 +121,7 @@
         render(results);
       } catch (error) {
         if (error.name === 'AbortError' || token !== sequence || input.value.trim() !== query) return;
-        if (!explicit && retryAt < Date.now()) retryAt = Date.now() + 30000;
+        if (!explicit && !error.localFallbackAvailable && retryAt < Date.now()) retryAt = Date.now() + 30000;
         message(error.userMessage || 'Address search is temporarily unavailable. Search this address or use the map.', true);
       } finally { if (token === sequence) busy(false); }
     }

@@ -107,7 +107,7 @@ test("search results and map reverse lookups reject locations outside the Philip
   const search = await fetch(`${base}/search?q=Makati%20City`);
   const matches = await search.json();
   assert.equal(search.status, 200);
-  assert.deepEqual(matches.map(place => place.address.country_code), ["ph"]);
+  assert.deepEqual(matches, [], "even Philippine results outside Nueva Ecija are excluded");
   const reverse = await fetch(`${base}/reverse?lat=5.9&lon=116.1`);
   assert.equal(reverse.status, 422);
 });
@@ -148,11 +148,11 @@ test("a full geocoding queue returns backpressure without calling the provider",
     server.close();
   });
   const base = `http://127.0.0.1:${server.address().port}/api/geocoding/reverse`;
-  const first = fetch(`${base}?lat=15.1&lon=121.1`);
+  const first = fetch(`${base}?lat=15.48&lon=120.96`);
   await started;
-  const second = fetch(`${base}?lat=15.2&lon=121.2`);
+  const second = fetch(`${base}?lat=15.49&lon=120.97`);
   await secondArrived;
-  const excess = await fetch(`${base}?lat=15.3&lon=121.3`);
+  const excess = await fetch(`${base}?lat=15.50&lon=120.98`);
   assert.equal(excess.status, 503);
   assert.equal(excess.headers.get("retry-after"), "3");
   assert.equal(calls, 1, "rejected traffic must not call the provider or enter its queue");

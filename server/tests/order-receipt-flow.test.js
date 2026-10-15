@@ -105,7 +105,7 @@ test("customer delivery receipt upload survives temporary-file removal and reach
     "../utils/paymentPolicy": { ...paymentPolicy, getDownpaymentPercentage: async () => 30,
       getGcashRecipientNumber: async () => "09171234567", getPaymentMethods: async () => ({ gcash: { available: true } }) },
     "../utils/orderCheckoutSettings": { getOrderCheckoutSettings: async () => ({ farePerKm: 10,
-      companyLocation: { lat: 15, lng: 120 }, storeHours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, open: true, startMinutes: 480, endMinutes: 1080 })) }) },
+      companyLocation: { lat: 15.4863, lng: 120.9671 }, storeHours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, open: true, startMinutes: 480, endMinutes: 1080 })) }) },
     "../utils/orderCheckoutPolicy": { ...checkoutPolicy, authoritativeDeliveryQuote: async () => ({ distanceKm: 2, durationMin: 5, transportationFee: 20 }) },
     // This receipt fixture represents checkout with automatic loyalty disabled.
     "../utils/loyaltyRewards": { ...loyaltyRewards, rewardFor: async () => null, assertQuote() {} },
@@ -134,7 +134,7 @@ test("customer delivery receipt upload survives temporary-file removal and reach
   body.append("gcashNumber", "09171234567");
   body.append("checkoutRequestId", "receipt-flow-test-0001");
   body.append("timeSlot", "09:00 AM");
-  body.append("delivery", JSON.stringify({ address: "Test delivery address", contactNumber: "09171234567", preferredDate: tomorrow, coordinates: { lat: 15, lng: 120 } }));
+  body.append("delivery", JSON.stringify({ address: "Test delivery address", contactNumber: "09171234567", preferredDate: tomorrow, coordinates: { lat: 15.4863, lng: 120.9671 } }));
   body.append("gcashProof", new Blob([uploadedBytes], { type: "image/png" }), "receipt.png");
   const created = await fetch(base + "/api/orders", { method: "POST", body });
   const data = await created.json();

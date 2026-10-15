@@ -58,6 +58,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
     '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking }) => { calls.writes.push(booking); return booking; } },
     '../utils/loyaltyRewards': { rewardFor: async () => null, assertQuote() {}, round: value => value },
     '../public/js/appliance-services': require('../public/js/appliance-services'),
+    '../public/js/nueva-ecija-coverage': require('../public/js/nueva-ecija-coverage'),
     '../utils/repairModelPolicy': pure('repairModelPolicy'), '../utils/repairUnitWorkflow': pure('repairUnitWorkflow'),
     '../utils/repairUnitLegacyGuard': () => {},
     '../models/Technician': {},
@@ -73,7 +74,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
     const req = { user: { _id: customerId }, body: {
       services: [{ serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 3, unitPrice: 1000, duration: 1 }],
       bookingDate: '2035-01-02', projectScheduling: { preferredStartDate: '2035-01-02', preferredCompletionDeadline: '2035-01-06', estimatedTotalHours: 1 },
-      quantity: 1, location: { address: 'Test site', lat: 15, lng: 121 }, paymentMethod: 'cod', paymentChannel: 'bank', paymentReference: 'TEST-REFERENCE', proofImageBase64: 'mock-proof', ...overrides,
+      quantity: 1, location: { address: 'Test site', lat: 15.4863, lng: 120.9671 }, paymentMethod: 'cod', paymentChannel: 'bank', paymentReference: 'TEST-REFERENCE', proofImageBase64: 'mock-proof', ...overrides,
     }, app: { get: () => null } };
     await submit(req, { status(value) { code = value; return this; }, json(value) { body = value; } });
     return { code, body, calls };
@@ -98,6 +99,13 @@ test('compressor HP booking uses appliance-specific prices and time, ignoring cl
   assert.equal(bad.code, 400); assert.equal(f.calls.writes.length, 1);
 });
 
+test('service booking rejects an outside-province pin before saving or checking capacity', async t => {
+  const f = fixture(t);
+  const result = await f.call({location:{address:'Outside service area',lat:15.25,lng:120.65}});
+  assert.equal(result.code,400); assert.equal(result.body.code,'OUTSIDE_SERVICE_AREA');
+  assert.equal(f.calls.writes.length,0); assert.equal(f.calls.windows.length,0);
+});
+
 test('nearby relocation saves the real property pin for both positions and rejects extra units', async t => {
   const catalog = [{ _id: 'core-id', slug: 'aircon-relocation', name: 'Aircon Relocation', active: true, isAirconService: true,
     airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1600, durationMinutes: 120 }] }] }];
@@ -107,7 +115,7 @@ test('nearby relocation saves the real property pin for both positions and rejec
   const result = await f.call({ services: [service], startTime: '08:00', projectScheduling: undefined });
   assert.equal(result.code, 201, result.body?.error);
   const move = result.calls.writes[0].services[0].relocation;
-  assert.equal(move.from.lat, 15); assert.equal(move.from.lng, 121); assert.equal(move.to.lat, 15); assert.equal(move.to.lng, 121);
+  assert.equal(move.from.lat, 15.4863); assert.equal(move.from.lng, 120.9671); assert.equal(move.to.lat, 15.4863); assert.equal(move.to.lng, 120.9671);
   assert.equal(move.from.details, 'Living room'); assert.equal(move.to.details, 'Bedroom'); assert.equal(move.to.address, 'Test site');
   const bad = await f.call({ services: [{ ...service, quantity: 2 }], startTime: '08:00' });
   assert.equal(bad.code, 400); assert.equal(f.calls.writes.length, 1);

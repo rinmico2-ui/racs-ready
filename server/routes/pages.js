@@ -847,7 +847,7 @@ router.get("/login", async (req, res) => {
       "/js/auth-panel.js",
       "/js/login.js?v=20261015-security",
       "/js/register.js?v=20261015-security",
-      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review",
+      "/js/psgc-handler.js?v=20261015-nueva-ecija",
     ],
   });
 });
@@ -882,7 +882,7 @@ router.get("/register", async (req, res) => {
       "/js/auth-panel.js",
       "/js/login.js?v=20261015-security",
       "/js/register.js?v=20261015-security",
-      "/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review",
+      "/js/psgc-handler.js?v=20261015-nueva-ecija",
     ],
   });
 });

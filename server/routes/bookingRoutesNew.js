@@ -165,6 +165,9 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     if (!location || !location.lat || !location.lng) {
       return res.status(400).json({ error: 'Valid location is required' });
     }
+    if (!require('../public/js/nueva-ecija-coverage').contains(location.lat, location.lng)) {
+      return res.status(400).json({ error: require('../public/js/nueva-ecija-coverage').message, code: 'OUTSIDE_SERVICE_AREA' });
+    }
     
     if (!bookingDate) {
       return res.status(400).json({ error: 'A date is required' });
@@ -1566,6 +1569,7 @@ router.post('/create-repair', (req, res, next) => {
     const latNum = parseFloat(lat);
     const lngNum = parseFloat(lng);
     if (isNaN(latNum) || isNaN(lngNum)) errors.push('Location coordinates are required');
+    else if (!require('../public/js/nueva-ecija-coverage').contains(latNum, lngNum)) errors.push(require('../public/js/nueva-ecija-coverage').message);
     if (!paymentMethod || !['gcash', 'cod'].includes(paymentMethod)) {
       errors.push('Valid payment method is required (gcash or cod)');
     }

@@ -1684,7 +1684,7 @@
                   </div>
                   <!-- Suggestions Dropdown -->
                   <div id="addressSuggestions"
-                    class="list-group position-absolute w-100 mt-1 border-0 overflow-hidden"
+                    class="list-group position-absolute w-100 mt-1 border-0"
                     style="display: none; z-index: 1060; max-height: 220px; overflow-y: auto; border-radius: 6px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.08);"></div>
                 </div>
 
@@ -3152,6 +3152,12 @@
 
         // Helper: update calendar with new customer position
         window.updateCustomerLocation = function(lat, lng) {
+          if (!window.NuevaEcijaCoverage?.contains(lat, lng)) {
+            document.getElementById('wizardLat').value = ''; document.getElementById('wizardLng').value = '';
+            _routeQuoteError = window.NuevaEcijaCoverage.message;
+            const status = document.getElementById('orderRouteStatus'); if (status) status.textContent = _routeQuoteError;
+            return;
+          }
           document.getElementById('wizardLat').value = lat;
           document.getElementById('wizardLng').value = lng;
         };
@@ -3278,6 +3284,16 @@
       }
 
       function calcTransportFare(custLat, custLng) {
+        if (!window.NuevaEcijaCoverage?.contains(custLat, custLng)) {
+          ++_routeRequestId; _routeQuotePending = null; _routeDistanceKm = NaN; _routeDurationMin = 0; _transportFee = 0;
+          document.getElementById('mapLocatingSpinner')?.classList.remove('show');
+          document.getElementById('routeInfoPanel')?.classList.remove('has-route');
+          window.OrderRouteMap.clear(leafletMap, window._routeLayer); window._routeLayer = null;
+          document.getElementById('wizardLat').value = ''; document.getElementById('wizardLng').value = '';
+          _routeQuoteError = window.NuevaEcijaCoverage.message;
+          const status = document.getElementById('orderRouteStatus'); if (status) status.textContent = _routeQuoteError;
+          return;
+        }
         var routeRequestId = ++_routeRequestId;
         window.OrderRouteMap.clear(leafletMap, window._routeLayer);
         window._routeLayer = null;
@@ -3541,7 +3557,14 @@
           document.getElementById('mapLocatingSpinner')?.classList.remove('show');
           const status = document.getElementById('orderRouteStatus'); if (status) status.textContent = 'Choose an address suggestion or pin a location to see the route.';
         },
+        onLocality:function() {
+          document.getElementById('wizardLat').value = ''; document.getElementById('wizardLng').value = '';
+          const status = document.getElementById('orderRouteStatus'); if (status) status.textContent = 'Locality selected. Place your exact pin within Nueva Ecija.';
+          const b = window.NuevaEcijaCoverage.bounds; if (leafletMap) leafletMap.fitBounds([[b.south,b.west],[b.north,b.east]]);
+          document.getElementById('wizardMap')?.scrollIntoView({block:'center',behavior:'smooth'});
+        },
         onSelect:function(suggestion) {
+          if (!window.NuevaEcijaCoverage?.contains(suggestion.lat, suggestion.lon)) return;
           const lat = Number(suggestion.lat), lon = Number(suggestion.lon);
           document.getElementById('wizardLat').value = lat;
           document.getElementById('wizardLng').value = lon;

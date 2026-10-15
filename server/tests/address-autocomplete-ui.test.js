@@ -96,3 +96,31 @@ test('the retry interval accepts provider headers, caps long waits, and treats b
   assert.equal(retryDelay(response('999999'), {}), 300000);
   assert.equal(retryDelay(response('not a date'), {}), 30000);
 });
+
+test('locality suggestions invalidate the previous selection and require an exact map pin', async () => {
+  const f = fixture(); f.win.NuevaEcijaCoverage = require('../public/js/nueva-ecija-coverage');
+  await f.type('Puncan'); f.flush();
+  const locality = require('../utils/nuevaEcijaAddresses').suggestions('Puncan')[0];
+  f.respond(0,{suggestions:[locality]}); await tick();
+  assert.match(f.list.children[0].textContent,/Puncan/);
+  await f.list.children[0].emit('click');
+  assert.equal(f.selections.length,0,'a locality must never become a zero-coordinate delivery pin');
+  assert.equal(f.edits.at(-1),locality.display_name);
+  assert.match(f.list.children[0].textContent,/exact.*pin/);
+});
+
+test('a live-provider outage still allows the next locality autocomplete request', async () => {
+  const f = fixture(); await f.type('Unmapped Street'); f.flush();
+  f.respond(0,{error:'Live provider unavailable.',localFallbackAvailable:true},false); await tick();
+  await f.type('Puncan'); f.flush(); assert.equal(f.calls.length,2);
+  f.respond(1,{suggestions:require('../utils/nuevaEcijaAddresses').suggestions('Puncan')}); await tick();
+  assert.match(f.list.children[0].textContent,/Puncan/);
+});
+
+test('autocomplete excludes points outside the province even when inside the search rectangle', async () => {
+  const f = fixture(); f.win.NuevaEcijaCoverage = require('../public/js/nueva-ecija-coverage');
+  await f.type('Unknown street'); f.flush();
+  f.respond(0,{suggestions:[{...address,lat:15.25,lon:120.65}]}); await tick();
+  assert.match(f.list.children[0].textContent,/No matches/);
+  assert.equal(f.selections.length,0);
+});

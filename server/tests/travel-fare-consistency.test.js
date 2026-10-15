@@ -21,7 +21,7 @@ test("service booking and product checkout charge the shown road distance at the
   });
   const order = await authoritativeDeliveryQuote({
     origin: { lat: 15, lng: 121 },
-    destination: { lat: 15.1, lng: 121.2 },
+    destination: { lat: 15.4863, lng: 120.9671 },
     farePerKm: 30,
     httpClient: { get: async () => ({ data: { code: 'Ok', routes: [{ distance: 74933, duration: 10800,
       geometry: { type: 'LineString', coordinates: [[121, 15], [121.1, 15.05], [121.2, 15.1]] } }] } }) },

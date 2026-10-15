@@ -323,8 +323,8 @@ function signupRequest(email) {
 }
 
 function mockSignupCatalog(t) {
-  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'01', name:'Test Province' }]
-    : kind === 'cities' ? [{ code:'0101', name:'Test City', province:'Test Province' }]
+  t.mock.method(require('../utils/psgcCatalog'), 'getList', async kind => kind === 'provinces' ? [{ code:'01', name:'Nueva Ecija' }]
+    : kind === 'cities' ? [{ code:'0101', name:'Test City', province:'Nueva Ecija' }]
       : [{ code:'010101', name:'Test Barangay' }]);
 }
 

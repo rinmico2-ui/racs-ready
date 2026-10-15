@@ -116,7 +116,7 @@ test("step two guides customers through selection and repair one field at a time
 });
 
 test("location, price, payment, and success states answer the customer's key questions", () => {
-  assert.match(view, /Where should the technician go\?/);
+  assert.match(view, /Where in Nueva Ecija should the technician go\?/);
   assert.match(view, /id="locationInput"/);
   assert.match(view, /Use This Address/);
   assert.match(view, /Loading your saved address/);

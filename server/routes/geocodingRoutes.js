@@ -4,6 +4,8 @@ const router = express.Router();
 const { positiveLimit } = require('../utils/boundedWindow');
 const { busyError } = require('../utils/workLimiter');
 const { suggestionAvailability, suggestionLimiter, handleSuggestions } = require('../utils/addressSuggestions');
+const coverage = require('../public/js/nueva-ecija-coverage');
+const localAddresses = require('../utils/nuevaEcijaAddresses');
 
 /**
  * Backend proxy for the OpenStreetMap Nominatim API.
@@ -214,10 +216,11 @@ router.get('/search', async (req, res) => {
         q: candidate,
         limit: safeLimit,
         addressdetails: '1',
-        countrycodes: 'ph'
+        countrycodes: 'ph', bounded: 1,
+        viewbox: `${coverage.bounds.west},${coverage.bounds.north},${coverage.bounds.east},${coverage.bounds.south}`
       });
       const philippinesOnly = (Array.isArray(data) ? data : []).filter(place =>
-        !place.address?.country_code || String(place.address.country_code).toLowerCase() === 'ph'
+        (!place.address?.country_code || String(place.address.country_code).toLowerCase() === 'ph') && coverage.contains(place.lat, place.lon)
       );
       if (!philippinesOnly.length) continue;
       const matches = philippinesOnly.map(place => ({
@@ -229,9 +232,12 @@ router.get('/search', async (req, res) => {
       return res.json(matches);
     }
 
-    setCached(cacheKey, []);
-    return res.json([]);
+    const local = localAddresses.suggestions(normalizedQuery);
+    setCached(cacheKey, local);
+    return res.json(local);
   } catch (error) {
+    const local = typeof req.query.q === 'string' && localAddresses.suggestions(req.query.q);
+    if (local?.length) return res.json(local);
     return sendGeocodingError(res, error, 'Search addresses');
   }
 });
@@ -249,6 +255,7 @@ router.get('/reverse', async (req, res) => {
         parsedLat < -90 || parsedLat > 90 || parsedLon < -180 || parsedLon > 180) {
       return res.status(400).json({ error: 'Valid latitude and longitude are required' });
     }
+    if (!coverage.contains(parsedLat, parsedLon)) return res.status(422).json({ error: coverage.message, code: 'OUTSIDE_SERVICE_AREA' });
 
     // Four decimals is approximately 11 metres and greatly improves cache hits
     // when GPS readings jitter around the same service location.

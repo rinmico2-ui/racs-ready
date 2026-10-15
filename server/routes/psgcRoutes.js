@@ -37,6 +37,7 @@ function unwrapPayload(response) {
 
 // ── All provinces ──
 router.get('/provinces', async (req, res) => {
+  if (req.query.scope === 'nueva-ecija') return res.json({ data: require('../utils/nuevaEcijaAddresses').getList('provinces') });
   try {
     const cacheKey = 'psgc:provinces';
     let provinces = getCache(cacheKey);
@@ -55,6 +56,7 @@ router.get('/provinces', async (req, res) => {
 
 // ── All cities/municipalities (with zip_code) ──
 router.get('/cities', async (req, res) => {
+  if (req.query.scope === 'nueva-ecija') return res.json({ data: require('../utils/nuevaEcijaAddresses').getList('cities') });
   try {
     const cacheKey = 'psgc:cities';
     let cities = getCache(cacheKey);
@@ -78,6 +80,7 @@ router.get('/barangays', async (req, res) => {
     if (!city_code) {
       return res.status(400).json({ error: 'city_code is required' });
     }
+    if (req.query.scope === 'nueva-ecija') return res.json({ data: require('../utils/nuevaEcijaAddresses').getList('barangays', city_code) });
     const cacheKey = `psgc:barangays:${city_code}`;
     let barangays = getCache(cacheKey);
     if (!barangays) {

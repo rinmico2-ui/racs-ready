@@ -2321,6 +2321,7 @@ function fetchLiveAddressSuggestions(query) {
         const error = new Error(data.error || 'Live suggestions unavailable');
         error.status = response.status;
         error.retryAfter = window.AddressAutocomplete?.retryDelay(response, data) || 30000;
+        error.localFallbackAvailable = data.localFallbackAvailable === true;
         throw error;
       }
       if (!Array.isArray(data.suggestions)) throw new Error('Invalid suggestions response');
@@ -2338,7 +2339,7 @@ function fetchLiveAddressSuggestions(query) {
     })
     .catch(error => {
       if (error.name === 'AbortError' || requestToken !== addressSuggestionRequestToken || input.value.trim() !== query) return;
-      addressAutocompleteRetryAt = Date.now() + (error.retryAfter || 30000);
+      addressAutocompleteRetryAt = error.localFallbackAvailable ? 0 : Date.now() + (error.retryAfter || 30000);
       showServiceAddressRecovery();
     });
 }
@@ -2357,7 +2358,7 @@ function setupAddressAutocomplete(input) {
         if (!addressAutocompleteEnabled) addressAutocompleteRetryAt = Date.now() + (Number(data.retryAfter) || 30000);
         if (addressAutocompleteEnabled && !input.value.trim()) {
           const status = document.getElementById('locationStatus');
-          if (status) status.textContent = 'Start typing to see Philippine address suggestions. You can also enter the full address and press Search.';
+          if (status) status.textContent = 'Start typing to see Nueva Ecija address suggestions. You can also enter the full address and press Search.';
         }
         if (addressAutocompleteEnabled && document.activeElement === input) scheduleLiveAddressSuggestions(input.value.trim());
       })
@@ -2517,7 +2518,7 @@ function displaySuggestions(suggestions) {
     heading.textContent = parts[0] || 'Location';
     const detail = document.createElement('small');
     detail.className = 'text-muted';
-    detail.textContent = `${parts.slice(1).join(', ').trim()}${suggestion.match_level === 'area' ? ' · Nearby area; check the pin' : ' · Check the pin'}`;
+    detail.textContent = `${parts.slice(1).join(', ').trim()}${suggestion.match_level === 'locality' ? ' · Locality match; place your exact pin' : suggestion.match_level === 'area' ? ' · Nearby area; check the pin' : ' · Check the pin'}`;
     copy.appendChild(heading);
     copy.appendChild(detail);
     row.appendChild(icon);
@@ -2528,6 +2529,12 @@ function displaySuggestions(suggestions) {
       clearTimeout(addressAutocompleteDebounceTimer);
       ++addressSuggestionRequestToken;
       addressSuggestionAbortController?.abort();
+      if (suggestion.match_level === 'locality') {
+        locationInput.value = suggestion.display_name; resetServiceLocationForTypedAddress(suggestion.display_name);
+        closeAddressSuggestions();
+        const b = window.NuevaEcijaCoverage.bounds; BookingState.map?.fitBounds([[b.south, b.west], [b.north, b.east]]);
+        guideToManualAddressPin(); return;
+      }
       // The input is only the search query. The chosen result owns the map
       // coordinates and address label; a short query (for example "3123")
       // must not replace its full address in the booking.
@@ -2620,19 +2627,19 @@ function resetServiceLocationForTypedAddress(query) {
 }
 
 function isWithinPhilippinesMapBounds(lat, lng) {
-  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 4.5 && lat <= 21.5 && lng >= 116 && lng <= 127;
+  return Boolean(window.NuevaEcijaCoverage?.contains(lat, lng));
 }
 
 function applyAddressSearchResult(result, fallbackAddress, source) {
   const lat = Number.parseFloat(result?.lat);
   const lng = Number.parseFloat(result?.lon ?? result?.lng);
   if (!isWithinPhilippinesMapBounds(lat, lng)) {
-    showError('Choose an address in the Philippines with a valid map location.');
+    showError('Choose an address and map pin within Nueva Ecija.');
     return false;
   }
 
   if (result?.address?.country_code && String(result.address.country_code).toLowerCase() !== 'ph') {
-    showError('Choose an address in the Philippines.');
+    showError('Choose an address within Nueva Ecija.');
     return false;
   }
   const matchedAddress = String(result?.display_name || '').trim();
@@ -3173,7 +3180,7 @@ function initializeMapInternal(mapContainer) {
     const { lat, lng } = e.latlng;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     if (!isWithinPhilippinesMapBounds(lat, lng)) {
-      showError('Choose a service location in the Philippines.');
+      showError('Choose a service location within Nueva Ecija.');
       return;
     }
     if (placingRelocationDestination && pendingRelocationQuoteItem()) {
@@ -3292,7 +3299,7 @@ function geocodeAddress(address, finalize = false, mapReadyAttempt = 0) {
         const result = data[0];
         const lat = parseFloat(result.lat);
         const lng = parseFloat(result.lon);
-        if (!isWithinPhilippinesMapBounds(lat, lng)) throw new Error('Address result is outside the Philippines');
+        if (!isWithinPhilippinesMapBounds(lat, lng)) throw new Error('Address result is outside Nueva Ecija');
 
         // Update map center
         BookingState.map.setView([lat, lng], result.match_level === 'area' ? 15 : (finalize ? 16 : 14));
@@ -3723,7 +3730,7 @@ function bindServiceCustomerMarkerDrag(marker) {
     if (!isWithinPhilippinesMapBounds(point.lat, point.lng)) {
       const previous = BookingState.userCoordinates;
       if (previous) marker.setLatLng([previous.lat, previous.lng]);
-      showError('Choose a service location in the Philippines.');
+      showError('Choose a service location within Nueva Ecija.');
       return;
     }
     const requestToken = ++customerLocationRequestToken;
@@ -3865,7 +3872,7 @@ function reverseGeocode(lat, lng, requestToken, options = {}) {
 
         if (error.status === 422) {
           resetServiceLocationForTypedAddress(document.getElementById('locationInput')?.value.trim() || '');
-          showError('Choose a service location in the Philippines.');
+          showError('Choose a service location within Nueva Ecija.');
           return;
         }
 
@@ -3941,7 +3948,7 @@ function requestCustomerGpsLocation(button) {
       if (!isWithinPhilippinesMapBounds(position.coords.latitude, position.coords.longitude)) {
         button.disabled = false;
         button.innerHTML = button.dataset.idleHtml;
-        showError('Your current location is outside the Philippines. Enter a Philippine service address instead.');
+        showError('Your current location is outside Nueva Ecija. Enter a service address within Nueva Ecija instead.');
         return;
       }
       reverseGeocode(position.coords.latitude, position.coords.longitude, undefined, { requirePinConfirmation: true });
@@ -6197,7 +6204,7 @@ function setRelocationDestinationPin(lat, lng) {
     const point = event.target.getLatLng();
     if (!isWithinPhilippinesMapBounds(point.lat, point.lng)) {
       event.target.setLatLng([item.relocation.to.lat, item.relocation.to.lng]);
-      showError('Choose a destination in the Philippines.');
+      showError('Choose a destination within Nueva Ecija.');
       return;
     }
     relocationLocationController()?.pin(point.lat, point.lng);

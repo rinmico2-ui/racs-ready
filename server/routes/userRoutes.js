@@ -87,7 +87,7 @@ router.patch("/me/profile", async (req, res, next) => {
     }
     if (addressChanged) {
       try {
-        address = await require('../utils/psgcCatalog').validateAddressSelection({ addressProvince: address.province, addressCity: address.city, addressBarangay: address.barangay, addressPostal: address.postalCode });
+        address = await require('../utils/psgcCatalog').validateAddressSelection({ addressProvince: address.province, addressCity: address.city, addressBarangay: address.barangay, addressPostal: address.postalCode }, { serviceAreaOnly: customer });
       } catch (error) { return res.status(error.status || 400).json({ error: error.message, fields: error.fields, code: error.code }); }
     }
     if (customer && nameChanged && !policy.canChangeName) {

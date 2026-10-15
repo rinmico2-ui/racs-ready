@@ -137,7 +137,7 @@ test("delivery notes are plain text and limited to 500 characters", () => {
 test("delivery quote ignores client claims and uses the routing result", async () => {
   const quote = await authoritativeDeliveryQuote({
     origin: { lat: 15, lng: 121 },
-    destination: { lat: 15.1, lng: 121.2 },
+    destination: { lat: 15.4863, lng: 120.9671 },
     farePerKm: 40,
     httpClient: { get: async () => ({ data: { routes: [{ distance: 12500, duration: 1800, geometry: { type: "LineString", coordinates: [[121,15],[121.2,15.1]] } }] } }) },
   });

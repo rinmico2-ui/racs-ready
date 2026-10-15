@@ -2,6 +2,8 @@
 const axios = require('axios');
 const rateLimit = require('./boundedRateLimit');
 const { createWorkLimiter } = require('./workLimiter');
+const coverage = require('../public/js/nueva-ecija-coverage');
+const localAddresses = require('./nuevaEcijaAddresses');
 const work = createWorkLimiter({ limit:8,perKeyLimit:2 });
 const cache = new Map(), pending = new Map();
 const ttl = 5 * 60 * 1000;
@@ -14,7 +16,7 @@ function suggestionAvailability() {
   const preferred = provider();
   const candidates = preferred === 'geoapify' ? ['geoapify', 'photon'] : ['photon'];
   const retryAfter = Math.min(...candidates.map(name => Math.max(0, (blockedUntil.get(name) || 0) - Date.now())));
-  return { enabled: retryAfter === 0, provider: preferred, retryAfter };
+  return { enabled: true, provider: preferred, liveEnabled: retryAfter === 0, retryAfter, coverage: coverage.province, localFallback: true };
 }
 function providerUnavailable(retryAfter) {
   const error = new Error('Live address suggestions are temporarily unavailable. Press Search or select the location on the map.');
@@ -31,7 +33,7 @@ function cooldownDuration(error) {
 }
 function validPoint(place) {
   return place.display_name && Number.isFinite(place.lat) && Number.isFinite(place.lon) &&
-    place.lat >= 4.5 && place.lat <= 21.5 && place.lon >= 116 && place.lon <= 127;
+    coverage.contains(place.lat, place.lon);
 }
 function photonLabel(properties) {
   const street = [properties.housenumber,properties.street].filter(Boolean).join(' ');
@@ -62,7 +64,7 @@ async function fetchProvider(name,query) {
 async function requestProvider(name,query) {
   if (name === 'geoapify') {
     const response = await work.run(name,() => axios.get('https://api.geoapify.com/v1/geocode/autocomplete',{
-      params:{ text:query,format:'json',filter:'countrycode:ph',limit:5,lang:'en',apiKey:String(process.env.GEOAPIFY_API_KEY).trim() },timeout:5000,
+      params:{ text:query,format:'json',filter:`rect:${coverage.bounds.west},${coverage.bounds.south},${coverage.bounds.east},${coverage.bounds.north}`,limit:8,lang:'en',apiKey:String(process.env.GEOAPIFY_API_KEY).trim() },timeout:5000,
     }));
     if (!Array.isArray(response.data?.results)) throw new Error('Invalid geocoding response');
     return response.data.results
@@ -73,7 +75,7 @@ async function requestProvider(name,query) {
   // Photon supports search-as-you-type; the public Nominatim endpoint does not.
   const base = String(process.env.PHOTON_BASE_URL || 'https://photon.komoot.io').replace(/\/+$/,'');
   const response = await work.run(name,() => axios.get(base + '/api/',{
-    params:{ q:query,limit:5,lang:'en',countrycode:'PH',bbox:'116,4.5,127,21.5' },timeout:5000,
+    params:{ q:query,limit:8,lang:'en',countrycode:'PH',bbox:`${coverage.bounds.west},${coverage.bounds.south},${coverage.bounds.east},${coverage.bounds.north}` },timeout:5000,
   }));
   if (!Array.isArray(response.data?.features)) throw new Error('Invalid geocoding response');
   return response.data.features
@@ -82,6 +84,8 @@ async function requestProvider(name,query) {
       address:{ country_code:'ph' },match_level:'suggestion',source:name })).filter(validPoint).slice(0,5);
 }
 async function suggestions(query) {
+  const local = localAddresses.suggestions(query);
+  if (local.length) return local;
   const name = provider(), key = name + ':' + query.toLowerCase();
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < ttl) return cached.results;
@@ -107,7 +111,7 @@ async function handleSuggestions(req,res) {
     return res.status(status).json({
       code: error.code === 'WORK_CAPACITY_EXCEEDED' ? 'ADDRESS_SEARCH_BUSY' : 'ADDRESS_SUGGESTIONS_UNAVAILABLE',
       error:'Live address suggestions are temporarily unavailable. Press Search or select the location on the map.',
-      suggestions:[], retryAfter, manualSearchAvailable:true
+      suggestions:[], retryAfter, manualSearchAvailable:true, localFallbackAvailable:true
     });
   }
 }

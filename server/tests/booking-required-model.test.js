@@ -9,7 +9,7 @@ test('dedicated repair checkout rejects blank and structured model values in sin
   vm.runInNewContext(source.slice(start, next < 0 ? source.indexOf('\nmodule.exports', start) : next), {
     router: { post(_path, ...handlers) { handler = handlers.at(-1); } },
     schedulingEngine: { MAX_BOOKING_UNITS: 40, LARGE_SCALE_MIN_UNITS: 8 }, validateRepairModel,
-    getGcashRecipientNumber: async () => 'configured', console: { log() {}, error() {} },
+    require: () => require('../public/js/nueva-ecija-coverage'), getGcashRecipientNumber: async () => 'configured', console: { log() {}, error() {} },
   });
   for (const model of [undefined, '', '   ', null, {}, ['MODEL-123']]) for (const multi of [false, true]) {
     const item = { unitType: 'Split Aircon', brand: 'Carrier', quantity: 1, model, problemDescription: 'Aircon does not cool properly.' };

@@ -40,12 +40,14 @@ function parseDateOnly(value) {
   return date;
 }
 
-function normalizeCoordinates(value) {
+function normalizeCoordinates(value, { serviceAreaOnly = false } = {}) {
   const lat = Number(value?.lat ?? value?.[1]);
   const lng = Number(value?.lng ?? value?.[0]);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     throw new OrderCheckoutError("Select a valid delivery location on the map.", 400, "ORDER_LOCATION_REQUIRED");
   }
+  const coverage = require('../public/js/nueva-ecija-coverage');
+  if (serviceAreaOnly && !coverage.contains(lat, lng)) throw new OrderCheckoutError(coverage.message, 400, 'OUTSIDE_SERVICE_AREA');
   return { lat, lng };
 }
 
@@ -178,7 +180,7 @@ function validateCheckoutSelection(input, { storeHours, now = new Date(), isProj
       contactNumber: contactNumber.slice(0, 50),
       preferredDate,
       notes,
-      coordinates: normalizeCoordinates(input?.delivery?.coordinates),
+      coordinates: normalizeCoordinates(input?.delivery?.coordinates, { serviceAreaOnly: true }),
     },
   };
 }
@@ -195,7 +197,7 @@ function haversineDistanceKm(from, to) {
 
 async function authoritativeDeliveryQuote({ origin, destination, farePerKm, httpClient = axios }) {
   const from = normalizeCoordinates(origin);
-  const to = normalizeCoordinates(destination);
+  const to = normalizeCoordinates(destination, { serviceAreaOnly: true });
   const rate = Number(farePerKm);
   if (!Number.isFinite(rate) || rate < 0) {
     throw new OrderCheckoutError("The delivery rate is not configured correctly.", 503, "ORDER_DELIVERY_RATE_INVALID");

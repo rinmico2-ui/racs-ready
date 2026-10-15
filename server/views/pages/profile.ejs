@@ -433,10 +433,10 @@
                 </div>
               </div>
               <div class="col-md-6">
-                <label class="prof-field-label">Province</label>
+                <label class="prof-field-label">Province<% if (user.role === 'customer') { %> <span class="text-muted">&middot; Nueva Ecija only</span><% } %></label>
                 <div class="prof-input-wrap">
                   <i class="bi bi-map prof-input-icon"></i>
-                  <select id="profile-addressProvince" name="address[province]" data-selected="<%= (user.address && user.address.province) || '' %>" class="prof-input prof-input-editable prof-input-select">
+                  <select id="profile-addressProvince" name="address[province]" data-service-area="<%= user.role === 'customer' ? 'nueva-ecija' : '' %>" data-selected="<%= (user.address && user.address.province) || '' %>" class="prof-input prof-input-editable prof-input-select">
                     <option value=""><%= (user.address && user.address.province) || 'Select Province' %></option>
                   </select>
                 </div>
@@ -734,7 +734,7 @@
 <% } %>
 </div>
 
-<script src="/js/psgc-handler.js?v=20260928-alphabetical-address-v2-20261014-it-review"></script>
+<script src="/js/psgc-handler.js?v=20261015-nueva-ecija"></script>
 <link rel="stylesheet" href="/css/customer-profile-completeness.css?v=20261014-profile-progress">
 <script src="/js/profile.js?v=20261014-profile-progress"></script>
 <script src="/js/customer-profile-password.js?v=20261009-visible-password"></script>

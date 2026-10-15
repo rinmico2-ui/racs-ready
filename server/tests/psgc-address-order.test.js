@@ -21,7 +21,7 @@ test("PSGC address levels are alphabetized by their displayed names", () => {
 });
 
 test("sign-up and customer profile load the alphabetized PSGC handler", () => {
-  const asset = "/js/psgc-handler.js?v=20260928-alphabetical-address-v2";
+  const asset = "/js/psgc-handler.js?v=20261015-nueva-ecija";
   assert.ok(pages.split(asset).length - 1 >= 2);
-  assert.match(profile, /psgc-handler\.js\?v=20260928-alphabetical-address-v2/);
+  assert.match(profile, /psgc-handler\.js\?v=20261015-nueva-ecija/);
 });
