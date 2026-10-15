@@ -36,9 +36,9 @@
 
   /* ═══ TABS ═══ */
   .ao-scope-shell { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-bottom:16px; }
-  .ao-scope-btn { display:flex; align-items:center; gap:14px; min-height:76px; padding:14px 16px; border:1px solid #e2e8f0; border-radius:15px; background:#fff; color:#475569; text-align:left; transition:var(--ao-transition); box-shadow:var(--ao-shadow); }
-  .ao-scope-btn:hover { border-color:#93c5fd; background:#f8fbff; transform:translateY(-1px); }
-  .ao-scope-btn.active { border-color:#2563eb; background:linear-gradient(135deg,#eff6ff,#fff); box-shadow:0 0 0 2px rgba(37,99,235,.1),var(--ao-shadow); }
+  .ao-scope-btn { display:flex; align-items:center; gap:14px; min-height:76px; padding:14px 16px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; color:#475569; text-align:left; transition:background-color .15s ease,border-color .15s ease; box-shadow:none; }
+  .ao-scope-btn:hover { border-color:#93c5fd; background:#f8fbff; }
+  .ao-scope-btn.active { border-color:#2563eb; background:#eff6ff; box-shadow:0 0 0 1px #2563eb; }
   .ao-scope-icon { width:44px; height:44px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; border-radius:12px; background:#eff6ff; color:#2563eb; font-size:1.05rem; }
   .ao-scope-btn[data-order-scope="pickup"] .ao-scope-icon { color:#7c3aed; background:#f3e8ff; }
   .ao-scope-copy { flex:1; min-width:0; }
@@ -239,9 +239,10 @@
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
+<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-bookings-sales">
 
-<div class="ao-page">
-  <div class="au-hero mb-4">
+<div class="ao-page orders-workspace bookings-sales-workspace">
+  <div class="au-hero">
     <div class="au-hero-inner">
       <div class="au-hero-left">
         <div class="au-hero-icon"><i class="bi bi-receipt"></i></div>
@@ -250,13 +251,13 @@
           <p>Manage delivery, installation, and customer pickup through separate operational workspaces</p>
         </div>
       </div>
-      <div class="au-hero-actions">
-        <a class="btn btn-light fw-bold" href="<%= ordersOperationsCalendarUrl %>" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-calendar4-week me-1"></i> Operations Calendar</a>
-        <% if (ordersResolutionEnabled) { %>
-          <a class="btn btn-light fw-bold" href="<%= ordersResolutionUrl %>?source=order" style="position:relative;z-index:1;border-radius:10px;"><i class="bi bi-exclamation-diamond me-1"></i> Resolution Center <span class="badge bg-danger ms-1" id="aoResolutionCount">0</span></a>
-        <% } %>
-      </div>
     </div>
+    <nav class="appointment-tools" aria-label="Order tools">
+      <a class="appointment-shortcut" href="<%= ordersOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
+      <% if (ordersResolutionEnabled) { %>
+        <a class="appointment-shortcut" href="<%= ordersResolutionUrl %>?source=order"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="aoResolutionCount">0</span></a>
+      <% } %>
+    </nav>
   </div>
 
   <div class="ao-scope-shell" role="tablist" aria-label="Order fulfillment workspace">
@@ -295,8 +296,8 @@
           <input type="date" class="form-control form-control-sm" id="aoScheduledFrom" title="Scheduled from" aria-label="Scheduled from" style="width:150px;">
           <span class="text-muted small">to</span>
           <input type="date" class="form-control form-control-sm" id="aoScheduledTo" title="Scheduled to" aria-label="Scheduled to" style="width:150px;">
-          <button class="btn btn-sm btn-outline-secondary" id="aoClearDates" type="button" title="Clear scheduled dates"><i class="bi bi-x-circle"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" id="aoRefreshOverview" type="button" title="Refresh order overview"><i class="bi bi-arrow-clockwise"></i></button>
+          <button class="workspace-action workspace-action-secondary" id="aoClearDates" type="button" title="Clear scheduled dates"><i class="bi bi-x-circle" aria-hidden="true"></i><span>Clear dates</span></button>
+          <button class="workspace-action workspace-action-secondary" id="aoRefreshOverview" type="button" title="Refresh order overview"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span>Refresh</span></button>
           <select class="form-select form-select-sm" id="aoSort" aria-label="Sort orders" style="width:205px;"><option value="date_desc">Scheduled Date: Latest First</option><option value="date_asc">Scheduled Date: Earliest First</option><option value="newest">Order: Newest First</option><option value="oldest">Order: Oldest First</option></select>
         </div>
       </div>
