@@ -83,7 +83,7 @@
     .rr-data-state{display:flex;align-items:center;gap:12px;padding:13px 16px;margin:-8px 0 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:.78rem;font-weight:600}.rr-data-state[hidden]{display:none}.rr-data-state.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}.rr-data-state .spinner-border{width:1rem;height:1rem;border-width:2px}
   </style>
   <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
-  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20261015-cost-visibility">
+  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20261015-itemized-costs">
   <% const A=analytics||{}; const SA=A.salesView||A; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); const pct=n=>n==null?'N/A':Number(n||0).toFixed(1)+'%'; const profitBadge=a=>a.operatingProfitMargin==null?'Margin unavailable':pct(a.operatingProfitMargin)+' margin'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
   <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Sales and Payments</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/<%= reportRole %>/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/<%= reportRole %>/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="<%= reportLinks.pos %>"><i class="bi bi-shop me-1"></i> Walk-in sales</a><button class="rr-btn light" id="exportRevenue" type="button" data-report-csv="revenue"><i class="bi bi-download me-1"></i> Download CSV</button></div></div></div>
@@ -353,6 +353,13 @@
     <h3>How this profit was calculated</h3>
     <p>The cost breakdown loads with the report. Expenses and payroll are listed separately.</p>
   </div>
+  <section id="revenueCostRecords" class="rr-card rr-cost-records" aria-labelledby="revenueCostRecordsTitle">
+    <div class="rr-head"><div><span class="rr-eyebrow">Records behind the total</span><h3 id="revenueCostRecordsTitle">Itemized costs</h3><p>See what each cost was for and the amount included in profit.</p></div><div class="rr-cost-record-total"><small>Costs deducted</small><strong id="revenueCostRecordTotal">&mdash;</strong></div></div>
+    <div class="rr-cost-record-toolbar"><label for="revenueCostCategory">Cost source <select id="revenueCostCategory" class="form-select form-select-sm"><option value="all">All cost sources</option></select></label><span id="revenueCostRecordCount" aria-live="polite"></span></div>
+    <p id="revenueCostRecordWarning" class="rr-cost-record-warning" hidden></p>
+    <div id="revenueCostRecordList"><p class="rr-empty">Loading itemized cost records&hellip;</p></div>
+    <div class="rr-activity-pagination"><span id="revenueCostRecordPage"></span><div><button id="revenueCostPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button><button id="revenueCostNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button></div></div>
+  </section>
   <div class="rr-equal">
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Completed sales vs Saved job and product cost</h3><span class="rr-badge">Completion-date basis</span></div>
@@ -659,7 +666,7 @@
     </div>
   </div>
 </div>
-<script src="/js/revenue-reconciliation.js?v=20261015-cost-visibility"></script>
+<script src="/js/revenue-reconciliation.js?v=20261015-itemized-costs"></script>
 <script>
 (()=>{
   if (<%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>) {

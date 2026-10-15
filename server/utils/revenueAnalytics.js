@@ -24,6 +24,7 @@ const {
   bookingApprovedValue, buildProjectPricingMap, isRepairBooking, normalizePaymentMethod,
 } = require("./revenueRecognition");
 const { buildServiceCostAnalytics } = require("./serviceCostAnalytics");
+const { buildRevenueCostDetails } = require("./revenueCostDetails");
 const { buildRevenueForecast, buildServiceProfitability } = require("./revenueDecisionAnalytics");
 const { remember } = require("./reportCache");
 const { leastSoldProducts } = require("./reportRankings");
@@ -468,18 +469,19 @@ async function computeRevenueAnalytics(query = {}) {
     recognizedInventoryIds.length
       ? HVACProduct.find({ "variants._id": { $in: recognizedInventoryIds } }).select("variants._id variants.costPrice").lean()
       : [],
-    Expense.find({ expenseDate: dateFilter, testDataExcludedAt: null }).select("amount type status bookingId projectId source").lean(),
-    Payroll.find({ status: { $ne: "voided" }, payDate: dateFilter }).select("grossPay netPay status").lean(),
+    Expense.find({ expenseDate: dateFilter, testDataExcludedAt: null }).select("amount type status bookingId projectId source expenseDate description").lean(),
+    Payroll.find({ status: { $ne: "voided" }, payDate: dateFilter }).select("grossPay netPay status payDate payslipNumber periodStart periodEnd basicPay overtimePay allowances employee")
+      .populate("employee", "firstName lastName").lean(),
     recognizedProjectIds.length
       ? ProjectMaterial.find({
         projectId: { $in: recognizedProjectIds },
         status: "fulfilled",
         type: { $in: ["part", "consumable"] },
-      }).select("projectId totalPrice quantity unitPrice type").lean()
+      }).select("projectId totalPrice quantity unitPrice type itemName unit").lean()
       : [],
     recognizedOrders.length
       ? ServiceToolUsage.find({ orderId: { $in: recognizedOrders.map(order => order._id) }, itemType: "consumable", lifecycleStatus: { $ne: "voided" } })
-        .select("orderId itemType quantityUsed unitPrice toolCost lifecycleStatus").lean()
+        .select("orderId itemType quantityUsed unitPrice toolCost lifecycleStatus itemName unit").lean()
       : [],
     linkedInstallationOrders.length
       ? BookingService.find({ _id: { $in: linkedInstallationOrders.map(order => order.bookingId) } })
@@ -530,6 +532,11 @@ async function computeRevenueAnalytics(query = {}) {
   const operatingExpenses = approvedExpenseTotal + payrollCost;
   const operatingProfit = grossProfit - operatingExpenses;
   const operatingMargin = recognizedRevenue > 0 ? (operatingProfit / recognizedRevenue) * 100 : null;
+  const projectBookings = new Map([...projectToBooking].map(([projectId, bookingId]) => [projectId, recognizedBookingById.get(bookingId)]));
+  const costDetails = buildRevenueCostDetails({ serviceRows: serviceCostAnalytics.services, orders: recognizedOrders, orderCostCatalog, orderConsumableUsages,
+    linkedServiceRows: linkedInstallationServiceRows, posSales, projectMaterials, projectBookings, operatingExpenses: operatingExpenseRows, payrollRows: approvedPayrollRows,
+    totals: { service: serviceDirectCost, orders: orderCostSummary.totalCost + orderConsumableSummary.totalCost + linkedInstallationCost.totalCost,
+      pos: posCost, project_materials: projectMaterialCost, expenses: approvedExpenseTotal, payroll: payrollCost } });
   const coveredServiceRevenue = serviceCostAnalytics.services.filter(service =>
     (Number(service.partsCost || 0) + Number(service.consumablesCost || 0) + Number(service.laborCost || 0) + Number(service.localPurchaseCost || 0)) > 0
     && !Number(service.unpricedConsumablesCount || 0)).reduce((sum, service) => sum + Number(service.revenue || 0), 0);
@@ -955,6 +962,7 @@ async function computeRevenueAnalytics(query = {}) {
       orderCostCoverage: orderCostSummary.coveragePercent,
       orderCostBasis: `${orderCostSummary.basis}; recorded order consumables use usage cost snapshots`, projectMaterialCost, approvedExpenseTotal, payrollCost,
       operatingExpenses, operatingProfit, operatingMargin, operatingProfitMargin: operatingMargin, costDataCoverage,
+      costDetails,
       serviceCosts: serviceCostAnalytics.totals,
       serviceProfitability,
       salesForecast,

@@ -45,6 +45,29 @@ function mockDatabase(t,overrides={}){
   clear('revenue-analytics');t.after(()=>clear('revenue-analytics'));
 }
 const range={from:'2026-10-01',to:'2026-10-31'};
+
+test('itemized cost records come from the same approved expenses, payroll and completed counter sales as profit',async t=>{
+  mockDatabase(t,{BookingService:[],Order:[],Payment:[],ProductRefund:[],WalkInSale:[{_id:'counter-cost',status:'completed',completedAt:date('2026-10-14'),createdAt:date('2026-10-14'),totalAmount:1100,totalCost:400,paymentMethod:'cash',items:[{itemName:'Filter',quantity:2,costPrice:200}]}],
+    Expense:[{_id:'approved-expense',status:'approved',type:'fuel',description:'Visit fuel',expenseDate:date('2026-10-14'),amount:1266},{_id:'pending-expense',status:'pending',expenseDate:date('2026-10-14'),amount:900}],
+    Payroll:[{_id:'draft-payroll',status:'draft',payDate:date('2026-10-14'),grossPay:999}]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  assert.equal(a.operatingProfit,-566);assert.equal(a.costDetails.total,1666);assert.equal(a.costDetails.reconciled,true);
+  const expenses=a.costDetails.categories.find(group=>group.key==='expenses');
+  assert.equal(expenses.records.length,1);assert.equal(expenses.records[0].description,'Visit fuel');assert.equal(expenses.total,1266);
+  assert.equal(a.costDetails.categories.find(group=>group.key==='payroll').records.length,0);
+  assert.equal(a.recognizedRevenue-a.costDetails.total,a.operatingProfit);
+});
+
+test('installation costs appear under their order once, with saved usage and service labor details',async t=>{
+  mockDatabase(t,{BookingService:[bookings[2]],Order:[{...orders[0],fulfillmentType:'delivery_installation'}],Payment:[],ProductRefund:[],
+    ServiceReport:[{bookingId:'included-installation',actualLaborCost:30}],
+    ServiceToolUsage:[{orderId:'order',bookingId:'included-installation',itemType:'consumable',itemName:'Tube',quantityUsed:2,unitPrice:5,toolCost:10}]});
+  const {analytics:a}=await buildRevenueAnalytics(range),group=a.costDetails.categories.find(group=>group.key==='orders');
+  assert.equal(a.orderCost,640);assert.equal(group.total,640);assert.equal(group.records.reduce((sum,row)=>sum+row.amount,0),640);
+  assert.equal(group.records.find(row=>row.title==='Tube').amount,10);
+  assert.equal(group.records.find(row=>row.title==='Recorded job labor').amount,30);
+  assert.equal(a.costDetails.categories.find(group=>group.key==='service').records.length,0);
+});
 test('revenue engine reconciles completed work, old deposits, current collections and both refund ledgers',async t=>{
   mockDatabase(t);const {analytics:a}=await buildRevenueAnalytics(range);
   assert.equal(a.recognizedGrossRevenue,4000);assert.equal(a.grossCollections,1500);assert.equal(a.refunds,300);assert.equal(a.netCollections,1200);assert.equal(a.recognizedRevenue,3700);

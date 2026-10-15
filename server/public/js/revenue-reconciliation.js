@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  let report = {}, page = 1;
+  let report = {}, page = 1, costPage = 1;
   const size = 25, get = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money = value => new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value)||0);
@@ -26,8 +26,45 @@
     if(get('revenueActivityPrevious'))get('revenueActivityPrevious').disabled=page<=1;
     if(get('revenueActivityNext'))get('revenueActivityNext').disabled=page*size>=rows.length;
   }
+  function renderCostRecords() {
+    const details=report.costDetails, list=get('revenueCostRecordList');
+    if(!list || !details)return;
+    const select=get('revenueCostCategory'),selected=select?.value||'all';
+    const groups=details.categories.filter(group=>selected==='all'||group.key===selected);
+    const rows=groups.flatMap(group=>(group.records||[]).map(row=>({...row,category:group.label})))
+      .sort((a,b)=>(new Date(b.date).getTime()||0)-(new Date(a.date).getTime()||0));
+    const costTotal=groups.reduce((sum,group)=>sum+Number(group.total||0),0),count=groups.reduce((sum,group)=>sum+Number(group.recordCount||0),0);
+    costPage=Math.min(Math.max(1,costPage),Math.max(1,Math.ceil(rows.length/size)));
+    if(get('revenueCostRecordTotal'))get('revenueCostRecordTotal').textContent=money(costTotal);
+    if(get('revenueCostRecordCount'))get('revenueCostRecordCount').textContent=`${count.toLocaleString('en-PH')} cost ${count===1?'entry':'entries'} in the selected dates`;
+    const warnings=[];
+    if(groups.some(group=>group.restricted))warnings.push('Payroll totals are included above. Only administrators can view individual payroll records.');
+    if(groups.some(group=>group.truncated))warnings.push(`The list is limited to ${details.maxRecordsPerCategory} entries per source. Select a smaller date range to inspect the remaining records. Totals still include all costs.`);
+    if(groups.some(group=>group.reconciled===false))warnings.push('Some saved cost totals do not match their available details. Review the original records; the report total has not been changed.');
+    const warning=get('revenueCostRecordWarning');
+    if(warning){warning.textContent=warnings.join(' ');warning.hidden=!warnings.length;}
+    list.innerHTML=rows.length?rows.slice((costPage-1)*size,costPage*size).map(row=>{
+      const quantity=row.quantity==null?'':`${Number(row.quantity).toLocaleString('en-PH')} ${esc(row.unit||'units')}${row.unitCost==null?'':` × ${esc(money(row.unitCost))}`}`;
+      const components=row.components||[];
+      const componentHtml=components.length?`<details class="rr-cost-components"${row.kind==='pos'?' open':''}><summary>${row.kind==='payroll'?'Pay components':'Saved items'}</summary>${components.map(item=>`<div><span>${esc(item.label)}${item.quantity==null?'':` <small>${Number(item.quantity).toLocaleString('en-PH')} × ${esc(money(item.unitCost))}</small>`}</span><strong>${esc(money(item.amount))}</strong></div>`).join('')}<div class="rr-cost-component-total"><span>Listed components</span><strong>${esc(money(total(components)))}</strong></div></details>`:'';
+      return `<article class="rr-cost-record"><div class="rr-cost-record-copy"><div class="rr-cost-record-tags"><span>${esc(row.category)}</span><span>${esc(title(row.status))}</span></div><h4>${esc(row.title)}</h4>${row.description?`<p>${esc(row.description)}</p>`:''}<p class="rr-cost-record-reference">${esc(date(row.date))} · ${esc(row.reference)}</p>${row.periodStart||row.periodEnd?`<p>Pay period: ${esc(date(row.periodStart))} – ${esc(date(row.periodEnd))}</p>`:''}<small>${esc(row.basis)}</small>${componentHtml}${row.warning?`<p class="rr-ledger-warning">${esc(row.warning)}</p>`:''}</div><div class="rr-cost-record-amount"><small>Amount counted</small><strong>${esc(money(row.amount))}</strong>${quantity?`<span>${quantity}</span>`:''}</div></article>`;
+    }).join(''):`<p class="rr-empty">${groups.some(group=>group.restricted&&Number(group.total))?'Payroll cost is included in the total. Sign in as an administrator to inspect its records.':'No cost entries are included for this source in the selected dates.'}</p>`;
+    if(get('revenueCostRecordPage'))get('revenueCostRecordPage').textContent=`Showing ${rows.length?(costPage-1)*size+1:0}–${Math.min(costPage*size,rows.length)} of ${rows.length} listed entries`;
+    if(get('revenueCostPrevious'))get('revenueCostPrevious').disabled=costPage<=1;
+    if(get('revenueCostNext'))get('revenueCostNext').disabled=costPage*size>=rows.length;
+  }
+  function updateCostCategories() {
+    const select=get('revenueCostCategory'),details=report.costDetails;
+    if(select&&details){
+      const selected=select.value||'all';
+      select.innerHTML='<option value="all">All cost sources</option>'+details.categories.map(group=>`<option value="${esc(group.key)}">${esc(group.label)} · ${esc(money(group.total))}</option>`).join('');
+      select.value=selected==='all'||details.categories.some(group=>group.key===selected)?selected:'all';
+    }
+    renderCostRecords();
+  }
   function render(A) {
-    report=A||{};page=1;
+    report=A||{};page=1;costPage=1;
+    updateCostCategories();
     if(A.recognizedRevenue!==undefined || A.reconciliation?.netSales!==undefined) {
       const costs=A.reconciliation||{},direct=Number(costs.savedDirectCosts??A.totalPartsCost??0),expenses=Number(costs.approvedExpenses??A.approvedExpenseTotal??0),payroll=Number(costs.payroll??A.payrollCost??0);
       const detailed=[['Less saved service job costs',A.serviceDirectCost],['Less saved order costs',A.orderCost],['Less walk-in / POS product costs',A.posCost],['Less project materials',A.projectMaterialCost]];
@@ -43,7 +80,7 @@
     put('productReconciliation',line('Completed order items',r.orderItemSales)+line('Order fees and price adjustments',r.orderFeesAndAdjustments)+line('Completed order total',A.salesView?.orderRevenue,true)+line('Completed counter items',r.counterItemSales)+line('Other counter amounts and adjustments',r.counterFeesAndAdjustments)+line('Completed counter total',A.salesView?.posRevenue,true)+`<p>Product rankings show item sales. Delivery, installation and other adjustments are listed above. Period refunds appear in the Sales and Collections reconciliation.</p>`);
     renderActivity();
   }
-  document.addEventListener('change',event=>{if(event.target.id==='revenueActivityView'){page=1;renderActivity();}});
-  document.addEventListener('click',event=>{if(event.target.closest('#revenueActivityPrevious')){page--;renderActivity();}if(event.target.closest('#revenueActivityNext')){page++;renderActivity();}});
+  document.addEventListener('change',event=>{if(event.target.id==='revenueActivityView'){page=1;renderActivity();}if(event.target.id==='revenueCostCategory'){costPage=1;renderCostRecords();}});
+  document.addEventListener('click',event=>{if(event.target.closest('#revenueActivityPrevious')){page--;renderActivity();}if(event.target.closest('#revenueActivityNext')){page++;renderActivity();}if(event.target.closest('#revenueCostPrevious')){costPage--;renderCostRecords();}if(event.target.closest('#revenueCostNext')){costPage++;renderCostRecords();}});
   window.RACSRevenueReconciliation={render,serviceCost:row=>Number(row.partsCost||0)+Number(row.consumablesCost||0)+Number(row.laborCost||0)+Number(row.localPurchaseCost||0),salesView:A=>A.salesView||A,monthKey:value=>new Date(new Date(value).getTime()+8*3600000).toISOString().slice(0,7)};
 })();

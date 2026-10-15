@@ -107,6 +107,34 @@
 .revenue-report .rr-report-panel.is-active { animation: rr-panel-enter .36s cubic-bezier(.2, .75, .25, 1) both; }
 .revenue-report .rr-section { margin-top: 8px; padding: 2px 1px 0; scroll-margin-top: 120px; }
 .revenue-report .rr-chart-unavailable { padding: 24px 12px; color: var(--rr-muted); font-size: .8rem; text-align: center; }
+.revenue-report .rr-cost-records { margin: 0 0 18px; overflow: hidden; scroll-margin-top: 120px; }
+.revenue-report .rr-cost-records .rr-head { gap: 16px; flex-wrap: wrap; }
+.revenue-report .rr-cost-record-total { flex: 0 0 auto; text-align: right; }
+.revenue-report .rr-cost-record-total small,.revenue-report .rr-cost-record-amount small { display: block; color: var(--rr-muted); font-size: .66rem; }
+.revenue-report .rr-cost-record-total strong { font-size: 1.15rem; color: var(--rr-ink); }
+.revenue-report .rr-cost-record-toolbar { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--rr-line); }
+.revenue-report .rr-cost-record-toolbar label { display: grid; gap: 5px; max-width: 100%; color: var(--rr-muted); font-size: .72rem; }
+.revenue-report .rr-cost-record-toolbar select { width: min(100%,370px); }
+.revenue-report .rr-cost-record-toolbar>span { color: var(--rr-muted); font-size: .72rem; }
+.revenue-report .rr-cost-record { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 20px; padding: 17px 18px; border-bottom: 1px solid var(--rr-line); }
+.revenue-report .rr-cost-record:last-child { border-bottom: 0; }
+.revenue-report .rr-cost-record-copy { min-width: 0; overflow-wrap: anywhere; }
+.revenue-report .rr-cost-record h4 { margin: 7px 0 4px; color: var(--rr-ink); font-size: .86rem; }
+.revenue-report .rr-cost-record p { margin: 4px 0; color: var(--rr-muted); font-size: .76rem; line-height: 1.5; }
+.revenue-report .rr-cost-record-copy>small { color: var(--rr-muted); font-size: .66rem; }
+.revenue-report .rr-cost-record-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.revenue-report .rr-cost-record-tags span { padding: 3px 7px; border-radius: 5px; background: #f1f5f9; color: #475569; font-size: .64rem; }
+.revenue-report .rr-cost-record-amount { text-align: right; }
+.revenue-report .rr-cost-record-amount strong { display: block; margin: 4px 0; color: var(--rr-ink); font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.revenue-report .rr-cost-record-amount>span { display: block; max-width: 180px; color: var(--rr-muted); font-size: .7rem; overflow-wrap: anywhere; }
+.revenue-report .rr-cost-components { margin-top: 10px; padding: 9px 11px; border: 1px solid var(--rr-line); border-radius: 8px; background: #f8fafc; }
+.revenue-report .rr-cost-components summary { color: #0f766e; font-size: .73rem; font-weight: 650; cursor: pointer; }
+.revenue-report .rr-cost-components>div { display: flex; justify-content: space-between; gap: 14px; margin-top: 7px; font-size: .73rem; }
+.revenue-report .rr-cost-components small { color: var(--rr-muted); }
+.revenue-report .rr-cost-components strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.revenue-report .rr-cost-component-total { padding-top: 7px; border-top: 1px solid var(--rr-line); }
+.revenue-report .rr-cost-record-warning { margin: 12px 18px; padding: 10px 12px; border-radius: 7px; background: #fffbeb; color: #92400e; font-size: .76rem; }
+@media(max-width:480px){.revenue-report .rr-cost-record{grid-template-columns:minmax(0,1fr);gap:12px}.revenue-report .rr-cost-record-amount{text-align:left;padding-top:9px;border-top:1px solid var(--rr-line)}.revenue-report .rr-cost-record-amount>span{max-width:100%}}
 .revenue-report .rr-section h2,
 .revenue-report .rr-subsection h2 { margin-bottom: 0; padding-left: 10px; border-left: 4px solid #0f766e; color: #27384e; font: 700 .9rem "Outfit", "Inter", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
 .revenue-report .rr-subsection { display: flex; align-items: center; justify-content: space-between; }

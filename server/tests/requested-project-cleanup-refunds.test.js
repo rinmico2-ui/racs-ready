@@ -168,7 +168,7 @@ async function revenueFixture({ refundStatus = "pending", excluded = false } = {
     return { select(fields) {
       if (name === "Payment") { const allowed = fields.split(" "); output = output.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => key === "_id" || allowed.includes(key)))); }
       return this;
-    }, sort() { return this; }, lean: async () => output };
+    }, sort() { return this; }, populate() { return this; }, lean: async () => output };
   } });
   const fake = { BookingService: fakeModel("BookingService", [booking]), Payment: fakeModel("Payment", [payment]), Expense: fakeModel("Expense", [cost]) };
   const module = { exports: {} };

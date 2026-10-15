@@ -8469,7 +8469,9 @@ router.get("/reports/revenue", async (req, res, next) => {
   const startedAt = process.hrtime.bigint();
   try {
     const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
-    const { filters, technicians, analytics } = await buildRevenueAnalytics(req.query);
+    const result = await buildRevenueAnalytics(req.query);
+    const { filters, technicians } = result;
+    const analytics = require("../utils/revenueCostDetails").revenueAnalyticsForRole(result.analytics, req.user?.role);
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
     res.set("Server-Timing", `revenue-analytics;dur=${durationMs.toFixed(1)}`);
     res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");

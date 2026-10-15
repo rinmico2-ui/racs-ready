@@ -993,7 +993,7 @@ router.get("/reports/revenue", async (req, res, next) => {
 	try {
 		const { buildRevenueAnalytics } = require("../utils/revenueAnalytics");
 		const enterpriseRevenueResult = await buildRevenueAnalytics(req.query);
-		const enterpriseAnalytics = enterpriseRevenueResult.analytics;
+		const enterpriseAnalytics = require("../utils/revenueCostDetails").revenueAnalyticsForRole(enterpriseRevenueResult.analytics, "secretary");
 		return res.json({
 			analytics: enterpriseAnalytics,
 			kpis: {
