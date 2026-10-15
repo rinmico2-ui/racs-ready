@@ -83,7 +83,7 @@
     .rr-data-state{display:flex;align-items:center;gap:12px;padding:13px 16px;margin:-8px 0 18px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e40af;font-size:.78rem;font-weight:600}.rr-data-state[hidden]{display:none}.rr-data-state.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}.rr-data-state .spinner-border{width:1rem;height:1rem;border-width:2px}
   </style>
   <link rel="stylesheet" href="/css/report-kpis.css?v=20260928-unified-report-kpis">
-  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20261015-reconciliation">
+  <link rel="stylesheet" href="/css/revenue-report-focused.css?v=20261015-cost-visibility">
   <% const A=analytics||{}; const SA=A.salesView||A; const isDeferred=typeof deferredAnalytics !== 'undefined' && deferredAnalytics; const peso=n=>'₱'+Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}); const pct=n=>n==null?'N/A':Number(n||0).toFixed(1)+'%'; const profitBadge=a=>a.operatingProfitMargin==null?'Margin unavailable':pct(a.operatingProfitMargin)+' margin'; const months=Object.values(A.monthlyRevenue||{}).reverse(); const insightPriority={danger:0,warning:1,info:2,success:3}; const topInsights=[...(A.executiveInsights||[])].sort((a,b)=>(insightPriority[a.tone]??2)-(insightPriority[b.tone]??2)).slice(0,3); %>
 
   <div class="au-hero mb-4"><div class="au-hero-inner"><div class="au-hero-left"><div class="au-hero-icon"><i class="bi bi-graph-up-arrow"></i></div><div><h1>Sales and Payments</h1><p>Services, online and walk-in orders, and counter sales performance</p></div></div><div class="rr-actions"><a class="rr-btn" href="/<%= reportRole %>/reports/service"><i class="bi bi-wrench-adjustable me-1"></i> Services</a><a class="rr-btn" href="/<%= reportRole %>/reports/orders"><i class="bi bi-bag-check me-1"></i> Orders</a><a class="rr-btn" href="<%= reportLinks.pos %>"><i class="bi bi-shop me-1"></i> Walk-in sales</a><button class="rr-btn light" id="exportRevenue" type="button" data-report-csv="revenue"><i class="bi bi-download me-1"></i> Download CSV</button></div></div></div>
@@ -349,7 +349,10 @@
 
   <!-- ═══ SECTION 4: COST INTELLIGENCE & MARGIN ANALYSIS ═══ -->
   <div id="section-cost" class="rr-section"><h2><i class="bi bi-calculator me-2" style="color:#7c3aed;"></i>Costs and profit</h2><span class="text-muted small">Saved costs and profit estimates over time</span></div>
-  <div id="profitReconciliation" class="rr-reconcile rr-reconcile-lines"></div>
+  <div id="profitReconciliation" class="rr-reconcile" aria-live="polite" aria-label="Profit calculation and cost breakdown">
+    <h3>How this profit was calculated</h3>
+    <p>The cost breakdown loads with the report. Expenses and payroll are listed separately.</p>
+  </div>
   <div class="rr-equal">
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-graph-up-arrow me-2" style="color:#059669;"></i>Completed sales vs Saved job and product cost</h3><span class="rr-badge">Completion-date basis</span></div>
@@ -366,7 +369,8 @@
           <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Saved order costs</div><div class="rr-value"><%= peso(A.orderCost) %></div><div class="rr-meta">Products <%= peso(A.orderProductCost) %> · consumables <%= peso(A.orderConsumablesCost) %> · other installation <%= peso(A.orderLinkedServiceCost) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Walk-in product costs</div><div class="rr-value"><%= peso(A.posCost) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value"><%= peso(A.projectMaterialCost) %></div></div>
-          <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Approved expenses</div><div class="rr-value"><%= peso(A.operatingExpenses) %></div><div class="rr-meta">Approved expenses + payroll</div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Approved expenses</div><div class="rr-value"><%= peso(A.approvedExpenseTotal) %></div><div class="rr-meta">Operating expenses only</div></div>
+          <div class="rr-cost-metric" style="border-top:3px solid #475569;"><div class="rr-label">Payroll costs</div><div class="rr-value"><%= peso(A.payrollCost) %></div><div class="rr-meta">Approved and paid payroll</div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Profit before expenses</div><div class="rr-value" style="color:<%= A.grossProfit>=0?'#059669':'#dc2626' %>;"><%= peso(A.grossProfit) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Profit after expenses</div><div class="rr-value" style="color:<%= A.operatingProfit>=0?'#059669':'#dc2626' %>;"><%= peso(A.operatingProfit) %></div></div>
           <div class="rr-cost-metric" style="border-top:3px solid #0f766e;"><div class="rr-label">Profit after expenses (%)</div><div class="rr-value"><%= pct(A.operatingProfitMargin) %></div></div>
@@ -655,7 +659,7 @@
     </div>
   </div>
 </div>
-<script src="/js/revenue-reconciliation.js?v=20261015"></script>
+<script src="/js/revenue-reconciliation.js?v=20261015-cost-visibility"></script>
 <script>
 (()=>{
   if (<%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>) {
@@ -978,7 +982,8 @@
         <div class="rr-cost-metric" style="border-top:3px solid #f59e0b;"><div class="rr-label">Saved order costs</div><div class="rr-value">${peso(A.orderCost)}</div><div class="rr-meta">Products ${peso(A.orderProductCost)} · consumables ${peso(A.orderConsumablesCost)} · other installation ${peso(A.orderLinkedServiceCost)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #c2410c;"><div class="rr-label">Walk-in product costs</div><div class="rr-value">${peso(A.posCost)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #7c3aed;"><div class="rr-label">Project Materials</div><div class="rr-value">${peso(A.projectMaterialCost)}</div></div>
-        <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Approved expenses</div><div class="rr-value">${peso(A.operatingExpenses)}</div><div class="rr-meta">Approved expenses + payroll</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #64748b;"><div class="rr-label">Approved expenses</div><div class="rr-value">${peso(A.approvedExpenseTotal)}</div><div class="rr-meta">Operating expenses only</div></div>
+        <div class="rr-cost-metric" style="border-top:3px solid #475569;"><div class="rr-label">Payroll costs</div><div class="rr-value">${peso(A.payrollCost)}</div><div class="rr-meta">Approved and paid payroll</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #10b981;"><div class="rr-label">Profit before expenses</div><div class="rr-value" style="color:${(A.grossProfit||0)>=0?'#059669':'#dc2626'};">${peso(A.grossProfit)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #0891b2;"><div class="rr-label">Profit after expenses</div><div class="rr-value" style="color:${(A.operatingProfit||0)>=0?'#059669':'#dc2626'};">${peso(A.operatingProfit)}</div></div>
         <div class="rr-cost-metric" style="border-top:3px solid #0f766e;"><div class="rr-label">Profit after expenses (%)</div><div class="rr-value">${pct(A.operatingProfitMargin)}</div></div>`;
@@ -1182,6 +1187,19 @@
   }
 
   function updateCharts(A) {
+    // Numeric reporting must remain available when the chart CDN is blocked.
+    const unavailable = typeof Chart === 'undefined';
+    document.querySelectorAll('.rr-chart').forEach(container => {
+      container.querySelectorAll('canvas').forEach(canvas => { canvas.hidden = unavailable; });
+      const existing = container.querySelector('.rr-chart-unavailable');
+      if (!unavailable) { existing?.remove(); return; }
+      if (existing) return;
+      const message = document.createElement('p');
+      message.className = 'rr-chart-unavailable';
+      message.textContent = 'Charts are unavailable. Report totals and tables are still available.';
+      container.appendChild(message);
+    });
+    if (unavailable) return;
     destroyCharts();
     const colors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444'];
     Chart.defaults.font.family = 'Inter,sans-serif';
@@ -1310,6 +1328,7 @@
 
   // ── Render KPI sparklines ──
   function renderSparklines(A) {
+    if (typeof Chart === 'undefined') return;
     const months = Object.values(A.monthlyRevenue || {}).reverse();
     const sparkData = {
       kpiSparkRevenue: months.map(x => x.total || 0),
@@ -1708,7 +1727,7 @@ function setupReportNav() {
   var kpiGrid = document.getElementById('kpiGrid');
   if (kpiGrid) kpiGrid.insertAdjacentElement('afterend', nav);
 
-  function selectSection(target, updateHash) {
+  function selectSection(target, updateHash, scrollToSection) {
     sectionIds.forEach(function(id) {
       (groups[id] || []).forEach(function(node) {
         node.hidden = id !== target;
@@ -1723,11 +1742,14 @@ function setupReportNav() {
       button.tabIndex = active ? 0 : -1;
     });
     if (updateHash && history.replaceState) history.replaceState(null, '', '#' + target);
+    if (scrollToSection) window.requestAnimationFrame(function() {
+      document.getElementById(target)?.scrollIntoView({ block: 'start' });
+    });
     window.setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 30);
   }
 
   buttons.forEach(function(button) {
-    button.addEventListener('click', function() { selectSection(button.dataset.target, true); });
+    button.addEventListener('click', function() { selectSection(button.dataset.target, true, true); });
     button.addEventListener('keydown', function(event) {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
@@ -1738,8 +1760,13 @@ function setupReportNav() {
     });
   });
 
-  var requested = window.location.hash.replace('#', '');
-  selectSection(sectionIds.includes(requested) ? requested : 'section-executive', false);
+  function selectRequestedSection() {
+    var requested = window.location.hash.replace('#', '');
+    selectSection(sectionIds.includes(requested) ? requested : 'section-executive', false, Boolean(requested));
+  }
+  window.addEventListener('hashchange', selectRequestedSection);
+  window.addEventListener('popstate', selectRequestedSection);
+  selectRequestedSection();
 }
 if (document.readyState === 'loading') { window.addEventListener('DOMContentLoaded', setupReportNav); } else { setupReportNav(); }
 </script>

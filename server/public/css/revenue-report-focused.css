@@ -105,7 +105,8 @@
 
 .revenue-report .rr-report-panel[hidden] { display: none !important; }
 .revenue-report .rr-report-panel.is-active { animation: rr-panel-enter .36s cubic-bezier(.2, .75, .25, 1) both; }
-.revenue-report .rr-section { margin-top: 8px; padding: 2px 1px 0; }
+.revenue-report .rr-section { margin-top: 8px; padding: 2px 1px 0; scroll-margin-top: 120px; }
+.revenue-report .rr-chart-unavailable { padding: 24px 12px; color: var(--rr-muted); font-size: .8rem; text-align: center; }
 .revenue-report .rr-section h2,
 .revenue-report .rr-subsection h2 { margin-bottom: 0; padding-left: 10px; border-left: 4px solid #0f766e; color: #27384e; font: 700 .9rem "Outfit", "Inter", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
 .revenue-report .rr-subsection { display: flex; align-items: center; justify-content: space-between; }
