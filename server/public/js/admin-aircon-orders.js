@@ -1223,9 +1223,10 @@ document.addEventListener("DOMContentLoaded", function () {
               ${o.pickupDate?`<div class="pm-row"><span class="pm-lbl">Pickup Date</span><span class="pm-val">${fmtDate(o.pickupDate)}</span></div>`:''}
               ${o.delivery&&o.delivery.preferredDate?`<div class="pm-row"><span class="pm-lbl">Preferred Date</span><span class="pm-val">${fmtDate(o.delivery.preferredDate)}</span></div>`:''}
               ${o.timeSlot?`<div class="pm-row"><span class="pm-lbl">Time Slot</span><span class="pm-val">${fmtTime(o.timeSlot)} <small class="text-muted">PHT</small></span></div>`:''}
-              ${o.delivery&&o.delivery.notes?`<div class="pm-row"><span class="pm-lbl">Notes</span><span class="pm-val" style="font-weight:400;">${esc(o.delivery.notes)}</span></div>`:''}
             </div>
           </div>
+
+          ${window.SpecialInstructions.renderOrder(o)}
 
           <div class="pm-card">
             <div class="pm-card-head"><div class="pm-icon" style="background:#f3e8ff;color:#9333ea;"><i class="bi bi-cash-stack"></i></div><h3 class="pm-card-title">Pricing</h3></div>

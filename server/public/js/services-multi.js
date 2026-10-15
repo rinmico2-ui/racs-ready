@@ -102,6 +102,7 @@ function lockBookingAfterLogout() {
   BookingState.draftPersistenceDisabled = true;
   BookingState.selectedServices = [];
   BookingState.applianceDraft = null;
+  BookingState.repairDraft = null;
   BookingState.currentStep = 1;
   BookingState.maxReachedStep = 1;
   try {
@@ -163,6 +164,7 @@ function saveBookingProgress() {
       version: BOOKING_STORAGE_VERSION,
       selectedServices,
       applianceDraft: BookingState.applianceDraft || null,
+      repairDraft: BookingState.repairDraft || null,
       totalEstimatedPrice: BookingState.totalEstimatedPrice,
       hasRepairServices: BookingState.hasRepairServices,
       selectedTechnicianId: BookingState.selectedTechnicianId,
@@ -224,6 +226,7 @@ function restoreBookingProgress() {
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
       BookingState.selectedServices = Array.isArray(data.selectedServices) ? data.selectedServices : [];
       BookingState.applianceDraft = data.applianceDraft && typeof data.applianceDraft === 'object' ? data.applianceDraft : null;
+      BookingState.repairDraft = data.repairDraft && typeof data.repairDraft === 'object' ? data.repairDraft : null;
       BookingState.totalEstimatedPrice = Number(data.totalEstimatedPrice) ||
         BookingState.selectedServices.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
       BookingState.hasRepairServices = Boolean(data.hasRepairServices);
@@ -662,6 +665,22 @@ async function openAcceptedUnitAssistance() {
     const request = result.request;
     if (request.status !== 'accepted' || !request.quote || new Date(request.quote.expiresAt) <= new Date()) {
       throw new Error('This unit quote is no longer available. Review your request.');
+    }
+    if (request.requestType === 'repair') {
+      if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
+      if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) throw new Error('Remove another appliance before adding this verified repair request.');
+      const pricing = repairUnitPricing(request.quote.unitType, request.quote.unitCategory);
+      if (Number(pricing.inspectionFee) !== Number(request.quote.unitPrice)) throw new Error('The inspection fee changed. Ask staff for an updated quote before booking.');
+      BookingState.selectedServices.push({ id: `repair-assistance-${request._id}`, type: 'repair', serviceId: null,
+        assistanceRequestId: request._id, name: `${request.quote.brand} ${request.quote.unitType}`,
+        unitType: request.quote.unitType, unitCategory: request.quote.unitCategory, applianceType: request.quote.unitType, applianceTypeName: request.quote.unitType,
+        brand: request.quote.brand, model: request.model, quantity: request.quantity, repairIssue: request.repair.problemDescription, problemDescription: request.repair.problemDescription,
+        unitPrice: request.quote.unitPrice, totalPrice: request.quote.unitPrice * request.quantity, initialCost: request.quote.unitPrice,
+        duration: request.quote.durationMinutes, hp: null, airconType: null, icon: 'bi-tools', photos: [], units: [] });
+      updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
+      history.replaceState({}, '', '/services');
+      showBookingToast('Verified repair details and inspection fee added. Review your booking, then choose the address and schedule.');
+      return;
     }
     const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(request.serviceId));
     if (!service) throw new Error('This service is no longer available.');
@@ -6073,6 +6092,20 @@ window.scrollToCoreServiceList = scrollToCoreServiceList;
  * Render repair services in the UI
  */
 function renderRepairServices() {
+  if (window.RepairApplianceBooking && document.getElementById('repairApplianceBuilder')) {
+    window.RepairApplianceBooking.mount({ host: document.getElementById('repairApplianceBuilder'), state: BookingState,
+      categories: window._serviceCategories || [], coreServices: BookingState.catalog.coreServices, defaultInspectionFee: window._repairInspectionDefaultFee,
+      inspectionDuration: window.__bookingPolicy?.inspectionDurationMinutes,
+      draft: BookingState.repairDraft, assistance: requestCoreUnitAssistance,
+      changed: draft => { BookingState.repairDraft = draft; scheduleBookingProgressSave(); },
+      review: openSelectedServiceSummary, next: () => advanceToNextStep(),
+      commit: (row, editingId) => {
+        const index = BookingState.selectedServices.findIndex(item => String(item.id || item._id || '') === String(editingId));
+        if (index >= 0) BookingState.selectedServices.splice(index, 1, row); else BookingState.selectedServices.push(row);
+        updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
+      } });
+    return;
+  }
 
   if (!DOM.repairServiceCards) {
     return;
@@ -10766,6 +10799,9 @@ function advanceToNextStep() {
 }
 
 function getBookingStepIssue(stepNumber) {
+  if (stepNumber === 2 && document.getElementById('repair-tab')?.classList.contains('active') && window.RepairApplianceBooking?.pending()) {
+    return { step: 2, title: 'Finish your appliance setup', message: 'Finish adding this repair appliance or cancel your changes before continuing.', focusSelector: '#repairApplianceBuilder [data-panel]:not([hidden]) h3' };
+  }
   if (stepNumber === 2 && document.getElementById('core-tab')?.classList.contains('active') && window.CoreApplianceBooking?.pending()) {
     return { step: 2, title: 'Finish your appliance setup', message: 'Finish adding this appliance or cancel your changes before continuing.', focusSelector: '#coreApplianceBuilder [data-panel]:not([hidden]) h3' };
   }
@@ -11387,6 +11423,7 @@ document.addEventListener('keydown', event => {
 function focusServiceCatalog() {
   toggleBookingSummary(false);
   if (document.getElementById('core-tab')?.classList.contains('active')) window.CoreApplianceBooking?.start();
+  if (document.getElementById('repair-tab')?.classList.contains('active')) window.RepairApplianceBooking?.start();
   const tabs = document.getElementById('serviceTabs');
   const catalog = document.getElementById('serviceCatalogPanel');
   const activeTab = tabs?.querySelector('.nav-link.active') || document.getElementById('core-tab');
@@ -11437,6 +11474,7 @@ window.editSelectedService = editSelectedService;
 function updateSelectedServicesDisplay() {
   reconcileBookingScheduleAfterServiceChange();
   window.CoreApplianceBooking?.sync();
+  window.RepairApplianceBooking?.sync();
   if (!DOM.selectedServicesList || !DOM.selectedServiceCount) return;
   syncRelocationDestination();
 
@@ -14778,6 +14816,78 @@ function changeRepairUnitPage(direction) {
 window.changeRepairUnitPage = changeRepairUnitPage;
 
 let repairGuidanceSuspended = false;
+const repairIdentificationState = { mode: 'manual', busy: false, fingerprint: null, token: null };
+const repairNeedsIdentification = () => repairIdentificationState.mode === 'staff';
+['input', 'change'].forEach(event => document.getElementById('repair-services')?.addEventListener(event, () => {
+  if (!repairIdentificationState.busy) { closeRepairIdentificationConfirmation(); repairIdentificationMessage(); }
+}));
+function closeRepairIdentificationConfirmation() {
+  document.getElementById('repairIdentificationConfirmation').hidden = true;
+}
+function syncRepairUnitHelp() {
+  const assisted = repairIdentificationState.mode !== 'manual';
+  document.getElementById('repairKnownUnitDetails').hidden = assisted;
+  document.getElementById('repairUnitHelpOptions').hidden = !assisted;
+  const help = document.getElementById('repairUnitHelpButton');
+  help.textContent = assisted ? 'Enter my unit details instead' : "I don't know my unit details";
+  help.setAttribute('aria-expanded', String(assisted));
+  ['unitBrand', 'unitBrandCustom', 'unitModel'].forEach(id => {
+    const input = document.getElementById(id);
+    input.disabled = assisted;
+    input.required = !assisted && (id !== 'unitBrandCustom' || document.getElementById('unitBrand').value === '__other__');
+    if (assisted) { input.setCustomValidity(''); input.removeAttribute('aria-invalid'); }
+  });
+  document.getElementById('repairAddButton').textContent = repairNeedsIdentification() ? 'Review staff identification request' : 'Add Repair Request';
+  document.getElementById('repairAddHint').textContent = repairNeedsIdentification() ? 'Review and confirm before sending. No booking or payment is created yet.' : 'Ready? Add this repair request to your booking.';
+}
+function chooseRepairUnitHelp(mode) {
+  if (repairIdentificationState.busy) return;
+  closeRepairIdentificationConfirmation();
+  if (mode === 'toggle') mode = repairIdentificationState.mode === 'manual' ? 'choice' : 'manual';
+  if (!['manual', 'choice', 'staff', 'ai'].includes(mode)) return;
+  repairIdentificationState.mode = mode;
+  syncRepairUnitHelp(); refreshRepairGuide(3);
+  if (mode === 'staff') return goToRepairGuideStep(4, { quiet: true });
+  if (mode === 'ai') {
+    if (window.RACSChat?.openUnitIdentification) window.RACSChat.openUnitIdentification({ applianceLabel: document.getElementById('unitType').value });
+    else repairIdentificationMessage('AI help is temporarily unavailable. You can still ask staff to identify your unit.');
+  }
+}
+function repairIdentificationMessage(message = '') {
+  const node = document.getElementById('repairIdentificationMessage');
+  node.textContent = message; node.classList.toggle('d-none', !message);
+}
+function reviewRepairIdentification() {
+  const item = getCurrentRepairItem();
+  if (!item.unitType || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > remainingBookingUnits() || item.problemDescription.length < 10) {
+    refreshRepairGuide(); return repairIdentificationMessage('Choose the appliance, check its quantity, and describe the problem before sending.');
+  }
+  if (repairPhotos.length > 2) return repairIdentificationMessage('Choose up to two label or unit photos for staff identification. Remove extra photos before sending.');
+  repairIdentificationMessage();
+  document.getElementById('repairIdentificationConfirmSummary').textContent = `Repair inspection for ${item.quantity} ${item.unitType} unit${item.quantity === 1 ? '' : 's'}. Problem: ${item.problemDescription}`;
+  document.getElementById('repairIdentificationConfirmation').hidden = false;
+  document.getElementById('repairIdentificationConfirmHeading').focus();
+}
+async function sendRepairIdentification() {
+  if (!repairNeedsIdentification() || repairIdentificationState.busy || document.getElementById('repairIdentificationConfirmation').hidden) return;
+  const item = getCurrentRepairItem();
+  if (!item.unitType || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > remainingBookingUnits() || item.problemDescription.length < 10 || repairPhotos.length > 2) return reviewRepairIdentification();
+  const payload = { requestType: 'repair', quantity: item.quantity, repairUnitType: item.unitType,
+    repairUnitCategory: item.unitCategory, problemDescription: item.problemDescription };
+  const fingerprint = JSON.stringify([payload, repairPhotos.map(file => [file.name, file.size, file.lastModified])]);
+  if (repairIdentificationState.fingerprint !== fingerprint) { repairIdentificationState.fingerprint = fingerprint; repairIdentificationState.token = crypto.randomUUID(); }
+  payload.clientRequestId = repairIdentificationState.token;
+  repairIdentificationState.busy = true;
+  const controls = [...document.querySelectorAll('#repair-services button, #repair-services input, #repair-services select, #repair-services textarea')].map(input => ({ input, disabled: input.disabled }));
+  controls.forEach(({ input }) => { input.disabled = true; });
+  repairIdentificationMessage();
+  try {
+    await requestCoreUnitAssistance(payload, repairPhotos);
+    resetRepairForm(); document.getElementById('repairIdentificationSuccess').hidden = false;
+  } catch (error) { repairIdentificationMessage(error.message || 'Could not send your request. Please try again.'); }
+  finally { repairIdentificationState.busy = false; controls.forEach(({ input, disabled }) => { input.disabled = disabled; }); syncRepairUnitHelp(); refreshRepairGuide(); }
+}
+Object.assign(window, { chooseRepairUnitHelp, closeRepairIdentificationConfirmation, sendRepairIdentification });
 
 function getRepairGuideStep() {
   const hasCategory = Boolean(selectedRepairUnitCategory());
@@ -14788,7 +14898,7 @@ function getRepairGuideStep() {
   const hasProblem = (document.getElementById('repairProblemDescription')?.value.trim().length || 0) >= 10;
   if (!hasCategory) return 1;
   if (!hasUnitType) return 2;
-  if (!hasBrand || !hasQuantity || repairModelValidationMessage(document.getElementById('unitModel')?.value)) return 3;
+  if (!hasQuantity || (!repairNeedsIdentification() && (repairIdentificationState.mode !== 'manual' || !hasBrand || repairModelValidationMessage(document.getElementById('unitModel')?.value)))) return 3;
   if (!hasProblem) return 4;
   return 5;
 }
@@ -14836,7 +14946,7 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
     2: 'Step 2 of 5: Choose the appliance type.',
     3: getSelectedRepairBrand()
       ? 'Step 3 of 5: Enter the model number and check the number of units, then continue.'
-      : 'Step 3 of 5: Choose a brand, or choose “I don’t know.”',
+      : 'Step 3 of 5: Choose a brand or ask for help identifying the unit.',
     4: 'Step 4 of 5: Describe the problem. Choose any signs you noticed.',
     5: 'Step 5 of 5: Add a photo if you have one, or skip to review.'
   };
@@ -14848,7 +14958,7 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
   const quantityReady = Number.isInteger(quantity) && quantity >= 1 && quantity <= remainingBookingUnits();
   const detailsButton = document.getElementById('repairDetailsNext');
   const detailsHint = document.getElementById('repairDetailsHint');
-  if (detailsButton) detailsButton.disabled = !brandReady || Boolean(modelError) || !quantityReady;
+  if (detailsButton) detailsButton.disabled = !quantityReady || (!repairNeedsIdentification() && (!brandReady || Boolean(modelError) || repairIdentificationState.mode !== 'manual'));
   if (detailsHint) detailsHint.textContent = !brandReady
     ? 'Choose a brand to continue.'
     : modelError || (!quantityReady ? 'Enter a valid number of units.' : 'Details complete. You can continue now.');
@@ -14870,9 +14980,9 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
     const meta = document.getElementById('repairReviewMeta');
     const price = document.getElementById('repairReviewPrice');
     const problem = document.getElementById('repairReviewProblem');
-    if (title) title.textContent = `${item.brand} ${unitName}`;
+    if (title) title.textContent = repairNeedsIdentification() ? `Staff identification · ${unitName}` : `${item.brand} ${unitName}`;
     if (meta) meta.textContent = `${item.quantity} ${item.quantity === 1 ? 'unit' : 'units'} · ${repairPhotos.length} ${repairPhotos.length === 1 ? 'photo' : 'photos'}`;
-    if (price) price.textContent = `₱${(item.inspectionFee * item.quantity).toLocaleString('en-PH')}`;
+    if (price) price.textContent = repairNeedsIdentification() ? 'Confirmed by staff' : `₱${(item.inspectionFee * item.quantity).toLocaleString('en-PH')}`;
     if (problem) problem.textContent = `Problem: ${item.problemDescription}`;
   }
 }
@@ -14886,8 +14996,8 @@ function focusRepairQuantity() {
 window.focusRepairQuantity = focusRepairQuantity;
 
 function continueRepairDetails() {
-  if (!getSelectedRepairBrand()) return goToRepairGuideStep(3);
-  if (!syncRepairModelGuidance()) {
+  if (!repairNeedsIdentification() && !getSelectedRepairBrand()) return goToRepairGuideStep(3);
+  if (!repairNeedsIdentification() && !syncRepairModelGuidance()) {
     document.getElementById('unitModel')?.focus();
     return;
   }
@@ -15032,7 +15142,7 @@ function syncRepairModelGuidance() {
   if (!input) return true;
 
   const value = input.value;
-  const error = repairModelValidationMessage(value);
+  const error = repairIdentificationState.mode !== 'manual' ? '' : repairModelValidationMessage(value);
   if (counter) counter.textContent = `${value.length} / ${REPAIR_MODEL_MAX_LENGTH}`;
   input.classList.toggle('payment-field-invalid', Boolean(error));
   if (error) input.setAttribute('aria-invalid', 'true');
@@ -15055,7 +15165,7 @@ function getRepairBrandCatalog() {
     .map(brand => String(brand || '').trim())
     .filter(brand => {
       const key = brand.toLocaleLowerCase();
-      if (!brand || seen.has(key)) return false;
+      if (!brand || /^(i don.t know|unknown)$/i.test(brand) || seen.has(key)) return false;
       seen.add(key);
       return true;
     })
@@ -15079,7 +15189,6 @@ function setupRepairBrandSelector() {
   const currentValue = select.value;
   select.replaceChildren(new Option('Select brand\u2026', ''));
   getRepairBrandCatalog().forEach(brand => select.add(new Option(brand, brand)));
-  select.add(new Option("I don't know", "I don't know"));
   select.add(new Option('Other (type your brand)', '__other__'));
   select.value = Array.from(select.options).some(option => option.value === currentValue) ? currentValue : '';
 
@@ -15115,9 +15224,10 @@ function getSelectedRepairBrand() {
   const select = document.getElementById('unitBrand');
   if (!select) return '';
   if (select.value === '__other__') {
-    return (document.getElementById('unitBrandCustom')?.value || '').trim();
+    const brand = (document.getElementById('unitBrandCustom')?.value || '').trim();
+    return /^(i don.t know|unknown|__unknown__)$/i.test(brand) ? '' : brand;
   }
-  return select.value.trim();
+  return /^(i don.t know|unknown|__unknown__)$/i.test(select.value.trim()) ? '' : select.value.trim();
 }
 
 function setSelectedRepairBrand(brand) {
@@ -15141,8 +15251,8 @@ function getCurrentRepairItem() {
     unitType,
     unitCategory: pricing.unitCategory,
     inspectionFee: pricing.inspectionFee,
-    brand: getSelectedRepairBrand(),
-    model: (document.getElementById('unitModel')?.value || '').trim(),
+    brand: repairNeedsIdentification() ? '' : getSelectedRepairBrand(),
+    model: repairNeedsIdentification() ? '' : (document.getElementById('unitModel')?.value || '').trim(),
     problemDescription: (document.getElementById('repairProblemDescription')?.value || '').trim(),
     quantity: Number(document.getElementById('repairUnitQuantity')?.value),
   };
@@ -15153,6 +15263,8 @@ function repairItemIsComplete(item) {
 }
 
 function addCurrentRepairItem() {
+  if (repairNeedsIdentification()) return reviewRepairIdentification();
+  if (repairIdentificationState.mode !== 'manual') { goToRepairGuideStep(3); return repairIdentificationMessage('Choose staff assistance or enter the unit details before continuing.'); }
   const item = getCurrentRepairItem();
   if (!item.unitType) {
     goToRepairGuideStep(selectedRepairUnitCategory() ? 2 : 1);
@@ -15160,7 +15272,7 @@ function addCurrentRepairItem() {
   }
   if (!item.brand) {
     goToRepairGuideStep(3);
-    return showAlert('Choose the brand or choose “I don\'t know.”', 'warning');
+    return showAlert('Choose the brand or ask staff to identify the unit.', 'warning');
   }
   const modelError = repairModelValidationMessage(item.model);
   if (modelError) {
@@ -15225,6 +15337,12 @@ window.addCurrentRepairItem = addCurrentRepairItem;
 function editRepairItem(index) {
   const item = BookingState.selectedServices[index];
   if (!item || item.type !== 'repair') return;
+  if (window.RepairApplianceBooking && document.getElementById('repairApplianceBuilder')) {
+    document.getElementById('repair-tab')?.click();
+    try { window.RepairApplianceBooking.edit(String(item.id || item._id)); }
+    catch (error) { showError(error.message || 'Contact staff to update this repair appliance.'); }
+    return;
+  }
   repairGuidanceSuspended = true;
   const category = item.unitCategory || Object.keys(unitTypesByCategory).find(key =>
     unitTypesByCategory[key].some(type => type.value === item.unitType)
@@ -15288,6 +15406,11 @@ function removeRepairItem(index) {
 window.removeRepairItem = removeRepairItem;
 
 function resetRepairForm() {
+  repairIdentificationState.mode = 'manual';
+  closeRepairIdentificationConfirmation();
+  repairIdentificationMessage();
+  document.getElementById('repairIdentificationSuccess').hidden = true;
+  syncRepairUnitHelp();
   ['unitType', 'unitBrand', 'unitBrandCustom', 'unitModel', 'repairProblemDescription'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';

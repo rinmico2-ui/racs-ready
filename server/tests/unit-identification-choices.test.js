@@ -28,7 +28,7 @@ test('help choices cannot skip selection; staff mode validates quantity while no
 test('choosing staff goes to Services without sending a request and choosing AI only opens guidance',()=>{
   const steps=[],prompts=[],messages=[];
   const context=vm.createContext({detailsUnknown:false,helpOpen:false,closeConfirmation(){},refreshServices(){},changed(){},updateTotal(){},setStep:value=>steps.push(value),
-    field:()=>({value:'freezer',focus(){}}),window:{RACSChat:{openUnitIdentification:input=>prompts.push(input)}},message:text=>messages.push(text)});
+    hooks:{},field:()=>({value:'freezer',focus(){}}),window:{RACSChat:{openUnitIdentification:input=>prompts.push(input)}},message:text=>messages.push(text)});
   vm.runInContext(fn(core,'chooseHelp','  function setStep('),context);
   context.chooseHelp('staff');assert.deepEqual(steps,[3]);assert.equal(context.detailsUnknown,true);
   context.chooseHelp('ai');assert.equal(prompts[0].applianceKind,'freezer');assert.equal(context.detailsUnknown,false);assert.equal(context.helpOpen,true);
@@ -69,4 +69,19 @@ test('AI preserves an unsent customer question and rejects unsupported appliance
 test('opening identification during an AI reply does not interrupt or duplicate that reply',()=>{
   const f=chatFixture();f.context.isStreaming=true;f.context.openUnitIdentification({applianceKind:'aircon'});
   assert.equal(f.opens(),1);assert.equal(f.bubbles.length,0);assert.equal(f.input.value,'');
+});
+
+test('brand selections resolve Other to the typed brand and staff mode discards both hidden values',()=>{
+  const fields={kind:{value:'aircon'},quantity:{value:'1'},brand:{value:'__other__'},brandCustom:{value:'Custom HVAC'},model:{value:'MODEL-123'},hp:{value:'1'},airconType:{value:'split'}};
+  const context=vm.createContext({detailsUnknown:false,field:name=>fields[name],Number});
+  vm.runInContext(fn(core,'selection','  function draft('),context);
+  assert.equal(context.selection().brand,'Custom HVAC');
+  fields.brand.value='Carrier';assert.equal(context.selection().brand,'Carrier');
+  context.detailsUnknown=true;assert.equal(context.selection().brand,"I don't know");assert.equal(context.selection().model,'');
+});
+
+test('repair AI guidance uses the selected appliance instead of assuming it is an aircon',()=>{
+  const f=chatFixture();f.context.openUnitIdentification({applianceLabel:'Washing Machine'});
+  assert.match(f.input.value,/Washing Machine/);assert.doesNotMatch(f.input.value,/aircon/);
+  assert.match(f.history[0].content,/Ask staff to identify my unit/);
 });

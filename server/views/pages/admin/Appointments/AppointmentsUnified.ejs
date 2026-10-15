@@ -2325,6 +2325,7 @@
           '</div>'+
         '</div>'+
         unitDetailsHtml+
+        window.SpecialInstructions.renderBooking(b)+
         (currentTechnician?'<div class="dv2-card dv2-card-wide">'+
           '<div class="dv2-card-icon bg-primary-subtle"><i class="bi bi-person-badge text-primary"></i></div>'+
           '<div class="dv2-card-content">'+
@@ -3176,6 +3177,7 @@
         photosHtml='<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-images text-success"></i></div><div class="ent-detail-card-content" style="width:100%;"><span class="ent-detail-label">Payment Proof / Photos ('+photos.length+')</span><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">'+photos.map(function(src,i){return '<div style="position:relative;"><img src="'+src+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="showImgLightbox(\''+src+'\')" onerror="this.parentElement.innerHTML=\'Image unavailable\'"><div style="font-size:0.65rem;color:#64748b;text-align:center;">'+(i+1)+'</div></div>';}).join('')+'</div></div></div>';
       }
       body.innerHTML='<div class="ent-detail-grid">'+
+        window.SpecialInstructions.renderBooking(b)+
         '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-primary-subtle"><i class="bi bi-person-fill text-primary"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Customer</span><span class="ent-detail-value">'+(b.customer?b.customer.name:'N/A')+'</span><span class="ent-detail-sub">'+(b.customer?b.customer.phone:'\u2014')+' | '+(b.customer?b.customer.email:'')+'</span></div></div>'+
         '<div class="ent-detail-card"><div class="ent-detail-card-icon bg-success-subtle"><i class="bi bi-calendar-event text-success"></i></div><div class="ent-detail-card-content"><span class="ent-detail-label">Schedule</span><span class="ent-detail-value">'+(b.preferredDate?formatDate(b.preferredDate):'\u2014')+'</span><span class="ent-detail-sub">'+(b.preferredTime||'\u2014')+'</span></div></div>'+
         '<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon bg-info-subtle"><i class="bi bi-wrench text-info"></i></div><div class="ent-detail-card-content" style="width:100%;"><span class="ent-detail-label">Unit Information'+((Array.isArray(b.services)&&b.services.length>1)?(' ('+b.services.length+' items)'):'')+'</span>'+

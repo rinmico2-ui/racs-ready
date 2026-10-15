@@ -109,7 +109,7 @@ test("the real services page has its unit identification chat bridge through the
   const html = await ejs.renderFile(path.join(viewsDirectory,'layouts','main.ejs'),{...data,body});
   assert.equal((html.match(/id="racsChatbot"/g)||[]).length,1);
   assert.match(html,/window\.RACSChat = \{ openUnitIdentification \}/);
-  assert.match(html,/core-appliance-booking\.js\?v=20261015-assistance-choice/);
+  assert.match(html,/core-appliance-booking\.js\?v=20261016-identification-step/);
   const route = fs.readFileSync(path.join(__dirname,'../routes/pages.js'),'utf8');
   assert.match(route,/res\.render\("pages\/services", \{\s*title: "Book a Service",\s*showUnitIdentificationChatbot: true/);
 });

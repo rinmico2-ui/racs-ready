@@ -105,3 +105,12 @@ body:has(#serviceSelection:not(.d-none) #core-tab.active):has(#coreApplianceBuil
 .relocation-map-step-buttons button.is-active { border-color: #047857; color: #047857; box-shadow: 0 0 0 1px #047857; }
 .relocation-map-step-buttons button:disabled { opacity: .5; }
 .relocation-map-steps p { margin: 12px 0 0; color: #52685b; font-size: .82rem; line-height: 1.6; }
+#repairKnownUnitDetails[hidden], #repairUnitHelpOptions[hidden], #repairIdentificationConfirmation[hidden], #repairIdentificationSuccess[hidden], #coreApplianceBuilder label[hidden] { display: none !important; }
+#repairIdentificationConfirmation { flex-basis: 100%; }
+.cab-form [hidden], #legacyRepairBuilder[hidden] { display: none !important; }
+.cab-form [name="kind"]:is(select) { min-height: 46px; width: 100%; margin: 10px 0 18px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; font: inherit; }
+.cab-appliances:has(select[name="kind"]) { display: block; }
+.cab-selected-request { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #c9dfd1; font-size: .85rem; }
+.cab-assistance [data-identification-heading] { scroll-margin-top: 90px; }
+.cab-photo-feedback { color: #b33041; font-size: .78rem; margin: 8px 0 0; }
+.cab-photo-feedback:empty { display: none; }

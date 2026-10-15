@@ -7803,6 +7803,8 @@ if (a.status === 'accepted') {
       h += `<a class="booking-contact-action" href="${_e(mapsHref)}" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>`;
       h += `</div></div></section>`;
 
+      h += window.SpecialInstructions.renderBooking(b);
+
       const displayServices = serviceItems.length ? serviceItems : [{
         name: serviceName,
         type: isRepair ? 'repair' : 'core',

@@ -1,0 +1,33 @@
+.special-instructions {
+  display: block;
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dbe4f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.special-instructions .special-instructions-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: #334155;
+  font-size: .85rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.special-instructions-title i { color: #2563eb; }
+
+.special-instructions .special-instructions-text {
+  margin: 0;
+  color: #334155;
+  font-size: .85rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.special-instructions .special-instructions-empty { color: #64748b; }

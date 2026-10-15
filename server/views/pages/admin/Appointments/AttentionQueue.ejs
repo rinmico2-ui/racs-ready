@@ -1477,6 +1477,7 @@
             <div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div>
             <div class="ent-detail-card-content"><div class="ent-detail-card-label">Address</div><div class="ent-detail-card-value" style="white-space:pre-line;">${b.location?.address || 'N/A'}</div></div>
           </div>
+          ${window.SpecialInstructions.renderBooking(data.booking)}
           ${b.rescheduleReason ? `
           <div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;">
             <div class="ent-detail-card-icon" style="background:#fef3c7;color:#b45309;"><i class="bi bi-info-circle"></i></div>
@@ -1538,7 +1539,7 @@
         ${order.cancellationStockReview?.status === 'pending_review' ? `<div class="ent-detail-card ent-detail-card-wide" style="background:#fffbeb;border-color:#fde68a;"><div class="ent-detail-card-content"><div class="ent-detail-card-label">Stock needs checking</div><p class="small mb-2">This order was cancelled. These units were not added to stock because their original inventory entries were removed. Refund review can continue.</p>${order.cancellationStockReview.items.map(item => `<div class="small py-1"><strong>${escapeHtml(item.name)} × ${Number(item.quantity)}</strong><div class="text-muted">Original stock ID: ${escapeHtml(item.inventoryId || 'Not recorded')}</div></div>`).join('')}</div></div>` : ''}
         <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#dbeafe;color:#2563eb;"><i class="bi bi-box-seam"></i></div><div class="ent-detail-card-content" style="width:100%;"><div class="ent-detail-card-label">Order items (${items.length})</div>${items.length ? items.map(item => `<div class="d-flex justify-content-between gap-3 py-2 border-bottom"><span>${escapeHtml([item.brand, item.modelLine || item.name, item.capacity ? `${item.capacity}${item.capacityUnit || 'HP'}` : ''].filter(Boolean).join(' ') || 'Product')} <span class="text-muted">× ${Number(item.quantity || 1)}</span></span><strong class="text-nowrap">${money(item.totalPrice || (Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1)))}</strong></div>`).join('') : '<div class="text-muted small mt-2">No item details recorded.</div>'}</div></div>
         <div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fee2e2;color:#991b1b;"><i class="bi bi-geo-alt"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Delivery / pickup location</div><div class="ent-detail-card-value">${escapeHtml(address)}</div></div></div>
-        ${delivery.notes ? `<div class="ent-detail-card ent-detail-card-wide"><div class="ent-detail-card-icon" style="background:#fffbeb;color:#b45309;"><i class="bi bi-sticky"></i></div><div class="ent-detail-card-content"><div class="ent-detail-card-label">Customer note</div><div class="ent-detail-card-value">${escapeHtml(delivery.notes)}</div></div></div>` : ''}
+        ${window.SpecialInstructions.renderOrder(order)}
       </div>`;
       mountResolutionEvidence(`/api/orders/${encodeURIComponent(id)}/photos`);
       return order;
