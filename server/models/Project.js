@@ -341,6 +341,7 @@ const projectSchema = new mongoose.Schema({
   // before mobilization can start the next working day.
   dailyAcceptance: {
     required: { type: Boolean, default: false },
+    scheduleRequired: { type: Boolean, default: false },
     date: { type: Date },                    // the working day this acceptance is for
     leadAccepted: { type: Boolean, default: false },
     leadAcceptedAt: { type: Date },

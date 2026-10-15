@@ -74,4 +74,9 @@ module.exports = {
   RECEIVED_PAYMENT_STATUSES,
   summarizeBookingPayments,
   reconcileBookingPayments,
+  outstandingBookingBalance(booking, payments = []) {
+    const reconciliation = reconcileBookingPayments(booking, payments);
+    if (payments.length) return reconciliation.outstandingFromLedger;
+    return Math.max(0, money(booking?.balanceAmount), reconciliation.total - money(booking?.amountPaid));
+  },
 };

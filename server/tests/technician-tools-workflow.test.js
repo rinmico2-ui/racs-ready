@@ -18,6 +18,7 @@ function match(row, query) {
   return Object.entries(query).every(([key, expected]) => {
     if (key === "$or") return expected.some(item => match(row, item));
     if (key === "$and") return expected.every(item => match(row, item));
+    if (key === "$nor") return !expected.some(item => match(row, item));
     const actual = values(row, key);
     if (expected && typeof expected === "object" && !(expected instanceof Date)) return Object.entries(expected).every(([op, target]) => {
       if (op === "$in") return actual.some(value => target.map(String).includes(String(value)));
@@ -120,6 +121,26 @@ test("shared equipment cannot be returned while another linked booking remains u
   const f = fixture(); f.data.DailyKit[0].items[0].bookingIds.push(U); f.data.BookingService.push({ _id: U, status: "in_progress" });
   await assert.rejects(f.service.receiveEquipment(input), { status: 409 });
   assert.equal(f.writes.length, 0);
+});
+
+test('a closed visit releases its kit while another active job continues to protect shared tools', async () => {
+  const f = fixture(); Object.assign(f.data.BookingService[0], { status: 'in-progress', continuation: { status: 'pending' } });
+  await f.service.receiveEquipment(input);
+  assert.equal(f.data.EquipmentAssignment[0].status, 'returned');
+  const shared = fixture(); Object.assign(shared.data.BookingService[0], { status: 'in-progress', continuation: { status: 'pending' } });
+  shared.data.DailyKit[0].items[0].bookingIds.push(U); shared.data.BookingService.push({ _id: U, status: 'in-progress' });
+  await assert.rejects(shared.service.receiveEquipment(input), { status: 409 });
+  assert.equal(shared.writes.length, 0);
+});
+
+test('a project can return today’s kit after daily closure while the overall project remains active', async () => {
+  const f = fixture(); Object.assign(f.data.BookingService[0], { status: 'in-progress', isProject: true });
+  f.data.DailyKit[0].items[0].dailyAssignmentIds = [U]; f.data.DailyAssignment.push({ _id: U, status: 'completed' });
+  await f.service.receiveEquipment(input);
+  assert.equal(f.data.EquipmentAssignment[0].status, 'returned');
+  const active = fixture(); Object.assign(active.data.BookingService[0], { status: 'in-progress', isProject: true });
+  active.data.DailyKit[0].items[0].dailyAssignmentIds = [U]; active.data.DailyAssignment.push({ _id: U, status: 'in_progress' });
+  await assert.rejects(active.service.receiveEquipment(input), { status: 409 });
 });
 
 test("a shared return updates the equipment return flag for every covered booking", async () => {

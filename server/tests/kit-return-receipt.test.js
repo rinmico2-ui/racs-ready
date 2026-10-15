@@ -16,6 +16,7 @@ function match(row, query) {
   return Object.entries(query).every(([key, expected]) => {
     if (key === '$or') return expected.some(item => match(row, item));
     if (key === '$and') return expected.every(item => match(row, item));
+    if (key === '$nor') return !expected.some(item => match(row, item));
     const actual = values(row, key);
     if (expected && typeof expected === 'object' && !(expected instanceof Date)) return Object.entries(expected).every(([op, target]) => {
       if (op === '$in') return actual.some(value => target.map(String).includes(String(value)));

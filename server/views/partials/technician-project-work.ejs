@@ -1646,7 +1646,7 @@
       const memberAccepted = (da.membersAccepted || []).filter(m => m.accepted);
       const memberDeclined = (da.declined || []);
       const teamCount = (p.assignedTechnicians || []).length;
-      const allMembersOk = teamCount > 1 ? memberAccepted.length >= (teamCount - 1) : true;
+      const allMembersOk = (da.membersAccepted || []).every(member => member.accepted);
       return `
       <div class="pw-project pw-daily-card" id="pwCard-${p._id}">
         ${cardHead(p, 'Daily Confirmation Required', 'daily_acceptance', phase)}
@@ -1654,8 +1654,8 @@
           <div class="pw-daily-banner">
             <div class="ic"><i class="bi bi-calendar-check"></i></div>
             <div class="info">
-              <div class="title">Confirm availability for tomorrow</div>
-              <div class="desc">End of day reached. All team members must confirm they can continue before work resumes.</div>
+              <div class="title">Confirm the next scheduled workday</div>
+              <div class="desc">${da.scheduleRequired ? "Operations must schedule the remaining work before the crew can confirm." : (da.declined?.length ? "A crew member is unavailable. Operations must review staffing before work resumes." : `All scheduled crew members must confirm availability for ${da.date ? esc(new Date(da.date).toLocaleDateString('en-PH', {timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'})) : 'the next workday'}.`)}</div>
             </div>
           </div>
           ${kpiRow(a, true)}
@@ -1666,10 +1666,10 @@
             ${memberDeclined.map(m => `<span class="pw-daily-chip no"><i class="bi bi-x-circle-fill"></i> ${esc(m.name)} declined</span>`).join('')}
           </div>
           <div class="pw-daily-actions">
-            ${!leadDone
-              ? `<button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Continue Tomorrow</button>
-                 <button class="pw-daily-btn decline" onclick="pwDailyDecline('${p._id}')"><i class="bi bi-x-lg"></i> Decline Tomorrow</button>`
-              : allMembersOk
+            ${!leadDone && !da.scheduleRequired && !(da.declined||[]).length
+              ? `<button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Confirm Next Workday</button>
+                 <button class="pw-daily-btn decline" onclick="pwDailyDecline('${p._id}')"><i class="bi bi-x-lg"></i> Unavailable Next Workday</button>`
+              : allMembersOk && !da.scheduleRequired && !(da.declined||[]).length
                 ? `<button class="pw-btn primary" onclick="pwLeadMobilize('${p._id}','en-route')"><i class="bi bi-truck"></i> All Confirmed — Mobilize</button>`
                 : `<span style="font-size:.75rem;color:#92400e;font-weight:600;">Waiting for team members to confirm…</span>`}
             <button class="pw-link ms-auto" onclick="pwViewDetails('${p._id}')">View Details</button>
@@ -1826,8 +1826,8 @@
           <div class="pw-daily-banner">
             <div class="ic"><i class="bi bi-calendar-check"></i></div>
             <div class="info">
-              <div class="title">Can you continue tomorrow?</div>
-              <div class="desc">The lead has confirmed the end of today's work. Please confirm your availability for tomorrow.</div>
+              <div class="title">Confirm the next scheduled workday</div>
+              <div class="desc">${da.scheduleRequired ? 'Operations must schedule the remaining work.' : da.declined?.length ? 'Operations is reviewing crew availability.' : 'Confirm availability for ' + (da.date ? esc(new Date(da.date).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric',year:'numeric'})) : 'the next scheduled workday') + '.'}</div>
             </div>
           </div>
           ${kpiRow(a, false)}
@@ -1836,12 +1836,12 @@
             <span class="pw-daily-chip ${leadDone ? 'ok' : 'pending'}"><i class="bi ${leadDone ? 'bi-check-circle-fill' : 'bi-hourglass-split'}"></i> Lead: ${leadDone ? 'Confirmed' : 'Pending'}</span>
             <span class="pw-daily-chip ${myAccepted ? 'ok' : myDeclined ? 'no' : 'pending'}"><i class="bi ${myAccepted ? 'bi-check-circle-fill' : myDeclined ? 'bi-x-circle-fill' : 'bi-hourglass-split'}"></i> You: ${myAccepted ? 'Confirmed' : myDeclined ? 'Declined' : 'Pending'}</span>
           </div>
-          ${!myAccepted && !myDeclined ? `
+          ${!da.scheduleRequired && !(da.declined || []).length && (da.membersAccepted || []).some(member => String(member._id) === String(ME_ID)) && !myAccepted && !myDeclined ? `
           <div class="pw-daily-actions">
-            <button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Confirm Tomorrow</button>
+            <button class="pw-daily-btn continue" onclick="pwDailyAccept('${p._id}',this)"><i class="bi bi-check-lg"></i> Confirm Next Workday</button>
             <button class="pw-daily-btn decline" onclick="pwDailyDecline('${p._id}')"><i class="bi bi-x-lg"></i> Can't Continue</button>
           </div>` : `
-          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-hourglass-split"></i></div><div><div class="t">Waiting for other team members</div><div class="d">Once everyone confirms, the lead can mobilize for tomorrow.</div></div></div>`}
+          <div class="pw-wait mt-3"><div class="ic"><i class="bi bi-hourglass-split"></i></div><div><div class="t">Waiting for other team members</div><div class="d">The lead can mobilize on the scheduled date after all crew confirmations and Daily Kits are ready.</div></div></div>`}
           <button class="pw-link mt-3" onclick="pwViewDetails('${p._id}')">View Details</button>
         </div>
       ${pwCardClose()}`;
@@ -2152,7 +2152,7 @@
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Confirming…'; }
     try {
       const result = await api(`/api/projects/${pid}/daily-accept`, { method:'POST' });
-      toast(result.message || 'Confirmed for tomorrow');
+      toast(result.message || 'Next workday confirmed');
       await window.__loadProjectWork();
     } catch (e) {
       toast(e.message, 'error');
@@ -2163,13 +2163,13 @@
   window.pwCompleteToday = async (pid) => {
     if (!confirm("Complete today's work? Finished units will remain recorded and unfinished units will continue on the next scheduled workday.")) return;
     try {
-      await api(`/api/projects/${pid}/mobilize/end-day`, { method: 'PUT' });
-      toast("Today's work completed — confirm availability to continue tomorrow");
+      const result = await api(`/api/projects/${pid}/mobilize/end-day`, { method: 'PUT' });
+      toast(result.message || "Workday closed. Review the next scheduled work date.");
       window.__loadProjectWork();
     } catch (e) { toast(e.message, 'error'); }
   };
   window.pwDailyDecline = (pid) => {
-    const reason = prompt('Reason you cannot continue tomorrow (sent to admin & lead):'); if (reason === null) return;
+    const reason = prompt('Why are you unavailable for the next scheduled workday? (Sent to Operations):'); if (reason === null) return;
     (async () => { try { await api(`/api/projects/${pid}/daily-decline`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ reason }) }); toast('Declined — admin notified'); window.__loadProjectWork(); } catch (e) { toast(e.message,'error'); } })();
   };
 

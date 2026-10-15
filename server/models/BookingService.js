@@ -786,6 +786,7 @@ const bookingSchema = new mongoose.Schema({
   // Legacy payment-plan field. `cod` means a GCash reservation downpayment
   // followed by balance collection at completion; Payment.method records the
   // actual channel used for each transaction.
+  continuation: { type: require('../utils/workContinuationSchema')(mongoose), default: undefined },
   paymentMethod: { type: String, enum: ["cod", "gcash", "card", "other"], default: "cod" },
   paymentChannel: { type: String, enum: ["card", "gcash", "maya", "bank_transfer", "other"], default: "gcash" },
 
@@ -1457,6 +1458,7 @@ bookingSchema.pre("save", async function () {
 });
 
 // Indexes for performance optimization
+bookingSchema.index({ 'continuation.status': 1, 'continuation.requestedAt': 1 }, { partialFilterExpression: { 'continuation.status': 'pending' } });
 bookingSchema.index({ technicianId: 1, bookingDate: 1 }); // For fetching technician's bookings by date
 bookingSchema.index({ bookingDate: 1, startTime: 1, _id: 1 }); // Date-bounded operations calendar without a status filter
 bookingSchema.index({ bookingDate: 1, updatedAt: -1 }); // Resolution center candidate ordering

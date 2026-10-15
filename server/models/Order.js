@@ -188,6 +188,7 @@ const orderSchema = new mongoose.Schema(
       ref: "BookingService",
       default: null,
     },
+    continuation: { type: require('../utils/workContinuationSchema')(mongoose), default: undefined },
 
     // Preferred installation window; Operations confirms the daily work plan.
     isProject: { type: Boolean, default: false },
@@ -519,4 +520,5 @@ orderSchema.methods.pushStatus = function (newStatus, note, opts) {
 
 // ─── Export ─────────────────────────────────────────────────────────────────
 
+orderSchema.index({ 'continuation.status': 1, 'continuation.requestedAt': 1 }, { partialFilterExpression: { 'continuation.status': 'pending' } });
 module.exports = mongoose.model("Order", orderSchema);

@@ -1,3 +1,5 @@
+<link rel="stylesheet" href="/css/project-schedule-calendar.css?v=20261015">
+<script src="/js/project-schedule-calendar.js?v=20261015"></script>
 <div class="admin-dashboard container-fluid py-4">
   <%- include('../../../partials/dashboard-styles') %>
 
@@ -1315,15 +1317,14 @@
   }
 
   function projectWorkingDays(p) {
-    const configured = p.schedulePlan?.workingDays;
-    if (Array.isArray(configured) && configured.length) {
-      return new Set(configured.map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6));
-    }
     const dayNumbers = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-    const preferred = Array.isArray(p.preferredWorkingDays) && p.preferredWorkingDays.length
+    const configured = p.schedulePlan?.workingDays;
+    const preferred = Array.isArray(configured) && configured.length ? configured : Array.isArray(p.preferredWorkingDays) && p.preferredWorkingDays.length
       ? p.preferredWorkingDays
       : ['Mon','Tue','Wed','Thu','Fri'];
-    return new Set(preferred.map(day => dayNumbers[String(day).slice(0, 3).toLowerCase()]).filter(day => day !== undefined));
+    const normalized = preferred.map(day => /^\d$/.test(String(day)) ? Number(day) : dayNumbers[String(day).slice(0, 3).toLowerCase()])
+      .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+    return new Set(normalized.length ? normalized : [1, 2, 3, 4, 5]);
   }
 
   function defaultRecoveryMode(p) {
@@ -2698,39 +2699,7 @@
       openRecoveryPlan('recover');
       return;
     }
-    const start = p.preferredStartDate ? new Date(p.preferredStartDate).toISOString().slice(0,10) : '';
-    const end = p.preferredCompletionDeadline ? new Date(p.preferredCompletionDeadline).toISOString().slice(0,10) : '';
-    const modal = document.createElement('div');
-    modal.className = 'pw-modal-overlay';
-    modal.innerHTML = `
-      <div class="pw-modal">
-        <h5 style="font-size:1rem;font-weight:700;margin-bottom:0.75rem;"><i class="bi bi-calendar3 me-2"></i>Update Project Schedule</h5>
-        <div class="mb-2">
-          <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Preferred Start Date</label>
-          <input type="date" id="modalStartDate" class="form-control form-control-sm" value="${start}">
-        </div>
-        <div class="mb-3">
-          <label style="font-size:0.72rem;font-weight:600;color:#64748b;">Target Completion</label>
-          <input type="date" id="modalEndDate" class="form-control form-control-sm" value="${end}">
-        </div>
-        <div class="d-flex gap-2 justify-content-end">
-          <button class="pw-btn" onclick="this.closest('.pw-modal-overlay').remove()">Cancel</button>
-          <button class="pw-btn primary" id="modalSaveSchedule">Save</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.querySelector('#modalSaveSchedule').addEventListener('click', async () => {
-      const s = modal.querySelector('#modalStartDate').value;
-      const e = modal.querySelector('#modalEndDate').value;
-      try {
-        const r = await fetch(`/api/projects/${projectId}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preferredStartDate: s || null, preferredCompletionDeadline: e || null }),
-        });
-        if (r.ok) { modal.remove(); toast('Schedule updated'); loadProject(); }
-        else { const err = await r.json(); toast(err.error || 'Failed', 'error'); }
-      } catch (err) { toast('Failed to update schedule', 'error'); }
-    });
+    RACSProjectSchedule.open(projectId,p,result=>{toast(result.customerNotification?.status!=='sent'?'Schedule saved. Some customer notifications need retrying; use Notify.':'Schedule saved and customer notification requested.');loadProject();});
   };
 
   window.notifyCustomer = async function() {
@@ -2861,13 +2830,13 @@
           <label class="recovery-field" style="margin-top:.8rem;"><span>Customer and operational impact <small style="color:#94a3b8;font-weight:600;">Optional</small></span>
             <textarea class="form-control form-control-sm" name="impactSummary" rows="2" maxlength="1500" placeholder="Record affected access, dependencies, costs, or customer expectations."></textarea>
           </label>
-          <label class="recovery-notify"><input type="checkbox" name="notifyCustomer" checked><span><strong>Notify the customer after approval</strong><small>Sends an in-app update and email when available. A delivery failure will not roll back the approved schedule revision.</small></span></label>
+          <p class="recovery-notify">The customer will be notified after the schedule revision is approved.</p>
           </div>
         </form>
 
         <div class="recovery-step">
           <div class="recovery-step-head"><span class="recovery-step-no">3</span><div><strong>Check capacity, then approve</strong><span>The check is read-only. It verifies technicians, leave, bookings, equipment, and the resulting finish date before any future assignment is changed.</span></div></div>
-          <div id="recoveryPreview" role="status" aria-live="polite"><div class="recovery-check-empty"><i class="bi bi-shield-check me-1"></i><strong>Approval is locked.</strong> Run the schedule check to verify live capacity and enable the final authorization button.</div></div>
+          <div id="recoveryAvailability" class="mb-3"></div><div id="recoveryPreview" role="status" aria-live="polite"><div class="recovery-check-empty"><i class="bi bi-shield-check me-1"></i><strong>Approval is locked.</strong> Run the schedule check to verify live capacity and enable the final authorization button.</div></div>
         </div>
         ${history.length ? `<details style="margin-top:.875rem;"><summary style="font-size:.74rem;font-weight:700;color:#475569;cursor:pointer;">Recent schedule revisions (${governance.history.length})</summary><div style="margin-top:.5rem;">${history.map(item => `<div style="font-size:.7rem;color:#475569;padding:.45rem .55rem;border:1px solid #e2e8f0;border-radius:7px;margin-bottom:.35rem;"><strong>Revision ${Number(item.revisionNumber || 0)}</strong> · ${escHtml(String(item.action || '').replace('_',' '))} · ${fmtDate(item.approvedAt)}<br><span style="color:#64748b;">${escHtml(item.reason || '')}</span></div>`).join('')}</div></details>` : ''}
         </div>
@@ -2902,7 +2871,7 @@
       startTime: form.startTime.value,
       endTime: form.endTime.value,
       workingDays: [...form.querySelectorAll('[name="workingDays"]:checked')].map(input => Number(input.value)),
-      notifyCustomer: form.notifyCustomer.checked,
+      notifyCustomer: true,
     });
     const invalidatePreview = () => {
       approvedPreview = null;
@@ -2926,6 +2895,16 @@
     document.addEventListener('keydown', handleRecoveryKeydown);
     syncMode();
 
+    let availabilityRequest=0,availabilityTimer;
+    async function checkRecoveryCrew(){
+      const ticket=++availabilityRequest,request=payload();
+      const host=modal.querySelector('#recoveryAvailability');
+      host.textContent='Checking technician availability...';
+      try{const result=await RACSProjectSchedule.api(`/api/projects/${projectId}/change-schedule/preview`,{startDate:request.recoveryStartDate,endDate:request.mode==='extend'?request.revisedCompletionDate:recoveryDateInput(commitment),workingDays:request.workingDays,startTime:request.startTime,endTime:request.endTime});if(ticket===availabilityRequest&&modal.isConnected)RACSProjectSchedule.calendar(host,result.calendar);}catch(error){if(ticket===availabilityRequest)host.textContent=error.message;}
+    }
+    form.addEventListener('change',()=>{availabilityRequest++;clearTimeout(availabilityTimer);availabilityTimer=setTimeout(checkRecoveryCrew,250);});
+    checkRecoveryCrew();
+
     previewButton.addEventListener('click', async () => {
       if (!form.reportValidity()) return;
       const request = payload();
@@ -2944,6 +2923,7 @@
         const result = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(result.error || 'Failed to preview recovery plan');
         const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
+        if(result.calendar) RACSProjectSchedule.calendar(modal.querySelector('#recoveryAvailability'),result.calendar);
         approvedPreview = result.viable ? request : null;
         approveButton.disabled = !result.viable;
         gateState.classList.toggle('is-ready', result.viable);

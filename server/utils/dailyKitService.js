@@ -511,11 +511,13 @@ async function syncDailyKit(technicianId, date, { session = null, automatic = fa
   let [assignments, orders, projectAssignments] = await kitReads([
     () => Assignment.find({
       technicianId,
+      'continuation.status': { $ne: 'pending' },
       status: { $in: ACTIVE_ASSIGNMENT_STATUSES },
       bookingDate: { $gte: start, $lt: end },
     }).session(session).sort({ startTime: 1 }).lean(),
     () => Order.find({
       isProject: { $ne: true },
+      'continuation.status': { $ne: 'pending' },
       technicianId,
       fulfillmentType: "delivery_installation",
       status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES },

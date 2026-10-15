@@ -103,7 +103,7 @@
   }
   function dayLabel(value) {
     const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return typeof value === 'number' ? names[value % 7] || text(value) : text(value).replace(/^./, char => char.toUpperCase());
+    return /^\d$/.test(String(value)) ? names[Number(value)] || text(value) : text(value).replace(/^./, char => char.toUpperCase());
   }
   const field = (label, value, full) => `<div class="sd-item${full ? ' sd-full' : ''}"><div class="sd-k">${safe(label)}</div><div class="sd-v">${safe(value || 'Not recorded')}</div></div>`;
   function renderLocation(location) {

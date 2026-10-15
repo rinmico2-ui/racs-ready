@@ -81,6 +81,7 @@ const { loadProjectPurchase, assertProjectPurchaseReady, recordProjectOrderStage
 const { normalizeProjectWorkSubmission } = require("../utils/projectWorkSubmission");
 const { imageExtensionFor, isAllowedImage } = require("../utils/uploadSecurity");
 const {
+  currentCommitment,
   mergeDailySummaries,
   normalizeRecoveryRequest,
   riskStatus: recoveryRiskStatus,
@@ -98,7 +99,7 @@ function escapeRecoveryHtml(value) {
 }
 
 function recoveryDateLabel(value) {
-  return value ? new Date(value).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not set";
+  return value ? new Date(value).toLocaleDateString("en-PH", { timeZone: 'Asia/Manila', month: "long", day: "numeric", year: "numeric" }) : "Not set";
 }
 
 async function notifyCustomerOfRecovery(project, revision, req) {
@@ -111,9 +112,9 @@ async function notifyCustomerOfRecovery(project, revision, req) {
   const customerName = project.customer?.name || [account?.firstName, account?.lastName].filter(Boolean).join(" ") || "Customer";
   const serviceName = project.service?.name || "Project";
   const extension = revision.action === "extension";
-  const message = extension
+  const message = `Work resumes ${recoveryDateLabel(revision.recoveryStartDate)}. ` + (extension
     ? `Your project completion date has been revised from ${recoveryDateLabel(revision.previousApprovedCompletionDate)} to ${recoveryDateLabel(revision.revisedApprovedCompletionDate)}. Reason: ${revision.reason}`
-    : `A recovery schedule has been approved for your project. The committed completion date remains ${recoveryDateLabel(revision.revisedApprovedCompletionDate)}. Reason: ${revision.reason}`;
+    : `A recovery schedule has been approved for your project. The committed completion date remains ${recoveryDateLabel(revision.revisedApprovedCompletionDate)}. Reason: ${revision.reason}`);
   let inAppSent = false;
   let emailSent = false;
   const errors = [];
@@ -619,6 +620,7 @@ router.post("/projects/:id/notify-customer", auth.requireRole(["admin", "secreta
 
     const fullMessage =
       `${statusLine}` +
+      (project.preferredStartDate ? ` Project window: ${recoveryDateLabel(project.preferredStartDate)} to ${recoveryDateLabel(currentCommitment(project) || project.preferredCompletionDeadline)}.` : '') +
       (doneWO > 0 ? ` (${doneWO}/${activeOrders.length} work order${activeOrders.length > 1 ? "s" : ""} finished.)` : "") +
       (customMessage ? ` Note from our team: ${customMessage}` : "");
 
@@ -648,17 +650,17 @@ router.post("/projects/:id/notify-customer", auth.requireRole(["admin", "secreta
           ["Project", `${serviceName} (${refLabel})`],
           ["Status", String(project.status).replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())],
           totalUnits > 0 ? ["Units Completed", `${completedUnits} / ${totalUnits}`] : null,
-          project.plannedStartDate ? ["Planned Start", new Date(project.plannedStartDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })] : null,
-          project.plannedCompletionDate ? ["Target Completion", new Date(project.plannedCompletionDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })] : null,
+          project.preferredStartDate ? ["Project Window Start", recoveryDateLabel(project.preferredStartDate)] : null,
+          currentCommitment(project) || project.preferredCompletionDeadline ? ["Finish By", recoveryDateLabel(currentCommitment(project) || project.preferredCompletionDeadline)] : null,
         ].filter(Boolean);
         const html =
           '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;">' +
           '<h2 style="color:#1e293b;font-size:18px;">Project Update — CALIDRO RACS</h2>' +
-          `<p style="color:#334155;font-size:14px;">Hi ${customerName || "Customer"}, here is the latest update on your project:</p>` +
+          `<p style="color:#334155;font-size:14px;">Hi ${escapeRecoveryHtml(customerName || "Customer")}, here is the latest update on your project:</p>` +
           '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
-          rows.map(([k, v]) => `<tr><td style="padding:6px 10px;background:#f1f5f9;color:#475569;width:38%;">${k}</td><td style="padding:6px 10px;color:#1e293b;font-weight:600;">${v}</td></tr>`).join("") +
+          rows.map(([k, v]) => `<tr><td style="padding:6px 10px;background:#f1f5f9;color:#475569;width:38%;">${escapeRecoveryHtml(k)}</td><td style="padding:6px 10px;color:#1e293b;font-weight:600;">${escapeRecoveryHtml(v)}</td></tr>`).join("") +
           "</table>" +
-          `<p style="color:#334155;font-size:14px;margin-top:14px;">${fullMessage}</p>` +
+          `<p style="color:#334155;font-size:14px;margin-top:14px;">${escapeRecoveryHtml(fullMessage)}</p>` +
           '<p style="color:#94a3b8;font-size:12px;margin-top:20px;">You can also track this project under your booking history.</p>' +
           "</div>";
         const text = [
@@ -1336,6 +1338,7 @@ router.put("/projects/:id", auth.requireRole(["admin", "secretary"]), async (req
         error: "This project schedule is approved and locked. Use the Recovery Plan workflow to revise future work or approve an extension.",
       });
     }
+    if (changesSchedule) return res.status(409).json({ code: 'PROJECT_SCHEDULE_WORKFLOW_REQUIRED', error: 'Use Change Schedule to check technician availability and notify the customer.' });
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
@@ -1778,6 +1781,50 @@ router.get("/projects/:id/schedule-preview", auth.requireRole(["admin", "secreta
   }
 });
 
+router.post('/projects/:id/change-schedule/preview', auth.requireRole(['admin','secretary']), async(req,res)=>{
+  try {
+    if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({error:'Invalid project ID.'});
+    const project=await Project.findById(req.params.id).lean();
+    if(!project)return res.status(404).json({error:'Project not found.'});
+    const calendar=await require('../utils/projectCrewCalendar').projectCrewCalendar(project,req.body||{});
+    const requiredHours=Math.max(0,Number(project.estimatedTotalHours)||0);
+    res.json({calendar,requiredHours,viable:!calendar.unavailableTechnicianIds?.length&&calendar.hasAvailability&&calendar.availableHours>=requiredHours});
+  }catch(error){res.status(error.status||500).json({error:error.status?error.message:'Could not check technician availability.'});}
+});
+
+router.post('/projects/:id/change-schedule', auth.requireRole(['admin','secretary']), async(req,res)=>{
+  try {
+    if(!mongoose.isValidObjectId(req.params.id))return res.status(400).json({error:'Invalid project ID.'});
+    const saved=await withProjectWindowLock(req.params.id,async()=>{
+      const project=await Project.findById(req.params.id).lean();
+      if(!project)throw Object.assign(Error('Project not found.'),{status:404});
+      if(project.schedulePlan?.status==='confirmed'||project.scheduleLocked||!['pending_project_scheduling','accepted','planning'].includes(project.status))throw Object.assign(Error('Use Recovery Plan to change an approved schedule.'),{status:409});
+      const reason=typeof req.body.reason==='string'?req.body.reason.trim():'';
+      if(reason.length<5||reason.length>500)throw Object.assign(Error('Provide a schedule-change reason (5 to 500 characters).'),{status:400});
+      const calendar=await require('../utils/projectCrewCalendar').projectCrewCalendar(project,req.body||{});
+      if(calendar.unavailableTechnicianIds?.length)throw Object.assign(Error('Review the assigned crew: one or more technician accounts are inactive or unavailable.'),{status:409});
+      if(!calendar.hasAvailability||calendar.availableHours<Number(project.estimatedTotalHours||0))throw Object.assign(Error('The selected window does not have enough technician availability. Choose more working dates.'),{status:409});
+      const policy=require('../utils/projectCrewCalendar').calendarWindow(req.body);
+      const {manilaDateTime}=require('../utils/bookingDateTime');
+      const start=manilaDateTime(policy.start,0),end=manilaDateTime(policy.end,0);
+      const changes=[{Model:Project,before:project,set:{preferredStartDate:start,preferredCompletionDeadline:end,preferredWorkingDays:policy.workingDays.map(String),preferredWorkingHours:{start:policy.startTime,end:policy.endTime},'schedulePlan.status':'not_generated','schedulePlan.startDate':start,'schedulePlan.targetEndDate':end,'schedulePlan.dailySummary':[],'schedulePlan.conflicts':[],scheduleLocked:false},unset:{plannedStartDate:'',plannedCompletionDate:''}}];
+      if(project.bookingId){const booking=await BookingService.findById(project.bookingId).lean();if(booking)changes.push({Model:BookingService,before:booking,set:{bookingDate:start,'projectScheduling.preferredStartDate':start,'projectScheduling.preferredCompletionDeadline':end}});}
+      if(project.sourceOrderId){const Order=require('../models/Order');const order=await Order.findById(project.sourceOrderId).lean();if(order)changes.push({Model:Order,before:order,set:{'projectScheduling.preferredStartDate':start,'projectScheduling.preferredCompletionDeadline':end}});}
+      const draft=await DailyAssignment.find({projectId:project._id,planningOnly:true,status:{$in:['pending','in_progress']}}).lean();
+      for(const row of draft)changes.push({Model:DailyAssignment,before:row,set:{status:'skipped'}});
+      const orders=await WorkOrder.find({projectId:project._id,planningStatus:{$in:['draft','scheduled']},status:{$nin:['completed','cancelled']}}).lean();
+      for(const order of orders)changes.push({Model:WorkOrder,before:order,set:{planningStatus:'draft'},unset:{scheduledDate:'',scheduledEndDate:'',startTime:'',endTime:''}});
+      const results=await require('../utils/atomicWorkflowChanges').atomicWorkflowChanges(changes);
+      return results[0];
+    });
+    const customerNotification=await require('../utils/projectScheduleNotifications').notifyProjectScheduleChange(saved,{startDate:saved.preferredStartDate,endDate:saved.preferredCompletionDeadline,reason:req.body.reason,confirmed:false},req);
+    await audit.logEvent({actor:req.user._id,actorRole:req.user.role,entityId:saved._id,entityType:'Project',action:'project.schedule_window_changed',module:'projects',req,details:{startDate:saved.preferredStartDate,endDate:saved.preferredCompletionDeadline,reason:req.body.reason,customerNotification}}).catch(()=>{});
+    res.json({project:saved,customerNotification,message:'Project window updated. Generate and confirm the revised daily work plan.'});
+  }catch(error){res.status(error.status||500).json({error:error.status?error.message:'Could not save the project schedule.'});}
+});
+
+function withProjectWindowLock(id,work){return require('../utils/operationLock').withOperationLock('project-schedule:'+id,work);}
+
 router.post("/projects/:id/schedule-preview", auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id" });
@@ -1884,7 +1931,10 @@ router.put("/projects/:id/schedule-settings", auth.requireRole(["admin", "secret
 });
 
 async function buildRecoveryProposal(project, body) {
-  const request = normalizeRecoveryRequest(body, project);
+  const request = normalizeRecoveryRequest({ ...body, notifyCustomer: true }, project);
+  if (project.dailyAcceptance?.required && require('../utils/bookingDateTime').manilaDateKey(request.recoveryStartDate) <= require('../utils/bookingDateTime').manilaDateKey(new Date())) {
+    throw Object.assign(new Error('Today’s project visit has ended. Choose a future workday for the continuation.'), { status: 400 });
+  }
   const result = await generateProjectSchedule(project.toObject ? project.toObject() : project, {
     startDate: request.recoveryStartDate,
     targetEndDate: request.revisedCompletionDate,
@@ -1896,7 +1946,11 @@ async function buildRecoveryProposal(project, body) {
     planningOnly: false,
   });
   const affectedWorkOrderIds = [...new Set((result.allocations || []).map(row => String(row.workOrderId)))];
-  return { request, result, affectedWorkOrderIds };
+  const calendar = await require('../utils/projectCrewCalendar').projectCrewCalendar(project.toObject ? project.toObject() : project, { startDate: request.recoveryStartDate, endDate: request.revisedCompletionDate, workingDays: request.workingDays, startTime: request.startTime, endTime: request.endTime });
+  if (calendar.unavailableTechnicianIds?.length) {
+    result.conflicts = [...(result.conflicts || []), { type: 'crew_unavailable', message: 'Review the crew before approval: one or more assigned technician accounts are inactive or unavailable.', blocking: true }];
+  }
+  return { request, result, calendar, affectedWorkOrderIds };
 }
 
 /** Preview a recovery against live technician, booking, leave, and equipment capacity. */
@@ -1909,7 +1963,8 @@ router.post("/projects/:id/recovery-plan/preview", auth.requireRole(["admin", "s
     if (req.body?.mode === "extend" && req.user.role !== "admin") return res.status(403).json({ error: "Only an administrator can approve a completion-date extension." });
     const proposal = await buildRecoveryProposal(project, req.body || {});
     const blockingConflicts = (proposal.result.conflicts || []).filter(conflict => conflict.blocking);
-    return res.json({
+    const calendar = proposal.calendar;
+    return res.json({ calendar,
       viable: blockingConflicts.length === 0 && proposal.result.status === "ready",
       mode: proposal.request.mode,
       originalBaselineCompletionDate: proposal.request.originalBaselineCompletionDate,
@@ -2010,6 +2065,11 @@ router.post("/projects/:id/recovery-plan", auth.requireRole(["admin", "secretary
         generatedBy: req.user._id,
         confirmedAt: now,
       };
+      if (lockedProject.dailyAcceptance?.required || lockedProject.dailyAcceptance?.declined?.length) {
+        const committedDays = await DailyAssignment.find({ projectId: lockedProject._id, planningOnly: { $ne: true }, status: { $in: ['pending', 'in_progress'] } }).session(session).lean();
+        const next = require('../utils/projectDailyContinuation').nextProjectWork(lockedProject, await WorkOrder.find({projectId:lockedProject._id}).session(session).lean(), committedDays, new Date());
+        lockedProject.dailyAcceptance = require('../utils/projectDailyContinuation').dailyConfirmation(lockedProject, next);
+      }
       lockedProject.scheduleLocked = true;
       lockedProject.plannedCompletionDate = proposal.result.estimatedEndDate;
       if (proposal.request.mode === "extend") lockedProject.preferredCompletionDeadline = proposal.request.revisedCompletionDate;
@@ -2041,6 +2101,14 @@ router.post("/projects/:id/recovery-plan", auth.requireRole(["admin", "secretary
         customerNotification: { requested: proposal.request.notifyCustomer, status: proposal.request.notifyCustomer ? "pending" : "not_requested" },
       });
       await lockedProject.save({ session });
+      if (lockedProject.bookingId) await BookingService.updateOne({ _id: lockedProject.bookingId }, { $set: {
+        'projectScheduling.preferredCompletionDeadline': proposal.request.revisedCompletionDate,
+        'projectScheduling.preferredWorkingDays': proposal.request.workingDays,
+        'projectScheduling.preferredWorkingHours': { start: proposal.request.startTime, end: proposal.request.endTime },
+      } }, { session });
+      if (lockedProject.sourceOrderId) await require('../models/Order').updateOne({ _id: lockedProject.sourceOrderId }, { $set: {
+        'projectScheduling.preferredCompletionDeadline': proposal.request.revisedCompletionDate,
+      } }, { session });
       const entry = lockedProject.scheduleGovernance.history[lockedProject.scheduleGovernance.history.length - 1];
       historyId = entry._id;
       revisionSnapshot = entry.toObject ? entry.toObject() : entry;
@@ -4926,43 +4994,25 @@ router.get("/projects/:id/daily-preparation", auth.authenticate, auth.requireRol
   } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not load project Daily Preparation." }); }
 });
 
-async function openNextDayAcceptance(req, project) {
-  const nextDate = nextWorkingDay(new Date());
-  project.dailyAcceptance = {
-    required: true,
-    date: nextDate,
-    leadAccepted: false,
-    leadAcceptedAt: null,
-    membersAccepted: (project.assignedTechnicians || [])
-      .filter(member => project.leadTechnicianId && String(member._id) !== String(project.leadTechnicianId))
-      .map(member => ({ _id: member._id, name: member.name || "Technician", accepted: false, acceptedAt: null })),
-    declined: [],
-  };
-  await project.save();
-
-  const io = req.app.get("io");
-  const projectName = project.customer?.name || project.service?.name || "your project";
-  for (const member of (project.assignedTechnicians || [])) {
-    await createNotification({
-      type: "daily_acceptance_required",
-      title: "Daily check-in required",
-      message: `Today's work ended for "${projectName}". Confirm that you can continue on the next scheduled workday.`,
-      userId: member._id,
-      role: "technician",
-      referenceId: project._id,
-      referenceModel: "Project",
-      link: "/technician/assignments",
-      priority: "high",
-      io,
-    }).catch(() => {});
-    if (io) io.to(`tech:${member._id}`).emit("project:daily_acceptance", { projectId: project._id, date: nextDate });
+async function notifyProjectWorkday(req, project, result) {
+  if (result.duplicate || !result.unfinished) return;
+  const recipients = await Technician.find({ _id: { $in: [...(project.dailyAcceptance?.membersAccepted || []).map(member => member._id), project.leadTechnicianId].filter(Boolean) } }).select("_id user name").lean().catch(() => []);
+  const date = result.date ? require("../utils/bookingDateTime").manilaDateKey(result.date) : null;
+  for (const member of recipients) {
+    if (member.user) await createNotification({ type: "daily_acceptance_required", title: result.scheduleRequired ? "Project schedule needs review" : "Confirm the next project workday",
+      message: result.scheduleRequired ? "Today's visit ended. Operations must confirm the remaining work schedule before the crew can continue." : `Today's visit ended. Confirm availability for the scheduled workday ${date}.`,
+      userId: member.user, role: "technician", referenceId: project._id, referenceModel: "Project", link: "/technician/assignments", priority: "high", io: req.app.get("io") }).catch(() => {});
   }
-  emitProjectPhase(req, project, "daily_acceptance");
-  return nextDate;
+  if (result.scheduleRequired) await createNotification({ type: "project_schedule_recovery_required", title: "Unfinished project work needs scheduling", message: "The day ended with unfinished units that are not covered by the remaining work plan. Review the crew and recover or extend the schedule.", role: "admin", referenceId: project._id, referenceModel: "Project", link: `/admin/projects/${project._id}`, priority: "high", io: req.app.get("io") }).catch(() => {});
+  emitProjectPhase(req, project, result.unfinished ? "daily_acceptance" : "in_progress");
 }
 
-// Lead: mobilize the crew (En Route). Requires the full team to have accepted
-// AND daily acceptance must be complete (if required).
+async function openNextDayAcceptance(req, project) {
+  const result = await require("../utils/projectDailyContinuation").endProjectDay({ projectId: project._id, leadId: project.leadTechnicianId });
+  await notifyProjectWorkday(req, result.project, result);
+  return result.date;
+}
+
 router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
@@ -4992,8 +5042,8 @@ router.put("/projects/:id/mobilize/en-route", auth.authenticate, auth.requireRol
       return res.status(409).json({ error: 'Wait for the customer to decide on every appliance repair quote before starting the repair visit.' });
     }
     // Block mobilization if daily acceptance is still pending.
-    if (project.dailyAcceptance && project.dailyAcceptance.required) {
-      return res.status(400).json({ error: "Waiting for daily team confirmation — ask members to confirm availability", dailyAcceptance: true });
+    if (project.dailyAcceptance?.required || project.dailyAcceptance?.declined?.length || project.dailyAcceptance?.scheduleRequired) {
+      return res.status(409).json({ error: "Waiting for daily team confirmation — ask members to confirm availability", dailyAcceptance: true });
     }
     const wos = await scheduledWorkOrdersForDay(project._id, ["assigned", "accepted", "partially_completed"]);
     if (wos.length === 0) return res.status(400).json({ error: "No active work to mobilize today" });
@@ -5117,173 +5167,39 @@ router.put("/projects/:id/mobilize/no-show", auth.authenticate, auth.requireRole
 router.put("/projects/:id/mobilize/end-day", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
     const ctx = await requireProjectLead(req, res); if (!ctx) return;
-    const { project } = ctx;
-    const wos = await scheduledWorkOrdersForDay(project._id, ["in_progress", "partially_completed", "arrived", "en_route", "awaiting_review"]);
-    for (const w of wos) {
-      const remaining = (w.unitCount || 0) - (w.completedUnitCount || 0);
-      if (remaining > 0) { w.status = "accepted"; await w.save(); }
-    }
-
-    // Set up daily re-acceptance for the next working day.
-    const tomorrow = nextWorkingDay(new Date());
-    project.dailyAcceptance = {
-      required: true,
-      date: tomorrow,
-      leadAccepted: false,
-      leadAcceptedAt: null,
-      membersAccepted: (project.assignedTechnicians || [])
-        .filter(t => project.leadTechnicianId && t._id.toString() !== project.leadTechnicianId.toString())
-        .map(t => ({ _id: t._id, name: t.name || "Technician", accepted: false, acceptedAt: null })),
-      declined: [],
-    };
-    await project.save();
-
-    // Notify all team members that daily acceptance is required.
-    const io = req.app.get("io");
-    const projName = project.customer?.name || project.service?.name || "your project";
-    for (const t of (project.assignedTechnicians || [])) {
-      await createNotification({
-        type: "daily_acceptance_required",
-        title: "Daily check-in required",
-        message: `Day ended for "${projName}". Confirm you're available for tomorrow's work or decline with a reason.`,
-        userId: t._id, role: "technician", referenceId: project._id, referenceModel: "Project",
-        link: "/technician/assignments", priority: "high", io,
-      }).catch(() => {});
-      if (io) io.to(`tech:${t._id}`).emit("project:daily_acceptance", { projectId: project._id });
-    }
-
-    emitProjectPhase(req, project, "daily_acceptance");
-    res.json({ phase: "daily_acceptance", message: "Day ended — waiting for team to confirm availability for tomorrow" });
-  } catch (e) {
-    console.error("mobilize end-day error:", e);
-    res.status(500).json({ error: "Failed to end day" });
-  }
+    const result = await require("../utils/projectDailyContinuation").endProjectDay({ projectId: ctx.project._id, leadId: ctx.tech._id });
+    await notifyProjectWorkday(req, result.project, result);
+    res.json({ phase: "daily_acceptance", nextWorkDate: result.date, scheduleRequired: result.scheduleRequired,
+      message: result.scheduleRequired ? "Workday closed. Operations must confirm a schedule for the remaining work." : "Workday closed. Confirm availability for the next scheduled work date." });
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not close the workday. Refresh and try again." }); }
 });
 
-// ── Daily re-acceptance: Lead confirms availability for next working day ─────
 router.post("/projects/:id/daily-accept", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician profile not found" });
-    const project = await Project.findById(id);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-    if (!project.dailyAcceptance || !project.dailyAcceptance.required) {
-      return res.status(400).json({ error: "No daily acceptance in progress" });
-    }
-
-    const isLead = project.leadTechnicianId && project.leadTechnicianId.toString() === tech._id.toString();
-
-    if (isLead) {
-      project.dailyAcceptance.leadAccepted = true;
-      project.dailyAcceptance.leadAcceptedAt = new Date();
-    } else {
-      const member = (project.dailyAcceptance.membersAccepted || []).find(
-        m => m._id && m._id.toString() === tech._id.toString()
-      );
-      if (member) {
-        member.accepted = true;
-        member.acceptedAt = new Date();
-      } else {
-        return res.status(400).json({ error: "You are not assigned to this project" });
-      }
-    }
-    await project.save();
-
-    // Check if everyone has accepted.
-    const allMembersAccepted = (project.dailyAcceptance.membersAccepted || []).every(m => m.accepted);
-    const leadAccepted = project.dailyAcceptance.leadAccepted;
-    const allAccepted = leadAccepted && allMembersAccepted;
-
-    if (allAccepted) {
-      // Everyone confirmed — clear daily acceptance and set phase to ready.
-      project.dailyAcceptance.required = false;
-      await project.save();
-
-      // Notify all team members that everyone confirmed.
-      const io = req.app.get("io");
-      for (const t of (project.assignedTechnicians || [])) {
-        await createNotification({
-          type: "daily_acceptance_confirmed",
-          title: "Team confirmed — ready to mobilize",
-          message: `All team members confirmed availability for "${project.customer?.name || project.service?.name || 'your project'}". The lead can now mobilize the crew.`,
-          userId: t._id, role: "technician", referenceId: project._id, referenceModel: "Project",
-          link: "/technician/assignments", priority: "normal", io,
-        }).catch(() => {});
-        if (io) io.to(`tech:${t._id}`).emit("project:daily_ready", { projectId: project._id });
-      }
-
-      return res.json({ phase: "ready", message: "All team confirmed — ready to mobilize", allConfirmed: true });
-    }
-
-    res.json({ phase: "daily_acceptance", message: isLead ? "Lead confirmed — waiting for members" : "Confirmed — waiting for lead and other members", allConfirmed: false });
-  } catch (e) {
-    console.error("daily-accept error:", e);
-    res.status(500).json({ error: "Failed to accept" });
-  }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id." });
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician profile not found." });
+    const result = await require("../utils/projectDailyContinuation").confirmProjectDay({ projectId: req.params.id, technicianId: technician._id, accept: true });
+    emitProjectPhase(req, result.project, result.allConfirmed ? "ready" : "daily_acceptance");
+    res.json({ allConfirmed: result.allConfirmed, phase: result.allConfirmed ? "ready" : "daily_acceptance", message: result.allConfirmed ? "The crew confirmed the scheduled workday. Daily Preparation is still required." : "Availability confirmed. Waiting for the rest of the crew." });
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not confirm availability." }); }
 });
 
-// ── Daily re-acceptance: Technician declines next day (with reason) ──────────
 router.post("/projects/:id/daily-decline", auth.authenticate, auth.requireRole("technician"), async (req, res) => {
   try {
-    const { id } = req.params;
-    const { reason } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid project id" });
-    const tech = await Technician.findOne({ user: req.user._id });
-    if (!tech) return res.status(404).json({ error: "Technician profile not found" });
-    const project = await Project.findById(id);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-    if (!project.dailyAcceptance || !project.dailyAcceptance.required) {
-      return res.status(400).json({ error: "No daily acceptance in progress" });
-    }
-
-    // Record the decline.
-    project.dailyAcceptance.declined = project.dailyAcceptance.declined || [];
-    project.dailyAcceptance.declined.push({
-      _id: tech._id,
-      name: tech.name || "Technician",
-      reason: reason || "No reason provided",
-      declinedAt: new Date(),
-    });
-    project.dailyAcceptance.required = false;
-    await project.save();
-
-    // Notify admin about the decline.
-    const io = req.app.get("io");
-    await createNotification({
-      type: "daily_acceptance_declined",
-      title: "Technician declined next day",
-      message: `${tech.name} declined to continue "${project.customer?.name || project.service?.name || 'your project'}" for tomorrow. Reason: ${reason || 'No reason provided'}. Replacement may be needed.`,
-      role: "admin", referenceId: project._id, referenceModel: "Project",
-      link: `/admin/projects/${project._id}`, priority: "high", io,
-    }).catch(() => {});
-
-    // Notify the lead.
-    if (project.leadTechnicianId) {
-      await createNotification({
-        type: "daily_acceptance_declined",
-        title: "Team member declined tomorrow",
-        message: `${tech.name} cannot continue tomorrow. Reason: ${reason || 'No reason provided'}. You may need a replacement.`,
-        userId: project.leadTechnicianId, role: "technician", referenceId: project._id, referenceModel: "Project",
-        link: "/technician/assignments", priority: "high", io,
-      }).catch(() => {});
-    }
-
-    // Emit socket event so the UI refreshes.
-    if (io) io.to(`tech:${tech._id}`).emit("project:daily_declined", { projectId: project._id });
-
-    res.json({ phase: "daily_declined", message: "Declined — admin and lead have been notified" });
-  } catch (e) {
-    console.error("daily-decline error:", e);
-    res.status(500).json({ error: "Failed to decline" });
-  }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid project id." });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 5 || reason.length > 500) return res.status(400).json({ error: "Explain your unavailability using 5 to 500 characters." });
+    const technician = await Technician.findOne({ user: req.user._id }).lean();
+    if (!technician) return res.status(404).json({ error: "Technician profile not found." });
+    const result = await require("../utils/projectDailyContinuation").confirmProjectDay({ projectId: req.params.id, technicianId: technician._id, accept: false, reason });
+    await createNotification({ type: "daily_acceptance_declined", title: "Project crew needs review", message: `${technician.name || "A crew member"} cannot attend the next workday: ${reason}`, role: "admin", referenceId: result.project._id, referenceModel: "Project", link: `/admin/projects/${result.project._id}`, priority: "high", io: req.app.get("io") }).catch(() => {});
+    emitProjectPhase(req, result.project, "daily_acceptance");
+    res.json({ phase: "daily_acceptance", message: "Operations was notified. Crew departure stays blocked until the schedule and staffing are reviewed." });
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : "Could not report unavailability." }); }
 });
 
-// ── Project completion payment (lead collects once all units are done) ───────
-// Auto-counts the working days the crew was active (distinct DailyAssignment
-// dates with completed units) and prefills labor/day, travel/day, service fee
-// from the project. The lead can override any figure before collecting.
+
 async function buildProjectPaymentSummary(project) {
   const DailyAssignment = require("../models/DailyAssignment");
   const SiteSetting = require("../models/SiteSetting");

@@ -569,6 +569,7 @@ app.use("/api/products", productRoutes);
 
 const orderRoutes = require("./routes/orderRoutes");
 app.use("/api/orders", orderRoutes);
+app.use("/api/work-continuations", require("./routes/workContinuationRoutes"));
 
 const maintenanceRoutes = require("./routes/maintenanceRoutes");
 app.use("/api/maintenance", maintenanceRoutes);

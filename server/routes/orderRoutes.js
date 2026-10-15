@@ -1584,6 +1584,7 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
+    if (order.continuation?.status === 'pending') return res.status(409).json({ error: 'Operations must schedule the continuation before work resumes.', code: 'CONTINUATION_PENDING' });
 
     // Verify this technician is the one assigned
     const tech = await Technician.findOne({ user: req.user._id }).lean();

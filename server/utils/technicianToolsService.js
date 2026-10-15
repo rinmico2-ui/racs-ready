@@ -59,7 +59,13 @@ function createService(overrides = {}) {
     }
     for (const [Model, linkedIds, closed] of checks) {
       if (!linkedIds.length) continue;
-      const open = await Model.exists({ _id: { $in: linkedIds }, status: { $nin: closed } }).session(session);
+      const open = await Model.exists({ _id: { $in: linkedIds }, status: { $nin: closed },
+        ...(Model === m.BookingService && links('dailyAssignmentIds').length ? { isProject: { $ne: true } } : {}),
+        ...(Model === m.BookingService || Model === m.Order ? { $nor: [
+          { 'continuation.status': 'pending' },
+          { 'continuation.status': 'scheduled', status: { $in: ['accepted', 'assigned', 'confirmed', 'scheduled', 'inspection_scheduled', 'repair_scheduled', 'technician_assigned', 'technician_accepted'] } },
+        ] } : {}),
+      }).session(session);
       if (open) throw fail(409, "This equipment is still needed for unfinished work. Finish the work before returning it, or report damage if it cannot be used.");
     }
   }

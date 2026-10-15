@@ -42,6 +42,7 @@ const assignmentSchema = new mongoose.Schema(
       index: true,
     },
     serviceItemId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
+    continuation: { type: require('../utils/workContinuationSchema')(mongoose), default: undefined },
 
     technicianId: {
       type: mongoose.Schema.Types.ObjectId,

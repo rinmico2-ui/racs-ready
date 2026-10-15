@@ -206,6 +206,22 @@ async function loadTechnicianContext(userId) {
 // ── Auth guards ───────────────────────────────────────────────────────────────
 router.use(auth.authenticate);
 router.use(auth.requireRole("technician"));
+router.use(['/assignments/:id', '/appointments/:id', '/repairs/:id', '/bookings/:id'], async (req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || /\/return$/.test(req.path)) return next();
+  if (!mongoose.isValidObjectId(req.params.id)) return next();
+  try {
+    let bookingId = req.params.id;
+    if (req.baseUrl.includes('/assignments/')) {
+      const assignment = await require('../models/Assignment').findById(bookingId).select('bookingId').lean();
+      bookingId = assignment?.bookingId;
+    }
+    if (bookingId) {
+      const booking = await require('../models/BookingService').findById(bookingId).select('continuation').lean();
+      require('../utils/workContinuation').assertVisitActive(booking);
+    }
+    next();
+  } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message, code: 'CONTINUATION_PENDING' }); next(error); }
+});
 // Compatibility for project clients that used the shorter GPS endpoint.
 router.post("/location", require("../controllers/technicianLocationController").updateLocation);
 router.use(require('../utils/repairUnitLegacyGuard'));
@@ -6184,8 +6200,10 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
           return res.status(409).json({ error: 'Finish the Removal, Transport, Installation, and Testing checklist before submitting completion proof.' });
         }
       }
-      if (booking && ["cod", "cash", "cash_onsite", "gcash_downpayment"].includes(booking.paymentMethod) && !booking.balanceCollected && (booking.balanceAmount || 0) > 0) {
-        return res.status(400).json({ error: "You must collect the remaining balance before completing this job." });
+      const receivedPayments = await require('../models/Payment').find({ bookingId: booking._id }).lean();
+      const amountDue = require('../utils/paymentSummary').outstandingBookingBalance(booking, receivedPayments);
+      if (amountDue > 0.01) {
+        return res.status(409).json({ error: "Collect the remaining balance before completing this job.", code: "BOOKING_BALANCE_REQUIRED", balanceAmount: amountDue });
       }
 
       let consumableUsage = [];
@@ -6231,6 +6249,12 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         }).session(completionSession).lean();
         if (!currentAssignment) {
           throw Object.assign(new Error("Assignment changed before completion. Refresh and try again."), { status: 409 });
+        }
+        const currentBooking = await BookingService.findById(assignment.bookingId).session(completionSession).lean();
+        require('../utils/workContinuation').assertVisitActive(currentBooking);
+        const currentPayments = await require('../models/Payment').find({ bookingId: assignment.bookingId }).session(completionSession).lean();
+        if (require('../utils/paymentSummary').outstandingBookingBalance(currentBooking, currentPayments) > 0.01) {
+          throw Object.assign(new Error('Collect the remaining balance before completing this job.'), { status: 409 });
         }
         await recordBookingConsumableUsage({
           technicianId: tech._id,

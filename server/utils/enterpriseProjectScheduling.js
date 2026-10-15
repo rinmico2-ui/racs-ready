@@ -74,8 +74,8 @@ async function buildSchedulingContext(project, options={}) {
     TechnicianSchedule.find({technicianId:{$in:teamIds}}).lean(),
     LeaveRequest.find({technicianId:{$in:teamIds},status:"approved",startDate:{$lte:horizon},endDate:{$gte:start}}).lean(),
     NonWorkingDay.find({service:null,date:{$gte:start,$lte:horizon},active:{$ne:false}}).lean(),
-    BookingService.find({technicianId:{$in:teamIds},bookingDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_BOOKINGS}}).select("technicianId bookingDate startTime endTime serviceDurationMinutes travelDurationMinutes bookingReference service.name").lean(),
-    DailyAssignment.find({technicianId:{$in:teamIds},projectId:{$ne:project._id},date:{$gte:start,$lte:horizon},status:{$ne:"skipped"}}).select("technicianId date startTime endTime allocatedMinutes workOrderId").lean(),
+    BookingService.find({...(project.bookingId?{_id:{$ne:project.bookingId}}:{}),technicianId:{$in:teamIds},'continuation.status':{$ne:'pending'},bookingDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_BOOKINGS}}).select("technicianId bookingDate startTime endTime serviceDurationMinutes travelDurationMinutes bookingReference service.name").lean(),
+    DailyAssignment.find({technicianId:{$in:teamIds},projectId:{$ne:project._id},planningOnly:{$ne:true},date:{$gte:start,$lte:horizon},status:{$ne:"skipped"}}).select("technicianId date startTime endTime allocatedMinutes workOrderId").lean(),
     EquipmentAssignment.find({projectId:{$ne:project._id},workDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_EQUIPMENT}}).select("equipmentId equipmentName workDate quantity").lean(),
     Tool.find({active:{$ne:false}}).select("_id itemName quantity reservedQuantity").lean(),
   ]);
@@ -186,4 +186,4 @@ async function validateProjectSchedule(project) {
   return {...result,valid:result.status==="ready"};
 }
 
-module.exports={generateProjectSchedule,validateProjectSchedule,normalizeWorkingDays,parseTime,timeText,overlap};
+module.exports={generateProjectSchedule,validateProjectSchedule,normalizeWorkingDays,parseTime,timeText,overlap,buildSchedulingContext,subtractIntervals};
