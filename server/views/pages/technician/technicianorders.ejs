@@ -3337,7 +3337,6 @@
     h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-person"></i></div><div><div class="to-info-label">Customer contact</div><div class="to-info-value">'+esc(o.customer?.name || 'Customer')+(phone?' · '+esc(phone):'')+'</div></div></div>';
     h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-pin-map"></i></div><div><div class="to-info-label">Delivery address</div><div class="to-info-value">'+esc(address)+'</div></div></div>';
     h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-calendar3"></i></div><div><div class="to-info-label">Delivery schedule</div><div class="to-info-value">'+esc(schedule)+'</div></div></div>';
-    if(o.delivery?.notes) h += '<div class="to-info-row"><div class="to-info-icon"><i class="bi bi-sticky"></i></div><div><div class="to-info-label">Customer instructions</div><div class="to-info-note">'+esc(o.delivery.notes)+'</div></div></div>';
     h += '</div><div class="to-contact-actions">';
     if(phoneLink) {
       h += '<a class="to-contact-action" href="tel:'+esc(phoneLink)+'"><i class="bi bi-telephone"></i>Call</a>';
@@ -3345,6 +3344,8 @@
     }
     h += '<a class="to-contact-action" href="'+esc(mapsHref)+'" target="_blank" rel="noopener noreferrer"><i class="bi bi-sign-turn-right"></i>Directions</a>';
     h += '</div></div></section>';
+
+    h += window.SpecialInstructions.renderOrder(o);
 
     h += '<section class="to-detail-card"><div class="to-detail-card-head"><h6 class="to-detail-card-title"><i class="bi bi-boxes"></i>Order Items</h6><span class="to-detail-card-count">'+(o.items?.length || 0)+' line item'+((o.items?.length || 0)===1?'':'s')+'</span></div><div class="to-detail-card-body">';
     if((o.items || []).length) {

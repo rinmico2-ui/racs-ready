@@ -26,7 +26,8 @@ test('repair steps cannot advance with a blank, whitespace-only or invalid model
   const modelFunction = source.slice(source.indexOf('function repairModelValidationMessage('), source.indexOf('function isLargeScaleSelection('));
   const guideFunction = source.slice(source.indexOf('function getRepairGuideStep('), source.indexOf('function refreshRepairGuide('));
   const context = { document: { getElementById: id => nodes[id] }, REPAIR_MODEL_MAX_LENGTH: 50, SAFE_REPAIR_MODEL_PATTERN: /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/,
-    selectedRepairUnitCategory: () => 'aircon', getSelectedRepairBrand: () => 'Carrier', remainingBookingUnits: () => 40 };
+    selectedRepairUnitCategory: () => 'aircon', getSelectedRepairBrand: () => 'Carrier', remainingBookingUnits: () => 40,
+    repairNeedsIdentification: () => false, repairIdentificationState: { mode: 'manual' } };
   vm.createContext(context); vm.runInContext(modelFunction + guideFunction, context);
   for (const model of ['', '  ', '<script>', 'A'.repeat(51)]) { nodes.unitModel.value = model; assert.equal(context.getRepairGuideStep(), 3); }
   nodes.unitModel.value = 'MODEL-123'; assert.equal(context.getRepairGuideStep(), 5);

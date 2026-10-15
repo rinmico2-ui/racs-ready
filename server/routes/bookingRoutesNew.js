@@ -387,7 +387,14 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     const relocationById = new Map(relocationRequests.map(item => [String(item._id), item]));
     for (let index = 0; index < parsedServices.length; index += 1) {
       const item = parsedServices[index];
-      if (item.type === 'repair') continue;
+      if (item.type === 'repair') {
+        const policy = require('../utils/repairIdentificationPolicy');
+        if (typeof item.brand !== 'string' || item.brand.trim().length > 80 || policy.unknownBrand(item.brand.trim())) return res.status(400).json({ error: 'Confirm the repair appliance brand or request staff identification before booking.' });
+        if (item.assistanceRequestId && !policy.repairQuoteMatches(assistanceById.get(String(item.assistanceRequestId)), item)) {
+          return res.status(409).json({ error: 'The verified repair unit or inspection fee changed. Review your identification request before booking.' });
+        }
+        continue;
+      }
       const catalog = coreById.get(String(item.serviceId));
       if (!catalog) return res.status(400).json({ error: `Core service ${index + 1} is unavailable.` });
       if (catalog.slug === 'aircon-relocation') {
@@ -1188,7 +1195,9 @@ async function validatedServiceItems(inputItems, booking) {
     }
     return { input, type, prior };
   });
-  const categoryRepairContexts = contexts.filter(({ input, type, prior }) => type === "repair" && !prior && !input.serviceId);
+  const categoryRepairContexts = contexts.filter(({ input, type, prior }) => type === "repair" && !input.serviceId && !prior?.serviceId && (!prior ||
+    String(input.unitType || input.applianceType || '') !== String(prior.unitType || prior.applianceType || '') ||
+    String(input.unitCategory || '') !== String(prior.unitCategory || '')));
   const categoryRepairPrices = categoryRepairContexts.length
     ? await resolveRepairInspectionFees(categoryRepairContexts.map(({ input }) => ({ ...input, type: "repair" })))
     : [];
@@ -1202,25 +1211,37 @@ async function validatedServiceItems(inputItems, booking) {
       error.status = 400;
       throw error;
     }
-    if (type === "repair" && !prior && !input.serviceId) {
+    if (type === "repair" && !input.serviceId && !prior?.serviceId) {
       const brand = String(input.brand || "").trim().slice(0, 100);
       const problemDescription = String(input.problemDescription || input.repairIssue || "").trim().slice(0, 2000);
-      if (brand.length < 2 || problemDescription.length < 10) {
+      const unchangedLegacyDetails = prior && brand === String(prior.brand || '').trim() && modelResult.value === String(prior.model || '').trim() &&
+        String(input.unitType || input.applianceType || '') === String(prior.unitType || prior.applianceType || '') &&
+        String(input.unitCategory || '') === String(prior.unitCategory || '') && Number(input.quantity) === Number(prior.quantity);
+      if (!unchangedLegacyDetails && (brand.length < 2 || require('../utils/repairIdentificationPolicy').unknownBrand(brand) || problemDescription.length < 10)) {
         const error = new Error("Repair requests require a brand and a problem description of at least 10 characters.");
         error.status = 400;
         throw error;
       }
-      const pricing = categoryRepairPriceByInput.get(input);
+      const pricing = categoryRepairPriceByInput.get(input) || { unitType: prior.unitType || prior.applianceType, unitLabel: prior.applianceTypeName || prior.unitType || prior.applianceType, categorySlug: prior.unitCategory || '', fee: prior.unitPrice };
+      const sameAppliance = prior && String(prior.unitType || prior.applianceType || '') === pricing.unitType && String(prior.unitCategory || '') === pricing.categorySlug;
+      if (prior && !sameAppliance && !['pending', 'inspection_pending'].includes(prior.status)) {
+        const error = new Error('This appliance has entered the repair workflow. Ask staff to change its type.');
+        error.status = 400;
+        throw error;
+      }
+      const unitPrice = sameAppliance && prior.unitPrice != null && Number.isFinite(Number(prior.unitPrice)) ? Number(prior.unitPrice) : Number(pricing.fee);
       const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Math.trunc(Number(input.quantity)) || 1));
       const duration = await getInspectionDurationMinutes();
       const unitLabel = String(pricing?.unitLabel || input.unitType || input.applianceTypeName || input.applianceType || "Appliance").trim();
       return {
+        ...(prior || {}),
+        _id: prior?._id,
         serviceId: null,
         name: `${unitLabel} Repair`,
         type: "repair",
         quantity,
-        unitPrice: Number(pricing?.fee || 0),
-        totalPrice: Number(pricing?.fee || 0) * quantity,
+        unitPrice,
+        totalPrice: unitPrice * quantity,
         duration,
         hp: null,
         hpDescription: "",
@@ -1234,9 +1255,9 @@ async function validatedServiceItems(inputItems, booking) {
         model: modelResult.value,
         repairIssue: problemDescription,
         problemDescription,
-        status: "inspection_pending",
-        phase: "repair_phase_1",
-        schedule: { date: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime, durationMinutes: duration, kind: "inspection" },
+        status: prior?.status || "inspection_pending",
+        phase: prior?.phase || "repair_phase_1",
+        schedule: prior?.schedule || { date: booking.bookingDate, startTime: booking.startTime, endTime: booking.endTime, durationMinutes: duration, kind: "inspection" },
       };
     }
     const catalogDoc = prior
@@ -1578,7 +1599,7 @@ router.post('/create-repair', (req, res, next) => {
     }
     repairItems.forEach((item, index) => {
       if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);
-      if (item.brand.length < 2) errors.push(`Appliance ${index + 1}: brand is required`);
+      if (item.brand.length < 2 || item.brand.length > 80 || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(item.brand)) errors.push(`Appliance ${index + 1}: confirm the brand or ask staff to identify the unit before booking`);
       const modelResult = validateRepairModel(item.model, { required: true });
       if (!modelResult.valid) errors.push(`Appliance ${index + 1}: ${modelResult.error}`);
       else item.model = modelResult.value;

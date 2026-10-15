@@ -76,92 +76,28 @@ test("booking-history sorting is server-side, stable, and allowlisted", () => {
   assert.match(routes, /\|\| bookingSorts\.created_desc/);
 });
 
-test("edit booking quantity controls are item-scoped and have no duplicate HP ids", () => {
-  const view = read("views/pages/book-history.ejs");
+test("edit booking shares the service page builders while keeping its quantity controls scoped", () => {
   const script = read("public/js/book-history.js");
-
-  assert.match(script, /data-hp-qty-minus/);
-  assert.match(script, /data-hp-qty-plus/);
-  assert.match(script, /bh-item-qty-minus/);
-  assert.match(script, /bh-item-qty-plus/);
-  assert.doesNotMatch(script, /id="bhHpQty(?:Minus|Plus|Input)"/);
-  assert.match(script, /Math\.max\(1, Math\.min\(40,/);
-  assert.match(script, /const maxQuantityFor = index => maxBookingUnits - selectedUnits\(\)/);
-  assert.match(script, /otherInput\.max = String\(maxQuantityFor\(otherIndex\)\)/);
-  assert.match(script, /const maxHpQuantityFor = index => remainingUnits\(\) - selectedHpUnits\(\)/);
-  assert.match(script, /type="checkbox" aria-label="Select/);
-  assert.doesNotMatch(script, /type="radio" name="bhHpOption"/);
-  assert.match(script, /class="bh-editor-workspace"/);
-  assert.match(script, /class="bh-editor-cart"/);
-  assert.match(script, /id="bhEditorCartTotalValue"/);
-  assert.match(script, /data-bh-cfg-step="1"/);
-  assert.match(script, /id="bhCfgBrandSection"/);
-  assert.match(script, /id="bhCfgTypeSection"/);
-  assert.match(script, /id="bhHpOptionsSection"/);
-  assert.match(script, /function showBrandStep\(\)/);
-  assert.match(script, /function showTypeStep\(\)/);
-  assert.match(script, /function showHpStep\(\)/);
-  assert.match(view, /#bhBookingEditorModal \.bh-service-catalog-card/);
-  assert.match(view, /#bhHpModal \.bh-cfg-wizard/);
-});
-
-test("edit-booking quantities support typing as well as plus and minus", () => {
-  const view = read("views/pages/book-history.ejs");
-  const script = read("public/js/book-history.js");
-
+  const shared = read("public/js/core-appliance-booking.js");
+  assert.match(script, /window\.CoreApplianceBooking\.create\(\)/);
+  assert.match(script, /window\.RepairApplianceBooking\.create\(\)/);
   assert.match(script, /class="bh-item-qty-input"[^>]*inputmode="numeric"/);
   assert.doesNotMatch(script, /class="bh-item-qty-input"[^>]*readonly/);
-  assert.doesNotMatch(script, /id="bhSimpleQty"[^>]*readonly/);
-  assert.doesNotMatch(script, /data-hp-qty-input="\$\{i\}"[^>]*readonly/);
   assert.match(script, /input\.addEventListener\('input', \(\) => commitTypedQuantity\(false\)\)/);
-  assert.match(script, /quantityInput\.addEventListener\('input', \(\) => syncQuantity\(false\)\)/);
-  assert.match(script, /input\.addEventListener\('input', \(\) => syncTypedHpQuantity\(false\)\)/);
-  assert.match(script, /Math\.trunc\(Number\(raw\)\)/);
-  assert.match(view, /\.bh-editor-stepper input:focus/);
+  assert.match(shared, /\['Appliance', 'Details', 'Services'\]/);
+  assert.match(shared, /node\.id = host\.id \+ '-' \+ original/);
 });
 
-test("edit-booking repair fields guide focus to the next completed step", () => {
-  const view = read("views/pages/book-history.ejs");
-  const script = read("public/js/book-history.js");
-
-  assert.match(script, /function advanceRepairEditor\(step, targetSelector\)/);
-  assert.match(script, /renderUnitChips\(\)[\s\S]*?advanceRepairEditor\(3, "#bhRepairBrand"\)/);
-  assert.match(script, /repairBrandInput\.addEventListener\("keydown"[\s\S]*?"#bhRepairModel"/);
-  assert.match(script, /repairModelInput\.addEventListener\("keydown"[\s\S]*?"#bhRepairQty"/);
-  assert.match(script, /repairQuantityInput\.addEventListener\("keydown"[\s\S]*?bhRepairDetailsNext/);
-  assert.match(script, /bhRepairDetailsNext'\)\.onclick[\s\S]*?advanceRepairEditor\(4, '#bhSymptomChips \.bh-symptom'\)/);
-  assert.match(script, /renderSymptomChips\(\)[\s\S]*?advanceRepairEditor\(4, "#bhRepairProblem"\)/);
-  assert.doesNotMatch(script, /id="bhRepairSelect"/);
-  assert.match(script, /function selectedRepairPricing\(\)/);
-  assert.match(script, /serviceId: null, name: `\$\{unitLabel\} Repair`/);
-  assert.match(view, /bh-repair-step-current/);
-  assert.match(view, /\/js\/book-history\.js\?v=/);
-});
-
-test("edit booking mirrors the booking-page service picker", () => {
-  const view = read("views/pages/book-history.ejs");
+test("edit booking uses current catalog prices and leaves unidentified additions for staff review", () => {
   const script = read("public/js/book-history.js");
   const routes = read("routes/bookingRoutesNew.js");
-  const serviceRoutes = read("routes/serviceRoutes.js");
-  const bookingModel = read("models/BookingService.js");
-
-  assert.match(script, /CORE_SERVICES_PER_PAGE = 4/);
-  assert.match(script, /id="bhCorePager"/);
-  assert.match(script, /id="bhUnitPager"/);
-  assert.match(script, /selectedCategory\.unitTypes\.slice\(repairUnitPage \* 4, \(repairUnitPage \+ 1\) \* 4\)/);
-  assert.match(script, /class="bh-repair-progress"/);
-  assert.match(script, /data-bh-repair-nav="1"/);
-  assert.match(script, /Which appliance needs repair\?/);
-  assert.match(script, /id="bhCustomUnitType"/);
-  assert.match(script, /customUnitNext\.onclick = \(\) =>/);
-  assert.match(script, /advanceRepairEditor\(2, selectedCategory\?\.isCustom && !selectedCategory\.unitTypes\?\.length \? "#bhCustomUnitType"/);
-  assert.match(view, /\.bh-editor-service-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
-  assert.match(view, /\.bh-repair-category\.is-selected/);
-  assert.match(view, /\.bh-custom-unit-row/);
-  assert.match(serviceRoutes, /return res\.json\(\{ categories, defaultInspectionFee \}\)/);
+  assert.match(script, /existingBookingId: bookingId/);
+  assert.match(script, /Finish adding the appliance or cancel its changes/);
+  assert.match(script, /defaultInspectionFee: defaultRepairInspectionFee/);
   assert.match(routes, /categoryRepairContexts[\s\S]*?resolveRepairInspectionFees/);
-  assert.match(routes, /serviceId: null,[\s\S]*?phase: "repair_phase_1"/);
-  assert.match(bookingModel, /unitType: \{ type: String, trim: true, maxlength: 80 \}/);
+  assert.match(routes, /serviceId: null,[\s\S]*?phase: prior\?\.phase \|\| "repair_phase_1"/);
+  assert.match(script, /proposedServices|service-change-requests/);
+  assert.doesNotMatch(script, /id="bhCustomUnitType"/);
 });
 
 test("edit booking uses one guarded loader and cleans orphaned modal backdrops", () => {

@@ -57,6 +57,10 @@ test('staff quotes respect customer acceptance and quote freshness', async t => 
   assert.equal(writes.length, 0, 'an active accepted quote must stay accepted');
 
   request = { ...request, status: 'quoted' };
+  for (const brand of ["I don't know", 'unknown', '__other__', '   ']) {
+    response = await send({ brand, expectedQuotedAt: quoteDate.toISOString() });
+    assert.equal(response.status, 400); assert.equal(writes.length, 0, 'staff must identify the brand before quoting');
+  }
   response = await send({ model: '  ', expectedQuotedAt: quoteDate.toISOString() });
   assert.equal(response.status, 400); assert.match((await response.json()).error, /model.*required/i); assert.equal(writes.length, 0);
   response = await send({ expectedQuotedAt: '2026-10-05T08:00:00.000Z' });

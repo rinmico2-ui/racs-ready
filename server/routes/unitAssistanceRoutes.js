@@ -13,6 +13,7 @@ const { normalizeUnitAssistance } = require('../utils/unitAssistancePolicy');
 const unitAssistanceUpload = require('../middleware/unitAssistanceUpload');
 const { storePhoto, deletePhoto, downloadPhoto } = require('../utils/unitAssistancePhotos');
 const A = require('../public/js/appliance-services');
+const repairIdentification = require('../utils/repairIdentificationPolicy');
 
 const router = express.Router();
 router.use(auth.authenticate);
@@ -20,27 +21,29 @@ const customer = auth.requireRole('customer');
 const staff = auth.requireRole(['admin', 'secretary']);
 const limiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 10, keyGenerator: authenticatedOrIpKey, standardHeaders: true, legacyHeaders: false });
 const validId = id => mongoose.isValidObjectId(id);
-const customerFields = '_id serviceId serviceName existingBookingId existingBookingReference applianceKind model photos brand airconType hp quantity relocation notes status createdAt quote.applianceKind quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
+const customerFields = '_id requestType repair serviceId serviceName existingBookingId existingBookingReference applianceKind model photos brand airconType hp quantity relocation notes status createdAt quote.applianceKind quote.unitType quote.unitCategory quote.brand quote.airconType quote.airconTypeName quote.hp quote.unitPrice quote.durationMinutes quote.notes quote.quotedAt quote.expiresAt';
 
 router.post('/', customer, limiter, unitAssistanceUpload, async (req, res) => {
   const storedPhotos = [];
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Enter your appliance details.' });
-    if (typeof req.body.serviceId !== 'string') return res.status(400).json({ error: 'Choose a valid service.' });
+    const isRepair = req.body.requestType === 'repair';
+    if (req.body.requestType != null && !['core', 'repair'].includes(req.body.requestType)) return res.status(400).json({ error: 'Choose a valid request type.' });
+    if (!isRepair && typeof req.body.serviceId !== 'string') return res.status(400).json({ error: 'Choose a valid service.' });
     const serviceId = String(req.body.serviceId || '');
     const quantity = Number(req.body.quantity);
     const clientRequestId = req.body.clientRequestId;
     if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' || !/^[A-Za-z0-9_-]{12,100}$/.test(clientRequestId))) return res.status(400).json({ error:'Invalid request reference. Reopen the service and try again.' });
-    if (!validId(serviceId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 40) {
+    if ((!isRepair && !validId(serviceId)) || !Number.isInteger(quantity) || quantity < 1 || quantity > 40) {
       return res.status(400).json({ error: 'Choose a valid service and unit quantity.' });
     }
     if (clientRequestId) {
       const existing = await UnitAssistanceRequest.findOne({ customerId:req.user._id, clientRequestId }).select('_id status').lean();
       if (existing) return res.json({ id:existing._id, status:existing.status });
     }
-    const catalog = await CoreService.findOne({ _id: serviceId, active: true }).lean();
+    const catalog = isRepair ? { name: 'Repair inspection' } : await CoreService.findOne({ _id: serviceId, active: true }).lean();
     if (!catalog) return res.status(400).json({ error: 'This service is unavailable.' });
-    const details = normalizeUnitAssistance(catalog, req.body);
+    const details = isRepair ? await repairIdentification.normalizeRepairIdentification(req.body) : normalizeUnitAssistance(catalog, req.body);
     if (catalog.slug === 'aircon-relocation' && details.applianceKind !== 'aircon') return res.status(400).json({ error: 'Relocation requires an aircon.' });
     let relocation = undefined;
     if (catalog.slug === 'aircon-relocation') {
@@ -61,7 +64,7 @@ router.post('/', customer, limiter, unitAssistanceUpload, async (req, res) => {
         serialNumber: String(req.body.relocation.serialNumber || '').trim().slice(0, 100) };
     }
     const { brand, airconType, hp } = details;
-    if (details.applianceKind === 'aircon' && brand && brand.toLowerCase() !== "i don't know" && airconType && hp != null) {
+    if (!isRepair && details.applianceKind === 'aircon' && brand && brand.toLowerCase() !== "i don't know" && airconType && hp != null) {
       const type = catalog.airconTypes?.find(item => item.type === airconType);
       const tiers = type?.hpPricing || catalog.hpPricing || [];
       if (tiers.some(tier => Number(tier.hp) === hp && Number.isFinite(Number(tier.price)))) {
@@ -88,7 +91,7 @@ router.post('/', customer, limiter, unitAssistanceUpload, async (req, res) => {
     });
     for (const role of ['admin', 'secretary']) {
       createNotification({ type: 'system', role, title: 'Unit identification requested',
-        message: `${catalog.name}: customer needs help identifying a ${A.labels[details.applianceKind].toLowerCase()}${existingBooking ? ` for booking ${existingBooking.bookingReference}` : ' before booking'}.`,
+        message: `${request.serviceName}: customer needs help identifying a ${(A.labels[details.applianceKind] || 'repair appliance').toLowerCase()}${existingBooking ? ` for booking ${existingBooking.bookingReference}` : ' before booking'}.`,
         link: `/${role}/unit-assistance`, priority: 'normal', io: req.app.get('io') }).catch(() => {});
     }
     return res.status(201).json({ id: request._id, status: request.status });
@@ -178,7 +181,8 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     }
     const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model, { required: true });
     if (!modelResult.valid) return res.status(400).json({ error: modelResult.error });
-    const catalog = await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
+    const isRepair = request.requestType === 'repair';
+    const catalog = isRepair ? null : await CoreService.findOne({ _id: request.serviceId, active: true }).lean();
     const verificationMethod = typeof req.body.verificationMethod === 'string' ? req.body.verificationMethod : '';
     if (!['customer_contact', 'model_label', 'site_visit'].includes(verificationMethod)) {
       return res.status(400).json({ error: 'Select how the unit details were verified.' });
@@ -189,12 +193,14 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
       return res.status(400).json({ error: 'Check the verified brand, type, HP and notes.' });
     }
     const brand = brandValue.trim();
+    if (repairIdentification.unknownBrand(brand)) return res.status(400).json({ error: 'Confirm the appliance brand before sending a quote.' });
     const selection = { brand, airconType: req.body.airconType, hp: req.body.hp, quantity: request.quantity, ...(request.applianceKind ? { applianceKind: request.applianceKind } : {}) };
-    const pricing = resolveCoreServicePricing(catalog, selection);
+    const pricing = isRepair ? await repairIdentification.verifiedRepairPricing(request, { ...req.body, brand }) : resolveCoreServicePricing(catalog, selection);
     const quote = {
       applianceKind: request.applianceKind || 'aircon',
       brand, airconType: pricing.airconType, airconTypeName: pricing.airconTypeName,
       hp: pricing.hp, unitPrice: pricing.unitPrice, durationMinutes: pricing.duration,
+      ...(isRepair ? { unitType: pricing.unitType, unitCategory: pricing.unitCategory } : {}),
       notes: String(req.body.notes || '').trim().slice(0, 1000),
       verificationMethod,
       quotedBy: req.user._id, quotedAt: new Date(),
@@ -209,7 +215,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
         $push: { events: { action: 'quoted', actorId: req.user._id, unitPrice: pricing.unitPrice, notes: quote.notes } } }, { returnDocument: "after" });
     if (!updated) return res.status(409).json({ error: 'This request was updated. Reload the queue.' });
     createNotification({ type: 'system', userId: updated.customerId,
-      title: 'Your appliance service quote is ready',
+      title: isRepair ? 'Your verified repair unit and inspection fee are ready' : 'Your appliance service quote is ready',
       message: `Review the identified unit and price for ${updated.serviceName}.`,
       link: '/unit-assistance', priority: 'high', io: req.app.get('io') }).catch(() => {});
     return res.json({ request: updated });

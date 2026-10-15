@@ -1,7 +1,8 @@
-<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261015-assistance-choice">
+<link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261016-identification-step">
 <script src="/js/relocation-booking-locations.js?v=20261013-guided-relocation"></script>
 <script src="/js/appliance-services.js?v=20261014-unit-help-v2"></script>
-<script src="/js/core-appliance-booking.js?v=20261015-assistance-choice"></script>
+<script src="/js/core-appliance-booking.js?v=20261016-identification-step"></script>
+<script src="/js/repair-appliance-booking.js?v=20261016-identification-step"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
 <%
@@ -313,6 +314,8 @@
                 </div>
                 <!-- Repair Services Tab -->
                 <div class="tab-pane fade" id="repair-services" role="tabpanel" aria-labelledby="repair-tab">
+                  <div id="repairApplianceBuilder"></div>
+                  <div id="legacyRepairBuilder" hidden>
                   <div class="rp-shell">
                     <div class="rp-intro">
                       <div class="rp-intro-icon"><i class="bi bi-wrench-adjustable-circle-fill"></i></div>
@@ -343,7 +346,7 @@
                       <div class="rp-section-body">
                         <div class="row g-3" id="unitCategoryGrid">
                           <% if (typeof serviceCategories !== 'undefined' && serviceCategories.length) { %>
-                            <% serviceCategories.forEach(function(cat) { %>
+                            <% serviceCategories.filter(cat => !/^(other|others)$/i.test(cat.slug) && !/^(other|others)$/i.test(cat.name)).forEach(function(cat) { %>
                             <div class="col-md-4">
                               <div class="unit-category-card" data-category="<%= cat.slug %>" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
                                 <div class="unit-category-icon <%= cat.iconColor %>"><i class="bi <%= cat.icon %>"></i></div>
@@ -367,14 +370,6 @@
                                 <div class="unit-category-icon amber"><i class="bi bi-house-gear"></i></div>
                                 <div class="unit-category-label">Home Appliance</div>
                                 <div class="unit-category-count">9 choices</div>
-                                <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
-                              </div>
-                            </div>
-                            <div class="col-md-4">
-                              <div class="unit-category-card" data-category="other" role="button" tabindex="0" aria-pressed="false" onclick="selectUnitCategory(this.dataset.category)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectUnitCategory(this.dataset.category)}">
-                                <div class="unit-category-icon violet"><i class="bi bi-plus-circle"></i></div>
-                                <div class="unit-category-label">Other</div>
-                                <div class="unit-category-count">Enter the appliance</div>
                                 <div class="unit-category-check"><i class="bi bi-check-circle-fill"></i></div>
                               </div>
                             </div>
@@ -421,7 +416,19 @@
                         </div>
                       </div>
                       <div class="rp-section-body">
-                        <div class="row g-3">
+                        <div class="cab-unit-help mb-3">
+                          <button type="button" class="cab-secondary" id="repairUnitHelpButton" aria-expanded="false" aria-controls="repairUnitHelpOptions" onclick="chooseRepairUnitHelp('toggle')">I don't know my unit details</button>
+                          <p>Ask staff to confirm the unit, or use RACS Ready AI to help read its label.</p>
+                        </div>
+                        <section id="repairUnitHelpOptions" class="cab-help-options mb-3" hidden aria-labelledby="repairUnitHelpHeading">
+                          <h4 id="repairUnitHelpHeading">How would you like help?</h4>
+                          <div class="cab-help-choices">
+                            <button type="button" onclick="chooseRepairUnitHelp('staff')"><i class="bi bi-person-check" aria-hidden="true"></i><span><strong>Ask staff to identify my unit</strong><small>Describe the problem next, then review and confirm your request. Staff will confirm the details and inspection fee before you book.</small></span></button>
+                            <button type="button" onclick="chooseRepairUnitHelp('ai')"><i class="bi bi-chat-dots" aria-hidden="true"></i><span><strong>Use RACS Ready AI</strong><small>Get help reading the unit label. Your repair details and photos stay here.</small></span></button>
+                          </div>
+                          <p>No appointment or payment is confirmed by choosing help. Repair work is quoted separately after inspection.</p>
+                        </section>
+                        <div class="row g-3" id="repairKnownUnitDetails">
                           <div class="col-md-6">
                             <label class="form-label rp-field-label" for="unitBrand"><i class="bi bi-award me-2 text-primary"></i>Brand <span class="text-danger">*</span></label>
                             <select class="form-select rp-input" id="unitBrand" required>
@@ -435,7 +442,8 @@
                             <div class="repair-model-meta"><small id="repairModelHelp">Up to 50 characters. Use letters, numbers, spaces, and . - _ / # ( ) + only.</small><small id="repairModelCount">0 / 50</small></div>
                             <div id="repairModelError" class="payment-inline-error d-none" role="alert" aria-live="polite"></div>
                           </div>
-                          <div class="col-md-6">
+                        </div>
+                        <div class="row g-3 mt-1"><div class="col-md-6">
                             <label class="form-label rp-field-label" for="repairUnitQuantity"><i class="bi bi-stack me-2 text-primary"></i>How many units?</label>
                             <div class="input-group quantity-stepper">
                               <button class="btn btn-outline-secondary" type="button" id="repairQtyMinus">&minus;</button>
@@ -512,10 +520,19 @@
                         <div><span>Inspection fee</span><strong id="repairReviewPrice">₱0</strong><small>Repair price comes after inspection</small></div>
                         <p id="repairReviewProblem"></p>
                       </div>
-                      <button type="button" class="ent-btn-primary" onclick="addCurrentRepairItem()"><i class="bi bi-plus-circle me-2"></i>Add Repair Request</button>
-                      <div class="rp-add-hint">Ready? Add this repair request to your booking.</div>
+                      <button type="button" class="ent-btn-primary" id="repairAddButton" onclick="addCurrentRepairItem()"><i class="bi bi-plus-circle me-2"></i>Add Repair Request</button>
+                      <div class="rp-add-hint" id="repairAddHint">Ready? Add this repair request to your booking.</div>
+                      <section id="repairIdentificationConfirmation" class="cab-help-options mt-3" hidden aria-labelledby="repairIdentificationConfirmHeading">
+                        <h4 id="repairIdentificationConfirmHeading" tabindex="-1">Send this unit identification request?</h4>
+                        <p id="repairIdentificationConfirmSummary"></p>
+                        <p>Staff will identify the unit and confirm the inspection fee for your approval. Choose your schedule afterward. The repair price comes after inspection.</p>
+                        <div class="cab-help-choices"><button type="button" onclick="sendRepairIdentification()">Confirm and send request</button><button type="button" onclick="closeRepairIdentificationConfirmation()">Keep editing</button></div>
+                      </section>
+                      <p id="repairIdentificationMessage" class="payment-inline-error d-none mt-2" role="alert"></p>
                     </div>
+                    <div id="repairIdentificationSuccess" class="alert alert-success mt-3" role="status" hidden>Request sent. Staff will confirm your unit and inspection fee before booking. <a href="/unit-assistance">View your identification requests</a></div>
                   </div>
+                </div>
                 </div>
               </div>
                 </div>
@@ -2749,7 +2766,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261015-selection-map-pin':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261016-identification-step':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

@@ -1093,11 +1093,12 @@
 
   // Booking owns the form values. AI provides guidance without approving or
   // writing appliance details, prices, schedules, or staff requests.
-  function openUnitIdentification({ applianceKind } = {}) {
-    const kind = ['aircon', 'refrigerator', 'freezer'].includes(applianceKind) ? applianceKind : 'aircon';
+  function openUnitIdentification({ applianceKind, applianceLabel } = {}) {
+    const label = typeof applianceLabel === 'string' ? applianceLabel.replace(/[^A-Za-z0-9 ()/-]/g, '').trim().slice(0, 80) : '';
+    const kind = label || (['aircon', 'refrigerator', 'freezer'].includes(applianceKind) ? applianceKind : 'aircon');
     if (!win.classList.contains('active')) toggleChat();
     if (isStreaming) return;
-    const details = kind === 'aircon' ? 'brand, model, aircon type and HP' : 'brand, model and compressor HP, if printed';
+    const details = /aircon/i.test(kind) ? 'brand, model, aircon type and HP' : 'brand, model and capacity, if printed';
     if (!identificationGuides.has(kind)) {
       messages.querySelector('.racbot-welcome')?.remove();
       const guide = `**Help identify your ${kind}**\n\nLook for the brand and model label you can read safely, without opening electrical covers. Type the exact label text here, including any capacity shown.\n\nI can help you understand the text, but I cannot confirm missing HP, approve a price or book a schedule. If the label is missing or unclear, close this chat and choose **Ask staff to identify my unit**.\n\nWhen you have the details, close the chat and choose **Enter my unit details instead** on the booking form.`;

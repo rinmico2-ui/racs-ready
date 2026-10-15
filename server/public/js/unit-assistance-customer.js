@@ -130,7 +130,7 @@
     const unit = verified ? request.quote : request;
     const grid = item('div','uac-unit-grid');
     const kind = request.applianceKind || 'aircon';
-    const type = kind === 'aircon' ? unit.airconTypeName || typeName(unit.airconType) : ({ refrigerator: 'Refrigerator', freezer: 'Freezer' })[kind];
+    const type = request.requestType === 'repair' ? unit.unitType || request.repair?.unitType : kind === 'aircon' ? unit.airconTypeName || typeName(unit.airconType) : ({ refrigerator: 'Refrigerator', freezer: 'Freezer' })[kind];
     const unitType = [type,unit.hp ? unit.hp + ' HP' : verified ? '' : 'Details to confirm'].filter(Boolean).join(' · ');
     for (const [label,value] of [['Brand',unit.brand && unit.brand !== "I don't know" ? unit.brand : 'To be identified'],
       [verified ? 'Verified unit' : 'Unit details',unitType || 'To be identified'],['Quantity',(Number(request.quantity) || 1) + (Number(request.quantity) === 1 ? ' unit' : ' units')]]) {
@@ -154,11 +154,15 @@
     const hasQuote = request.quote?.unitPrice != null && String(request.quote.unitPrice).trim() !== '' && Number.isFinite(Number(request.quote.unitPrice));
     if (hasQuote) {
       const quote = item('div','uac-quote'), price = item('div','uac-price');
-      price.append(item('span','uac-label','Service quote'),item('strong','uac-price-total',money(Number(request.quote.unitPrice) * Number(request.quantity || 1))),
+      price.append(item('span','uac-label',request.requestType === 'repair' ? 'Inspection fee only' : 'Service quote'),item('strong','uac-price-total',money(Number(request.quote.unitPrice) * Number(request.quantity || 1))),
         item('span','uac-price-breakdown',money(request.quote.unitPrice) + ' / unit · before travel fare'));
       quote.append(unitDetails(request,true),price); body.append(quote);
     } else body.append(unitDetails(request,false));
     const details = item('div','uac-detail-notes');
+    if (request.requestType === 'repair') {
+      body.append(note('This fee covers inspection. The repair price will be quoted after inspection and needs your separate approval.'));
+      if (request.repair?.problemDescription) details.append(detailNote('Reported problem', request.repair.problemDescription));
+    }
     if (request.notes) details.append(detailNote('Your notes',request.notes));
     if (request.quote?.notes) details.append(detailNote('Staff notes',request.quote.notes));
     if (request.model) details.append(detailNote('Model',request.model));

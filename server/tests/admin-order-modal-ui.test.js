@@ -33,7 +33,7 @@ function fixture() {
   document.body.appendChild(details);
   document.getElementById = id => id === details.id ? details : null;
   const focus = new Element("button"); details.appendChild(focus); focus.focus();
-  const window = {};
+  const window = { SpecialInstructions: require('../public/js/special-instructions') };
   return { document, details, window, Element, focus };
 }
 
@@ -68,7 +68,8 @@ test("delivery order details open before fetching and retain an on-demand receip
       assert.equal(url, "/api/orders/order-1?view=modal");
       assert.ok(options.signal);
       return { photosDeferred: true, order: { _id: "order-1", orderReference: "ORD-TEST", fulfillmentType: "delivery_only",
-        status: "pending_payment", paymentStatus: "pending", paymentMethod: "gcash", items: [], total: 25515 } };
+        status: "pending_payment", paymentStatus: "pending", paymentMethod: "gcash", items: [], total: 25515,
+        delivery: { notes: 'Use the side gate.\nCall <before> delivery.' } } };
     },
   };
   const detailsCode = source.slice(source.indexOf("  window._aoViewOrder ="), source.indexOf("  window._aoResendCustomerActivation"));
@@ -77,6 +78,8 @@ test("delivery order details open before fetching and retain an on-demand receip
   assert.equal(context.modalSubtitle.textContent, "ORD-TEST");
   assert.match(body.innerHTML, /Payment Receipt[\s\S]*_aoLoadPhotos\('order-1',this,'receipt'\)/);
   assert.match(body.innerHTML, /View photos and receipts/);
+  assert.match(body.innerHTML, /Special instructions/);
+  assert.match(body.innerHTML, /Use the side gate\.\nCall &lt;before&gt; delivery\./);
   assert.doesNotMatch(body.innerHTML, /data:image/);
 });
 

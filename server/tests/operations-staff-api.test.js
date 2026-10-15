@@ -159,7 +159,8 @@ test('completed booking modal projects out photos, skips cost analytics, and ret
     query.select = selection => { selections[name] = selection; return query; };
     return query;
   };
-  BookingService.findById = () => selected('booking', { _id: id, status: 'completed', totalPrice: 1000, amountPaid: 0 });
+  BookingService.findById = () => selected('booking', { _id: id, status: 'completed', totalPrice: 1000, amountPaid: 0,
+    paymentNotes: 'Use the side gate.\nCall before arrival.' });
   Assignment.findOne = () => selected('assignment', { _id: 'latest', bookingId: id, status: 'completed' });
   Payment.find = () => selected('payments', [{ amount: 100, status: 'verified' }, { amount: 900, status: 'pending' }]);
   StockReservation.find = () => chain([]);
@@ -173,6 +174,7 @@ test('completed booking modal projects out photos, skips cost analytics, and ret
     assert.equal(res.body.booking.amountPaid, 100);
     assert.equal(res.body.booking.balanceAmount, 900);
     assert.equal(res.body.booking.paymentStatus, 'partial');
+    assert.equal(res.body.booking.paymentNotes, 'Use the side gate.\nCall before arrival.');
     assert.equal(res.body.payments.length, 2, 'pending receipt amounts still remain visible');
     for (const field of BOOKING_PHOTO_FIELDS) assert.ok(selections.booking.split(' ').includes('-' + field));
     assert.match(selections.payments, /-proofUrl/);

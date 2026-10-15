@@ -46,6 +46,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
     '../utils/coreServicePricing': pure('coreServicePricing'), '../utils/bookingServiceItems': pure('bookingServiceItems'),
     '../utils/bookingUnitLimit': pure('bookingUnitLimit'), '../utils/projectServiceChange': {}, '../utils/audit': {},
     '../utils/projectPaymentReview': pure('projectPaymentReview'),
+    '../utils/repairIdentificationPolicy': pure('repairIdentificationPolicy'),
     '../utils/paymentPolicy': { normalizePaymentChannel: value => value, MANUAL_PAYMENT_CHANNELS: ['bank'],
       getPaymentMethods: async () => ({ bank: { available: true } }), getDownpaymentPercentage: async () => 10,
       calculatePaymentBreakdown: total => ({ downpaymentPercentage: 10, downpaymentAmount: total / 10, balanceAmount: total * 0.9 }), paymentRecordMethod: () => 'bank' },
@@ -189,7 +190,7 @@ test('project submission cannot skip the end date or capacity validation', async
 
 test('repair workload uses the inspection policy and configurable project threshold', async t => {
   const { code, body, calls } = await fixture(t, { inspection: 120, threshold: 6 }).call({
-    services: [{ serviceId: 'repair-id', type: 'repair', model: 'TEST-123', name: 'Aircon repair', quantity: 4, duration: 1, problemDescription: 'Aircons are not cooling properly' }],
+    services: [{ serviceId: 'repair-id', type: 'repair', brand: 'Carrier', model: 'TEST-123', name: 'Aircon repair', quantity: 4, duration: 1, problemDescription: 'Aircons are not cooling properly' }],
   });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.windows[0].requiredHours, 8);
@@ -215,7 +216,7 @@ test('a workload exactly at the hours threshold remains a standard appointment',
 test('mixed core and repair groups share one combined project workload', async t => {
   const { code, body, calls } = await fixture(t, { duration: 90 }).call({ services: [
     { serviceId: 'core-id', type: 'core', model: 'TEST-123', quantity: 3, unitPrice: 1000 },
-    { serviceId: 'repair-id', model: 'TEST-123', name: 'Aircon repair', type: 'repair', quantity: 3, problemDescription: 'Aircons are not cooling properly' },
+    { serviceId: 'repair-id', brand: 'Carrier', model: 'TEST-123', name: 'Aircon repair', type: 'repair', quantity: 3, problemDescription: 'Aircons are not cooling properly' },
   ] });
   assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
   assert.equal(calls.windows[0].requiredHours, 9); assert.equal(calls.windows[0].totalUnits, 6);

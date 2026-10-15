@@ -26,7 +26,7 @@ function normalizeUnitAssistance(catalog, body) {
 function quoteMatchesRequest(request, item, pricing, now = Date.now()) {
   const quote = request?.quote;
   const expiration = new Date(quote?.expiresAt).getTime();
-  return Boolean(request && !request.existingBookingId && !request.bookingId && request.status === 'accepted' && quote &&
+  return Boolean(request && request.requestType !== 'repair' && !request.existingBookingId && !request.bookingId && request.status === 'accepted' && quote &&
     Number.isFinite(expiration) && expiration > now && String(request.serviceId) === String(item.serviceId) &&
     (request.applianceKind || 'aircon') === (item.applianceKind || 'aircon') &&
     Number(request.quantity) === Number(item.quantity) &&
