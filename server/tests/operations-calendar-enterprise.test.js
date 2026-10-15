@@ -34,7 +34,7 @@ test("operations calendar renders an enterprise scheduling workspace", async () 
   assert.match(html, /class="cal-type-legend"/);
   assert.match(html, /aria-label="Selected date agenda"/);
   assert.match(html, /class="list-head-icon"/);
-  assert.match(html, /admin-appointments-calendar\.css\?v=20261010-blue-weekdays/);
+  assert.match(html, /admin-appointments-calendar\.css\?v=20261015-shared-header/);
   assert.match(calendarCss, /OPERATIONS CALENDAR — ENTERPRISE WORKSPACE V2/);
 });
 

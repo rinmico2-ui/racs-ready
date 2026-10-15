@@ -618,18 +618,28 @@
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
-<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-bookings-sales">
+<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-calendar-header">
+<link rel="stylesheet" href="/css/operations-workspace-header.css?v=20261015">
 
 <div class="au-page appointments-workspace bookings-sales-workspace">
   <!-- Hero -->
-  <div class="au-hero">
-    <div class="au-hero-inner">
-      <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-calendar2-check"></i></div>
-        <div>
-          <h1>Appointment Management</h1>
-          <p>Full booking lifecycle pipeline &mdash; from request to completion</p>
+  <header class="au-hero workspace-header">
+    <div class="au-hero-inner workspace-header-main">
+      <div class="au-hero-left workspace-header-left">
+        <div class="au-hero-icon workspace-header-icon"><i class="bi bi-calendar2-check" aria-hidden="true"></i></div>
+        <div class="workspace-header-title-block">
+          <div class="workspace-header-eyebrow"><span>Operations</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span>Bookings</span></div>
+          <h1 class="workspace-header-title">Appointment Management</h1>
+          <p class="workspace-header-subtitle">Full booking lifecycle pipeline &mdash; from request to completion</p>
         </div>
+      </div>
+      <div class="workspace-header-right">
+        <nav class="workspace-header-actions" aria-label="Booking scheduling tools">
+          <a class="appointment-shortcut workspace-header-action" href="<%= appointmentsOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
+          <% if (appointmentsResolutionEnabled) { %>
+            <a class="appointment-shortcut workspace-header-action" href="<%= appointmentsResolutionUrl %>?source=booking"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="bookingResolutionCount">0</span></a>
+          <% } %>
+        </nav>
       </div>
       <div class="au-hero-stats">
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroToday">-</div><div class="au-hero-stat-lbl">Total Bookings</div></div>
@@ -638,16 +648,12 @@
         <div class="au-hero-stat"><div class="au-hero-stat-val" id="heroRevenue">-</div><div class="au-hero-stat-lbl">Revenue</div></div>
       </div>
     </div>
-    <nav class="appointment-tools" aria-label="Appointment tools">
-      <a class="appointment-shortcut" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance"><i class="bi bi-search" aria-hidden="true"></i><span>Unit Identification</span></a>
-      <a class="appointment-shortcut" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Relocation Requests</span></a>
-      <a class="appointment-shortcut" href="<%= appointmentsOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
-      <% if (appointmentsResolutionEnabled) { %>
-        <a class="appointment-shortcut" href="<%= appointmentsResolutionUrl %>?source=booking"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="bookingResolutionCount">0</span></a>
-      <% } %>
-      <button type="button" class="appointment-shortcut" id="openServiceChangeQueue" aria-haspopup="dialog" aria-controls="serviceChangeQueueModal"><i class="bi bi-list-check" aria-hidden="true"></i><span>Service Change Requests</span><span class="appointment-shortcut-count" id="serviceChangeCount" style="display:none">0</span></button>
+    <nav class="appointment-tools workspace-header-tools" aria-label="Appointment tools">
+      <a class="appointment-shortcut workspace-header-action" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance"><i class="bi bi-search" aria-hidden="true"></i><span>Unit Identification</span></a>
+      <a class="appointment-shortcut workspace-header-action" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Relocation Requests</span></a>
+      <button type="button" class="appointment-shortcut workspace-header-action" id="openServiceChangeQueue" aria-haspopup="dialog" aria-controls="serviceChangeQueueModal"><i class="bi bi-list-check" aria-hidden="true"></i><span>Service Change Requests</span><span class="appointment-shortcut-count" id="serviceChangeCount" style="display:none">0</span></button>
     </nav>
-  </div>
+  </header>
 
   <div class="modal fade" id="serviceChangeQueueModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content border-0 rounded-4"><div class="modal-header"><div><h5 class="modal-title fw-bold">Service Change Review</h5><div class="small text-muted">Compare customer requests, verify capacity, and decide before notifying technicians.</div></div><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="serviceChangeQueueBody"><div class="text-center py-5"><div class="spinner-border text-primary"></div></div></div></div></div></div>
 

@@ -1,0 +1,286 @@
+/* One header design for Operations Calendar, Bookings, and Orders. */
+.bookings-sales-workspace .workspace-header::before { display: none; }
+.bookings-sales-workspace .workspace-header::after { display: block; width: auto; height: auto; background: none; }
+.bookings-sales-workspace .workspace-header-main { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 24px; }
+.bookings-sales-workspace .workspace-header-left { display: flex; flex: 1 1 320px; }
+.bookings-sales-workspace .workspace-header-icon { display: flex; align-items: center; justify-content: center; color: #fff; backdrop-filter: blur(10px); }
+.bookings-sales-workspace .workspace-header-subtitle { margin: 6px 0 0; line-height: 1.4; }
+
+:is(.appointments-calendar .cal-command-header, .bookings-sales-workspace .workspace-header) {
+  position: relative;
+  margin: 0 0 16px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% -10%, rgba(96, 165, 250, 0.3), transparent 32%),
+    linear-gradient(128deg, #111c34 0%, #18356c 56%, #2259c6 100%);
+  box-shadow: 0 16px 35px rgba(23, 41, 82, 0.14);
+}
+
+:is(.appointments-calendar .cal-command-header, .bookings-sales-workspace .workspace-header)::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to left, #000, transparent 72%);
+}
+
+:is(.appointments-calendar .cal-hero-bg, .bookings-sales-workspace .workspace-header-bg) {
+  display: none;
+}
+
+:is(.appointments-calendar .cal-hero-inner, .bookings-sales-workspace .workspace-header-main) {
+  position: relative;
+  z-index: 1;
+  min-height: 124px;
+  padding: 24px 28px 18px;
+  align-items: center;
+}
+
+:is(.appointments-calendar .cal-hero-left, .bookings-sales-workspace .workspace-header-left) {
+  min-width: 0;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+:is(.appointments-calendar .cal-hero-icon, .bookings-sales-workspace .workspace-header-icon) {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.14);
+  font-size: 1.25rem;
+}
+
+:is(.appointments-calendar .cal-title-block, .bookings-sales-workspace .workspace-header-title-block) {
+  min-width: 0;
+}
+
+:is(.appointments-calendar .cal-eyebrow, .bookings-sales-workspace .workspace-header-eyebrow) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+:is(.appointments-calendar .cal-eyebrow, .bookings-sales-workspace .workspace-header-eyebrow) i {
+  font-size: 0.55rem;
+}
+
+:is(.appointments-calendar .cal-hero-title, .bookings-sales-workspace .workspace-header-title) {
+  margin: 0;
+  color: #fff;
+  font-family: "Outfit", sans-serif;
+  font-size: clamp(1.35rem, 2vw, 1.72rem);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+:is(.appointments-calendar .cal-hero-sub, .bookings-sales-workspace .workspace-header-subtitle) {
+  max-width: 680px;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+}
+
+:is(.appointments-calendar .cal-hero-right, .bookings-sales-workspace .workspace-header-right) {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 12px;
+}
+
+:is(.appointments-calendar .cal-header-context, .bookings-sales-workspace .workspace-header-context),
+:is(.appointments-calendar .cal-header-actions, .bookings-sales-workspace .workspace-header-actions) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+:is(.appointments-calendar .cal-live-badge, .bookings-sales-workspace .workspace-header-live-badge),
+:is(.appointments-calendar .cal-timezone, .bookings-sales-workspace .workspace-header-timezone) {
+  min-height: 28px;
+  padding: 5px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(8, 15, 31, 0.2);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
+:is(.appointments-calendar .cal-live-badge, .bookings-sales-workspace .workspace-header-live-badge)::before {
+  width: 6px;
+  height: 6px;
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.14);
+}
+
+:is(.appointments-calendar .cal-header-action, .bookings-sales-workspace .workspace-header-action) {
+  min-height: 34px;
+  padding: 7px 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+:is(.appointments-calendar .cal-header-action, .bookings-sales-workspace .workspace-header-action):hover,
+:is(.appointments-calendar .cal-header-action, .bookings-sales-workspace .workspace-header-action):focus-visible {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+:is(.appointments-calendar .cal-range-row, .bookings-sales-workspace .workspace-header-tools) {
+  position: relative;
+  z-index: 2;
+  min-height: 43px;
+  padding: 8px 28px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(6, 13, 28, 0.18);
+}
+
+:is(.appointments-calendar .cal-range-label, .bookings-sales-workspace .workspace-header-range-label),
+:is(.appointments-calendar .cal-range-hint, .bookings-sales-workspace .workspace-header-range-hint) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+:is(.appointments-calendar .cal-range-label, .bookings-sales-workspace .workspace-header-range-label) {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+:is(.appointments-calendar .cal-range-hint, .bookings-sales-workspace .workspace-header-range-hint) {
+  margin-left: auto;
+}
+
+:is(.appointments-calendar .cal-hero-range, .bookings-sales-workspace .workspace-header-range) {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 767.98px) {
+  :is(.appointments-calendar .cal-command-header, .bookings-sales-workspace .workspace-header) {
+    margin-inline: 0;
+    border-radius: 14px;
+  }
+
+  :is(.appointments-calendar .cal-hero-inner, .bookings-sales-workspace .workspace-header-main) {
+    min-height: auto;
+    padding: 18px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  :is(.appointments-calendar .cal-hero-left, .bookings-sales-workspace .workspace-header-left) {
+    gap: 11px;
+  }
+
+  :is(.appointments-calendar .cal-hero-icon, .bookings-sales-workspace .workspace-header-icon) {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+    border-radius: 10px;
+    font-size: 1rem;
+  }
+
+  :is(.appointments-calendar .cal-eyebrow, .bookings-sales-workspace .workspace-header-eyebrow),
+  :is(.appointments-calendar .cal-hero-sub, .bookings-sales-workspace .workspace-header-subtitle) {
+    display: none;
+  }
+
+  :is(.appointments-calendar .cal-hero-right, .bookings-sales-workspace .workspace-header-right) {
+    width: 100%;
+    align-items: stretch;
+    gap: 9px;
+  }
+
+  :is(.appointments-calendar .cal-header-context, .bookings-sales-workspace .workspace-header-context) {
+    justify-content: flex-start;
+  }
+
+  :is(.appointments-calendar .cal-timezone, .bookings-sales-workspace .workspace-header-timezone) {
+    display: none;
+  }
+
+  :is(.appointments-calendar .cal-header-actions, .bookings-sales-workspace .workspace-header-actions) {
+    justify-content: stretch;
+  }
+
+  :is(.appointments-calendar .cal-header-action, .bookings-sales-workspace .workspace-header-action) {
+    justify-content: center;
+    flex: 1;
+  }
+
+  :is(.appointments-calendar .cal-range-row, .bookings-sales-workspace .workspace-header-tools) {
+    padding: 9px 16px;
+    flex-wrap: wrap;
+  }
+
+  :is(.appointments-calendar .cal-range-hint, .bookings-sales-workspace .workspace-header-range-hint) {
+    display: none;
+  }
+
+}
+
+/* Booking tools use the calendar's range-row surface and retain touch-sized controls. */
+.bookings-sales-workspace .workspace-header-tools { flex-wrap: wrap; padding-block: 12px; }
+.bookings-sales-workspace .workspace-header-actions { flex-wrap: wrap; }
+.bookings-sales-workspace .workspace-header-action { min-height: 44px; justify-content: center; font-family: inherit; line-height: 1.4; cursor: pointer; text-align: center; }
+.bookings-sales-workspace .workspace-header-action > i { flex: 0 0 auto; color: inherit; }
+.bookings-sales-workspace .appointment-shortcut-count { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; color: #b91c1c; background: #fee2e2; font-size: .68rem; font-weight: 700; }
+.bookings-sales-workspace .workspace-header-action:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+@media (max-width: 767.98px) {
+  .bookings-sales-workspace .workspace-header-left { flex-basis: auto; }
+  .bookings-sales-workspace .workspace-header-actions { width: 100%; }
+  .bookings-sales-workspace .workspace-header-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .bookings-sales-workspace .workspace-header-tools .workspace-header-action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.appointments-calendar .cal-header-action, .bookings-sales-workspace .workspace-header-action) { transition: none; }
+}

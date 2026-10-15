@@ -239,26 +239,30 @@
 <link rel="stylesheet" href="/css/admin-workflow-tabs.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
-<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-bookings-sales">
+<link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-calendar-header">
+<link rel="stylesheet" href="/css/operations-workspace-header.css?v=20261015">
 
 <div class="ao-page orders-workspace bookings-sales-workspace">
-  <div class="au-hero">
-    <div class="au-hero-inner">
-      <div class="au-hero-left">
-        <div class="au-hero-icon"><i class="bi bi-receipt"></i></div>
-        <div>
-          <h1>Aircon Orders</h1>
-          <p>Manage delivery, installation, and customer pickup through separate operational workspaces</p>
+  <header class="au-hero workspace-header">
+    <div class="au-hero-inner workspace-header-main">
+      <div class="au-hero-left workspace-header-left">
+        <div class="au-hero-icon workspace-header-icon"><i class="bi bi-receipt" aria-hidden="true"></i></div>
+        <div class="workspace-header-title-block">
+          <div class="workspace-header-eyebrow"><span>Operations</span><i class="bi bi-chevron-right" aria-hidden="true"></i><span>Orders</span></div>
+          <h1 class="workspace-header-title">Aircon Orders</h1>
+          <p class="workspace-header-subtitle">Manage delivery, installation, and customer pickup through separate operational workspaces</p>
         </div>
       </div>
+      <div class="workspace-header-right">
+        <nav class="workspace-header-actions" aria-label="Order tools">
+          <a class="appointment-shortcut workspace-header-action" href="<%= ordersOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
+          <% if (ordersResolutionEnabled) { %>
+            <a class="appointment-shortcut workspace-header-action" href="<%= ordersResolutionUrl %>?source=order"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="aoResolutionCount">0</span></a>
+          <% } %>
+        </nav>
+      </div>
     </div>
-    <nav class="appointment-tools" aria-label="Order tools">
-      <a class="appointment-shortcut" href="<%= ordersOperationsCalendarUrl %>"><i class="bi bi-calendar4-week" aria-hidden="true"></i><span>Operations Calendar</span></a>
-      <% if (ordersResolutionEnabled) { %>
-        <a class="appointment-shortcut" href="<%= ordersResolutionUrl %>?source=order"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i><span>Resolution Center</span><span class="appointment-shortcut-count" id="aoResolutionCount">0</span></a>
-      <% } %>
-    </nav>
-  </div>
+  </header>
 
   <div class="ao-scope-shell" role="tablist" aria-label="Order fulfillment workspace">
     <button class="ao-scope-btn active" type="button" role="tab" aria-selected="true" data-order-scope="delivery">
