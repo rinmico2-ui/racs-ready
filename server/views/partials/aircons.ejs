@@ -21,8 +21,6 @@
         box-shadow: 0 4px 16px rgba(15,23,42,0.06);
       }
       .aircon-catalog-actions { flex-shrink: 0; margin-left: auto; }
-      .aircon-catalog-cart { padding: 4px; margin: 0 0 0 4px; }
-      .aircon-catalog-cart > button { flex-shrink: 0; }
       @media (max-width: 991.98px) {
         .products-aircons-premium .enterprise-filter-bar > .row {
           display: grid;
@@ -51,10 +49,10 @@
           min-height: 40px;
         }
         .aircon-catalog-actions { grid-column: 2; grid-row: 1; }
-        .aircon-catalog-cart #cartLabel { display: none !important; }
       }
       @media (max-width: 575.98px) {
-        .aircon-catalog-actions > .small { display: none !important; }
+        .products-aircons-premium .enterprise-filter-bar > .row { grid-template-columns: minmax(0, 1fr); }
+        .aircon-catalog-actions { display: none !important; }
       }
       @media (max-width: 768px) {
         .products-aircons-premium > div:first-child {
@@ -170,23 +168,6 @@
                 <div class="small d-flex align-items-center gap-1" style="color: #64748b; font-weight: 500; white-space: nowrap;">
                   <span id="visibleProductCount" class="fw-bold" style="color: #2563eb; font-variant-numeric: tabular-nums;"><%= airconGroups.length %></span>
                   <span>aircons</span>
-                </div>
-                <!-- Cart has its own toolbar space, separate from product-card actions. -->
-                <div id="floatingCartBtn" class="aircon-catalog-cart d-flex align-items-center gap-2">
-                  <span id="cartLabel" class="d-none d-md-inline-block px-3 py-2 fw-semibold small"
-                    style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; letter-spacing: 0.2px; cursor: pointer; border-radius: 8px; font-size: 0.78rem; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.25);"
-                    onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'">
-                    <i class="bi bi-cart3 me-1"></i> Cart <span id="cartLabelCount">0</span>
-                  </span>
-                  <button type="button" class="btn position-relative d-flex align-items-center justify-content-center p-0" aria-label="Open aircon cart" title="Aircon cart"
-                    style="width: 48px; height: 48px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: none; font-size: 1rem; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transition: transform 0.2s;"
-                    onclick="location.href='<%= locals.user ? '/aircon-cart' : '/login' %>'"
-                    onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                    <i class="bi bi-cart3"></i>
-                    <span id="cartBadgeCount"
-                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light"
-                      style="font-size: 0.6rem; display: none;">0</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1385,16 +1366,6 @@
           animation: fadeSlideUp 0.3s ease;
         }
 
-        @keyframes badgePop {
-          0% { transform: scale(0.5); }
-          60% { transform: scale(1.2); }
-          100% { transform: scale(1); }
-        }
-
-        .badge-pop {
-          animation: badgePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
         @keyframes pulseLow {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.7; }
@@ -2564,9 +2535,6 @@
           fpDatePickup.clear();
         }
 
-        // Update cart count icon if needed
-        updateCartBadge();
-
         const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('productOrderModal'));
         modal.show();
         if (savedDraft && Number(savedDraft.groupIdx) === Number(gIdx)) {
@@ -3508,7 +3476,7 @@
             body: JSON.stringify({ inventoryId: v._id, quantity: requestQuantity })
           });
           showPremiumAlert(`Added ${requestQuantity} unit(s) to your cart successfully!`, 'Added to Cart', 'success');
-          updateCartBadge();
+          document.dispatchEvent(new Event('cart:updated'));
           bootstrap.Modal.getInstance(document.getElementById('productOrderModal')).hide();
         } catch (err) {
           showPremiumAlert(err.message, 'Unable to add this item', 'error');
@@ -3516,27 +3484,6 @@
           cartAdditionPending = false;
           if (cartButton) cartButton.disabled = false;
         }
-      }
-
-      async function updateCartBadge() {
-        if (!IS_LOGGED_IN) return;
-        try {
-          const res = await fetch('/api/aircon-cart');
-          const data = await res.json();
-          const count = data.cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-          const badge = document.getElementById('cartBadgeCount');
-          if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'block';
-            badge.classList.remove('badge-pop');
-            void badge.offsetWidth;
-            badge.classList.add('badge-pop');
-          } else {
-            badge.style.display = 'none';
-          }
-          const labelCount = document.getElementById('cartLabelCount');
-          if (labelCount) labelCount.textContent = count;
-        } catch (e) { }
       }
 
       // ── Address Search Logic ───────────────────────────────────────────
@@ -3629,8 +3576,6 @@
       });
       window.addEventListener('racs:logout', closeDirectCheckoutAfterLogout);
 
-      // Call badge update on load
-      updateCartBadge();
     })();
   </script>
 </section>
