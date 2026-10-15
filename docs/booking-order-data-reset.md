@@ -1,13 +1,57 @@
-# One-time booking/order reset and completed demo data
+# One-time booking/order cleanup
 
 The owner requested removal of **all** bookings, orders and their transaction
-dependencies from the live database, followed by completed service sample data.
+dependencies from the live database. The latest instruction cancels demo seeding
+and requests that maintenance be disabled.
 This operator-only script never runs during application startup or deployment.
 Reset/restore has no HTTP endpoint. Recovery downloads require a validated admin
 login and are never publicly served. MongoDB must remain private.
 
-The default command only reads data. `--prepare` creates private recovery files;
-only `--apply --backup FILE` changes the database. All deletion, reservation
+## Current operation: delete without seeding and reopen
+
+After deploying this version, open the Dokploy web application's terminal:
+
+```sh
+cd /app
+node server/scripts/reset-booking-order-data.js --delete-only
+```
+
+This is an explicitly destructive command. It uses the same previously reviewed
+booking/order dependency scope and exact test-custody acknowledgements documented
+below. It creates and fully verifies a **fresh** private compressed recovery
+snapshot, then atomically deletes the prepared records and disables maintenance.
+It creates no demo bookings, orders, customers, technicians, payments or reports.
+Existing accounts, physical inventory, independent counter sales and their returns,
+unrelated expenses/payroll, and audit history remain.
+
+Maintenance must still be enabled when the command starts. It switches off only
+when deletion and verification succeed in the same transaction. Failed backups,
+changed records, custody blockers, unsupported standalone MongoDB, or write errors
+leave the data and maintenance setting unchanged. It never executes on deployment.
+
+Success shows `mode: deleted`, `remainingBookings: 0`, `remainingOrders: 0`,
+`maintenanceEnabled: false`, and `recoveryVerified: true`. Allow up to 30 seconds
+for the running application's settings/report caches to expire, then refresh.
+Download the returned `backupDownloadPath` and `checksumDownloadPath` privately
+while signed in as admin and preserve both files outside the container. This
+one-command operation saves the recovery file on the server before deletion;
+unlike the older staged demo workflow below, it does not pause for downloads.
+Container storage is temporary and is not an off-server database backup.
+
+The one-time marker also applies to this mode: repeating it does not delete later
+real bookings or orders. For recovery, enable maintenance first and use the
+`--restore --backup FILE` command below. Only maintenance settings and the settings
+timestamp may change between deletion and recovery; other protected record or
+configuration changes still block recovery.
+
+## Older staged demo-seeding workflow
+
+The commands below remain available for recovering or inspecting the earlier
+prepared demo snapshots. **Do not run the old `--apply` command for the current
+deletion-only request**: an earlier prepared snapshot still contains demo seeds.
+
+The default command only reads data. In this older workflow, `--prepare` creates
+private recovery files and `--apply --backup FILE` changes the database. All deletion, reservation
 cleanup, seeding and the completion marker share one MongoDB transaction.
 A standalone MongoDB server is refused; there is no partial-write fallback.
 

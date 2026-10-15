@@ -78,7 +78,7 @@ async function snapshotResetData(db, session, { decryptEmail } = {}) {
   return { remove, tools, technicians, services, settings, demoUsers, emailBlockers };
 }
 
-function buildResetPlan(data) {
+function buildResetPlan(data, { deleteOnly = false } = {}) {
   const blockers = [...data.emailBlockers];
   const acknowledgedTestCustody = Object.fromEntries(["projectmaterials", "dailykits"].map(name => [name,
     data.remove[name].filter(row => TEST_CUSTODY_ACKNOWLEDGEMENT[name].includes(id(row._id))).map(row => id(row._id)),
@@ -86,7 +86,7 @@ function buildResetPlan(data) {
   acknowledgedTestCustody.reason = TEST_CUSTODY_ACKNOWLEDGEMENT.reason;
   acknowledgedTestCustody.stockQuantityChanges = 0;
   if (!data.settings[0]?.value?.maintenance?.enabled) blockers.push({ code: "enable_maintenance_in_admin_system_settings_first" });
-  if (!data.services.some(row => row.active !== false && !row.archivedAt && catalogPrice(row) > 0)) blockers.push({ code: "configure_an_active_core_service_price_first" });
+  if (!deleteOnly && !data.services.some(row => row.active !== false && !row.archivedAt && catalogPrice(row) > 0)) blockers.push({ code: "configure_an_active_core_service_price_first" });
   const add = (code, rows) => { if (rows.length) blockers.push({ code, count: rows.length, ids: rows.slice(0, 10).map(row => id(row._id)) }); };
   add("return_issued_equipment_or_consumables_first", data.remove.equipmentassignments.filter(row => ["checked_out", "in_use"].includes(row.status) || row.returnPending));
   add("review_pending_kit_returns_first", data.remove.kitreturns.filter(row => row.status === "pending"));
@@ -107,11 +107,13 @@ function buildResetPlan(data) {
   add("invalid_reservation_counter_needs_review", data.tools.filter(row => !Number.isFinite(Number(row.reservedQuantity || 0)) || Number(row.reservedQuantity || 0) < 0));
   return {
     mode: "dry-run", operation: RESET_KEY, deletionCounts: Object.fromEntries(Object.entries(data.remove).map(([name, rows]) => [name, rows.length])),
-    seed: { batch: BATCH, completedServiceBookings: COUNT, completedOrders: 0, disabledDemoCustomers: 3, inactiveDemoTechnicians: 2, customerNotifications: 0 },
+    seed: { batch: deleteOnly ? null : BATCH, completedServiceBookings: deleteOnly ? 0 : COUNT, completedOrders: 0, disabledDemoCustomers: deleteOnly ? 0 : 3, inactiveDemoTechnicians: deleteOnly ? 0 : 2, customerNotifications: 0 },
     reservationCountersToClear: data.tools.filter(row => Number(row.reservedQuantity) > 0).length,
     physicalQuantityChanges: 0, acknowledgedTestCustody, blockers,
     preserved: ["existing accounts and staff", "catalogs", "physical stock and checkout counters", "independent counter sales and their returns", "unlinked expenses and payroll", "security/activity/stock audit history", "uploads"],
-    note: "All service/order workflow records, including orphan rows, are targeted. Demo transactions are clearly labeled and included in reports; they are not actual income. Independent counter sales, payroll and expenses still affect analytics.",
+    note: deleteOnly
+      ? "All service/order workflow records, including orphan rows, are targeted. No demo records will be created. Independent counter sales, payroll and expenses remain."
+      : "All service/order workflow records, including orphan rows, are targeted. Demo transactions are clearly labeled and included in reports; they are not actual income. Independent counter sales, payroll and expenses still affect analytics.",
   };
 }
 
@@ -122,21 +124,31 @@ async function readResetBackup(file, options) {
   return result;
 }
 
-async function prepareReset({ db, backupDirectory, now = new Date(), decryptEmail }) {
+async function prepareReset({ db, backupDirectory, now = new Date(), decryptEmail, deleteOnly = false }) {
   if (await db.collection("sitesettings").findOne({ key: RESET_KEY })) return { mode: "already-applied", operation: RESET_KEY, message: "This one-time reset has already run. Later bookings will not be deleted." };
   const original = await snapshotResetData(db, undefined, { decryptEmail });
-  const plan = buildResetPlan(original);
+  const plan = buildResetPlan(original, { deleteOnly });
   if (plan.blockers.length) return { ...plan, mode: "blocked", databaseChanges: 0 };
-  const seed = await buildCompletedDemoSeed({ services: original.services, now });
+  const seed = deleteOnly ? Object.fromEntries(SEED_COLLECTIONS.map(name => [name, []])) : await buildCompletedDemoSeed({ services: original.services, now });
   for (const name of ["users", "technicians"]) {
-    if (await db.collection(name).findOne({ _id: { $in: ids(seed[name]) } })) throw Error("A reserved demo identity already exists. No database changes made.");
+    if (seed[name].length && await db.collection(name).findOne({ _id: { $in: ids(seed[name]) } })) throw Error("A reserved demo identity already exists. No database changes made.");
   }
   const artifact = { schemaVersion: 1, operation: RESET_KEY, database: db.databaseName, preparedAt: now, original, seed,
-    acknowledgedTestCustody: plan.acknowledgedTestCustody, preparedPlan: plan };
+    resetMode: deleteOnly ? "delete-only" : "completed-demo", acknowledgedTestCustody: plan.acknowledgedTestCustody, preparedPlan: plan };
   return { ...plan, mode: "prepared", databaseChanges: 0, ...await writeResetBackup(artifact, backupDirectory), next: "Download both private backup files before applying. Do not post their contents or place them in public/uploads." };
 }
 
-async function applyReset({ db, client, backupFile, now = new Date(), decryptEmail, restore = false }) {
+// Reopening the site and later enabling maintenance for recovery are expected
+// settings changes. Compare all other settings and transaction data on restore.
+function recoveryComparison(data) {
+  return { ...data, settings: data.settings.map(record => {
+    const { updatedAt, ...setting } = record;
+    const { maintenance, ...value } = setting.value;
+    return { ...setting, value };
+  }) };
+}
+
+async function applyReset({ db, client, backupFile, now = new Date(), decryptEmail, restore = false, disableMaintenance = false }) {
   const { artifact, backupSha256 } = await readResetBackup(backupFile, { omitOriginal: !restore });
   if (artifact.database !== db.databaseName) throw Error("The recovery backup belongs to a different database.");
   const marker = await db.collection("sitesettings").findOne({ key: RESET_KEY });
@@ -145,8 +157,10 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
   if (!restore && (now - artifact.preparedAt < 0 || now - artifact.preparedAt > 30 * 60000)) throw Error("The prepared backup expired. Prepare a fresh snapshot before applying.");
   const hello = await db.admin().command({ hello: 1 });
   if (!hello.setName && hello.msg !== "isdbgrid") throw Error("Atomic reset requires a MongoDB replica set or sharded cluster. No standalone fallback is allowed.");
+  const deleteOnly = artifact.resetMode === "delete-only";
+  if (disableMaintenance && (restore || !deleteOnly)) throw Error("Automatic reopening is only supported for a deletion-only reset.");
+  const plan = artifact.preparedPlan || buildResetPlan(artifact.original, { deleteOnly });
   const session = client.startSession();
-  const plan = artifact.preparedPlan || buildResetPlan(artifact.original);
   let afterHash;
   try {
     await session.withTransaction(async () => {
@@ -154,13 +168,16 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
       if (!current.settings[0]?.value?.maintenance?.enabled) throw Error("Enable maintenance in Admin System Settings before changing records.");
       const hashVersion = Number(restore ? marker.value.snapshotDigestVersion : artifact.snapshotDigestVersion) || 1;
       const expectedHash = restore ? marker.value.afterHash : artifact.originalSnapshotHash || snapshotDigest(artifact.original, hashVersion);
-      if (snapshotDigest(current, hashVersion) !== expectedHash) throw Error("Records changed after the snapshot. No changes made. Prepare again; do not overwrite newer work.");
-      if (!restore && buildResetPlan(current).blockers.length) throw Error("Unresolved custody or reservation checks block the reset. No changes made.");
+      const comparable = restore && marker.value.maintenanceDisabled ? recoveryComparison(current) : current;
+      if (snapshotDigest(comparable, hashVersion) !== expectedHash) throw Error("Records changed after the snapshot. No changes made. Prepare again; do not overwrite newer work.");
+      if (!restore && buildResetPlan(current, { deleteOnly }).blockers.length) throw Error("Unresolved custody or reservation checks block the reset. No changes made.");
       const options = { session };
       if (restore) {
         for (const name of SEED_COLLECTIONS) {
-          const removed = await db.collection(name).deleteMany({ _id: { $in: ids(artifact.seed[name]) } }, options);
-          if (removed.deletedCount !== artifact.seed[name].length) throw Error("Seed records changed; restore was rolled back.");
+          const seededRows = artifact.seed[name] || [];
+          if (!seededRows.length) continue;
+          const removed = await db.collection(name).deleteMany({ _id: { $in: ids(seededRows) } }, options);
+          if (removed.deletedCount !== seededRows.length) throw Error("Seed records changed; restore was rolled back.");
         }
         for (const [name, rows] of Object.entries(artifact.original.remove)) if (rows.length) await db.collection(name).insertMany(rows, options);
         for (const tool of artifact.original.tools) await db.collection("tools").replaceOne({ _id: tool._id }, tool, options);
@@ -181,25 +198,51 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
         for (const technician of current.technicians.filter(row => ["Assigned", "On The Way", "In Progress"].includes(row.availabilityStatus))) {
           await db.collection("technicians").updateOne({ _id: technician._id }, { $set: { availabilityStatus: "Offline" } }, options);
         }
-        for (const name of SEED_COLLECTIONS) await db.collection(name).insertMany(artifact.seed[name], options);
+        for (const name of SEED_COLLECTIONS) if (artifact.seed[name]?.length) await db.collection(name).insertMany(artifact.seed[name], options);
         const after = await snapshotResetData(db, session, { decryptEmail });
         const remaining = Object.entries(after.remove).filter(([name, rows]) => rows.length !== (artifact.seed[name]?.length || 0));
         if (remaining.length || after.remove.bookingservices.some(row => row.status !== "completed") || after.remove.orders.length) throw Error("Reset verification failed; all changes were rolled back.");
-        afterHash = digest(after);
-        await db.collection("sitesettings").insertOne({ key: RESET_KEY, value: { appliedAt: now, backupSha256, afterHash, snapshotDigestVersion: 2, seedUserIds: ids(artifact.seed.users) }, createdAt: now, updatedAt: now }, options);
+        afterHash = digest(disableMaintenance ? recoveryComparison(after) : after);
+        if (disableMaintenance) {
+          const settings = current.settings[0];
+          const updated = await db.collection("sitesettings").updateOne({ _id: settings._id, "value.maintenance.enabled": true },
+            { $set: { value: { ...settings.value, maintenance: { ...settings.value.maintenance, enabled: false, enabledAt: null, enabledBy: null } }, updatedAt: now } }, options);
+          if (updated.matchedCount !== 1) throw Error("Maintenance settings changed; reset was rolled back.");
+        }
+        await db.collection("sitesettings").insertOne({ key: RESET_KEY, value: { appliedAt: now, backupSha256, afterHash, snapshotDigestVersion: 2,
+          seedUserIds: ids(artifact.seed.users), resetMode: artifact.resetMode || "completed-demo", maintenanceDisabled: disableMaintenance }, createdAt: now, updatedAt: now }, options);
       }
       await db.collection("activitylogs").insertOne({
         action: restore ? "BOOKING_ORDER_DATA_RESET_RESTORED" : "BOOKING_ORDER_DATA_RESET", actionType: "system",
         actorName: "Owner-authorized database maintenance", source: "system", outcome: "success", createdAt: now,
         details: { operation: RESET_KEY, backup: path.basename(backupFile), backupSha256, counts: plan.deletionCounts,
-          acknowledgedTestCustody: plan.acknowledgedTestCustody, completedDemoBookings: restore ? 0 : COUNT },
+          acknowledgedTestCustody: plan.acknowledgedTestCustody, completedDemoBookings: restore ? 0 : (artifact.seed.bookingservices?.length || 0), maintenanceDisabled: !restore && disableMaintenance },
       }, options);
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, maxCommitTimeMS: 15000 });
   } finally { await session.endSession(); }
-  return { ...plan, mode: restore ? "restored" : "reset-and-seeded", backup: backupFile, backupSha256, atomic: true,
-    message: restore ? "The original records were restored; the audit trail was retained." : "24 completed demo service bookings were created. Orders are empty. No email, OTP, gateway charge or physical stock movement was generated. Keep the backup outside the container.",
+  return { ...plan, mode: restore ? "restored" : deleteOnly ? "deleted" : "reset-and-seeded", backup: backupFile, backupSha256, atomic: true,
+    ...(disableMaintenance ? { maintenanceEnabled: false, remainingBookings: 0, remainingOrders: 0 } : {}),
+    message: restore ? "The original records were restored; the audit trail was retained." : deleteOnly
+      ? "Bookings, orders and their linked records were deleted. No demo data was created. Physical stock and existing accounts were retained."
+      : "24 completed demo service bookings were created. Orders are empty. No email, OTP, gateway charge or physical stock movement was generated. Keep the backup outside the container.",
   };
 }
 
+// Explicitly invoked by the operator only. A fresh verified recovery snapshot is
+// prepared immediately before the atomic deletion. Deployment never calls this.
+async function deleteOnlyReset(options) {
+  const prepared = await prepareReset({ ...options, deleteOnly: true });
+  if (prepared.mode !== "prepared") return prepared;
+  try {
+    const result = await applyReset({ ...options, backupFile: prepared.backup, disableMaintenance: true });
+    return { ...result, backupDownloadPath: prepared.backupDownloadPath, checksumDownloadPath: prepared.checksumDownloadPath,
+      recoveryVerified: prepared.recoveryVerified, compressedBytes: prepared.compressedBytes,
+      ...(result.mode === "deleted" ? { next: "Maintenance is disabled. Allow up to 30 seconds for the settings/report cache. Save the private recovery file and checksum outside the container." } : {}) };
+  } catch (error) {
+    error.message += ` Verified recovery backup retained at ${prepared.backup}.`;
+    throw error;
+  }
+}
+
 module.exports = { RESET_KEY, TEST_CUSTODY_ACKNOWLEDGEMENT, WORK_COLLECTIONS, PARTIAL_COLLECTIONS, SEED_COLLECTIONS, serialize, deserialize, digest,
-  snapshotResetData, buildResetPlan, writeResetBackup, readResetBackup, prepareReset, applyReset };
+  snapshotResetData, buildResetPlan, writeResetBackup, readResetBackup, prepareReset, applyReset, deleteOnlyReset };

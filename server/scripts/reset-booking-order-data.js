@@ -6,8 +6,8 @@ const mongoose = require("mongoose");
 
 function parseArguments(args) {
   let mode = "preview", backupFile;
-  const modes = args.filter(value => ["--preview", "--prepare", "--apply", "--restore"].includes(value));
-  if (modes.length > 1) throw Error("Choose exactly one mode: --preview, --prepare, --apply or --restore.");
+  const modes = args.filter(value => ["--preview", "--prepare", "--apply", "--restore", "--delete-only"].includes(value));
+  if (modes.length > 1) throw Error("Choose exactly one mode: --preview, --prepare, --apply, --restore or --delete-only.");
   if (modes.length) mode = modes[0].slice(2);
   for (let index = 0; index < args.length; index++) {
     const value = args[index];
@@ -22,7 +22,7 @@ function parseArguments(args) {
 
 async function main(args) {
   if (args.includes("--help")) {
-    console.log("Preview (read-only): node server/scripts/reset-booking-order-data.js\nPrepare private compressed recovery files: node server/scripts/reset-booking-order-data.js --prepare\nApply prepared reset and seed: node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/FILE.ejson.gz\nRestore unchanged reset: node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/FILE.ejson.gz\nSee docs/booking-order-data-reset.md before applying. This does not run automatically during deployment.");
+    console.log("Preview (read-only): node server/scripts/reset-booking-order-data.js\nDelete without seeding and disable maintenance (fresh verified recovery backup first): node server/scripts/reset-booking-order-data.js --delete-only\nPrepare private compressed recovery files for demo seeding: node server/scripts/reset-booking-order-data.js --prepare\nApply prepared reset and seed: node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/FILE.ejson.gz\nRestore unchanged reset (enable maintenance first): node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/FILE.ejson.gz\nSee docs/booking-order-data-reset.md before applying. This does not run automatically during deployment.");
     return;
   }
   const options = parseArguments(args);
@@ -41,7 +41,8 @@ async function main(args) {
     const existing = await db.collection("sitesettings").findOne({ key: reset.RESET_KEY });
     result = existing ? { mode: "already-applied", operation: reset.RESET_KEY, message: "The reset has already run. No later bookings will be deleted." }
       : { ...reset.buildResetPlan(await reset.snapshotResetData(db, undefined, { decryptEmail })), databaseChanges: 0 };
-  } else if (options.mode === "prepare") result = await reset.prepareReset({ db, decryptEmail });
+  } else if (options.mode === "delete-only") result = await reset.deleteOnlyReset({ db, client: mongoose.connection.getClient(), decryptEmail });
+  else if (options.mode === "prepare") result = await reset.prepareReset({ db, decryptEmail });
   else result = await reset.applyReset({ db, client: mongoose.connection.getClient(), backupFile: options.backupFile, decryptEmail, restore: options.mode === "restore" });
   console.log(JSON.stringify(result, null, 2));
   if (result.mode === "blocked") process.exitCode = 2;

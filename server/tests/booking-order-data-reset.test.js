@@ -108,6 +108,104 @@ test("reset CLI is read-only by default and rejects ambiguous destructive modes"
   assert.deepEqual(parseArguments([]), { mode: "preview", backupFile: undefined });
   for (const args of [["--apply"], ["--restore"], ["--prepare", "--apply"], ["--aply"], ["--backup", "a.ejson"]]) assert.throws(() => parseArguments(args));
   assert.deepEqual(parseArguments(["--apply", "--backup", "backup.ejson"]), { mode: "apply", backupFile: "backup.ejson" });
+  assert.deepEqual(parseArguments(["--delete-only"]), { mode: "delete-only", backupFile: undefined });
+  for (const args of [["--delete-only", "--apply"], ["--delete-only", "--prepare"], ["--delete-only", "--restore"], ["--delete-only", "--backup", "old.ejson.gz"]]) assert.throws(() => parseArguments(args));
+});
+
+test("deletion-only reset backs up linked data, creates no demo identities and reopens the site atomically", async t => {
+  const f = fixture(), directory = temporaryDirectory(t);
+  // Removing records does not require a priced service or free demo IDs.
+  f.state.coreservices = [];
+  f.state.users.push({ _id: require("../utils/completedBookingDemoSeed").demoId("customer-0"), email: "preserve@example.invalid", active: true });
+  f.state.sitesettings[0].value.application = { allowCustomerRegistrations: false };
+  f.state.sitesettings[0].value.notifications = { criticalEmailAlerts: true };
+  const original = clone(f.state);
+  const result = await reset.deleteOnlyReset({ ...f, backupDirectory: directory, now });
+  assert.equal(result.mode, "deleted"); assert.equal(result.atomic, true); assert.equal(result.recoveryVerified, true);
+  assert.equal(f.transactions, 1); assert.equal(result.maintenanceEnabled, false);
+  assert.equal(result.remainingBookings, 0); assert.equal(result.remainingOrders, 0);
+  for (const name of reset.WORK_COLLECTIONS) assert.equal(f.state[name].length, 0, name);
+  assert.equal(Number(result.seed.completedServiceBookings), 0); assert.equal(Number(result.seed.disabledDemoCustomers), 0); assert.equal(Number(result.seed.inactiveDemoTechnicians), 0);
+  assert.deepEqual(f.state.users, original.users);
+  assert.equal(f.state.technicians.length, original.technicians.length);
+  for (const name of ["walkinsales", "payrolls", "stockadjustments", "hvac_products", "inventories", "coreservices"]) assert.deepEqual(f.state[name], original[name], name);
+  assert.equal(f.state.tools[0].quantity, original.tools[0].quantity);
+  assert.equal(f.state.tools[0].checkedOutQuantity, original.tools[0].checkedOutQuantity);
+  assert.equal(f.state.tools[0].reservedQuantity, 0);
+  const configuration = f.state.sitesettings.find(row => row.key === "systemConfiguration").value;
+  assert.equal(configuration.maintenance.enabled, false);
+  assert.deepEqual(configuration.application, original.sitesettings[0].value.application);
+  assert.deepEqual(configuration.notifications, original.sitesettings[0].value.notifications);
+  assert.equal(f.state.emailoutboxes.length, 1); assert.equal(f.state.emailoutboxes[0].source, "login_otp");
+  assert.equal(f.state.expenses.length, 1); assert.equal(f.state.productrefunds.length, 1);
+  const marker = f.state.sitesettings.find(row => row.key === reset.RESET_KEY);
+  assert.equal(marker.value.resetMode, "delete-only"); assert.equal(marker.value.maintenanceDisabled, true);
+  assert.deepEqual(marker.value.seedUserIds, []);
+  const log = f.state.activitylogs.find(row => row.action === "BOOKING_ORDER_DATA_RESET");
+  assert.equal(log.details.completedDemoBookings, 0); assert.equal(log.details.maintenanceDisabled, true);
+  const { artifact } = await reset.readResetBackup(result.backup);
+  assert.equal(artifact.resetMode, "delete-only");
+  assert.equal(artifact.original.remove.bookingservices.length, 1);
+  assert.equal(artifact.original.remove.orders.length, 1);
+  assert.ok(Object.values(artifact.seed).every(rows => rows.length === 0));
+});
+
+test("deletion-only failure rolls back financial deletions and maintenance reopening together", async t => {
+  const f = fixture(), original = clone(f.state), directory = temporaryDirectory(t);
+  // The audit write occurs after deletes and the maintenance setting update.
+  f.failOn("activitylogs");
+  await assert.rejects(reset.deleteOnlyReset({ ...f, backupDirectory: directory, now }), /Simulated write failure.*Verified recovery backup retained/);
+  assert.deepEqual(f.state, original); assert.equal(f.transactions, 1);
+  const backup = fs.readdirSync(directory).find(name => name.endsWith(".ejson.gz"));
+  assert.ok(backup);
+  assert.equal((await reset.readResetBackup(path.join(directory, backup))).artifact.resetMode, "delete-only");
+});
+
+test("deletion-only mode retains custody, maintenance and replica-set checks", async t => {
+  const f = fixture(), directory = temporaryDirectory(t);
+  f.state.sitesettings[0].value.maintenance.enabled = false;
+  let result = await reset.deleteOnlyReset({ ...f, backupDirectory: directory, now });
+  assert.equal(result.mode, "blocked"); assert.equal(f.writes, 0);
+  f.state.sitesettings[0].value.maintenance.enabled = true;
+  f.state.equipmentassignments.push({ _id: oid(), status: "checked_out" });
+  result = await reset.deleteOnlyReset({ ...f, backupDirectory: directory, now });
+  assert.equal(result.mode, "blocked"); assert.equal(f.writes, 0);
+  assert.ok(result.blockers.some(row => row.code === "return_issued_equipment_or_consumables_first"));
+  f.state.equipmentassignments = []; f.standalone();
+  await assert.rejects(reset.deleteOnlyReset({ ...f, backupDirectory: directory, now }), /replica set/);
+  assert.equal(f.writes, 0); assert.equal(f.state.sitesettings[0].value.maintenance.enabled, true);
+});
+
+test("backup failure prevents deletion-only changes and never reopens a partially reset site", async t => {
+  const f = fixture(), original = clone(f.state);
+  t.mock.method(fs.promises, "rename", async () => { throw Error("Simulated backup failure"); });
+  await assert.rejects(reset.deleteOnlyReset({ ...f, backupDirectory: temporaryDirectory(t), now }), /Simulated backup failure/);
+  assert.equal(f.writes, 0); assert.equal(f.transactions, 0); assert.deepEqual(f.state, original);
+});
+
+test("repeat deletion-only invocation preserves bookings created after the reset", async t => {
+  const f = fixture(), directory = temporaryDirectory(t);
+  await reset.deleteOnlyReset({ ...f, backupDirectory: directory, now });
+  f.state.bookingservices.push({ _id: oid(), bookingReference: "REAL-NEW-BOOKING", status: "pending" });
+  const writes = f.writes;
+  assert.equal((await reset.deleteOnlyReset({ ...f, backupDirectory: directory, now })).mode, "already-applied");
+  assert.equal(f.state.bookingservices.length, 1); assert.equal(f.writes, writes);
+});
+
+test("deletion-only recovery permits maintenance toggling but refuses changes to other settings", async t => {
+  const f = fixture(), original = clone(f.state);
+  const result = await reset.deleteOnlyReset({ ...f, backupDirectory: temporaryDirectory(t), now });
+  const settings = f.state.sitesettings.find(row => row.key === "systemConfiguration");
+  settings.value.maintenance = { enabled: true, enabledAt: new Date(now.getTime() + 60000), enabledBy: oid(), message: "Recovery" };
+  settings.updatedAt = new Date(now.getTime() + 60000);
+  settings.value.application = { allowCustomerRegistrations: false };
+  await assert.rejects(reset.applyReset({ ...f, backupFile: result.backup, now, restore: true }), /changed after the snapshot/);
+  delete f.state.sitesettings.find(row => row.key === "systemConfiguration").value.application;
+  assert.equal((await reset.applyReset({ ...f, backupFile: result.backup, now, restore: true })).mode, "restored");
+  for (const name of reset.WORK_COLLECTIONS) assert.deepEqual(f.state[name], original[name], name);
+  assert.deepEqual(f.state.tools, original.tools); assert.deepEqual(f.state.technicians, original.technicians);
+  assert.deepEqual(f.state.users, original.users);
+  assert.equal(f.state.sitesettings.find(row => row.key === "systemConfiguration").value.maintenance.enabled, true);
 });
 
 test("preview includes orphan transactions and preserves independent counter sales, payroll and reviews", async () => {
