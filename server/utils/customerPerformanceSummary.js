@@ -3,6 +3,8 @@ const User = require('../models/User');
 const Booking = require('../models/BookingService');
 const Order = require('../models/Order');
 const ProductRefund = require('../models/ProductRefund');
+const Payment = require('../models/Payment');
+const Project = require('../models/Project');
 const { manilaDateParts, manilaDateTime, strictManilaDateKey } = require('./bookingDateTime');
 const { remember } = require('./reportCache');
 const DAY = 86400000;
@@ -77,21 +79,40 @@ const bookingSuccess = { $and: [{ $in: ['$status', COMPLETED_BOOKINGS] }, { $ne:
 const orderSuccess = { $and: [{ $eq: ['$status', 'completed'] }, { $ne: [{ $ifNull: ['$refundStatus', 'none'] }, 'completed'] },
   { $or: [{ $lte: ['$itemRefunds', 0] }, { $lt: ['$itemRefunds', '$productNet'] }] } ] };
 
+function refundLedgerStages(booking) {
+  const ledger = require('./enterpriseRevenue');
+  const match = require('./reportingScope').reportableMatch();
+  const settled = [
+    { $match: { ...match, status: { $in: [...ledger.ACCEPTED_PAYMENT_STATUSES] }, $expr: ledger.completedRefundExpression() } },
+    { $group: { _id: null, amount: { $sum: { $min: [{ $max: [0, { $ifNull: ['$amount', 0] }] }, { $max: [0, { $ifNull: ['$refundAmount', 0] }] }] } } } },
+  ];
+  return booking ? [
+    { $lookup: { from: Project.collection.name, localField: '_id', foreignField: 'bookingId', pipeline: [{ $match: match }, { $project: { _id: 1 } }], as: 'financialProjects' } },
+    { $lookup: { from: Payment.collection.name, let: { booking: '$_id', projects: '$financialProjects._id' }, pipeline: [
+      { $match: { $expr: { $or: [{ $eq: ['$bookingId', '$$booking'] }, { $in: ['$projectId', '$$projects'] }] } } }, ...settled,
+    ], as: 'settledRefunds' } },
+  ] : [{ $lookup: { from: Payment.collection.name, localField: '_id', foreignField: 'orderId', pipeline: settled, as: 'settledRefunds' } }];
+}
+const settledRefundAmount = { $ifNull: [{ $arrayElemAt: ['$settledRefunds.amount', 0] }, { $cond: [{ $eq: ['$refundStatus', 'completed'] }, { $ifNull: ['$refundAmount', 0] }, 0] }] };
+
 function sourceSummaryPipeline(period, booking, now) {
   const complete = booking ? { $in: ['$status', COMPLETED_BOOKINGS] } : { $eq: ['$status', 'completed'] };
   const success = booking ? bookingSuccess : orderSuccess;
   const selected = { $and: [success, between('$completion', period)] };
   const valued = { $and: [complete, between('$completion', period)] };
   const lifetime = { $and: [complete, { $or: [{ $lte: ['$completion', now] }, { $eq: [{ $ifNull: ['$completion', null] }, null] }] }] };
-  const refunds = { $add: [{ $cond: [{ $in: ['$refundStatus', ['completed', 'partial']] }, { $ifNull: ['$refundAmount', 0] }, 0] }, booking ? 0 : '$itemRefunds'] };
+  const refunds = { $add: [{ $ifNull: ['$refundAmount', 0] }, booking ? 0 : '$itemRefunds'] };
   const stages = booking ? [
-    { $match: { sourceOrderId: null } },
+    { $match: { ...require('./reportingScope').reportableMatch(), sourceOrderId: null } },
     { $lookup: { from: Order.collection.name, localField: '_id', foreignField: 'bookingId', pipeline: [{ $project: { _id: 1 } }, { $limit: 1 }], as: 'linkedOrders' } },
     { $match: { 'linkedOrders.0': { $exists: false } } },
-    { $project: { status: 1, completion: bookingCompletion, cancelledDate: { $ifNull: ['$cancelledAt', '$updatedAt'] }, noShowDate: { $ifNull: ['$noShowAt', '$updatedAt'] }, amount: { $ifNull: ['$totalPrice', { $ifNull: ['$estimatedFee', 0] }] }, discount: 1, refundStatus: 1, refundAmount: 1 } },
+    ...refundLedgerStages(true),
+    { $project: { status: 1, completion: bookingCompletion, cancelledDate: { $ifNull: ['$cancelledAt', '$updatedAt'] }, noShowDate: { $ifNull: ['$noShowAt', '$updatedAt'] }, amount: require('./bookingReportValue').bookingValueExpression(), discount: 1, refundStatus: 1, refundAmount: settledRefundAmount } },
   ] : [
+    { $match: require('./reportingScope').reportableMatch() },
     { $lookup: { from: ProductRefund.collection.name, localField: '_id', foreignField: 'sourceId', pipeline: [{ $match: { sourceType: 'order', status: 'completed' } }, { $group: { _id: null, amount: { $sum: '$amount' } } }], as: 'itemReturns' } },
-    { $project: { status: 1, completion: orderCompletion, cancelledDate: { $ifNull: ['$cancelledAt', '$updatedAt'] }, amount: { $ifNull: ['$total', 0] }, discount: 1, refundStatus: 1, refundAmount: 1,
+    ...refundLedgerStages(false),
+    { $project: { status: 1, completion: orderCompletion, cancelledDate: { $ifNull: ['$cancelledAt', '$updatedAt'] }, amount: { $ifNull: ['$total', 0] }, discount: 1, refundStatus: 1, refundAmount: settledRefundAmount,
       itemRefunds: { $ifNull: [{ $arrayElemAt: ['$itemReturns.amount', 0] }, 0] },
       productNet: { $max: [0, { $subtract: [{ $cond: [{ $gt: [{ $ifNull: ['$subtotal', 0] }, 0] }, '$subtotal', { $sum: '$items.totalPrice' }] }, { $ifNull: ['$discount', 0] }] }] },
       itemsPurchased: { $sum: '$items.quantity' } } },
@@ -210,5 +231,12 @@ function buildCustomerPerformance(query = {}, now = new Date()) {
   return remember('customer-performance', { ...normalizeQuery(query), range: period.range, from: period.start.toISOString(), to: period.range === 'custom' ? period.end.toISOString() : Math.floor(now / 60000), inactiveDays },
     () => computeReport(query, period, inactiveDays, now), { ttlMs: 60000, maxEntries: 30 });
 }
-module.exports = { buildCustomerPerformance, parsePeriod, classifyCustomer, transactionBreakdown, customerSummaryPipeline, sourceSummaryPipeline,
+async function customerCsvRows(query = {}, now = new Date()) {
+  const period = parsePeriod(query, now), normalized = normalizeQuery(query);
+  const inactiveDays = INACTIVE_WINDOWS.includes(Number(query.inactiveDays)) ? Number(query.inactiveDays) : 90;
+  const rows = await User.aggregate([...customerSummaryPipeline(period, inactiveDays, now), { $match: tableMatch(normalized) }, { $sort: tableSort(normalized) }, { $limit: 50001 }]).allowDiskUse(true);
+  if (rows.length > 50000) throw Object.assign(Error('This export exceeds 50,000 customers. Narrow the report filters.'), { status: 413 });
+  return rows.map(presentRow);
+}
+module.exports = { buildCustomerPerformance, customerCsvRows, refundLedgerStages, settledRefundAmount, parsePeriod, classifyCustomer, transactionBreakdown, customerSummaryPipeline, sourceSummaryPipeline,
   bookingCompletion, orderCompletion, bookingSuccess, orderSuccess, between, presentRow, normalizeQuery, tableMatch, tableSort, COMPLETED_BOOKINGS, INACTIVE_WINDOWS, HISTORY_NOTE };

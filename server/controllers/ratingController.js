@@ -1,22 +1,13 @@
 const mongoose = require("mongoose");
 const audit = require("../utils/audit");
 
-// helper to update tech average from bookings
+// Recompute from canonical completed booking and order reviews.
 async function recalcTechnicianRating(techId) {
   if (!mongoose.Types.ObjectId.isValid(techId)) return;
-  const BookingService = require("../models/BookingService");
-  const Technician = require("../models/Technician");
-
-  const stats = await BookingService.aggregate([
-    { $match: { technicianId: new mongoose.Types.ObjectId(techId), customerRating: { $exists: true, $ne: null } } },
-    { $group: { _id: "$technicianId", avg: { $avg: "$customerRating" }, count: { $sum: 1 } } },
-  ]);
-  if (stats && stats.length) {
-    await Technician.findByIdAndUpdate(techId, {
-      rating: stats[0].avg,
-      ratingCount: stats[0].count,
-    });
-  }
+  const { loadTechnicianRatingReport } = require('../utils/technicianRatingReport');
+  const report = await loadTechnicianRatingReport({ technicianId: techId });
+  const row = report.technicians.find(technician => technician.id === String(techId));
+  await require('../models/Technician').findByIdAndUpdate(techId, { rating: row?.avgRating || 0, ratingCount: row?.reviewCount || 0 });
 }
 
 exports.rateInventory = async (req, res, next) => {
@@ -87,18 +78,17 @@ exports.rateBooking = async (req, res, next) => {
 
     // Use findByIdAndUpdate to avoid triggering heavy pre-save hooks
     await BookingService.findByIdAndUpdate(id, {
-      $set: { customerRating: score, customerRatingComment: comment ? String(comment).slice(0, 1000) : null },
-    });
+      $set: { customerRating: score, customerRatingComment: comment ? String(comment).slice(0, 1000) : null, customerRatedAt: booking.customerRatedAt || new Date() },
+    }, { timestamps: false });
 
-    if (booking.technicianId) {
-      await recalcTechnicianRating(booking.technicianId);
-    }
     const Rating = require("../models/Rating");
     await Rating.findOneAndUpdate(
       { customerId: req.user._id, targetType: "booking", targetId: id },
       { $set: { score, comment: comment ? String(comment).slice(0, 1000) : null } },
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
+    if (booking.technicianId) await recalcTechnicianRating(booking.technicianId);
+    require('../utils/reportCache').clear('service-rating-report');
     await audit.logEvent({
       actor: req.user._id,
       target: booking._id,
@@ -137,11 +127,8 @@ exports.rateOrder = async (req, res, next) => {
 
     order.customerRating = score;
     order.customerRatingComment = comment ? String(comment).slice(0, 1000) : null;
-    await order.save();
-
-    if (order.technicianId) {
-      await recalcTechnicianRating(order.technicianId);
-    }
+    order.customerRatedAt = order.customerRatedAt || new Date();
+    await order.save({ timestamps: false });
     
     const Rating = require("../models/Rating");
     await Rating.findOneAndUpdate(
@@ -150,6 +137,7 @@ exports.rateOrder = async (req, res, next) => {
       { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
     
+    if (order.technicianId) await recalcTechnicianRating(order.technicianId);
     return res.json({ order });
   } catch (err) {
     next(err);

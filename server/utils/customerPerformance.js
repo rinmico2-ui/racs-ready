@@ -5,6 +5,7 @@ const Booking = require('../models/BookingService');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const ProductRefund = require('../models/ProductRefund');
+const Project = require('../models/Project');
 const summary = require('./customerPerformanceSummary');
 const { evaluateHistory, completedHistory, loadPolicy } = require('./loyaltyRewards');
 const { ACCEPTED_PAYMENT_STATUSES } = require('./enterpriseRevenue');
@@ -26,7 +27,7 @@ function historyPipeline(customerId, query, period, booking) {
   const status = query[booking ? 'bookingStatus' : 'orderStatus'] || 'successful';
   const statuses = (booking ? Booking : Order).schema.path('status').enumValues;
   if (!['successful', 'all', 'refunded', ...statuses].includes(status)) throw new Error('Choose a valid history status.');
-  const pipeline = [{ $match: { [booking ? 'customerId' : 'userId']: customerId } }];
+  const pipeline = [{ $match: { ...require('./reportingScope').reportableMatch(), [booking ? 'customerId' : 'userId']: customerId } }];
   if (booking) pipeline.push({ $lookup: { from: Order.collection.name, localField: '_id', foreignField: 'bookingId', pipeline: [{ $project: { _id: 1 } }, { $limit: 1 }], as: 'linkedOrders' } });
   else pipeline.push(itemRefundLookup(), { $set: { itemRefunds: { $ifNull: [{ $arrayElemAt: ['$itemReturns.amount', 0] }, 0] }, productNet: { $max: [0, { $subtract: [
     { $cond: [{ $gt: [{ $ifNull: ['$subtotal', 0] }, 0] }, '$subtotal', { $sum: '$items.totalPrice' }] }, { $ifNull: ['$discount', 0] } ] }] } } });
@@ -40,9 +41,9 @@ function historyPipeline(customerId, query, period, booking) {
   return pipeline;
 }
 
-async function paginatedHistory(model, pipeline, projection, requestedPage, direction) {
+async function paginatedHistory(model, pipeline, projection, requestedPage, direction, decorate = []) {
   let page = pageNumber(requestedPage);
-  const rowStages = () => [{ $sort: { historyDate: direction, _id: direction } }, { $skip: (page - 1) * 20 }, { $limit: 20 }, { $project: projection }];
+  const rowStages = () => [{ $sort: { historyDate: direction, _id: direction } }, { $skip: (page - 1) * 20 }, { $limit: 20 }, ...decorate, { $project: projection }];
   const result = (await model.aggregate([...pipeline, { $facet: { count: [{ $count: 'total' }], rows: rowStages() } }]).allowDiskUse(true))[0];
   const total = result?.count[0]?.total || 0, lastPage = Math.max(1, Math.ceil(total / 20));
   let rows = result?.rows || [];
@@ -53,20 +54,21 @@ async function paginatedHistory(model, pipeline, projection, requestedPage, dire
 async function customerCollections(customerId, period) {
   // Cash follows event dates; unknown payment dates never imply a collection.
   const cashRange = { ...period, range: 'custom' };
-  const collection = { $ifNull: ['$verifiedAt', { $ifNull: ['$completedAt', { $ifNull: ['$collectedAt', '$submittedAt'] }] }] };
+  const collection = { $ifNull: ['$collectedAt', { $ifNull: ['$verifiedAt', { $ifNull: ['$completedAt', '$submittedAt'] }] }] };
   const [payments, returns] = await Promise.all([
     Payment.aggregate([
-      { $match: { $or: ['verifiedAt', 'completedAt', 'collectedAt', 'submittedAt', 'refundedAt'].map(field => ({ [field]: { $gte: period.start, $lte: period.end } })) } },
-      { $lookup: { from: Booking.collection.name, localField: 'bookingId', foreignField: '_id', pipeline: [{ $match: { customerId } }, { $project: { _id: 1 } }], as: 'booking' } },
-      { $lookup: { from: Order.collection.name, localField: 'orderId', foreignField: '_id', pipeline: [{ $match: { userId: customerId } }, { $project: { _id: 1 } }], as: 'order' } },
-      { $match: { $or: [{ 'booking.0': { $exists: true } }, { 'order.0': { $exists: true } }] } },
-      { $project: { collected: collection, refunded: { $ifNull: ['$refundedAt', collection] }, refundAmount: 1,
+      { $match: { ...require('./reportingScope').reportableMatch(), $or: ['verifiedAt', 'completedAt', 'collectedAt', 'submittedAt', 'refundedAt'].map(field => ({ [field]: { $gte: period.start, $lte: period.end } })) } },
+      { $lookup: { from: Booking.collection.name, localField: 'bookingId', foreignField: '_id', pipeline: [{ $match: { ...require('./reportingScope').reportableMatch(), customerId } }, { $project: { _id: 1 } }], as: 'booking' } },
+      { $lookup: { from: Order.collection.name, localField: 'orderId', foreignField: '_id', pipeline: [{ $match: { ...require('./reportingScope').reportableMatch(), userId: customerId } }, { $project: { _id: 1 } }], as: 'order' } },
+      { $lookup: { from: Project.collection.name, localField: 'projectId', foreignField: '_id', pipeline: [{ $match: { ...require('./reportingScope').reportableMatch(), customerId } }, { $project: { _id: 1 } }], as: 'project' } },
+      { $match: { $or: [{ 'booking.0': { $exists: true } }, { 'order.0': { $exists: true } }, { 'project.0': { $exists: true } }] } },
+      { $project: { collected: collection, refunded: { $ifNull: ['$refundedAt', collection] }, refundAmount: { $cond: [require('./enterpriseRevenue').completedRefundExpression(), { $max: [0, { $ifNull: ['$refundAmount', 0] }] }, 0] },
         gross: { $cond: [{ $in: ['$status', [...ACCEPTED_PAYMENT_STATUSES]] }, { $max: [0, { $ifNull: ['$amount', 0] }] }, 0] } } },
       { $group: { _id: null, gross: { $sum: { $cond: [between('$collected', cashRange), '$gross', 0] } }, refunds: { $sum: { $cond: [between('$refunded', cashRange), { $min: ['$gross', { $max: [0, { $ifNull: ['$refundAmount', 0] }] }] }, 0] } } } },
     ]).allowDiskUse(true),
     ProductRefund.aggregate([
-      { $match: { sourceType: 'order', status: 'completed', processedAt: { $gte: period.start, $lte: period.end } } },
-      { $lookup: { from: Order.collection.name, localField: 'sourceId', foreignField: '_id', pipeline: [{ $match: { userId: customerId } }, { $project: { _id: 1 } }], as: 'order' } },
+      { $match: { ...require('./reportingScope').reportableMatch(), sourceType: 'order', status: 'completed', processedAt: { $gte: period.start, $lte: period.end } } },
+      { $lookup: { from: Order.collection.name, localField: 'sourceId', foreignField: '_id', pipeline: [{ $match: { ...require('./reportingScope').reportableMatch(), userId: customerId } }, { $project: { _id: 1 } }], as: 'order' } },
       { $match: { 'order.0': { $exists: true } } }, { $group: { _id: null, amount: { $sum: '$amount' } } },
     ]).allowDiskUse(true),
   ]);
@@ -88,12 +90,12 @@ async function customerProfile(id, query = {}, now = new Date()) {
   const bookingProjection = { bookingReference: 1, sourceOrderId: 1, linkedOrders: 1, 'service.name': 1,
     'services.name': 1, 'services.quantity': 1, 'services.applianceTypeName': 1, 'services.airconTypeName': 1, 'services.hp': 1, 'services.brand': 1, 'services.model': 1,
     applianceTypeName: 1, hp: 1, brand: 1, 'unitInfo.brand': 1, 'unitInfo.model': 1, quantity: 1, bookingDate: 1, 'schedule.scheduledDate': 1,
-    status: 1, paymentStatus: 1, totalPrice: 1, estimatedFee: 1, discount: 1, loyaltyDiscount: 1, refundStatus: 1, refundAmount: 1, historyDate: 1, completion: 1, createdAt: 1 };
+    status: 1, paymentStatus: 1, reportValue: 1, reportRefund: 1, totalPrice: 1, estimatedFee: 1, discount: 1, loyaltyDiscount: 1, refundStatus: 1, refundAmount: 1, historyDate: 1, completion: 1, createdAt: 1 };
   const orderProjection = { orderReference: 1, 'items.modelLine': 1, 'items.brand': 1, 'items.capacity': 1, 'items.capacityUnit': 1, 'items.quantity': 1,
-    status: 1, paymentStatus: 1, refundStatus: 1, refundAmount: 1, itemRefunds: 1, fulfillmentType: 1, subtotal: 1, discount: 1, loyaltyDiscount: 1, total: 1, historyDate: 1, completion: 1, createdAt: 1 };
+    status: 1, paymentStatus: 1, reportRefund: 1, refundStatus: 1, refundAmount: 1, itemRefunds: 1, fulfillmentType: 1, subtotal: 1, discount: 1, loyaltyDiscount: 1, total: 1, historyDate: 1, completion: 1, createdAt: 1 };
   const [bookings, orders, services, products, collections] = await Promise.all([
-    paginatedHistory(Booking, bookingBase, bookingProjection, query.bookingPage, query.historySort === 'oldest' ? 1 : -1),
-    paginatedHistory(Order, orderBase, orderProjection, query.orderPage, query.historySort === 'oldest' ? 1 : -1),
+    paginatedHistory(Booking, bookingBase, bookingProjection, query.bookingPage, query.historySort === 'oldest' ? 1 : -1, [...summary.refundLedgerStages(true), { $set: { reportValue: require('./bookingReportValue').bookingValueExpression(), reportRefund: summary.settledRefundAmount } }]),
+    paginatedHistory(Order, orderBase, orderProjection, query.orderPage, query.historySort === 'oldest' ? 1 : -1, [...summary.refundLedgerStages(false), { $set: { reportRefund: summary.settledRefundAmount } }]),
     Booking.aggregate([...historyPipeline(customerId, {}, period, true),
       { $project: { lines: { $cond: [{ $gt: [{ $size: { $ifNull: ['$services', []] } }, 0] }, '$services', [{ name: '$service.name' }]] } } },
       { $unwind: '$lines' }, { $group: { _id: { booking: '$_id', name: { $ifNull: ['$lines.name', 'Unspecified service'] } } } },
@@ -104,13 +106,13 @@ async function customerProfile(id, query = {}, now = new Date()) {
       { $project: { units: 1, orders: { $size: '$orders' } } }, { $sort: { units: -1, '_id.name': 1, '_id.brand': 1, '_id.capacity': 1, '_id.capacityUnit': 1 } }, { $limit: 20 },
     ]).allowDiskUse(true), customerCollections(customerId, period),
   ]);
-  const refundAmount = record => ['completed', 'partial'].includes(record.refundStatus) ? money(record.refundAmount) : 0;
+  const refundAmount = record => money(record.reportRefund ?? (record.refundStatus === 'completed' ? record.refundAmount : 0));
   bookings.rows = bookings.rows.map(booking => ({ id: String(booking._id), reference: booking.bookingReference || String(booking._id).slice(-8).toUpperCase(),
     linkedOrder: Boolean(booking.sourceOrderId || booking.linkedOrders?.length), services: (booking.services?.length ? booking.services : [booking.service || {}]).map(service => ({
       name: service.name || 'Service', unit: service.applianceTypeName || service.airconTypeName || booking.applianceTypeName || '', hp: service.hp || booking.hp || null,
       brand: service.brand || booking.unitInfo?.brand || booking.brand || '', model: service.model || booking.unitInfo?.model || '', quantity: service.quantity || booking.quantity || 1 })),
     requestedDate: booking.createdAt, scheduledDate: booking.schedule?.scheduledDate || booking.bookingDate || null, completedDate: COMPLETED_BOOKINGS.includes(booking.status) ? booking.completion : null,
-    status: booking.status, paymentStatus: booking.paymentStatus, amount: money(booking.totalPrice ?? booking.estimatedFee), discount: money(booking.discount), loyaltyDiscount: booking.loyaltyDiscount || null,
+    status: booking.status, paymentStatus: booking.paymentStatus, amount: money(booking.reportValue ?? booking.totalPrice ?? booking.estimatedFee), discount: money(booking.discount), loyaltyDiscount: booking.loyaltyDiscount || null,
     refundStatus: booking.refundStatus || 'none', refundAmount: refundAmount(booking) }));
   orders.rows = orders.rows.map(order => ({ id: String(order._id), reference: order.orderReference || String(order._id).slice(-8).toUpperCase(), date: order.createdAt, completedDate: order.status === 'completed' ? order.completion : null,
     items: (order.items || []).map(item => ({ name: [item.brand, item.modelLine].filter(Boolean).join(' ') || 'Catalog item', capacity: item.capacity ? `${item.capacity}${item.capacityUnit || ' HP'}` : '', quantity: item.quantity || 1 })),

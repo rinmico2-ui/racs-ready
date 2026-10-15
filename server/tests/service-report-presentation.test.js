@@ -68,7 +68,7 @@ test("service report keeps booked and completed value definitions distinct", () 
   assert.match(template, /Sales from finished services/);
   assert.match(template, /Service profit estimate/);
   assert.match(template, /Missing costs can make this estimate too high/);
-  assert.match(template, /\^\[=\+\\-@\\t\\r\]/);
+  assert.match(template, /data-report-csv="service"/);
 });
 
 test("advanced service filters are visible, retained, and applied server-side", () => {

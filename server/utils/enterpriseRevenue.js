@@ -6,6 +6,8 @@ const ACCEPTED_PAYMENT_STATUSES = new Set([
   "paid",
   "partial",
   "refunded",
+  "rejected",
+  "unaccounted",
 ]);
 
 const RECOGNIZED_BOOKING_STATUSES = new Set([
@@ -24,28 +26,10 @@ function inRange(value, startDate, endDate) {
   return Boolean(date && !Number.isNaN(date.getTime()) && date >= startDate && date <= endDate);
 }
 
-function localDateKey(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
-function parseReportDate(value, endOfDay = false) {
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-").map(Number);
-    const parsed = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-    if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return new Date(NaN);
-    return parsed;
-  }
-  return new Date(value);
-}
+const { dateKey: localDateKey, parseDate: parseReportDate } = require('./reportingDates');
 
 function collectionDate(payment) {
-  return payment?.verifiedAt || payment?.completedAt || payment?.collectedAt || payment?.submittedAt || null;
+  return payment?.collectedAt || payment?.verifiedAt || payment?.completedAt || payment?.submittedAt || null;
 }
 
 function refundDate(payment) {
@@ -60,6 +44,14 @@ function completedRefund(payment) {
   if (payment?.refundStatus) return payment.refundStatus === "completed";
   // Historical rows predate refundStatus; require settlement evidence.
   return payment?.status === "refunded" || Boolean(payment?.refundedAt);
+}
+
+function completedRefundExpression() {
+  return { $and: [
+    { $eq: [{ $ifNull: ['$testDataExcludedAt', null] }, null] },
+    { $cond: [{ $ne: [{ $ifNull: ['$refundStatus', ''] }, ''] }, { $eq: ['$refundStatus', 'completed'] },
+      { $or: [{ $eq: ['$status', 'refunded'] }, { $ne: [{ $ifNull: ['$refundedAt', null] }, null] }] }] },
+  ] };
 }
 
 function paymentAmounts(payment) {
@@ -84,18 +76,31 @@ function summarizePaymentLedger(payments = [], options = {}) {
     const amounts = paymentAmounts(payment);
     const method = normalizeMethod(payment?.method);
     const methodKey = Object.prototype.hasOwnProperty.call(byMethod, method) ? method : "other";
-    if (amounts.gross > 0 && inRange(collectionDate(payment), startDate, endDate)) {
+    if ((!options.methodFilter || methodKey === options.methodFilter) && amounts.gross > 0 && inRange(collectionDate(payment), startDate, endDate)) {
       grossCollections += amounts.gross;
       byMethod[methodKey] += amounts.gross;
       grossByMethod[methodKey] += amounts.gross;
       collectionCount += 1;
     }
     if (amounts.refunded > 0 && inRange(refundDate(payment), startDate, endDate)) {
+      const refundMethod = normalizeMethod(payment?.refundMethod || payment?.method);
+      const refundKey = Object.prototype.hasOwnProperty.call(byMethod, refundMethod) ? refundMethod : 'other';
+      if (options.methodFilter && refundKey !== options.methodFilter) return;
       refunds += amounts.refunded;
-      byMethod[methodKey] -= amounts.refunded;
-      refundsByMethod[methodKey] += amounts.refunded;
+      byMethod[refundKey] -= amounts.refunded;
+      refundsByMethod[refundKey] += amounts.refunded;
       refundCount += 1;
     }
+  });
+
+  (options.productRefunds || []).forEach(refund => {
+    if (!require('./reportingScope').isReportable(refund) || refund.status !== 'completed' || !inRange(refund.processedAt, startDate, endDate)) return;
+    const amount = money(refund.amount);
+    const normalized = normalizeMethod(refund.method);
+    const method = Object.prototype.hasOwnProperty.call(byMethod, normalized) ? normalized : 'other';
+    if (options.methodFilter && method !== options.methodFilter) return;
+    refunds += amount; byMethod[method] -= amount; refundsByMethod[method] += amount;
+    if (amount > 0) refundCount++;
   });
 
   return {
@@ -121,6 +126,16 @@ function netPaymentsThrough(payments = [], endDate = new Date(8640000000000000))
   }, 0);
 }
 
+function grossPaymentsThrough(payments = [], endDate = new Date(8640000000000000)) {
+  return payments.reduce((sum, payment) => sum + (inRange(collectionDate(payment), new Date(0), endDate) ? paymentAmounts(payment).gross : 0), 0);
+}
+
+function outstandingForValue(value, payments, endDate) {
+  // A completed refund credits the charge and returns the collection together.
+  // It must not create a second amount due on an already paid transaction.
+  return Math.max(0, money(value) - grossPaymentsThrough(payments, endDate));
+}
+
 function bookingCompletionDate(booking) {
   if (booking?.completedAt) return booking.completedAt;
   if (booking?.repairCompletion?.completedAt) return booking.repairCompletion.completedAt;
@@ -138,12 +153,12 @@ function orderCompletionDate(order) {
 }
 
 function isRecognizedBooking(booking, startDate, endDate) {
-  return RECOGNIZED_BOOKING_STATUSES.has(booking?.status)
+  return require('./reportingScope').isReportable(booking) && !booking.sourceOrderId && RECOGNIZED_BOOKING_STATUSES.has(booking?.status)
     && inRange(bookingCompletionDate(booking), startDate, endDate);
 }
 
 function isRecognizedOrder(order, startDate, endDate) {
-  return order?.status === "completed" && inRange(orderCompletionDate(order), startDate, endDate);
+  return require('./reportingScope').isReportable(order) && order?.status === "completed" && inRange(orderCompletionDate(order), startDate, endDate);
 }
 
 function orderItemCost(item, costById) {
@@ -233,12 +248,15 @@ module.exports = {
   bookingCompletionDate,
   collectionDate,
   completedRefund,
+  completedRefundExpression,
   inRange,
   isRecognizedBooking,
   isRecognizedOrder,
   localDateKey,
   money,
   netPaymentsThrough,
+  grossPaymentsThrough,
+  outstandingForValue,
   orderCompletionDate,
   paymentAmounts,
   parseReportDate,

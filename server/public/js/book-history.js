@@ -1,6 +1,6 @@
 // Client-side Booking History (front-end only)
 // - Fetches /api/appointments, filters client-side to the current user and renders a responsive list/table
-// - Provides search, status/date filters, pagination, view details modal and JSON download
+// - Provides search, status/date filters, pagination, view details modal and PDF booking summaries
 
 (function () {
   "use strict";
@@ -77,7 +77,7 @@
     modalElement: document.getElementById("bhDetailModal"),
     modal: null,
     modalBody: document.getElementById("bh-modal-body"),
-    downloadJsonBtn: document.getElementById("bh-download-json"),
+    downloadPdfBtn: document.getElementById("bh-download-pdf"),
   };
 
   function setupModalEnvironment() {
@@ -616,16 +616,21 @@
     });
   }
 
-  function downloadJSON(data, filename) {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  async function downloadBookingPdf(booking) {
+    const button = el.downloadPdfBtn, original = button.innerHTML;
+    button.disabled = true; button.textContent = 'Preparing PDF...';
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch(`/api/appointments/${encodeURIComponent(booking._id)}/summary.pdf`, { credentials:'same-origin', signal:controller.signal });
+      if (!response.ok) { const error = await response.json().catch(() => null); throw Error(error?.error || 'Could not download the booking summary. Try again.'); }
+      if (!(response.headers.get('content-type') || '').includes('application/pdf')) throw Error('The booking summary is unavailable. Refresh and try again.');
+      const url = URL.createObjectURL(await response.blob()), link = document.createElement('a'); link.href = url; link.download = `booking-${shortId(booking._id)}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      let box = document.getElementById('bh-download-error');
+      if (!box) { box = document.createElement('p'); box.id = 'bh-download-error'; box.className = 'text-danger small mt-2'; box.setAttribute('role','alert'); button.parentElement.insertAdjacentElement('beforebegin',box); }
+      box.textContent = error.name === 'AbortError' ? 'The download took too long. Please try again.' : error.message;
+    } finally { clearTimeout(timer); button.disabled = false; button.innerHTML = original; }
   }
 
   function attachRowHandlers() {
@@ -1123,7 +1128,8 @@
     }
   
     // Wire controls
-    el.downloadJsonBtn.onclick = () => downloadJSON(b, `booking-${shortId(b._id)}.json`);
+    document.getElementById('bh-download-error')?.remove();
+    el.downloadPdfBtn.onclick = () => downloadBookingPdf(b);
   
     setTimeout(() => {
       el.modalBody.querySelectorAll('[data-booking-action]').forEach(button => {

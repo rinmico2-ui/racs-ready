@@ -2470,36 +2470,9 @@ router.get(
       const mongoose = require("mongoose");
       const { buildOrderAnalytics, recognizedOrders } = require("../utils/orderAnalytics");
       const { buildOrderFilter, combineOrderFilters } = require("../utils/orderReportFilters");
-      const allowedRanges = new Set(["today", "7", "30", "mtd", "qtd", "ytd", "90", "365", "custom"]);
-      const range = allowedRanges.has(String(req.query.range)) ? String(req.query.range) : "90";
       const now = new Date();
-      let start = new Date(now);
-      let end = new Date(now);
-      const validDateInput = value => {
-        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-        const [year, month, day] = value.split("-").map(Number);
-        const parsed = new Date(year, month - 1, day);
-        return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
-      };
-      if (range === "custom" && validDateInput(req.query.from)) start = new Date(`${req.query.from}T00:00:00`);
-      else if (range === "mtd") start = new Date(now.getFullYear(), now.getMonth(), 1);
-      else if (range === "qtd") start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-      else if (range === "ytd") start = new Date(now.getFullYear(), 0, 1);
-      else if (range !== "today") start.setDate(start.getDate() - (Number(range === "custom" ? 90 : range) - 1));
-      if (range === "custom" && validDateInput(req.query.to)) end = new Date(`${req.query.to}T23:59:59.999`);
-      end.setHours(23, 59, 59, 999);
-      if (start > end) [start, end] = [new Date(end.setHours(0, 0, 0, 0)), new Date(start.setHours(23, 59, 59, 999))];
-      start.setHours(0, 0, 0, 0);
-      if (end - start > 365 * 86400000) {
-        start = new Date(end);
-        start.setDate(start.getDate() - 365);
-        start.setHours(0, 0, 0, 0);
-      }
-
-      const periodMs = Math.max(1, end.getTime() - start.getTime());
-      const previousEnd = new Date(start.getTime() - 1);
-      const previousStart = new Date(previousEnd.getTime() - periodMs);
-      const orderFilter = buildOrderFilter(reportFilters);
+      const { range, start, end, previousStart, previousEnd } = require('../utils/reportingDates').period(req.query, { now, defaultRange: '90', maxDays: 1827 });
+      const orderFilter = combineOrderFilters(buildOrderFilter(reportFilters), require('../utils/reportingScope').reportableMatch());
       const currentCohortFilter = combineOrderFilters(orderFilter, { createdAt: { $gte: start, $lte: end } });
       const previousCohortFilter = combineOrderFilters(orderFilter, { createdAt: { $gte: previousStart, $lte: previousEnd } });
       const completionRange = { $gte: previousStart, $lte: end };
@@ -2511,8 +2484,9 @@ router.get(
           { completedAt: null, "statusHistory.status": { $ne: "completed" }, updatedAt: completionRange },
         ],
       });
-      const ledgerStatuses = ["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid", "partial", "refunded"];
+      const ledgerStatuses = [...require("../utils/enterpriseRevenue").ACCEPTED_PAYMENT_STATUSES];
       const paymentActivityFilter = {
+        ...require('../utils/reportingScope').reportableMatch(),
         orderId: { $ne: null },
         status: { $in: ledgerStatuses },
         $or: [
@@ -2662,11 +2636,13 @@ router.get(
         brands: brands.filter(Boolean).map(String).sort((a, b) => a.localeCompare(b)).slice(0, 250),
         technicians: technicians.map(technician => ({ id: String(technician._id), name: technician.name, active: technician.active !== false })),
       };
+      if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'orders', analytics, filters);
       if (req.query.format === 'pdf') return await sendReportPdf(res, 'orders', analytics, filters);
       res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics, analyticsJson: JSON.stringify(analytics).replace(/</g, "\\u003c"), filters, filterOptions, orderPhotoEvidence, reportError: null });
     } catch (err) {
       console.error("Order reports error:", err);
-      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The order report could not be exported. Please try again.' });
+      if ([400,413].includes(err.status || err.statusCode)) return res.status(err.status || err.statusCode).json({ error: err.message });
+      if (['pdf','csv'].includes(req.query.format)) return res.status(503).json({ error: 'The order report could not be exported. Please try again.' });
       empty.appliedFilters = serializableOrderFilters(reportFilters);
       res.render("pages/admin/Reports/OrderReports", { title: "Order Reports", layout: false, analytics: empty, analyticsJson: JSON.stringify(empty), filters, filterOptions, orderPhotoEvidence, reportError: "The order report could not load. Please try again." });
     }
@@ -2710,7 +2686,7 @@ router.get(
   pageAuth.requireRole(["admin", "secretary"]),
   async (req, res) => {
     const cachedFragment = readServiceReportFragment({ ...req.query, reportRole: req.user.role });
-    if (cachedFragment.html && req.query.format !== 'pdf') {
+    if (cachedFragment.html && !['pdf','csv'].includes(req.query.format)) {
       res.set("X-Report-Cache", "hit");
       return res.send(cachedFragment.html);
     }
@@ -2735,47 +2711,27 @@ router.get(
       // Reporting window and server-side filter state. The same filtered
       // booking collection drives every KPI, chart and ranking on the page.
       const now = new Date();
-      const allowedRanges = new Set(["7", "30", "90", "365", "custom"]);
-      const range = allowedRanges.has(String(req.query.range)) ? String(req.query.range) : "90";
-      let reportStart = new Date(now);
-      const isDateOnly = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
-      if (range === "custom" && isDateOnly(req.query.from)) reportStart = new Date(`${req.query.from}T00:00:00`);
-      else reportStart.setDate(reportStart.getDate() - (Number(range === "custom" ? 90 : range) - 1));
-      let reportEnd = new Date(now);
-      if (range === "custom" && isDateOnly(req.query.to)) reportEnd = new Date(`${req.query.to}T23:59:59.999`);
-      if (reportStart > reportEnd) {
-        const earlier = new Date(reportEnd);
-        const later = new Date(reportStart);
-        earlier.setHours(0, 0, 0, 0);
-        later.setHours(23, 59, 59, 999);
-        reportStart = earlier;
-        reportEnd = later;
-      }
-      reportStart.setHours(0, 0, 0, 0);
-      const maxReportDays = 366;
-      if (reportEnd - reportStart > maxReportDays * 86400000) {
-        reportStart = new Date(reportEnd);
-        reportStart.setDate(reportStart.getDate() - (maxReportDays - 1));
-        reportStart.setHours(0, 0, 0, 0);
-      }
-      
+      const { range, start: reportStart, end: reportEnd } = require('../utils/reportingDates').period(req.query, { now, defaultRange: '90', maxDays: 1827 });
       // The focused report needs service bookings and technician labels only.
       // Load them concurrently and avoid the old order/attendance reads that no
       // longer feed anything rendered by this page.
       const [bookingRows, technicians] = await Promise.all([
-        BookingService.find({ createdAt: { $gte: reportStart, $lte: reportEnd }, sourceOrderId: null })
+        BookingService.find({ ...require('../utils/reportingScope').reportableMatch(), createdAt: { $gte: reportStart, $lte: reportEnd }, sourceOrderId: null })
           .select("-statusHistory -services.statusHistory -services.priceHistory -cancellationHistory -rescheduleHistory -contactAttempts -imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof")
           .lean(),
         Technician.find({}).select("name userEmail specialization active").lean(),
       ]);
-      let bookings = bookingRows;
+      const linkedOrders = bookingRows.length ? await Order.find({ bookingId: { $in: bookingRows.map(row => row._id) } }).select('bookingId').lean() : [];
+      const linkedInstallationIds = new Set(linkedOrders.map(row => String(row.bookingId)));
+      let bookings = bookingRows.filter(row => !linkedInstallationIds.has(String(row._id)));
 
       // One canonical classifier for current and legacy records. Older repair
       // records can be missing serviceType, so repair-workflow evidence is used
       // as a safe fallback instead of incorrectly reporting them as core jobs.
       const normalizedType = value => String(value || "").trim().toLowerCase();
       const isCoreBooking = b => !isRepairBooking(b);
-      const getBookingRevenue = resolveBookedValue;
+      const projectPricingMap = await require('../utils/revenueRecognition').buildProjectPricingMap(bookings);
+      const getBookingRevenue = booking => require('../utils/revenueRecognition').bookingApprovedValue(booking, projectPricingMap);
 
       const unfilteredBookings = bookings.slice();
       const boundedFilter = (value, fallback = "all") => String(value || fallback).trim().slice(0, 120);
@@ -2888,7 +2844,7 @@ router.get(
       // once the booking cohort is known. Run them in one database round-trip.
       const [ratingRows, serviceCostAnalytics, workflowAssignments, partsRequests] = await Promise.all([
         filteredBookingIdsForRatings.length
-          ? Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings }, moderationStatus: { $ne: "hidden" } }).select("targetId score").lean()
+          ? Rating.find({ targetType: "booking", targetId: { $in: filteredBookingIdsForRatings }, }).select("targetId score moderationStatus createdAt updatedAt").sort({ updatedAt: -1, createdAt: -1 }).lean()
           : [],
         require("../utils/serviceCostAnalytics").buildServiceCostAnalytics(bookings, {
           revenueResolver: getBookingRevenue,
@@ -2897,15 +2853,11 @@ router.get(
         Assignment.find(workflowMatch).select("acceptedAt startedAt completedAt status slaBreached").lean(),
         PartsRequest.find(workflowMatch).select("status requestedAt completedAt").lean(),
       ]);
-      const ratingTotals = new Map();
-      ratingRows.forEach((row) => {
+      const ratingByBooking = new Map();
+      ratingRows.forEach(row => {
         const key = String(row.targetId);
-        const current = ratingTotals.get(key) || { total: 0, count: 0 };
-        current.total += Number(row.score) || 0;
-        current.count += 1;
-        ratingTotals.set(key, current);
+        if (!ratingByBooking.has(key)) ratingByBooking.set(key, row.moderationStatus === 'hidden' ? 0 : Number(row.score) || 0);
       });
-      const ratingByBooking = new Map([...ratingTotals].map(([key, value]) => [key, value.count ? value.total / value.count : 0]));
       const technicianById = new Map(technicians.map(t => [String(t._id), t]));
 
       const bookingDrilldown = bookings.map(b => ({
@@ -2913,7 +2865,7 @@ router.get(
         recordType: "booking",
         category: isRepairBooking(b) ? "Repair" : "Core Service",
         segment: isRepairBooking(b) ? "Repair" : "Core Service",
-        day: new Date(b.createdAt).toLocaleDateString("en-US", { weekday: "short" }),
+        day: new Date(b.createdAt).toLocaleDateString("en-US", { weekday: "short", timeZone: "Asia/Manila" }),
         date: b.createdAt,
         reference: b.bookingReference || `#${String(b._id).slice(-6).toUpperCase()}`,
         customerId: String(b.customerId || b.customer?._id || ""),
@@ -2931,7 +2883,7 @@ router.get(
         rating: ratingForBooking(b, ratingByBooking),
         priority: b.priority || "medium",
         appliance: b.unitInfo?.unitType || b.applianceTypeName || b.applianceType || b.services?.map(s => s.applianceTypeName || s.airconTypeName).filter(Boolean).join(", ") || "Unknown",
-        month: new Date(b.createdAt).toLocaleString("en-US", { month: "short" }),
+        month: new Date(b.createdAt).toLocaleString("en-US", { month: "short", timeZone: "Asia/Manila" }),
       }));
       // Calculate revenue from bookings
       const totalRevenue = valueBookings.reduce((sum, b) => sum + getBookingRevenue(b), 0);
@@ -3282,12 +3234,8 @@ router.get(
       // ── Revenue Trend (monthly, last 6 months) ──────────────────────────
       const monthlyRevenueTrend = [];
       for (let i = 5; i >= 0; i--) {
-        const monthStart = new Date(reportEnd);
-        monthStart.setMonth(monthStart.getMonth() - i);
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-        const monthEnd = new Date(monthStart);
-        monthEnd.setMonth(monthEnd.getMonth() + 1);
+        const monthStart = require('../utils/reportingDates').startOfMonth(reportEnd, -i);
+        const monthEnd = require('../utils/reportingDates').startOfMonth(reportEnd, 1 - i);
         const monthBookings = bookings.filter(b => {
           const d = new Date(b.createdAt);
           return d >= monthStart && d < monthEnd;
@@ -3452,6 +3400,7 @@ router.get(
         reportError: null,
         deferredAnalytics: false,
       };
+      if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'service', viewModel.analytics, req.query);
       if (req.query.format === 'pdf') return await sendReportPdf(res, 'service', viewModel.analytics, req.query);
       const html = await new Promise((resolve, reject) => {
         res.render("pages/admin/Reports/ServiceReport", viewModel, (renderError, renderedHtml) => {
@@ -3463,7 +3412,8 @@ router.get(
       return res.send(html);
     } catch (err) {
       console.error("Service reports error:", err);
-      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The service report could not be exported. Please try again.' });
+      if ([400,413].includes(err.status || err.statusCode)) return res.status(err.status || err.statusCode).json({ error: err.message });
+      if (['pdf','csv'].includes(req.query.format)) return res.status(503).json({ error: 'The service report could not be exported. Please try again.' });
       res.render("pages/admin/Reports/ServiceReport", {
         title: "Service Reports",
         layout: false,
@@ -3607,15 +3557,19 @@ router.get(
         margin: String(req.query.margin || "all"), stock: String(req.query.stock || "all"),
         search: String(req.query.search || "").trim(),
       };
-      const usageStart = new Date();
-      usageStart.setDate(usageStart.getDate() - Number(filterContext.range));
+      const reportDates = require('../utils/reportingDates');
+      const usageStart = reportDates.addDays(reportDates.startOfDay(new Date()), -(Number(filterContext.range) - 1));
+      const usageEnd = reportDates.endOfDay(new Date());
 
       // Populate catalog labels so filters and analysis use meaningful names.
-      let [inventoryItems, tools] = await Promise.all([
-        Inventory.find({ active: { $ne: false } }).populate("brand", "name").populate("category", "name").lean(),
-        Tool.find({ active: { $ne: false } }).lean(),
+      let [inventoryItems, tools, hvacProducts] = await Promise.all([
+        Inventory.find({ ...require('../utils/reportingScope').reportableMatch(), active: { $ne: false } }).populate("brand", "name").populate("category", "name").lean(),
+        Tool.find({ ...require('../utils/reportingScope').reportableMatch(), active: { $ne: false } }).lean(),
+        HVACProduct.find({ active: { $ne: false } }).populate('brand', 'name').populate('category', 'name').select('-images -variants.images -variants.serialNumbers').lean(),
       ]);
-      tools.forEach(t => { t.inventoryClass = Tool.effectiveInventoryClass(t); });
+      const { stockCatalog, normalizeStockRow } = require('../utils/stockReportData');
+      inventoryItems = stockCatalog(inventoryItems, hvacProducts);
+      tools = tools.map(t => normalizeStockRow({ ...t, inventoryClass: Tool.effectiveInventoryClass(t) }));
       const rawInventory = inventoryItems.slice();
       const rawTools = tools.slice();
       const getMarginPct = item => Number(item.sellingPrice) > 0 ? ((Number(item.sellingPrice) - Number(item.costPrice)) / Number(item.sellingPrice)) * 100 : 0;
@@ -3630,7 +3584,7 @@ router.get(
         if (filterContext.margin === "negative" && margin >= 0) return false;
         if (filterContext.margin === "low" && (margin < 0 || margin >= 20)) return false;
         if (filterContext.margin === "healthy" && margin < 20) return false;
-        if (filterContext.stock === "below_min" && Number(item.quantity) > Number(item.minStockLevel)) return false;
+        if (filterContext.stock === "below_min" && Number(item.availableQuantity) > Number(item.minStockLevel)) return false;
         if (filterContext.stock === "overstock" && Number(item.quantity) <= Math.max(Number(item.minStockLevel) * 3, Number(item.minStockLevel) + 5)) return false;
         if (filterContext.search) {
           const text = [item.itemName, item.modelLine, item.displayLabel, item.sku, item.barcode, item.supplier, item.brand?.name, item.category?.name, item.type].filter(Boolean).join(" ").toLowerCase();
@@ -3662,7 +3616,7 @@ router.get(
       const operationalAssetSummary = {
         total: operationalAssets.reduce((s,t) => s + (Number(t.quantity)||0) + (Number(t.checkedOutQuantity)||0), 0),
         skus: operationalAssets.length,
-        available: operationalAssets.reduce((s,t) => s + Math.max(0, (Number(t.quantity)||0) - (Number(t.reservedQuantity)||0)), 0),
+        available: operationalAssets.reduce((s,t) => s + Number(t.availableQuantity || 0), 0),
         reserved: operationalAssets.reduce((s,t) => s + (Number(t.reservedQuantity)||0), 0),
         checkedOut: operationalAssets.reduce((s,t) => s + (Number(t.checkedOutQuantity)||0), 0),
         underMaintenance: operationalAssets.filter(t => t.assetStatus === 'under_maintenance').length,
@@ -3713,9 +3667,9 @@ router.get(
           quantity: i.quantity,
           minStock: i.minStockLevel,
           type: "product",
-          priority: i.quantity === 0 ? "critical" : (i.quantity <= i.minStockLevel * 0.5 ? "high" : "medium"),
+          priority: i.availableQuantity === 0 ? "critical" : (i.availableQuantity <= i.minStockLevel * 0.5 ? "high" : "medium"),
           value: (i.sellingPrice * i.quantity) || 0,
-          daysOfStock: Math.round(i.quantity / Math.max(i.minStockLevel / 7, 1)) // estimated days remaining
+          daysOfStock: null // Cover requires observed demand, not the minimum-stock setting.
         })),
         ...tools.filter(t => ["low_stock", "out_of_stock"].includes(t.status)).map(t => ({
           id: t._id,
@@ -3723,9 +3677,9 @@ router.get(
           quantity: t.quantity,
           minStock: t.minStockLevel,
           type: "tool",
-          priority: t.quantity === 0 ? "critical" : (t.quantity <= t.minStockLevel * 0.5 ? "high" : "medium"),
+          priority: t.availableQuantity === 0 ? "critical" : (t.availableQuantity <= t.minStockLevel * 0.5 ? "high" : "medium"),
           value: (t.sellingPrice * t.quantity) || 0,
-          daysOfStock: Math.round(t.quantity / Math.max(t.minStockLevel / 7, 1))
+          daysOfStock: null
         }))
       ].sort((a, b) => {
         const priorityOrder = { critical: 0, high: 1, medium: 2 };
@@ -3742,13 +3696,13 @@ router.get(
       const [toolUsage, productOrders, merchandiseSales, reservations, adjustments] = await Promise.all([
         ServiceToolUsage.find({
           lifecycleStatus: { $ne: "voided" },
-          usedAt: { $gte: usageStart },
+          usedAt: { $gte: usageStart, $lte: usageEnd },
           ...(tools.length ? { $or: [{ toolItemId: { $in: selectedToolIds } }, { inventoryItemId: { $in: selectedToolIds } }] } : { toolItemId: { $in: [] } })
         }).lean(),
-        Order.find({ createdAt: { $gte: usageStart }, status: { $ne: "cancelled" }, "items.inventoryId": { $in: inventoryItems.map(i => i._id) } }).select("items createdAt status").lean(),
-        WalkInSale.find({ createdAt: { $gte: usageStart }, status: "completed", "items.toolId": { $in: merchandiseTools.map(t => t._id) } }).select("items createdAt totalAmount").lean(),
+        Order.find({ ...require('../utils/reportingScope').reportableMatch(), status: 'completed', $or: [{ completedAt: { $gte: usageStart, $lte: usageEnd } }, { completedAt: null, updatedAt: { $gte: usageStart, $lte: usageEnd } }], "items.inventoryId": { $in: inventoryItems.map(i => i._id) } }).select("items createdAt updatedAt completedAt status statusHistory").lean(),
+        WalkInSale.find({ ...require('../utils/reportingScope').reportableMatch(), $or: [{ completedAt: { $gte: usageStart, $lte: usageEnd } }, { completedAt: null, createdAt: { $gte: usageStart, $lte: usageEnd } }], status: "completed", "items.toolId": { $in: merchandiseTools.map(t => t._id) } }).select("items createdAt totalAmount").lean(),
         StockReservation.find({ toolId: { $in: selectedToolIds }, status: "reserved" }).lean(),
-        StockAdjustment.find({ toolId: { $in: selectedToolIds }, createdAt: { $gte: usageStart } }).sort({ createdAt: 1 }).lean(),
+        StockAdjustment.find({ toolId: { $in: selectedToolIds }, createdAt: { $gte: usageStart, $lte: usageEnd } }).sort({ createdAt: 1 }).lean(),
       ]);
       const merchandiseSummary = {
         skus: merchandiseTools.length,
@@ -3803,7 +3757,7 @@ router.get(
       });
       const days = Number(filterContext.range);
       const itemAnalytics = [
-        ...inventoryItems.map(i => ({ id: String(i._id), name: i.displayLabel || i.modelLine || "Product", kind: "Product", type: i.type, supplier: i.supplier || "Unspecified", quantity: Number(i.quantity)||0, minStock: Number(i.minStockLevel)||0, costPrice: Number(i.costPrice)||0, sellingPrice: Number(i.sellingPrice)||0, reserved: 0, usage: productUsageById[String(i._id)] || 0, updatedAt: i.updatedAt, status: i.status })),
+        ...inventoryItems.map(i => ({ id: String(i._id), name: i.displayLabel || i.modelLine || "Product", kind: "Product", type: i.type, supplier: i.supplier || "Unspecified", quantity: Number(i.quantity)||0, minStock: Number(i.minStockLevel)||0, costPrice: Number(i.costPrice)||0, sellingPrice: Number(i.sellingPrice)||0, reserved: Number(i.reservedQuantity)||0, usage: productUsageById[String(i._id)] || 0, updatedAt: i.updatedAt, status: i.status })),
         ...tools.map(t => ({ id: String(t._id), name: t.itemName || "Tool", kind: t.inventoryClass === 'operational_asset' ? "Operational Asset" : "Merchandise", inventoryClass:t.inventoryClass, type: t.type, supplier: t.supplier || "Unspecified", quantity: Number(t.quantity)||0, minStock: Number(t.minStockLevel)||0, costPrice: Number(t.costPrice)||0, sellingPrice: t.inventoryClass === 'merchandise' ? (Number(t.sellingPrice)||0) : 0, reserved: reservedByTool[String(t._id)] || 0, usage: usageByTool[String(t._id)] || 0, updatedAt: t.updatedAt, status: t.status })),
       ].map(row => {
         const available = Math.max(0, row.quantity - row.reserved);
@@ -3815,12 +3769,14 @@ router.get(
         const unitMargin = row.sellingPrice - row.costPrice;
         return { ...row, available, dailyUsage, coverDays, reorderPoint, reorderQty, reorderCost: reorderQty * row.costPrice, stockCost: row.quantity * row.costPrice, retailValue: row.quantity * row.sellingPrice, unitMargin, marginPct: row.sellingPrice > 0 ? (unitMargin / row.sellingPrice) * 100 : 0 };
       });
-      const reorderRecommendations = itemAnalytics.filter(r => r.available <= r.reorderPoint && r.status !== "discontinued")
-        .sort((a,b) => (a.coverDays ?? -1) - (b.coverDays ?? -1) || b.reorderCost - a.reorderCost).slice(0, 15);
-      const reorderCashRequired = reorderRecommendations.reduce((s,r) => s + r.reorderCost, 0);
-      const deadStock = itemAnalytics.filter(r => r.quantity > 0 && r.usage === 0 && r.status !== "discontinued")
-        .sort((a,b) => b.stockCost - a.stockCost).slice(0, 15);
-      const deadStockCost = deadStock.reduce((s,r) => s + r.stockCost, 0);
+      const allReorderRecommendations = itemAnalytics.filter(r => r.available <= r.reorderPoint && r.status !== "discontinued")
+        .sort((a,b) => (a.coverDays ?? -1) - (b.coverDays ?? -1) || b.reorderCost - a.reorderCost);
+      const reorderRecommendations = allReorderRecommendations.slice(0, 15);
+      const reorderCashRequired = allReorderRecommendations.reduce((s,r) => s + r.reorderCost, 0);
+      const allDeadStock = itemAnalytics.filter(r => r.quantity > 0 && r.usage === 0 && r.status !== "discontinued")
+        .sort((a,b) => b.stockCost - a.stockCost);
+      const deadStock = allDeadStock.slice(0, 15);
+      const deadStockCost = allDeadStock.reduce((s,r) => s + r.stockCost, 0);
       const overstockItems = itemAnalytics.filter(r => r.quantity > Math.max(r.minStock * 3, r.minStock + 5) && r.usage <= r.minStock)
         .sort((a,b) => b.stockCost - a.stockCost).slice(0, 15);
       const marginRisks = itemAnalytics.filter(r => r.inventoryClass !== 'operational_asset' && (r.sellingPrice <= r.costPrice || r.sellingPrice === 0 || r.costPrice === 0))
@@ -3834,8 +3790,8 @@ router.get(
       });
       const supplierAnalysis = Object.values(supplierMap).map(s => ({...s, potentialMargin:s.retailValue-s.stockCost})).sort((a,b)=>b.stockCost-a.stockCost);
       const movementByDay = {};
-      adjustments.forEach(a => { const key=new Date(a.createdAt).toISOString().slice(0,10); if(!movementByDay[key])movementByDay[key]={date:key,inbound:0,outbound:0,events:0}; const delta=Number(a.delta)||0; if(delta>0)movementByDay[key].inbound+=delta; else movementByDay[key].outbound+=Math.abs(delta); movementByDay[key].events++; });
-      productOrders.forEach(o => { const key=new Date(o.createdAt).toISOString().slice(0,10); if(!movementByDay[key])movementByDay[key]={date:key,inbound:0,outbound:0,events:0}; movementByDay[key].outbound+=(o.items||[]).reduce((s,i)=>s+(Number(i.quantity)||0),0); movementByDay[key].events++; });
+      adjustments.forEach(a => { const key=reportDates.dateKey(a.createdAt); if(!movementByDay[key])movementByDay[key]={date:key,inbound:0,outbound:0,events:0}; const delta=Number(a.delta)||0; if(delta>0)movementByDay[key].inbound+=delta; else movementByDay[key].outbound+=Math.abs(delta); movementByDay[key].events++; });
+      productOrders.forEach(o => { const key=reportDates.dateKey(require('../utils/enterpriseRevenue').orderCompletionDate(o)); if(!movementByDay[key])movementByDay[key]={date:key,inbound:0,outbound:0,events:0}; movementByDay[key].outbound+=(o.items||[]).filter(item => inventoryItems.some(row => String(row._id) === String(item.inventoryId))).reduce((s,i)=>s+(Number(i.quantity)||0),0); movementByDay[key].events++; });
       const stockMovementActual = Object.values(movementByDay).sort((a,b)=>a.date.localeCompare(b.date));
       const topConsumedItems = itemAnalytics.filter(r => r.usage > 0).sort((a,b)=>b.usage-a.usage).slice(0,10).map(r=>({name:r.name,quantity:r.usage,kind:r.kind}));
       
@@ -3889,11 +3845,13 @@ router.get(
           availableUnits: itemAnalytics.reduce((s,r)=>s+r.available,0),
         }
       };
+      if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'inventory', inventoryViewModel.analytics, req.query);
       if (req.query.format === 'pdf') return await sendReportPdf(res, 'inventory', inventoryViewModel.analytics, req.query);
       res.render("pages/admin/Reports/InventoryReports", inventoryViewModel);
     } catch (err) {
       console.error("Inventory reports error:", err);
-      if (req.query.format === 'pdf') return res.status(503).json({ error: 'The stock report could not be exported. Please try again.' });
+      if ([400,413].includes(err.status || err.statusCode)) return res.status(err.status || err.statusCode).json({ error: err.message });
+      if (['pdf','csv'].includes(req.query.format)) return res.status(503).json({ error: 'The stock report could not be exported. Please try again.' });
       res.render("pages/admin/Reports/InventoryReports", {
         title: "Stock Reports",
         layout: req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",

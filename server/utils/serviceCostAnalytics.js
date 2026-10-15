@@ -5,24 +5,7 @@ const { bookingCompletionDate, RECOGNIZED_BOOKING_STATUSES } = require("./enterp
 const { allocateServiceRevenue } = require("./serviceAnalytics");
 
 function bookingRevenue(booking) {
-  const items = booking.services || [];
-  if (items.length) {
-    const coreRevenue = items
-      .filter(item => item.type !== "repair")
-      .reduce((sum, item) => sum + (booking.loyaltyDiscount ? require('./transactionDiscounts').serviceLineValue(item)
-        : Number(item.totalPrice ?? (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1))), 0);
-    const repairItems = items.filter(item => item.type === "repair");
-    const repairInspectionRevenue = Number(booking.inspectionFeeTotalCollected || 0) || repairItems.reduce(
-      (sum, item) => sum + Number(item.initialCost ?? item.unitPrice ?? 0) * Math.max(1, Number(item.quantity) || 1), 0,
-    );
-    const itemQuotationRevenue = repairItems.reduce((sum, item) => sum + Number(item.quotation?.totalCost || 0), 0);
-    const quotationRevenue = itemQuotationRevenue || Number(booking.quotation?.totalCost || 0);
-    return Math.max(0, coreRevenue - Number(booking.discount || 0)) + repairInspectionRevenue + quotationRevenue + Number(booking.travelFare || 0);
-  }
-  const isRepair = booking.serviceType === "repair" || booking.serviceModel === "RepairService" ||
-    items.some(service => service.type === "repair");
-  if (isRepair) return Number(booking.inspectionFeeTotalCollected || booking.initialCost || 0) + Number(booking.quotation?.totalCost || 0);
-  return Number(booking.totalPrice || booking.estimatedFee || 0);
+  return require('./bookingReportValue').bookingReportValue(booking);
 }
 
 function serviceName(booking, report) {

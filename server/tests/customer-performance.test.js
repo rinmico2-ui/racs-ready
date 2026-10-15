@@ -95,7 +95,7 @@ test('main report distinguishes successful activity from financially refunded co
   assert.deepEqual(pipeline[0].$match, { role: 'customer' });
   assert.equal(pipeline[1].$project.email, 1); assert.equal(pipeline[1].$project.password, undefined);
   const bookings = sourceSummaryPipeline(period, true, now), orders = sourceSummaryPipeline(period, false, now);
-  assert.deepEqual(bookings[0].$match, { sourceOrderId: null });
+  assert.deepEqual(bookings[0].$match, { archivedAt: null, testDataExcludedAt: null, sourceOrderId: null });
   assert.deepEqual(bookings[2].$match, { 'linkedOrders.0': { $exists: false } });
   const serialized = JSON.stringify(orders);
   assert.match(serialized, /"sourceType":"order","status":"completed"/);
@@ -106,7 +106,7 @@ test('main report distinguishes successful activity from financially refunded co
 
 test('customer history is owner-scoped, defaults to completed bookings and orders, and validates status filters', async () => {
   const bookings = historyPipeline(customerId, {}, period, true), orders = historyPipeline(customerId, {}, period, false);
-  assert.deepEqual(bookings[0].$match, { customerId }); assert.deepEqual(orders[0].$match, { userId: customerId });
+  assert.deepEqual(bookings[0].$match, { archivedAt: null, testDataExcludedAt: null, customerId }); assert.deepEqual(orders[0].$match, { archivedAt: null, testDataExcludedAt: null, userId: customerId });
   assert.ok(bookings.some(stage => stage.$match?.successful === true && stage.$match.sourceOrderId === null));
   assert.ok(orders.some(stage => stage.$match?.successful === true));
   const all = historyPipeline(customerId, { bookingStatus: 'all' }, period, true);

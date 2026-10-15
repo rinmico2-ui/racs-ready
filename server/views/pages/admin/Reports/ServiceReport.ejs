@@ -95,7 +95,7 @@
         <label class="sr-field" for="reportTo"><span>To</span><input id="reportTo" type="date" name="to" value="<%= filters.to %>"></label>
       </div>
       <button type="submit" class="sr-button sr-button-primary" id="applyReportFilters"><i class="bi bi-funnel" aria-hidden="true"></i><span>Apply</span></button>
-      <button type="button" class="sr-button" id="exportReportBtn"><i class="bi bi-download" aria-hidden="true"></i> Download</button>
+      <button type="button" class="sr-button" id="exportReportBtn" data-report-csv="service"><i class="bi bi-download" aria-hidden="true"></i> Download CSV</button>
     </div>
 
     <details class="sr-more-filters" open>
@@ -476,17 +476,6 @@
     applyButton.disabled = true;
     applyButton.querySelector('i').className = 'bi bi-arrow-repeat sr-spin';
     applyButton.querySelector('span').textContent = 'Updating…';
-  });
-  var exportButton = document.getElementById('exportReportBtn');
-  if (exportButton) exportButton.addEventListener('click', function () {
-    var columns = ['Reference','Customer','Service','Technician','Status','Booking value','Date'];
-    var rows = data.exportRows.map(function (row) { return [row.reference,row.customer,row.service,row.technician,row.status,row.bookedValue,row.date ? new Date(row.date).toLocaleDateString('en-PH') : '']; });
-    var csv = [columns].concat(rows).map(function (row) { return row.map(function (value) {
-      var safeValue = String(value == null ? '' : value);
-      if (/^[=+\-@\t\r]/.test(safeValue)) safeValue = "'" + safeValue;
-      return '"' + safeValue.replace(/"/g, '""') + '"';
-    }).join(','); }).join('\n');
-    var link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' })); link.download = 'service-performance-report.csv'; document.body.appendChild(link); link.click(); URL.revokeObjectURL(link.href); link.remove();
   });
   renderTrend('volume');
   renderSecondaryCharts();

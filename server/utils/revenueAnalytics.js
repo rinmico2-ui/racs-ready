@@ -9,6 +9,9 @@ const BookingService = require("../models/BookingService");
 const Payment = require("../models/Payment");
 const Order = require("../models/Order");
 const WalkInSale = require("../models/WalkInSale");
+const ProductRefund = require('../models/ProductRefund');
+const reportDates = require('./reportingDates');
+const { reportableMatch } = require('./reportingScope');
 const Tool = require("../models/Tool");
 const Technician = require("../models/Technician");
 const Inventory = require("../models/Inventory");
@@ -33,6 +36,7 @@ const {
   isRecognizedOrder,
   localDateKey,
   netPaymentsThrough,
+  outstandingForValue,
   orderCompletionDate,
   orderItemCost,
   paymentAmounts,
@@ -59,34 +63,13 @@ const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount total
  */
 function resolveDateRange({ from, to, period }) {
   const now = new Date();
-  let startDate;
-  let endDate;
-
-  if (period === "this_month") {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    endDate = now;
-  } else if (period === "last_month") {
-    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-  } else if (period === "last_3_months") {
-    startDate = new Date(now);
-    startDate.setMonth(startDate.getMonth() - 3);
-    endDate = now;
-  } else if (period === "last_6_months") {
-    startDate = new Date(now);
-    startDate.setMonth(startDate.getMonth() - 6);
-    endDate = now;
-  } else if (period === "ytd") {
-    startDate = new Date(now.getFullYear(), 0, 1);
-    endDate = now;
-  } else if (from || to) {
-    startDate = from ? parseReportDate(from) : new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    endDate = to ? parseReportDate(to, true) : now;
-  } else {
-    startDate = new Date(now);
-    startDate.setMonth(startDate.getMonth() - 12);
-    endDate = now;
-  }
+  const month = reportDates.startOfMonth(now);
+  let startDate, endDate = now;
+  if (period === 'this_month') startDate = month;
+  else if (period === 'last_month') { startDate = reportDates.startOfMonth(now, -1); endDate = new Date(month.getTime() - 1); }
+  else if (period === 'ytd') startDate = reportDates.startOfMonth(now, -require('./bookingDateTime').manilaDateParts(now).month);
+  else if (from || to) { startDate = from ? parseReportDate(from) : reportDates.startOfMonth(now, -11); endDate = to ? parseReportDate(to, true) : now; }
+  else startDate = reportDates.startOfMonth(now, period === 'last_3_months' ? -2 : period === 'last_6_months' ? -5 : -11);
   return { startDate, endDate };
 }
 
@@ -100,7 +83,7 @@ function resolveDateRange({ from, to, period }) {
 async function computeRevenueAnalytics(query = {}) {
   const { from, to, source, paymentMethod, paymentStatus, serviceType, technician, period } = query;
   const { startDate, endDate } = resolveDateRange({ from, to, period });
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) {
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate || endDate - startDate > 1827 * reportDates.DAY) {
     throw Object.assign(new Error("Invalid reporting date range"), { statusCode: 400 });
   }
 
@@ -113,17 +96,17 @@ async function computeRevenueAnalytics(query = {}) {
   const serviceOnlyScope = stFilter !== "all" || techFilter !== "all";
 
   // ── Fetch data ──
-  const bookingsQuery = { createdAt: dateFilter, status: { $ne: "cancelled" }, testDataExcludedAt: null };
+  const bookingsQuery = { ...reportableMatch(), createdAt: dateFilter, status: { $ne: "cancelled" } };
   if (techFilter !== "all") bookingsQuery.technicianId = techFilter;
   const paymentsQuery = {
-    testDataExcludedAt: null,
+    ...reportableMatch(),
     $or: [
       { verifiedAt: dateFilter }, { completedAt: dateFilter },
       { collectedAt: dateFilter }, { submittedAt: dateFilter }, { refundedAt: dateFilter },
     ],
   };
 
-  const ordersQuery = { createdAt: dateFilter, status: { $ne: "cancelled" } };
+  const ordersQuery = { ...reportableMatch(), createdAt: dateFilter, status: { $ne: "cancelled" } };
   if (pmFilter !== "all") {
     const methodAliases = {
       gcash: ["gcash", "gcash_full", "gcash_downpayment"],
@@ -138,6 +121,7 @@ async function computeRevenueAnalytics(query = {}) {
   // Walk-in sales become revenue when checkout completes. Legacy rows without
   // completedAt fall back to createdAt so historical counter sales remain visible.
   const posQuery = {
+    ...reportableMatch(),
     status: "completed",
     $or: [
       { completedAt: dateFilter },
@@ -150,7 +134,7 @@ async function computeRevenueAnalytics(query = {}) {
   }
 
   const recognizedBookingQuery = {
-    testDataExcludedAt: null,
+    ...reportableMatch(),
     status: { $in: ["completed", "repair_completed", "closed"] },
     $or: [
       { completedAt: dateFilter },
@@ -165,6 +149,7 @@ async function computeRevenueAnalytics(query = {}) {
   };
   if (techFilter !== "all") recognizedBookingQuery.technicianId = techFilter;
   const recognizedOrderQuery = {
+    ...reportableMatch(),
     status: "completed",
     $or: [
       { completedAt: dateFilter },
@@ -188,6 +173,11 @@ async function computeRevenueAnalytics(query = {}) {
       .select(ORDER_ANALYTICS_FIELDS).lean(),
     Technician.find({}, "name").sort({ name: 1 }).lean(),
   ]);
+  let productRefunds = sourceFilter === 'service' || serviceOnlyScope ? [] : await ProductRefund.find({
+    ...reportableMatch(), status: 'completed', processedAt: dateFilter,
+    ...(sourceFilter === 'order' ? { sourceType: 'order' } : sourceFilter === 'pos' ? { sourceType: 'walk_in' } : {}),
+  }).select('sourceType sourceId amount status method processedAt').lean();
+  if (pmFilter !== 'all') productRefunds = productRefunds.filter(refund => normalizePaymentMethod(refund.method) === normalizePaymentMethod(pmFilter));
   const counterItemIds = [...new Set(
     posSales.flatMap((sale) => (sale.items || []).map((item) => String(item.toolId || ""))).filter(Boolean),
   )];
@@ -211,6 +201,13 @@ async function computeRevenueAnalytics(query = {}) {
     [...bookings, ...recognizedBookingRows].map((booking) => [String(booking._id), booking]),
   ).values());
   const projectPricingMap = await buildProjectPricingMap(uniqueBookings);
+  const methodLinks = [];
+  if (uniqueBookings.length) methodLinks.push({ bookingId: { $in: uniqueBookings.map(row => row._id) } });
+  const methodProjectIds = [...new Set([...projectPricingMap.values()].map(row => row.projectId).filter(Boolean))];
+  if (methodProjectIds.length) methodLinks.push({ projectId: { $in: methodProjectIds } });
+  const methodPayments = pmFilter !== 'all' && methodLinks.length ? await Payment.find({ ...reportableMatch(), status: { $in: [...ACCEPTED_PAYMENT_STATUSES] }, $or: methodLinks }).select(PAYMENT_ANALYTICS_FIELDS).lean() : [];
+  const matchingMethodPayments = methodPayments.filter(row => normalizePaymentMethod(row.method) === normalizePaymentMethod(pmFilter));
+  const legacyLinkedOrders = uniqueBookings.length ? await Order.find({ bookingId: { $in: uniqueBookings.map(booking => booking._id) } }).select('bookingId').lean() : [];
   let payments = rawPayments.filter((payment) => {
     if (sourceFilter === "service") return Boolean(payment.bookingId || payment.projectId);
     if (sourceFilter === "order") return Boolean(payment.orderId);
@@ -219,7 +216,7 @@ async function computeRevenueAnalytics(query = {}) {
   });
   if (pmFilter !== "all") {
     const wantedMethod = normalizePaymentMethod(pmFilter);
-    payments = payments.filter((payment) => normalizePaymentMethod(payment.method) === wantedMethod);
+    payments = payments.filter((payment) => normalizePaymentMethod(payment.method) === wantedMethod || normalizePaymentMethod(payment.refundMethod || payment.method) === wantedMethod);
   }
 
   // ── Helper ──
@@ -238,32 +235,32 @@ async function computeRevenueAnalytics(query = {}) {
 
   let filteredBookings = applyBookingFilters(bookings);
   if (pmFilter !== "all") {
-    const paymentBookingIds = new Set(payments.filter((payment) => payment.bookingId).map((payment) => String(payment.bookingId)));
-    const paymentProjectIds = new Set(payments.filter((payment) => payment.projectId).map((payment) => String(payment.projectId)));
+    const paymentBookingIds = new Set(matchingMethodPayments.filter((payment) => payment.bookingId).map((payment) => String(payment.bookingId)));
+    const paymentProjectIds = new Set(matchingMethodPayments.filter((payment) => payment.projectId).map((payment) => String(payment.projectId)));
     Array.from(projectPricingMap.entries()).forEach(([bookingId, entry]) => {
       if (paymentProjectIds.has(entry.projectId)) paymentBookingIds.add(bookingId);
     });
     filteredBookings = filteredBookings.filter((booking) => paymentBookingIds.has(String(booking._id)));
   }
-  const filteredBookingIds = new Set(filteredBookings.map((booking) => String(booking._id)));
-  const filteredProjectIds = new Set(
-    Array.from(projectPricingMap.entries())
-      .filter(([bookingId]) => filteredBookingIds.has(bookingId))
-      .map(([, entry]) => entry.projectId),
-  );
-  if (serviceOnlyScope) {
-    payments = payments.filter((payment) => {
-      if (payment.bookingId) return filteredBookingIds.has(String(payment.bookingId));
-      if (payment.projectId) return filteredProjectIds.has(String(payment.projectId));
-      return false;
-    });
+  if (serviceOnlyScope || psFilter !== "all") {
+    const Project = require('../models/Project');
+    const projectIds = [...new Set(payments.map(row => row.projectId).filter(Boolean))];
+    const projects = projectIds.length ? await Project.find({ ...reportableMatch(), _id: { $in: projectIds } }).select('_id bookingId').lean() : [];
+    const ids = [...new Set([...payments.map(row => row.bookingId), ...projects.map(row => row.bookingId)].filter(Boolean))];
+    const paymentBookings = ids.length ? await BookingService.find({ ...reportableMatch(), _id: { $in: ids }, sourceOrderId: null, ...(techFilter !== 'all' ? { technicianId: techFilter } : {}) }).select('serviceType serviceModel services.type paymentStatus').lean() : [];
+    const paymentOrderIds = [...new Set(payments.map(row => row.orderId).filter(Boolean))];
+    const paymentOrders = !serviceOnlyScope && paymentOrderIds.length ? await Order.find({ ...reportableMatch(), _id: { $in: paymentOrderIds }, paymentStatus: psFilter }).select('_id').lean() : [];
+    const allowedOrders = new Set(paymentOrders.map(row => String(row._id)));
+    const allowedBookings = new Set(applyBookingFilters(paymentBookings).map(row => String(row._id)));
+    const allowedProjects = new Set(projects.filter(row => allowedBookings.has(String(row.bookingId))).map(row => String(row._id)));
+    payments = payments.filter(row => row.orderId ? allowedOrders.has(String(row.orderId)) : row.bookingId ? allowedBookings.has(String(row.bookingId)) : allowedProjects.has(String(row.projectId)));
   }
 
   let recognizedBookings = applyBookingFilters(recognizedBookingRows)
     .filter((booking) => isRecognizedBooking(booking, startDate, endDate));
   if (pmFilter !== "all") {
-    const paidBookingIds = new Set(payments.filter((payment) => payment.bookingId).map((payment) => String(payment.bookingId)));
-    const paidProjectIds = new Set(payments.filter((payment) => payment.projectId).map((payment) => String(payment.projectId)));
+    const paidBookingIds = new Set(matchingMethodPayments.filter((payment) => payment.bookingId).map((payment) => String(payment.bookingId)));
+    const paidProjectIds = new Set(matchingMethodPayments.filter((payment) => payment.projectId).map((payment) => String(payment.projectId)));
     recognizedBookings = recognizedBookings.filter((booking) => {
       const project = projectPricingMap.get(String(booking._id));
       return paidBookingIds.has(String(booking._id)) || (project && paidProjectIds.has(project.projectId));
@@ -271,10 +268,11 @@ async function computeRevenueAnalytics(query = {}) {
   }
   const recognizedOrders = recognizedOrderRows.filter((order) => isRecognizedOrder(order, startDate, endDate));
   const orderLinkedBookingIds = new Set(
-    [...orders, ...recognizedOrders].map((order) => order.bookingId).filter(Boolean).map(String),
+    [...orders, ...recognizedOrders, ...legacyLinkedOrders].map((order) => order.bookingId).filter(Boolean).map(String),
   );
   filteredBookings = filteredBookings.filter((booking) => !booking.sourceOrderId && !orderLinkedBookingIds.has(String(booking._id)));
   recognizedBookings = recognizedBookings.filter((booking) => !booking.sourceOrderId && !orderLinkedBookingIds.has(String(booking._id)));
+  const filteredBookingIds = new Set(filteredBookings.map(booking => String(booking._id)));
   const recognizedBookingById = new Map(recognizedBookings.map((booking) => [String(booking._id), booking]));
   const projectToBooking = new Map(Array.from(projectPricingMap.entries())
     .map(([bookingId, entry]) => [String(entry.projectId), bookingId]));
@@ -300,6 +298,8 @@ async function computeRevenueAnalytics(query = {}) {
     startDate,
     endDate,
     normalizeMethod: normalizePaymentMethod,
+    productRefunds,
+    methodFilter: pmFilter === "all" ? null : normalizePaymentMethod(pmFilter),
   });
   const grossCollections = paymentLedger.grossCollections + posRevenue;
   const refunds = paymentLedger.refunds;
@@ -325,8 +325,22 @@ async function computeRevenueAnalytics(query = {}) {
       ],
     }).select(PAYMENT_ANALYTICS_FIELDS).lean()
     : [];
-  const cohortNetCollections = netPaymentsThrough(cohortPayments, endDate) + posRevenue;
-  const outstandingValue = Math.max(0, totalRevenue - cohortNetCollections);
+  const cohortOrderIds = new Set(orders.map(row => String(row._id)));
+  const cohortCounterIds = new Set(posSales.map(row => String(row._id)));
+  const cohortProductRefunds = productRefunds.filter(row => row.sourceType === 'order' ? cohortOrderIds.has(String(row.sourceId)) : row.sourceType === 'walk_in' && cohortCounterIds.has(String(row.sourceId))).reduce((sum,row) => sum + Number(row.amount || 0),0);
+  const cohortNetCollections = netPaymentsThrough(cohortPayments, endDate) + posRevenue - cohortProductRefunds;
+  const byBookingPayments = new Map(), byOrderPayments = new Map(), byProjectPayments = new Map();
+  for (const payment of cohortPayments) {
+    for (const [field, map] of [['bookingId', byBookingPayments], ['orderId', byOrderPayments], ['projectId', byProjectPayments]]) {
+      if (!payment[field]) continue;
+      const id = String(payment[field]); if (!map.has(id)) map.set(id, []); map.get(id).push(payment);
+    }
+  }
+  const outstandingValue = filteredBookings.reduce((sum, booking) => {
+    const linked = [...(byBookingPayments.get(String(booking._id)) || []), ...(byProjectPayments.get(projectPricingMap.get(String(booking._id))?.projectId) || [])];
+    const distinct = [...new Map(linked.map(payment => [payment._id ? String(payment._id) : payment, payment])).values()];
+    return sum + outstandingForValue(getBookingRevenue(booking), distinct, endDate);
+  }, 0) + orders.reduce((sum, order) => sum + outstandingForValue(order.total || order.totalAmount, byOrderPayments.get(String(order._id)) || [], endDate), 0);
 
   // ── Revenue by source ──
   const productRevenue = orders.reduce((sum, o) => sum + (o.subtotal || 0), 0);
@@ -340,18 +354,9 @@ async function computeRevenueAnalytics(query = {}) {
   const otherRecordedRevenue = paymentLedger.byMethod.other;
 
   // ── Monthly bucketing ──
-  const actualMonths = Math.min(Math.max(2, Math.ceil((endDate - startDate) / (30 * 24 * 60 * 60 * 1000))), 24);
   const monthlyRevenue = {};
-  for (let i = actualMonths - 1; i >= 0; i--) {
-    const monthStart = new Date(startDate);
-    monthStart.setMonth(monthStart.getMonth() + i);
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    const monthEnd = new Date(monthStart);
-    monthEnd.setMonth(monthEnd.getMonth() + 1);
-
-    if (monthEnd < startDate || monthStart > endDate) continue;
-
+  for (let monthStart = reportDates.startOfMonth(startDate); monthStart <= endDate; monthStart = reportDates.startOfMonth(monthStart, 1)) {
+    const monthEnd = reportDates.startOfMonth(monthStart, 1);
     const mBookings = filteredBookings.filter((b) => { const d = new Date(b.createdAt); return d >= monthStart && d < monthEnd; });
     const mOrders = orders.filter((o) => { const d = new Date(o.createdAt); return d >= monthStart && d < monthEnd; });
     const mPos = posSales.filter((s) => { const d = new Date(s.completedAt || s.createdAt); return d >= monthStart && d < monthEnd; });
@@ -368,9 +373,11 @@ async function computeRevenueAnalytics(query = {}) {
       startDate: monthStart > startDate ? monthStart : startDate,
       endDate: boundedMonthEnd,
       normalizeMethod: normalizePaymentMethod,
+      productRefunds,
+      methodFilter: pmFilter === "all" ? null : normalizePaymentMethod(pmFilter),
     });
 
-    const monthKey = monthStart.toLocaleString("en-PH", { month: "short", year: "numeric" });
+    const monthKey = monthStart.toLocaleString("en-PH", { month: "short", year: "numeric", timeZone: reportDates.TIME_ZONE });
     monthlyRevenue[monthKey] = {
       service: mBookings.reduce((s, b) => s + getBookingRevenue(b), 0),
       orders: mOrders.reduce((s, o) => s + (o.total || o.totalAmount || 0), 0),
@@ -388,17 +395,16 @@ async function computeRevenueAnalytics(query = {}) {
 
   const dailyRevenue = [];
   const dailyStart = new Date(Math.max(startDate.getTime(), endDate.getTime() - (92 * 86400000)));
-  dailyStart.setHours(0, 0, 0, 0);
-  for (let cursor = new Date(dailyStart); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
+  dailyStart.setTime(reportDates.startOfDay(dailyStart).getTime());
+  for (let cursor = new Date(dailyStart); cursor <= endDate; cursor = reportDates.addDays(cursor, 1)) {
     const dayStart = new Date(cursor);
-    const dayEnd = new Date(cursor);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayEnd = reportDates.endOfDay(cursor);
     const dayBookings = filteredBookings.filter((booking) => inDateRange(booking.createdAt, dayStart, dayEnd));
     const dayOrders = orders.filter((order) => inDateRange(order.createdAt, dayStart, dayEnd));
     const dayPos = posSales.filter((sale) => inDateRange(sale.completedAt || sale.createdAt, dayStart, dayEnd));
     const dayRecognizedBookings = recognizedBookings.filter((booking) => inDateRange(bookingCompletionDate(booking), dayStart, dayEnd));
     const dayRecognizedOrders = recognizedOrders.filter((order) => inDateRange(orderCompletionDate(order), dayStart, dayEnd));
-    const dayLedger = summarizePaymentLedger(payments, { startDate: dayStart, endDate: dayEnd, normalizeMethod: normalizePaymentMethod });
+    const dayLedger = summarizePaymentLedger(payments, { startDate: dayStart, endDate: dayEnd, normalizeMethod: normalizePaymentMethod, productRefunds, methodFilter: pmFilter === "all" ? null : normalizePaymentMethod(pmFilter) });
     const posValue = dayPos.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
     dailyRevenue.push({
       date: localDateKey(dayStart),
@@ -520,9 +526,12 @@ async function computeRevenueAnalytics(query = {}) {
   const operatingExpenses = approvedExpenseTotal + payrollCost;
   const operatingProfit = grossProfit - operatingExpenses;
   const operatingMargin = recognizedRevenue > 0 ? (operatingProfit / recognizedRevenue) * 100 : null;
+  const coveredServiceRevenue = serviceCostAnalytics.services.filter(service =>
+    (Number(service.partsCost || 0) + Number(service.consumablesCost || 0) + Number(service.laborCost || 0) + Number(service.localPurchaseCost || 0)) > 0
+    && !Number(service.unpricedConsumablesCount || 0)).reduce((sum, service) => sum + Number(service.revenue || 0), 0);
+  const coveredPosRevenue = posSales.filter(sale => Number(sale.totalCost) > 0 && (sale.items || []).every(item => Number(item.costPrice) > 0)).reduce((sum,sale) => sum + Number(sale.totalAmount || 0), 0);
   const costDataCoverage = recognizedGrossRevenue > 0
-    ? ((recognizedServiceRevenue + posRevenue + (recognizedOrderRevenue * orderCostSummary.coveragePercent / 100)) / recognizedGrossRevenue) * 100
-    : 100;
+    ? Math.min(100, ((coveredServiceRevenue + coveredPosRevenue + recognizedOrderRevenue * orderCostSummary.coveragePercent / 100) / recognizedGrossRevenue) * 100) : 100;
   const directCostByBooking = new Map(serviceCostAnalytics.services.map((service) => [
     String(service.bookingId),
     Number(service.partsCost || 0) + Number(service.consumablesCost || 0)
@@ -970,12 +979,12 @@ function buildRevenueAnalytics(query = {}) {
 }
 
 async function buildRevenueDashboardSnapshot(now = new Date()) {
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const currentMonthStart = reportDates.startOfMonth(now);
+  const previousMonthStart = reportDates.startOfMonth(now, -1);
   const previousMonthEnd = new Date(currentMonthStart.getTime() - 1);
   const [currentResult, previousResult] = await Promise.all([
-    buildRevenueAnalytics({ from: currentMonthStart.toISOString(), to: now.toISOString().slice(0, 10) }),
-    buildRevenueAnalytics({ from: previousMonthStart.toISOString(), to: previousMonthEnd.toISOString().slice(0, 10) }),
+    buildRevenueAnalytics({ from: currentMonthStart.toISOString(), to: reportDates.dateKey(now) }),
+    buildRevenueAnalytics({ from: previousMonthStart.toISOString(), to: reportDates.dateKey(previousMonthEnd) }),
   ]);
   const current = currentResult.analytics;
   const previous = previousResult.analytics;
@@ -991,7 +1000,7 @@ async function buildRevenueDashboardSnapshot(now = new Date()) {
     lastMonthRevenue: Number(previous.recognizedRevenue || 0),
     pendingPayments: Number(current.outstandingValue || 0),
     monthlyExpenses: Number(current.operatingExpenses || 0),
-    profitMargin: Math.round(Number(current.operatingMargin || 0)),
+    profitMargin: current.operatingMargin == null ? null : Math.round(Number(current.operatingMargin)),
     operatingProfit: Number(current.operatingProfit || 0),
     grossProfit: Number(current.grossProfit || 0),
     directCosts: Number(current.totalPartsCost || 0),

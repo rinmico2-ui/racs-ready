@@ -1,3 +1,4 @@
+const reportDates = require('./reportingDates');
 const mongoose = require("mongoose");
 const { remember } = require("./reportCache");
 
@@ -18,46 +19,10 @@ function validDateInput(value) {
   return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
 }
 
-function localDateKey(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
+const localDateKey = reportDates.dateKey;
 
 function parseServiceRatingFilters(source = {}, now = new Date()) {
-  const rangeInput = scalar(source.range, 10);
-  const range = ALLOWED_RANGES.has(rangeInput) ? rangeInput : "30";
-  let start = new Date(now);
-  let end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-
-  if (range === "all") start = null;
-  else if (range === "custom" && validDateInput(scalar(source.from, 10))) {
-    start = new Date(`${scalar(source.from, 10)}T00:00:00`);
-    if (validDateInput(scalar(source.to, 10))) end = new Date(`${scalar(source.to, 10)}T23:59:59.999`);
-  } else if (range === "mtd") start = new Date(now.getFullYear(), now.getMonth(), 1);
-  else if (range === "qtd") start = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-  else if (range === "ytd") start = new Date(now.getFullYear(), 0, 1);
-  else if (range === "today") start.setHours(0, 0, 0, 0);
-  else start.setDate(start.getDate() - (Number(range === "custom" ? 30 : range) - 1));
-
-  if (start) {
-    start.setHours(0, 0, 0, 0);
-    if (start > end) [start, end] = [new Date(end.setHours(0, 0, 0, 0)), new Date(start.setHours(23, 59, 59, 999))];
-    if (end - start > 5 * 365 * 86400000) {
-      start = new Date(end);
-      start.setFullYear(start.getFullYear() - 5);
-      start.setHours(0, 0, 0, 0);
-    }
-  }
-
-  let previousStart = null;
-  let previousEnd = null;
-  if (start) {
-    const periodMs = Math.max(1, end.getTime() - start.getTime());
-    previousEnd = new Date(start.getTime() - 1);
-    previousStart = new Date(previousEnd.getTime() - periodMs);
-  }
+  const { range, start, end, previousStart, previousEnd } = reportDates.period({ ...source, range: scalar(source.range, 10), from: scalar(source.from, 10), to: scalar(source.to, 10) }, { now, defaultRange: '30', allowAll: true });
 
   const scoreInput = Number(scalar(source.rating, 2));
   const technicianInput = scalar(source.technician, 40);
@@ -100,12 +65,13 @@ function serviceName(booking) {
 }
 
 function canonicalReview({ rating, booking, source }) {
+  if (!require('./reportingScope').isReportable(booking) || booking.sourceOrderId || !['completed','repair_completed','closed'].includes(booking.status) || rating?.moderationStatus === 'hidden') return null;
   const score = Number(rating?.score ?? booking?.customerRating);
   if (!Number.isFinite(score) || score < 1 || score > 5) return null;
   const customer = rating?.customerId && typeof rating.customerId === "object" ? rating.customerId : null;
   const technician = booking?.technicianId && typeof booking.technicianId === "object" ? booking.technicianId : null;
   const comment = String(rating?.comment ?? booking?.customerRatingComment ?? "").trim();
-  const reviewDate = rating?.createdAt || rating?.updatedAt || booking?.updatedAt || booking?.completedAt || booking?.createdAt;
+  const reviewDate = rating?.createdAt || rating?.updatedAt || booking?.customerRatedAt || booking?.updatedAt || booking?.completedAt || booking?.createdAt;
   const bookingId = String(rating?.targetId || booking?._id || "");
   return {
     id: rating?._id ? `rating:${rating._id}` : `booking:${bookingId}`,
@@ -235,32 +201,32 @@ function breakdown(rows, key, labelKey = key) {
 
 function buildTrend(rows, start, end) {
   if (!end) return [];
-  let trendStart = start ? new Date(start) : new Date(end.getFullYear(), end.getMonth() - 11, 1);
+  let trendStart = start ? new Date(start) : reportDates.startOfMonth(end, -11);
   const earliest = rows.reduce((min, row) => Math.min(min, new Date(row.date).getTime()), Infinity);
   if (!start && Number.isFinite(earliest) && earliest > trendStart.getTime()) trendStart = new Date(earliest);
-  trendStart.setHours(0, 0, 0, 0);
+  trendStart = reportDates.startOfDay(trendStart);
   const days = Math.max(1, Math.floor((end - trendStart) / 86400000) + 1);
   const mode = days <= 31 ? "day" : days <= 120 ? "week" : "month";
   const buckets = [];
   let cursor = new Date(trendStart);
-  if (mode === "month") cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  if (mode === "month") cursor = reportDates.startOfMonth(cursor);
   while (cursor <= end) {
     const bucketStart = new Date(cursor);
     let bucketEnd;
     if (mode === "day") {
-      bucketEnd = new Date(cursor); bucketEnd.setHours(23, 59, 59, 999); cursor.setDate(cursor.getDate() + 1);
+      bucketEnd = reportDates.endOfDay(cursor); cursor = reportDates.addDays(cursor, 1);
     } else if (mode === "week") {
-      bucketEnd = new Date(cursor); bucketEnd.setDate(bucketEnd.getDate() + 6); bucketEnd.setHours(23, 59, 59, 999); cursor.setDate(cursor.getDate() + 7);
+      bucketEnd = reportDates.endOfDay(reportDates.addDays(cursor, 6)); cursor = reportDates.addDays(cursor, 7);
     } else {
-      bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      bucketEnd = new Date(reportDates.startOfMonth(cursor, 1).getTime() - 1);
+      cursor = reportDates.startOfMonth(cursor, 1);
     }
     if (bucketEnd > end) bucketEnd = new Date(end);
     const matches = rows.filter(row => dateInRange(row.date, bucketStart, bucketEnd));
     buckets.push({
       label: mode === "month"
-        ? bucketStart.toLocaleDateString("en-PH", { month: "short", year: "2-digit" })
-        : bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric" }),
+        ? bucketStart.toLocaleDateString("en-PH", { month: "short", year: "2-digit", timeZone: reportDates.TIME_ZONE })
+        : bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: reportDates.TIME_ZONE }),
       start: localDateKey(bucketStart),
       end: localDateKey(bucketEnd),
       count: matches.length,
@@ -322,6 +288,7 @@ async function computeServiceRatingReport(source = {}, options = {}) {
   const ratingDateFilter = queryStart ? { createdAt: { $gte: queryStart, $lte: queryEnd } } : {};
   const bookingDateFilter = queryStart ? {
     $or: [
+      { customerRatedAt: { $gte: queryStart, $lte: queryEnd } },
       { updatedAt: { $gte: queryStart, $lte: queryEnd } },
       { updatedAt: null, createdAt: { $gte: queryStart, $lte: queryEnd } },
     ],
@@ -329,7 +296,7 @@ async function computeServiceRatingReport(source = {}, options = {}) {
 
   const [primaryRatings, legacyCandidates] = await Promise.all([
     Rating.find({ targetType: "booking", moderationStatus: { $ne: "hidden" }, ...ratingDateFilter }).populate("customerId", "firstName lastName name email").lean(),
-    BookingService.find({ customerRating: { $ne: null }, ...bookingDateFilter })
+    BookingService.find({ ...require('./reportingScope').reportableMatch(), status: { $in: ['completed','repair_completed','closed'] }, sourceOrderId: null, customerRating: { $ne: null }, ...bookingDateFilter })
       .populate("customerId", "firstName lastName name email")
       .populate("technicianId", "name active")
       .lean(),
@@ -343,7 +310,7 @@ async function computeServiceRatingReport(source = {}, options = {}) {
       ? Rating.find({ targetType: "booking", targetId: { $in: legacyIds } }).select("targetId").lean()
       : [],
     primaryBookingIds.length
-      ? BookingService.find({ _id: { $in: primaryBookingIds } })
+      ? BookingService.find({ ...require('./reportingScope').reportableMatch(), status: { $in: ['completed','repair_completed','closed'] }, sourceOrderId: null, _id: { $in: primaryBookingIds } })
         .populate("customerId", "firstName lastName name email")
         .populate("technicianId", "name active")
         .lean()

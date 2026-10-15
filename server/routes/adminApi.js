@@ -119,8 +119,13 @@ router.get('/reports/customers', requirePermission('reports.view'), async (req, 
   try {
     const { buildCustomerPerformance } = require('../utils/customerPerformance');
     res.set('Cache-Control', 'private, no-store');
+    if (req.query.format === 'csv') {
+      const rows = await require('../utils/customerPerformance').customerCsvRows(req.query);
+      return require('../utils/reportCsv').sendCsv(res, 'customer-activity', ['Customer','Completed bookings','Completed orders','Completed transactions','Service value PHP','Order value PHP','Completed refunds PHP','Recorded spending PHP','Last activity','Engagement'], rows.map(row => [row.name,row.completedBookings,row.completedOrders,row.completedTransactions,row.serviceValue,row.orderValue,row.refunds,row.recordedSpending,row.lastActivity,row.engagement]));
+    }
     res.json(await buildCustomerPerformance(req.query));
   } catch (error) {
+    if ([400,413].includes(error.status || error.statusCode)) return res.status(error.status || error.statusCode).json({ error: error.message });
     if (/date range|start and end dates|history dates|history status/i.test(error.message)) return res.status(400).json({ error: error.message });
     next(error);
   }
@@ -132,8 +137,10 @@ router.get('/reports/customers/:id', requirePermission('reports.view'), async (r
     const profile = await customerProfile(req.params.id, req.query);
     if (!profile) return res.status(404).json({ error: 'Customer not found.' });
     res.set('Cache-Control', 'private, no-store');
+    if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'customers', profile, req.query);
     res.json(profile);
   } catch (error) {
+    if ([400,413].includes(error.status || error.statusCode)) return res.status(error.status || error.statusCode).json({ error: error.message });
     if (/date range|start and end dates|history dates|history status/i.test(error.message)) return res.status(400).json({ error: error.message });
     next(error);
   }
@@ -168,7 +175,9 @@ router.get("/reports/overview", async (req, res, next) => {
   try {
     const { buildReportCenterSnapshot } = require("../utils/reportCenter");
     res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
-    return res.json(await buildReportCenterSnapshot(new Date()));
+    const report = await buildReportCenterSnapshot(new Date());
+    if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'overview', report, req.query);
+    return res.json(report);
   } catch (error) {
     return next(error);
   }
@@ -319,7 +328,7 @@ router.post("/reports/orders/drilldown", async (req, res, next) => {
   try {
     const Order = require("../models/Order");
     const Payment = require("../models/Payment");
-    const { inRange, netPaymentsThrough, orderCompletionDate, parseReportDate } = require("../utils/enterpriseRevenue");
+    const { inRange, netPaymentsThrough, outstandingForValue, orderCompletionDate, parseReportDate } = require("../utils/enterpriseRevenue");
     const { buildOrderFilter, combineOrderFilters, parseOrderReportFilters } = require("../utils/orderReportFilters");
 
     const from = parseReportDate(req.body?.from);
@@ -349,7 +358,7 @@ router.post("/reports/orders/drilldown", async (req, res, next) => {
     }
     const completionBased = dimension === "brand" || (dimension === "trend" && dataset === "recognized sales");
     const reportFilters = parseOrderReportFilters(req.body);
-    const baseOrderFilter = buildOrderFilter(reportFilters);
+    const baseOrderFilter = combineOrderFilters(buildOrderFilter(reportFilters), require('../utils/reportingScope').reportableMatch());
     let bucketStart = null;
     let bucketEnd = null;
     if (dimension === "trend") {
@@ -400,7 +409,7 @@ router.post("/reports/orders/drilldown", async (req, res, next) => {
     const truncated = orders.length > 500;
     orders = orders.slice(0, 500);
     const orderIds = orders.map(order => order._id);
-    const payments = orderIds.length ? await Payment.find({ orderId: { $in: orderIds } }).lean() : [];
+    const payments = orderIds.length ? await Payment.find({ ...require('../utils/reportingScope').reportableMatch(), orderId: { $in: orderIds } }).lean() : [];
     const paymentsByOrder = new Map();
     payments.forEach(payment => {
       const key = String(payment.orderId);
@@ -435,7 +444,7 @@ router.post("/reports/orders/drilldown", async (req, res, next) => {
         selectedRevenue,
         amount,
         collected,
-        balance: Math.max(0, amount - collected),
+        balance: outstandingForValue(amount, paymentsByOrder.get(String(order._id)) || [], to),
       };
     });
     res.json({
@@ -468,16 +477,11 @@ router.get("/reports/orders/export", async (req, res, next) => {
     const reportFilters = parseOrderReportFilters(req.query);
     const filter = combineOrderFilters(
       buildOrderFilter(reportFilters),
-      { createdAt: { $gte: from, $lte: to } },
+      { ...require('../utils/reportingScope').reportableMatch(), createdAt: { $gte: from, $lte: to } },
     );
     const count = await Order.countDocuments(filter);
     if (count > 50000) return res.status(413).json({ error: "This export exceeds 50,000 orders. Select a smaller date range." });
     const orders = await Order.find(filter).sort({ createdAt: -1 }).lean();
-    const safeCell = value => {
-      let text = String(value ?? "").replace(/\r?\n/g, " ");
-      if (/^[=+\-@]/.test(text)) text = `'${text}`;
-      return `"${text.replace(/"/g, '""')}"`;
-    };
     const header = ["Date", "Reference", "Customer", "Email", "Units", "Fulfillment", "Payment Method", "Payment Status", "Order Status", "Subtotal", "Fees", "Total"];
     const rows = orders.map(order => [
       new Date(order.createdAt).toISOString(), order.orderReference || order._id, order.customer?.name,
@@ -485,10 +489,7 @@ router.get("/reports/orders/export", async (req, res, next) => {
       order.fulfillmentType, order.paymentMethod, order.paymentStatus, order.status, Number(order.subtotal || 0),
       Number(order.deliveryFee || 0) + Number(order.installationFee || 0) + Number(order.transportationFee || 0), Number(order.total || 0),
     ]);
-    const csv = [header, ...rows].map(row => row.map(safeCell).join(",")).join("\r\n");
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="order-analytics-${req.query.from}-${req.query.to}.csv"`);
-    res.send(`\uFEFF${csv}`);
+    return require('../utils/reportCsv').sendCsv(res, 'order-analytics', header, rows);
   } catch (err) {
     next(err);
   }
@@ -2687,20 +2688,7 @@ router.get("/ratings/service/export", async (req, res, next) => {
     if (report.allRows.length > 50000) {
       return res.status(413).json({ error: "This export exceeds 50,000 reviews. Select a smaller reporting window." });
     }
-    const safeCell = value => {
-      let output = String(value ?? "").replace(/\r?\n/g, " ");
-      if (/^[=+\-@]/.test(output)) output = `'${output}`;
-      return `"${output.replace(/"/g, '""')}"`;
-    };
-    const header = ["Review Date", "Booking Reference", "Customer", "Email", "Service Class", "Service", "Technician", "Rating", "Attention", "Comment", "Record Source"];
-    const rows = report.allRows.map(row => [
-      new Date(row.date).toISOString(), row.reference, row.customer, row.email, row.serviceType, row.serviceName,
-      row.technician, row.rating, row.attention.replaceAll("_", " "), row.comment, row.source,
-    ]);
-    const csv = [header, ...rows].map(row => row.map(safeCell).join(",")).join("\r\n");
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="service-ratings-${report.reportStart}-${report.reportEnd}.csv"`);
-    res.send(`\uFEFF${csv}`);
+    return require('../utils/reportCsv').sendCsv(res, 'customer-ratings', ['Review date','Booking reference','Customer','Service class','Service','Technician','Rating','Attention','Comment'], report.allRows.map(row => [new Date(row.date),row.reference,row.customer,row.serviceType,row.serviceName,row.technician,row.rating,row.attention,row.comment]));
   } catch (err) {
     next(err);
   }
@@ -2908,137 +2896,9 @@ router.get("/ratings/top-products", async (req, res, next) => {
 
 router.get("/ratings/technicians", async (req, res, next) => {
   try {
-    const Rating = require("../models/Rating");
-    const Technician = require("../models/Technician");
-    const BookingService = require("../models/BookingService");
-
-    // These datasets are independent. Loading them together removes three
-    // avoidable database round-trips from the initial ratings screen.
-    const [allTechs, techRatings, ratedBookings, completedJobCounts] = await Promise.all([
-      Technician.find({}).select("name userEmail active availabilityStatus createdAt").sort({ name: 1 }).lean(),
-      Rating.find({ targetType: "technician", moderationStatus: { $ne: "hidden" } })
-        .populate("customerId", "firstName lastName email")
-        .select("targetId score comment customerId createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-      BookingService.find({
-        customerRating: { $exists: true, $ne: null },
-        technicianId: { $exists: true, $ne: null },
-      })
-        .populate("customerId", "firstName lastName email")
-        .select("technicianId customerRating customerRatingComment customerId createdAt")
-        .sort({ createdAt: -1 })
-        .lean(),
-      BookingService.aggregate([
-        { $match: { status: "completed", technicianId: { $ne: null } } },
-        { $group: { _id: "$technicianId", count: { $sum: 1 } } },
-      ]),
-    ]);
-
-    // Merge: group all ratings by technician ID
-    const techGroups = {};
-
-    // From Rating collection
-    for (const r of techRatings) {
-      const tid = String(r.targetId);
-      if (!techGroups[tid]) techGroups[tid] = { ratings: [], total: 0, count: 0 };
-      techGroups[tid].ratings.push({
-        customer: r.customerId ? ((r.customerId.firstName || "") + " " + (r.customerId.lastName || "")).trim() : "Customer",
-        rating: r.score,
-        comment: r.comment || "",
-        date: r.createdAt,
-      });
-      techGroups[tid].total += r.score;
-      techGroups[tid].count++;
-    }
-
-    // From BookingService
-    for (const b of ratedBookings) {
-      const tid = String(b.technicianId);
-      if (!techGroups[tid]) techGroups[tid] = { ratings: [], total: 0, count: 0 };
-      techGroups[tid].ratings.push({
-        customer: b.customerId ? ((b.customerId.firstName || "") + " " + (b.customerId.lastName || "")).trim() : "Customer",
-        rating: b.customerRating,
-        comment: b.customerRatingComment || "",
-        date: b.createdAt,
-      });
-      techGroups[tid].total += b.customerRating;
-      techGroups[tid].count++;
-    }
-
-    // Aggregate counts in MongoDB instead of transferring every completed job.
-    const jobCounts = Object.fromEntries(completedJobCounts.map(row => [String(row._id), Number(row.count) || 0]));
-
-    // Build technician objects — only include those with at least 1 rating
-    const technicians = allTechs
-      .map(t => {
-        const tid = String(t._id);
-        const g = techGroups[tid];
-        const createdDate = t.createdAt ? new Date(t.createdAt) : null;
-        const yearsSinceCreation = createdDate
-          ? Math.max(0, Math.floor((Date.now() - createdDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000)))
-          : 0;
-
-        return {
-          id: tid,
-          name: t.name || "Unknown Technician",
-          email: t.userEmail || "",
-          department: "",
-          avgRating: g ? +(g.total / g.count).toFixed(1) : 0,
-          reviewCount: g ? g.count : 0,
-          jobsCompleted: jobCounts[tid] || 0,
-          experience: yearsSinceCreation,
-          status: t.active ? (t.availabilityStatus || "Offline") : "inactive",
-          avatar: null,
-          recentReviews: g ? g.ratings.slice(0, 5) : [],
-        };
-      })
-      .filter(t => t.reviewCount > 0)
-      .sort((a, b) => b.avgRating - a.avgRating);
-
-    const totalReviews = techRatings.length + ratedBookings.length;
-    const totalTechnicians = technicians.length;
-    const allScores = [...techRatings.map(r => r.score), ...ratedBookings.map(b => b.customerRating)];
-    const avgRating = allScores.length > 0
-      ? +(allScores.reduce((s, v) => s + v, 0) / allScores.length).toFixed(1)
-      : 0;
-    const topPerformers = technicians.filter(t => t.avgRating >= 4.5).length;
-
-    const ratingDistribution = { "5": 0, "4": 0, "3": 0, "2": 0, "1": 0 };
-    for (const score of allScores) {
-      const key = String(Math.round(score));
-      if (ratingDistribution[key] !== undefined) ratingDistribution[key]++;
-    }
-
-    // Performance trends (last 6 months)
-    const allDated = [
-      ...techRatings.map(r => ({ score: r.score, date: r.createdAt })),
-      ...ratedBookings.map(b => ({ score: b.customerRating, date: b.createdAt })),
-    ];
-    const now = new Date();
-    const trendLabels = [];
-    const avgRatings = [];
-    const jobCountsTrend = [];
-    for (let m = 5; m >= 0; m--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - m + 1, 1);
-      trendLabels.push(monthStart.toLocaleString("default", { month: "short" }));
-      const monthScores = allDated.filter(r => {
-        const d = new Date(r.date);
-        return d >= monthStart && d < monthEnd;
-      });
-      avgRatings.push(monthScores.length > 0
-        ? +(monthScores.reduce((s, r) => s + r.score, 0) / monthScores.length).toFixed(1)
-        : 0);
-      jobCountsTrend.push(monthScores.length);
-    }
-
-    res.json({
-      stats: { totalTechnicians, avgRating, totalReviews, topPerformers },
-      technicians,
-      ratingDistribution,
-      performanceTrends: { labels: trendLabels, avgRatings, jobCounts: jobCountsTrend },
-    });
+    const report = await require('../utils/technicianRatingReport').loadTechnicianRatingReport();
+    if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'technician_ratings', { ...report, technicians: require('../utils/technicianRatingReport').filterTechnicianRows(report.technicians, req.query) }, req.query);
+    res.set('Cache-Control', 'private, no-store').json(report);
   } catch (err) {
     console.error("Error in /ratings/technicians:", err);
     next(err);
@@ -8614,10 +8474,11 @@ router.get("/reports/revenue", async (req, res, next) => {
     res.set("Server-Timing", `revenue-analytics;dur=${durationMs.toFixed(1)}`);
     res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
     res.vary("Cookie");
+    if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'revenue', analytics, filters);
     if (req.query.format === 'pdf') return await require('../utils/reportPdf').sendReportPdf(res, 'revenue', analytics, filters);
     return res.json({ success: true, filters, technicians, analytics });
   } catch (err) {
-    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    if ([400,413].includes(err.statusCode || err.status)) return res.status(err.statusCode || err.status).json({ error: err.message });
     console.error("Revenue reports API error:", err);
     return res.status(500).json({ error: "Server error" });
   }

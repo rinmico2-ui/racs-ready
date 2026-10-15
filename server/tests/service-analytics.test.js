@@ -33,7 +33,7 @@ test("groups core and repair workflow statuses consistently", () => {
 test("uses Rating records when the booking snapshot has no rating", () => {
   const ratings = new Map([["booking-1", 4.5]]);
   assert.equal(ratingForBooking({ _id: "booking-1" }, ratings), 4.5);
-  assert.equal(ratingForBooking({ _id: "booking-1", customerRating: 5 }, ratings), 5);
+  assert.equal(ratingForBooking({ _id: "booking-1", customerRating: 5 }, ratings), 4.5);
 });
 
 test("allocates unpriced multi-service revenue without losing the booking value", () => {

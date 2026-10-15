@@ -295,6 +295,7 @@ const orderSchema = new mongoose.Schema(
       min: 1,
       max: 5,
     },
+    customerRatedAt: { type: Date },
     customerRatingComment: {
       type: String,
       trim: true,

@@ -1,5 +1,4 @@
 const BookingService = require("../models/BookingService");
-const Inventory = require("../models/Inventory");
 const Order = require("../models/Order");
 const { buildRevenueDashboardSnapshot } = require("./revenueAnalytics");
 const { remember } = require("./reportCache");
@@ -65,35 +64,11 @@ async function computeReportCenterSnapshot(now = new Date()) {
   const [financialResult, bookingResult, orderResult, inventoryResult] = await Promise.allSettled([
     buildRevenueDashboardSnapshot(now),
     BookingService.aggregate([
-      { $match: { sourceOrderId: null } },
+      { $match: { ...require('./reportingScope').reportableMatch(), sourceOrderId: null } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]),
-    Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-    Inventory.aggregate([
-      { $match: { active: true, status: { $ne: "discontinued" } } },
-      {
-        $group: {
-          _id: null,
-          skuCount: { $sum: 1 },
-          units: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$quantity", 0] }, 0] }, { $ifNull: ["$quantity", 0] }, 0] } },
-          outOfStock: { $sum: { $cond: [{ $lte: [{ $ifNull: ["$quantity", 0] }, 0] }, 1, 0] } },
-          lowStock: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $gt: [{ $ifNull: ["$quantity", 0] }, 0] },
-                    { $lte: [{ $ifNull: ["$quantity", 0] }, { $ifNull: ["$minStockLevel", 3] }] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ]),
+    Order.aggregate([{ $match: require('./reportingScope').reportableMatch() }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+    require('./stockReportData').loadStockSnapshot(),
   ]);
 
   const bookingCounts = bookingResult.status === "fulfilled"
@@ -102,7 +77,7 @@ async function computeReportCenterSnapshot(now = new Date()) {
   const orderCounts = orderResult.status === "fulfilled"
     ? countPipeline(orderResult.value, new Set(TERMINAL_ORDER_STATUSES))
     : null;
-  const stock = inventoryResult.status === "fulfilled" ? (inventoryResult.value[0] || {}) : null;
+  const stock = inventoryResult.status === "fulfilled" ? (inventoryResult.value || {}) : null;
 
   const snapshot = {
     asOf: now.toISOString(),

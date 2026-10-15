@@ -8,6 +8,7 @@ const {
 } = require("../utils/serviceRatingReport");
 
 const booking = {
+  status: "repair_completed",
   _id: "507f1f77bcf86cd799439011",
   bookingReference: "RACS-20260801-TEST",
   customerRating: 2,

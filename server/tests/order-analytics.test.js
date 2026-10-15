@@ -92,11 +92,11 @@ test("separates booked value, recognized sales, collections, refunds, and outsta
   assert.equal(result.grossCollections, 600);
   assert.equal(result.refunds, 100);
   assert.equal(result.netCollections, 500);
-  assert.equal(result.outstandingBalance, 500);
+  assert.equal(result.outstandingBalance, 400);
   assert.equal(result.unitsSold, 2);
   assert.equal(result.topProducts.length, 1);
   assert.equal(result.estimatedCost, 600);
-  assert.equal(result.estimatedGrossMargin, 400);
+  assert.equal(result.estimatedGrossMargin, 300);
   assert.equal(result.marginReliable, true);
 });
 

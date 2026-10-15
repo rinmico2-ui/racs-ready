@@ -679,6 +679,9 @@ const CUSTOMER_HISTORY_EXCLUDED_FIELDS = [
 // ─── List bookings for the logged-in user (used by book-history.js) ─────────
 // Operations Calendar needs a bounded schedule snapshot, not full booking
 // documents or the customer-history pagination and presentation work.
+// Customer-readable export; the query always includes the authenticated owner.
+router.get('/:id/summary.pdf', auth.authenticate, auth.requireRole('customer'), require('../utils/customerBookingPdf').createBookingPdfHandler());
+
 router.get("/calendar", auth.authenticate, auth.requireRole(["admin", "secretary"]), async (req, res) => {
   try {
     parseOperationsCalendarRange(req.query.start, req.query.end);

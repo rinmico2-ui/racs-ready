@@ -5,7 +5,7 @@
   var role = match[1], kind = match[2];
   function attach() {
     if (document.querySelector('[data-report-pdf]')) return;
-    var target = document.querySelector('.rr-actions, .sr-filter-actions, .au-hero-inner, .report-nav');
+    var target = document.querySelector('.rr-actions, .sr-filter-actions, .sr-filter-primary, .au-hero-actions, .au-hero-inner, .report-nav');
     if (!target) return;
     var button = document.createElement('button'); button.type = 'button'; button.className = kind === 'revenue' ? 'rr-btn light' : 'btn btn-outline-primary'; button.dataset.reportPdf = kind;
     button.innerHTML = '<i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Export PDF';

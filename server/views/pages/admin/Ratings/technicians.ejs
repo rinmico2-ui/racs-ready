@@ -31,6 +31,7 @@
     <article class="kpi-enterprise" data-accent="amber"><div class="kpi-enterprise-top"><span class="kpi-enterprise-icon"><i class="bi bi-award"></i></span><span class="kpi-enterprise-badge">4.5+ rating</span></div><div class="kpi-enterprise-body"><span class="kpi-enterprise-label">Highest-rated technicians</span><strong class="kpi-enterprise-value" id="topPerformers">0</strong><small>Technicians with a rating of 4.5 or higher</small></div></article>
   </section>
 
+  <p class="small text-muted mb-4" id="technicianRatingBasis">Ratings use completed service bookings and aircon orders. Hidden reviews and duplicate booking snapshots are excluded.</p>
   <!-- Performance Metrics -->
   <div class="row mb-4">
     <div class="col-lg-4 mb-3">
@@ -273,6 +274,8 @@
         currentPage = 1;
         totalPages = Math.max(1, Math.ceil(filteredTechnicians.length / perPage));
         updateOverviewStats(data.stats || {});
+        const excluded = Number(data.dataQuality?.legacyTechnicianReviewsExcluded || 0);
+        document.getElementById('technicianRatingBasis').textContent = 'Ratings use completed service bookings and aircon orders. Hidden reviews and duplicate snapshots are excluded.' + (excluded ? ` ${excluded} legacy reviews have no booking or order link and need review.` : '');
         applyFilters();
         try { initializeTechCharts(data); } catch (e) { console.error('Chart init error:', e); }
       } else {

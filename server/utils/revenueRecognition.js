@@ -8,17 +8,12 @@ function money(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
-function isRepairBooking(booking) {
-  return booking?.serviceType === "repair"
-    || booking?.serviceType === "mixed"
-    || booking?.serviceModel === "RepairService"
-    || (booking?.services || []).some((service) => service.type === "repair");
-}
+function isRepairBooking(booking) { return require('./bookingReportValue').hasRepair(booking); }
 
 async function buildProjectPricingMap(bookings) {
   const bookingIds = (bookings || []).map((booking) => booking._id).filter(Boolean);
   if (!bookingIds.length) return new Map();
-  const projects = await Project.find({ bookingId: { $in: bookingIds } })
+  const projects = await Project.find({ ...require('./reportingScope').reportableMatch(), bookingId: { $in: bookingIds } })
     .select("bookingId totalUnits completedUnits payment quotationReview repair")
     .lean();
   if (!projects.length) return new Map();
@@ -60,18 +55,7 @@ function bookingApprovedValue(booking, projectPricingMap = new Map()) {
   if (booking?.sourceOrderId) return 0; // Included installation is recognized with its product purchase.
   const projectEntry = projectPricingMap.get(String(booking?._id));
   if (projectEntry) return money(projectEntry.pricing.total);
-  if (booking?.loyaltyDiscount && (booking.services || []).length) {
-    const core = booking.services.filter(service => service.type !== 'repair').reduce((sum, service) => sum + require('./transactionDiscounts').serviceLineValue(service), 0);
-    const inspections = booking.services.filter(service => service.type === 'repair').reduce((sum, service) => sum + money(service.initialCost ?? service.unitPrice) * Math.max(1, Number(service.quantity) || 1), 0);
-    const repairs = booking.services.filter(service => service.type === 'repair' && (service.approval?.status === 'approved' || booking.approval?.status === 'approved')).reduce((sum, service) => sum + money(service.quotation?.totalCost), 0);
-    return Math.max(0, core - money(booking.discount)) + inspections + repairs + money(booking.travelFare);
-  }
-  if (isRepairBooking(booking)) {
-    const inspection = money(booking.inspectionFeeTotalCollected || booking.initialCost);
-    const approvedRepair = booking?.approval?.status === "approved" ? money(booking?.quotation?.totalCost) : 0;
-    return inspection + approvedRepair;
-  }
-  return money(booking?.totalPrice || booking?.estimatedFee);
+  return require('./bookingReportValue').bookingReportValue(booking);
 }
 
 function acceptedPayment(payment) {
@@ -79,7 +63,7 @@ function acceptedPayment(payment) {
 }
 
 function paymentDate(payment) {
-  return payment?.verifiedAt || payment?.completedAt || payment?.collectedAt || payment?.submittedAt;
+  return require('./enterpriseRevenue').collectionDate(payment);
 }
 
 function normalizePaymentMethod(method) {

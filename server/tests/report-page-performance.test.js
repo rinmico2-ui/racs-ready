@@ -58,7 +58,8 @@ test('report routes batch independent database work', () => {
   assert.match(pages, /const \[payments, productRefunds, inventoryItems, hvacCostProducts, orderConsumableUsages, linkedBookingRows\] = await Promise\.all/);
   assert.match(pages, /const \[toolUsage, productOrders, merchandiseSales, reservations, adjustments\] = await Promise\.all/);
   assert.match(pages, /const \[ratingRows, serviceCostAnalytics, workflowAssignments, partsRequests\] = await Promise\.all/);
-  assert.match(api, /const \[allTechs, techRatings, ratedBookings, completedJobCounts\] = await Promise\.all/);
+  assert.match(api, /loadTechnicianRatingReport\(\)/);
+  assert.match(read('utils/technicianRatingReport.js'), /const \[technicians, bookings, orders\] = await Promise\.all/);
   assert.match(api, /BookingService\.aggregate\(\[/);
   assert.doesNotMatch(api, /const completedBookings = await BookingService\.find\(\{ status: "completed" \}\)/);
 });

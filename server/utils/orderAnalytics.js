@@ -1,8 +1,10 @@
+const reportDates = require('./reportingDates');
 const {
   inRange,
   localDateKey,
   money,
-  netPaymentsThrough,
+  grossPaymentsThrough,
+  outstandingForValue,
   orderCompletionDate,
   summarizeOrderCosts,
   summarizeOrderConsumables,
@@ -19,7 +21,7 @@ function growth(current, previous) {
 }
 
 function validOrders(orders = []) {
-  return orders.filter(order => order?.status !== "cancelled");
+  return orders.filter(order => require('./reportingScope').isReportable(order) && order?.status !== "cancelled");
 }
 
 function recognizedOrders(orders = [], startDate, endDate) {
@@ -46,10 +48,8 @@ function percentile(values, fraction) {
 }
 
 function buildBuckets(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
+  const start = reportDates.startOfDay(startDate);
+  const end = reportDates.endOfDay(endDate);
   const dayCount = Math.floor((end - start) / 86400000) + 1;
   const mode = dayCount <= 31 ? "day" : dayCount <= 120 ? "week" : "month";
   const rows = [];
@@ -59,24 +59,21 @@ function buildBuckets(startDate, endDate) {
     const bucketStart = new Date(cursor);
     let bucketEnd;
     if (mode === "day") {
-      bucketEnd = new Date(cursor);
-      bucketEnd.setHours(23, 59, 59, 999);
-      cursor.setDate(cursor.getDate() + 1);
+      bucketEnd = reportDates.endOfDay(cursor);
+      cursor = reportDates.addDays(cursor, 1);
     } else if (mode === "week") {
-      bucketEnd = new Date(cursor);
-      bucketEnd.setDate(bucketEnd.getDate() + 6);
-      bucketEnd.setHours(23, 59, 59, 999);
-      cursor.setDate(cursor.getDate() + 7);
+      bucketEnd = reportDates.endOfDay(reportDates.addDays(cursor, 6));
+      cursor = reportDates.addDays(cursor, 7);
     } else {
-      bucketEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      bucketEnd = new Date(reportDates.startOfMonth(cursor, 1).getTime() - 1);
+      cursor = reportDates.startOfMonth(cursor, 1);
     }
     if (bucketEnd > end) bucketEnd = new Date(end);
     const label = mode === "month"
-      ? bucketStart.toLocaleDateString("en-PH", { month: "short", year: "2-digit" })
+      ? bucketStart.toLocaleDateString("en-PH", { month: "short", year: "2-digit", timeZone: reportDates.TIME_ZONE })
       : mode === "week"
-        ? `${bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}-${bucketEnd.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
-        : bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+        ? `${bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: reportDates.TIME_ZONE })}-${bucketEnd.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: reportDates.TIME_ZONE })}`
+        : bucketStart.toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: reportDates.TIME_ZONE });
     rows.push({
       key: localDateKey(bucketStart),
       label,
@@ -195,6 +192,8 @@ function buildOrderAnalytics({
   previousEnd,
   productPortfolioComplete = true,
 }) {
+  const reportable = require('./reportingScope').isReportable;
+  cohortOrders = cohortOrders.filter(reportable); previousCohortOrders = previousCohortOrders.filter(reportable);
   const cohortValid = validOrders(cohortOrders);
   const previousValid = validOrders(previousCohortOrders);
   const recognized = recognizedOrders(completionCandidates, startDate, endDate);
@@ -212,7 +211,7 @@ function buildOrderAnalytics({
   const collectionsByMethod = { ...currentLedger.byMethod };
   currentItemRefunds.forEach(refund => {
     const method = normalizePaymentMethod(refund.method);
-    collectionsByMethod[method] = money((collectionsByMethod[method] || 0) - money(refund.amount));
+    collectionsByMethod[method] = Number(collectionsByMethod[method] || 0) - money(refund.amount);
   });
   const paymentByOrder = new Map();
   payments.forEach(payment => {
@@ -226,8 +225,8 @@ function buildOrderAnalytics({
   const actionOrderIds = new Set();
   cohortValid.forEach(order => {
     const orderPayments = paymentByOrder.get(String(order._id)) || [];
-    const collected = netPaymentsThrough(orderPayments, endDate);
-    outstandingBalance += Math.max(0, money(order.total) - collected);
+    const collected = grossPaymentsThrough(orderPayments, endDate);
+    outstandingBalance += outstandingForValue(order.total, orderPayments, endDate);
     if (FINAL_PAYMENT_STATUSES.has(order.paymentStatus) && collected + 0.01 < money(order.total)) {
       ledgerMismatchCount += 1;
       actionOrderIds.add(String(order._id));
@@ -301,7 +300,8 @@ function buildOrderAnalytics({
       && !Number(linkedCost?.unpricedConsumablesCount || 0);
   }).length;
   const knownDirectCost = cost.totalCost + consumables.totalCost + linkedInstallation.totalCost;
-  const estimatedGrossMargin = recognizedRevenue - knownDirectCost;
+  const netRecognizedRevenue = recognizedRevenue - currentLedger.refunds - currentItemRefundTotal;
+  const estimatedGrossMargin = netRecognizedRevenue - knownDirectCost;
   const marginReliable = cost.coveragePercent >= 100 && consumables.missingCostRecords === 0 && installationOrders.length === 0;
   const orderCostRows = recognized.map(order => {
     const productCost = summarizeOrderCosts([order], inventoryItems);
@@ -344,6 +344,7 @@ function buildOrderAnalytics({
     grossRevenue: grossOrderValue,
     grossOrderValue,
     recognizedRevenue,
+    netRecognizedRevenue,
     grossCollections: currentLedger.grossCollections,
     refunds: currentLedger.refunds + currentItemRefundTotal,
     netCollections: currentLedger.netCollections - currentItemRefundTotal,
@@ -364,7 +365,7 @@ function buildOrderAnalytics({
     costCoveragePercent: cost.coveragePercent,
     marginReliable,
     estimatedGrossMargin,
-    estimatedMarginPercent: recognizedRevenue > 0 ? (estimatedGrossMargin / recognizedRevenue) * 100 : 0,
+    estimatedMarginPercent: netRecognizedRevenue > 0 ? (estimatedGrossMargin / netRecognizedRevenue) * 100 : 0,
     avgOrderValue: cohortValid.length ? grossOrderValue / cohortValid.length : 0,
     unitsSold: recognized.reduce((sum, order) => sum + units(order), 0),
     unitsPerOrder: recognized.length ? recognized.reduce((sum, order) => sum + units(order), 0) / recognized.length : 0,

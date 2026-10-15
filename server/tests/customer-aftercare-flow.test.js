@@ -13,7 +13,7 @@ const { DEFAULT_AFTERCARE_POLICY: policy } = require('../utils/aftercarePolicy')
 const { syncMaintenanceFromOrder, syncMaintenanceFromBooking, orderAssetSeeds } = require('../utils/maintenanceLifecycle');
 const { reconcileMissingAftercare } = require('../utils/maintenanceScheduler');
 const { bindWorkflowRefresh } = require('../public/js/customer-workflow-refresh');
-const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\r\n/g, '\n');
 const id = '507f191e810c19729de860ea', customerId = '507f191e810c19729de860eb';
 const query = value => ({ sort() { return this; }, select() { return this; }, limit() { return this; },
   lean: async () => value, then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); } });

@@ -78,7 +78,7 @@
 
     var profit = document.getElementById("rcProfit");
     if (profit) profit.classList.toggle("negative", Number(finance.operatingProfit || 0) < 0);
-    setText("rcProfitMeta", data.financial ? Math.round(finance.profitMargin || 0) + "% recorded margin · " + Math.round(finance.costDataCoverage || 0) + "% known-sales with saved costs" : "Financial source unavailable");
+    setText("rcProfitMeta", data.financial ? (finance.profitMargin == null ? "Margin unavailable" : Math.round(finance.profitMargin) + "% recorded margin") + " · " + Math.round(finance.costDataCoverage || 0) + "% known-sales with saved costs" : "Financial source unavailable");
     setText("rcPaymentActionsMeta", data.financial ? (finance.pendingLedgerCount || 0) + " waiting for a check · " + (finance.paymentExceptionCount || 0) + " issues to check" : "Payment records could not load");
     setText("rcInventoryMeta", data.inventory ? (inventory.outOfStock || 0) + " out · " + (inventory.lowStock || 0) + " low · " + (inventory.skuCount || 0) + " active item types" : "Stock records could not load");
     renderInsights(data.insights);

@@ -36,7 +36,7 @@ test("booking-history rows expose only View Details and keep operations in the m
   }
   assert.match(script, /Book Again/);
   assert.match(script, /View Maintenance/);
-  assert.match(view, /id="bh-download-json"/);
+  assert.match(view, /id="bh-download-pdf"/);
   assert.match(view, /\/js\/book-history\.js\?v=/);
 });
 
