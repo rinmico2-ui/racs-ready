@@ -173,6 +173,7 @@
   function refreshTypes() {
     refreshBrands();
     if (hooks.repair) {
+      hooks.syncApplianceChoices?.(field('kind').value);
       host.querySelector('[data-aircon-details]').hidden = true;
       host.querySelector('[data-compressor-details]').hidden = true;
       host.querySelector('.cab-help')?.setAttribute('hidden', '');
@@ -320,7 +321,7 @@
     const bookingCounter = attribute => typeof hooks.review === 'function'
       ? `<button type="button" class="cab-capacity cab-review" data-booking-review aria-controls="selectedServicesSummary" aria-expanded="false"><span ${attribute}></span><span class="cab-review-label">View added services <i class="bi bi-chevron-up" aria-hidden="true"></i></span></button>`
       : `<span class="cab-capacity" ${attribute}></span>`;
-    const repairChoices = options.repair ? '<label class="cab-note">Appliance *<select name="kind" required><option value="">Choose an appliance</option>' + A.kinds.map(kind => '<option value="' + escape(kind) + '">' + escape(A.labels[kind]) + '</option>').join('') + '</select></label>' : '';
+    const repairChoices = options.repair ? options.applianceChoices || '<label class="cab-note">Appliance *<select name="kind" required><option value="">Choose an appliance</option>' + A.kinds.map(kind => '<option value="' + escape(kind) + '">' + escape(A.labels[kind]) + '</option>').join('') + '</select></label>' : '';
     host.innerHTML = `<${formTag} class="cab-form" ${options.embedded ? 'role="group" aria-label="Appliance configuration"' : "novalidate"}><div class="cab-heading"><div><span class="cab-eyebrow">${options.repair ? 'REPAIR SERVICES' : 'CORE SERVICES'}</span><h2>${options.repair ? 'Set up your repair service' : 'Set up your service'}</h2><p>Choose an appliance and tell us what it needs.</p></div>${bookingCounter('data-capacity')}</div>
       <div data-wizard><nav class="cab-progress" aria-label="Appliance service steps">${['Appliance', 'Details', 'Services'].map((name, index) => `<button type="button" data-step="${index + 1}" ${index ? 'disabled' : ''}><span>${index + 1}</span><strong>${name}</strong></button>`).join('')}</nav><div class="cab-step-meta"><span data-step-label></span><span>${options.embedded ? "Next booking step: Schedule" : "Next booking step: Service address"}</span></div>
       <div class="cab-workspace"><div class="cab-main"><section data-panel="1" aria-labelledby="cabApplianceHeading"><h3 id="cabApplianceHeading" tabindex="-1">${options.repair ? 'Which appliance needs repair?' : 'Which appliance needs service?'}</h3><p class="cab-note">You can add another appliance after this one.</p><fieldset class="cab-appliances"><legend class="cab-sr-only">Choose an appliance</legend>${repairChoices || A.kinds.map((kind, index) => `<label><input type="radio" name="kind" value="${kind}" ${index === 0 ? 'checked' : ''}><span><i class="bi ${kind === 'aircon' ? 'bi-snow' : kind === 'refrigerator' ? 'bi-door-closed' : 'bi-box'}" aria-hidden="true"></i><strong>${A.labels[kind]}</strong><small>${kind === 'aircon' ? 'Type and HP pricing' : 'Services set by staff'}</small></span></label>`).join('')}</fieldset></section>

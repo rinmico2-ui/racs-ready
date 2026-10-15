@@ -5,21 +5,43 @@
 })(typeof window === 'object' ? window : globalThis, function () {
   'use strict';
   const other = value => /^(other|others)(?:$|[\s_(])/i.test(String(value || '').trim());
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  const icon = (value, fallback) => /^bi-[a-z0-9-]+$/.test(value || '') ? value : fallback;
   const defaults = [
-    { slug: 'aircon', name: 'Aircon', unitTypes: ['Split Type Aircon', 'Window Type Aircon', 'Floor Mounted Aircon', 'Cassette Type Aircon', 'Central Aircon'].map(value => ({ value, label: value })) },
-    { slug: 'appliance', name: 'Appliances', unitTypes: ['Refrigerator', 'Freezer', 'Washing Machine', 'Dryer', 'Microwave Oven', 'Electric Fan', 'Rice Cooker', 'Water Dispenser', 'Electric Kettle'].map(value => ({ value, label: value })) },
+    { slug: 'aircon', name: 'Air Conditioning', icon: 'bi-snow', unitTypes: ['Split Type Aircon', 'Window Type Aircon', 'Floor Mounted Aircon', 'Cassette Type Aircon', 'Central Aircon'].map(value => ({ value, label: value })) },
+    { slug: 'appliance', name: 'Home Appliances', icon: 'bi-house-gear', unitTypes: ['Refrigerator', 'Freezer', 'Washing Machine', 'Dryer', 'Microwave Oven', 'Electric Fan', 'Rice Cooker', 'Water Dispenser', 'Electric Kettle'].map(value => ({ value, label: value })) },
   ];
   function catalog(values) {
     return (Array.isArray(values) && values.length ? values : defaults)
       .filter(category => category.active !== false && !other(category.slug) && !other(category.name))
       .flatMap((category, index) => (category.unitTypes || []).filter(unit => !other(unit.value) && !other(unit.label))
-        .map(unit => ({ ...unit, label: unit.label || unit.value, category: category.slug, kind: `repair_${category.slug}_${unit.value}` })));
+        .map(unit => ({ ...unit, label: unit.label || unit.value, category: category.slug,
+          categoryName: category.name || category.slug, categoryIcon: icon(category.icon, category.slug === 'aircon' ? 'bi-snow' : 'bi-house-gear'),
+          kind: `repair_${category.slug}_${unit.value}` })));
   }
   const identity = row => String(row.id || row._id || '');
   function create() {
-    let builder, hooks, units = [];
+    let builder, hooks, units = [], selectedCategory = '';
     const field = name => hooks.host.querySelector(`[name="${name}"]`);
     const selectedUnit = kind => units.find(unit => unit.kind === kind);
+    function choiceMarkup() {
+      const groups = [...new Map(units.map(unit => [unit.category, unit])).values()];
+      return `<div class="cab-repair-picker" data-repair-appliances><select name="kind" hidden aria-label="Selected repair appliance" tabindex="-1"><option value=""></option>${units.map(unit => `<option value="${escape(unit.kind)}">${escape(unit.label)}</option>`).join('')}</select><div class="cab-repair-categories" role="group" aria-label="Appliance categories">${groups.map(group => `<button type="button" class="cab-repair-category" data-repair-category="${escape(group.category)}" aria-pressed="false"><span class="cab-repair-category-icon" aria-hidden="true"><i class="bi ${group.categoryIcon}"></i></span><strong>${escape(group.categoryName)}</strong><small>${units.filter(unit => unit.category === group.category).length} choices</small><i class="bi bi-check-circle-fill cab-repair-check" aria-hidden="true"></i></button>`).join('')}</div><section class="cab-repair-types" data-repair-types hidden aria-labelledby="cabRepairTypeHeading"><h4 id="cabRepairTypeHeading" tabindex="-1">What type of appliance is it?</h4><p class="cab-note">Choose the appliance you want us to check.</p><div class="cab-repair-type-grid" data-repair-type-grid role="group" aria-label="Appliance types"></div></section>${groups.length ? '' : '<p class="cab-note">No repair appliances are available right now. Please contact our team.</p>'}</div>`;
+    }
+    function syncChoices(kind) {
+      const selected = selectedUnit(kind);
+      selectedCategory = selected?.category || '';
+      renderChoices();
+    }
+    function renderChoices() {
+      const root = hooks.host.querySelector('[data-repair-appliances]');
+      if (!root) return;
+      const selected = field('kind').value;
+      root.querySelectorAll('[data-repair-category]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.repairCategory === selectedCategory)));
+      root.querySelector('[data-repair-types]').hidden = !selectedCategory;
+      root.querySelector('[data-repair-type-grid]').innerHTML = units.filter(unit => unit.category === selectedCategory)
+        .map(unit => `<button type="button" class="cab-repair-type" data-repair-kind="${escape(unit.kind)}" aria-pressed="${unit.kind === selected}"><i class="bi ${icon(unit.icon, unit.categoryIcon)}" aria-hidden="true"></i><span>${escape(unit.label)}</span><i class="bi bi-check-circle-fill cab-repair-check" aria-hidden="true"></i></button>`).join('');
+    }
     function mount(options) {
       hooks = options; units = catalog(options.categories);
       if (builder) return builder.sync();
@@ -48,7 +70,7 @@
         },
       };
       builder = window.CoreApplianceBooking.create();
-      builder.mount([service], { ...options, repair: true, adapter,
+      builder.mount([service], { ...options, repair: true, adapter, applianceChoices: choiceMarkup(), syncApplianceChoices: syncChoices,
         state: { get selectedServices() { return options.state.selectedServices; }, applianceDraft: options.draft || null },
         kindFor: row => units.find(unit => unit.value === row.unitType && (!row.unitCategory || row.unitCategory === unit.category))?.kind || '', serviceIdFor: () => service._id,
         validate: selected => {
@@ -67,6 +89,22 @@
           return options.assistance({ requestType: 'repair', repairUnitType: unit.value, repairUnitCategory: unit.category,
             quantity: payload.quantity, problemDescription: payload.notes, clientRequestId: payload.clientRequestId }, photos);
         },
+      });
+      options.host.addEventListener('click', event => {
+        const category = event.target.closest('[data-repair-category]');
+        if (category && options.host.contains(category)) {
+          if (selectedCategory !== category.dataset.repairCategory) {
+            field('kind').value = ''; field('kind').dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          selectedCategory = category.dataset.repairCategory; renderChoices();
+          options.host.querySelector('[data-repair-types] h4').focus({ preventScroll: true });
+          options.host.querySelector('[data-repair-types]').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+        const unit = event.target.closest('[data-repair-kind]');
+        if (unit && options.host.contains(unit) && selectedUnit(unit.dataset.repairKind)) {
+          field('kind').value = unit.dataset.repairKind; field('kind').dispatchEvent(new Event('change', { bubbles: true }));
+          options.host.querySelector('[data-next]').click();
+        }
       });
     }
     function edit(id) {
