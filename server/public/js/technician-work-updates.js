@@ -1,7 +1,8 @@
 (function () {
   'use strict';
-  let timer, busy = false, queued = false, boundSocket;
-  const events = ['booking:updated', 'booking:rescheduled', 'assignment:updated', 'assignment:new', 'order:status-change', 'order:assigned', 'connect'];
+  if (window.TechnicianWorkUpdates) return;
+  let timer, busy = false, queued = false, boundSocket, mutations = 0, revision = 0;
+  const events = ['booking:updated', 'booking:rescheduled', 'assignment:updated', 'assignment:new', 'order:status-change', 'order:assigned', 'project:phase', 'project:team-status', 'project:team_assigned', 'connect'];
   function bindSocket() {
     if (!window.socket || boundSocket === window.socket) return;
     if (boundSocket) events.forEach(event => boundSocket.off(event, schedule));
@@ -13,10 +14,26 @@
     window.clearTimeout(timer);
     timer = window.setTimeout(refresh, 250);
   }
+  // Status requests can emit several socket events before their HTTP response.
+  // Hold those events until the mutation settles, then refresh the workspace once.
+  function beginMutation() {
+    mutations++;
+    revision++;
+    window.clearTimeout(timer);
+    let finished = false;
+    return function finishMutation(refreshNeeded = true) {
+      if (finished) return;
+      finished = true;
+      mutations--;
+      revision++;
+      if (refreshNeeded || queued) schedule();
+    };
+  }
+  window.TechnicianWorkUpdates = { request: schedule, beginMutation, get revision() { return revision; } };
   async function refresh() {
     bindSocket();
-    if (document.hidden || busy) return;
-    if (window.Swal?.isVisible?.() || document.querySelector('.modal.show')) {
+    if (document.hidden || busy || mutations) return;
+    if (window.Swal?.isVisible?.() || document.querySelector('.modal.show, .pw-modal-overlay')) {
       timer = window.setTimeout(refresh, 500);
       return;
     }

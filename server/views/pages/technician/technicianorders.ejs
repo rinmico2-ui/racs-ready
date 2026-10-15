@@ -3545,6 +3545,7 @@
   }
 
   window.doStatus = async function(id, status) {
+    let finishUpdate;
     try {
       const order = _orders.find(o => String(o._id) === String(id)) || {};
       if(status === 'out_for_delivery' && orderNeedsScheduleRecovery(order)) {
@@ -3566,6 +3567,7 @@
         && ['cod','cash','cash_onsite','gcash_downpayment'].includes(order.paymentMethod)
         && Number(order.balanceAmount ?? order.total ?? 0) > 0;
       if(requiresFinalCollection && !(await collectOrderPayment(id))) return;
+      finishUpdate = window.TechnicianWorkUpdates.beginMutation();
       const res = await fetch('/api/orders/'+id+'/status', {
         method:'PATCH',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({status:status,note:'Status updated to '+SCFG[status].label,...evidence})
@@ -3577,18 +3579,16 @@
         });
         await Swal.fire({title:'Departure Preparation Required',text:data.error || 'Complete all departure checks before going En Route.',icon:'warning',confirmButtonText:kitBlocked?'Open Daily Preparation':'OK'});
         if(kitBlocked) openOrderDailyKit(orderDateKey(order.delivery?.preferredDate));
-        fetchOrders();
         return;
       }
       if(!res.ok && data.code === 'ORDER_SCHEDULE_PASSED') {
         await Swal.fire({title:'Missed Schedule',text:data.error || 'Operations must confirm a new customer schedule before departure.',icon:'warning'});
-        fetchOrders();
         return;
       }
       if(!res.ok) throw new Error(data.error || "Failed to update status");
       await Swal.fire({title:status==='completed'?'Work Completed':'Status Updated',text:'Order is now '+SCFG[status].label+'.',icon:'success',timer:1800,showConfirmButton:false});
-      fetchOrders();
-    } catch(e) { fetchOrders(); Swal.fire("Error",e.message,"error"); }
+    } catch(e) { await Swal.fire("Error",e.message,"error"); }
+    finally { finishUpdate?.(); }
   };
 
   async function collectOrderPayment(id) {
@@ -3683,4 +3683,4 @@
 
 })();
 </script>
-<script src="/js/technician-work-updates.js?v=20261012"></script>
+<script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>

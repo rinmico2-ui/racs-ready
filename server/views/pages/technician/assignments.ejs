@@ -9015,7 +9015,7 @@ ${isRepair ? `
 
     async function loadAssignments(status = currentFilter, page = 1, search = '', { quiet = false } = {}) {
       setAssignmentListMode(status);
-      if (status === 'available') return loadAvailableJobs();
+      if (status === 'available') return loadAvailableJobs({ quiet });
       const loadSequence = ++assignmentsLoadSequence;
       try {
         const container = document.getElementById('assignmentsContainer');
@@ -9112,17 +9112,18 @@ ${isRepair ? `
           container.innerHTML = renderEmpty();
           document.getElementById('jobCardNav').style.display = 'none';
         } else {
-          cardPage = 0;
+          if (!quiet) cardPage = 0;
           renderCardPage();
         }
 
         if (status === 'all') document.getElementById('countAll').textContent = (data.total || 0) + filteredRepairs.length;
         // renderTodayWorkOrder owns the Today badge because it uses the exact
         // filtered collection visible in the daily run sheet.
-        fetchTabCounts(true);
-        if (window._updateWorkKpis) window._updateWorkKpis();
+        if (window._updateWorkKpis) await window._updateWorkKpis();
+        else await fetchTabCounts(true);
       } catch (e) {
         if (loadSequence !== assignmentsLoadSequence) return;
+        if (quiet && allItems.length) { console.warn('Assignment refresh failed; keeping the current work list.'); return; }
         if (status === 'today') {
           const summary = document.getElementById('todayWorkOrderSummary');
           const list = document.getElementById('todayWorkOrderList');
@@ -9134,11 +9135,11 @@ ${isRepair ? `
       }
     }
 
-    async function loadAvailableJobs() {
+    async function loadAvailableJobs({ quiet = false } = {}) {
       const loadSequence = ++assignmentsLoadSequence;
       try {
         const container = document.getElementById('assignmentsContainer');
-        container.innerHTML = '<div style="text-align:center;padding:48px 24px;background:#fff;border:1px solid #e8ecf1;border-radius:16px;"><div class="spinner-border" style="width:2rem;height:2rem;color:#10b981;" role="status"></div><p style="color:#94a3b8;font-size:0.82rem;margin:12px 0 0;">Loading available jobs...</p></div>';
+        if (!quiet) container.innerHTML = '<div style="text-align:center;padding:48px 24px;background:#fff;border:1px solid #e8ecf1;border-radius:16px;"><div class="spinner-border" style="width:2rem;height:2rem;color:#10b981;" role="status"></div><p style="color:#94a3b8;font-size:0.82rem;margin:12px 0 0;">Loading available jobs...</p></div>';
 
         const res = await fetch('/api/technician/available-jobs', { credentials: 'same-origin' });
         if (!res.ok) throw new Error('Failed');
@@ -9159,7 +9160,7 @@ ${isRepair ? `
           container.innerHTML = '<div style="text-align:center;padding:48px 24px;background:#fff;border:1px solid #e8ecf1;border-radius:16px;"><div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#f0fdf4,#dcfce7);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;"><i class="bi bi-briefcase" style="font-size:1.6rem;color:#10b981;"></i></div><h6 style="font-weight:700;color:#1e293b;margin-bottom:4px;">No available jobs</h6><p style="color:#94a3b8;font-size:0.82rem;margin:0;">When a booking becomes available, it will appear here.</p></div>';
           document.getElementById('jobCardNav').style.display = 'none';
         } else {
-          cardPage = 0;
+          if (!quiet) cardPage = 0;
           renderCardPage();
         }
       } catch (e) {
@@ -9369,6 +9370,7 @@ ${isRepair ? `
         return;
       }
       if (btn) { btn.classList.add('btn-loading'); btn.disabled = true; }
+      const finishUpdate = window.TechnicianWorkUpdates.beginMutation();
       try {
         // Check out any reserved repair parts first
         const checkoutResult = await checkoutReservedParts(bookingId);
@@ -9398,10 +9400,6 @@ ${isRepair ? `
               }, 500);
             }
           }
-          loadAssignments(currentFilter, currentPage, document.getElementById('searchInput').value);
-          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-            await showDetail(window._currentDetailId);
-          }
         } else if (['DAILY_KIT_REQUIRED', 'DAILY_KIT_DELTA_REQUIRED', 'DAILY_KIT_JOB_NOT_INCLUDED'].includes(data.code)) {
           showNotification({ type: 'warning', title: 'Daily Preparation Needed', message: data.error || 'Complete your Daily Preparation before going En Route.', duration: 7000 });
           openDailyKitModal();
@@ -9409,7 +9407,7 @@ ${isRepair ? `
           showNotification({ type: 'error', title: 'Failed', message: data.error || 'Could not start en route', duration: 5000 });
         }
       } catch (e) { showNotification({ type: 'error', title: 'Network Error', message: 'Please try again', duration: 5000 }); }
-      finally { if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; } }
+      finally { finishUpdate(); if (btn) { btn.classList.remove('btn-loading'); btn.disabled = false; btn._btnLoadingActive = false; } }
     };
 
     // ── Reserve / check out parts ─────────────────────────────────────────
@@ -10072,7 +10070,9 @@ function preparationEscapeHtml(value) {
         }
       } else if (!confirm(`Confirm: ${labels[status] || status}?`)) return;
 
-      window._btnLoading(btn, async () => {
+      return window._btnLoading(btn, async () => {
+        const finishUpdate = window.TechnicianWorkUpdates.beginMutation();
+        try {
         const res = await fetch(`/api/technician/assignments/${id}/status`, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
           body: JSON.stringify({ status, ...(startProof || {}), ...(arrivalProof || {}) })
@@ -10108,11 +10108,6 @@ function preparationEscapeHtml(value) {
           if (status === 'on_site' && window.hideRoutePanel) {
             window.hideRoutePanel();
           }
-          loadAssignments(currentFilter, currentPage);
-          // Also refresh detail panel if it's currently open
-          if (window._currentDetailId && document.getElementById('rightPanel').classList.contains('open')) {
-            showDetail(window._currentDetailId);
-          }
         } else {
           // Handle TOO_EARLY specifically for better UX
           if (data.code === 'TOO_EARLY') {
@@ -10134,6 +10129,9 @@ function preparationEscapeHtml(value) {
             showNotification({ type: 'error', title: 'Update Failed', message: data.error || 'Failed to update status', duration: 5000 });
           }
         }
+        } catch (error) {
+          showNotification({ type: 'error', title: 'Update Failed', message: 'Unable to update the job. Check your connection and try again.', duration: 5000 });
+        } finally { finishUpdate(); }
       });
     };
 
@@ -11450,10 +11448,15 @@ function preparationEscapeHtml(value) {
     window._refreshTechnicianWork = async function () {
       repairQueueCache.loadedAt = 0;
       tabCountsCache.loadedAt = 0;
-      await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true });
-      if (window._currentDetailId && document.getElementById('rightPanel')?.classList.contains('open')) {
-        await window.showDetail(window._currentDetailId);
+      if (document.querySelector('.mw-mode-btn[data-mode="projects"].active')) {
+        await Promise.all([window.__loadProjectWork?.(), window._updateWorkKpis?.()]);
+        return;
       }
+      const updates = [loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '', { quiet: true })];
+      if (window._currentDetailId && document.getElementById('rightPanel')?.classList.contains('open')) {
+        updates.push(window.showDetail(window._currentDetailId));
+      }
+      await Promise.all(updates);
     };
     (function initAssignmentSocketListeners() {
       try {
@@ -11480,13 +11483,7 @@ function preparationEscapeHtml(value) {
               : `New job: ${data.serviceName} for ${data.customerName}`),
             duration: 10000
           });
-          if (currentFilter === 'pending' || currentFilter === 'all') {
-            loadAssignments();
-          }
-          if (isProject && typeof window.__loadProjectWork === 'function') {
-            window.__loadProjectWork();
-          }
-          fetchTabCounts();
+          window.TechnicianWorkUpdates?.request();
         });
         window.socket.on('project:team_assigned', (data) => {
           showNotification({
@@ -11495,13 +11492,7 @@ function preparationEscapeHtml(value) {
             message: data.message || `You have been assigned to a commercial project. Lead: ${data.lead || 'N/A'}. Open My Work to Accept or Decline.`,
             duration: 10000
           });
-          if (currentFilter === 'pending' || currentFilter === 'all') {
-            loadAssignments();
-          }
-          if (typeof window.__loadProjectWork === 'function') {
-            window.__loadProjectWork();
-          }
-          fetchTabCounts();
+          window.TechnicianWorkUpdates?.request();
         });
         window.socket.on('daily_kit:updated', (data) => {
           showNotification({
@@ -11543,6 +11534,8 @@ function preparationEscapeHtml(value) {
     };
 
     window.closeDetailPanel = function () {
+      detailLoadSequence++;
+      detailLoad = null;
       if (window._routeMapWatcher) { navigator.geolocation.clearWatch(window._routeMapWatcher); window._routeMapWatcher = null; }
       const panel = document.getElementById('rightPanel');
       const left = document.getElementById('leftPanel');
@@ -11562,18 +11555,33 @@ function preparationEscapeHtml(value) {
       if (preferredTab) switchDetailTab(preferredTab);
     };
 
-    window.showDetail = async function (id) {
+    let detailLoadSequence = 0, detailLoad = null;
+    window.showDetail = function (id) {
+      const revision = window.TechnicianWorkUpdates?.revision || 0;
+      if (detailLoad?.id === String(id) && detailLoad.revision === revision) return detailLoad.promise;
+      const sequence = ++detailLoadSequence;
+      const promise = loadAssignmentDetail(id, sequence).finally(() => {
+        if (detailLoad?.promise === promise) detailLoad = null;
+      });
+      detailLoad = { id: String(id), promise, revision };
+      return promise;
+    };
+    async function loadAssignmentDetail(id, sequence) {
       try {
         const isRefreshingSameJob = String(window._currentDetailId || '') === String(id || '');
+        const keepVisible = isRefreshingSameJob && document.getElementById('rightPanel').classList.contains('open') && document.getElementById('detailPanelContent').style.display !== 'none';
+        const previousScroll = keepVisible ? document.getElementById('detailPanelBody').scrollTop : 0;
         const activeTabBeforeRefresh = isRefreshingSameJob
           ? (document.querySelector('#detailPanelContent .mw-detail-tab.active')?.dataset?.tab || window._activeDetailTab)
           : null;
-        // Show loading state
+        // Keep the current job visible during a background/status refresh.
+        if (!keepVisible) {
         document.getElementById('detailPanelHeader').style.display = 'none';
         document.getElementById('detailPanelEmpty').style.display = 'none';
         document.getElementById('detailPanelContent').style.display = 'none';
         document.getElementById('detailPanelActions').style.display = 'none';
         document.getElementById('detailPanelLoading').style.display = '';
+        }
 
         // Open panel and focus on the active job (hide the list)
         const panel = document.getElementById('rightPanel');
@@ -11585,6 +11593,7 @@ function preparationEscapeHtml(value) {
         const res = await fetch(`/api/technician/assignments/${id}`, { credentials: 'same-origin' });
         if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || `HTTP ${res.status}`); }
         const { assignment: a, techLocation } = await res.json();
+        if (sequence !== detailLoadSequence) return;
         if (a.workUnavailable) {
           window.closeDetailPanel();
           showNotification({ type: 'info', title: 'Job updated by staff', message: a.workUnavailableReason || 'This visit is no longer active. Your work list has been refreshed.', duration: 6000 });
@@ -11695,6 +11704,7 @@ function preparationEscapeHtml(value) {
           }
         }
 
+        if (sequence !== detailLoadSequence) return;
         const date = a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
         const bookingRef = a.bookingReference || a._id?.toString().slice(-6).toUpperCase() || 'N/A';
 
@@ -11984,6 +11994,7 @@ function preparationEscapeHtml(value) {
         }
         contentEl.style.display = '';
         document.getElementById('detailPanelLoading').style.display = 'none';
+        if (keepVisible) document.getElementById('detailPanelBody').scrollTop = previousScroll;
 
         // ── Action bar ──
         const actionBar = document.getElementById('detailPanelActions');
@@ -12463,10 +12474,11 @@ function preparationEscapeHtml(value) {
         };
 
       } catch (e) {
+        if (sequence !== detailLoadSequence) return;
         console.error('[showDetail] Error:', e);
         showNotification({ type: 'error', title: 'Load Failed', message: 'Failed to load assignment details.', duration: 5000 });
         document.getElementById('detailPanelLoading').style.display = 'none';
-        document.getElementById('detailPanelEmpty').style.display = '';
+        if (document.getElementById('detailPanelContent').style.display === 'none') document.getElementById('detailPanelEmpty').style.display = '';
       }
     };
 
@@ -13639,11 +13651,7 @@ function preparationEscapeHtml(value) {
       if (kpiLoading) return;
       kpiLoading = true;
 
-      // Show loading shimmer
-      ['kpiTotal', 'kpiCompleted', 'kpiPending', 'kpiToday', 'kpiRevenue', 'kpiPartsCost', 'kpiGrossProfit', 'kpiCompletionRate'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.opacity = '0.4';
-      });
+      // Keep the last known totals visible while refreshing in the background.
 
       try {
         const res = await fetch('/api/technician/kpis', { credentials: 'same-origin' });
@@ -14032,8 +14040,7 @@ function preparationEscapeHtml(value) {
 
     // ── Boot ──
     updateKpis();
-    // Auto-refresh KPIs every 60 seconds
-    setInterval(updateKpis, 60000);
+    // The shared work refresh updates these together with the visible jobs.
   })();
 </script>
 
@@ -18610,7 +18617,7 @@ function preparationEscapeHtml(value) {
   tryOpen();
 })();
 </script>
-<script src="/js/technician-work-updates.js?v=20261012"></script>
+<script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-units.js?v=20261013"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>
