@@ -76,6 +76,7 @@ async function enqueueEmail(payload) {
     source: String(payload.source || "application").slice(0, 80),
     ...(payload.validUntil ? { validUntil: payload.validUntil } : {}),
     ...(payload.loginOtp ? { loginOtp: payload.loginOtp } : {}),
+    ...(payload.bookingReminder ? { bookingReminder: payload.bookingReminder } : {}),
   };
   const encrypted = encryptPayload(normalized);
   const job = await EmailOutbox.create({
@@ -111,7 +112,19 @@ function retryDelayMs(attempts) {
 }
 
 async function cancellationReason(payload, now = Date.now()) {
-  if (payload.validUntil && !(Date.parse(payload.validUntil) > now)) return "Verification email expired before delivery.";
+  if (payload.validUntil && !(Date.parse(payload.validUntil) > now)) return payload.source === 'service-reminder' ? 'Appointment reminder expired before delivery.' : "Verification email expired before delivery.";
+  if (payload.source === 'service-reminder' && payload.bookingReminder) {
+    const reminder = payload.bookingReminder;
+    if (!['customerReminder24hFor', 'customerReminder2hFor'].includes(reminder.marker) ||
+        !Number.isFinite(Date.parse(reminder.bookingDate)) || !Number.isFinite(Date.parse(reminder.scheduledFor)) ||
+        Date.parse(reminder.scheduledFor) <= now) return 'Appointment reminder is no longer current.';
+    const BookingService = require('../models/BookingService');
+    const active = await BookingService.exists({ _id: reminder.bookingId, testDataExcludedAt: null,
+      status: { $in: ['confirmed', 'scheduled', 'repair_scheduled', 'inspection_scheduled'] },
+      bookingDate: new Date(reminder.bookingDate), startTime: reminder.startTime,
+      [reminder.marker]: new Date(reminder.scheduledFor) });
+    return active ? '' : 'Appointment was rescheduled, cancelled, or is no longer confirmed.';
+  }
   if (payload.source !== "login_otp") return "";
   // Old jobs from before browser-bound challenges cannot complete a new login.
   if (!payload.loginOtp?.userId || !payload.loginOtp.hash || !payload.validUntil) return "Login verification request was replaced or expired.";

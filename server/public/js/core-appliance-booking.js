@@ -170,6 +170,18 @@
     }
     if (step < 3) { refreshServices(); setStep(step + 1); }
   }
+  function advanceCompletedRepairDetails(event) {
+    if (!hooks.repair || !['brand', 'brandCustom', 'model', 'quantity'].includes(event.target.name)) return;
+    setTimeout(() => {
+      if (step !== 2 || saved || helpOpen || !host.isConnected || !detailsValid()) return;
+      const panel = host.querySelector('[data-panel="2"]');
+      if (!panel.getClientRects().length) return;
+      const active = document.activeElement;
+      if (active?.closest('[data-cancel], [data-back], [data-unit-help], [data-help-ai], [data-help-staff]')) return;
+      if (panel.contains(active) && active.matches('input, select, textarea, [data-minus], [data-plus]')) return;
+      next();
+    }, 0);
+  }
   function refreshTypes() {
     refreshBrands();
     if (hooks.repair) {
@@ -342,6 +354,7 @@
       }
     });
     if (options.repair) {
+      host.querySelector('[data-details-required]').textContent = 'Fields marked * are required. Services will open automatically when you finish these details.';
       host.querySelector('[data-assistance] h4').textContent = 'Describe the problem';
       host.querySelector('[data-assistance] p').textContent = 'Choose Repair inspection and describe what happened. Repair work is quoted after inspection and needs separate approval.';
       const notes = field('assistanceNotes'); notes.required = true; notes.minLength = 10; notes.maxLength = 500; notes.placeholder = 'Tell us what happened, in at least 10 characters.';
@@ -372,6 +385,7 @@
       changed();
     });
     host.addEventListener('input', event => { if (['quantity', 'brand', 'brandCustom', 'model', 'moveFrom', 'moveTo', 'assistanceNotes'].includes(event.target.name)) { closeConfirmation(); if (event.target.name === 'quantity') host.querySelector('[data-quantity-feedback]').textContent = ''; updateTotal(); changed(); } });
+    host.addEventListener('focusout', advanceCompletedRepairDetails);
     field('quantity').addEventListener('blur', () => { syncLimit(true); updateTotal(); });
     host.addEventListener('click', event => {
       const review = event.target.closest('[data-booking-review]');
