@@ -22,7 +22,7 @@ function parseArguments(args) {
 
 async function main(args) {
   if (args.includes("--help")) {
-    console.log("Preview (read-only): node server/scripts/reset-booking-order-data.js\nPrepare private recovery files: node server/scripts/reset-booking-order-data.js --prepare\nApply prepared reset and seed: node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/FILE.ejson\nRestore unchanged reset: node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/FILE.ejson\nSee docs/booking-order-data-reset.md before applying. This does not run automatically during deployment.");
+    console.log("Preview (read-only): node server/scripts/reset-booking-order-data.js\nPrepare private compressed recovery files: node server/scripts/reset-booking-order-data.js --prepare\nApply prepared reset and seed: node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/FILE.ejson.gz\nRestore unchanged reset: node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/FILE.ejson.gz\nSee docs/booking-order-data-reset.md before applying. This does not run automatically during deployment.");
     return;
   }
   const options = parseArguments(args);

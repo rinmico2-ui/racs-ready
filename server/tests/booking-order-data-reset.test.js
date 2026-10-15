@@ -158,7 +158,7 @@ test("simulated custody removal keeps stock unchanged and records the acknowledg
   f.state.dailykits = confirmed.dailykits.map(value => ({ _id: new mongoose.Types.ObjectId(value), items: [{ quantityIssued: 2, quantityReturned: 0 }] }));
   const physical = f.state.tools[0].quantity, checkedOut = f.state.tools[0].checkedOutQuantity;
   const prepared = await prepare(t, f);
-  assert.equal(reset.readResetBackup(prepared.backup).artifact.acknowledgedTestCustody.dailykits.length, 3);
+  assert.equal((await reset.readResetBackup(prepared.backup)).artifact.acknowledgedTestCustody.dailykits.length, 3);
   const result = await reset.applyReset({ ...f, backupFile: prepared.backup, now });
   assert.equal(result.mode, "reset-and-seeded");
   assert.equal(f.state.tools[0].quantity, physical); assert.equal(f.state.tools[0].checkedOutQuantity, checkedOut);
@@ -171,12 +171,12 @@ test("simulated custody removal keeps stock unchanged and records the acknowledg
 test("preparing writes only a private checksummed recovery file", async t => {
   const f = fixture(), result = await prepare(t, f);
   assert.equal(result.mode, "prepared"); assert.equal(f.writes, 0);
-  const { artifact, backupSha256 } = reset.readResetBackup(result.backup);
+  const { artifact, backupSha256 } = await reset.readResetBackup(result.backup);
   assert.equal(backupSha256, result.backupSha256);
   assert.equal(artifact.original.remove.payments.length, 1);
   assert.equal(artifact.seed.bookingservices.length, COUNT);
   assert.ok(artifact.original.tools[0]._id instanceof mongoose.Types.ObjectId);
-  assert.throws(() => reset.writeResetBackup(artifact, path.resolve(__dirname, "../public/reset-backup")), /public\/upload/);
+  await assert.rejects(reset.writeResetBackup(artifact, path.resolve(__dirname, "../public/reset-backup")), /public\/upload/);
 });
 
 test("completed demo bookings have consistent paid ledgers, costs, historical dates and disabled identities", async () => {
@@ -221,7 +221,7 @@ test("a changed snapshot, corrupt backup or standalone server prevents any destr
   await assert.rejects(reset.applyReset({ ...f, backupFile: prepared.backup, now }), /replica set/);
   assert.equal(f.writes, 0);
   fs.appendFileSync(prepared.backup, " ");
-  assert.throws(() => reset.readResetBackup(prepared.backup), /checksum/);
+  await assert.rejects(reset.readResetBackup(prepared.backup), /checksum/);
 });
 
 test("write failures roll the deletion and seed back together", async t => {
@@ -340,4 +340,79 @@ test("maintenance, expired preparations and edited demo identities are guarded",
   await reset.applyReset({ ...f, backupFile: prepared.backup, now });
   f.state.users.find(row => row.email.endsWith("@example.invalid") && row.blocked).active = true;
   await assert.rejects(reset.applyReset({ ...f, backupFile: prepared.backup, now, restore: true }), /changed after the snapshot/);
+});
+
+test("compressed recovery round-trips more than 64 MiB of original evidence without omitting BSON types", async t => {
+  const evidence = "x".repeat(8 * 1024 * 1024);
+  const original = { remove: { bookingservices: Array.from({ length: 9 }, (_, index) => ({ _id: oid(), createdAt: now, quantity: index + 1, proofPhoto: evidence })) }, tools: [], technicians: [], services: [], settings: [], demoUsers: [], emailBlockers: [] };
+  const artifact = { schemaVersion: 1, operation: reset.RESET_KEY, database: "isolated-reset-fixture", preparedAt: now, original, seed: { users: [] } };
+  const prepared = await reset.writeResetBackup(artifact, temporaryDirectory(t));
+  assert.ok(prepared.expandedBytes > 64 * 1024 * 1024);
+  assert.ok(prepared.compressedBytes < 1024 * 1024);
+  assert.equal(prepared.recoveryVerified, true);
+  assert.match(prepared.backup, /\.ejson\.gz$/);
+  const thin = (await reset.readResetBackup(prepared.backup, { omitOriginal: true })).artifact;
+  assert.equal(thin.original, undefined);
+  assert.equal(thin.originalSnapshotHash, reset.digest(original));
+  const recovered = (await reset.readResetBackup(prepared.backup)).artifact.original;
+  assert.equal(recovered.remove.bookingservices.length, 9);
+  assert.equal(recovered.remove.bookingservices[8].proofPhoto, evidence);
+  assert.ok(recovered.remove.bookingservices[0]._id instanceof mongoose.Types.ObjectId);
+  assert.equal(recovered.remove.bookingservices[0].createdAt.toISOString(), now.toISOString());
+  assert.equal(Number(recovered.remove.bookingservices[8].quantity), 9);
+});
+
+test("new reset application reads verified metadata without retaining another full source snapshot", async t => {
+  const f = fixture(), prepared = await prepare(t, f);
+  const recovery = require("../utils/resetRecoveryBackup"), read = recovery.readResetBackup;
+  let originalOmitted = false;
+  t.mock.method(recovery, "readResetBackup", async (file, options) => {
+    const result = await read(file, options);
+    originalOmitted = options.omitOriginal === true && result.artifact.original === undefined;
+    return result;
+  });
+  assert.equal((await reset.applyReset({ ...f, backupFile: prepared.backup, now })).mode, "reset-and-seeded");
+  assert.equal(originalOmitted, true);
+});
+
+test("corrupt or truncated compressed recovery is refused before database mutation", async t => {
+  const f = fixture(), prepared = await prepare(t, f), zlib = require("node:zlib"), crypto = require("node:crypto");
+  const originalBytes = fs.readFileSync(prepared.backup);
+  function replace(bytes) {
+    fs.writeFileSync(prepared.backup, bytes);
+    fs.writeFileSync(prepared.backup + ".sha256", crypto.createHash("sha256").update(bytes).digest("hex") + "\n");
+  }
+  replace(originalBytes.subarray(0, originalBytes.length - 8));
+  await assert.rejects(reset.applyReset({ ...f, backupFile: prepared.backup, now }));
+  assert.equal(f.writes, 0);
+  const lines = zlib.gunzipSync(originalBytes).toString("utf8").trimEnd().split("\n");
+  const index = lines.findIndex(line => line.includes("OLD-BOOK-0001"));
+  lines[index] = lines[index].replace("OLD-BOOK-0001", "ALTERED-000001");
+  replace(zlib.gzipSync(lines.join("\n") + "\n"));
+  await assert.rejects(reset.applyReset({ ...f, backupFile: prepared.backup, now }), /snapshot verification/);
+  assert.equal(f.writes, 0);
+});
+
+test("legacy uncompressed recovery files can still apply and restore", async t => {
+  const f = fixture(), prepared = await prepare(t, f), crypto = require("node:crypto");
+  const { artifact } = await reset.readResetBackup(prepared.backup);
+  delete artifact.snapshotDigestVersion; delete artifact.originalSnapshotHash;
+  const file = prepared.backup.replace(/\.gz$/, ""), bytes = reset.serialize(artifact);
+  fs.writeFileSync(file, bytes);
+  fs.writeFileSync(file + ".sha256", crypto.createHash("sha256").update(bytes).digest("hex") + "\n");
+  assert.equal((await reset.applyReset({ ...f, backupFile: file, now })).mode, "reset-and-seeded");
+  assert.equal((await reset.applyReset({ ...f, backupFile: file, now, restore: true })).mode, "restored");
+  assert.equal(f.state.bookingservices.length, 1);
+  assert.equal(f.state.orders.length, 1);
+});
+
+test("failed recovery publication removes only files created by that attempt", async t => {
+  const f = fixture(), directory = temporaryDirectory(t);
+  const artifact = { schemaVersion: 1, operation: reset.RESET_KEY, database: f.db.databaseName, preparedAt: now,
+    original: await reset.snapshotResetData(f.db, undefined, f), seed: { users: [] } };
+  fs.writeFileSync(path.join(directory, "keep-private-backup.txt"), "Existing recovery material");
+  t.mock.method(fs.promises, "rename", async () => { throw Object.assign(Error("Simulated disk failure"), { code: "EIO" }); });
+  await assert.rejects(reset.writeResetBackup(artifact, directory), /Simulated disk failure/);
+  assert.deepEqual(fs.readdirSync(directory), ["keep-private-backup.txt"]);
+  assert.equal(f.writes, 0);
 });

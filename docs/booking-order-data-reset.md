@@ -72,7 +72,7 @@ contains the original document references.
    node server/scripts/reset-booking-order-data.js --prepare
    ```
 
-   `mode: prepared` includes a private `/app/temp/booking-order-reset-....ejson`
+   `mode: prepared` includes a private `/app/temp/booking-order-reset-....ejson.gz`
    path and SHA-256 checksum. **Download that file and its `.sha256` sidecar to a
    private location on your computer before applying.** While signed in as admin,
    open each `backupDownloadPath` and `checksumDownloadPath` from the output on
@@ -82,10 +82,19 @@ contains the original document references.
    public/uploads. Container files can disappear on redeployment. If you cannot
    download and preserve both files outside the container, stop before applying.
    This targeted snapshot is not a complete, off-server database backup.
+   The gzip-compressed recovery file stores each full document as an Extended
+   JSON record, including saved evidence images. It is streamed to disk and
+   decoded again to verify counts, types and the original snapshot fingerprint
+   before `recoveryVerified: true` is printed. `compressedBytes`, `expandedBytes`
+   and `largestSections` describe its size without exposing document contents.
+   Limits remain bounded: 1 GiB expanded, 256 MiB compressed, 128 MiB per record,
+   and 50,000 records per section. Applying the reset verifies the file while
+   discarding the original document bodies from memory; recovery loads those
+   originals. Legacy uncompressed snapshots up to 64 MiB remain readable.
 4. Within 30 minutes, substitute the exact path from step 3:
 
    ```sh
-   node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/EXACT-FILE.ejson
+   node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/EXACT-FILE.ejson.gz
    ```
 
    Success is `mode: reset-and-seeded`. A changed snapshot, failed write, custody
@@ -109,7 +118,7 @@ While maintenance is still enabled and before any subsequent work changes the
 affected records, use the same private files:
 
 ```sh
-node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/EXACT-FILE.ejson
+node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/EXACT-FILE.ejson.gz
 ```
 
 Restore removes the exact seeded IDs, restores deleted documents and the changed

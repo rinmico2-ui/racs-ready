@@ -1,9 +1,8 @@
 "use strict";
 
-const fs = require("node:fs");
 const path = require("node:path");
-const crypto = require("node:crypto");
-const mongoose = require("mongoose");
+const recovery = require("./resetRecoveryBackup");
+const { serialize, deserialize, digest, snapshotDigest, writeResetBackup } = recovery;
 const { COUNT, BATCH, demoId, catalogPrice, buildCompletedDemoSeed } = require("./completedBookingDemoSeed");
 
 const RESET_KEY = "booking-order-reset-20261015-v1";
@@ -28,9 +27,6 @@ const WORK_COLLECTIONS = Object.freeze([
 ]);
 const PARTIAL_COLLECTIONS = Object.freeze(["expenses", "productreturns", "productrefunds", "productreturnmovements", "ratings", "notifications", "emailoutboxes"]);
 const SEED_COLLECTIONS = Object.freeze(["users", "technicians", "bookingservices", "assignments", "payments", "servicereports"]);
-const serialize = value => mongoose.mongo.BSON.EJSON.stringify(value, null, 2, { relaxed: false });
-const deserialize = value => mongoose.mongo.BSON.EJSON.parse(value, { relaxed: false });
-const digest = value => crypto.createHash("sha256").update(serialize(value)).digest("hex");
 const id = value => String(value || "");
 const ids = rows => rows.map(row => row._id);
 const present = field => ({ [field]: { $exists: true, $ne: null } });
@@ -119,30 +115,11 @@ function buildResetPlan(data) {
   };
 }
 
-function writeResetBackup(artifact, directory = path.resolve(__dirname, "../../temp")) {
-  const root = path.resolve(directory);
-  const exposed = [path.resolve(__dirname, "../public"), path.resolve(__dirname, "../../public"), path.resolve(__dirname, "../uploads")];
-  if (exposed.some(parent => root === parent || root.startsWith(parent + path.sep))) throw Error("Recovery backups must be stored outside public/upload directories.");
-  fs.mkdirSync(root, { recursive: true, mode: 0o700 });
-  const actualRoot = fs.realpathSync(root);
-  if (exposed.some(parent => actualRoot === parent || actualRoot.startsWith(parent + path.sep))) throw Error("Recovery backups must not resolve into public/upload directories.");
-  const file = path.join(root, `booking-order-reset-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.ejson`);
-  const bytes = serialize(artifact);
-  if (Buffer.byteLength(bytes) > 64 * 1024 * 1024) throw Error("The reset backup exceeds 64 MiB. Arrange a full database backup and a planned migration.");
-  const backupSha256 = crypto.createHash("sha256").update(bytes).digest("hex");
-  fs.writeFileSync(file, bytes, { flag: "wx", mode: 0o600 });
-  fs.writeFileSync(file + ".sha256", backupSha256 + "\n", { flag: "wx", mode: 0o600 });
-  if (crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex") !== backupSha256) throw Error("Recovery backup verification failed. No database changes made.");
-  const download = `/admin/maintenance/data-reset-backups/${path.basename(file)}`;
-  return { backup: file, backupSha256, backupDownloadPath: download, checksumDownloadPath: download + ".sha256" };
-}
-
-function readResetBackup(file) {
-  const bytes = fs.readFileSync(file), actual = crypto.createHash("sha256").update(bytes).digest("hex");
-  if (actual !== fs.readFileSync(file + ".sha256", "utf8").trim()) throw Error("The recovery backup checksum does not match. No database changes made.");
-  const artifact = deserialize(bytes.toString("utf8"));
+async function readResetBackup(file, options) {
+  const result = await recovery.readResetBackup(file, options);
+  const { artifact } = result;
   if (artifact.operation !== RESET_KEY || Number(artifact.schemaVersion) !== 1) throw Error("This is not a supported booking/order reset backup.");
-  return { artifact, backupSha256: actual };
+  return result;
 }
 
 async function prepareReset({ db, backupDirectory, now = new Date(), decryptEmail }) {
@@ -155,12 +132,12 @@ async function prepareReset({ db, backupDirectory, now = new Date(), decryptEmai
     if (await db.collection(name).findOne({ _id: { $in: ids(seed[name]) } })) throw Error("A reserved demo identity already exists. No database changes made.");
   }
   const artifact = { schemaVersion: 1, operation: RESET_KEY, database: db.databaseName, preparedAt: now, original, seed,
-    acknowledgedTestCustody: plan.acknowledgedTestCustody };
-  return { ...plan, mode: "prepared", databaseChanges: 0, ...writeResetBackup(artifact, backupDirectory), next: "Download both private backup files before applying. Do not post their contents or place them in public/uploads." };
+    acknowledgedTestCustody: plan.acknowledgedTestCustody, preparedPlan: plan };
+  return { ...plan, mode: "prepared", databaseChanges: 0, ...await writeResetBackup(artifact, backupDirectory), next: "Download both private backup files before applying. Do not post their contents or place them in public/uploads." };
 }
 
 async function applyReset({ db, client, backupFile, now = new Date(), decryptEmail, restore = false }) {
-  const { artifact, backupSha256 } = readResetBackup(backupFile);
+  const { artifact, backupSha256 } = await readResetBackup(backupFile, { omitOriginal: !restore });
   if (artifact.database !== db.databaseName) throw Error("The recovery backup belongs to a different database.");
   const marker = await db.collection("sitesettings").findOne({ key: RESET_KEY });
   if (!restore && marker) return { mode: "already-applied", operation: RESET_KEY, message: "This one-time reset has already run. Later bookings will not be deleted." };
@@ -169,13 +146,15 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
   const hello = await db.admin().command({ hello: 1 });
   if (!hello.setName && hello.msg !== "isdbgrid") throw Error("Atomic reset requires a MongoDB replica set or sharded cluster. No standalone fallback is allowed.");
   const session = client.startSession();
-  const plan = buildResetPlan(artifact.original);
+  const plan = artifact.preparedPlan || buildResetPlan(artifact.original);
   let afterHash;
   try {
     await session.withTransaction(async () => {
       const current = await snapshotResetData(db, session, { decryptEmail });
       if (!current.settings[0]?.value?.maintenance?.enabled) throw Error("Enable maintenance in Admin System Settings before changing records.");
-      if (digest(current) !== (restore ? marker.value.afterHash : digest(artifact.original))) throw Error("Records changed after the snapshot. No changes made. Prepare again; do not overwrite newer work.");
+      const hashVersion = Number(restore ? marker.value.snapshotDigestVersion : artifact.snapshotDigestVersion) || 1;
+      const expectedHash = restore ? marker.value.afterHash : artifact.originalSnapshotHash || snapshotDigest(artifact.original, hashVersion);
+      if (snapshotDigest(current, hashVersion) !== expectedHash) throw Error("Records changed after the snapshot. No changes made. Prepare again; do not overwrite newer work.");
       if (!restore && buildResetPlan(current).blockers.length) throw Error("Unresolved custody or reservation checks block the reset. No changes made.");
       const options = { session };
       if (restore) {
@@ -207,7 +186,7 @@ async function applyReset({ db, client, backupFile, now = new Date(), decryptEma
         const remaining = Object.entries(after.remove).filter(([name, rows]) => rows.length !== (artifact.seed[name]?.length || 0));
         if (remaining.length || after.remove.bookingservices.some(row => row.status !== "completed") || after.remove.orders.length) throw Error("Reset verification failed; all changes were rolled back.");
         afterHash = digest(after);
-        await db.collection("sitesettings").insertOne({ key: RESET_KEY, value: { appliedAt: now, backupSha256, afterHash, seedUserIds: ids(artifact.seed.users) }, createdAt: now, updatedAt: now }, options);
+        await db.collection("sitesettings").insertOne({ key: RESET_KEY, value: { appliedAt: now, backupSha256, afterHash, snapshotDigestVersion: 2, seedUserIds: ids(artifact.seed.users) }, createdAt: now, updatedAt: now }, options);
       }
       await db.collection("activitylogs").insertOne({
         action: restore ? "BOOKING_ORDER_DATA_RESET_RESTORED" : "BOOKING_ORDER_DATA_RESET", actionType: "system",
