@@ -195,6 +195,7 @@ router.get("/services", pageAuth.requireCustomerOrGuest, async (req, res) => {
 
   res.render("pages/services", {
     title: "Book a Service",
+    showUnitIdentificationChatbot: true,
     googleCalendarClientId: process.env.GOOGLE_CALENDAR_CLIENT_ID || "",
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
     technicianLocation: defaultTechnicianLocation,

@@ -83,7 +83,7 @@ test("lightweight landing layout omits unrelated global libraries", async () => 
   }
 });
 
-test("chatbot renders once on landing and nowhere else in the public layout", async () => {
+test("chatbot renders once on landing and stays absent on pages without an assistant", async () => {
   const data = publicPageData();
   const landingHtml = await ejs.renderFile(
     path.join(viewsDirectory, "layouts", "main.ejs"),
@@ -99,6 +99,19 @@ test("chatbot renders once on landing and nowhere else in the public layout", as
   assert.equal((landingHtml.match(/id="racbotToggle"/g) || []).length, 1);
   assert.doesNotMatch(otherPageHtml, /id="racsChatbot"/);
   assert.doesNotMatch(chatbotSource, /initDraggable|racbot_drag_pos|pointerdown/);
+});
+
+test("the real services page has its unit identification chat bridge through the shared layout", async () => {
+  const data = { ...publicPageData(), title: 'Book a Service', user: null,
+    showLandingChatbot: false, showUnitIdentificationChatbot: true, lightweightPublicPage: false,
+    initialServices: { coreServices: [], repairs: [] }, adminGcashNumber: '', technicianLocation: null, googleMapsApiKey: '' };
+  const body = await ejs.renderFile(path.join(viewsDirectory,'pages','services.ejs'),data);
+  const html = await ejs.renderFile(path.join(viewsDirectory,'layouts','main.ejs'),{...data,body});
+  assert.equal((html.match(/id="racsChatbot"/g)||[]).length,1);
+  assert.match(html,/window\.RACSChat = \{ openUnitIdentification \}/);
+  assert.match(html,/core-appliance-booking\.js\?v=20261015-assistance-choice/);
+  const route = fs.readFileSync(path.join(__dirname,'../routes/pages.js'),'utf8');
+  assert.match(route,/res\.render\("pages\/services", \{\s*title: "Book a Service",\s*showUnitIdentificationChatbot: true/);
 });
 
 test("chatbot falls back from streaming and uses the visible mobile viewport", () => {
