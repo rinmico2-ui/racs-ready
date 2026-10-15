@@ -42,6 +42,14 @@ function writeServiceReportFragment(key, html) {
 
 let farePerKm = 40;
 
+// Recovery files are private and downloadable only through validated admin auth.
+// Reset/restore itself is deliberately available only in the server terminal.
+router.get(
+  "/admin/maintenance/data-reset-backups/:filename",
+  pageAuth.requireRole("admin"),
+  require("../utils/bookingOrderResetBackupDownload").createResetBackupDownload(),
+);
+
 // Report pages are read-only and expensive to render. A short private browser
 // cache makes back/forward and repeated sidebar navigation instant while the
 // process-level analytics cache below keeps fresh computations bounded.
@@ -2694,6 +2702,7 @@ router.get(
 
     try {
       const BookingService = require("../models/BookingService");
+      const Order = require("../models/Order");
       const Technician = require("../models/Technician");
       const Rating = require("../models/Rating");
       const {
@@ -2712,9 +2721,9 @@ router.get(
       // booking collection drives every KPI, chart and ranking on the page.
       const now = new Date();
       const { range, start: reportStart, end: reportEnd } = require('../utils/reportingDates').period(req.query, { now, defaultRange: '90', maxDays: 1827 });
-      // The focused report needs service bookings and technician labels only.
-      // Load them concurrently and avoid the old order/attendance reads that no
-      // longer feed anything rendered by this page.
+      // Load service bookings and technician labels concurrently. The targeted
+      // order lookup below excludes legacy installation bookings without a
+      // sourceOrderId so their value is counted only in Order Reports.
       const [bookingRows, technicians] = await Promise.all([
         BookingService.find({ ...require('../utils/reportingScope').reportableMatch(), createdAt: { $gte: reportStart, $lte: reportEnd }, sourceOrderId: null })
           .select("-statusHistory -services.statusHistory -services.priceHistory -cancellationHistory -rescheduleHistory -contactAttempts -imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof")

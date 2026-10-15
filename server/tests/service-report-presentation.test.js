@@ -102,11 +102,12 @@ test("advanced service filters are visible, retained, and applied server-side", 
   assert.match(serviceRoute, /bookings = bookings\.filter/);
 });
 
-test("filtered reports avoid obsolete and duplicate database reads", () => {
+test("filtered reports retain the targeted installation lookup and avoid duplicate reads", () => {
   assert.match(serviceRoute, /const \[bookingRows, technicians\] = await Promise\.all/);
   assert.match(serviceRoute, /includeSourceRows: true/);
   assert.match(serviceRoute, /serviceCostAnalytics\.sourceRows\?\.reports/);
-  assert.doesNotMatch(serviceRoute, /require\("\.\.\/models\/Order"\)/);
+  assert.match(serviceRoute, /const Order = require\("\.\.\/models\/Order"\)/);
+  assert.match(serviceRoute, /Order\.find\(\{ bookingId: \{ \$in: bookingRows\.map\(row => row\._id\) \} \}\)\.select\('bookingId'\)/);
   assert.doesNotMatch(serviceRoute, /require\("\.\.\/models\/TechnicianAttendance"\)/);
   assert.doesNotMatch(serviceRoute, /BookingService\.aggregate/);
   assert.match(template, /Updating…/);

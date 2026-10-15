@@ -1,0 +1,115 @@
+# One-time booking/order reset and completed demo data
+
+The owner requested removal of **all** bookings, orders and their transaction
+dependencies from the live database, followed by completed service sample data.
+This operator-only script never runs during application startup or deployment.
+Reset/restore has no HTTP endpoint. Recovery downloads require a validated admin
+login and are never publicly served. MongoDB must remain private.
+
+The default command only reads data. `--prepare` creates private recovery files;
+only `--apply --backup FILE` changes the database. All deletion, reservation
+cleanup, seeding and the completion marker share one MongoDB transaction.
+A standalone MongoDB server is refused; there is no partial-write fallback.
+
+## What changes
+
+- Removes bookings, aircon orders, projects, work orders, assignments, parts
+  requests, reports, service material usage, reservations, daily kits, equipment
+  assignments and kit returns, including orphan rows in those workflow collections.
+- Removes their payments, linked expenses, customer appliance/maintenance records,
+  warranty/relocation/unit assistance requests, booking/order ratings, notifications,
+  order product returns/refunds/movements and pending related email jobs.
+- Clears the reservation counters backed by the removed reservation ledgers and
+  changes stale busy technician availability to Offline. It does **not** add back
+  sold/consumed stock or treat issued equipment as physically returned.
+- Creates **24 completed, fully paid core-service demo bookings**, each with a
+  completed assignment, actual-date payment event and approved service report.
+  Dates cover the preceding 47 days in Philippine time. Saved demo labor costs
+  equal 25% of each booking's value. Unit rates come from an existing priced core
+  service; these remain synthetic transactions, not genuine earnings.
+- Creates three clearly named, blocked/inactive demo customers with random,
+  unrecoverable passwords and `.invalid` emails, plus two inactive demo technicians
+  without login accounts. Existing people do not receive fabricated transactions.
+  No email, OTP, gateway request, review or stock movement is generated.
+- Leaves orders empty. New orders and bookings created after a successful reset
+  are protected from accidental repeat runs by a one-time database marker.
+
+Existing accounts/staff, service and product catalogs, physical stock/checkout
+counters, independent counter sales and their returns, unrelated expenses,
+payroll, legacy technician/product ratings, security/activity/stock audit history
+and upload files remain. These retained transactions can still affect analytics.
+Receipts and other stored files are not recursively deleted; the recovery snapshot
+contains the original document references.
+
+## Run inside the Dokploy web application's terminal
+
+1. Deploy the code containing this script. Open **Admin → Settings → System**
+   (`/admin/settings/system`) and enable maintenance mode. Wait at least 30 seconds
+   for the existing settings cache to expire. Stop staff activity and close other
+   staff tabs: admins are exempt from ordinary maintenance mode. Background workers
+   may still run; if they change the snapshot, preparation must be repeated.
+2. Open the web application's terminal, then preview:
+
+   ```sh
+   cd /app
+   node server/scripts/reset-booking-order-data.js
+   ```
+
+   Review `deletionCounts`, `seed`, `physicalQuantityChanges` and `blockers`.
+   Return issued equipment/unused materials and settle pending kit returns through
+   the existing returns screens first. Cancel unissued, physically deducted legacy
+   reservations through the normal workflow. The script refuses to fabricate
+   returns, replenish stock, ignore custody or override those blockers.
+3. Prepare the recovery snapshot. This writes files only, with no database changes:
+
+   ```sh
+   node server/scripts/reset-booking-order-data.js --prepare
+   ```
+
+   `mode: prepared` includes a private `/app/temp/booking-order-reset-....ejson`
+   path and SHA-256 checksum. **Download that file and its `.sha256` sidecar to a
+   private location on your computer before applying.** While signed in as admin,
+   open each `backupDownloadPath` and `checksumDownloadPath` from the output on
+   your site's domain. For example, prefix `/admin/maintenance/...` with
+   `https://racsready.its-au.space`. Both files download as attachments; other roles
+   cannot access them. Do not post the contents, commit them, or move them into
+   public/uploads. Container files can disappear on redeployment. If you cannot
+   download and preserve both files outside the container, stop before applying.
+   This targeted snapshot is not a complete, off-server database backup.
+4. Within 30 minutes, substitute the exact path from step 3:
+
+   ```sh
+   node server/scripts/reset-booking-order-data.js --apply --backup /app/temp/EXACT-FILE.ejson
+   ```
+
+   Success is `mode: reset-and-seeded`. A changed snapshot, failed write, custody
+   problem or verification failure rolls the transaction back. Only IDs in the
+   prepared snapshot are deleted. Concurrent requests must remain stopped; this
+   maintenance tool does not place a database-wide lock on other application
+   processes. It must not be run during active customer/staff use.
+5. Keep maintenance enabled while checking Bookings (24 completed demo rows),
+   Orders (empty), technician work (no pending demo jobs), and Service Reports / Sales
+   and Payments with **Last 90 days**. Allow the report cache 30 seconds to expire.
+   Demo payments must equal demo approved work value, with zero demo balance.
+   Existing counter sales/payroll/unrelated expenses remain separate contributions.
+   Turn maintenance off after verification.
+
+Share only the aggregate terminal output for troubleshooting, never the recovery
+file. `already-applied` means no further reset or seed was performed.
+
+## Recovery
+
+While maintenance is still enabled and before any subsequent work changes the
+affected records, use the same private files:
+
+```sh
+node server/scripts/reset-booking-order-data.js --restore --backup /app/temp/EXACT-FILE.ejson
+```
+
+Restore removes the exact seeded IDs, restores deleted documents and the changed
+tool/technician fields, and retains an audit event for both operations. Original
+pending email jobs are restored too; their normal worker may resume sending them.
+Restore refuses changed records, inventory, catalog, settings or demo identities
+instead of overwriting newer work. If refused, preserve both the snapshot and the
+current database and arrange a selective recovery; do not delete the marker or
+manually overwrite live collections.
