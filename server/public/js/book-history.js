@@ -1351,7 +1351,7 @@
           <div class="modal-footer border-top" style="background:#f8fafc;padding:16px 28px">
             <button type="button" class="btn btn-light" data-bs-dismiss="modal"><i class="bi bi-x-lg me-1"></i>Cancel</button>
             <div class="d-flex align-items-center gap-2">
-              <button class="btn btn-primary" id="bhEditorSave"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+              <button type="button" class="btn btn-primary" id="bhEditorSave"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
             </div>
           </div>
         </div>
@@ -1616,14 +1616,25 @@
           } });
       }
 
+      async function showEditorFeedback(icon, title, text) {
+        if (typeof Swal !== 'undefined') {
+          return Swal.fire({ icon, title, text, confirmButtonText: 'OK', confirmButtonColor: '#2563eb' });
+        }
+        alert(text);
+      }
+
       function attachSaveHandler() {
         host.querySelector("#bhEditorSave").onclick = async event => {
-          const button = event.currentTarget; button.disabled = true;
+          const button = event.currentTarget;
+          if (button.disabled) return;
+          const originalHtml = button.innerHTML;
+          button.disabled = true;
+          button.setAttribute('aria-busy', 'true');
+          button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Saving...';
           try {
             if (coreBuilder?.pending() || repairBuilder?.pending()) {
-              alert('Finish adding the appliance or cancel its changes before saving the booking.'); return;
+              await showEditorFeedback('warning', 'Finish your appliance changes', 'Finish adding the appliance or cancel its changes before saving the booking.'); return;
             }
-            const promises = [];
             const reasonEl = host.querySelector("#bhServiceChangeReason");
             const reason = reasonEl ? reasonEl.value.trim() : "";
             const servicesChanged = JSON.stringify(rows) !== initialServicesSnapshot;
@@ -1631,76 +1642,70 @@
             const scheduleChanged = Boolean(selectedDate && (project ? selectedEndDate : selectedTime));
 
             if (!rows.length) {
-              alert("A booking must keep at least one service item.");
-              button.disabled = false;
+              await showEditorFeedback('warning', 'Choose a service', 'A booking must keep at least one service item.');
               return;
             }
             if (selectedUnits() > maxBookingUnits) {
-              alert(unitLimitMessage);
+              await showEditorFeedback('warning', 'Booking limit reached', unitLimitMessage);
               return;
             }
             if (project && !scheduleChanged) {
-              alert('Choose a start and end date for the project before saving.');
+              await showEditorFeedback('warning', 'Choose project dates', 'Choose a start and end date for the project before saving.');
               bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
               return;
             }
             if (project && EnterpriseCalendar.getWindowVerdict()?.sufficient !== true) {
-              alert('These dates do not have enough time for the project. Choose a longer date range.');
+              await showEditorFeedback('warning', 'Choose a longer date range', 'These dates do not have enough time for the project. Choose a longer date range.');
               bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
               return;
             }
             if (state.isProject && !project && !scheduleChanged) {
-              alert('This booking now fits a standard appointment. Choose a new date and start time before saving.');
+              await showEditorFeedback('warning', 'Choose an appointment', 'This booking now fits a standard appointment. Choose a new date and start time before saving.');
               bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
               return;
             }
 
-            if (servicesChanged || scheduleChanged) {
-              const rescheduleReason = host.querySelector("#bhEditorRescheduleReason")?.value?.trim() || reason || "";
-              const services = rows.map(row => ({
-                _id: row._id, type: row.type,
-                serviceId: row.serviceId, name: row.name || "",
-                applianceGroupId: row.applianceGroupId, applianceKind: row.applianceKind,
-                quantity: Number(row.quantity || 1),
-                brand: row.brand || "", model: row.model || "",
-                problemDescription: row.problemDescription || row.repairIssue || "",
-                unitCategory: row.unitCategory || "", unitType: row.unitType || row.applianceType || "",
-                applianceType: row.applianceType || "", applianceTypeName: row.applianceTypeName || "",
-                airconType: row.airconType || "", airconTypeName: row.airconTypeName || "", hp: row.hp,
-              }));
-              promises.push(
-                fetch(`/api/bookings/${encodeURIComponent(bookingId)}/service-change-requests`, {
-                  method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-                  body: JSON.stringify({
-                    services,
-                    reason: reason || rescheduleReason,
-                    requestedSchedule: scheduleChanged
-                      ? project
-                        ? { date: selectedDate, endDate: selectedEndDate, notes: rescheduleReason }
-                        : { date: selectedDate, startTime: selectedTime, notes: rescheduleReason }
-                      : undefined,
-                  })
-                }).then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Unable to save service changes"); return d; })
-              );
-            }
-
             if (!servicesChanged && !scheduleChanged) {
-              alert("Make a change to services or schedule before saving.");
-              button.disabled = false;
+              await showEditorFeedback('info', 'No changes detected', 'Make a change to services or schedule before saving.');
               return;
             }
 
-            const results = await Promise.allSettled(promises);
-            const errors = results.filter(r => r.status === "rejected").map(r => r.reason?.message || "Unknown error");
-            if (errors.length) {
-              alert("Some changes failed:\n" + errors.join("\n"));
-            } else {
-              const msgs = results.map(r => r.value?.message || (r.value?.applied ? "Services updated" : "Changes saved")).filter(Boolean);
-              alert(msgs.length ? msgs.join(". ") + "." : "Changes saved successfully.");
-              bootstrap.Modal.getOrCreateInstance(host).hide();
-              await fetchBookings();
-            }
-          } catch (error) { alert(error.message || "Unable to save changes"); } finally { button.disabled = false; }
+            const rescheduleReason = host.querySelector("#bhEditorRescheduleReason")?.value?.trim() || reason || "";
+            const services = rows.map(row => ({
+              _id: row._id, type: row.type,
+              serviceId: row.serviceId, name: row.name || "",
+              applianceGroupId: row.applianceGroupId, applianceKind: row.applianceKind,
+              quantity: Number(row.quantity || 1),
+              brand: row.brand || "", model: row.model || "",
+              problemDescription: row.problemDescription || row.repairIssue || "",
+              unitCategory: row.unitCategory || "", unitType: row.unitType || row.applianceType || "",
+              applianceType: row.applianceType || "", applianceTypeName: row.applianceTypeName || "",
+              airconType: row.airconType || "", airconTypeName: row.airconTypeName || "", hp: row.hp,
+            }));
+            const data = await window.RACSRequest.json(`/api/bookings/${encodeURIComponent(bookingId)}/service-change-requests`, {
+              method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+              body: JSON.stringify({
+                services,
+                reason: reason || rescheduleReason,
+                requestedSchedule: scheduleChanged
+                  ? project
+                    ? { date: selectedDate, endDate: selectedEndDate, notes: rescheduleReason }
+                    : { date: selectedDate, startTime: selectedTime, notes: rescheduleReason }
+                  : undefined,
+              })
+            });
+            await showEditorFeedback('success', data.applied ? 'Booking updated' : 'Request submitted', data.message || (data.applied
+              ? 'Your booking changes have been saved.'
+              : 'Your changes were submitted for staff review. Your current booking stays in place until they are approved.'));
+            bootstrap.Modal.getOrCreateInstance(host).hide();
+            await fetchBookings();
+          } catch (error) {
+            await showEditorFeedback('error', 'Unable to save changes', error.message || 'Please try again.');
+          } finally {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            button.innerHTML = originalHtml;
+          }
         };
       }
 
