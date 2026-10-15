@@ -53,10 +53,10 @@ const {
 // out of the reporting queries prevents base64 receipts and completion photos
 // from being transferred repeatedly for bookings, orders, and payments.
 const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
-const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
+const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.unitPrice items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
 const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
 const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod refundStatus testDataExcludedAt";
-const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.quantity items.totalPrice items.costPrice";
+const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal discount paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.unit items.quantity items.unitPrice items.totalPrice items.costPrice";
 
 /**
  * Resolve the reporting date range from either a preset `period` or explicit

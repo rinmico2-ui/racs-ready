@@ -48,6 +48,35 @@ test("POS uses the recorded sale cost and flags differing item costs without inv
   assert.equal(group.records.length, 1);
 });
 
+test("saved bought and selling prices explain item profit and discounted sale profit without changing report costs", () => {
+  const data = buildRevenueCostDetails({ posSales: [{ _id: "sale", totalAmount: 1900, totalCost: 1200, discount: 100,
+    items: [{ itemName: "Part", quantity: 2, unit: "pcs", costPrice: 600, unitPrice: 1000, totalPrice: 2000 }] }],
+    orders: [{ _id: "order", status: "completed", items: [{ quantity: 3, costPrice: 400, unitPrice: 700, totalPrice: 2100 }] }], totals: { pos: 1200, orders: 1200 } });
+  const sale = data.categories.find(group => group.key === "pos").records[0], item = sale.components[0];
+  assert.equal(item.quantity, 2); assert.equal(item.unitCost, 600); assert.equal(item.sellingPrice, 1000);
+  assert.equal(item.amount, 1200); assert.equal(item.salesAmount, 2000); assert.equal(item.grossProfit, 800);
+  assert.deepEqual(sale.salePricing, { salesAmount: 1900, discount: 100, grossProfit: 700 });
+  const order = data.categories.find(group => group.key === "orders").records[0];
+  assert.equal(order.sellingPrice, 700); assert.equal(order.salesAmount, 2100); assert.equal(order.grossProfit, 900);
+  assert.equal(sale.amount, 1200); assert.equal(data.total, 2400); assert.equal(data.reconciled, true);
+  const csv = require('../utils/reportCsv').buildReportCsv('revenue', { costDetails: data });
+  assert.match(csv, /"Selling Price","1000"/); assert.match(csv, /"Gross Profit","800"/);
+});
+
+test("missing saved prices stay unavailable, zero selling prices remain zero, and losses retain their sign", () => {
+  const records = buildRevenueCostDetails({ posSales: [
+    { _id: "missing", totalCost: 600, items: [{ quantity: 1, costPrice: 600 }] },
+    { _id: "missing-cost", totalCost: 0, totalAmount: 1100, items: [{ quantity: 1, unitPrice: 1100 }] },
+    { _id: "free", totalCost: 600, totalAmount: 0, discount: 0, items: [{ quantity: 1, unitPrice: 0, totalPrice: 0, costPrice: 600 }] },
+    { _id: "loss", totalCost: 600, totalAmount: 500, items: [{ quantity: 1, unitPrice: 500, costPrice: 600 }] },
+  ], totals: { pos: 1800 } }).categories.find(group => group.key === "pos").records;
+  const missing = records[0].components[0];
+  assert.equal(missing.sellingPrice, null); assert.equal(missing.salesAmount, null); assert.equal(missing.grossProfit, null);
+  assert.equal(records[0].salePricing.grossProfit, null); assert.equal(records[1].components[0].grossProfit, null); assert.equal(records[1].salePricing.grossProfit, null);
+  assert.equal(records[2].components[0].sellingPrice, 0); assert.equal(records[2].salePricing.grossProfit, -600);
+  assert.equal(records[3].components[0].salesAmount, 500); assert.equal(records[3].salePricing.grossProfit, -100);
+});
+
 test("saved missing order costs remain zero while legacy rows identify current catalog fallback", () => {
   const data = buildRevenueCostDetails({ orders: [{ _id: "legacy", status: "completed", completedAt: date, items: [{ inventoryId: "item", quantity: 1, costPrice: 0 }, { inventoryId: "item", quantity: 1 }] }],
     orderCostCatalog: [{ _id: "item", costPrice: 400 }], totals: { orders: 400 } });
@@ -135,6 +164,19 @@ test("cost list shows descriptions, references, item quantities and recorded dif
   assert.doesNotMatch(view.nodes.revenueCostRecordList.innerHTML, /<img|<script/);
   view.choose("expenses"); assert.match(view.nodes.revenueCostRecordTotal.textContent, /200\.00/);
   assert.doesNotMatch(view.nodes.revenueCostRecordList.innerHTML, /WIS-1|PRIVATE-PAYSLIP/);
+});
+
+test("product cards distinguish bought price, selling price, product cost, discounts and gross profit", () => {
+  const data = buildRevenueCostDetails({ posSales: [{ _id: "sale", invoiceNumber: "WIS-PRICES", totalAmount: 1000, totalCost: 600, discount: 100,
+    items: [{ itemName: '<img src=x onerror="alert(1)">', quantity: 1, costPrice: 600, unitPrice: 1100, totalPrice: 1100 }] }], totals: { pos: 600 } });
+  const view = browserView(); view.render({ costDetails: data });
+  const html = view.nodes.revenueCostRecordList.innerHTML;
+  for (const label of ["Bought price / unit", "Selling price / unit", "Item sales", "Product cost", "Item gross profit", "Bill discount", "Sale total after discount", "Sale gross profit", "Product cost deducted"]) assert.ok(html.includes(label), label);
+  for (const value of ["1,100.00", "1,000.00", "600.00", "500.00", "400.00", "100.00"]) assert.ok(html.includes(value), value);
+  assert.match(html, /before bill discounts/); assert.match(html, /before operating expenses, payroll and period refunds/);
+  assert.match(html, /&lt;img/); assert.doesNotMatch(html, /<img/); assert.match(view.nodes.revenueCostRecordTotal.textContent, /600\.00/);
+  view.render({ costDetails: buildRevenueCostDetails({ posSales: [{ _id: "old", totalCost: 600, items: [{ quantity: 1, costPrice: 600 }] }], totals: { pos: 600 } }) });
+  assert.match(view.nodes.revenueCostRecordList.innerHTML, /Selling price \/ unit<\/dt><dd>Unavailable/);
 });
 
 test("cost list pagination and refreshed or removed expenses use current record totals", () => {

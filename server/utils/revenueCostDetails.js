@@ -7,6 +7,12 @@ const text = (value, limit = 500) => String(value || "").slice(0, limit);
 const shortReference = (kind, value) => `${kind} …${String(value || "").slice(-8).toUpperCase()}`;
 const sum = rows => rows.reduce((total, row) => total + number(row.amount), 0);
 const close = (a, b) => Math.abs(a - b) < 0.005;
+const savedPrice = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : null;
+function productPricing(item, quantity, cost, hasCost) {
+  const sellingPrice = savedPrice(item.unitPrice);
+  const salesAmount = savedPrice(item.totalPrice) ?? (sellingPrice === null ? null : sellingPrice * quantity);
+  return { sellingPrice, salesAmount, grossProfit: salesAmount === null || !hasCost ? null : salesAmount - cost };
+}
 
 function buildRevenueCostDetails({ serviceRows = [], orders = [], orderCostCatalog = [], orderConsumableUsages = [], linkedServiceRows = [],
   posSales = [], projectMaterials = [], projectBookings = new Map(), operatingExpenses = [], payrollRows = [], totals = {} } = {}) {
@@ -47,6 +53,7 @@ function buildRevenueCostDetails({ serviceRows = [], orders = [], orderCostCatal
       const quantity = Math.max(0, number(item.quantity)), unitCost = orderItemCost(item, catalog);
       add("orders", { sourceId: String(order._id), kind: "order", reference: order.orderReference || shortReference("Order", order._id), date: orderCompletionDate(order), status: order.status,
         title: [item.brand, item.modelLine, item.capacity].filter(Boolean).join(" ") || "Aircon product", quantity, unitCost, unit: "units", amount: quantity * unitCost,
+        ...productPricing(item, quantity, quantity * unitCost, unitCost > 0),
         basis: Object.hasOwn(item, "costPrice") ? "Bought price saved on the order" : "Legacy order using current catalog cost",
         warning: quantity > 0 && !unitCost ? "No usable bought price is saved for this item. Its recorded cost is zero." : "" }, true);
     }
@@ -63,10 +70,16 @@ function buildRevenueCostDetails({ serviceRows = [], orders = [], orderCostCatal
     if (order) serviceCosts(service, "orders", order.orderReference || shortReference("Order", order._id), order._id, "order", orderCompletionDate(order));
   }
   for (const sale of posSales) {
-    const components = (sale.items || []).map(item => ({ label: text(item.itemName || "Counter product", 160), quantity: number(item.quantity), unitCost: number(item.costPrice), amount: number(item.quantity) * number(item.costPrice) }));
+    const components = (sale.items || []).map(item => {
+      const quantity = number(item.quantity), unitCost = number(item.costPrice), amount = quantity * unitCost;
+      return { label: text(item.itemName || "Counter product", 160), quantity, unit: text(item.unit || "pcs", 30), unitCost, amount,
+        ...productPricing(item, quantity, amount, unitCost > 0) };
+    });
     const amount = number(sale.totalCost), itemCost = sum(components);
+    const salesAmount = savedPrice(sale.totalAmount), hasCost = savedPrice(sale.totalCost) !== null && components.length > 0 && components.every(item => item.unitCost > 0);
     add("pos", { sourceId: String(sale._id), kind: "pos", reference: sale.invoiceNumber || shortReference("Counter sale", sale._id), date: sale.completedAt || sale.createdAt,
       title: "Counter sale product cost", status: sale.status, amount, components, basis: "Total cost saved on the completed counter sale",
+      salePricing: { salesAmount, discount: savedPrice(sale.discount), grossProfit: salesAmount === null || !hasCost ? null : salesAmount - amount },
       warning: !close(amount, itemCost) ? "The saved sale cost differs from the item costs below. The report uses the saved sale total; review the original sale."
         : components.some(item => item.quantity > 0 && item.unitCost <= 0) ? "Some items have no saved bought price. Their recorded cost is zero." : "" }, true);
   }
