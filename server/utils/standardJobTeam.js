@@ -23,6 +23,46 @@ function readiness(job, now = new Date()) {
   return { ready: blockers.length === 0, blockers };
 }
 function assertReady(job) { const state = readiness(job); if (!state.ready) throw failure('The whole team must accept before work can start. ' + state.blockers.join('; ')); }
+const repairVisitStates = new Set(['repair_approved', 'ready_for_repair', 'parts_reserved', 'repair_scheduled', 'repair_in_progress']);
+const waitingItemStates = new Set(['inspection_completed', 'diagnosis_completed', 'parts_check', 'awaiting_quotation', 'awaiting_customer_decision', 'on_hold']);
+function repairVisit(job, item) {
+  const itemVisit = item?.phase === 'repair_phase_2' || item?.schedule?.kind === 'repair' || repairVisitStates.has(item?.status);
+  // A mixed booking can have a diagnosed appliance alongside another appliance
+  // still awaiting inspection. Do not promote every item from its parent state.
+  if (item && (job.services || []).filter(row => row.type === 'repair' && !closed.has(row.status)).length > 1) return itemVisit;
+  return itemVisit || repairVisitStates.has(job.status) || Boolean(job.inspection?.completedAt && job.approval?.status === 'approved' && job.repairSchedule?.decidedAt);
+}
+function serviceReadyForVisit(job, item) { return !closed.has(item.status) && (!waitingItemStates.has(item.status) || item.type === 'repair' && repairVisit(job, item)); }
+function bookingAssignmentStatus(job) {
+  const repairs = (job.services || []).filter(row => row.type === 'repair' && serviceReadyForVisit(job, row));
+  const repaired = job.serviceModel === 'RepairService' || job.serviceType === 'repair' || repairs.length;
+  if (!repaired) return 'assigned';
+  return repairVisit(job) || repairs.some(row => repairVisit(job, row)) ? 'repair_scheduled' : 'inspection_scheduled';
+}
+function assignServiceItems(job, primary) {
+  if ((job.services || []).some(row => ['en_route', 'arrived', 'in_progress', 'inspection_in_progress', 'repair_in_progress', 'payment_pending'].includes(row.status))) throw failure('A service item has already started. Operations must review staffing changes.');
+  if (job.services?.length && !job.services.some(row => serviceReadyForVisit(job, row))) throw failure('No service item is ready for this visit. Complete the pending review before assigning technicians.');
+  for (const row of job.services || []) {
+    if (!serviceReadyForVisit(job, row)) continue;
+    row.technicianId = primary._id; row.technicianName = primary.name; row.assignmentId = job.assignmentId;
+    const repair = row.type === 'repair', secondVisit = repair && repairVisit(job, row);
+    row.status = repair ? secondVisit ? 'repair_scheduled' : 'inspection_scheduled' : 'assigned';
+    row.phase = repair ? secondVisit ? 'repair_phase_2' : 'repair_phase_1' : 'core';
+    row.schedule = { date: job.bookingDate, startTime: job.startTime, endTime: job.endTime,
+      durationMinutes: Number(row.schedule?.durationMinutes || row.duration || job.serviceDurationMinutes) || 60,
+      kind: repair ? secondVisit ? 'repair' : 'inspection' : 'service' };
+  }
+  if (job.status === 'inspection_scheduled') {
+    job.inspection ||= {}; job.inspection.technicianId = primary._id;
+    job.inspection.scheduledDate = job.bookingDate; job.inspection.scheduledTime = job.startTime;
+  }
+}
+function acceptServiceItems(job) {
+  for (const row of job.services || []) {
+    if (row.type === 'repair' || ref(row.assignmentId) !== ref(job.assignmentId) || ref(row.technicianId) !== ref(job.technicianId)) continue;
+    if (['pending', 'awaiting_assignment', 'assigned', 'scheduled'].includes(row.status)) row.status = 'accepted';
+  }
+}
 function publicTeam(job) { return members(job).map(row => ({ technicianId: ref(row.technicianId), name: row.name, role: isPrimary(job, row.technicianId) ? 'primary' : 'support', status: row.status, respondedAt: row.respondedAt, deadlineAt: row.deadlineAt })); }
 function fields(mongoose) {
   return { technicianTeamSchedule: String, technicianTeam: { type: [new mongoose.Schema({
@@ -61,7 +101,14 @@ async function prepareSchedule(source, job, slots = (...args) => require('../rou
   job.technicianTeam = members(job).map(row => ({ ...(row.toObject?.() || row), status: 'pending', deadlineAt: new Date(Date.now() + 30 * 60000), respondedAt: null, reason: '' }));
   job.technicianTeamSchedule = key;
   if (source === 'order') { job.status = 'technician_assigned'; job.technicianAcceptance = { status: 'pending', deadlineAt: job.technicianTeam[0].deadlineAt }; }
-  else if (['confirmed', 'scheduled'].includes(job.status)) job.status = 'assigned';
+  else {
+    if (['confirmed', 'scheduled'].includes(job.status)) job.status = 'assigned';
+    for (const row of job.services || []) {
+      if (closed.has(row.status) || ref(row.assignmentId) !== ref(job.assignmentId) || ref(row.technicianId) !== ref(job.technicianId)) continue;
+      row.schedule = { ...(row.schedule?.toObject?.() || row.schedule || {}), date: job.bookingDate, startTime: job.startTime, endTime: job.endTime };
+      if (row.type !== 'repair' && ['accepted', 'scheduled'].includes(row.status)) row.status = 'assigned';
+    }
+  }
 }
 function installHooks(schema, source) {
   schema.add(fields(require('mongoose')));
@@ -104,10 +151,19 @@ function installHooks(schema, source) {
     const before = await this.model.findOne(this.getFilter()).session(this.getOptions().session || null).lean();
     if (!members(before).length || source === 'booking' && before.sourceOrderId) return;
     const proposed = { ...before, ...set, ...(set['delivery.preferredDate'] ? { delivery: { ...before.delivery, preferredDate: set['delivery.preferredDate'] } } : {}) };
+    if (source === 'booking') proposed.services = (proposed.services || []).map(row => ({ ...row, schedule: { ...row.schedule || {} } }));
     await prepareSchedule(source, proposed);
     if (proposed.technicianTeamSchedule !== before.technicianTeamSchedule) {
       Object.assign(set, { technicianTeam: proposed.technicianTeam, technicianTeamSchedule: proposed.technicianTeamSchedule, status: proposed.status,
         ...(source === 'order' ? { technicianAcceptance: proposed.technicianAcceptance } : {}) });
+      if (source === 'booking') {
+        if (Object.prototype.hasOwnProperty.call(set, 'services')) set.services = proposed.services;
+        else for (const [index, row] of (proposed.services || []).entries()) {
+          if (closed.has(row.status) || ref(row.assignmentId) !== ref(proposed.assignmentId) || ref(row.technicianId) !== ref(proposed.technicianId)) continue;
+          for (const field of ['date', 'startTime', 'endTime']) set[`services.${index}.schedule.${field}`] = row.schedule[field];
+          if (!Object.prototype.hasOwnProperty.call(set, `services.${index}.status`)) set[`services.${index}.status`] = row.status;
+        }
+      }
     }
   });
   schema.post('save', async function(document) { await synchronize(document, document.$session?.()); });
@@ -117,4 +173,4 @@ function installHooks(schema, source) {
     if (document) await synchronize(document, this.getOptions().session);
   });
 }
-module.exports = { ref, members, ids, member, isPrimary, scope, normalize, readiness, assertReady, publicTeam, fields, capacityRows, scheduleKey, prepareSchedule, installHooks, failure, closed };
+module.exports = { ref, members, ids, member, isPrimary, scope, normalize, readiness, assertReady, bookingAssignmentStatus, assignServiceItems, acceptServiceItems, publicTeam, fields, capacityRows, scheduleKey, prepareSchedule, installHooks, failure, closed };

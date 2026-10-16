@@ -37,8 +37,9 @@
     const previous = primary.value;
     primary.innerHTML = (row.candidates || []).filter(person => checked.includes(person.technicianId)).map(person => `<option value="${escape(person.technicianId)}">${escape(person.name)}</option>`).join('');
     primary.value = checked.includes(previous) ? previous : checked[0] || '';
-    const invalid = checked.length && (checked.length < (row.staffing?.recommendedCount || 1) || checked.length > 10);
-    container.querySelector('[data-plan-error]').textContent = invalid ? `Select at least ${row.staffing?.recommendedCount || 1} technicians (up to 10), or uncheck everyone to skip.` : '';
+    const maximum = row.fulfillmentType === 'delivery_only' ? 1 : 10;
+    const invalid = checked.length && (checked.length < (row.staffing?.recommendedCount || 1) || checked.length > maximum);
+    container.querySelector('[data-plan-error]').textContent = invalid ? maximum === 1 ? 'Legacy delivery-only jobs use one technician. Uncheck everyone to skip.' : `Select at least ${row.staffing?.recommendedCount || 1} technicians (up to 10), or uncheck everyone to skip.` : '';
     return checked.length ? { technicianId: primary.value, technicianIds: checked, invalid: !!invalid } : null;
   }
   let modal, requestId = 0;

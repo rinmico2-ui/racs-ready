@@ -10,6 +10,7 @@ Admin and secretary can choose **Assign one technician** or **Assign multiple te
 - The existing automatic daily-kit monitor includes all team members. Shared equipment and materials belong to the primary technician's kit. Supporting membership does not create another set of product or material requirements.
 - Rescheduling checks every member and resets acceptance for the new visit. Continuations retain the team and require fresh acceptance. Cancelled or completed service bookings synchronize supporting assignments.
 - Team membership does not multiply charges, installation bookings, payment records, quantities, or project classifications. Existing single-technician history stays compatible.
+- Team assignment keeps each active service item's schedule and stage aligned with the visit. First inspections retain inspection preparation; already-approved repair visits retain phase two and their quotation parts. Core items become accepted only when the entire crew accepts. Completed items retain their recorded history.
 
 ## Persistence and deployment
 
