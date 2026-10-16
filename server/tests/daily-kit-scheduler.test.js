@@ -22,6 +22,7 @@ function fixture(targets = [target()], extra = {}) {
   const db = { connection: { get readyState() { return connected ? 1 : 0; } } };
   const options = {
     mongoose: db, ...models, now: clock, logger: { warn(...args) { warnings.push(args); } },
+    async isMaintenanceEnabled() { return false; },
     Assignment: { aggregate(pipeline) {
       calls.push(['discover', pipeline]);
       return { option(value) { assert.equal(value.maxTimeMS, 20000); return this; }, cursor(value) {
@@ -130,6 +131,52 @@ test('discovery failure reschedules the background worker instead of disabling a
   f.scheduler.start(); await f.tick();
   assert.equal(f.warnings.length, 1); assert.equal([...f.timers.values()][0].delay, CHECK_INTERVAL_MS);
   await f.scheduler.stop(); assert.equal(f.timers.size, 0);
+});
+
+test('maintenance pauses automatic preparation before discovery and resumes after maintenance ends', async () => {
+  let maintenance = true;
+  const f = fixture([target()], { isMaintenanceEnabled: async () => maintenance });
+  f.scheduler.start(); await f.tick();
+  assert.equal(f.calls.length, 0);
+  assert.equal([...f.timers.values()][0].delay, CHECK_INTERVAL_MS);
+  maintenance = false; await f.tick();
+  assert.equal(f.calls.filter(call => call[0] === 'sync').length, 1);
+  await f.scheduler.stop();
+});
+
+test('maintenance enabled during discovery prevents a kit write and closes the cursor', async () => {
+  let checks = 0;
+  const f = fixture([target()], { isMaintenanceEnabled: async () => ++checks >= 2 });
+  const result = await f.scheduler.run();
+  assert.equal(result.pausedForMaintenance, true); assert.equal(f.closed, 1);
+  assert.equal(f.calls.filter(call => call[0] === 'sync').length, 0);
+});
+
+test('maintenance enabled while waiting for the generation lease prevents synchronization', async () => {
+  let maintenance = false;
+  const f = fixture([target()], { isMaintenanceEnabled: async () => maintenance,
+    async withOperationLock(key, work) { maintenance = true; return work(); } });
+  const result = await f.scheduler.run();
+  assert.equal(result.pausedForMaintenance, true); assert.equal(f.closed, 1);
+  assert.equal(f.calls.filter(call => call[0] === 'sync').length, 0);
+});
+
+test('maintenance activated by another process stops subsequent kits in an active sweep', async () => {
+  let maintenance = false, writes = 0;
+  const f = fixture([target(), target('2026-10-15')], { isMaintenanceEnabled: async () => maintenance,
+    async syncDailyKit() { writes++; maintenance = true; return {}; } });
+  const result = await f.scheduler.run();
+  assert.equal(writes, 1); assert.equal(result.pausedForMaintenance, true); assert.equal(f.closed, 1);
+});
+
+test('a failed maintenance read defers the sweep and the next tick retries safely', async () => {
+  let fail = true;
+  const f = fixture([target()], { async isMaintenanceEnabled() { if (fail) throw Error('Settings unavailable'); return false; } });
+  f.scheduler.start(); await f.tick();
+  assert.equal(f.calls.length, 0); assert.equal(f.warnings.length, 1);
+  fail = false; await f.tick();
+  assert.equal(f.calls.filter(call => call[0] === 'sync').length, 1);
+  await f.scheduler.stop();
 });
 
 test('application starts automatic kits only after database readiness and stops them before disconnect', () => {

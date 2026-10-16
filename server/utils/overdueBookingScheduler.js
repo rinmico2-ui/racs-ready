@@ -802,11 +802,12 @@ function startOverdueScheduler() {
     if (running) return;
     running = true;
     try {
-      await checkForUnassignedOverdueBookings();
-      await checkForDelayedBookings();
-      await checkForServiceDelays();
-      await checkForUpcomingUnverifiedBookings();
-      await checkForCustomerServiceReminders().catch(error => console.error('[service-reminder]', error));
+      const { isWorkflowMaintenanceEnabled } = require('./workflowSchedulerMaintenance');
+      for (const check of [checkForUnassignedOverdueBookings, checkForDelayedBookings, checkForServiceDelays,
+        checkForUpcomingUnverifiedBookings, checkForCustomerServiceReminders]) {
+        if (await isWorkflowMaintenanceEnabled()) break;
+        await check();
+      }
     } catch (error) {
       console.error('[booking-monitor] Cycle failed:', error.message);
     } finally { running = false; }

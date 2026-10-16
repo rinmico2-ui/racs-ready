@@ -55,7 +55,8 @@ inventory or reconstruct counts changed by earlier tests.
 
 Enable Maintenance Mode at `/admin/settings/system`. Stop staff activity and
 close other staff tabs; admin users can still write during maintenance. Wait
-30 seconds for the maintenance cache to expire, then run:
+30 seconds for the maintenance cache to expire and let any workflow already in
+progress finish, then run:
 
 ```sh
 node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --prepare
@@ -84,6 +85,37 @@ The command verifies the backup and rechecks the selected records and their
 dependencies inside a MongoDB transaction. Changed records require a new
 preparation. Any write failure rolls the deletion and its marker back together.
 Standalone MongoDB is refused. It never falls back to partial deletion.
+
+### If records changed after preparation
+
+This error means **no deletion occurred**. Automatic daily-kit preparation,
+assignment expiry, booking-delay monitoring, appointment reminders, aftercare
+reminders and equipment-return reminders now pause before starting a scheduled
+cycle while maintenance is enabled. They read the current database setting
+rather than another instance's cached HTTP setting. The kit worker also checks
+between targets and after acquiring its generation lease. An operation already
+in progress can finish; maintenance does not cancel an in-flight transaction.
+Authentication and its email worker remain available for administrator access.
+
+Keep maintenance enabled and close other staff/admin tabs. Admin activity,
+notification read updates and already-running tasks can still change a prepared
+snapshot. The cleanup continues to reject every changed snapshot, including
+timestamp-only changes; there is no force-delete flag.
+
+After an apply mismatch, JSON includes `changes.collections` with counts of
+added, removed and modified records plus the top-level field names that changed.
+It contains no customer details, payment evidence or backed-up field values.
+You can also compare a saved preparation without deleting anything:
+
+```sh
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --compare --backup /app/temp/EXACT-FILE.ejson.gz
+```
+
+Once activity has stopped, run `--prepare` again and download the new recovery
+file and checksum. Apply using that **new** path within 30 minutes. An old
+preparation is never rewritten or silently updated. Deployment can replace
+`/app/temp`, so a new container generally needs a new preparation even when an
+old backup was downloaded. Keep the old private files for recovery evidence.
 
 Success shows `mode: deleted` and `atomic: true`. Allow 30 seconds for report
 caches, then check Bookings, Orders and Payments. Disable Maintenance Mode in

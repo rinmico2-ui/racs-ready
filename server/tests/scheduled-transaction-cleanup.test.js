@@ -118,7 +118,8 @@ test("date cleanup CLI requires explicit valid dates and a backup for destructiv
   const args = ["--from", config.from, "--to", config.to];
   assert.deepEqual(parseArguments(args), { mode: "preview", config, backupFile: undefined });
   assert.equal(parseArguments([...args, "--apply", "--backup", "private.ejson.gz"]).mode, "apply");
-  for (const tail of [["--apply"], ["--restore"], ["--apply", "--prepare"], ["--backup", "x"], ["--from", config.from], ["--all"]]) assert.throws(() => parseArguments([...args, ...tail]));
+  assert.equal(parseArguments([...args, "--compare", "--backup", "private.ejson.gz"]).mode, "compare");
+  for (const tail of [["--apply"], ["--restore"], ["--compare"], ["--compare", "--prepare"], ["--apply", "--prepare"], ["--backup", "x"], ["--from", config.from], ["--all"]]) assert.throws(() => parseArguments([...args, ...tail]));
   for (const [from, to] of [["2026-02-30", config.to], [config.to, config.from], ["2026-09-01", config.to], ["2026-10-15T00:00:00Z", config.to]]) assert.throws(() => cleanup.configuration(from, to));
   assert.throws(() => parseArguments([]));
 });
@@ -289,6 +290,52 @@ test("changed selected records, new selected transactions and new linked payment
     await assert.rejects(apply(f, backup), /changed after preparation/);
     assert.deepEqual(f.state, before); assert.equal(f.writes, 0);
   }
+});
+
+test("read-only comparison accepts unchanged BSON recovery records even without maintenance", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  f.state.sitesettings[0].value.maintenance.enabled = false;
+  const result = await cleanup.compare({ ...f, backupFile: backup.backup });
+  assert.equal(result.mode, 'read-only-comparison');
+  assert.deepEqual(result.changes, { matches: true, collections: [], dependencyChecksChanged: false });
+  assert.equal(result.databaseChanges, 0); assert.equal(f.writes, 0); assert.equal(f.transactions, 0);
+});
+
+test("comparison identifies kit refresh timestamps, added payments and removed notifications without exposing values", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  f.state.dailykits[0].automaticSyncedAt = now; f.state.dailykits[0].updatedAt = now;
+  f.state.payments.push({ _id: oid(), bookingId: f.booking._id, amount: 123, privateEvidence: 'PRIVATE-NEW-EVIDENCE' });
+  f.state.notifications.shift();
+  const result = await cleanup.compare({ ...f, backupFile: backup.backup });
+  assert.equal(result.changes.matches, false);
+  const byCollection = Object.fromEntries(result.changes.collections.map(row => [row.collection, row]));
+  assert.equal(byCollection.dailykits.modified, 1);
+  assert.deepEqual(byCollection.dailykits.changedFields, ['automaticSyncedAt', 'updatedAt']);
+  assert.equal(byCollection.payments.added, 1); assert.equal(byCollection.notifications.removed, 1);
+  assert.equal(f.writes, 0);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|fixture@example|123|BOOKING-FIXTURE/);
+});
+
+test("apply reports aggregate differences while preserving every record on stale preparation", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  f.state.dailykits[0].automaticSyncedAt = now;
+  const before = clone(f.state);
+  await assert.rejects(apply(f, backup), error => {
+    assert.match(error.message, /changed after preparation/);
+    assert.equal(error.changes.collections[0].collection, 'dailykits');
+    assert.deepEqual(error.changes.collections[0].changedFields, ['automaticSyncedAt']);
+    return true;
+  });
+  assert.equal(f.writes, 0); assert.deepEqual(f.state, before);
+});
+
+test("read-only comparison refuses a mismatched scope and detects dependency-only changes", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  await assert.rejects(cleanup.compare({ ...f, backupFile: backup.backup, config: cleanup.configuration('2026-10-16', '2026-10-20') }), /matching scheduled/);
+  f.outside.assignmentId = f.state.assignments[0]._id;
+  const result = await cleanup.compare({ ...f, backupFile: backup.backup });
+  assert.equal(result.changes.matches, false); assert.equal(result.changes.dependencyChecksChanged, true);
+  assert.equal(f.writes, 0);
 });
 
 test("unrelated outside-range updates do not invalidate or expand the prepared deletion", async t => {
