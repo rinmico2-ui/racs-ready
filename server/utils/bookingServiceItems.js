@@ -37,6 +37,8 @@ function bookingServices(booking) {
 }
 
 function mutationPolicy(booking) {
+  const paymentPolicy = require('../public/js/booking-edit-policy');
+  if (paymentPolicy.paymentVerified(booking)) return { mode: 'locked', direct: false, reason: paymentPolicy.paymentLockReason };
   const parentStatus = String(booking?.status || "pending");
   const itemStarted = (booking?.services || []).some(item => STARTED_STATUSES.has(String(item.status || "")));
   if (STARTED_STATUSES.has(parentStatus) || itemStarted) {

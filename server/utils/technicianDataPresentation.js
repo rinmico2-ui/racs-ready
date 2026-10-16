@@ -57,10 +57,17 @@ function presentTechnicianBooking(value) {
   return booking;
 }
 
-function presentTechnicianOrder(value) {
+function presentTechnicianOrder(value, { technicianId } = {}) {
   const source = plain(value);
   if (!source || typeof source !== "object") return source;
   const order = { ...source };
+  delete order.viewerAssignment;
+  if (technicianId && require('./standardJobTeam').ids(order).includes(String(technicianId))) {
+    const member = require('./standardJobTeam').member(order, technicianId);
+    order.viewerAssignment = { technicianId: String(technicianId),
+      status: member?.status || order.technicianAcceptance?.status || 'pending',
+      role: member?.role || 'primary' };
+  }
 
   delete order.paymentId;
   delete order.paymentReference;

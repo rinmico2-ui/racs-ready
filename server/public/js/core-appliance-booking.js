@@ -230,7 +230,8 @@
   function refreshHp() {
     const previous = field('hp').value, type = field('airconType').value, sizes = new Set();
     if (hooks.repair) (A.repairHpValues || []).forEach(hp => sizes.add(hp));
-    else catalog.forEach(service => (service.airconTypes?.find(row => row.type === type)?.hpPricing || service.hpPricing || []).forEach(row => sizes.add(Number(row.hp))));
+    else catalog.filter(service => service.active !== false && A.profile(service, 'aircon'))
+      .forEach(service => A.airconHpOptions(service, type).forEach(row => sizes.add(row.hp)));
     field('hp').innerHTML = '<option value="">Choose HP</option>' + [...sizes].sort((a, b) => a - b).map(hp => `<option value="${hp}">${hp} HP</option>`).join(''); field('hp').value = previous; refreshServices();
   }
   function refreshServices() {
@@ -240,7 +241,7 @@
     host.querySelector('[data-service-appliance]').textContent = [detailsUnknown ? 'Staff identification' : selected.brand, A.labels[selected.applianceKind], typeName, selected.hp ? `${selected.hp} HP` : '', `${selected.quantity || 0} appliance${selected.quantity === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
     host.querySelector('[data-services]').innerHTML = candidates.map(service => {
       let pricing, error; try { pricing = A.price(service, { ...selected, brand: selected.brand || 'Brand not entered' }); } catch (err) { error = err.message; }
-      if (canAsk() && (detailsUnknown || A.needsVerification(service, selected))) {
+      if (canAsk() && (detailsUnknown || A.needsVerification(service, selected) && (!selected.airconType || !selected.hp))) {
         return `<label class="cab-service"><input type="radio" name="service" value="${escape(service._id)}" data-verification ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>Staff will confirm your unit details and send a price for approval.</small></span><span class="cab-service-price">Price pending verification</span></label>`;
       }
       if (A.isRelocation(service)) {

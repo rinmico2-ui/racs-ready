@@ -1982,6 +1982,10 @@ router.get('/:id/service-items', async (req, res) => {
     const booking = await BookingService.findById(req.params.id).lean();
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    const editPolicy = mutationPolicy(booking);
+    if (editPolicy.mode !== 'locked' && await require('../utils/customerBookingEditPolicy').hasVerifiedPayment(booking)) {
+      Object.assign(editPolicy, { mode: 'locked', direct: false, reason: require('../public/js/booking-edit-policy').paymentLockReason });
+    }
     const legacyRequestedSchedule = booking.rescheduleRequest?.requested
       && booking.rescheduleRequest?.status === 'pending'
       && booking.rescheduleRequest?.requestedDate
@@ -1999,7 +2003,7 @@ router.get('/:id/service-items', async (req, res) => {
       bookingId: booking._id,
       bookingReference: booking.bookingReference,
       status: booking.status,
-      policy: mutationPolicy(booking),
+      policy: editPolicy,
       isProject: Boolean(booking.isProject),
       projectThresholdMinutes: projectThresholdHours * 60,
       inspectionDurationMinutes,
@@ -2027,6 +2031,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
     const booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
     if (!ownsBooking(booking, req.user)) return res.status(403).json({ error: 'Forbidden' });
+    await require('../utils/customerBookingEditPolicy').assertPaymentNotVerified(booking);
     if ((booking.serviceChangeRequests || []).some(row => ["pending", "schedule_proposed"].includes(row.status))) {
       return res.status(409).json({ error: 'This booking already has a service change awaiting a decision.' });
     }
@@ -2119,6 +2124,12 @@ router.post('/:id/service-change-requests', async (req, res) => {
     };
 
     const commitChange = async () => {
+    // Recheck after availability calculations/locks, then guard the actual save
+    // against an admin verifying payment concurrently.
+    const current = await BookingService.findById(booking._id).lean();
+    if (!current) throw Object.assign(Error('Booking no longer exists.'), { status: 404 });
+    await require('../utils/customerBookingEditPolicy').assertPaymentNotVerified(current);
+    require('../utils/customerBookingEditPolicy').guardCustomerSave(booking);
     if (policy.direct) {
       if (!projectRequired) {
         const buffer = await getBufferMinutes();
@@ -2211,7 +2222,8 @@ router.post('/:id/service-change-requests', async (req, res) => {
       changeRequest: booking.serviceChangeRequests.at(-1),
     });
   } catch (error) {
-    return res.status(error.status || 400).json({ error: error.message || 'Unable to change booking services' });
+    if (error.name === 'DocumentNotFoundError') return res.status(409).json({ error: 'The booking changed while you were editing it. Refresh its payment status before making changes.' });
+    return res.status(error.status || 400).json({ error: error.message || 'Unable to change booking services', ...(error.code ? { code: error.code } : {}) });
   }
 });
 

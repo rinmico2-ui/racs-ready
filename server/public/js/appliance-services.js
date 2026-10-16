@@ -6,6 +6,7 @@
   'use strict';
   const kinds = ['aircon', 'refrigerator', 'freezer'];
   const labels = { aircon: 'Aircon', refrigerator: 'Refrigerator', freezer: 'Freezer' };
+  const airconHpValues = Object.freeze([0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]);
   const repairHpValues = Object.freeze([0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7.5, 10]);
   const isRepairAircon = item => item?.unitCategory === 'aircon' || /^repair_aircon_/.test(item?.applianceKind || '') || /aircon|air condition/i.test(item?.unitType || item?.applianceType || '');
   function repairDetails(item, { prior, allowLegacyHp = false } = {}) {
@@ -62,6 +63,19 @@
     if (total > 40) throw new Error('A booking can contain at most 40 appliances.');
     return total;
   }
+  function airconHpOptions(catalog, airconType) {
+    const types = Array.isArray(catalog?.airconTypes) ? catalog.airconTypes : [];
+    // Legacy HP tables apply only when no type-specific catalog exists. A
+    // missing cassette/suspended table must not offer split-type HP choices.
+    const tiers = types.length ? types.find(row => row.type === airconType)?.hpPricing || [] : catalog?.hpPricing || [];
+    const seen = new Set();
+    return tiers.filter(row => {
+      const hp = Number(row?.hp), amount = Number(row?.price);
+      if (!(hp > 0) || !Number.isFinite(hp) || row?.price == null || String(row.price).trim() === ''
+        || !Number.isFinite(amount) || amount < 0 || seen.has(hp)) return false;
+      seen.add(hp); return true;
+    }).map(row => ({ ...row, hp: Number(row.hp), price: Number(row.price) })).sort((a, b) => a.hp - b.hp);
+  }
   function price(catalog, selection) {
     if (!catalog || catalog.active === false) throw new Error('This service is unavailable.');
     const kind = selection.applianceKind || 'aircon';
@@ -83,10 +97,11 @@
     const types = catalog.airconTypes || [], tiers = catalog.hpPricing || [];
     const pricedByHp = catalog.isAirconService && (types.length || tiers.length);
     const selectedType = types.find(row => row.type === selection.airconType);
-    const tier = (types.length ? selectedType?.hpPricing || [] : tiers).find(row => Number(row.hp) === Number(selection.hp));
-    if (pricedByHp && (!tier || !(Number(selection.hp) > 0))) throw new Error('This aircon type and HP combination is unavailable.');
-    const unitPrice = Number(pricedByHp ? tier.price : catalog.basePrice);
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('This service does not have a valid catalog price.');
+    const tier = airconHpOptions(catalog, selection.airconType).find(row => row.hp === Number(selection.hp));
+    if (pricedByHp && (!tier || !(Number(selection.hp) > 0))) throw new Error('This aircon type and HP combination is unavailable. Staff must configure its price.');
+    const rawPrice = pricedByHp ? tier.price : catalog.basePrice;
+    const unitPrice = Number(rawPrice);
+    if (rawPrice == null || String(rawPrice).trim() === '' || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('This service does not have a valid catalog price.');
     return { unitPrice, duration: Number(tier?.durationMinutes || catalog.durationMinutes || catalog.durationRange?.max || 60),
       hp: pricedByHp ? Number(selection.hp) : null, airconType: selectedType?.type || selection.airconType || null,
       airconTypeName: selectedType?.name || selection.airconTypeName || null };
@@ -145,5 +160,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, airconHpOptions, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

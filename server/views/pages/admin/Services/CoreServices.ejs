@@ -1262,7 +1262,7 @@
 
 </div>
 
-<script src="/js/appliance-services.js?v=20261013-compressor-hp"></script>
+<script src="/js/appliance-services.js?v=20261017-catalog-hp"></script>
 <script src="/js/core-service-appliance-editor.js?v=20261013-compressor-hp"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -1359,6 +1359,9 @@
         
         const defaultName = AIRCON_TYPE_LABELS[ac.type] || '';
         const displayName = (ac.name && ac.name !== defaultName) ? ac.name : '';
+        const savedHp = new Set((ac.hpPricing || []).filter(row => row.price != null && String(row.price).trim() !== ''
+          && Number.isFinite(Number(row.price)) && Number(row.price) >= 0).map(row => Number(row.hp)));
+        const missingHp = window.ApplianceServices.airconHpValues.filter(hp => !savedHp.has(hp));
 
         let hpRows = '';
         hpRows += `
@@ -1406,6 +1409,7 @@
             <button type="button" class="core-type-remove" onclick="removeAC(${i})" aria-label="Remove aircon type"><i class="bi bi-trash3"></i></button>
           </div>
           <div class="card-body p-3">
+            ${missingHp.length ? `<div class="alert alert-warning py-2 small" role="status">Missing prices: ${missingHp.join(', ')} HP. Add approved prices so customers can book these capacities.</div>` : '<div class="alert alert-success py-2 small" role="status">Prices cover 0.5 to 5 HP, including 0.75 HP.</div>'}
             <div class="mb-2">
               <label class="form-label modal-label mb-1">Display Name</label>
               <input type="text" class="form-control" placeholder="Display name" value="${displayName}" oninput="updateAC(${i}, 'name', this.value)">
@@ -1575,6 +1579,10 @@
       }));
 
       const invalidTier = cleanAirconTypes.some(ac => ac.hpPricing.some(hp => !Number.isFinite(hp.hp) || hp.hp <= 0 || !Number.isFinite(hp.price) || hp.price < 0 || (hp.durationMinutes !== undefined && (!Number.isInteger(hp.durationMinutes) || hp.durationMinutes < 1))) || new Set(ac.hpPricing.map(hp => hp.hp)).size !== ac.hpPricing.length);
+      if (form.active.checked && form.isAirconService.checked && cleanAirconTypes.some(ac => !ac.hpPricing.length)) {
+        await Swal.fire({ icon:'warning', title:'Add HP prices', text:'Each enabled aircon type needs at least one saved HP price.' });
+        return;
+      }
       if (invalidTier) {
         await Swal.fire({ icon:'warning', title:'Check HP pricing', text:'Each HP tier needs a valid capacity, non-negative price, and a positive duration when provided.' });
         return;
