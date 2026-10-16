@@ -58,19 +58,18 @@ test('discovery uses Manila days, accepted work, confirmed project schedules and
   const pipeline = generationPipeline({ orders:'orders', dailyAssignments:'dailyassignments', kits:'dailykits' }, NOW);
   assert.deepEqual(pipeline[0].$match.status.$in, ['accepted','en_route','on_site','in_progress']);
   assert.equal(pipeline[0].$match.serviceType.$ne, 'project');
+  assert.equal(pipeline[0].$match.crewRole.$ne, 'support');
   assert.equal(pipeline[0].$match.bookingDate.$gte.toISOString(), '2026-10-13T16:00:00.000Z');
   assert.equal(manilaDateKey(new Date(pipeline[0].$match.bookingDate.$lt.getTime() - 1)), '2026-12-13');
   assert.equal(pipeline[1].$project.date.$dateToString.timezone, 'Asia/Manila');
   const unions = pipeline.filter(stage => stage.$unionWith).map(stage => stage.$unionWith);
   assert.equal(unions[0].pipeline[0].$match.fulfillmentType, 'delivery_installation');
   assert.deepEqual(unions[0].pipeline[0].$match.status.$in, ['technician_accepted','out_for_delivery','arrived','installing']);
-  assert.equal(unions[1].pipeline[0].$match['technicianTeam.1'].$exists, true);
-  assert.equal(unions[1].pipeline[1].$unwind, '$technicianTeam');
-  assert.equal(unions[1].pipeline[2].$set.technicianId, '$technicianTeam.technicianId');
-  assert.equal(unions[2].pipeline[0].$match.planningOnly.$ne, true);
-  assert.deepEqual(unions[2].pipeline[0].$match.status.$in, ['pending','in_progress']);
-  assert.deepEqual(unions[3].pipeline[0].$match.status.$in, ['draft','prepared','confirmed','in_progress']);
-  assert.equal(unions[3].pipeline[0].$match.workDate.$type, 'date');
+  assert.equal(unions.length, 3, 'supporting order members view the primary kit instead of generating another kit');
+  assert.equal(unions[1].pipeline[0].$match.planningOnly.$ne, true);
+  assert.deepEqual(unions[1].pipeline[0].$match.status.$in, ['pending','in_progress']);
+  assert.deepEqual(unions[2].pipeline[0].$match.status.$in, ['draft','prepared','confirmed','in_progress']);
+  assert.equal(unions[2].pipeline[0].$match.workDate.$type, 'date');
   assert.deepEqual(pipeline.at(-2).$group._id, { technicianId:'$technicianId', date:'$date' });
 });
 

@@ -2,6 +2,12 @@
   'use strict';
   const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   const validId = value => /^[a-f\d]{24}$/i.test(String(value || ''));
+  function kitDate(value) {
+    const date = value && new Date(value);
+    if (!date || !Number.isFinite(date.getTime())) return '';
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map(part => [part.type, part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
   const statusLabel = value => ({ pending: 'Awaiting response', accepted: 'Accepted', declined: 'Declined', expired: 'Response expired', technician_assigned: 'Waiting for team acceptance', technician_accepted: 'Team accepted', out_for_delivery: 'En route', installing: 'Installation in progress' })[value] || String(value || 'Pending').replace(/_/g, ' ');
   async function json(url, options) {
     if (window.RACSRequest?.json) return window.RACSRequest.json(url, { credentials: 'same-origin', ...options });
@@ -135,7 +141,8 @@
   function assignmentActions(a) {
     if (!validId(a?._id)) return '';
     if (a.status === 'pending_acceptance') return `<button class="btn btn-success" onclick="RACSJobTeams.respondBooking('${a._id}','accept',this)">Accept team assignment</button><button class="btn btn-outline-danger" onclick="RACSJobTeams.respondBooking('${a._id}','decline',this)">Decline</button>`;
-    return `<p class="small text-muted mb-2">Supporting technician. The primary technician manages job status, shared tools, payments and completion.</p>${['cancelled','declined','expired','completed'].includes(a.status) ? '' : `<button class="btn btn-outline-primary" onclick="RACSJobTeams.note('${a._id}')">Add work note</button>`}`;
+    const date = kitDate(a.bookingDate || a.bookingId?.bookingDate);
+    return `<p class="small text-muted mb-2">Supporting technician. The primary technician manages job status, shared tools, payments and completion.</p>${['cancelled','declined','expired','completed'].includes(a.status) ? '' : `<button class="btn btn-outline-primary" onclick="RACSJobTeams.note('${a._id}')">Add work note</button> <button type="button" class="btn btn-outline-success" onclick="openTechnicianDailyKit('${escape(date)}')">View shared daily kit</button>`}`;
   }
   function supportCard(a) {
     const rows = a.technicianTeam || a.bookingId?.technicianTeam?.map(row => ({ ...row, role: String(row.technicianId) === String(a.bookingId.technicianId) ? 'primary' : 'support' }));
@@ -173,6 +180,8 @@
         const body = host.querySelectorAll('article .card-body')[index];
         if (job.myStatus === 'accepted') {
           const button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-outline-primary btn-sm'; button.textContent = 'Add work note'; button.addEventListener('click', () => orderNote(job.id)); body.append(button);
+          const kitButton = document.createElement('button'); kitButton.type = 'button'; kitButton.className = 'btn btn-outline-success btn-sm ms-2'; kitButton.textContent = 'View shared daily kit';
+          kitButton.addEventListener('click', () => window.openTechnicianDailyKit(kitDate(job.date))); body.append(kitButton);
         }
         for (const entry of job.myNotes || []) { const paragraph = document.createElement('p'); paragraph.className = 'small mt-2'; paragraph.textContent = entry.text; body.append(paragraph); }
       });

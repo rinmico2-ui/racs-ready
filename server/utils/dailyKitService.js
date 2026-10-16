@@ -201,11 +201,13 @@ async function partRequirementsFor(assignments, bookings, requirements) {
     const parts = Array.isArray(booking.quotation?.parts) ? booking.quotation.parts : [];
     for (const part of parts) {
       if (!part?.name) continue;
+      const companyQuantity = part.source === 'external_purchase' ? 0 : Math.max(0, Number(part.quantity || 1) - Number(part.externalQuantity || 0));
+      if (!companyQuantity) continue;
       const tool = await resolvePartTool(part);
       mergeRequirement(requirements, {
         name: part.name,
         kind: "repair_part",
-        quantity: Math.max(1, Number(part.quantity) || 1),
+        quantity: companyQuantity,
         inventoryId: tool?._id || null,
         unit: "pcs",
       }, { assignmentId: assignment._id, bookingId: booking._id, multiplier: assignment.quantity });
@@ -539,10 +541,13 @@ async function syncDailyKit(technicianId, date, { session = null, automatic = fa
   const bookings = await BookingService.find({ _id: { $in: bookingIds }, status: { $nin: ['cancelled', 'completed', 'closed', 'repair_declined', 'repair_completed'] } }).session(session).lean();
   const validBookings = new Set(bookings.map(row => String(row._id)));
   assignments = assignments.filter(row => {
+    if (row.crewRole === 'support') return false;
     if (!validBookings.has(String(row.bookingId))) return false;
     const booking = bookings.find(booking => String(booking._id) === String(row.bookingId));
+    if (booking.technicianId && !require('./standardJobTeam').isPrimary(booking, technicianId)) return false;
     return require('./technicianWorkSync').assignmentWorkDecision(row, booking).current;
   });
+  orders = orders.filter(order => require('./standardJobTeam').isPrimary(order, technicianId));
   bookingIds = uniqueIds(assignments.map(row => row.bookingId));
   const orderIds = uniqueIds(orders.map(row => row._id));
   let workOrderIds = uniqueIds(projectAssignments.map(row => row.workOrderId));

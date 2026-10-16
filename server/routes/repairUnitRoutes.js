@@ -67,6 +67,10 @@ function view(document, req, technician, assignment) {
     closed: !!document.archivedAt || ['cancelled', 'completed', 'closed', 'repair_completed', 'under_warranty'].includes(document.status),
     role: req.user.role, canInspect: req.user.role === 'technician' && (access ? access.canInspect : String(document.leadTechnicianId) === String(technician?._id)), blockedReason: access?.reason || '',
     aiReport: req.user.role === 'technician' && access?.canInspect ? document.technicianAssistant : undefined,
+    canComplete: Boolean(access?.canComplete),
+    canPlanRepair: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && document.approval?.status === 'approved',
+    readyForCompletion: Boolean(access?.canComplete && flow.rows(document).length && flow.rows(document).some(row => row.unit.repairReview?.state === 'completed')
+      && flow.rows(document).every(row => ['completed', 'declined'].includes(row.unit.repairReview?.state))),
     units: flow.rows(document).map(({ key, group, groupIndex, unit }) => ({ key, serviceIndex: groupIndex, serviceItemId: group._id, label: unit.label, brand: group.brand, model: group.model, problemDescription: unit.problemDescription,
       inspection: unit.inspection, diagnosis: unit.diagnosis, quotation: unit.quotation, review: unit.repairReview, status: unit.status, completionNotes: unit.completionNotes, completedAt: unit.completedAt })),
   };
@@ -81,6 +85,31 @@ router.get('/:scope/:id', async (req, res, next) => {
     }
     res.json(result);
   } catch (error) { next(error); }
+});
+
+let activeDiagnostics = 0;
+const diagnosticLimiter = require('../utils/boundedRateLimit')({ windowMs: 60000, max: 6,
+  keyGenerator: req => String(req.user._id), standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Please wait a minute before requesting more diagnostic suggestions.' } });
+router.post('/:scope/:id/ai-diagnostic', diagnosticLimiter, async (req, res, next) => {
+  let admitted = false;
+  try {
+    const { document, technician, assignment } = await load(req);
+    if (req.user.role !== 'technician' || document.unitGroups) flow.fail('Use the assigned technician repair workspace for this diagnosis.', 403);
+    const access = repairWorkAccess(document, technician._id, assignment);
+    if (!access.canInspect) flow.fail(access.reason);
+    const row = flow.rows(document).find(row => row.key === req.body.key);
+    const findings = typeof req.body.findings === 'string' ? req.body.findings.trim() : '';
+    if (!row || findings.length < 10 || findings.length > 2000) flow.fail('Select an appliance and enter on-site findings of 10 to 2,000 characters.', 400);
+    if (activeDiagnostics >= 4) flow.fail('Diagnostic assistance is busy. Try again shortly or continue with a manual diagnosis.', 503);
+    activeDiagnostics++; admitted = true;
+    const result = await require('../utils/aiTechnicianAssistant').generateAssistantReport({
+      unitType: row.group.applianceTypeName || row.group.unitType || row.group.name || 'Appliance', brand: row.group.brand, model: row.group.model,
+      problemDescription: `${row.unit.problemDescription || ''}\nTechnician on-site findings: ${findings}`, photos: [],
+    });
+    res.json({ technicianAssistant: result.technicianAssistant, version: document.__v || 0 });
+  } catch (error) { next(error); }
+  finally { if (admitted) activeDiagnostics--; }
 });
 
 router.post('/:scope/:id/:action', async (req, res, next) => {
@@ -106,6 +135,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
         document.repairQuoteHistory.push({ recordedAt: new Date(), recordedBy: req.user._id, quotation: document.quotationReview?.toObject?.() || document.quotationReview });
         document.projectPhase = 'assessment'; document.quotationReview = { status: 'rejected', totalAmount: 0, items: [] };
       } else if (action === 'inspect') {
+        if (!document.unitGroups && ['pending', 'awaiting_customer', 'approved'].includes(document.quotationReview?.status)) flow.fail('The submitted quotation is locked. Staff must return it for changes before it can be edited.');
         if (document.unitGroups && document.projectPhase !== 'assessment') flow.fail('Staff must return this inspection for changes first.');
         if (!Array.isArray(req.body.parts) || req.body.parts.length > 50) flow.fail('Provide up to 50 parts.', 400);
         const unitRow = flow.rows(document).find(row => row.key === req.body.key);
@@ -115,6 +145,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
         const catalog = await Tool.find({ _id: { $in: ids }, $and: [Tool.merchandiseFilter()] }).select('_id itemName sellingPrice costPrice').session(session).lean();
         flow.inspect(document, req.body.key, req.body, { technicianId: technician._id, catalog, laborFees: await getRepairLaborFees() });
       } else if (action === 'submit') {
+        if (!document.unitGroups && document.inspection?.completedAt && ['pending', 'awaiting_customer', 'approved'].includes(document.quotationReview?.status)) flow.fail('This inspection has already been submitted. Refresh its review status.');
         flow.submitInspection(document);
         if (document.unitGroups) document.assessmentVisit.status = 'completed';
         else document.inspection = { findings: 'Findings recorded for each appliance.', completedAt: new Date(), technicianId: technician._id };
@@ -174,6 +205,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
         }
       } else if (action === 'complete') {
         if (document.unitGroups) flow.fail('Complete project appliances using the work submission with proof.');
+        if (document.repairExecution?.status !== 'in_progress') flow.fail('Use the repair work plan to confirm available time and received parts before recording completed repairs.');
         if (!['repair_in_progress', 'in-progress'].includes(document.status)) flow.fail('Start the approved repair work before marking appliances complete.');
         const row = flow.rows(document).find(row => row.key === req.body.key);
         if (!row || row.unit.repairReview.state !== 'approved') flow.fail('This appliance has no approved repair to complete.');

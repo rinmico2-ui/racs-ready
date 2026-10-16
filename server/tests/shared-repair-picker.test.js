@@ -60,3 +60,42 @@ test('editing an unavailable old appliance leaves the saved row intact and repor
   const f = fixture(); f.state.selectedServices.push({ _id: 'old', type: 'repair', unitType: 'Other', unitCategory: 'other', quantity: 1 });
   assert.throws(() => f.component.edit('old'), /no longer available/); assert.equal(f.state.selectedServices.length, 1); assert.equal(f.writes.length, 0);
 });
+
+test('repair suggestions match the appliance and remain editable reported symptoms', () => {
+  const f = fixture(), options = f.captured.options;
+  const choices = options.problemSuggestions({ applianceKind: options.adapter.kinds[0] });
+  assert.ok(choices.some(row => row.label === 'Not cooling'));
+  assert.ok(choices.every(row => row.text.length >= 10));
+  const washer = api.problemSuggestions({ category: 'appliance', value: 'Washing Machine' });
+  assert.ok(washer.some(row => row.label === 'Not draining'));
+  assert.ok(!washer.some(row => row.label === 'Not cooling'));
+  const symptom = choices[0].text;
+  f.fields.assistanceNotes.value = options.toggleProblem('It started yesterday after lunch.', symptom);
+  const row = options.adapter.serviceLines([], { applianceKind: options.adapter.kinds[0], brand: 'Carrier', quantity: 1, hp: 1 })[0];
+  assert.equal(row.problemDescription, `It started yesterday after lunch.\n${symptom}`);
+  assert.equal(options.toggleProblem(row.problemDescription, symptom), 'It started yesterday after lunch.');
+  assert.equal(options.toggleProblem('I think it is not cooling sometimes.', symptom), `I think it is not cooling sometimes.\n${symptom}`);
+});
+
+test('suggestions respect the description limit without losing or duplicating customer notes', () => {
+  const text = api.problemSuggestions({ category: 'aircon' })[0].text;
+  assert.throws(() => api.toggleProblem('a'.repeat(490), text), /500 characters/);
+  assert.equal(api.toggleProblem(text, text), '');
+  assert.equal(api.toggleProblem(`Custom note.\n${text}\nKeep this note.`, text), 'Custom note.\nKeep this note.');
+});
+
+test('the repair suggestion button updates the real notes input and dispatches the normal draft-change event', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../public/js/core-appliance-booking.js'), 'utf8');
+  const start = source.indexOf("    host.addEventListener('click', event => {"), end = source.indexOf('    const submit = event => {', start);
+  let click, inputEvents = 0, focused = 0, error;
+  const choice = api.problemSuggestions({ category: 'aircon' })[0];
+  const notes = { value: 'Since yesterday.', maxLength: 500, dispatchEvent(event) { assert.equal(event.type, 'input'); assert.equal(event.bubbles, true); inputEvents++; }, focus() { focused++; } };
+  const host = { addEventListener(_name, handler) { click = handler; } };
+  const hooks = { repair: true, problemSuggestions: () => [choice], toggleProblem: api.toggleProblem };
+  vm.runInNewContext(source.slice(start, end), { host, hooks, selection: () => ({}), field: () => notes, Event: class { constructor(type, options) { this.type = type; Object.assign(this, options); } }, message: value => { error = value; } });
+  const button = { dataset: { problemSuggestion: choice.text } };
+  const event = { target: { closest: selector => selector === '[data-problem-suggestion]' ? button : null } };
+  click(event); assert.equal(notes.value, `Since yesterday.\n${choice.text}`); assert.equal(inputEvents, 1); assert.equal(focused, 1);
+  click(event); assert.equal(notes.value, 'Since yesterday.');
+  notes.value = 'a'.repeat(490); click(event); assert.equal(notes.value.length, 490); assert.match(error, /500 characters/); assert.equal(inputEvents, 2);
+});

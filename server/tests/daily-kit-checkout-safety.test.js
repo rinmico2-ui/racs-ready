@@ -691,3 +691,21 @@ test('order usage respects pending material returns and writes usage with kit co
   await assert.rejects(f.api.recordOrderConsumableUsage({ ...input, usages: [{ itemName: 'Cleaner', quantityUsed: 0.1 }] }), { status: 409 });
   assert.equal(f.data.ServiceToolUsage.length, 1);
 });
+
+test('support-only assignments cannot confirm a second kit or add stock against the shared job', async () => {
+  const f = fixture(); f.data.Assignment[0].crewRole = 'support';
+  const kit = await f.api.syncDailyKit(T, DATE);
+  assert.equal(kit.assignmentIds.length, 0); assert.equal(kit.bookingIds.length, 0); assert.equal(kit.items.length, 0);
+  await assert.rejects(confirmation(f), /no accepted jobs/i);
+  await assert.rejects(f.api.setDailyKitItemChecked({ technicianId: T, userId: U, date: DATE, itemId: I, checked: true }), { status: 409 });
+  await assert.rejects(f.api.addDailyKitItem({ technicianId: T, userId: U, date: DATE, inventoryItemId: E, quantity: 1, jobType: 'booking', jobId: A, note: 'Attempt shared checkout' }), /Accept a scheduled job/);
+  assert.equal(f.data.Tool[0].quantity, 1); assert.equal(f.data.EquipmentAssignment.length, 0); assert.equal(f.data.ServiceToolUsage.length, 0);
+});
+
+test('canonical primary ownership excludes stale support assignments even without a saved crewRole', async () => {
+  const f = fixture(); f.data.BookingService[0].technicianId = OTHER;
+  f.data.BookingService[0].technicianTeam = [{ technicianId: OTHER }, { technicianId: T, assignmentId: A, status: 'accepted' }];
+  const kit = await f.api.syncDailyKit(T, DATE);
+  assert.equal(kit.assignmentIds.length, 0); assert.equal(kit.items.length, 0);
+  assert.equal(f.data.Tool[0].quantity, 1);
+});

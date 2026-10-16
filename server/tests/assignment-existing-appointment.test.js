@@ -47,6 +47,25 @@ test("existing appointment assignment still respects a technician's approved lea
   assert.deepEqual(result.payload.timeSlots, []); assert.match(result.payload.message, /leave/i);
 });
 
+test('ongoing repair checks the current Philippine minute, excludes its own job and never extends beyond the saved shift', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-19T01:03:15Z') }); fixture(t);
+  const input = { date: '2026-10-19', technicianId: id(1), duration: '90', travelTime: '30' };
+  const result = await calendar.getTimeSlotsForQuery(input, { excludeBookingId: id(2), existingAppointment: true, ongoingStartMinutes: 544 });
+  assert.equal(result.payload.timeSlots.length, 1); assert.equal(startMinutes(result.payload.timeSlots[0]), 544);
+  const late = await calendar.getTimeSlotsForQuery({ ...input, duration: '480' }, { excludeBookingId: id(2), existingAppointment: true, ongoingStartMinutes: 1100 });
+  assert.equal(late.payload.timeSlots.length, 0);
+  const forged = await calendar.getTimeSlotsForQuery({ ...input, ongoingStartMinutes: 544, _trustedOngoingStart: 544 });
+  assert.ok(!forged.payload.timeSlots.some(row => startMinutes(row) === 544));
+});
+
+test('another booking blocks an ongoing repair even when the current inspection is excluded', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-19T01:03:15Z') }); fixture(t);
+  t.mock.method(require('../models/BookingService'), 'find', filter => { assert.equal(String(filter._id.$ne), id(2)); return query([{ startTime: '10:00', endTime: '11:00' }]); });
+  const result = await calendar.getTimeSlotsForQuery({ date: '2026-10-19', technicianId: id(1), duration: '90' },
+    { excludeBookingId: id(2), existingAppointment: true, ongoingStartMinutes: 544 });
+  assert.deepEqual(result.payload.timeSlots, []);
+});
+
 for (const [label, plan] of [["booking", buildAssignmentPlan], ["order", buildOrderAssignmentPlan]]) {
   test(`${label} AI planner uses the same company fallback as the manual picker when no custom schedule exists`, async t => {
     fixture(t);

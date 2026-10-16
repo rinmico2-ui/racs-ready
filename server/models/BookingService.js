@@ -413,6 +413,7 @@ const bookingSchema = new mongoose.Schema({
       toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
       itemType: { type: String, default: "part" },
       source: { type: String, enum: ["inventory", "external_purchase"], default: "inventory" },
+      externalQuantity: { type: Number, min: 0, default: 0 },
     }],
     laborCost: Number,
     laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
@@ -462,6 +463,8 @@ const bookingSchema = new mongoose.Schema({
   // ── Local Purchase (technician buys missing parts from external supplier) ──
   localPurchase: [{
     partName: String,
+    quotationKey: { type: String, maxlength: 260 },
+    quantity: { type: Number, min: 1, max: 999, default: 1 },
     toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
     quotedCustomerPrice: Number,
     expectedPurchaseCost: Number,
@@ -549,6 +552,12 @@ const bookingSchema = new mongoose.Schema({
   repairSchedule: {
     preference: { type: String, enum: ['today', 'later'] },
     decidedAt: { type: Date },
+  },
+  repairExecution: {
+    status: { type: String, enum: ['purchase_pending', 'in_progress', 'deferred'] },
+    workDate: String, startedAt: Date, startedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
+    repairMinutes: Number, purchaseMinutes: Number, plannedEndTime: String,
+    reason: { type: String, maxlength: 1000 },
   },
 
   // lifecycle of a booking across the system.

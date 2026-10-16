@@ -91,6 +91,10 @@
   async function request(url,options){var response=await fetch(url,{credentials:'same-origin',...(options||{})});var data=await response.json().catch(function(){return {}});if(!response.ok)throw new Error(data.error||'Request failed');return data}
   function setBar(payload){
     var kit=payload.kit||{},jobs=payload.jobDetails||[],info=statusInfo(kit,jobs);
+    if(!jobs.length&&(payload.sharedKits||[]).length){
+      var ready=payload.sharedKits.every(function(shared){return ['confirmed','in_progress','completed'].includes(shared.status)&&!shared.hasDelta});
+      info={cls:ready?'ready':'pending',icon:'bi-people',label:ready?'Shared kit ready':'Shared kit',copy:'View the primary technician\'s preparation. Supporting technicians do not prepare or check out this kit.'};
+    }
     if(!isTodayDate(state.date)&&jobs.length&&info.cls==='pending')info={cls:'pending',icon:'bi-calendar-event',label:'Preview',copy:jobs.length+' booked job(s) on '+niceDate(state.date)+'. Open the kit to review what is needed.'};
     el('odkBarStatus').className='odk-status '+info.cls;
     el('odkBarStatus').innerHTML='<i class="bi '+info.icon+'"></i> '+esc(info.label);
@@ -103,9 +107,25 @@
     if(['checked_out','issued','standard_kit','in_custody','reserved'].includes(item.checkoutStatus))return {cls:'ok',label:item.checkoutStatus==='in_custody'?'already in custody':String(item.checkoutStatus).replace(/_/g,' ')};
     return {cls:'warn',label:'Pending'};
   }
+  function renderSharedKits(payload){
+    var shared=payload.sharedKits||[];
+    if(!shared.length)return '';
+    var html='<section class="odk-section" data-shared-kits aria-label="Shared team kits"><div class="odk-section-title"><span><i class="bi bi-people me-1"></i>Shared team kits</span><span>View only</span></div><p class="small text-muted">The primary technician packs and confirms these items for the team. Quantities show what is packed in their daily kit. Stock is issued once under their custody.</p>';
+    shared.forEach(function(kit){
+      var ready=['confirmed','in_progress','completed'].includes(kit.status)&&!kit.hasDelta;
+      html+='<article class="border rounded-3 p-3 mb-3"><div class="d-flex justify-content-between gap-2 flex-wrap"><strong>'+esc(kit.primaryName)+'</strong><span class="odk-pill '+(ready?'ok':'warn')+'">'+(ready?'Preparation confirmed':kit.hasDelta?'Preparation update pending':kit.status==='pending'?'Waiting for primary kit':'Preparation pending')+'</span></div><p class="odk-meta mt-2">'+(kit.jobs||[]).map(function(job){return esc(job.reference)+' &middot; '+esc(job.serviceName)}).join('<br>')+'</p>';
+      var rows=(kit.items||[]).map(function(item){return {item:item,delta:false}}).concat((kit.deltaItems||[]).map(function(item){return {item:item,delta:true}}));
+      if(!rows.length)html+='<p class="odk-meta">'+(kit.status==='pending'?'The primary technician\'s kit is not available yet. Refresh to check again.':'No physical items are listed for your shared jobs.')+'</p>';
+      rows.forEach(function(row){var item=row.item,issued=['checked_out','issued','in_custody'].includes(item.checkoutStatus),label=item.checkoutStatus==='unavailable'?'Unavailable':item.resolutionStatus==='not_required'?'Not required':item.checkoutStatus==='reserved'?'Reserved':item.checkoutStatus==='returned'?'Returned':issued?'Issued / in custody':item.preparedChecked?'Packed':'Not packed';html+='<div class="odk-item"><div><div class="odk-name">'+esc(item.name)+(row.delta?' <span class="odk-meta">Additional item</span>':'')+'</div><div class="odk-meta">'+esc(item.quantity)+' '+esc(item.unit||'pcs')+'</div></div><span class="odk-pill '+(issued||item.preparedChecked?'ok':'warn')+'">'+label+'</span></div>'});
+      html+='</article>';
+    });
+    return html+'<button type="button" class="btn btn-outline-secondary btn-sm mb-3" data-refresh-shared-kit><i class="bi bi-arrow-clockwise me-1"></i>Refresh shared kits</button></section>';
+  }
   function render(payload){
     state.extraItem=null;state.extraResults=[];state.searchVersion++;clearTimeout(state.searchTimer);
     var kit=payload.kit||{},jobs=payload.jobDetails||[],items=kit.items||[],delta=kit.deltaItems||[],aiSuggestions=payload.aiContingencySuggestions||[];
+    var sharedHtml=renderSharedKits(payload);
+    if(!jobs.length&&sharedHtml){el('odkBody').innerHTML=sharedHtml;el('odkConfirm').style.display='none';el('odkConfirm').disabled=true;el('odkFooterHint').textContent='View only. The primary technician prepares and confirms the shared kit.';return}
     var targets=checkTargets(kit),required=targets.filter(requiresCheck),checked=required.filter(function(item){return item.preparedChecked}).length,remaining=required.length-checked;
     var canEdit=isTodayDate(state.date)&&(kit.status==='draft'||Boolean(kit.hasDelta));
     var unavailable=targets.filter(function(i){return i.checkoutStatus==='unavailable'&&!i.exception?.approved&&requiresCheck(i)});
@@ -156,7 +176,7 @@
       html+='<details class="odk-extra"><summary><i class="bi bi-plus-circle me-1"></i>Add extra equipment or consumables</summary><div class="odk-extra-help">Choose an item from company stock. Nothing is issued until you check the item and confirm the kit. Repair parts come from an approved quotation.</div><div class="odk-extra-grid"><div><label for="odkExtraSearch">Catalog item</label><input id="odkExtraSearch" class="form-control" type="search" maxlength="100" autocomplete="off" placeholder="Search tools or consumables"><div id="odkExtraResults" class="odk-extra-results" style="display:none" aria-label="Catalog results"></div></div><div><label for="odkExtraQty">Total quantity to pack</label><input id="odkExtraQty" class="form-control" type="number" min="1" max="10000" step="any" value="1"></div></div><div class="mt-2"><label for="odkExtraJob">Job that needs this item</label><select id="odkExtraJob" class="form-select">'+(jobs.length>1?'<option value="">Choose a covered job</option>':'')+jobOptions+'</select></div><div class="mt-2"><label for="odkExtraNote">Why is it needed?</label><input id="odkExtraNote" class="form-control" type="text" minlength="3" maxlength="300" placeholder="For example, extra piping for the installation"></div><div class="odk-extra-note" id="odkExtraSelection" role="status" aria-live="polite">Search and choose a catalog item.</div><button type="button" id="odkAddExtra" class="btn btn-primary btn-sm mt-3" disabled><i class="bi bi-plus-lg me-1"></i>Add to kit</button></details>';
     }else if(isTodayDate(state.date)&&['confirmed','in_progress'].includes(kit.status))html+='<div class="odk-preview-note mt-3">This kit is confirmed. Keep issued items in the record and <a href="/technician/tools">return reusable equipment from My Tools</a>.</div>';
     if(aiSuggestions.length){html+='<div class="odk-section"><div class="odk-section-title"><span>Reviewed AI contingency suggestions</span><span>'+aiSuggestions.length+' part(s)</span></div><div class="odk-ai-note"><i class="bi bi-stars me-1"></i>These are preliminary parts suggested by the reviewed AI diagnosis. They are shown for planning only and are not issued or deducted until the technician confirms the actual repair scope.<div class="odk-ai-grid">';aiSuggestions.forEach(function(part){html+='<div class="odk-ai-part"><i class="bi bi-gear-wide-connected"></i><div><div class="odk-name">'+esc(part.name)+'</div><div class="odk-meta">'+esc(part.serviceName||'Repair service')+'</div></div><span>'+(part.alreadyConfirmed?'Brought':'Suggested')+'</span></div>'});html+='</div></div></div>'}
-    el('odkBody').innerHTML=html;
+    el('odkBody').innerHTML=sharedHtml+html;
     if(!isTodayDate(state.date))el('odkBody').querySelectorAll('.odk-item-actions').forEach(function(actions){actions.remove()});
     var canConfirm=isTodayDate(state.date)&&(kit.status==='draft'||Boolean(kit.hasDelta));
     el('odkConfirm').style.display=canConfirm?'':'none';
@@ -370,6 +390,7 @@
     el('odkModalDateInput').addEventListener('change',function(){if(this.value)load(this.value,true)});
     el('odkUpcomingDates').addEventListener('click',function(event){var button=event.target.closest('[data-odk-date]');if(button)window.openTechnicianDailyKit(button.dataset.odkDate)});
     el('odkBody').addEventListener('click',function(event){var button=event.target.closest('[data-odk-action]');if(button)resolveItem(button);var choice=event.target.closest('[data-odk-select-extra]');if(choice)chooseExtra(choice);var remove=event.target.closest('[data-odk-remove-extra]');if(remove)changeExtra(remove,true);if(event.target.closest('#odkAddExtra'))changeExtra(el('odkAddExtra'),false)});
+    el('odkBody').addEventListener('click',function(event){if(event.target.closest('[data-refresh-shared-kit]'))load(state.date,true)});
     el('odkBody').addEventListener('input',function(event){if(event.target.id==='odkExtraSearch')searchExtras(event.target)});
     el('odkBody').addEventListener('change',function(event){if(event.target.matches('[data-odk-check-item]'))saveCheck(event.target)});
     el('odkConfirm').addEventListener('click',async function(){
