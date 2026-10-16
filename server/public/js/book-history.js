@@ -295,6 +295,13 @@
     return s.length > 8 ? s.slice(-8) : s;
   }
 
+  function fmtLongDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
   function formatDateTime(d) {
     if (!d) return "-";
     const dt = new Date(d);
@@ -696,8 +703,6 @@
       n != null && n !== ''
         ? `₱${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : '—';
-    const fmtLongDate = (d) =>
-      d ? new Date(d).toLocaleDateString('en-PH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '—';
   
     // Markup primitives
     const section = (title, icon, items, extra = '', accent = 'blue') => `
@@ -2913,7 +2918,7 @@
       modalEl._eligibility = eligibility;
       const coverage = modalEl.querySelector('#bhClaimCoverage');
       coverage.innerHTML = eligibility.coverages.map(item => `<option value="${escapeHtml(item.coverageId)}">${escapeHtml(item.serviceName || item.coverageType || 'Coverage')} · until ${escapeHtml(fmtLongDate(item.endDate))}</option>`).join('');
-      modalEl.querySelector('#bhClaimDiscovered').value = new Date().toISOString().slice(0,10);
+      modalEl.querySelector('#bhClaimDiscovered').value = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
       const updateTypes = () => {
         const selected = eligibility.coverages.find(item => item.coverageId === coverage.value);
         const labels = { installation_workmanship:'Installation workmanship', repair_workmanship:'Repair workmanship', replacement_part:'Replacement part', diagnostic_accuracy:'Diagnostic accuracy', safety_defect:'Safety defect', product_defect:'Product defect' };
