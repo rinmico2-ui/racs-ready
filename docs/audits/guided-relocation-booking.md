@@ -20,3 +20,11 @@ Old quote-based checkout drafts are discarded rather than silently converted to 
 ## Validation
 
 Regression tests exercise real booking creation and editing handlers with memory-only persistence, catalog repricing, quantity and combination restrictions, required pins, coverage, retired endpoints, scheduling and technician work orders. Browser checks use the real customer page, shared builders and Leaflet against local synthetic APIs at 1440 px and 390 px. Both move options reach the normal payment page without a quotation submission. These checks do not access the live database, charge money or send customer messages.
+
+## Address and pin follow-up
+
+The new-address field uses the shared address autocomplete component. Typing requests suggestions, including local city and barangay names. Selecting a name-only option resolves its coordinates before saving a map point; failure leaves manual pinning available. Search, keyboard navigation, provider attribution, cooldown and stale-response handling follow the shared component.
+
+The selected map target remains active until the customer switches it. Focusing the current address or using its pin button selects the green pin; focusing the new address or using its pin button selects the orange pin. Delegated focus handling survives the current-address input being replaced when the step is reopened. Dragging either marker selects its corresponding target and preserves the other location.
+
+Background reverse-geocoding and route updates refresh labels, geometry and travel estimates without moving the map viewport during two-address edits. Selecting a destination search result can deliberately frame both pins. Manual map selection still works when a lookup fails. Browser checks at desktop and mobile widths exercise real map clicks, both drag handlers, local-name resolution, reopening the step and an HTML gateway response.

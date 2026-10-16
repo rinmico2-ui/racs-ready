@@ -129,7 +129,7 @@ test('legacy preferred calendar mode remains read-compatible without reserving t
 test('mapping a relocation destination keeps the current pin and updates the move path', () => {
   const script = fs.readFileSync(path.join(__dirname, '../public/js/services-multi.js'), 'utf8');
   const implementation = script.slice(script.indexOf('function setRelocationDestinationPin('), script.indexOf('let relocationLocationsController'));
-  const paths = [];
+  const paths = []; let fits = 0;
   const marker = (point, options) => ({
     point, options, handlers: {},
     addTo() { return this; }, setLatLng(next) { this.point = next; return this; },
@@ -138,7 +138,7 @@ test('mapping a relocation destination keeps the current pin and updates the mov
     getLatLng() { return { lat: this.point[0], lng: this.point[1] }; },
   });
   const currentPin = marker([14.7, 121.1], {});
-  const map = { removeLayer() {}, fitBounds() {}, setView() {} };
+  const map = { removeLayer() {}, fitBounds() { fits++; }, setView() {} };
   const item = { relocation: { scope: 'different_address', to: { address: '123 New Street, Manila' } } };
   const state = { map, userMarker: currentPin, userCoordinates: { lat: 14.7, lng: 121.1 } };
   const context = {
@@ -156,6 +156,9 @@ test('mapping a relocation destination keeps the current pin and updates the mov
   vm.runInNewContext(implementation, context);
   context.setRelocationDestinationPin(14.6, 121.0);
   assert.equal(state.userMarker, currentPin);
+  assert.equal(fits, 0, "redrawing a relocation pin must not move the map during editing");
+  context.setRelocationDestinationPin(14.6, 121.0, { focusMap: true });
+  assert.equal(fits, 1, "selecting a search result can deliberately frame both addresses");
   assert.deepEqual(Array.from(paths[0][0]), [14.7, 121.1]);
   assert.deepEqual(Array.from(paths[0][1]), [14.6, 121.0]);
   assert.equal(item.relocation.to.lat, 14.6);

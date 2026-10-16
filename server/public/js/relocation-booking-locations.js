@@ -1,8 +1,7 @@
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.RelocationBookingLocations = api;
-})(typeof window === 'object' ? window : globalThis, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./address-autocomplete'));
+  else root.RelocationBookingLocations = factory(root.AddressAutocomplete);
+})(typeof window === 'object' ? window : globalThis, function (AddressAutocomplete) {
   'use strict';
   function validPoint(place) {
     return place?.lat != null && place?.lng != null && place.lat !== '' && place.lng !== '' && Number(place.lat) >= 4 && Number(place.lat) <= 22 && Number(place.lng) >= 116 && Number(place.lng) <= 127;
@@ -12,12 +11,13 @@
     const acceptPoint = place => validPoint(place) && (!options.contains || options.contains(Number(place.lat), Number(place.lng)));
     const byId = id => document.getElementById(id);
     const input = byId('relocationDestinationAddress'), list = byId('relocationDestinationSuggest');
-    let active = null, originKey = '', target = 'from', version = 0, abort, timer;
+    const browser = options.window || (typeof window === 'object' ? window : { document, fetch, AbortController, setTimeout, clearTimeout,
+      ...(options.contains ? { NuevaEcijaCoverage: { contains: options.contains } } : {}) });
+    let active = null, originKey = '', target = 'from', explicitTarget = false, version = 0, abort, autocomplete;
+    let manualAddress = '';
     const status = text => { const node = byId('relocationDestinationStatus'); if (node) node.textContent = text; };
-    function cancel() { ++version; clearTimeout(timer); abort?.abort(); abort = null; }
-    function close() { if (list) { list.replaceChildren(); list.classList.add('d-none'); } input?.setAttribute('aria-expanded', 'false'); }
-    function chooseTarget(next, focus = false) {
-      if (next === 'to' && !acceptPoint(getOrigin())) return;
+    function cancelPinLookup() { ++version; abort?.abort(); abort = null; }
+    function setMapTarget(next, focus = false) {
       target = next; setTarget(next);
       ['From', 'To'].forEach(name => {
         const button = byId('relocationMapStep' + name); if (!button) return;
@@ -25,103 +25,101 @@
         button.classList.toggle('is-active', selected);
       });
       const help = byId('relocationMapStepHelp');
-      if (help) help.textContent = next === 'to' ? 'Now choose the new address or tap the map. The orange pin marks the destination.' : 'Choose the current address or tap the map. The green pin marks the starting point.';
-      if (focus) { const field = next === 'to' ? input : byId('locationInput'); field?.focus({ preventScroll: true }); field?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      if (help) help.textContent = next === 'to'
+        ? 'Map clicks move the orange pin for the new address. Select Current address to move the green pin.'
+        : 'Map clicks move the green pin for the current address. Select New address to move the orange pin.';
+      if (focus) {
+        const field = next === 'to' ? input : byId('locationInput');
+        field?.focus({ preventScroll: true }); field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    function chooseTarget(next, focus = false) {
+      if (!['from', 'to'].includes(next) || next === 'to' && !acceptPoint(getOrigin())) return;
+      explicitTarget = true;
+      if (next === 'from') { cancelPinLookup(); autocomplete?.close(); }
+      setMapTarget(next, focus);
     }
     function sync() {
-      const item = getItem(), origin = getOrigin(), custom = item?.relocation?.scope === 'different_address' && !item.relocation.requestId;
-      byId('relocationMapSteps')?.classList.toggle('d-none', !custom);
-      byId('relocationDestinationSection')?.classList.toggle('d-none', !custom);
-      if (active !== item) { cancel(); close(); active = item; originKey = ''; chooseTarget('from'); }
+      const item = getItem(), origin = getOrigin(), separate = item?.relocation?.scope === 'different_address' && !item.relocation.requestId;
+      byId('relocationMapSteps')?.classList.toggle('d-none', !separate);
+      byId('relocationDestinationSection')?.classList.toggle('d-none', !separate);
+      if (active !== item) {
+        cancelPinLookup(); autocomplete?.close(); active = item; originKey = ''; manualAddress = ''; explicitTarget = false; setMapTarget('from');
+      }
       if (!item) return;
       if (acceptPoint(origin) && !item.relocation.requestId) {
         item.relocation.from = { ...(item.relocation.from || {}), address: origin.address || '', lat: Number(origin.lat), lng: Number(origin.lng) };
         if (item.relocation.scope === 'same_property') item.relocation.to = { ...(item.relocation.to || {}), address: origin.address || '', lat: Number(origin.lat), lng: Number(origin.lng) };
       }
-      if (!custom || !input) return;
+      if (!separate || !input) return;
       const ready = acceptPoint(origin), key = ready ? `${origin.lat},${origin.lng}` : '';
       input.disabled = !ready;
       const destinationStep = byId('relocationMapStepTo'); if (destinationStep) destinationStep.disabled = !ready;
-      ['relocationDestinationPin', 'relocationDestinationSearch'].forEach(id => { const button = byId(id); if (button) button.disabled = !ready; });
+      const pinButton = byId('relocationDestinationPin'); if (pinButton) pinButton.disabled = !ready;
+      const searchButton = byId('relocationDestinationSearch'); if (searchButton) searchButton.disabled = !ready || input.getAttribute('aria-busy') === 'true';
       if (input.value !== (item.relocation.to?.address || '')) input.value = item.relocation.to?.address || '';
-      if (!ready) { cancel(); originKey = ''; chooseTarget('from'); status('Choose the current address first.'); close(); }
+      if (!ready) { cancelPinLookup(); autocomplete?.close(); originKey = ''; setMapTarget('from'); status('Choose the current address first.'); }
       else if (key !== originKey) {
-        originKey = key; chooseTarget('to');
-        if (!acceptPoint(item.relocation.to)) {
-          status('Current location saved. Choose the new address or place its orange pin.');
-          if (options.isLocationStep?.() && document.activeElement === byId('locationInput')) chooseTarget('to', true);
-        }
+        const firstOrigin = !originKey; originKey = key;
+        if (firstOrigin && !explicitTarget) setMapTarget('to');
+        if (!acceptPoint(item.relocation.to)) status('Current location saved. Choose the new address or place its orange pin.');
       }
     }
-    function apply(point, address) {
+    function apply(point, address, focusMap = false) {
       const item = getItem();
       if (!item || item !== active || !acceptPoint(point) || !acceptPoint(getOrigin())) return false;
       item.relocation.to = { ...(item.relocation.to || {}), address: String(address || '').trim(), lat: Number(point.lat), lng: Number(point.lng) };
       if (input) input.value = item.relocation.to.address;
-      setPin(Number(point.lat), Number(point.lng)); close(); changed(); return true;
+      setPin(Number(point.lat), Number(point.lng), { focusMap }); changed(); return true;
     }
+    function editDestination(address) {
+      const item = getItem(); if (item?.relocation?.scope !== 'different_address' || item !== active) return;
+      cancelPinLookup(); chooseTarget('to'); manualAddress = address;
+      item.relocation.to = { ...(item.relocation.to || {}), address, lat: null, lng: null };
+      options.clearPin?.(); changed(); status('Choose an address suggestion or place the orange pin.');
+    }
+    autocomplete = AddressAutocomplete.create({ input, list, searchButton: byId('relocationDestinationSearch'),
+      onInput: editDestination,
+      onSelect: result => {
+        const point = { lat: result.lat, lng: result.lon ?? result.lng };
+        if (!acceptPoint(point)) { status('Choose a new address within Nueva Ecija.'); return; }
+        manualAddress = ''; cancelPinLookup(); chooseTarget('to');
+        if (apply(point, result.display_name, true)) status('New address found. Check the orange pin and drag it to the exact location if needed.');
+      },
+      onLocality: result => { autocomplete?.close(); editDestination(result.display_name); status('The address is saved, but its map location could not be found. Place the orange pin at the exact destination.'); },
+    }, browser);
     async function pin(lat, lng) {
-      const item = getItem(); if (item?.relocation?.scope !== 'different_address' || item !== active || !acceptPoint({ lat, lng }) || !acceptPoint(getOrigin())) return;
-      cancel(); close(); const token = version, typed = input?.value.trim() || '';
-      const address = typed || `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
-      apply({ lat, lng }, address); chooseTarget('to');
-      if (typed) return;
-      status('New location pinned. Finding its address...');
-      abort = new AbortController();
+      const item = getItem();
+      if (item?.relocation?.scope !== 'different_address' || item !== active || !acceptPoint({ lat, lng }) || !acceptPoint(getOrigin())) return;
+      cancelPinLookup(); autocomplete?.close(); chooseTarget('to'); const token = version;
+      const address = manualAddress || `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+      apply({ lat, lng }, address);
+      if (manualAddress) { status('Your address and the orange pin are saved. Drag the pin to adjust its position.'); return; }
+      status('New location pinned. Finding its address...'); abort = new AbortController();
       try {
         const response = await fetch(`/api/geocoding/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`, { signal: abort.signal, credentials: 'same-origin' });
         if (!response.ok) throw new Error('Address unavailable');
         const result = await response.json();
         if (token !== version || getItem() !== item) return;
         const found = String(result.display_name || '').trim();
-        if (found.length >= 8) apply({ lat, lng }, found);
+        if (found.length >= 8) { apply({ lat, lng }, found); status('New address updated. The orange pin marks the exact location you chose.'); }
         else status('The orange pin is saved. Enter the full destination address if the street name is missing.');
       } catch (error) { if (token === version && error.name !== 'AbortError') status('The orange pin is saved. Enter the full destination address if needed.'); }
     }
-    async function search() {
-      cancel(); close(); const item = getItem(), query = input?.value.trim() || '', token = version;
-      if (item?.relocation?.scope !== 'different_address' || item !== active || !acceptPoint(getOrigin()) || query.length < 3) return;
-      abort = new AbortController(); status('Finding address suggestions...');
-      try {
-        const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`, { signal: abort.signal, credentials: 'same-origin' });
-        if (!response.ok) throw new Error('Address search unavailable');
-        const result = await response.json();
-        if (token !== version || getItem() !== item || input.value.trim() !== query) return;
-        const rows = Array.isArray(result) ? result.filter(row => acceptPoint({ lat: row.lat, lng: row.lon })) : [];
-        if (!rows.length) { status('No address match. Keep typing or place the orange pin on the map.'); return; }
-        rows.forEach(row => {
-          const button = document.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action'; button.setAttribute('role', 'option'); button.textContent = row.display_name;
-          button.addEventListener('click', () => { cancel(); apply({ lat: row.lat, lng: row.lon }, row.display_name); chooseTarget('to'); input.focus({ preventScroll: true }); });
-          list?.appendChild(button);
-        });
-        list?.classList.remove('d-none'); input.setAttribute('aria-expanded', 'true'); status('Choose the matching address to set the orange pin.');
-      } catch (error) { if (token === version && error.name !== 'AbortError') status('Address search is unavailable. Place the orange pin on the map.'); }
-    }
-    input?.addEventListener('input', () => {
-      const item = getItem(); if (!item || item !== active) return;
-      cancel(); close(); chooseTarget('to');
-      item.relocation.to = { ...(item.relocation.to || {}), address: input.value.trim(), lat: null, lng: null };
-      options.clearPin?.(); changed(); status('Choose an address suggestion or place the orange pin.');
-      if (input.value.trim().length >= 3) timer = setTimeout(search, 350);
+    // The service-address field is replaced when the customer revisits this
+    // step. Delegation keeps map targeting attached to the current input.
+    document.addEventListener('focusin', event => {
+      if (getItem()?.relocation?.scope !== 'different_address') return;
+      if (event.target.id === 'locationInput') chooseTarget('from');
+      else if (event.target === input) chooseTarget('to');
     });
-    input?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'different_address') chooseTarget('to'); });
-    input?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); search(); }
-      if (event.key === 'Escape') { cancel(); close(); }
-      if (event.key === 'ArrowDown' && list?.firstElementChild) { event.preventDefault(); list.firstElementChild.focus(); }
-    });
-    list?.addEventListener('keydown', event => {
-      const buttons = [...list.querySelectorAll('button')], index = buttons.indexOf(event.target);
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus(); }
-      if (event.key === 'Escape') { close(); input.focus(); }
-    });
-    byId('locationInput')?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'different_address') chooseTarget('from'); });
     byId('relocationMapStepFrom')?.addEventListener('click', () => chooseTarget('from', true));
     byId('relocationMapStepTo')?.addEventListener('click', () => chooseTarget('to', true));
-    byId('relocationDestinationSearch')?.addEventListener('click', search);
-    byId('relocationDestinationPin')?.addEventListener('click', () => { chooseTarget('to'); status('Tap the new location on the map. You can drag the orange pin afterward.'); byId('technicianMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
-    document.addEventListener('click', event => { if (event.target !== input && !list?.contains(event.target) && !byId('relocationDestinationSearch')?.contains(event.target)) { if (!byId('technicianMap')?.contains(event.target)) cancel(); close(); } });
-    return { sync, pin, search, chooseTarget, target: () => target };
+    byId('relocationDestinationPin')?.addEventListener('click', () => {
+      chooseTarget('to'); autocomplete?.close(); status('Tap the new location on the map. Further map clicks keep moving the orange pin until you select Current address.');
+      byId('technicianMap')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return { sync, pin, search: () => autocomplete?.search(), chooseTarget, target: () => target };
   }
   return { validPoint, createController };
 });

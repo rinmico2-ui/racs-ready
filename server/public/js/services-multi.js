@@ -2210,6 +2210,7 @@ function getTypedServiceAddressForPin() {
 }
 
 function guideToManualAddressPin() {
+  relocationLocationController()?.chooseTarget('from');
   const address = document.getElementById('locationInput')?.value.trim() || '';
   BookingState.pendingManualAddress = address || null;
   if (address) BookingState.location = address;
@@ -3179,7 +3180,6 @@ function initializeMapInternal(mapContainer) {
       return;
     }
     if (placingRelocationDestination && differentAddressRelocationItem()) {
-      placingRelocationDestination = false;
       relocationLocationController()?.pin(lat, lng);
       return;
     }
@@ -3436,21 +3436,25 @@ function drawRoute() {
           });
         }
 
-        // Fit map to show the entire route with padding
-        if (routeData.bounds) {
-          BookingState.map.fitBounds(routeData.bounds, {
-            padding: [60, 60],
-            maxZoom: 16
-          });
-          bookingDebug('🗺️ Fitted map to route bounds');
-        } else {
-          const markers = [];
-          if (BookingState.technicianMarker) markers.push(BookingState.technicianMarker);
-          if (BookingState.userMarker) markers.push(BookingState.userMarker);
-          if (markers.length > 0) {
-            const group = new L.featureGroup(markers);
-            BookingState.map.fitBounds(group.getBounds().pad(0.15));
+        // Keep both relocation pins under the customer's control while background routes refresh.
+        if (!differentAddressRelocationItem()) {
+          // Fit map to show the entire route with padding
+          if (routeData.bounds) {
+            BookingState.map.fitBounds(routeData.bounds, {
+              padding: [60, 60],
+              maxZoom: 16
+            });
+            bookingDebug('🗺️ Fitted map to route bounds');
+          } else {
+            const markers = [];
+            if (BookingState.technicianMarker) markers.push(BookingState.technicianMarker);
+            if (BookingState.userMarker) markers.push(BookingState.userMarker);
+            if (markers.length > 0) {
+              const group = new L.featureGroup(markers);
+              BookingState.map.fitBounds(group.getBounds().pad(0.15));
+            }
           }
+
         }
 
         bookingDebug('✅ Actual route drawn successfully');
@@ -3644,7 +3648,7 @@ function drawStraightLineRoute(technicianPos, userPos) {
   const markers = [];
   if (BookingState.technicianMarker) markers.push(BookingState.technicianMarker);
   if (BookingState.userMarker) markers.push(BookingState.userMarker);
-  if (markers.length > 0) {
+  if (markers.length > 0 && !differentAddressRelocationItem()) {
     const group = new L.featureGroup(markers);
     BookingState.map.fitBounds(group.getBounds().pad(0.1));
   }
@@ -3719,8 +3723,11 @@ window.confirmServiceAddressPin = confirmServiceAddressPin;
 
 function bindServiceCustomerMarkerDrag(marker) {
   if (!marker) return;
+  marker.off('dragstart');
+  marker.on('dragstart', () => relocationLocationController()?.chooseTarget('from'));
   marker.off('dragend');
   marker.on('dragend', function() {
+    relocationLocationController()?.chooseTarget('from');
     const point = marker.getLatLng();
     if (!isWithinPhilippinesMapBounds(point.lat, point.lng)) {
       const previous = BookingState.userCoordinates;
@@ -3806,7 +3813,7 @@ function reverseGeocode(lat, lng, requestToken, options = {}) {
 
 
     if (BookingState.map) {
-      BookingState.map.setView([parsedLat, parsedLng], 16);
+      if (!differentAddressRelocationItem()) BookingState.map.setView([parsedLat, parsedLng], 16);
       setCustomerLocationMarker(parsedLat, parsedLng, address, 'Confirmed map location');
 
       window.zoomToUser = function () {
@@ -6187,7 +6194,7 @@ function syncRelocationMapSummary() {
   }
 }
 
-function setRelocationDestinationPin(lat, lng) {
+function setRelocationDestinationPin(lat, lng, { focusMap = false } = {}) {
   const item = activeRelocationItem();
   if (item?.relocation?.scope !== 'different_address') return;
   const address = String(item.relocation.to?.address || '').trim() || (Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6));
@@ -6209,6 +6216,8 @@ function setRelocationDestinationPin(lat, lng) {
   if (BookingState.relocationDestinationMarker) BookingState.relocationDestinationMarker.setLatLng([lat, lng]);
   else BookingState.relocationDestinationMarker = L.marker([lat, lng], { icon, draggable: !item.relocation.requestId, keyboard: true, title: 'New aircon address' }).addTo(BookingState.map);
   BookingState.relocationDestinationMarker.bindPopup(`<strong>To · new aircon address</strong><br><small>${escapeServiceMapText(address)}</small>`);
+  BookingState.relocationDestinationMarker.off('dragstart');
+  BookingState.relocationDestinationMarker.on('dragstart', () => relocationLocationController()?.chooseTarget('to'));
   BookingState.relocationDestinationMarker.off('dragend');
   BookingState.relocationDestinationMarker.on('dragend', event => {
     if (item.relocation.requestId) return;
@@ -6224,8 +6233,8 @@ function setRelocationDestinationPin(lat, lng) {
   if (BookingState.relocationMoveLine) BookingState.map.removeLayer(BookingState.relocationMoveLine);
   if (from && Number.isFinite(Number(from.lat)) && Number.isFinite(Number(from.lng))) {
     BookingState.relocationMoveLine = L.polyline([[from.lat, from.lng], [lat, lng]], { color: '#ea580c', weight: 3, dashArray: '7 7', opacity: .9 }).addTo(BookingState.map);
-    BookingState.map.fitBounds(L.featureGroup([BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean)).getBounds(), { padding: [50, 50], maxZoom: 16, animate: false });
-  } else BookingState.map.setView([lat, lng], 15);
+    if (focusMap) BookingState.map.fitBounds(L.featureGroup([BookingState.userMarker, BookingState.relocationDestinationMarker].filter(Boolean)).getBounds(), { padding: [50, 50], maxZoom: 16, animate: false });
+  } else if (focusMap) BookingState.map.setView([lat, lng], 15);
   const status = document.getElementById('relocationDestinationStatus');
   if (status) status.textContent = 'Orange pin marks the new address. Drag it to the exact place if needed.';
   syncRelocationMapSummary();
