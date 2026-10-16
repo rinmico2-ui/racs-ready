@@ -90,7 +90,10 @@ async function processAssignmentExpiry({ io, now = new Date(), onError = error =
 }
 function startAssignmentExpiryScheduler(io) {
   if (timer) return;
-  timer = setInterval(() => { void processAssignmentExpiry({ io }); }, 60000);
+  timer = setInterval(() => {
+    require('./workflowSchedulerMaintenance').runWorkflowScheduledTask(() => processAssignmentExpiry({ io }))
+      .catch(error => console.error('[watchdog] acceptance expiry deferred:', error.message));
+  }, 60000);
   timer.unref();
 }
 function stopAssignmentExpiryScheduler() { clearInterval(timer); timer = null; }

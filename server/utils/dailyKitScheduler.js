@@ -42,6 +42,7 @@ function createDailyKitScheduler(overrides = {}) {
   const DailyKit = overrides.DailyKit || require('../models/DailyKit');
   const syncDailyKit = overrides.syncDailyKit || require('./dailyKitService').syncDailyKit;
   const withOperationLock = overrides.withOperationLock || require('./operationLock').withOperationLock;
+  const isMaintenanceEnabled = overrides.isMaintenanceEnabled || require('./workflowSchedulerMaintenance').isWorkflowMaintenanceEnabled;
   const clock = overrides.now || (() => new Date());
   const logger = overrides.logger || console;
   const setTimer = overrides.setTimeout || setTimeout;
@@ -51,6 +52,7 @@ function createDailyKitScheduler(overrides = {}) {
   async function sweep(now) {
     const summary = { generated: 0, skipped: 0, failed: 0 };
     if (mongoose.connection.readyState !== 1) return { ...summary, disconnected: true };
+    if (await isMaintenanceEnabled()) return { ...summary, pausedForMaintenance: true };
     const collections = { orders: Order.collection.name, dailyAssignments: DailyAssignment.collection.name, kits: DailyKit.collection.name };
     const cursor = Assignment.aggregate(generationPipeline(collections, now))
       .option({ maxTimeMS: 20000, allowDiskUse: true }).cursor({ batchSize: 25 });
@@ -59,6 +61,7 @@ function createDailyKitScheduler(overrides = {}) {
       // critical path without flooding the application's MongoDB pool.
       for await (const target of cursor) {
         if (stopped) break;
+        if (await isMaintenanceEnabled()) { summary.pausedForMaintenance = true; break; }
         const { technicianId, date } = target._id;
         const cutoff = new Date(clock().getTime() - CHECK_INTERVAL_MS);
         if (target.automaticSyncedAt instanceof Date && target.automaticSyncedAt > cutoff) { summary.skipped++; continue; }
@@ -69,6 +72,7 @@ function createDailyKitScheduler(overrides = {}) {
             // have generated this day after the discovery cursor was opened.
             const recent = await DailyKit.exists({ technicianId, workDate: { $gte: start, $lt: end }, automaticSyncedAt: { $gt: cutoff } }).maxTimeMS(5000);
             if (recent || stopped) return false;
+            if (await isMaintenanceEnabled()) { summary.pausedForMaintenance = true; return false; }
             const kit = await syncDailyKit(technicianId, date, { automatic: true });
             return Boolean(kit);
           }, { leaseMs: 120000, waitMs: 250 });

@@ -245,10 +245,11 @@ async function reconcileMaintenanceBookings(now = new Date()) {
 
 function startMaintenanceScheduler() {
   console.log("[maintenance-monitor] Starting preventive-maintenance reminder monitor (every 6 hours)");
-  setTimeout(() => checkMaintenanceReminders().catch((error) => {
+  const run = () => require('./workflowSchedulerMaintenance').runWorkflowScheduledTask(checkMaintenanceReminders);
+  setTimeout(() => run().catch((error) => {
     console.error("[maintenance-monitor] Initial check failed:", error.message);
   }), 45 * 1000);
-  setInterval(() => checkMaintenanceReminders().catch((error) => {
+  setInterval(() => run().catch((error) => {
     console.error("[maintenance-monitor] Check failed:", error.message);
   }), CHECK_INTERVAL_MS);
 }

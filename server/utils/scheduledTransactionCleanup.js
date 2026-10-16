@@ -267,6 +267,46 @@ function validateBackup(artifact, db, config) {
   }
 }
 
+// Print counts and field names only: never include customers, payment evidence,
+// email payloads or backed-up document values in operator diagnostics.
+function snapshotDifferences(original, current) {
+  const collections = [];
+  for (const name of Object.keys(original.remove)) {
+    const before = original.remove[name], after = current.remove[name];
+    const oldRows = new Map(before.map(row => [id(row._id), row]));
+    const newRows = new Map(after.map(row => [id(row._id), row]));
+    const added = after.filter(row => !oldRows.has(id(row._id))).length;
+    const removed = before.filter(row => !newRows.has(id(row._id))).length;
+    let modified = 0;
+    const fields = new Set();
+    for (const row of after) {
+      const previous = oldRows.get(id(row._id));
+      if (!previous || recovery.serialize(previous) === recovery.serialize(row)) continue;
+      modified++;
+      for (const field of new Set([...Object.keys(previous), ...Object.keys(row)])) {
+        if (Object.hasOwn(previous, field) !== Object.hasOwn(row, field)
+          || recovery.serialize(previous[field]) !== recovery.serialize(row[field])) {
+          fields.add(/^[a-zA-Z_][a-zA-Z0-9_]{0,79}$/.test(field) ? field : '[other field]');
+        }
+      }
+    }
+    const orderChanged = before.map(row => id(row._id)).join() !== after.map(row => id(row._id)).join() && !added && !removed;
+    if (added || removed || modified || orderChanged) collections.push({ collection: name,
+      prepared: before.length, current: after.length, added, removed, modified,
+      changedFields: [...fields].sort(), orderChanged });
+  }
+  return { matches: recovery.digest(original) === recovery.digest(current), collections,
+    dependencyChecksChanged: recovery.serialize(original.checks) !== recovery.serialize(current.checks) };
+}
+
+async function compare({ db, config, backupFile, decryptEmail }) {
+  const { artifact } = await recovery.readResetBackup(backupFile);
+  validateBackup(artifact, db, config);
+  const current = await snapshot(db, config, undefined, { decryptEmail });
+  return { mode: 'read-only-comparison', operation: operationKey(config), scope: config,
+    changes: snapshotDifferences(artifact.original, current), databaseChanges: 0 };
+}
+
 async function apply({ db, client, config, backupFile, decryptEmail, restore = false, now = new Date() }) {
   const { artifact, backupSha256 } = await recovery.readResetBackup(backupFile);
   validateBackup(artifact, db, config);
@@ -292,7 +332,9 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
       } else {
         if (marker && !marker.value.restoredAt) throw Error("This date-range cleanup already ran. No later records will be deleted.");
         const current = await snapshot(db, config, session, { decryptEmail });
-        if (recovery.digest(current) !== artifact.originalSnapshotHash) throw Error("Selected records or dependencies changed after preparation. No changes made; prepare again.");
+        if (recovery.digest(current) !== artifact.originalSnapshotHash) throw Object.assign(
+          Error("Selected records or dependencies changed after preparation. No changes made; prepare again."),
+          { changes: snapshotDifferences(artifact.original, current) });
         if (plan(current, config).blockers.length) throw Error("Unresolved dependencies or custody block this cleanup.");
         for (const [name, rows] of Object.entries(current.remove)) if (rows.length) {
           const removed = await db.collection(name).deleteMany({ _id: { $in: ids(rows) } }, { session });
@@ -315,4 +357,4 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
     maintenanceChanged: false, message: "Only the prepared bookings/orders and their linked records were changed. No seeding or physical stock changes. Allow 30 seconds for report caches, then refresh." };
 }
 
-module.exports = { OPERATION, TEST_CUSTODY_ACKNOWLEDGEMENT, MODEL_NAMES, configuration, operationKey, orderDate, valuesAt, registry, links, selectRecords, snapshot, plan, preview, prepare, apply };
+module.exports = { OPERATION, TEST_CUSTODY_ACKNOWLEDGEMENT, MODEL_NAMES, configuration, operationKey, orderDate, valuesAt, registry, links, selectRecords, snapshot, snapshotDifferences, plan, preview, prepare, compare, apply };

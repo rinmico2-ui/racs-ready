@@ -210,6 +210,8 @@ function startDelayMonitor() {
   const INTERVAL_MS = 5 * 60 * 1000;
   setInterval(async () => {
     try {
+      const { isWorkflowMaintenanceEnabled } = require('./workflowSchedulerMaintenance');
+      if (await isWorkflowMaintenanceEnabled()) return;
       const now = new Date();
       const dayStart = new Date(now);
       dayStart.setHours(0, 0, 0, 0);
@@ -223,6 +225,7 @@ function startDelayMonitor() {
       }).select("bookingDate startTime endTime serviceDurationMinutes travelTime technicianId status").lean();
 
       for (const job of overruns) {
+        if (await isWorkflowMaintenanceEnabled()) break;
         const endMin = capacityEndMin(job);
         if (!Number.isFinite(endMin)) continue;
         const nowMin = now.getHours() * 60 + now.getMinutes();

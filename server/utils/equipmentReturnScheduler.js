@@ -54,10 +54,11 @@ async function checkOverdueEquipmentReturns(now = new Date()) {
 
 function startEquipmentReturnScheduler() {
   console.log("[equipment-return-monitor] Starting overdue equipment monitor (every hour)");
-  setTimeout(() => checkOverdueEquipmentReturns().catch((error) => {
+  const run = () => require('./workflowSchedulerMaintenance').runWorkflowScheduledTask(checkOverdueEquipmentReturns);
+  setTimeout(() => run().catch((error) => {
     console.error("[equipment-return-monitor] Initial check failed:", error.message);
   }), 60 * 1000);
-  setInterval(() => checkOverdueEquipmentReturns().catch((error) => {
+  setInterval(() => run().catch((error) => {
     console.error("[equipment-return-monitor] Check failed:", error.message);
   }), CHECK_INTERVAL_MS);
 }

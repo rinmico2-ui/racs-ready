@@ -124,6 +124,7 @@ test('booking monitor never overlaps a slow cycle and retries after a cycle fail
   let callbacks=[],calls=0,release,fail=true;
   const pending=new Promise(done=>release=done);
   const context=vm.createContext({CHECK_INTERVAL_MS:300000,console:{log(){},error(){}},setTimeout:callback=>callbacks.push(callback),setInterval:callback=>callbacks.push(callback),
+    require:()=>({isWorkflowMaintenanceEnabled:async()=>false}),
     checkForUnassignedOverdueBookings:async()=>{calls++;await pending;if(fail)throw Error('timeout');},
     checkForDelayedBookings:async()=>{},checkForServiceDelays:async()=>{},checkForUpcomingUnverifiedBookings:async()=>{},checkForCustomerServiceReminders:async()=>{},
   });
