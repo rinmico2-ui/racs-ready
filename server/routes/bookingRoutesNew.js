@@ -145,11 +145,17 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     }
     for (let index = 0; index < parsedServices.length; index += 1) {
       const service = parsedServices[index];
-      const modelResult = validateRepairModel(service?.model, { required: true });
+      if (!service || typeof service !== 'object' || Array.isArray(service)) return res.status(400).json({ error: 'Choose valid service details.' });
+      const modelResult = validateRepairModel(service?.model, { required: service?.type === 'repair' });
       if (!modelResult.valid) {
         return res.status(400).json({ error: `Service ${index + 1}: ${modelResult.error}` });
       }
       service.model = modelResult.value;
+    }
+    for (let index = 0; index < parsedServices.length; index++) {
+      if (parsedServices[index].type !== 'repair') continue;
+      try { Object.assign(parsedServices[index], require('../public/js/appliance-services').repairDetails(parsedServices[index])); }
+      catch (error) { return res.status(400).json({ error: `Service ${index + 1}: ${error.message}` }); }
     }
     const normalizedQuantities = parsedServices.map(service => Number(service.quantity));
     if (normalizedQuantities.some(value => !Number.isInteger(value) || value < 1)) {
@@ -389,6 +395,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       const item = parsedServices[index];
       if (item.type === 'repair') {
         const policy = require('../utils/repairIdentificationPolicy');
+        try { Object.assign(item, require('../public/js/appliance-services').repairDetails(item)); }
+        catch (error) { return res.status(400).json({ error: `Service ${index + 1}: ${error.message}` }); }
         if (typeof item.brand !== 'string' || item.brand.trim().length > 80 || policy.unknownBrand(item.brand.trim())) return res.status(400).json({ error: 'Confirm the repair appliance brand or request staff identification before booking.' });
         if (item.assistanceRequestId && !policy.repairQuoteMatches(assistanceById.get(String(item.assistanceRequestId)), item)) {
           return res.status(409).json({ error: 'The verified repair unit or inspection fee changed. Review your identification request before booking.' });
@@ -1205,11 +1213,16 @@ async function validatedServiceItems(inputItems, booking) {
 
   return Promise.all(contexts.map(async ({ input, type, prior }) => {
     const Catalog = type === "repair" ? RepairService : CoreService;
-    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "", { required: !prior || Boolean(prior.model) });
+    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "", { required: type === 'repair' && (!prior || Boolean(prior.model)) });
     if (!modelResult.valid) {
       const error = new Error(modelResult.error);
       error.status = 400;
       throw error;
+    }
+    let repairDetails = {};
+    if (type === 'repair') {
+      try { repairDetails = require('../public/js/appliance-services').repairDetails({ ...prior, ...input }, { prior, allowLegacyHp: true }); }
+      catch (error) { error.status = 400; throw error; }
     }
     if (type === "repair" && !input.serviceId && !prior?.serviceId) {
       const brand = String(input.brand || "").trim().slice(0, 100);
@@ -1223,6 +1236,8 @@ async function validatedServiceItems(inputItems, booking) {
         throw error;
       }
       const pricing = categoryRepairPriceByInput.get(input) || { unitType: prior.unitType || prior.applianceType, unitLabel: prior.applianceTypeName || prior.unitType || prior.applianceType, categorySlug: prior.unitCategory || '', fee: prior.unitPrice };
+      try { repairDetails = require('../public/js/appliance-services').repairDetails({ ...prior, ...input, unitType: pricing.unitType, unitCategory: pricing.categorySlug }, { prior, allowLegacyHp: true }); }
+      catch (error) { error.status = 400; throw error; }
       const sameAppliance = prior && String(prior.unitType || prior.applianceType || '') === pricing.unitType && String(prior.unitCategory || '') === pricing.categorySlug;
       if (prior && !sameAppliance && !['pending', 'inspection_pending'].includes(prior.status)) {
         const error = new Error('This appliance has entered the repair workflow. Ask staff to change its type.');
@@ -1230,7 +1245,7 @@ async function validatedServiceItems(inputItems, booking) {
         throw error;
       }
       const unitPrice = sameAppliance && prior.unitPrice != null && Number.isFinite(Number(prior.unitPrice)) ? Number(prior.unitPrice) : Number(pricing.fee);
-      const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Math.trunc(Number(input.quantity)) || 1));
+      const quantity = repairDetails.quantity;
       const duration = await getInspectionDurationMinutes();
       const unitLabel = String(pricing?.unitLabel || input.unitType || input.applianceTypeName || input.applianceType || "Appliance").trim();
       return {
@@ -1243,8 +1258,8 @@ async function validatedServiceItems(inputItems, booking) {
         unitPrice,
         totalPrice: unitPrice * quantity,
         duration,
-        hp: null,
-        hpDescription: "",
+        hp: repairDetails.hp,
+        hpDescription: repairDetails.hpDescription || "",
         airconType: String(input.airconType || input.applianceType || "").trim(),
         airconTypeName: String(input.airconTypeName || input.applianceTypeName || unitLabel).trim(),
         applianceType: String(input.applianceType || input.unitType || "").trim(),
@@ -1283,7 +1298,7 @@ async function validatedServiceItems(inputItems, booking) {
       throw error;
     }
     const quantity = Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(input.quantity) || 1));
-    const hp = Number(input.hp) || null;
+    const hp = type === 'repair' ? repairDetails.hp : Number(input.hp) || null;
     const airconType = input.airconType || input.applianceType || "";
     const typeTier = (catalog.airconTypes || []).find(row => row.type === airconType);
     const hpTier = (typeTier?.hpPricing || catalog.hpPricing || []).find(row => Number(row.hp) === hp);
@@ -1572,15 +1587,15 @@ router.post('/create-repair', (req, res, next) => {
 
     let repairItems = [];
     try { repairItems = serviceItems ? JSON.parse(serviceItems) : []; } catch { repairItems = []; }
-    if (!Array.isArray(repairItems) || !repairItems.length) repairItems = [{ unitType, brand, model, problemDescription, quantity }];
+    if (!Array.isArray(repairItems) || !repairItems.length) repairItems = [{ unitType, brand, model, problemDescription, quantity, hp: req.body.hp, unitCategory: req.body.unitCategory }];
     repairItems = repairItems.slice(0, 20).map(item => ({
       unitType: String(item.unitType || item.applianceTypeName || '').trim(),
       unitCategory: String(item.unitCategory || item.repairCategory || '').trim(),
       brand: String(item.brand || '').trim(), model: item.model,
       problemDescription: String(item.problemDescription || item.repairIssue || '').trim(),
-      quantity: Math.min(schedulingEngine.MAX_BOOKING_UNITS, Math.max(1, Number(item.quantity) || 1)),
+      quantity: item.quantity ?? 1, hp: item.hp,
     }));
-    const totalRepairUnits = repairItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalRepairUnits = repairItems.reduce((sum, item) => sum + Number(item.quantity), 0);
     const repairIsProject = totalRepairUnits >= schedulingEngine.LARGE_SCALE_MIN_UNITS;
 
     // ── Step 1: Input Validation ──────────────────────────────────────────
@@ -1604,6 +1619,10 @@ router.post('/create-repair', (req, res, next) => {
       if (!modelResult.valid) errors.push(`Appliance ${index + 1}: ${modelResult.error}`);
       else item.model = modelResult.value;
       if (item.problemDescription.length < 10) errors.push(`Appliance ${index + 1}: problem description must be at least 10 characters`);
+    });
+    if (!errors.length) repairItems.forEach((item, index) => {
+      try { Object.assign(item, require('../public/js/appliance-services').repairDetails(item)); }
+      catch (error) { errors.push(`Appliance ${index + 1}: ${error.message}`); }
     });
     if (errors.length > 0) {
       console.error('Repair validation failed:', errors, {
@@ -1746,6 +1765,8 @@ router.post('/create-repair', (req, res, next) => {
         applianceTypeName: item.unitType,
         brand: item.brand,
         model: item.model,
+        hp: item.hp,
+        hpDescription: item.hpDescription || null,
         repairIssue: item.problemDescription,
         problemDescription: item.problemDescription,
         units: require('../utils/repairUnitWorkflow').customerUnits(item),

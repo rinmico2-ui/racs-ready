@@ -225,7 +225,7 @@
     const catalog = request.serviceId || {};
     const kind = request.applianceKind || 'aircon';
     const supported = !isRepair && request.serviceId ? A.profile(catalog, kind) : null;
-    const needsHp = !isRepair && (kind === 'aircon' ? Boolean(catalog?.airconTypes?.length || catalog?.hpPricing?.length) : supported?.pricingMode === 'hp');
+    const needsHp = isRepair ? kind === 'aircon' || Boolean(A.isRepairAircon?.(request.repair)) : kind === 'aircon' ? Boolean(catalog?.airconTypes?.length || catalog?.hpPricing?.length) : supported?.pricingMode === 'hp';
     const block = section(canRenewAccepted(request) ? 'Renew verified quote' : request.status === 'quoted' ? 'Update verified details' : 'Verify and price this unit', 'bi-patch-check');
     if (!isRepair && (!request.serviceId || catalog.active === false)) {
       block.append(guidance('This service is no longer active in the catalog. A price cannot be sent until the service is available again.', true));
@@ -254,7 +254,7 @@
     grid.append(field('Brand *', brand, 'Confirm the brand with the customer or unit label.'));
     grid.append(field('Model number *', model, 'Confirm the model before sending a quote. It is required for booking.'));
     if (type.required) grid.append(field('Aircon type *', type));
-    if (needsHp) grid.append(field(kind === 'aircon' ? 'HP *' : 'Compressor HP *', hp));
+    if (needsHp) grid.append(field(isRepair || kind === 'aircon' ? 'Aircon capacity (HP) *' : 'Compressor HP *', hp));
     const repairType = text('input'); repairType.type = 'text'; repairType.maxLength = 80; repairType.required = isRepair;
     repairType.value = request.quote?.unitType || request.repair?.unitType || '';
     if (isRepair) {
@@ -282,6 +282,7 @@
     }
     form.append(actions);
     const tiers = () => {
+      if (isRepair) return (A.repairHpValues || []).map(hp => ({ hp }));
       if (kind !== 'aircon') return supported?.hpPricing || [];
       const selected = (catalog.airconTypes || []).find(item => item.type === type.value);
       return selected?.hpPricing || (catalog.airconTypes?.length ? [] : catalog.hpPricing || []);
@@ -291,11 +292,11 @@
       try { pricing = isRepair ? { unitPrice: request.quote?.unitPrice ?? request.repair?.inspectionFee } : A.price(catalog, { applianceKind: kind, brand: brand.value.trim() || 'Price preview', airconType: type.value, hp: hp.value || null }); } catch (_) {}
       price.textContent = pricing ? `${pesos(pricing.unitPrice * Number(request.quantity))} total · ${pesos(pricing.unitPrice)} per unit` : 'Choose the verified type and HP';
       validateModel();
-      submit.disabled = !brand.value.trim() || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim()) || !model.value.trim() || Boolean(model.validationMessage) || !verification.value || !pricing || (type.required && !type.value) || (isRepair && !repairType.value.trim());
+      submit.disabled = !brand.value.trim() || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim()) || !model.value.trim() || Boolean(model.validationMessage) || !verification.value || !pricing || (type.required && !type.value) || (needsHp && !hp.value) || (isRepair && !repairType.value.trim());
     };
     const updateTiers = preferredHp => {
       hp.replaceChildren(option('', 'Choose HP'));
-      for (const tier of tiers()) hp.append(option(String(tier.hp), `${A.formatHp(tier.hp)} HP · ${pesos(tier.price)} per unit`));
+      for (const tier of tiers()) hp.append(option(String(tier.hp), `${A.formatHp(tier.hp)} HP${isRepair ? '' : ` · ${pesos(tier.price)} per unit`}`));
       if (tiers().some(tier => String(tier.hp) === String(preferredHp))) hp.value = String(preferredHp);
       updatePreview();
     };

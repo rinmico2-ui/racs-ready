@@ -37,8 +37,8 @@ test("repair model input exposes its limit and immediate validation feedback", (
 });
 
 test("repair model policy is enforced again by booking routes and the database schema", () => {
-  assert.match(routes, /router\.post\('\/create-new'[\s\S]*?validateRepairModel\(service\?\.model, \{ required: true \}\)/);
+  assert.match(routes, /router\.post\('\/create-new'[\s\S]*?validateRepairModel\(service\?\.model, \{ required: service\?\.type === 'repair' \}\)/);
   assert.match(routes, /router\.post\('\/create-repair'[\s\S]*?validateRepairModel\(item\.model, \{ required: true \}\)/);
-  assert.match(routes, /async function validatedServiceItems[\s\S]*?validateRepairModel\(Object\.hasOwn\(input, "model"\) \? input\.model : prior\?\.model \|\| "", \{ required: !prior \|\| Boolean\(prior\.model\) \}\)/);
+  assert.match(routes, /async function validatedServiceItems[\s\S]*?validateRepairModel\(Object\.hasOwn\(input, "model"\) \? input\.model : prior\?\.model \|\| "", \{ required: type === 'repair' && \(!prior \|\| Boolean\(prior\.model\)\) \}\)/);
   assert.match(schema, /model:\s*\{ type: String, trim: true, maxlength: 50 \}/);
 });
