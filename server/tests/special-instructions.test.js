@@ -52,14 +52,16 @@ for (const serviceType of ['core', 'repair', 'mixed']) {
     const start = source.indexOf('    function renderCustomerDetails(');
     const end = source.indexOf('    function renderOverviewPage(', start);
     assert.ok(start > 0 && end > start);
-    const context = { window: { SpecialInstructions: instructions },
+    const context = { window: { SpecialInstructions: instructions, RACSVisitSchedule: require('../public/js/technician-visit-schedule') },
       isRepairAssignment: () => serviceType === 'repair', isMixedWorkStarted: () => false,
       statusLabels: { accepted: 'Accepted' }, toPhTime: value => value };
+    vm.runInNewContext(source.slice(source.indexOf('    function renderDailyPreparationCard('), source.indexOf('    function getWizardPageActions(')), context);
     vm.runInNewContext(source.slice(start, end), context);
     const html = context.renderCustomerDetails({ status: 'accepted', serviceType,
       bookingId: { paymentNotes: message, serviceType, services: [] } }, 'Oct 15, 2026', 'TEST', false, null, null, '');
     assert.equal((html.match(/aria-label="Special instructions"/g) || []).length, 1);
     assert.match(html, /Call &lt;before&gt; arrival &amp; ask for &quot;Sam&quot;/);
+    assert.match(html, /data-visit-daily-preparation/);
   });
 }
 

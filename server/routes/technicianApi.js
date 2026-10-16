@@ -36,6 +36,7 @@ const { canTransitionServiceItem } = require('../utils/bookingServiceItems');
 const { getRepairLaborFees, normalizeRepairComplexity } = require('../utils/repairLaborPricing');
 const { isBookingPast } = require('../utils/bookingPolicy');
 const { manilaDateTime } = require('../utils/bookingDateTime');
+const visitSchedule = require('../public/js/technician-visit-schedule');
 const { hasValidStoredImageSignature, imageExtensionFor, isAllowedImage } = require('../utils/uploadSecurity');
 const { escapeRegex } = require('../utils/stringSecurity');
 const { buildBookingWarrantyCoverage } = require('../utils/aftercarePolicy');
@@ -4550,6 +4551,10 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
         error: `Cannot transition from "${assignment.status}" to "${newStatus}". Allowed: ${allowed ? allowed.join(", ") : "none"}`,
       });
     }
+    if (assignment.serviceType !== 'project' && ['en_route', 'on_site', 'in_progress'].includes(newStatus)) {
+      const schedule = visitSchedule.state(assignment);
+      if (!schedule.ready && (newStatus === 'en_route' || schedule.code !== 'SCHEDULE_MISSED')) return res.status(409).json({ error: schedule.error, code: schedule.code, scheduledDate: schedule.scheduledDate });
+    }
     // Missed-schedule guard: a job whose service window elapsed without being
     // started can no longer be started — it must be rescheduled by an admin.
     if (newStatus === "en_route" && assertNotMissedSchedule(assignment)) {
@@ -4576,19 +4581,6 @@ router.patch("/assignments/:id/status", async (req, res, next) => {
     if (newStatus === "in_progress" && !String(startProofUrl || "").startsWith("data:image/")) {
       return res.status(400).json({ error: "A starting-work proof photo is required." });
     }
-
-    // -- En Route Time Guard (TEMPORARILY DISABLED) ---------------------
-    // if (newStatus === "en_route" && assignment.bookingDate) {
-    //   const bookingDateObj = new Date(assignment.bookingDate);
-    //   const bookingDateMidnight = new Date(bookingDateObj.getFullYear(), bookingDateObj.getMonth(), bookingDateObj.getDate(), 0, 0, 0, 0);
-    //   const nowLocal = new Date();
-    //   const todayMidnight = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate(), 0, 0, 0, 0);
-    //   if (bookingDateMidnight > todayMidnight) {
-    //     const bookingLabel = bookingDateObj.toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-    //     return res.status(400).json({ error: `...`, code: "TOO_EARLY" });
-    //   }
-    //   if (bookingDateMidnight.getTime() === todayMidnight.getTime() && assignment.startTime) { ... }
-    // }
 
     const now = new Date();
     assignment.status = newStatus;
@@ -10368,18 +10360,6 @@ router.post("/repairs/:bookingId/en-route", async (req, res, next) => {
       return res.status(403).json({ error: "You are not assigned to this repair" });
     }
 
-    if (isBookingPast({
-      bookingDate: booking.bookingDate,
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      serviceDurationMinutes: booking.serviceDurationMinutes,
-    })) {
-      return res.status(409).json({
-        error: "The scheduled service window has passed. Wait for operations to confirm a new customer schedule before going En Route.",
-        code: "SCHEDULE_MISSED",
-      });
-    }
-
     if (!booking.technicianAssistant?.summary || !booking.technicianAssistant?.verifiedByTechnician) {
       return res.status(400).json({ error: "Review and confirm the AI diagnosis before going En Route." });
     }
@@ -10390,8 +10370,6 @@ router.post("/repairs/:bookingId/en-route", async (req, res, next) => {
       "assigned",
       // Phase 1 - Inspection visit
       "inspection_scheduled", "confirmed",
-      // Waiting states — admin has approved/scheduled, parts incoming
-      "awaiting_approval", "repair_approved", "waiting_parts",
       // Phase 2 - Repair execution (parts ready / scheduled)
       "repair_scheduled", "ready_for_repair", "parts_reserved"
     ];
@@ -10411,6 +10389,12 @@ router.post("/repairs/:bookingId/en-route", async (req, res, next) => {
         code: "ASSIGNMENT_ACCEPTANCE_REQUIRED",
       });
     }
+
+    const decision = assignmentWorkDecision(assignment, booking);
+    if (!decision.current) return res.status(409).json({ code: 'ASSIGNMENT_CHANGED', error: decision.reason });
+    const schedule = visitSchedule.state(assignment);
+    if (!schedule.ready) return res.status(409).json({ error: schedule.error, code: schedule.code, scheduledDate: schedule.scheduledDate });
+    if (isBookingPast(assignment)) return res.status(409).json({ error: 'The scheduled service window has passed. Ask operations to confirm the next visit before going En Route.', code: 'SCHEDULE_MISSED' });
 
     const readiness = await dailyKitDepartureReadiness({ technicianId: tech._id, assignment });
     if (!readiness.ready) {
@@ -10520,6 +10504,7 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(bookingId)) return res.status(400).json({ error: "Invalid booking id" });
 
     const tech = await Technician.findOne({ user: req.user._id });
+    if (!tech) return res.status(404).json({ error: "Technician record not found" });
 
     const booking = await BookingService.findById(bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
@@ -10528,6 +10513,12 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
     const activeStatuses = ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'];
     const assignment = await Assignment.findOne({ bookingId: booking._id, technicianId: tech._id, status: { $in: activeStatuses } }).sort({ assignedAt: -1 });
     if (!assignment) return res.status(404).json({ error: "No assignment found for this repair" });
+    const decision = assignmentWorkDecision(assignment, booking);
+    if (!decision.current) return res.status(409).json({ code: 'ASSIGNMENT_CHANGED', error: decision.reason });
+    if (['on_site', 'in_progress'].includes(newStatus)) {
+      const schedule = visitSchedule.state(assignment);
+      if (!schedule.ready && schedule.code !== 'SCHEDULE_MISSED') return res.status(409).json({ error: schedule.error, code: schedule.code, scheduledDate: schedule.scheduledDate });
+    }
     if (newStatus === "no_show") {
       return res.status(409).json({
         error: "Use Customer Not Available to record arrival proof and complete the waiting period before reporting a no-show.",

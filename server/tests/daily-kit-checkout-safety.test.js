@@ -143,6 +143,15 @@ function fixture({ quantity = 1, items = 1, standard = false } = {}) {
 const confirmation = (f, extra = {}) => f.api.confirmDailyKit({ technicianId: T, userId: U, date: DATE, ...extra });
 const addExtra = (f, extra = {}) => f.api.addDailyKitItem({ technicianId: T, userId: U, date: DATE,
   inventoryItemId: E, quantity: 2, jobType: 'booking', jobId: A, note: 'Extra equipment for this installation', ...extra });
+
+test('a future repair departure cannot reuse an old confirmed kit or trigger stock operations', async () => {
+  const f = fixture();
+  await confirmation(f);
+  const beforeCalls = f.calls.length;
+  const readiness = await f.api.dailyKitDepartureReadiness({ technicianId: T, assignment: {...f.data.Assignment[0],serviceType:'repair',bookingDate:'2026-10-18'} });
+  assert.equal(readiness.ready,false);assert.equal(readiness.code,'SCHEDULE_NOT_TODAY');assert.equal(f.calls.length,beforeCalls);
+  assert.equal(f.data.Tool[0].checkedOutQuantity,1);
+});
 const removeExtra = (f, itemId, extra = {}) => f.api.removeDailyKitItem({ technicianId: T, userId: U, date: DATE,
   itemId, note: 'Extra no longer needed', ...extra });
 
