@@ -6,6 +6,9 @@ const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
 const { getBufferMinutesSync } = require('./bookingPolicy');
 const { orderCapacityInterval } = require('./orderScheduleCapacity');
+const { manilaDateKey, manilaDateTime } = require('./bookingDateTime');
+const { projectAllocations } = require('./assignmentProjectCapacity');
+const { recommendTeam } = require('./assignmentStaffing');
 
 const ACTIVE_BOOKING_STATUSES = [
   'assigned', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'ongoing',
@@ -35,9 +38,7 @@ function explicitRangeEnd(value) {
 }
 
 function dateKey(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return manilaDateKey(value);
 }
 
 function orderWindow(order) {
@@ -86,32 +87,34 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     new Date(orderDate(a)) - new Date(orderDate(b)) || minuteValue(a.timeSlot) - minuteValue(b.timeSlot));
   if (!rows.length) return [];
 
-  const technicians = await Technician.find({ active: { $ne: false } })
+  const accounts = await Technician.find({ active: { $ne: false }, archivedAt: null }).populate('user', 'active blocked role')
     .select('_id user firstName lastName name phone email rating availabilityStatus location')
     .lean();
+  const technicians = accounts.filter(tech => tech.user && tech.user.active !== false && !tech.user.blocked && tech.user.role === 'technician');
   const technicianIds = technicians.map(technician => technician._id);
-  const timestamps = rows.map(order => new Date(orderDate(order)).getTime()).filter(Number.isFinite);
+  const timestamps = rows.filter(order => orderDate(order)).map(order => new Date(orderDate(order)).getTime()).filter(Number.isFinite);
   if (!timestamps.length) return rows.map(order => ({
     orderId: String(order._id), orderReference: order.orderReference, customerName: order.customer?.name || 'Customer',
     fulfillmentType: order.fulfillmentType, scheduledDate: orderDate(order), timeSlot: order.timeSlot,
-    recommended: null, candidates: [], issue: 'A valid delivery schedule is required',
+    ...recommendTeam('order', order, []), candidates: [], issue: 'A valid delivery schedule is required',
   }));
-  const minDate = new Date(Math.min(...timestamps)); minDate.setHours(0, 0, 0, 0);
-  const maxDate = new Date(Math.max(...timestamps)); maxDate.setHours(23, 59, 59, 999);
+  const minDate = manilaDateTime(new Date(Math.min(...timestamps)), 0);
+  const maxDate = new Date(manilaDateTime(new Date(Math.max(...timestamps)), 1440).getTime() - 1);
 
-  const [schedules, leaves, existingBookings, existingOrders, activeAssignments] = await Promise.all([
+  const [schedules, leaves, existingBookings, existingOrders, activeAssignments, projects] = await Promise.all([
     TechnicianSchedule.find({ technicianId: { $in: technicianIds } }).lean(),
     LeaveRequest.find({ technicianId: { $in: technicianIds }, status: 'approved', startDate: { $lte: maxDate }, endDate: { $gte: minDate } }).lean(),
     BookingService.find({
-      ...require('./standardJobTeam').scope({ $in: technicianIds }), bookingDate: { $gte: minDate, $lte: maxDate },
+      ...require('./standardJobTeam').scope({ $in: technicianIds }), archivedAt: null, bookingDate: { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_BOOKING_STATUSES }, sourceOrderId: null,
     }).select('_id technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes').lean(),
     Order.find({
-      ...require('./standardJobTeam').scope({ $in: technicianIds }), 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
+      ...require('./standardJobTeam').scope({ $in: technicianIds }), archivedAt: null, 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_ORDER_STATUSES },
     }).select('_id technicianId technicianTeam continuation delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
     Assignment.find({ technicianId: { $in: technicianIds }, status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] } })
       .select('technicianId').lean(),
+    projectAllocations(technicianIds, minDate, maxDate),
   ]);
 
   const scheduleMap = new Map(schedules.map(schedule => [String(schedule.technicianId), schedule]));
@@ -121,27 +124,30 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
   const allocations = new Map(technicianIds.map(id => [String(id), []]));
   require('./standardJobTeam').capacityRows(existingBookings).forEach(booking => allocations.get(String(booking.technicianId))?.push({ ...bookingWindow(booking), date: dateKey(booking.bookingDate), planned: false }));
   require('./standardJobTeam').capacityRows(existingOrders).forEach(order => allocations.get(String(order.technicianId))?.push({ ...orderWindow(order), date: dateKey(orderDate(order)), planned: false }));
+  projects.forEach(row => allocations.get(row.technicianId)?.push(row));
 
   const plan = [];
   for (const order of rows) {
     const scheduledDate = orderDate(order);
     const key = dateKey(scheduledDate);
-    const date = new Date(scheduledDate);
-    const day = date.getDay();
+    const date = manilaDateTime(scheduledDate, 720);
+    const day = date?.getUTCDay();
     const target = orderWindow(order);
     const targetCoordinates = coordinates(order);
     const candidates = [];
+    const declined = new Set((order.technicianTeam || []).filter(member => ['declined', 'expired'].includes(member.status)).map(member => String(member.technicianId)));
+    if (order.technicianAcceptance?.status === 'declined' && order.technicianId) declined.add(String(order.technicianId));
 
     for (const technician of technicians) {
       const technicianId = String(technician._id);
+      if (declined.has(technicianId)) continue;
       const schedule = scheduleMap.get(technicianId);
       const workingDay = schedule?.workingDays?.find(item => item.dayOfWeek === day);
       const restDay = schedule?.restDates?.some(item => dateKey(item?.date || item) === key);
       const nonWorkingDay = schedule?.nonWorkingWeekdays?.some(item => Number(item?.dayOfWeek ?? item) === day);
       const onLeave = leaves.some(leave => String(leave.technicianId) === technicianId &&
-        date >= new Date(new Date(leave.startDate).setHours(0, 0, 0, 0)) &&
-        date <= new Date(new Date(leave.endDate).setHours(23, 59, 59, 999)));
-      if (!workingDay || restDay || nonWorkingDay || onLeave || !Number.isFinite(target.start)) continue;
+        key >= dateKey(leave.startDate) && key <= dateKey(leave.endDate));
+      if (!scheduledDate || !date || !workingDay || restDay || nonWorkingDay || onLeave || !Number.isFinite(target.start)) continue;
       const workStart = Number(workingDay.startMinutes || 480);
       const workEnd = Number(workingDay.endMinutes || 1020);
       if (target.start < workStart || target.end > workEnd) continue;
@@ -170,9 +176,9 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     }
 
     candidates.sort((a, b) => b.score - a.score || a.currentWorkload - b.currentWorkload || (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
-    const recommended = candidates[0] || null;
-    if (recommended && options.reservePlan !== false) {
-      allocations.get(recommended.technicianId).push({ ...target, date: key, orderId: String(order._id), planned: true });
+    const recommendation = recommendTeam('order', order, candidates);
+    if (options.reservePlan !== false) for (const technician of recommendation.recommendedTeam) {
+      allocations.get(technician.technicianId).push({ ...target, date: key, orderId: String(order._id), planned: true });
     }
     plan.push({
       orderId: String(order._id),
@@ -181,8 +187,9 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
       fulfillmentType: order.fulfillmentType,
       scheduledDate,
       timeSlot: order.timeSlot,
-      recommended,
-      candidates: options.includeAllCandidates ? candidates : candidates.slice(0, 5),
+      scheduleKey: require('./standardJobTeam').scheduleKey('order', order),
+      ...recommendation,
+      candidates,
     });
   }
   return plan;

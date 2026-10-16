@@ -3,6 +3,10 @@ const Technician = require('../models/Technician');
 const TechnicianSchedule = require('../models/TechnicianSchedule');
 const LeaveRequest = require('../models/LeaveRequest');
 const Assignment = require('../models/Assignment');
+const Order = require('../models/Order');
+const { orderWindow } = require('./orderAssignmentPlanner');
+const { projectAllocations } = require('./assignmentProjectCapacity');
+const { recommendTeam } = require('./assignmentStaffing');
 const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaDateTime } = require('./bookingDateTime');
 const { latestAllowedFinish, overtimeMinutesForWindow } = require('./technicianOvertimePolicy');
 
@@ -57,31 +61,38 @@ function distanceKm(a, b) {
 async function buildAssignmentPlan(bookings, options = {}) {
   const rows = (bookings || []).filter(Boolean).sort((a,b) => new Date(a.bookingDate)-new Date(b.bookingDate) || minuteValue(a.startTime)-minuteValue(b.startTime));
   if (!rows.length) return [];
-  const techs = await Technician.find({ active: { $ne: false } }).select('_id user name phone email rating availabilityStatus location').lean();
+  const accounts = await Technician.find({ active: { $ne: false }, archivedAt: null }).populate('user', 'active blocked role').select('_id user name phone email rating availabilityStatus location').lean();
+  const techs = accounts.filter(tech => tech.user && tech.user.active !== false && !tech.user.blocked && tech.user.role === 'technician');
   const techIds = techs.map(t => t._id);
   const scheduleDays = rows.map(b => manilaDateTime(b.bookingDate, 0)).filter(Boolean);
   if (!scheduleDays.length) return [];
   const minDate = new Date(Math.min(...scheduleDays.map(date => date.getTime())));
   const maxDate = new Date(Math.max(...scheduleDays.map(date => date.getTime())) + 24 * 60 * 60 * 1000 - 1);
-  const [schedules, leaves, existing, activeAssignments] = await Promise.all([
+  const [schedules, leaves, existing, activeAssignments, orders, projects] = await Promise.all([
     TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean(),
     LeaveRequest.find({ technicianId: { $in: techIds }, status:'approved', startDate:{ $lte:maxDate }, endDate:{ $gte:minDate } }).lean(),
-    BookingService.find({ ...require('./standardJobTeam').scope({ $in:techIds }), bookingDate:{ $gte:minDate,$lte:maxDate }, status:{ $in:ACTIVE_BOOKING_STATUSES } })
+    BookingService.find({ ...require('./standardJobTeam').scope({ $in:techIds }), archivedAt: null, sourceOrderId: null, bookingDate:{ $gte:minDate,$lte:maxDate }, status:{ $in:ACTIVE_BOOKING_STATUSES } })
       .select('_id technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes').lean(),
     Assignment.find({technicianId:{$in:techIds},status:{$in:['pending_acceptance','accepted','en_route','on_site','in_progress']}}).select('technicianId').lean(),
+    Order.find({ ...require('./standardJobTeam').scope({ $in: techIds }), archivedAt: null,
+      'delivery.preferredDate': { $gte: minDate, $lte: maxDate }, status: { $in: ['technician_assigned','technician_accepted','out_for_delivery','arrived','installing'] } })
+      .select('_id technicianId technicianTeam continuation delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
+    projectAllocations(techIds, minDate, maxDate),
   ]);
   const activeLoad=new Map();activeAssignments.forEach(a=>activeLoad.set(String(a.technicianId),(activeLoad.get(String(a.technicianId))||0)+1));
   const scheduleMap = new Map(schedules.map(s => [String(s.technicianId),s]));
   const allocations = new Map();
   techIds.forEach(id => allocations.set(String(id), []));
   require('./standardJobTeam').capacityRows(existing).forEach(b => allocations.get(String(b.technicianId))?.push({ ...bookingWindow(b), date:dateKey(b.bookingDate), bookingId:String(b._id), planned:false }));
+  require('./standardJobTeam').capacityRows(orders).forEach(order => allocations.get(String(order.technicianId))?.push({ ...orderWindow(order), date: dateKey(order.delivery?.preferredDate), planned: false }));
+  projects.forEach(row => allocations.get(row.technicianId)?.push(row));
 
   const result = [];
   for (const booking of rows) {
-    const key = dateKey(booking.bookingDate); const date = manilaDateTime(booking.bookingDate, 12 * 60); const day = date.getUTCDay();
+    const key = dateKey(booking.bookingDate); const date = manilaDateTime(booking.bookingDate, 12 * 60); const day = date?.getUTCDay();
     const target = bookingWindow(booking); const bookingCoords = coordinates(booking);
     const timing = assignmentTimingState(booking);
-    if (timing.isExpired) {
+    if (timing.isExpired || !date || !Number.isFinite(target.start) || !Number.isFinite(target.end)) {
       result.push({
         bookingId:String(booking._id),
         bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,
@@ -90,12 +101,14 @@ async function buildAssignmentPlan(bookings, options = {}) {
         bookingDate:booking.bookingDate,
         startTime:booking.startTime,
         assignmentTiming:timing,
-        recommended:null,
+        ...recommendTeam('booking', booking, []),
+        issue: timing.isExpired ? 'Reschedule this booking to a future date and time first.' : 'A valid appointment date and time are required.',
         candidates:[],
       });
       continue;
     }
     const priorTechIds = new Set((booking.cancellationHistory||[]).filter(h => ['declined','cancelled'].includes(h.action)).map(h => String(h.technicianId||'')).filter(Boolean));
+    for (const member of booking.technicianTeam || []) if (['declined', 'expired'].includes(member.status)) priorTechIds.add(String(member.technicianId));
     const candidates = [];
     const exclusionReasons = {};
     for (const tech of techs) {
@@ -135,9 +148,9 @@ async function buildAssignmentPlan(bookings, options = {}) {
       candidates.push({ technicianId:tid,name:tech.name||'Technician',score:Math.round(score),distanceKm:dist,currentWorkload:dayJobs.length,openAssignments:openJobs,usedMinutes:used,capacityMinutes:capacity,overtimeMinutes,reasons });
     }
     candidates.sort((a,b)=>b.score-a.score || a.currentWorkload-b.currentWorkload || (a.distanceKm??9999)-(b.distanceKm??9999));
-    const recommended=candidates[0]||null;
-    if (recommended && options.reservePlan !== false) allocations.get(recommended.technicianId).push({ ...target,date:key,bookingId:String(booking._id),planned:true });
-    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,assignmentTiming:timing,recommended,candidates,exclusionReasons });
+    const recommendation = recommendTeam('booking', booking, candidates);
+    if (options.reservePlan !== false) for (const technician of recommendation.recommendedTeam) allocations.get(technician.technicianId).push({ ...target,date:key,bookingId:String(booking._id),planned:true });
+    result.push({ bookingId:String(booking._id),bookingReference:booking.bookingReference||`#${String(booking._id).slice(-8).toUpperCase()}`,customerName:booking.customer?.name||'Customer',serviceName:booking.service?.name||'Service',bookingDate:booking.bookingDate,startTime:booking.startTime,scheduleKey:require('./standardJobTeam').scheduleKey('booking', booking),assignmentTiming:timing,...recommendation,candidates,exclusionReasons });
   }
   return result;
 }
@@ -145,28 +158,17 @@ async function buildAssignmentPlan(bookings, options = {}) {
 async function createReviewedAssignment(bookingId, technicianId, actor, responseMinutes=30) {
   const booking=await BookingService.findById(bookingId);
   if (!booking || !['awaiting_assignment','pending_reassignment'].includes(booking.status)) throw new Error('Booking is no longer awaiting assignment');
-  if (booking.technicianTeam?.length) {
-    const result = await require('./standardJobTeamService').createService().assign('booking', bookingId, { technicianId: String(technicianId), technicianIds: [String(technicianId)] }, actor);
-    return { booking: result.job, assignment: result.assignment, technician: await Technician.findById(technicianId).lean() };
-  }
   if (isAssignmentWindowExpired(booking)) throw new Error('The technician-assignment window has expired. Please reschedule to a future date/time first.');
+  const input = typeof technicianId === 'object' ? technicianId : { technicianId: String(technicianId), technicianIds: [String(technicianId)] };
+  const selected = require('./standardJobTeam').normalize(input);
+  require('./assignmentStaffing').assertRecommendedCrew('booking', booking, { assignmentSource: 'reviewed_plan' }, selected);
   const fresh=(await buildAssignmentPlan([booking],{reservePlan:false}))[0];
-  const candidate=fresh?.candidates?.find(c=>c.technicianId===String(technicianId));
-  if (!candidate) throw new Error('Technician is no longer eligible for this schedule');
-  const tech=await Technician.findById(technicianId).lean();
-  const minutes=Math.min(720,Math.max(5,Number(responseMinutes)||30));
-  const assignment=await Assignment.create({bookingId:booking._id,technicianId:tech._id,customerName:booking.customer?.name||'',customerPhone:booking.customer?.phone||'',customerEmail:booking.customer?.email||'',serviceType:booking.serviceType||'core',serviceName:booking.service?.name||'',servicePrice:booking.totalPrice||booking.estimatedFee||0,bookingDate:booking.bookingDate,startTime:booking.startTime||'',endTime:booking.endTime||'',address:booking.location?.address||booking.bookingLocation?.address||'',status:'pending_acceptance',responseSLAMinutes:minutes,acceptanceDeadline:new Date(Date.now()+minutes*60000),notes:[{text:'Assigned from admin-reviewed recommendation plan',by:actor?._id,byName:actor?.name||actor?.email||'Admin'}]});
-  booking.status='assigned';
-  booking.technicianId=tech._id;
-  booking.technician={_id:tech._id,name:tech.name,phone:tech.phone,email:tech.email};
-  booking.assignmentId=assignment._id;
-  booking.assignedAt=new Date();
-  booking.assignedBy=actor?._id;
-  booking.autoReschedulePending=false;
-  booking.autoRescheduleAt=undefined;
-  booking.autoRescheduleReason=undefined;
-  await booking.save();
-  return {booking,assignment,technician:tech,candidate};
+  if (selected.some(id => !fresh?.candidates?.some(c => c.technicianId === id))) throw new Error('A selected technician is no longer eligible for this schedule');
+  const result = await require('./standardJobTeamService').createService().assign('booking', bookingId, {
+    ...input, assignmentSource: 'reviewed_plan', responseMinutes,
+    notes: 'Assigned from a staff-reviewed recommendation. ' + fresh.staffing.reason,
+  }, actor);
+  return { ...result, booking: result.job, technician: await Technician.findById(selected[0]).lean() };
 }
 
 module.exports={buildAssignmentPlan,createReviewedAssignment,minuteValue,bookingWindow};

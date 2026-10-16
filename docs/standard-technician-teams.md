@@ -13,6 +13,10 @@ Admin and secretary can choose **Assign one technician** or **Assign multiple te
 
 ## Persistence and deployment
 
+AI Assist uses the company rule approved for standard jobs: two technicians for aircon installation, dismantling and relocation; one for routine service or inspection. Mixed-service jobs use the largest recommendation, and reassignment preserves a larger existing crew. These are staffing recommendations; manual assignment still permits one or multiple technicians after staff review. Customer instructions and AI-generated text cannot change the rule. Project jobs retain their project crew workflow.
+
+Queue cards show the recommended crew and reason. Staff can assign that crew or open the manual review dialog. Bulk previews reserve every recommended member for the whole job and allow staff to change the members and primary technician. A shortage produces no partial recommendation. Confirmations and automatic reassignment use the shared transaction/availability checks; they cannot silently substitute one technician for a recommended team. A failed job in a bulk operation is reported for review; other jobs can still succeed. All members receive acceptance requests, while charges and shared kits continue to have one owner.
+
 `BookingService.technicianId` and `Order.technicianId` remain the primary technician. Their optional `technicianTeam` arrays store membership and acceptance. Service bookings have one `Assignment` per member; supporting assignments carry zero fee. Orders retain one linked installation booking and one financial workflow.
 
 New team writes use MongoDB transactions and a shared Manila-day capacity lease. A standalone database is rejected before invitations are created. The production database previously completed the transaction-based payroll cleanup; local fixtures do not establish the current live database configuration. No existing records need backfilling.

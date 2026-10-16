@@ -51,10 +51,10 @@ router.get('/assignment-plan', requireRole(['admin','secretary']), async (req,re
     if (bookingIds && (!bookingIds.length || bookingIds.length > 20 || bookingIds.some(id => !mongoose.Types.ObjectId.isValid(id)))) {
       return res.status(400).json({ error: 'Select 1 to 20 valid booking IDs' });
     }
-    const filter = { status: { $in: statuses.length ? statuses : ['awaiting_assignment', 'pending_reassignment'] }, isProject: { $ne: true } };
+    const filter = { status: { $in: statuses.length ? statuses : ['awaiting_assignment', 'pending_reassignment'] }, isProject: { $ne: true }, archivedAt: null, sourceOrderId: null };
     if (bookingIds) filter._id = { $in: bookingIds.map(id => new mongoose.Types.ObjectId(id)) };
     const bookings=await BookingService.find(filter)
-      .select('_id status bookingDate startTime endTime serviceDurationMinutes bookingReference customer.name service.name location.coordinates bookingLocation cancellationHistory.action cancellationHistory.technicianId')
+      .select('_id status bookingDate startTime endTime serviceDurationMinutes travelTime bookingReference customer.name service services.name services.serviceName services.status services.category technicianId technicianTeam location.coordinates bookingLocation cancellationHistory.action cancellationHistory.technicianId')
       .sort({bookingDate:1,startTime:1}).limit(bookingIds ? 20 : 200).lean();
     const {buildAssignmentPlan}=require('../utils/assignmentPlanner');
     const plan=await buildAssignmentPlan(bookings);
@@ -76,19 +76,18 @@ router.get('/:id/assignment-recommendation', requireRole(['admin','secretary']),
 /** Confirm only the assignments the admin reviewed; eligibility is rechecked. */
 router.post('/assignment-plan/confirm', requireRole(['admin','secretary']), async (req,res) => {
   const rows=Array.isArray(req.body.assignments)?req.body.assignments:[];
-  if(!rows.length)return res.status(400).json({error:'No reviewed assignments supplied'});
+  if(!rows.length || rows.length > 200)return res.status(400).json({error:'Supply 1 to 200 reviewed assignments'});
   const responseMinutes=Math.min(720,Math.max(5,Number(req.body.responseMinutes)||30));
   const {createReviewedAssignment}=require('../utils/assignmentPlanner');
-  const {createNotification}=require('../utils/notify');
-  const io=req.app.get('io'); const results=[]; const seen=new Set();
+  const results=[]; const seen=new Set();
   for(const row of rows){
-    if(!mongoose.Types.ObjectId.isValid(row.bookingId)||!mongoose.Types.ObjectId.isValid(row.technicianId)||seen.has(String(row.bookingId))){results.push({bookingId:row.bookingId,success:false,error:'Invalid or duplicate assignment'});continue;}
+    if(!row||typeof row!=='object'||!mongoose.Types.ObjectId.isValid(row.bookingId)||!mongoose.Types.ObjectId.isValid(row.technicianId)||seen.has(String(row.bookingId))){results.push({bookingId:row?.bookingId,success:false,error:'Invalid or duplicate assignment'});continue;}
     seen.add(String(row.bookingId));
     try{
-      const result=await createReviewedAssignment(row.bookingId,row.technicianId,req.user,responseMinutes);
-      if(io)io.to(`tech:${result.technician._id}`).emit('assignment:new',{assignmentId:result.assignment._id,bookingId:result.booking._id,bookingReference:result.booking.bookingReference,serviceName:result.booking.service?.name,customerName:result.booking.customer?.name,bookingDate:result.booking.bookingDate,acceptanceDeadline:result.assignment.acceptanceDeadline});
-      await createNotification({type:'assignment_new',title:'New Assignment',message:`You have a new ${result.booking.service?.name||'service'} booking. Accept within ${responseMinutes} minutes.`,userId:result.technician.user,role:'technician',referenceId:result.assignment._id,referenceModel:'Assignment',link:'/technician/assignments',io}).catch(()=>{});
-      results.push({bookingId:row.bookingId,technicianId:row.technicianId,technicianName:result.technician.name,assignmentId:result.assignment._id,success:true});
+      const result=await createReviewedAssignment(row.bookingId,row,req.user,responseMinutes);
+      await require('../utils/standardJobTeamService').publish(result,req).catch(()=>{});
+      await require('../utils/audit').logEvent({actor:req.user._id,action:'booking.team_assigned',target:result.booking._id,req,details:{source:'reviewed_plan',technicianIds:require('../utils/standardJobTeam').ids(result.booking)}}).catch(()=>{});
+      results.push({bookingId:row.bookingId,technicianId:row.technicianId,technicianIds:require('../utils/standardJobTeam').ids(result.booking),technicianName:result.technician.name,assignmentId:result.assignment._id,success:true});
     }catch(error){results.push({bookingId:row.bookingId,technicianId:row.technicianId,success:false,error:error.message});}
   }
   res.status(results.some(r=>r.success)?200:409).json({success:results.every(r=>r.success),assigned:results.filter(r=>r.success).length,failed:results.filter(r=>!r.success).length,results});
@@ -2006,26 +2005,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
         });
       }
 
-     const result = await (require('../utils/autoAssignment').autoAssignBooking(id));
-
-     if (result.success) {
-       // Emit socket notification for the new assignment
-       const io = req.app.get('io');
-       if (io && result.technician) {
-         io.to(`tech:${result.technician._id}`).emit('assignment:new', {
-           bookingId: result.booking._id,
-           bookingReference: result.booking.bookingReference,
-           serviceName: result.booking.service?.name,
-           customerName: result.booking.customer?.name,
-           bookingDate: result.booking.bookingDate,
-           priority: 'normal',
-         });
-       }
-
-       console.log(
-         `[AutoAssign] Booking ${booking.bookingReference} auto-assigned to ${result.technician.name}`,
-       );
-     }
+     const result = await require('../utils/autoAssignment').autoAssignBooking(id, { actor: req.user, req });
 
      res.json(result);
    } catch (error) {
@@ -2251,7 +2231,7 @@ router.get('/:id', requireRole(["admin", "secretary"]), async (req, res) => {
   */
  router.post('/auto-assign-all', requireRole(['admin', 'secretary']), async (req, res) => {
    try {
-     const result = await (require('../utils/autoAssignment').autoAssignAllPendingReassignments());
+     const result = await (require('../utils/autoAssignment').autoAssignAllPendingReassignments({ actor: req.user, req }));
      res.json({
        success: true,
        results: result,

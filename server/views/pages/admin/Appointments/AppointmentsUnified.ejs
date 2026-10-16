@@ -3338,26 +3338,29 @@
       (data.plan||[]).forEach(function(row){
         _qRecommendations[row.bookingId]=row;
         var el=document.getElementById('aqRec-'+row.bookingId);if(!el)return;
-        if(!row.recommended){el.innerHTML='<div class="text-warning small"><i class="bi bi-exclamation-triangle me-1"></i>No conflict-free technician is currently available.</div>';return;}
-        var r=row.recommended;
-        el.innerHTML='<div class="d-flex justify-content-between gap-3 flex-wrap"><div><div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended Technician</div><div class="fw-bold fs-6 mt-1">⭐ '+qEsc(r.name)+' <span class="badge bg-primary-subtle text-primary ms-1">Score '+r.score+'</span></div><ul class="small text-muted mb-0 mt-1 ps-3">'+r.reasons.slice(0,4).map(function(x){return'<li>'+qEsc(x)+'</li>';}).join('')+'</ul></div><button class="au-btn au-btn-primary align-self-center" onclick="AU.Queue.assignRecommended(\''+row.bookingId+'\')"><i class="bi bi-check2-circle me-1"></i>Assign Recommended</button></div>';
+        el.innerHTML=RACSJobTeams.recommendation(row)+'<div class="d-flex flex-wrap gap-2 mt-3">'+(row.recommended?'<button class="au-btn au-btn-primary" onclick="AU.Queue.assignRecommended(\''+row.bookingId+'\')">Assign recommended crew</button>':'')+'<button class="au-btn au-btn-outline" onclick="AU.Queue.reviewRecommended(\''+row.bookingId+'\')">Review technicians</button></div>';
       });
       document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){var id=el.id.slice(6);if(!_qRecommendations[id])el.innerHTML='<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>No recommendation available for this booking.</div>';});
     }).catch(function(){if(loadRequest===_qLoadRequest)document.querySelectorAll('[id^="aqRec-"]').forEach(function(el){el.innerHTML='<div class="small text-danger">Recommendation could not be loaded.</div>';});});
   };
 
+  AU.Queue.reviewRecommended=function(bookingId){
+    var row=_qRecommendations[bookingId];
+    return RACSJobTeams.open('booking',bookingId,{recommendedTeam:row?.recommendedTeam,onAssigned:function(){AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}});
+  };
+
   AU.Queue.assignRecommended=function(bookingId){
     var row=_qRecommendations[bookingId];if(!row||!row.recommended)return;
-    var r=row.recommended;
-    var details=(r.reasons||[]).map(function(x){return '• '+x;}).join('\n');
-    if(!window.confirm('Assign '+r.name+' and notify the technician?'+(details?'\n\nWhy recommended:\n'+details:'')))return;
+    var crew=row.recommendedTeam||[row.recommended];
+    if(!window.confirm('Assign '+crew.map(function(person){return person.name;}).join(' and ')+'?\n\n'+row.staffing.reason+'\nEvery member must accept.'))return;
     var button=document.querySelector('[onclick="AU.Queue.assignRecommended(\''+bookingId+'\')"]');
     var original=button?button.innerHTML:'';
-    if(button){button.disabled=true;button.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';}
-    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:[{bookingId:bookingId,technicianId:r.technicianId}],responseMinutes:30})}).then(function(resp){return resp.json().then(function(d){if(!resp.ok||!d.assigned)throw new Error(d.results?.[0]?.error||d.error||'Assignment failed');return d;});}).then(function(){showNotification({type:'success',title:'Technician Assigned',message:r.name+' was notified.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message,duration:5000});if(button){button.disabled=false;button.innerHTML=original;}});
+    if(button){button.disabled=true;button.innerHTML='Assigning...';}
+    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:[{bookingId:bookingId,expectedSchedule:row.scheduleKey,technicianId:crew[0].technicianId,technicianIds:crew.map(function(person){return person.technicianId;})}],responseMinutes:30})}).then(function(resp){return resp.json().then(function(d){if(!resp.ok||!d.assigned)throw new Error(d.results?.[0]?.error||d.error||'Assignment failed');return d;});}).then(function(){showNotification({type:'success',title:'Crew assigned',message:crew.length+' technician(s) notified. Each must accept.',duration:4000});AU.Queue.loadQueue(_qPage);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Assignment Failed',message:e.message,duration:5000});if(button){button.disabled=false;button.innerHTML=original;}});
   };
 
   AU.Queue.openBulkPlan=function(){
+    document.getElementById('confirmBulkPlanBtn').disabled=true;
     _qBulkPlan=[];document.getElementById('bulkPlanSummary').innerHTML='';document.getElementById('bulkPlanBody').innerHTML='<div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="text-muted mt-2">Analyzing schedules, workload and travel...</p></div>';
     new bootstrap.Modal(document.getElementById('bulkAssignmentModal')).show();
     fetch(APPOINTMENTS_API+'/assignment-plan').then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Failed');return d;});}).then(function(d){_qBulkPlan=d.plan||[];AU.Queue.renderBulkPlan();}).catch(function(e){document.getElementById('bulkPlanBody').innerHTML='<div class="alert alert-danger">'+qEsc(e.message)+'</div>';});
@@ -3365,23 +3368,28 @@
 
   AU.Queue.renderBulkPlan=function(){
     var body=document.getElementById('bulkPlanBody');
-    if(!_qBulkPlan.length){body.innerHTML='<div class="text-center text-muted py-5"><i class="bi bi-check-circle fs-1"></i><p class="mt-2">No unassigned standard bookings.</p></div>';return;}
-    body.innerHTML='<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Booking</th><th>Schedule</th><th>Recommended Assignment</th><th>Why</th></tr></thead><tbody>'+_qBulkPlan.map(function(row,i){
-      if(!row.candidates.length)return'<tr><td><strong>'+qEsc(row.bookingReference)+'</strong><br><small>'+qEsc(row.customerName)+'</small></td><td>'+formatDate(row.bookingDate)+' '+formatTime(row.startTime)+'</td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>';
-      return'<tr><td><strong>'+qEsc(row.bookingReference)+'</strong><br><small>'+qEsc(row.customerName)+' · '+qEsc(row.serviceName)+'</small></td><td>'+formatDate(row.bookingDate)+'<br><small>'+formatTime(row.startTime)+'</small></td><td><select class="form-select form-select-sm bulk-tech-select" data-index="'+i+'" onchange="AU.Queue.renderBulkSummary()">'+row.candidates.map(function(c,j){return'<option value="'+c.technicianId+'" '+(j===0?'selected':'')+'>'+qEsc(c.name)+(j===0?' ⭐':'')+' — score '+c.score+'</option>';}).join('')+'</select></td><td class="small text-muted">'+row.recommended.reasons.slice(0,3).map(function(x){return'<div><i class="bi bi-check2 text-success"></i> '+qEsc(x)+'</div>';}).join('')+'</td></tr>';
-    }).join('')+'</tbody></table></div>';
+    if(!_qBulkPlan.length){body.innerHTML='<div class="text-center text-muted py-5">No unassigned standard bookings.</div>';document.getElementById('confirmBulkPlanBtn').disabled=true;return;}
+    body.innerHTML=_qBulkPlan.map(function(row,i){return RACSJobTeams.planRow(row,i);}).join('');
+    body.onchange=AU.Queue.renderBulkSummary;
     AU.Queue.renderBulkSummary();
   };
 
+  function bookingPlanSelections(){
+    return Array.from(document.querySelectorAll('#bulkPlanBody [data-plan-index]')).map(function(element){var row=_qBulkPlan[Number(element.dataset.planIndex)];var selection=RACSJobTeams.planSelection(element,row);return selection?Object.assign({bookingId:row.bookingId,row:row},selection):null;}).filter(Boolean);
+  }
+
   AU.Queue.renderBulkSummary=function(){
-    var groups={};document.querySelectorAll('.bulk-tech-select').forEach(function(sel){var row=_qBulkPlan[Number(sel.dataset.index)];var c=row.candidates.find(function(x){return x.technicianId===sel.value;});if(!c)return;(groups[c.name]||(groups[c.name]=[])).push(row.bookingReference);});
-    document.getElementById('bulkPlanSummary').innerHTML=Object.keys(groups).map(function(name){return'<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="fw-bold"><i class="bi bi-person-check-fill text-primary me-1"></i>'+qEsc(name)+'</div><div class="small text-muted mt-1">'+groups[name].map(qEsc).join(' · ')+'</div><span class="badge bg-primary-subtle text-primary mt-2">'+groups[name].length+' booking'+(groups[name].length===1?'':'s')+'</span></div></div>';}).join('');
+    var groups={},selections=bookingPlanSelections();
+    selections.forEach(function(selection){selection.technicianIds.forEach(function(id){var person=selection.row.candidates.find(function(candidate){return candidate.technicianId===id;});var group=groups[id]||(groups[id]={name:person.name,references:[]});group.references.push(selection.row.bookingReference);});});
+    document.getElementById('bulkPlanSummary').innerHTML=Object.values(groups).map(function(group){return '<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><strong>'+qEsc(group.name)+'</strong><div class="small text-muted mt-1">'+group.references.map(qEsc).join(' / ')+'</div></div></div>';}).join('');
+    document.getElementById('confirmBulkPlanBtn').disabled=!selections.length||selections.some(function(selection){return selection.invalid;});
   };
 
   AU.Queue.confirmBulkPlan=function(){
-    var assignments=[];document.querySelectorAll('.bulk-tech-select').forEach(function(sel){var row=_qBulkPlan[Number(sel.dataset.index)];assignments.push({bookingId:row.bookingId,technicianId:sel.value});});if(!assignments.length)return;
-    var btn=document.getElementById('confirmBulkPlanBtn');btn.disabled=true;btn.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Validating & assigning...';
-    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:assignments,responseMinutes:Number(document.getElementById('bulkResponseMinutes').value)||30})}).then(function(r){return r.json();}).then(function(d){bootstrap.Modal.getInstance(document.getElementById('bulkAssignmentModal'))?.hide();showNotification({type:d.failed?'warning':'success',title:'Assignment Plan Processed',message:d.assigned+' assigned, '+d.failed+' need review.',duration:6000});AU.Queue.loadQueue(1);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Bulk Assignment Failed',message:e.message,duration:5000});}).finally(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-send-check me-1"></i>Confirm & Notify';});
+    var selections=bookingPlanSelections();if(!selections.length||selections.some(function(selection){return selection.invalid;}))return;
+    var assignments=selections.map(function(selection){return {bookingId:selection.bookingId,expectedSchedule:selection.row.scheduleKey,technicianId:selection.technicianId,technicianIds:selection.technicianIds};});
+    var btn=document.getElementById('confirmBulkPlanBtn');btn.disabled=true;btn.innerHTML='Validating & assigning...';
+    fetch(APPOINTMENTS_API+'/assignment-plan/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments:assignments,responseMinutes:Number(document.getElementById('bulkResponseMinutes').value)||30})}).then(function(r){return r.json().then(function(data){if(!r.ok&&!data.results)throw Error(data.error||'Assignment failed');return data;});}).then(function(d){bootstrap.Modal.getInstance(document.getElementById('bulkAssignmentModal'))?.hide();showNotification({type:d.failed?'warning':'success',title:'Assignment Plan Processed',message:d.assigned+' assigned, '+d.failed+' need review.'+(d.failed?' '+(d.results||[]).filter(function(result){return !result.success;}).slice(0,2).map(function(result){return result.error;}).join(' '):''),duration:7000});AU.Queue.loadQueue(1);AU.Queue.loadStats();}).catch(function(e){showNotification({type:'error',title:'Bulk Assignment Failed',message:e.message,duration:5000});}).finally(function(){btn.disabled=false;btn.innerHTML='<i class="bi bi-send-check me-1"></i>Confirm & Notify';});
   };
 
   AU.Queue.loadWarnings=function(){

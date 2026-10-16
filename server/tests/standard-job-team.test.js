@@ -66,6 +66,44 @@ test('the same assignment service accepts one technician and retains single-prim
   assert.equal(f.store.assignments.size, 1); assert.equal(f.current.technicianTeam.length, 1);
   assert.equal(team.readiness(f.current).ready, false); assert.equal(f.current.technicianId, lead);
 });
+
+for (const source of ['booking', 'order']) {
+  test(`${source}: a reviewed installation cannot bypass crew size by posting only the primary`, async () => {
+    const f = fixture({ source });
+    if (source === 'booking') { f.current.service = { name: 'Aircon Installation' }; f.current.services = []; }
+    await assert.rejects(f.assign({ technicianId: lead, technicianIds: [lead], assignmentSource: 'reviewed_plan' }), error => error.code === 'INCOMPLETE_RECOMMENDED_TEAM');
+    assert.equal(f.store.assignments.size, 0); assert.equal(f.current.technicianId, undefined);
+  });
+  test(`${source}: reviewed full crew uses one transaction, invites both members and preserves money`, async () => {
+    const f = fixture({ source });
+    await f.assign({ technicianId: lead, technicianIds: [lead, support], assignmentSource: 'reviewed_plan', responseMinutes: 120 });
+    assert.equal(f.current.technicianTeam.length, 2); assert.ok(f.events.includes('commit'));
+    assert.ok(f.current.technicianTeam.every(row => row.status === 'pending'));
+    if (source === 'booking') {
+      assert.equal(f.store.assignments.size, 2); assert.equal(f.current.totalPrice, f.job.totalPrice);
+      assert.equal([...f.store.assignments.values()][0].responseSLAMinutes, 120);
+    } else { assert.equal(f.store.bookings.size, 1); assert.equal(f.current.total, f.job.total); }
+  });
+  test(`${source}: unavailable support prevents reviewed assignment without a partial crew`, async () => {
+    const f = fixture({ source, unavailable: support });
+    await assert.rejects(f.assign({ technicianId: lead, technicianIds: [lead, support], assignmentSource: 'reviewed_plan' }), /no longer available/);
+    assert.equal(f.store.assignments.size, 0); assert.equal(f.current.technicianId, undefined);
+  });
+  test(`${source}: AI confirmation cannot overwrite a job already assigned after preview`, async () => {
+    const f = fixture({ source }); await f.assign();
+    await assert.rejects(f.assign({ technicianId: lead, technicianIds: [lead, support], assignmentSource: 'reviewed_plan' }), /already been assigned/);
+  });
+  test(`${source}: changing the schedule after AI preview prevents confirmation`, async () => {
+    const f = fixture({ source });
+    await assert.rejects(f.assign({ technicianId: lead, technicianIds: [lead, support], assignmentSource: 'reviewed_plan', expectedSchedule: 'old-date|old-time' }), error => error.code === 'ASSIGNMENT_SCHEDULE_CHANGED');
+    assert.equal(f.store.assignments.size, 0); assert.equal(f.current.technicianId, undefined);
+  });
+}
+test('staff can explicitly choose one technician when manually reviewing an installation', async () => {
+  const f = fixture({ source: 'order' });
+  await f.assign({ technicianId: lead, technicianIds: [lead], notes: 'Staff reviewed staffing for this visit.' });
+  assert.equal(f.current.technicianTeam.length, 1); assert.equal(f.store.bookings.size, 1);
+});
 test('unavailable supporting technician blocks the whole assignment before any write', async () => {
   const f = fixture({ unavailable: support }); await assert.rejects(f.assign(), /no longer available/);
   assert.equal(f.store.assignments.size, 0); assert.equal(f.current.status, 'awaiting_assignment');
