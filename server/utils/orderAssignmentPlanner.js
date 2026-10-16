@@ -87,10 +87,8 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     new Date(orderDate(a)) - new Date(orderDate(b)) || minuteValue(a.timeSlot) - minuteValue(b.timeSlot));
   if (!rows.length) return [];
 
-  const accounts = await Technician.find({ active: { $ne: false }, archivedAt: null }).populate('user', 'active blocked role')
-    .select('_id user firstName lastName name phone email rating availabilityStatus location')
-    .lean();
-  const technicians = accounts.filter(tech => tech.user && tech.user.active !== false && !tech.user.blocked && tech.user.role === 'technician');
+  const roster = await require('./technicianRoster').loadTechnicianRoster({ Technician });
+  const technicians = roster.filter(tech => tech.assignmentEligible);
   const technicianIds = technicians.map(technician => technician._id);
   const timestamps = rows.filter(order => orderDate(order)).map(order => new Date(orderDate(order)).getTime()).filter(Number.isFinite);
   if (!timestamps.length) return rows.map(order => ({
@@ -141,7 +139,7 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     for (const technician of technicians) {
       const technicianId = String(technician._id);
       if (declined.has(technicianId)) continue;
-      const schedule = scheduleMap.get(technicianId);
+      const schedule = scheduleMap.get(technicianId) || require('./technicianScheduleDefaults').DEFAULT_SCHEDULE;
       const workingDay = schedule?.workingDays?.find(item => item.dayOfWeek === day);
       const restDay = schedule?.restDates?.some(item => dateKey(item?.date || item) === key);
       const nonWorkingDay = schedule?.nonWorkingWeekdays?.some(item => Number(item?.dayOfWeek ?? item) === day);

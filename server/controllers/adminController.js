@@ -1880,17 +1880,34 @@ exports.listTechnicians = async (req, res, next) => {
   try {
     // prevent clients from caching technician location data; we rely on frequent polls
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
-    const Technician = require("../models/Technician");
-    // return active technicians; include location so the admin list can show map
-    const docs = await Technician.find({ active: true })
-      .select(
-        "name user userEmail phone location locationText active avatarUrl avatar skills rating ratingCount",
-      )
-      .populate("user", "email emailVerified accountStatus")
-      .lean();
+    const directory = req.query?.roster === "all";
+    const docs = await require("../utils/technicianRoster").loadTechnicianRoster({
+      includeInactive: directory, includeMissingAccounts: directory,
+    });
     return res.json({ technicians: docs });
   } catch (err) {
     next(err);
+  }
+};
+
+exports.createStaffWorkProfile = async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ error: "Invalid staff reference." });
+    const user = await User.findOne({ _id: req.params.id, role: "technician", active: { $ne: false }, archivedAt: null, blocked: { $ne: true } })
+      .select("firstName lastName email phone").lean();
+    if (!user) return res.status(409).json({ error: "Choose an active technician account from Staff List." });
+    const name = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+    if (!name) return res.status(409).json({ error: "Complete the staff member's name in Staff List first." });
+    const Technician = require("../models/Technician");
+    const technician = await Technician.findOneAndUpdate({ user: user._id }, { $setOnInsert: {
+      user: user._id, name, userEmail: user.email, phone: user.phone || "", active: true,
+      availabilityStatus: "Offline", createdAt: new Date(),
+    } }, { upsert: true, returnDocument: "after", runValidators: true, setDefaultsOnInsert: false });
+    await logAction(req.user._id, user._id, "staff.work_profile_ready", req, { technicianId: technician._id });
+    return res.json({ message: "Work profile is ready. Review the technician's schedule before assigning work.", technicianId: technician._id });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: "This staff member's work profile was updated. Refresh the directory." });
+    next(error);
   }
 };
 

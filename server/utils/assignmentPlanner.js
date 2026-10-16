@@ -61,8 +61,8 @@ function distanceKm(a, b) {
 async function buildAssignmentPlan(bookings, options = {}) {
   const rows = (bookings || []).filter(Boolean).sort((a,b) => new Date(a.bookingDate)-new Date(b.bookingDate) || minuteValue(a.startTime)-minuteValue(b.startTime));
   if (!rows.length) return [];
-  const accounts = await Technician.find({ active: { $ne: false }, archivedAt: null }).populate('user', 'active blocked role').select('_id user name phone email rating availabilityStatus location').lean();
-  const techs = accounts.filter(tech => tech.user && tech.user.active !== false && !tech.user.blocked && tech.user.role === 'technician');
+  const roster = await require('./technicianRoster').loadTechnicianRoster({ Technician });
+  const techs = roster.filter(tech => tech.assignmentEligible);
   const techIds = techs.map(t => t._id);
   const scheduleDays = rows.map(b => manilaDateTime(b.bookingDate, 0)).filter(Boolean);
   if (!scheduleDays.length) return [];
@@ -112,7 +112,7 @@ async function buildAssignmentPlan(bookings, options = {}) {
     const candidates = [];
     const exclusionReasons = {};
     for (const tech of techs) {
-      const tid=String(tech._id); const schedule=scheduleMap.get(tid);
+      const tid=String(tech._id); const schedule=scheduleMap.get(tid) || require('./technicianScheduleDefaults').DEFAULT_SCHEDULE;
       const working=schedule?.workingDays?.find(w => w.dayOfWeek===day);
       const rest=schedule?.restDates?.some(r => dateKey(r?.date || r)===key);
       const nonWorking=schedule?.nonWorkingWeekdays?.some(w => Number(w?.dayOfWeek ?? w)===day);
