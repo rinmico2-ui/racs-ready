@@ -1371,12 +1371,8 @@ bookingSchema.pre("save", async function () {
 
   // Auto-generate work order number for repair requests
   if (!this.workOrderNumber && this.serviceModel === "RepairService") {
-    try {
-      const count = await mongoose.model("BookingService").countDocuments({ serviceModel: "RepairService" });
-      this.workOrderNumber = `WO-${new Date().getFullYear()}-${String(count + 1).padStart(6, '0')}`;
-    } catch (e) {
-      console.error("Failed to generate work order number:", e.message);
-    }
+    this.workOrderNumber = await require("../utils/bookingWorkOrderNumber")
+      .nextBookingWorkOrderNumber(this.constructor);
   }
 
   // if user switches category away from repair, clear any entered issue
