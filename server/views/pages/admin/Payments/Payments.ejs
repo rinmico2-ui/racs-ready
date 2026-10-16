@@ -47,6 +47,7 @@
     .payments-page .text-micro { font-size: 0.72rem; }
   </style>
 
+  <div class="alert alert-light border small mb-3"><p id="paymentsLedgerBasis" class="mb-2">Loading payment ledger...</p><strong>Completed refunds:</strong> <span id="paymentsRefundTotal">—</span> · <strong>Payments after refunds:</strong> <span id="paymentsNetTotal">—</span></div>
   <!-- Executive KPI Summary -->
   <div class="row g-3 mb-4">
     <!-- Total Revenue -->
@@ -54,11 +55,11 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start">
           <div style="flex:1;">
-            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Total Revenue</h6>
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Payments received</h6>
             <div class="d-flex align-items-baseline gap-2 mb-2">
               <span class="h2 mb-0 fw-bold text-dark" id="kpiTotalRevenue">--</span>
             </div>
-            <small class="text-muted">All collected payments</small>
+            <small class="text-muted">Includes money still held by technicians</small>
             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
               <div style="font-size:0.75rem;color:#94a3b8;">Monthly: <span id="kpiMonthlyRevenue" style="color:#0f172a;font-weight:600;">--</span></div>
             </div>
@@ -75,12 +76,12 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start">
           <div style="flex:1;">
-            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Collection Rate</h6>
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Collected records</h6>
             <div class="d-flex align-items-baseline gap-2 mb-2">
               <span class="h2 mb-0 fw-bold text-dark" id="kpiCollectionRate">--</span>
               <span style="font-size:0.8rem;color:#059669;font-weight:600;">%</span>
             </div>
-            <small class="text-muted">Paid vs Total</small>
+            <small class="text-muted">Collected payment records / filtered records</small>
             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
               <div style="font-size:0.75rem;color:#94a3b8;">Pending: <span id="kpiPendingAmount" style="color:#0f172a;font-weight:600;">--</span></div>
             </div>
@@ -97,12 +98,12 @@
       <div class="dash-card h-100">
         <div class="d-flex justify-content-between align-items-start">
           <div style="flex:1;">
-            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Success Rate</h6>
+            <h6 class="text-muted mb-2" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Confirmed records</h6>
             <div class="d-flex align-items-baseline gap-2 mb-2">
               <span class="h2 mb-0 fw-bold text-dark" id="kpiSuccessRate">--</span>
               <span style="font-size:0.8rem;color:#059669;font-weight:600;">%</span>
             </div>
-            <small class="text-muted">Successful transactions</small>
+            <small class="text-muted">Paid or verified / filtered records</small>
             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
               <div style="font-size:0.75rem;color:#94a3b8;">Failed: <span id="kpiFailedCount" style="color:#dc2626;font-weight:600;">--</span></div>
             </div>
@@ -185,7 +186,7 @@
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Partial</span>
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Technician collections awaiting review</span>
             <div style="display:flex;flex-direction:column;align-items:flex-end;">
               <span style="font-size:0.9rem;font-weight:600;color:#3b82f6;" id="kpiPartialCount">--</span>
               <span style="font-size:0.7rem;color:#94a3b8;" id="kpiPartialValue">--</span>
@@ -210,7 +211,7 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Avg Daily Revenue</span>
+            <span style="font-size:0.8rem;color:#64748b;font-weight:500;">Last 30 days · daily collections</span>
             <span style="font-size:0.9rem;font-weight:600;color:#0f172a;" id="kpiAvgDailyRevenue">--</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -280,7 +281,7 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;">
         <div>
           <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:0.8rem;">
-            <span style="color:#0f172a;font-weight:600;">Paid</span>
+            <span style="color:#0f172a;font-weight:600;">Confirmed</span>
             <span style="color:#059669;font-weight:600;" id="paidPercent">--</span>
           </div>
           <div style="height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden;">
@@ -333,7 +334,7 @@
           <label class="form-label small text-uppercase text-muted fw-bold">Search</label>
           <div class="input-group" style="border-radius:10px;overflow:hidden;">
             <span class="input-group-text" style="background:#f8fafc;border-color:#e2e8f0;"><i class="bi bi-search text-muted"></i></span>
-            <input id="paymentsSearch" type="text" class="form-control" style="border-color:#e2e8f0;background:#f8fafc;" placeholder="Booking ref, transaction ID, customer..." />
+            <input id="paymentsSearch" type="text" maxlength="100" class="form-control" style="border-color:#e2e8f0;background:#f8fafc;" placeholder="Booking ref, transaction ID, customer..." />
           </div>
         </div>
         <div class="col-lg-2">
@@ -341,7 +342,7 @@
           <select class="form-select" id="paymentsStatusFilter" style="border-color:#e2e8f0;background:#f8fafc;">
             <option>All</option>
             <option>Paid</option>
-            <option>Partial</option>
+            <option>Partial</option><option value="payment_collected">Collected by technician</option><option value="waiting_for_remittance">Awaiting remittance</option><option value="remitted">Remitted</option><option value="verified">Verified</option><option value="unaccounted">Unaccounted</option><option value="rejected">Rejected</option><option value="refunded">Refunded</option>
             <option>Pending</option>
             <option>Failed</option>
           </select>
@@ -351,7 +352,8 @@
           <select class="form-select" id="paymentsMethodFilter" style="border-color:#e2e8f0;background:#f8fafc;">
             <option>All</option>
             <option>GCash</option>
-            <option>COD</option>
+            <option value="cash">Cash / COD</option>
+            <option value="bank">Bank</option><option value="maya">Maya</option><option value="card">Card</option><option value="paymongo">PayMongo</option>
             <option>Other</option>
           </select>
         </div>
@@ -364,6 +366,8 @@
             <option>Other</option>
           </select>
         </div>
+        <div class="col-sm-6 col-lg-3"><label for="paymentsFromDate" class="form-label small text-uppercase text-muted fw-bold">From</label><input id="paymentsFromDate" type="date" class="form-control"></div>
+        <div class="col-sm-6 col-lg-3"><label for="paymentsToDate" class="form-label small text-uppercase text-muted fw-bold">To</label><input id="paymentsToDate" type="date" class="form-control"></div>
         <div class="col-lg-2 d-flex align-items-end">
           <button class="btn w-100" id="paymentsFilterBtn" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#0f172a;font-weight:600;border-radius:10px;transition:all 0.25s ease;">
             <i class="bi bi-funnel me-2"></i>Filter
@@ -404,19 +408,7 @@
     </div>
     <div style="padding:16px 22px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:0.75rem;color:#94a3b8;" id="paymentsPaginationInfo">Loading...</span>
-      <nav aria-label="Payment pagination">
-        <ul class="pagination mb-0" style="gap:4px;">
-          <li class="page-item disabled">
-            <a class="page-link" href="#" style="border-radius:8px;border:1px solid #e2e8f0;padding:6px 10px;font-size:0.8rem;">‹ Prev</a>
-          </li>
-          <li class="page-item active">
-            <span class="page-link" style="border-radius:8px;border:1px solid #2563eb;background:#2563eb;color:#fff;padding:6px 10px;font-size:0.8rem;">1</span>
-          </li>
-          <li class="page-item">
-            <a class="page-link" href="#" style="border-radius:8px;border:1px solid #e2e8f0;padding:6px 10px;font-size:0.8rem;">Next ›</a>
-          </li>
-        </ul>
-      </nav>
+      <nav aria-label="Payment pagination" class="d-flex gap-2 align-items-center"><button type="button" id="paymentsPrevious" class="btn btn-sm btn-light border" disabled>Previous</button><span id="paymentsPage" class="small">1 / 1</span><button type="button" id="paymentsNext" class="btn btn-sm btn-light border" disabled>Next</button></nav>
     </div>
   </div>
 </div>
@@ -450,14 +442,16 @@
           <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">GCash Number</span><span class="fw-semibold" id="detailsGcashNumber">&mdash;</span></div>
           <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Reference #</span><span class="fw-semibold" id="detailsReference">&mdash;</span></div>
           <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Travel Fare</span><span class="fw-semibold" id="detailsTravelFare">&mdash;</span></div>
-          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">Downpayment</span><span class="fw-semibold" id="detailsDownpayment">&mdash;</span></div>
-          <div class="d-flex justify-content-between py-1"><span class="text-muted">Estimated Fee</span><span class="fw-bold text-success" id="detailsEstimatedFee">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1 border-bottom"><span class="text-muted">This payment amount</span><span class="fw-semibold" id="detailsDownpayment">&mdash;</span></div>
+          <div class="d-flex justify-content-between py-1"><span class="text-muted">Work total</span><span class="fw-bold text-success" id="detailsEstimatedFee">&mdash;</span></div>
         </div>
 
         <div class="mb-3">
           <h6 class="fw-semibold mb-1">Issue Description</h6>
-          <p class="text-muted small mb-0" id="detailsIssue">&mdash;</p>
+          <p class="text-muted small mb-0" id="detailsIssue" style="white-space:pre-wrap;overflow-wrap:anywhere">&mdash;</p>
         </div>
+        <section class="border rounded-3 p-3 mb-3" aria-label="Collection details"><h6 class="fw-semibold">Collection details</h6><p class="small mb-1"><strong>Collected by:</strong> <span id="detailsCollector">—</span></p><p class="small mb-1"><strong>Collected at:</strong> <span id="detailsCollectedAt">—</span></p><p class="small mb-0" id="detailsCollectionNotes" style="white-space:pre-wrap;overflow-wrap:anywhere"></p></section>
+        <section class="mb-3"><h6 class="fw-semibold mb-1">Special instructions</h6><p class="small text-muted" id="detailsSpecialInstructions" style="white-space:pre-wrap;overflow-wrap:anywhere"></p></section>
         <div class="mb-3">
           <h6 class="fw-semibold mb-1">Payment Notes</h6>
           <p class="text-muted small mb-0" id="detailsNotes">&mdash;</p>
@@ -482,4 +476,4 @@
 <script src="/js/payment-receipt-viewer.js?v=20260929-receipt-table"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>window.RACSPaymentsConfig = { apiBase: <%- JSON.stringify(resolvedPaymentsApiBase).replace(/</g, "\\u003c") %>, canManage: <%- (JSON.stringify(resolvedPaymentsCanManage)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %> };</script>
-<script src="/js/admin-payments.js?v=20260929-receipt-table-20261014-it-review"></script>
+<script src="/js/admin-payments.js?v=20261016-ledger-reconciliation"></script>

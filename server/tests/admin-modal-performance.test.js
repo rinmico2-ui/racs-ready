@@ -41,7 +41,7 @@ test("remote admin details open immediately instead of waiting for the network",
   const payments = section(
     read("public/js/admin-payments.js"),
     "async function openDetails(paymentId)",
-    "function updateStats(items)",
+    "function updateStats(",
   );
   assertOpensBeforeFetch(payments, "AdminModalUX.open", "payment details");
   assert.match(payments, /signal:\s*requestController\.signal/);

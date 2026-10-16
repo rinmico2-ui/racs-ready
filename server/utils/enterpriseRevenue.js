@@ -4,6 +4,7 @@ const ACCEPTED_PAYMENT_STATUSES = new Set([
   "remitted",
   "verified",
   "paid",
+  "completed", // Historical payment rows used this label for a settled payment.
   "partial",
   "refunded",
   "rejected",

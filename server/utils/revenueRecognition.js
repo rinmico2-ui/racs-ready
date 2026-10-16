@@ -59,7 +59,7 @@ function bookingApprovedValue(booking, projectPricingMap = new Map()) {
 }
 
 function acceptedPayment(payment) {
-  return ["payment_collected", "waiting_for_remittance", "remitted", "verified", "paid", "partial"].includes(payment?.status);
+  return !payment?.testDataExcludedAt && require('./enterpriseRevenue').ACCEPTED_PAYMENT_STATUSES.has(payment?.status);
 }
 
 function paymentDate(payment) {

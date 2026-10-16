@@ -137,3 +137,82 @@ test('a POS-only period has finite costs and profit when no service rows exist',
   const {analytics:a}=await buildRevenueAnalytics(range);
   assert.equal(a.recognizedRevenue,100);assert.equal(a.netCollections,100);assert.equal(a.totalPartsCost,12);assert.equal(a.operatingProfit,88);
 });
+
+test('all seven tab breakdowns reconcile independently after source filtering and actual collections', async t=>{
+  mockDatabase(t);
+  for(const source of ['all','service','order','pos']) {
+    const {analytics:a}=await buildRevenueAnalytics({...range,source});
+    assert.equal(a.consistency.matches,true,JSON.stringify({source,differences:a.consistency.differences}));
+  }
+});
+
+test('an order and its installation booking never count the same cash under both service and order filters', async t=>{
+  const linked={_id:'mirror',sourceOrderId:'order',serviceType:'core',status:'completed',totalPrice:9000,createdAt:date('2026-10-01'),completedAt:date('2026-10-15')};
+  mockDatabase(t,{BookingService:[linked],Order:[{...orders[0],bookingId:'mirror',createdAt:date('2026-10-01')}],Payment:[{_id:'payment',bookingId:'mirror',orderId:'order',status:'waiting_for_remittance',method:'cash',amount:1000,collectedAt:date('2026-10-16')}],ProductRefund:[]});
+  const {analytics:service}=await buildRevenueAnalytics({...range,source:'service'});
+  const {analytics:order}=await buildRevenueAnalytics({...range,source:'order'});
+  assert.equal(service.grossCollections,0);assert.equal(service.recognizedGrossRevenue,0);
+  assert.equal(order.grossCollections,1000);assert.equal(order.recognizedGrossRevenue,1000);assert.equal(order.outstandingValue,0);
+});
+
+test('legacy booking-only installation payments resolve to their product order without changing stored records',async t=>{
+  mockDatabase(t,{BookingService:[{...bookings[0],_id:'mirror',sourceOrderId:'order'}],Order:[{...orders[0],bookingId:'mirror',createdAt:date('2026-10-01')}],Payment:[{_id:'payment',bookingId:'mirror',status:'paid',method:'cash',amount:1000,collectedAt:date('2026-10-16')}],ProductRefund:[]});
+  const {analytics:a}=await buildRevenueAnalytics({...range,source:'order'});
+  assert.equal(a.grossCollections,1000);assert.equal(a.outstandingValue,0);assert.equal(a.reconciliation.appliedPayments,1000);
+  assert.equal(a.activity.payments[0].type,'order');assert.equal(a.consistency.matches,true);
+});
+
+test('order payment-method filters follow the actual ledger rather than the checkout preference',async t=>{
+  mockDatabase(t,{BookingService:[],Order:[{...orders[0],bookingId:null,paymentMethod:'cash'}],Payment:[payments[2]],ProductRefund:[]});
+  const {analytics:gcash}=await buildRevenueAnalytics({...range,source:'order',paymentMethod:'gcash'});
+  assert.equal(gcash.recognizedOrderRevenue,1000);assert.equal(gcash.grossCollections,1000);
+  const {analytics:cash}=await buildRevenueAnalytics({...range,source:'order',paymentMethod:'cod'});
+  assert.equal(cash.recognizedOrderRevenue,0);assert.equal(cash.grossCollections,0);
+});
+
+test('a cash refund does not reduce GCash-filtered service profit, and technician totals use net sales',async t=>{
+  mockDatabase(t,{BookingService:bookings.filter(row=>row._id==='prepaid'),Order:[],Payment:[payments[0]],ProductRefund:[]});
+  const {analytics:gcash}=await buildRevenueAnalytics({...range,source:'service',paymentMethod:'gcash'});
+  assert.equal(gcash.refunds,0);assert.equal(gcash.completedServiceCosts[0].revenue,1000);
+  const {analytics:all}=await buildRevenueAnalytics({...range,source:'service'});
+  assert.equal(all.completedServiceCosts[0].revenue,800);assert.equal(all.topTechnicians[0].revenue,800);
+  assert.equal(all.topTechnicians[0].profit,all.completedServiceCosts[0].grossProfit);
+});
+
+test('service profit uses changed core prices, approved repair quotes and company-paid purchases',async t=>{
+  const booking={_id:'mixed',bookingReference:'RACS-MIXED',status:'completed',serviceType:'mixed',technicianId:'tech',createdAt:date('2026-10-01'),completedAt:date('2026-10-15'),travelFare:100,
+    services:[{_id:'core',type:'core',name:'Cleaning',quantity:1,totalPrice:1000,finalCost:400,costUpdatedByTechnician:true},{_id:'repair',type:'repair',name:'Repair',quantity:1,initialCost:200,approval:{status:'approved'},quotation:{totalCost:600}}],
+    localPurchase:[{actualPurchaseCost:90,purchaseByType:'customer'},{actualPurchaseCost:50,purchaseByType:'technician'}]};
+  mockDatabase(t,{BookingService:[booking],Order:[],Payment:[],ProductRefund:[]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  const core=a.serviceProfitability.rows.find(row=>row.serviceName==='Cleaning'),repair=a.serviceProfitability.rows.find(row=>row.serviceName==='Repair');
+  assert.equal(a.recognizedServiceRevenue,1300);assert.equal(core.revenue,450);assert.equal(repair.revenue,850);
+  assert.equal(a.serviceDirectCost,50);assert.equal(core.directCost+repair.directCost,50);assert.equal(a.consistency.matches,true);
+});
+
+test('completed product refunds follow the selected payment state of their own order',async t=>{
+  mockDatabase(t);
+  const {analytics:a}=await buildRevenueAnalytics({...range,paymentStatus:'pending'});
+  assert.equal(a.refunds,0);assert.equal(a.netCollections,0);
+  assert.equal(a.consistency.matches,true);
+});
+
+test('future payments cannot qualify completed work for a historical payment-method selection',async t=>{
+  mockDatabase(t,{BookingService:[],Order:orders,ProductRefund:[],Payment:[{...payments[2],collectedAt:date('2026-11-01')}]});
+  const {analytics:a}=await buildRevenueAnalytics({...range,source:'order',paymentMethod:'gcash'});
+  assert.equal(a.recognizedOrderRevenue,0);assert.equal(a.grossCollections,0);assert.equal(a.consistency.matches,true);
+});
+
+test('the owner-provided live audit totals reconcile completed sales, unfinished collections and unpaid balances',async t=>{
+  const when=date('2026-10-15');
+  mockDatabase(t,{BookingService:[{_id:'completed',bookingReference:'FIXTURE-COMPLETED',status:'completed',serviceType:'core',totalPrice:5247,createdAt:when,completedAt:when,paymentStatus:'paid'}],
+    Order:[{_id:'unfinished',orderReference:'FIXTURE-UNFINISHED',status:'preparing_unit',total:130654.2,createdAt:when,paymentStatus:'partial',items:[]}],
+    Payment:[{_id:'deposit',bookingId:'completed',status:'paid',method:'gcash',amount:262,collectedAt:when},{_id:'balance',bookingId:'completed',status:'waiting_for_remittance',method:'cash',amount:4985,collectedAt:when},
+      ...Array.from({length:9},(_,i)=>({_id:'unfinished-'+i,orderId:'unfinished',status:'paid',method:'gcash',amount:i===8?6440:5000,collectedAt:when}))],
+    ProductRefund:[],WalkInSale:[{_id:'counter',status:'completed',totalAmount:1100,totalCost:600,paymentMethod:'cash',createdAt:when,completedAt:when}]});
+  const {analytics:a}=await buildRevenueAnalytics(range);
+  assert.equal(a.recognizedRevenue,6347);assert.equal(a.netCollections,52787);
+  assert.equal(a.reconciliation.cashBreakdown.find(row=>row.key==='unfinished_work').collections,46440);
+  assert.equal(a.reconciliation.requestedValue,137001.2);assert.ok(Math.abs(a.outstandingValue-84214.2)<0.001);
+  assert.equal(a.reconciliation.unmatchedPaymentRecords,0);assert.equal(a.consistency.matches,true);
+});

@@ -53,7 +53,7 @@ const {
 // out of the reporting queries prevents base64 receipts and completion photos
 // from being transferred repeatedly for bookings, orders, and payments.
 const BOOKING_EVIDENCE_EXCLUSIONS = "-imageUrl -proofPhoto -afterPhotos -inspection.photos -unitInfo.photos -services.photos -services.inspection.photos -services.diagnosis.photos -noShowReport.arrivalProofUrl -localPurchase.receiptUrl -refundProofUrl -repairPaymentProof -paymentProof";
-const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.unitPrice items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
+const ORDER_ACTIVITY_FIELDS = "status createdAt updatedAt completedAt items.inventoryId items.modelLine items.brand items.capacity items.capacityUnit items.quantity items.unitPrice items.totalPrice items.discountAmount items.costPrice total totalAmount subtotal transportationFee deliveryFee installationFee salesChannel paymentMethod paymentStatus bookingId fulfillmentType discount orderReference customer.name";
 const ORDER_ANALYTICS_FIELDS = `${ORDER_ACTIVITY_FIELDS} statusHistory.status statusHistory.timestamp`;
 const PAYMENT_ANALYTICS_FIELDS = "bookingId orderId projectId amount method status verifiedAt completedAt collectedAt submittedAt refundedAt refundAmount refundMethod refundStatus testDataExcludedAt";
 const WALK_IN_ANALYTICS_FIELDS = "status completedAt createdAt totalAmount totalCost subtotal discount paymentMethod invoiceNumber customerName items.toolId items.inventoryClass items.itemType items.category items.itemName items.unit items.quantity items.unitPrice items.totalPrice items.costPrice";
@@ -108,15 +108,6 @@ async function computeRevenueAnalytics(query = {}) {
   };
 
   const ordersQuery = { ...reportableMatch(), createdAt: dateFilter, status: { $ne: "cancelled" } };
-  if (pmFilter !== "all") {
-    const methodAliases = {
-      gcash: ["gcash", "gcash_full", "gcash_downpayment"],
-      cod: ["cod", "cash", "cash_onsite", "downpayment"],
-      bank: ["bank", "bank_transfer"],
-    };
-    if (methodAliases[pmFilter]) ordersQuery.paymentMethod = { $in: methodAliases[pmFilter] };
-    else ordersQuery.paymentMethod = { $nin: [...methodAliases.gcash, ...methodAliases.cod, ...methodAliases.bank] };
-  }
   if (psFilter !== "all") ordersQuery.paymentStatus = psFilter;
 
   // Walk-in sales become revenue when checkout completes. Legacy rows without
@@ -179,6 +170,12 @@ async function computeRevenueAnalytics(query = {}) {
     ...(sourceFilter === 'order' ? { sourceType: 'order' } : sourceFilter === 'pos' ? { sourceType: 'walk_in' } : {}),
   }).select('sourceType sourceId amount status method processedAt').lean();
   if (pmFilter !== 'all') productRefunds = productRefunds.filter(refund => normalizePaymentMethod(refund.method) === normalizePaymentMethod(pmFilter));
+  if (psFilter !== 'all' && productRefunds.length) {
+    const refundedOrderIds = productRefunds.filter(row => row.sourceType === 'order').map(row => row.sourceId);
+    const matchingOrders = refundedOrderIds.length ? await Order.find({ ...reportableMatch(), _id: { $in: refundedOrderIds }, paymentStatus: psFilter }).select('_id').lean() : [];
+    const allowed = new Set(matchingOrders.map(row => String(row._id)));
+    productRefunds = productRefunds.filter(row => row.sourceType === 'order' ? allowed.has(String(row.sourceId)) : psFilter === 'paid');
+  }
   const counterItemIds = [...new Set(
     posSales.flatMap((sale) => (sale.items || []).map((item) => String(item.toolId || ""))).filter(Boolean),
   )];
@@ -203,14 +200,26 @@ async function computeRevenueAnalytics(query = {}) {
   ).values());
   const projectPricingMap = await buildProjectPricingMap(uniqueBookings);
   const methodLinks = [];
+  const resolvePaymentSources = rows => require('./paymentSourceResolution').resolvePaymentSources(rows, {
+    BookingService, Order, Project: require('../models/Project'),
+  });
+  const resolvedRawPayments = await resolvePaymentSources(rawPayments);
+  const candidateOrderIds = [...new Set([...orders, ...recognizedOrderRows].map(row => row._id))];
+  const candidateOrderBookingIds = [...new Set([...orders, ...recognizedOrderRows].map(row => row.bookingId).filter(Boolean))];
+  if (candidateOrderIds.length) methodLinks.push({ orderId: { $in: candidateOrderIds } });
+  if (candidateOrderBookingIds.length) methodLinks.push({ bookingId: { $in: candidateOrderBookingIds } });
   if (uniqueBookings.length) methodLinks.push({ bookingId: { $in: uniqueBookings.map(row => row._id) } });
   const methodProjectIds = [...new Set([...projectPricingMap.values()].map(row => row.projectId).filter(Boolean))];
   if (methodProjectIds.length) methodLinks.push({ projectId: { $in: methodProjectIds } });
   const methodPayments = pmFilter !== 'all' && methodLinks.length ? await Payment.find({ ...reportableMatch(), status: { $in: [...ACCEPTED_PAYMENT_STATUSES] }, $or: methodLinks }).select(PAYMENT_ANALYTICS_FIELDS).lean() : [];
-  const matchingMethodPayments = methodPayments.filter(row => normalizePaymentMethod(row.method) === normalizePaymentMethod(pmFilter));
+  const resolvedMethodPayments = await resolvePaymentSources(methodPayments);
+  const matchingMethodPayments = resolvedMethodPayments.filter(row => normalizePaymentMethod(row.method) === normalizePaymentMethod(pmFilter)
+    && paymentAmounts(row).gross > 0 && inDateRange(require('./enterpriseRevenue').collectionDate(row), new Date(0), endDate));
   const legacyLinkedOrders = uniqueBookings.length ? await Order.find({ bookingId: { $in: uniqueBookings.map(booking => booking._id) } }).select('bookingId').lean() : [];
-  let payments = rawPayments.filter((payment) => {
-    if (sourceFilter === "service") return Boolean(payment.bookingId || payment.projectId);
+  const matchingMethodOrderIds = new Set(matchingMethodPayments.map(row => row.orderId).filter(Boolean).map(String));
+  if (pmFilter !== 'all') orders.splice(0, orders.length, ...orders.filter(row => matchingMethodOrderIds.has(String(row._id))));
+  let payments = resolvedRawPayments.filter((payment) => {
+    if (sourceFilter === "service") return !payment.orderId && Boolean(payment.bookingId || payment.projectId);
     if (sourceFilter === "order") return Boolean(payment.orderId);
     if (sourceFilter === "pos") return false;
     return Boolean(payment.bookingId || payment.projectId || payment.orderId);
@@ -267,7 +276,7 @@ async function computeRevenueAnalytics(query = {}) {
       return paidBookingIds.has(String(booking._id)) || (project && paidProjectIds.has(project.projectId));
     });
   }
-  const recognizedOrders = recognizedOrderRows.filter((order) => isRecognizedOrder(order, startDate, endDate));
+  const recognizedOrders = recognizedOrderRows.filter((order) => isRecognizedOrder(order, startDate, endDate) && (pmFilter === "all" || matchingMethodOrderIds.has(String(order._id))));
   const orderLinkedBookingIds = new Set(
     [...orders, ...recognizedOrders, ...legacyLinkedOrders].map((order) => order.bookingId).filter(Boolean).map(String),
   );
@@ -314,7 +323,9 @@ async function computeRevenueAnalytics(query = {}) {
     .filter(([bookingId]) => filteredBookingIds.has(bookingId))
     .map(([, entry]) => entry.projectId);
   if (cohortProjectIds.length) cohortEntityFilters.push({ projectId: { $in: cohortProjectIds } });
-  const cohortPayments = cohortEntityFilters.length
+  const linkedOrderBookingIds = orders.map(row => row.bookingId).filter(Boolean);
+  if (linkedOrderBookingIds.length) cohortEntityFilters.push({ bookingId: { $in: linkedOrderBookingIds } });
+  let cohortPayments = cohortEntityFilters.length
     ? await Payment.find({
       testDataExcludedAt: null,
       $and: [
@@ -326,6 +337,7 @@ async function computeRevenueAnalytics(query = {}) {
       ],
     }).select(PAYMENT_ANALYTICS_FIELDS).lean()
     : [];
+  cohortPayments = await resolvePaymentSources(cohortPayments);
   const cohortOrderIds = new Set(orders.map(row => String(row._id)));
   const cohortCounterIds = new Set(posSales.map(row => String(row._id)));
   const cohortProductRefunds = productRefunds.filter(row => row.sourceType === 'order' ? cohortOrderIds.has(String(row.sourceId)) : row.sourceType === 'walk_in' && cohortCounterIds.has(String(row.sourceId))).reduce((sum,row) => sum + Number(row.amount || 0),0);
@@ -345,7 +357,7 @@ async function computeRevenueAnalytics(query = {}) {
 
   // ── Revenue by source ──
   const productRevenue = orders.reduce((sum, o) => sum + (o.subtotal || 0), 0);
-  const deliveryRevenue = orders.reduce((sum, o) => sum + (o.deliveryFee || 0), 0);
+  const deliveryRevenue = orders.reduce((sum, o) => sum + Number(o.transportationFee ?? o.deliveryFee ?? 0), 0);
   const installationRevenue = orders.reduce((sum, o) => sum + (o.installationFee || 0), 0);
 
   // ── Payment method breakdown ──
@@ -446,12 +458,12 @@ async function computeRevenueAnalytics(query = {}) {
       const revenue = getBookingRevenue(b);
       if (revenue <= 0) return;
       const tid = b.technicianId.toString();
-      if (!techRevenue[tid]) techRevenue[tid] = { id: tid, name: b.technician?.name || "Unknown", revenue: 0, bookings: 0 };
+      if (!techRevenue[tid]) techRevenue[tid] = { id: tid, name: b.technician?.name || technicians.find(row => String(row._id) === tid)?.name || "Unknown", revenue: 0, bookings: 0 };
       techRevenue[tid].revenue += revenue;
       techRevenue[tid].bookings++;
     }
   });
-  const topTechnicians = Object.values(techRevenue).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+  const topTechnicians = Object.values(techRevenue);
 
   // ── Direct/known cost engine (completed services only — matches cost breakdown card) ──
   const recognizedInventoryIds = [...new Set(
@@ -839,6 +851,7 @@ async function computeRevenueAnalytics(query = {}) {
   });
   const refundByBooking = new Map();
   payments.forEach((payment) => {
+    if (pmFilter !== 'all' && normalizePaymentMethod(payment.refundMethod || payment.method) !== normalizePaymentMethod(pmFilter)) return;
     const refunded = paymentAmounts(payment).refunded;
     if (refunded <= 0 || !inDateRange(refundDate(payment), startDate, endDate)) return;
     const bookingId = payment.bookingId
@@ -867,6 +880,22 @@ async function computeRevenueAnalytics(query = {}) {
     return { ...service, revenue, partsCost, refundAmount: refund, projectMaterialCost: projectCost, grossProfit: revenue - directCost, grossProfitMargin: revenue > 0 ? (revenue-directCost)/revenue*100 : null, serviceLines };
   });
   const serviceProfitability = buildServiceProfitability(profitabilityServiceRows, { startDate, endDate });
+  // The technician ranking must use the same net sales and project costs as
+  // the service detail rows, not a second pre-refund calculation.
+  topTechnicians.forEach(row => {
+    const services = profitabilityServiceRows.filter(service => String(recognizedBookingById.get(String(service.bookingId))?.technicianId || '') === row.id);
+    row.revenue = services.reduce((sum, service) => sum + Number(service.revenue || 0), 0);
+    row.partsCost = services.reduce((sum, service) => sum + Number(service.partsCost || 0) + Number(service.consumablesCost || 0) + Number(service.laborCost || 0) + Number(service.localPurchaseCost || 0), 0);
+    row.profit = row.revenue - row.partsCost;
+  });
+  topTechnicians.sort((left, right) => right.profit - left.profit);
+  topTechnicians.splice(10);
+  const consistency = require('./revenueReportConsistency').checkRevenueReportConsistency({
+    recognizedGrossRevenue, recognizedRevenue, netCollections: paymentRevenue, totalRevenue,
+    operatingProfit, totalPartsCost, operatingExpenses, monthlyRevenue, monthlyPartsCost,
+    serviceProfitability, profitabilityServiceRows, costDetails,
+    activity: reportReconciliation.activity, reconciliation: reportReconciliation.reconciliation,
+  });
   const salesForecast = buildRevenueForecast(dailyRevenue, { anchorDate: endDate, horizonDays: 30 });
 
   // ── Executive insights (strategic call-outs shown at the top of the report) ──
@@ -923,6 +952,7 @@ async function computeRevenueAnalytics(query = {}) {
     technicians: technicians.map((t) => ({ id: t._id, name: t.name })),
     analytics: {
       reportPeriod: { startDate,endDate,timeZone:reportDates.TIME_ZONE },
+      consistency,
       salesView: { ...reportReconciliation.salesView,posCost,posProfit,posMargin:posRevenue ? posProfit/posRevenue*100 : 0 },
       activity: reportReconciliation.activity,
       reconciliation: { ...reportReconciliation.reconciliation, savedDirectCosts:totalPartsCost, approvedExpenses:approvedExpenseTotal, payroll:payrollCost, operatingExpenses, operatingProfit,

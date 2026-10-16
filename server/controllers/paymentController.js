@@ -93,6 +93,11 @@ exports.createPayment = async (req, res, next) => {
 // list payments with optional filters (bookingId, status, method, type)
 exports.listPayments = async (req, res, next) => {
   try {
+    if (req.query.view === 'ledger') {
+      const result = await require('../utils/paymentLedgerView').buildPaymentLedgerView(req.query);
+      res.set('Cache-Control', 'private, no-store');
+      return res.json(result);
+    }
     const q = {};
     if (req.query.bookingId && isValidId(req.query.bookingId)) {
       q.bookingId = new mongoose.Types.ObjectId(req.query.bookingId);
@@ -174,6 +179,7 @@ exports.listPayments = async (req, res, next) => {
     });
     res.json({ payments: enriched });
   } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
     next(err);
   }
 };
@@ -185,6 +191,9 @@ exports.updatePayment = async (req, res, next) => {
     if (!isValidId(id)) return res.status(400).json({ error: "Invalid id" });
     const payment = await Payment.findById(id);
     if (!payment) return res.status(404).json({ error: "Payment not found" });
+    if (payment.collectedBy && ['status', 'amount', 'paidAt', 'verifiedAt', 'completedAt'].some(field => req.body[field] !== undefined)) {
+      return res.status(409).json({ error: 'Review technician collections through the remittance workflow. This keeps collection, handover and verification records intact.', code: 'REMITTANCE_REVIEW_REQUIRED' });
+    }
 
     const allowed = ["status", "paidAt", "verifiedAt", "completedAt", "notes", "amount", "reference", "proofUrl", "gatewayStatus"];
     allowed.forEach((f) => {
@@ -331,18 +340,25 @@ exports.getPayment = async (req, res, next) => {
     const payment = await Payment.findById(id).lean();
     if (!payment) return res.status(404).json({ error: "Payment not found" });
 
-    const booking = payment.bookingId
-      ? await BookingService.findById(payment.bookingId)
+    const Project = require('../models/Project');
+    const project = payment.projectId ? await Project.findById(payment.projectId)
+      .select('bookingId projectReference customer status createdAt title').lean() : null;
+    const sourceBookingId = payment.bookingId || project?.bookingId;
+    const booking = sourceBookingId
+      ? await BookingService.findById(sourceBookingId)
         .select(
-          "_id bookingReference bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentChannel paymentStatus gcashNumber paymentReference downpaymentPercentage downpaymentAmount balanceAmount paymentNotes paymentProof estimatedFee totalPrice travelFare travelTime issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
+          "_id bookingReference sourceOrderId bookingDate startTime endTime selectedTimeLabel status paymentMethod paymentChannel paymentStatus gcashNumber paymentReference downpaymentPercentage downpaymentAmount balanceAmount paymentNotes paymentProof estimatedFee totalPrice travelFare travelTime issueDescription repairIssues unitInfo.problemDescription services.name services.problemDescription services.repairIssue services.issueDescription location customer technician service servicePrice serviceDurationMinutes createdAt",
         )
         .lean()
       : null;
 
     const Order = require("../models/Order");
-    const order = !booking && payment.orderId
-      ? await Order.findById(payment.orderId).lean()
-      : null;
+    const sourceOrderId = payment.orderId || booking?.sourceOrderId;
+    const order = sourceOrderId
+      ? await Order.findById(sourceOrderId).lean()
+      : sourceBookingId ? await Order.findOne({ bookingId: sourceBookingId }).lean() : null;
+    const collector = payment.collectedBy && !payment.collectedByName
+      ? await require('../models/Technician').findById(payment.collectedBy).select('name').lean() : null;
 
     // ensure legacy statuses are converted for client
     if (String(payment.status || "").toLowerCase() === "completed") {
@@ -356,10 +372,10 @@ exports.getPayment = async (req, res, next) => {
       customerPhone: booking?.customer?.phone || order?.customer?.phone || "-",
       serviceName: booking?.service?.name || (order?.items?.[0]?.modelLine ? `${order.items[0].modelLine} (Product)` : "-"),
       serviceDescription: booking?.service?.description || (order?.items?.map(it => `${it.quantity}x ${it.modelLine}`).join(", ")) || "-",
-      servicePrice: booking?.servicePrice || booking?.service?.basePrice || order?.subtotal || 0,
+      servicePrice: order?.subtotal ?? booking?.servicePrice ?? booking?.service?.basePrice ?? 0,
       serviceDurationMinutes: booking?.serviceDurationMinutes || 0,
       issueDescription: booking?.issueDescription || (order?.fulfillmentType ? `Fulfillment: ${order.fulfillmentType.replace('_', ' ')}` : "-"),
-      locationAddress: booking?.location?.address || order?.delivery?.address || "-",
+      locationAddress: order?.delivery?.address || booking?.location?.address || "-",
       bookingDate: booking?.bookingDate || order?.createdAt || null,
       selectedTimeLabel: booking?.selectedTimeLabel || order?.timeSlot || "-",
       bookingStatus: booking?.status || order?.status || "-",
@@ -368,9 +384,9 @@ exports.getPayment = async (req, res, next) => {
       paymentChannel: booking?.paymentChannel || order?.paymentChannel || payment?.method || "-",
       gcashNumber: booking?.gcashNumber || order?.gcashNumber || payment?.gcashNumber || "-",
       gcashReference: booking?.paymentReference || payment?.reference || "-",
-      proofUrl: payment?.proofUrl || booking?.paymentProof || order?.gcashProofUrl || "",
-      estimatedFee: booking?.estimatedFee || order?.total || payment?.amount || 0,
-      travelFare: booking?.travelFare || order?.transportationFee || 0,
+      proofUrl: payment?.proofUrl || order?.gcashProofUrl || booking?.paymentProof || "",
+      estimatedFee: order?.total ?? booking?.totalPrice ?? booking?.estimatedFee ?? payment?.amount ?? 0,
+      travelFare: order?.transportationFee ?? booking?.travelFare ?? 0,
       travelTime: booking?.travelTime || order?.routeDurationMin || 0,
       downpaymentAmount: booking?.downpaymentAmount || order?.downpaymentAmount || (
         order?.paymentMethod?.includes('downpayment')
@@ -381,6 +397,7 @@ exports.getPayment = async (req, res, next) => {
       technicianPhone: booking?.technician?.phone || order?.technician?.phone || "-",
       bookingCreatedAt: booking?.createdAt || order?.createdAt || null,
       booking: booking || order,
+      ...require('../utils/paymentPresentation').context(payment, { booking, order, project, collector }),
     };
 
     res.json({ payment: details });

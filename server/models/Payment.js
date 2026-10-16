@@ -144,4 +144,9 @@ paymentSchema.index({ collectedBy: 1, status: 1, collectedAt: -1 });
 paymentSchema.index({ status: 1, resolvedAt: 1, recoveryFollowUpDate: 1 });
 
 paymentSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
+// Collection/remittance changes must be visible when staff reopen the report.
+// Otherwise the report can retain a pre-collection total from its short cache.
+paymentSchema.post(['save', 'findOneAndUpdate', 'updateOne', 'updateMany', 'insertMany', 'deleteOne', 'deleteMany'], function () {
+  require('../utils/reportCache').clear('revenue-analytics');
+});
 module.exports = mongoose.model("Payment", paymentSchema);

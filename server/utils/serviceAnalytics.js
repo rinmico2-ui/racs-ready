@@ -64,11 +64,35 @@ function allocateServiceRevenue(booking, bookingRevenue) {
     }];
   const normalized = lines.map((line) => {
     const quantity = Math.max(1, Number(line.quantity) || 1);
-    const explicitRevenue = finitePositive(line.totalPrice)
-      || finitePositive(line.finalCost) * quantity
-      || finitePositive(line.unitPrice) * quantity;
+    const repair = line.type === 'repair';
+    const approved = line.approval?.status === 'approved' || (!line.approval?.status && booking.approval?.status === 'approved');
+    const explicitRevenue = repair
+      ? finitePositive(line.initialCost ?? line.unitPrice) * quantity + (approved ? finitePositive(line.quotation?.totalCost) : 0)
+      : require('./transactionDiscounts').serviceLineValue(line);
     return { line, quantity, explicitRevenue };
   });
+  // An overall repair quotation belongs to the repair lines. It must not be
+  // spread onto an unrelated core service in the same booking.
+  const repairs = normalized.filter(row => row.line.type === 'repair');
+  if (repairs.length) {
+    const itemQuotes = repairs.reduce((sum, row) => sum + (row.line.approval?.status === 'approved' || (!row.line.approval?.status && booking.approval?.status === 'approved') ? finitePositive(row.line.quotation?.totalCost) : 0), 0);
+    const finalRepair = finitePositive(booking.totalFinalCost) || finitePositive(booking.finalCost)
+      || itemQuotes || (booking.approval?.status === 'approved' ? finitePositive(booking.quotation?.totalCost) : 0);
+    const inspection = finitePositive(booking.inspectionFeeAmount) + finitePositive(booking.inspectionFeeDistanceFare)
+      || finitePositive(booking.inspectionFeeTotalCollected)
+      || repairs.reduce((sum, row) => sum + finitePositive(row.line.initialCost ?? row.line.unitPrice) * row.quantity, 0)
+      || finitePositive(booking.initialCost);
+    const repairBase = repairs.reduce((sum, row) => sum + row.explicitRevenue, 0);
+    const repairUnits = repairs.reduce((sum, row) => sum + row.quantity, 0);
+    repairs.forEach(row => { row.explicitRevenue = inspection + finalRepair > 0
+      ? (inspection + finalRepair) * (repairBase ? row.explicitRevenue / repairBase : row.quantity / repairUnits) : 0; });
+  }
+  const core = normalized.filter(row => row.line.type !== 'repair');
+  const coreTotal = core.reduce((sum, row) => sum + row.explicitRevenue, 0);
+  if (coreTotal > 0 && finitePositive(booking.discount)) {
+    const discounted = Math.max(0, coreTotal - finitePositive(booking.discount));
+    core.forEach(row => { row.explicitRevenue *= discounted / coreTotal; });
+  }
   const explicitTotal = normalized.reduce((sum, row) => sum + row.explicitRevenue, 0);
   const targetRevenue = finitePositive(bookingRevenue);
   const residual = Math.max(0, targetRevenue - explicitTotal);

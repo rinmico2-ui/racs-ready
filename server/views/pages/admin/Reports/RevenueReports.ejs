@@ -187,6 +187,7 @@
 
   <!-- --- KPI GRID (Enterprise style matching Service Report) --- -->
   <aside id="revenueBasis" class="rr-reconcile rr-report-basis" aria-live="polite"></aside>
+  <div id="revenueConsistency" class="d-none" role="alert"></div>
   <div class="kpi-grid report-kpi-grid" id="kpiGrid">
     <div class="kpi-enterprise" data-accent="blue" data-aos="fade-up" data-aos-delay="0">
       <div class="kpi-enterprise-top">
@@ -299,7 +300,7 @@
       <div class="rr-source-value"><%= peso(SA.serviceRevenue) %></div>
       <div class="rr-meta"><%= SA.serviceTransactions||0 %> bookings · <%= peso(SA.avgServiceTicket) %> avg ticket</div>
       <div class="rr-progress"><span style="width:<%= Math.min(100,SA.serviceShare||0) %>%;background:#2563eb"></span></div>
-      <div class="rr-meta"><%= pct(SA.serviceShare) %> of total · Standard <%= peso(SA.coreRevenue) %> · Repair <%= peso(SA.repairRevenue) %> ? Mixed <%= peso(SA.mixRevenue) %></div>
+      <div class="rr-meta"><%= pct(SA.serviceShare) %> of total · Standard <%= peso(SA.coreRevenue) %> · Repair <%= peso(SA.repairRevenue) %> · Mixed <%= peso(SA.mixRevenue) %></div>
     </article>
     <article class="rr-source-card orders">
       <div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div>
@@ -367,7 +368,7 @@
     </article>
     <article class="rr-card">
       <div class="rr-head"><h3><i class="bi bi-boxes me-2 text-danger"></i>Saved cost summary</h3><span class="rr-badge"><%= pct(A.costDataCoverage) %> sales with saved job costs</span></div>
-      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>Costs are shown for finished work. Product costs use current stock prices. Job supplies use the cost saved when they were used. Missing labor or delivery costs can make profit look too high.</div>
+      <div class="rr-note" style="margin:0 0 12px;"><i class="bi bi-info-circle-fill me-2"></i>Costs are shown for finished work. Product costs use saved bought prices, with a catalog fallback for older orders. Job supplies use the cost saved when they were used. Missing labor or delivery costs can make profit look too high.</div>
       <div class="rr-body">
         <% const C=A.serviceCosts||{}; %>
         <div class="rr-cost-grid" id="costBreakdownGrid" style="grid-template-columns:repeat(3,1fr);">
@@ -427,9 +428,9 @@
       <div class="rr-chart"><canvas id="serviceEconomics"></canvas></div>
     </article>
     <article class="rr-card">
-      <div class="rr-head"><h3><i class="bi bi-people me-2 text-primary"></i>Technicians with the highest sales</h3><span class="rr-badge">Ranked by recorded profit</span></div>
+      <div class="rr-head"><h3><i class="bi bi-people me-2 text-primary"></i>Technician service profit</h3><span class="rr-badge">Ranked by recorded profit</span></div>
       <div class="rr-body table-responsive">
-        <table class="rr-table"><thead><tr><th>Technician</th><th class="text-center">Jobs</th><th class="text-end">Approved work value</th><th class="text-end">Known Cost</th><th class="text-end">Profit estimate</th></tr></thead><tbody id="topTechniciansBody"><% if(!(A.topTechnicians||[]).length){ %><tr><td colspan="5" class="rr-empty">No technician value in this period.</td></tr><% } (A.topTechnicians||[]).forEach(function(t){ %><tr><td class="fw-bold"><%= t.name %></td><td class="text-center"><%= t.bookings %></td><td class="text-end"><%= peso(t.revenue) %></td><td class="text-end"><%= peso(t.partsCost) %></td><td class="text-end fw-bold <%= t.profit>=0?'text-success':'text-danger' %>"><%= peso(t.profit) %></td></tr><% }); %></tbody></table>
+        <table class="rr-table"><thead><tr><th>Technician</th><th class="text-center">Jobs</th><th class="text-end">Net service sales</th><th class="text-end">Saved job costs</th><th class="text-end">Profit estimate</th></tr></thead><tbody id="topTechniciansBody"><% if(!(A.topTechnicians||[]).length){ %><tr><td colspan="5" class="rr-empty">No technician value in this period.</td></tr><% } (A.topTechnicians||[]).forEach(function(t){ %><tr><td class="fw-bold"><%= t.name %></td><td class="text-center"><%= t.bookings %></td><td class="text-end"><%= peso(t.revenue) %></td><td class="text-end"><%= peso(t.partsCost) %></td><td class="text-end fw-bold <%= t.profit>=0?'text-success':'text-danger' %>"><%= peso(t.profit) %></td></tr><% }); %></tbody></table>
       </div>
     </article>
   </div>
@@ -666,7 +667,7 @@
     </div>
   </div>
 </div>
-<script src="/js/revenue-reconciliation.js?v=20261015-product-prices"></script>
+<script src="/js/revenue-reconciliation.js?v=20261016-ledger-consistency"></script>
 <script>
 (()=>{
   if (<%- (JSON.stringify(isDeferred)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>) {
@@ -968,7 +969,7 @@
     if (controlBadge) controlBadge.textContent = `${pct(A.completionEvidenceCoverage === undefined ? 100 : A.completionEvidenceCoverage)} sales with a saved completion date`;
 
     // Update source cards
-    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(SA.serviceRevenue)}</div><div class="rr-meta">${SA.serviceTransactions || 0} completed services · ${peso(SA.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, SA.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(SA.serviceShare)} of completed sales before refunds · Core ${peso(SA.coreRevenue)} · Repair ${peso(SA.repairRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div><div class="rr-source-value">${peso(SA.orderRevenue)}</div><div class="rr-meta">Online orders: ${SA.onlineOrderTransactions || 0} · ${SA.walkInOrderTransactions || 0} walk-in orders</div><div class="rr-progress"><span style="width:${Math.min(100, SA.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(SA.orderShare)} of completed sales before refunds · Online ${peso(SA.onlineOrderRevenue)} · Walk-in ${peso(SA.walkInOrderRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in sales</div><div class="rr-source-value">${peso(SA.posRevenue)}</div><div class="rr-meta">${SA.posTransactions || 0} completed sales · ${peso(SA.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, SA.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(SA.posShare)} of completed sales before refunds · COGS ${peso(SA.posCost)} · Profit ${peso(SA.posProfit)} (${pct(SA.posMargin)})</div></article>`;
+    const sourceCards = `<article class="rr-source-card service"><div class="rr-source-title"><i class="bi bi-wrench-adjustable me-2 text-primary"></i>Services</div><div class="rr-source-value">${peso(SA.serviceRevenue)}</div><div class="rr-meta">${SA.serviceTransactions || 0} completed services · ${peso(SA.avgServiceTicket)} average ticket</div><div class="rr-progress"><span style="width:${Math.min(100, SA.serviceShare || 0)}%;background:#2563eb"></span></div><div class="rr-meta">${pct(SA.serviceShare)} of completed sales before refunds · Core ${peso(SA.coreRevenue)} · Repair ${peso(SA.repairRevenue)} · Mixed ${peso(SA.mixRevenue)}</div></article><article class="rr-source-card orders"><div class="rr-source-title"><i class="bi bi-bag-check me-2 text-success"></i>Product Orders</div><div class="rr-source-value">${peso(SA.orderRevenue)}</div><div class="rr-meta">Online orders: ${SA.onlineOrderTransactions || 0} · ${SA.walkInOrderTransactions || 0} walk-in orders</div><div class="rr-progress"><span style="width:${Math.min(100, SA.orderShare || 0)}%;background:#10b981"></span></div><div class="rr-meta">${pct(SA.orderShare)} of completed sales before refunds · Online ${peso(SA.onlineOrderRevenue)} · Walk-in ${peso(SA.walkInOrderRevenue)}</div></article><article class="rr-source-card pos"><div class="rr-source-title"><i class="bi bi-shop me-2 text-warning"></i>Walk-in sales</div><div class="rr-source-value">${peso(SA.posRevenue)}</div><div class="rr-meta">${SA.posTransactions || 0} completed sales · ${peso(SA.avgPosSale)} average sale</div><div class="rr-progress"><span style="width:${Math.min(100, SA.posShare || 0)}%;background:#f59e0b"></span></div><div class="rr-meta">${pct(SA.posShare)} of completed sales before refunds · COGS ${peso(SA.posCost)} · Profit ${peso(SA.posProfit)} (${pct(SA.posMargin)})</div></article>`;
     document.querySelector('.rr-source').innerHTML = sourceCards;
 
     const collectionBody = document.getElementById('collectionHealthBody');

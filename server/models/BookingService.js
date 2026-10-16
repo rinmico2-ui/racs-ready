@@ -1371,7 +1371,8 @@ bookingSchema.pre("save", async function () {
   }
 
   // if user switches category away from repair, clear any entered issue
-  if (this.serviceType !== "repair") this.issueDescription = undefined;
+  if (this.serviceType !== "repair" && this.serviceType !== "mixed"
+      && !(this.services || []).some(item => item.type === 'repair')) this.issueDescription = undefined;
 
   // Only snapshot customer when customerId changed or new doc (skip on status-only updates)
   if (this.customerId && (this.isNew || this.isModified("customerId"))) {
