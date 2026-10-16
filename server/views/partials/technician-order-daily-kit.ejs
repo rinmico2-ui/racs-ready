@@ -383,9 +383,9 @@
       try{
         await request('/api/technician/daily-kit/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:workDate})});
         await load(workDate,true);
-        if(typeof window.fetchOrders==='function')window.fetchOrders();
-        if(typeof window.refreshAssignmentCardsForPreparation==='function')window.refreshAssignmentCardsForPreparation();
-        if(window._currentDetailId&&typeof window.showDetail==='function')window.showDetail(window._currentDetailId);
+        if(window._currentDetailId&&typeof window.refreshOpenAssignmentDetail==='function')await window.refreshOpenAssignmentDetail();
+        else if(typeof window.reloadAssignments==='function')await window.reloadAssignments();
+        else if(typeof window.fetchOrders==='function')await window.fetchOrders();
         await Swal.fire({title:'Preparation Confirmed',text:'The Daily Kit is ready for today\'s jobs.',icon:'success',timer:2200,showConfirmButton:false});
       }catch(error){
         await load(workDate,true);

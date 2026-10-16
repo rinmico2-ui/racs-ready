@@ -1792,6 +1792,7 @@
 
 <!-- Leaflet already loaded by technician layout -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" />
+<script src="/js/technician-visit-schedule.js?v=20261016-scheduled-preparation-v1"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <style>
@@ -7004,9 +7005,34 @@
       }).join('');
     }
 
+    function renderDailyPreparationCard(a) {
+      if (a.serviceType === 'project' || !['pending_acceptance','accepted','en_route','on_site','in_progress'].includes(a.status)) return '';
+      const schedule = window.RACSVisitSchedule.state(a);
+      const status = a.status === 'pending_acceptance' ? 'Accept your assignment to prepare this visit.' : !schedule.ready ? schedule.error : a.equipmentCheckedOut ? 'Preparation confirmed. Review your kit before departure.' : 'Review and confirm the equipment and consumables for this visit before going En Route.';
+      return `<section class="booking-detail-card" data-visit-daily-preparation><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-briefcase"></i>Daily Preparation</h6></div><div class="booking-detail-card-body"><p class="small mb-2">${status}</p><p class="small text-muted mb-2">Work date: ${schedule.scheduledDate || 'Schedule pending'} (Philippine time). Future kits are previews; confirm preparation on the work date.</p>${a.crewRole === 'support' ? '<p class="small text-muted">The primary technician manages shared job equipment. Review your personal daily kit.</p>' : ''}${dailyPreparationButton(a)}</div></section>`;
+    }
+
+    function dailyPreparationButton(a, compact = false) {
+      const date = window.RACSVisitSchedule.dateKey(a.bookingDate || a.bookingId?.bookingDate);
+      return `<button type="button" class="btn ${compact ? 'btn-sm ' : ''}btn-outline-success" onclick="openDailyKitModal('${date}')"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
+    }
+
+    function repairDepartureActions(a, compact = false) {
+      const date = window.RACSVisitSchedule.state(a);
+      const ready = !window.RACSJobTeams || RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam);
+      const prefix = dailyPreparationButton(a, compact);
+      const size = compact ? 'btn-sm ' : '';
+      if (!ready) return prefix + '<span class="small text-muted align-self-center">Waiting for team acceptance</span>';
+      if (!canEnRoute(a)) return prefix + `<button type="button" class="btn ${size}btn-secondary" disabled title="${date.error || 'Operations must confirm a new schedule.'}">En Route - ${date.code === 'SCHEDULE_NOT_TODAY' ? 'scheduled ' + date.scheduledDate : 'schedule review needed'}</button>`;
+      if (!a.equipmentCheckedOut) return prefix + '<span class="small text-muted align-self-center">Confirm Daily Preparation before departure.</span>';
+      const id = a.bookingId?._id || a.bookingId;
+      return prefix + `<button type="button" class="btn ${size}btn-primary" onclick="repairEnRoute('${id}',this)"><i class="bi bi-sign-turn-right me-1"></i>En Route</button>`;
+    }
+
     function getWizardPageActions(pageId, a, allowMixedRepairActions = false) {
       if (!a) return '';
       if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.assignmentActions(a);
+      if (a.serviceType !== 'project' && ['en_route','on_site'].includes(a.status) && window.RACSVisitSchedule.state(a).code === 'SCHEDULE_NOT_TODAY') return dailyPreparationButton(a) + '<div class="alert alert-info mb-0">This visit is on a future date. Arrival and Start Work unlock on the scheduled Philippine date.</div>';
       if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam) && pageId !== 'ai-assistant') return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.'+(isRepairAssignment(a)?'<button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="switchDetailTab(\'ai-assistant\')">Review AI preparation</button>':'')+'</div>';
       if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule. Completed work and payments remain recorded.</div>';
       const actions = getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions);
@@ -7109,7 +7135,7 @@
             return `<div class="d-flex flex-column gap-1"><span class="badge bg-warning text-dark" style="font-size:0.78rem;padding:8px 16px;"><i class="bi bi-calendar-clock me-1"></i>Awaiting Phase 2 Schedule</span><small class="text-muted" style="font-size:0.7rem;padding:0 4px;">Repair is approved and waiting for Admin scheduling</small></div>`;
           }
           if (['repair_scheduled', 'ready_for_repair', 'parts_reserved'].includes(bs) && ['accepted', 'in_progress', 'completed'].includes(a.status)) {
-            return `<button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route — Phase 2</button>`;
+            return repairDepartureActions(a);
           }
         }
 
@@ -7124,7 +7150,7 @@ if (a.status === 'accepted') {
             if (!ta.verifiedByTechnician) {
               return `<button class="btn btn-info text-white" onclick="verifyAiAssistant('${bId}')"><i class="bi bi-clipboard2-pulse me-2"></i>Review AI Diagnosis</button>`;
             }
-            return `<div class="d-flex gap-2 flex-wrap align-items-center"><button class="btn btn-outline-info" onclick="switchDetailTab('ai-assistant')"><i class="bi bi-robot me-2"></i>View AI Diagnosis</button><button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route</button></div>`;
+            return `<div class="d-flex gap-2 flex-wrap align-items-center"><button class="btn btn-outline-info" onclick="switchDetailTab('ai-assistant')"><i class="bi bi-robot me-2"></i>View AI Diagnosis</button>${repairDepartureActions(a)}</div>`;
           }
 
           // STEP 3: Arrived (was en_route, now at customer site)
@@ -7206,10 +7232,7 @@ if (a.status === 'accepted') {
 
             // Phase 2 Re-entry (Ready to go En Route again)
             if (['repair_scheduled', 'ready_for_repair', 'parts_reserved'].includes(bs)) {
-              return `<div class="d-flex flex-column gap-1">
-                <button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route — Phase 2</button>
-                <small class="text-muted" style="font-size:0.7rem;padding:0 4px;"><i class="bi bi-check-circle text-success me-1"></i>Parts ready &amp; scheduled — head to customer</small>
-              </div>`;
+              return `<div class="d-flex flex-wrap gap-2">${repairDepartureActions(a)}</div>`;
             }
 
             // Phase 2 Execution (At Site)
@@ -7256,10 +7279,7 @@ if (a.status === 'accepted') {
             </div>`;
           }
           if (bs === 'repair_scheduled') {
-            return `<div class="d-flex flex-column gap-1">
-              <button type="button" class="btn btn-primary" onclick="repairEnRoute('${bId}',this);"><i class="bi bi-sign-turn-right me-2"></i>En Route — Phase 2</button>
-              <small class="text-muted" style="font-size:0.7rem;padding:0 4px;"><i class="bi bi-check-circle text-success me-1"></i>Repair scheduled — head to customer</small>
-            </div>`;
+            return `<div class="d-flex flex-wrap gap-2">${repairDepartureActions(a)}</div>`;
           }
           if (['ready_for_repair', 'parts_reserved'].includes(bs)) {
             // Check if any parts are out of stock
@@ -7338,7 +7358,7 @@ if (a.status === 'accepted') {
             } else {
               btnLabel = 'Open Daily Preparation';
               btnIcon = 'bi-briefcase';
-              btnAction = `openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}');`;
+              btnAction = `openDailyKitModal('${a.bookingDate ? window.RACSVisitSchedule.dateKey(a.bookingDate) : ''}');`;
               btnClass = 'btn-primary';
             }
           }
@@ -7351,7 +7371,7 @@ if (a.status === 'accepted') {
             actionBtns += `<button class="btn btn-outline-primary" onclick="openRouteMapModal();event.stopPropagation();"><i class="bi bi-map me-1"></i>View Map</button>`;
           }
           actionBtns += enRouteLocked
-              ? `<span class="d-inline-block" title="Available ${enRouteLockLabel}"><button class="btn btn-secondary" disabled style="cursor:not-allowed;opacity:0.65;min-width:140px;"><i class="bi bi-lock me-2"></i>En Route<br><small style="font-size:0.7rem;font-weight:400;">${enRouteLockLabel}</small></button></span>`
+              ? dailyPreparationButton(a) + `<span class="d-inline-block" title="Available ${enRouteLockLabel}"><button class="btn btn-secondary" disabled style="cursor:not-allowed;opacity:0.65;min-width:140px;"><i class="bi bi-lock me-2"></i>En Route<br><small style="font-size:0.7rem;font-weight:400;">${enRouteLockLabel}</small></button></span>`
               : `<button type="button" class="btn ${btnClass}" onclick="${btnAction}"><i class="${btnIcon} me-2"></i>${btnLabel}</button>`;
           return actionBtns;
         }
@@ -7981,6 +8001,7 @@ if (a.status === 'accepted') {
         h += `<div class='trk-card-header'><h6 class='trk-card-title'><i class='bi bi-clock-history'></i> Activity</h6></div>`;
         h += `<div class='trk-card-body'>${activityHtml}</div></div>`;
       }
+      sideHtml = renderDailyPreparationCard(a) + sideHtml;
       h = h.replace(/class='trk-card'/g, "class='trk-card booking-legacy-card'");
       sideHtml = sideHtml.replace(/class='trk-card'/g, "class='trk-card booking-legacy-card'");
       return `<div class="booking-order-overview">${overviewHtml}<div class="booking-detail-grid"><div class="booking-detail-column">${h}</div><div class="booking-detail-column">${sideHtml}</div></div></div>`;
@@ -8123,7 +8144,7 @@ ${isRepair ? `
           <div class="detail-row"><label>Status</label><span><span class="badge ${a.equipmentCheckedOut ? 'bg-success' : 'bg-secondary'}" style="font-size:0.68rem;padding:4px 8px;">${a.equipmentCheckedOut ? 'EQUIPMENT CHECKED OUT' : 'AWAITING DAILY PREP'}</span></span></div>
           <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
             <small style="font-size:0.75rem;color:#64748b;">Review the kit for this job's scheduled date. You can preview future dates before preparing the kit.</small>
-            <button type="button" class="btn btn-sm btn-outline-success" onclick="openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}')"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="openDailyKitModal('${a.bookingDate ? window.RACSVisitSchedule.dateKey(a.bookingDate) : ''}')"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>
           </div>
         </div>
       </div>` : ''}
@@ -8501,10 +8522,10 @@ ${isRepair ? `
 
     /**
      * Returns true if the technician is allowed to go "en route" for this assignment.
-     * Rule: booking date must be today (or in the past), AND current time >= startTime.
+     * Travel is available on the scheduled Philippine date while the visit window remains open.
      */
     function canEnRoute(a) {
-      return !assignmentHasMissedSchedule(a);
+      return !assignmentHasMissedSchedule(a) && window.RACSVisitSchedule.state(a).ready;
     }
 
     function assignmentHasMissedSchedule(a) {
@@ -8528,15 +8549,9 @@ ${isRepair ? `
      * Returns a human-readable label for when en route becomes available.
      */
     function enRouteAvailableLabel(a) {
-      if (!a.bookingDate) return '';
-      const bookingDate = new Date(a.bookingDate);
-      const now = new Date();
-      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const bookingMidnight = new Date(bookingDate.getFullYear(), bookingDate.getMonth(), bookingDate.getDate(), 0, 0, 0, 0);
-      if (bookingMidnight > todayMidnight) {
-        return bookingDate.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }) + (a.startTime ? ' at ' + toPhTime(a.startTime) : '');
-      }
-      return a.startTime ? 'at ' + toPhTime(a.startTime) : '';
+      const date = window.RACSVisitSchedule.dateKey(a.bookingDate);
+      if (!date) return 'after operations confirms the schedule';
+      return new Date(date+'T00:00:00+08:00').toLocaleDateString('en-PH', {timeZone:'Asia/Manila',weekday:'short',month:'short',day:'numeric'});
     }
 
     const PILL = {
@@ -8678,7 +8693,7 @@ ${isRepair ? `
               else if (['on-the-way', 'arrived'].includes(bs) && !['en_route', 'on_site'].includes(a.status)) effectiveAction = 'in_progress';
             }
             if (effectiveAction === 'ready') {
-              return `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();repairEnRoute('${bookingId}')"><i class="bi bi-geo-alt me-1"></i>En Route</button>
+              return `${repairDepartureActions(a,true)}
                           <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();showDetail('${a._id}')"><i class="bi bi-eye me-1"></i>Details</button>`;
             } else if (effectiveAction === 'waiting_parts') {
               return `<span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:0.72rem;padding:5px 10px;"><i class="bi bi-hourglass-split me-1"></i>Waiting for Parts</span>
@@ -8689,6 +8704,7 @@ ${isRepair ? `
             } else if (effectiveAction === 'in_progress') {
               return `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();showDetail('${a._id}')"><i class="bi bi-tools me-1"></i>Continue</button>`;
             }
+            if (a.status === 'accepted') return `${a.bookingId?.technicianAssistant?.verifiedByTechnician ? repairDepartureActions(a,true) : dailyPreparationButton(a,true)}<button type="button" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();showDetail('${a._id}')">Details</button>`;
             // Fallback: for en_route / on_site in repair workflow
             if (a.status === 'en_route') {
               return `<button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation();repairTransition('${bookingId}','on_site',this)"><i class="bi bi-building me-1"></i>Arrived</button>`;
@@ -8725,10 +8741,10 @@ ${isRepair ? `
               btns += `<span class="badge bg-warning text-dark" style="font-size:0.72rem;padding:5px 10px;"><i class="bi bi-alarm-fill me-1"></i>Missed Schedule — awaiting reschedule</span>`;
             } else {
               const kitReady = Boolean(a.equipmentCheckedOut);
-              if (kitReady) {
+              if (kitReady && canEnRoute(a)) {
                 btns += `<button class="btn btn-sm btn-success" onclick="event.stopPropagation();transitionStatus('${a._id}','en_route',this);"><i class="bi bi-sign-turn-right me-1"></i>En Route</button>`;
               } else {
-                btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDailyKitModal('${a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-CA') : ''}');" title="Review the kit for this job's scheduled date"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
+                btns += `<button class="btn btn-sm btn-primary" onclick="event.stopPropagation();openDailyKitModal('${a.bookingDate ? window.RACSVisitSchedule.dateKey(a.bookingDate) : ''}');" title="Review the kit for this job's scheduled date"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
               }
             }
           } else if (a.status === 'on_site') {
@@ -9359,6 +9375,11 @@ ${isRepair ? `
       let scheduledAssignment = allItems.find(function (item) { return String(item.bookingId?._id || item.bookingId) === String(bookingId); });
       if (!scheduledAssignment && window._detailAssignment && String(window._detailAssignment.bookingId?._id || window._detailAssignment.bookingId) === String(bookingId)) {
         scheduledAssignment = window._detailAssignment;
+      }
+      const workDate = window.RACSVisitSchedule.state(scheduledAssignment);
+      if (!workDate.ready) {
+        showNotification({type:'warning',title:'Scheduled visit',message:workDate.error,duration:7000});
+        return;
       }
       if (assignmentHasMissedSchedule(scheduledAssignment)) {
         showNotification({
@@ -10045,6 +10066,11 @@ function preparationEscapeHtml(value) {
         let a = allItems.find(item => String(item._id) === String(id));
         if (!a && window._detailAssignment && String(window._detailAssignment._id) === String(id)) {
           a = window._detailAssignment;
+        }
+        const workDate = window.RACSVisitSchedule.state(a);
+        if (!workDate.ready) {
+          showNotification({type:'warning',title:'Scheduled visit',message:workDate.error,duration:7000});
+          return;
         }
         if (a && assignmentHasMissedSchedule(a)) {
           showNotification({

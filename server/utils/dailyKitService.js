@@ -12,6 +12,7 @@ const WorkOrder = require("../models/WorkOrder");
 const Technician = require("../models/Technician");
 const Project = require("../models/Project");
 const { manilaDateKey, strictManilaDateKey } = require("./bookingDateTime");
+const visitSchedule = require('../public/js/technician-visit-schedule');
 const { buildServicePreparation } = require("./servicePreparation");
 const { buildProjectKitRequirements } = require("./projectDailyKitPlanning");
 const {
@@ -1184,6 +1185,9 @@ async function dailyKitDepartureReadiness({ technicianId, assignment }) {
       error: "Accept the assignment before preparing the Daily Kit.",
     };
   }
+
+  const schedule = visitSchedule.state(assignment, new Date());
+  if (!schedule.ready) return schedule;
 
   const kit = await syncDailyKit(technicianId, assignment.bookingDate || new Date());
   const assignmentCovered = (kit.assignmentIds || []).some(id => String(id) === String(assignment._id));
