@@ -71,10 +71,42 @@ function money(value, label) {
   if (!Number.isFinite(number) || number < 0 || number > 1000000) fail(`${label} must be a valid amount.`, 400);
   return Math.round(number * 100) / 100;
 }
-function inspect(document, key, input, { technicianId, catalog = [], laborFees }) {
+function text(value, label, min = 0, max = 2000) {
+  if (typeof value !== 'string' || value.trim().length < min || value.trim().length > max) fail(`${label} must contain ${min} to ${max} characters.`, 400);
+  return value.trim();
+}
+function editableUnit(document, key) {
   const row = ensureUnits(document).find(row => row.key === key);
   if (!row) fail('Appliance not found.', 404);
   if (!['pending', 'staff_review'].includes(row.unit.repairReview.state)) fail('This quote is already under review or decided. Staff must return it for changes.');
+  return row;
+}
+function inspectionDetails(prior, input) {
+  return { ...plain(prior || {}), findings: text(input.findings, 'Inspection findings', 10),
+    testsPerformed: text(input.testsPerformed ?? '', 'Checks and test results'),
+    recommendedAction: text(input.recommendedAction ?? '', 'Recommended repair'),
+    technicianConfirmed: input.technicianConfirmed === true, confirmedAt: undefined, completedAt: undefined };
+}
+function saveInspectionDraft(document, key, input, { technicianId }) {
+  const row = editableUnit(document, key);
+  const inspection = inspectionDetails(row.unit.inspection, input);
+  const diagnosis = text(input.diagnosis ?? '', 'Technician diagnosis');
+  row.unit.inspection = { ...inspection, technicianId };
+  row.unit.diagnosis = { summary: diagnosis, source: 'technician' };
+  row.unit.repairReview.revision = Number(row.unit.repairReview.revision || 0) + 1;
+  row.unit.repairReview.inspectedBy = technicianId;
+  document.repairUnitTracking = true;
+  return row;
+}
+function requireConfirmedInspection(unit) {
+  text(unit.inspection?.findings, 'Inspection findings', 10);
+  text(unit.inspection?.testsPerformed, 'Checks and test results (or why a check could not be performed)', 10);
+  text(unit.inspection?.recommendedAction, 'Recommended repair', 5);
+  text(unit.diagnosis?.summary, 'Technician diagnosis', 5);
+  if (unit.inspection?.technicianConfirmed !== true) fail('Confirm that you inspected the appliance and checked the diagnosis before submitting the quotation.', 400);
+}
+function inspect(document, key, input, { technicianId, catalog = [], laborFees }) {
+  const row = editableUnit(document, key);
   if (typeof input.findings !== 'string' || typeof input.diagnosis !== 'string') fail('Enter inspection findings and a diagnosis as text.', 400);
   const findings = input.findings.trim(), diagnosis = input.diagnosis.trim();
   if (findings.length < 10 || findings.length > 2000 || diagnosis.length < 5 || diagnosis.length > 2000) fail('Add inspection findings (10–2000 characters) and a diagnosis (5–2000 characters).', 400);
@@ -100,7 +132,7 @@ function inspect(document, key, input, { technicianId, catalog = [], laborFees }
   const laborCost = money(laborPricingMode === 'custom' ? input.laborCost : laborFees[category], 'Labor price');
   const diagnosisSource = input.diagnosisSource || 'technician';
   if (!['technician', 'ai_reviewed'].includes(diagnosisSource)) fail('Choose a valid diagnosis source.', 400);
-  row.unit.inspection = { findings, completedAt: new Date(), photos: row.unit.inspection?.photos || [] };
+  row.unit.inspection = { ...inspectionDetails(row.unit.inspection, input), findings, technicianId };
   row.unit.diagnosis = { summary: diagnosis, source: diagnosisSource, completedAt: new Date() };
   row.unit.quotation = { parts, laborCategory: category, laborCost, laborPricingMode, companyLaborCost: money(laborFees[category], 'Company labor price'), laborPriceReason: laborPricingMode === 'custom' ? laborPriceReason : '', totalCost: money(parts.reduce((sum, part) => sum + part.cost * part.quantity, laborCost), 'Repair total'), notes: String(input.notes || '').slice(0, 2000) };
   row.unit.repairReview = { state: 'staff_review', revision: Number(row.unit.repairReview.revision || 0) + 1, inspectedBy: technicianId };
@@ -120,10 +152,29 @@ function summary(document, state) {
 function submitInspection(document) {
   const units = ensureUnits(document);
   if (!units.length || units.some(row => row.unit.repairReview.state !== 'staff_review')) fail('Inspect and quote every appliance before submitting for staff review.');
+  // A saved quotation or an AI suggestion alone is not a completed inspection.
+  units.forEach(({ unit }) => requireConfirmedInspection(unit));
+  const submittedAt = new Date();
+  for (const { unit } of units) { unit.inspection.completedAt = submittedAt; unit.inspection.confirmedAt = submittedAt; }
   document.repairUnitTracking = true;
   document.inspectionReport = { findings: `Individual inspections recorded for ${units.length} appliances.`, submittedAt: new Date() };
   document.quotationReview = { ...summary(document), status: 'pending' };
   document.projectPhase = 'quotation_review';
+}
+function verifyRepair(document, key, input, technicianId) {
+  const row = rows(document).find(row => row.key === key);
+  if (!row || row.unit.repairReview?.state !== 'approved') fail('This appliance has no approved repair to verify.');
+  const workPerformed = text(input.notes, 'Work performed', 10, 1000);
+  const testResults = text(input.testResults, 'Final test results', 10);
+  if (!['resolved', 'follow_up_required'].includes(input.outcome)) fail('Choose whether testing passed or follow-up work is needed.', 400);
+  if (input.outcome === 'resolved' && input.customerConfirmed !== true) fail('Explain the work and test results to the customer and record their confirmation before marking the appliance repaired.', 400);
+  const followUpReason = input.outcome === 'follow_up_required' ? text(input.followUpReason, 'Follow-up reason and remaining work', 10, 500) : '';
+  row.unit.repairVerification = { outcome: input.outcome, workPerformed, testResults, customerConfirmed: input.customerConfirmed === true, followUpReason, recordedAt: new Date(), recordedBy: technicianId };
+  if (input.outcome === 'resolved') {
+    row.unit.repairReview.state = 'completed'; row.unit.status = 'completed';
+    row.unit.completedAt = new Date(); row.unit.completedBy = technicianId; row.unit.completionNotes = workPerformed;
+  }
+  return row;
 }
 function review(document, action, actorId, notes) {
   const units = rows(document);
@@ -188,7 +239,8 @@ function bookingQuotationSummary(booking, now = new Date()) {
     totalCost: money(records.reduce((sum, row) => sum + Number(row.unit.quotation.totalCost || 0), 0), 'Repair total') });
   booking.quotation = { ...aggregate(approved), createdAt: now };
   booking.approval = { ...plain(booking.approval || {}), status: approved.length ? 'approved' : 'declined', decidedAt: now };
-  booking.balanceAmount = booking.quotation.totalCost + (booking.inspectionFeeCollected && booking.serviceType !== 'mixed' ? 0 : Math.max(0, Number(booking.totalPrice || booking.estimatedFee || 0) - Number(booking.amountPaid || booking.downpaymentAmount || 0)));
+  const firstVisit = require('../public/js/repair-visit-payment').summary(booking);
+  booking.balanceAmount = Math.max(0, Math.round((firstVisit.initialBookingTotal + booking.quotation.totalCost - firstVisit.amountPaid) * 100) / 100);
   if (booking.serviceType === 'repair') booking.status = approved.length ? 'repair_approved' : 'repair_declined';
   for (const item of (booking.services || []).filter(item => item.type === 'repair')) {
     const allowed = rows({ services: [item] }).filter(row => ['approved', 'completed'].includes(row.unit.repairReview?.state));
@@ -215,4 +267,4 @@ function recordOnSiteDecision(booking, input, { technicianId, actorId, now = new
   booking.approval = { ...plain(booking.approval), method: 'on_site', recordedBy: actorId, recordedByTechnician: technicianId,
     confirmedQuotationTotal: quoted, reason: cancel ? input.reason : 'Customer verbal approval recorded on site by the assigned technician.' };
 }
-module.exports = { unitKey, hasRepair, initialUnits, customerUnits, buildUnitGroups, ensureUnits, rows, inspect, summary, submitInspection, review, decide, selectCompletedUnits, canDecideOnSite, bookingQuotationSummary, recordOnSiteDecision, fail };
+module.exports = { unitKey, hasRepair, initialUnits, customerUnits, buildUnitGroups, ensureUnits, rows, inspect, saveInspectionDraft, verifyRepair, summary, submitInspection, review, decide, selectCompletedUnits, canDecideOnSite, bookingQuotationSummary, recordOnSiteDecision, fail };

@@ -1474,7 +1474,7 @@
           </div>
           <div class="d-flex justify-content-between mb-2" id="paymentDownpaymentRow"
             style="display:none;font-size:0.85rem;">
-            <span class="text-muted">Less: Downpayment:</span>
+            <span class="text-muted" id="paymentCreditLabel">Less: Recorded payments:</span>
             <span class="fw-semibold text-primary" id="paymentDownpayment">-₱0</span>
           </div>
           <div class="d-flex justify-content-between pt-2 border-top"
@@ -10630,21 +10630,14 @@ function preparationEscapeHtml(value) {
         || (_paymentItems.some(s => s.type === 'core') && _paymentItems.some(s => s.type === 'repair'));
       const _isRepairPay = (_b.serviceType === 'repair') || _paymentItems.some(s => s.type === 'repair');
       let total = 0;
-      if (_isMixedPay) {
-        total = Number(_b.totalPrice || assignment.totalPrice || _b.estimatedFee || assignment.estimatedFee || 0)
-          + Number(_b.quotation?.totalCost || 0);
-      } else if (_isRepairPay) {
-        const inspFee = _b.inspectionFeeTotalCollected || _b.initialCost || assignment.initialCost || 0;
-        const travelFee = _b.travelFare || 0;
-        const quotTotal = (_b.quotation && _b.quotation.totalCost) || 0;
-        total = _b.inspectionFeeCollected ? quotTotal : (inspFee + travelFee + quotTotal);
-      }
+      if (_isRepairPay) total = window.RepairVisitPayment.summary(_b).initialBookingTotal + Number(_b.quotation?.totalCost || 0);
       if (!total) total = assignment.totalPrice || assignment.estimatedFee || _b.totalPrice || _b.totalCost || 0;
       // Downpayment already collected at booking — show it so the technician
       // isn't confused about the remaining balance to collect on-site.
-      const downpayment = _b.inspectionFeeCollected ? 0 : Number(_b.downpaymentAmount || assignment.downpaymentAmount || 0);
+      const downpayment = _isRepairPay ? Number(_b.amountPaid || 0) : Number(_b.downpaymentAmount || assignment.downpaymentAmount || 0);
       const dpRow = document.getElementById('paymentDownpaymentRow');
       const dpEl = document.getElementById('paymentDownpayment');
+      document.getElementById('paymentCreditLabel').textContent = _isRepairPay ? 'Less: Recorded payments:' : 'Less: Downpayment:';
       if (downpayment > 0) {
         dpRow.style.display = 'flex';
         dpEl.textContent = '-₱' + downpayment.toLocaleString();
@@ -10656,7 +10649,7 @@ function preparationEscapeHtml(value) {
       // so the technician collects only what's actually left.
       const storedBalance = Number(assignment.balanceAmount ?? _b.balanceAmount);
       const calculatedBalance = Math.max(0, total - Number(_b.amountPaid ?? assignment.amountPaid ?? downpayment));
-      let balance = Math.max(Number.isFinite(storedBalance) ? storedBalance : 0, calculatedBalance);
+      let balance = _isRepairPay ? calculatedBalance : Math.max(Number.isFinite(storedBalance) ? storedBalance : 0, calculatedBalance);
       document.getElementById('paymentTotalFee').textContent = '₱' + total.toLocaleString();
       document.getElementById('paymentBalanceDue').textContent = '₱' + balance.toLocaleString();
       document.getElementById('paymentPartsTotal').textContent = '₱0';
@@ -10752,25 +10745,13 @@ function preparationEscapeHtml(value) {
               const qTotal = q.totalCost || (partsTotal + (q.laborCost || 0));
               document.getElementById('paymentQuotationTotal').textContent = '₱' + qTotal.toLocaleString();
               // Update Total Service Fee: for repairs, add inspection fee + travel fee to quotation total
-              const _phase1Settled = Boolean(booking.inspectionFeeCollected);
-              const _inspFee = booking.inspectionFeeAmount || booking.initialCost || 0;
-              const _travelFee = booking.inspectionFeeDistanceFare || booking.travelFare || 0;
-              const _isRepairPayment = booking.serviceType === 'repair' || (booking.services && booking.services.some(s => s.type === 'repair'));
-              const _fullTotal = _isRepairPayment && !_phase1Settled ? (_inspFee + _travelFee + qTotal) : qTotal;
-              // Reflect any downpayment already collected
-              const _dp = _phase1Settled ? 0 : Number(booking.downpaymentAmount || collectTargetAssignment?.downpaymentAmount || 0);
+              const _bill = window.RepairVisitPayment.summary(booking);
+              const _fullTotal = _bill.initialBookingTotal + qTotal, _paid = _bill.amountPaid;
               const _dpRow = document.getElementById('paymentDownpaymentRow');
               const _dpEl = document.getElementById('paymentDownpayment');
-              if (_dp > 0) {
-                _dpRow.style.display = 'flex';
-                _dpEl.textContent = '-₱' + _dp.toLocaleString();
-              } else {
-                _dpRow.style.display = 'none';
-              }
-              const _storedBal = Number(booking.balanceAmount);
-              const _paid = _phase1Settled ? 0 : Number(booking.amountPaid ?? collectTargetAssignment?.amountPaid ?? _dp);
-              const _calculatedBal = Math.max(0, _fullTotal - _paid);
-              const _bal = _phase1Settled ? qTotal : Math.max(Number.isFinite(_storedBal) ? _storedBal : 0, _calculatedBal);
+              document.getElementById('paymentCreditLabel').textContent = 'Less: Recorded payments:';
+              _dpRow.style.display = _paid > 0 ? 'flex' : 'none'; _dpEl.textContent = '-?' + _paid.toLocaleString();
+              const _bal = Math.max(0,_fullTotal - _paid);
               document.getElementById('paymentTotalFee').textContent = '₱' + _fullTotal.toLocaleString();
               document.getElementById('paymentBalanceDue').textContent = '₱' + _bal.toLocaleString();
               document.getElementById('paymentAmountInput').value = _bal;
@@ -10937,25 +10918,14 @@ function preparationEscapeHtml(value) {
         return;
       }
       const repairTotal = Number(paymentBooking.quotation?.totalCost || totalAmount) || 0;
-      const paymentItems = Array.isArray(paymentBooking.services) ? paymentBooking.services : [];
-      const isMixedPayment = paymentBooking.serviceType === 'mixed'
-        || (paymentItems.some(item => item.type === 'core') && paymentItems.some(item => item.type === 'repair'));
-      const mixedInspectionFee = isMixedPayment
-        ? paymentItems.filter(item => item.type === 'repair')
-          .reduce((sum, item) => sum + Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))) || 0, 0)
-        : 0;
-      const inspectionFee = Number(paymentBooking.inspectionFeeAmount || mixedInspectionFee || paymentBooking.initialCost || paymentBooking.totalInitialCost || paymentBooking.servicePrice || paymentBooking.estimatedFee) || 0;
-      const distanceFare = Number(paymentBooking.inspectionFeeDistanceFare || paymentBooking.travelFare) || 0;
-      const phase1Settled = Boolean(paymentBooking.inspectionFeeCollected);
-      const downpaymentCredit = phase1Settled
-        ? Number(paymentBooking.downpaymentAppliedToInspection || 0)
-        : Math.min(Number(paymentBooking.downpaymentAmount || 0), inspectionFee + distanceFare);
-      const phase1Balance = phase1Settled ? 0 : Math.max(0, inspectionFee + distanceFare - downpaymentCredit);
-      const initialBookingTotal = Number(paymentBooking.totalPrice || paymentBooking.estimatedFee) || 0;
-      const amountPaid = Number(paymentBooking.amountPaid || 0);
-      totalAmount = isMixedPayment
-        ? Math.max(0, initialBookingTotal + repairTotal - amountPaid)
-        : phase1Settled ? repairTotal : repairTotal + phase1Balance;
+      const firstVisitBill = window.RepairVisitPayment.summary(paymentBooking);
+      const isMixedPayment = firstVisitBill.isMixedBooking;
+      const inspectionFee = firstVisitBill.repairInspectionFee, distanceFare = firstVisitBill.distanceFare;
+      const phase1Settled = firstVisitBill.settled;
+      const downpaymentCredit = Math.min(firstVisitBill.amountPaid,Number(paymentBooking.downpaymentAmount || 0),firstVisitBill.inspectionTarget);
+      const phase1Balance = firstVisitBill.amountDue;
+      const initialBookingTotal = firstVisitBill.initialBookingTotal, amountPaid = firstVisitBill.amountPaid;
+      totalAmount = Math.max(0,initialBookingTotal + repairTotal - amountPaid);
       const esc = (s) => (s || '').replace(/'/g, "\\'");
       const html = `
         <div style="text-align:left;padding:8px 0;">
@@ -16129,36 +16099,22 @@ function preparationEscapeHtml(value) {
     // Set payment method dropdown to match booking
     document.getElementById('inspPayMethod').value = paymentMethod;
 
-    // Default inspection fee from booking initialCost
-    const serviceItems = Array.isArray(booking.services) ? booking.services : [];
-    const isMixedBooking = booking.serviceType === 'mixed'
-      || (serviceItems.some(item => item.type === 'core') && serviceItems.some(item => item.type === 'repair'));
-    const mixedRepairFee = isMixedBooking
-      ? serviceItems.filter(item => item.type === 'repair')
-        .reduce((sum, item) => sum + Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))) || 0, 0)
-      : 0;
-    const coreItems = serviceItems.filter(item => item.type === 'core');
-    const allCoreCompleted = isMixedBooking && coreItems.length > 0 && coreItems.every(item => item.status === 'completed');
-    const initialBookingTotal = Math.max(0, Number(booking.totalPrice || booking.estimatedFee) || 0);
-    const inspectionTarget = mixedRepairFee + Number(travelFare || 0);
-    const phaseOneTarget = allCoreCompleted ? Math.max(initialBookingTotal, inspectionTarget) : inspectionTarget;
-    _inspPayCredit = isMixedBooking
-      ? Math.min(Math.max(0, Number(booking.amountPaid) || 0), phaseOneTarget)
-      : downpayment;
-    const defaultFee = isMixedBooking
-      ? Math.max(0, phaseOneTarget - Number(travelFare || 0))
-      : (mixedRepairFee || booking.initialCost || assignment?.inspectionFee || 500);
+    const bill = window.RepairVisitPayment.summary(booking);
+    const isMixedBooking = bill.isMixedBooking, allCoreCompleted = bill.allCoreCompleted;
+    _inspPayCredit = bill.credited;
+    const defaultFee = Math.max(0, bill.phaseOneTarget - bill.distanceFare);
     document.getElementById('inspPayModalTitle').textContent = allCoreCompleted ? 'Collect Phase 1 Payment' : 'Collect Inspection Fee';
     document.getElementById('inspPaySubtitle').textContent = allCoreCompleted
       ? 'Repair inspection and completed Core service balance'
       : 'Inspection & diagnosis service charge';
     document.getElementById('inspPayPrimaryLabel').textContent = allCoreCompleted ? 'Inspection + Core Services:' : 'Inspection Fee:';
-    document.getElementById('inspPayCreditLabel').textContent = isMixedBooking ? 'Less: Payments / Downpayment:' : 'Less: Downpayment:';
+    document.getElementById('inspPayCreditLabel').textContent = 'Less: Recorded payments:';
     document.getElementById('inspPayInputLabel').innerHTML = `${allCoreCompleted ? 'Phase 1 Services' : 'Inspection Fee'} (₱) <span class="text-danger">*</span>`;
     document.getElementById('inspPayTotalFee').textContent = '₱' + defaultFee.toLocaleString();
     document.getElementById('inspPayAmountInput').value = defaultFee;
-    document.getElementById('inspPayAmountInput').readOnly = isMixedBooking;
-    document.getElementById('inspPayDistanceInput').value = travelFare;
+    document.getElementById('inspPayAmountInput').readOnly = true;
+    document.getElementById('inspPayDistanceInput').value = bill.distanceFare;
+    document.getElementById('inspPayDistanceInput').readOnly = true;
     document.getElementById('inspPayAmountHint').textContent = `Inspection/diagnosis fee (suggested: ₱${defaultFee.toLocaleString()})`;
 
     if (allCoreCompleted) {
@@ -16234,8 +16190,8 @@ function preparationEscapeHtml(value) {
         const includesCore = Number(data.phaseOnePayment?.coreServiceAmount || 0) > 0;
         Swal.fire({
           icon: 'success',
-          title: includesCore ? 'Phase 1 Payment Collected' : 'Inspection Payment Collected',
-          html: `<span style="font-size:0.9rem;">₱${collectedNow.toLocaleString()} collected via ${method}.${includesCore ? '<br><small>Repair inspection and completed Core service are now settled.</small>' : ''}</span>`,
+          title: data.alreadyCollected ? 'Payment already recorded' : includesCore ? 'First-visit payment recorded' : 'Inspection payment recorded',
+          html: data.alreadyCollected ? 'No additional first-visit payment was collected.' : `<span style="font-size:0.9rem;">₱${collectedNow.toLocaleString()} collected via ${method}.${includesCore ? '<br><small>Repair inspection and completed Core service are now settled.</small>' : ''}</span>`,
           timer: 3000,
           showConfirmButton: false
         });
@@ -17567,31 +17523,12 @@ function preparationEscapeHtml(value) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not verify inspection payment');
       const booking = data.booking || data;
-      const serviceItems = Array.isArray(booking.services) ? booking.services : [];
-      const isMixedBooking = booking.serviceType === 'mixed'
-        || (serviceItems.some(item => item.type === 'core') && serviceItems.some(item => item.type === 'repair'));
-      const requiredInspectionFee = isMixedBooking
-        ? serviceItems.filter(item => item.type === 'repair')
-          .reduce((sum, item) => sum + Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))) || 0, 0)
-        : Number(booking.initialCost || 0);
-      const coreItems = serviceItems.filter(item => item.type === 'core');
-      const allCoreCompleted = isMixedBooking && coreItems.length > 0 && coreItems.every(item => item.status === 'completed');
-      if (requireCompletedCore && isMixedBooking && !allCoreCompleted) {
-        await Swal.fire({
-          icon: 'info',
-          title: 'Complete Core Service First',
-          text: 'Finish every Core service item before closing the first visit as Schedule Later. Phase 1 payment will then include the completed Core service and Repair inspection.',
-          confirmButtonText: 'Go to Core Service',
-          confirmButtonColor: '#2563eb'
-        });
-        await refreshOpenAssignmentDetail('core-service');
-        return false;
+      const bill = window.RepairVisitPayment.summary(booking);
+      if (requireCompletedCore && bill.corePending) {
+        await Swal.fire({ icon:'info',title:'Complete core services first',text:'Finish the core services before ending this visit. The repair can then be scheduled for another day.',confirmButtonText:'View core services' });
+        await refreshOpenAssignmentDetail('core-service'); return false;
       }
-      const inspectionTarget = requiredInspectionFee + Math.max(0, Number(booking.travelFare) || 0);
-      const initialBookingTotal = Math.max(0, Number(booking.totalPrice || booking.estimatedFee) || 0);
-      const phaseOneTarget = allCoreCompleted ? Math.max(initialBookingTotal, inspectionTarget) : inspectionTarget;
-      const phaseOneAmountDue = Math.max(0, phaseOneTarget - Math.max(0, Number(booking.amountPaid) || 0));
-      if ((booking.inspectionFeeCollected && phaseOneAmountDue <= 0.01) || phaseOneTarget <= 0) return true;
+      if (bill.settled) return true;
       const assignment = {
         ...(window._inspAssignmentContext || window._detailAssignment || {}),
         bookingId: booking,
@@ -18656,7 +18593,8 @@ function preparationEscapeHtml(value) {
 })();
 </script>
 <script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-onsite-repair-quote">
-<script src="/js/repair-units.js?v=20261017-onsite-repair-quote"></script>
-<script src="/js/repair-visit.js?v=20261017-onsite-repair-quote"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261017-return-visit">
+<script src="/js/repair-units.js?v=20261017-verified-inspection"></script>
+<script src="/js/repair-visit-payment.js?v=20261017-return-visit"></script>
+<script src="/js/repair-visit.js?v=20261017-return-visit"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>

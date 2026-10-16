@@ -12,9 +12,23 @@ const trackingFields = {
     recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     recordedByTechnician: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
   },
+  repairVerification: {
+    outcome: { type: String, enum: ['resolved', 'follow_up_required'] },
+    workPerformed: { type: String, trim: true, maxlength: 1000 },
+    testResults: { type: String, trim: true, maxlength: 2000 },
+    customerConfirmed: Boolean,
+    followUpReason: { type: String, trim: true, maxlength: 500 },
+    recordedAt: Date,
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
+  },
+};
+const inspectionFields = {
+  testsPerformed: { type: String, trim: true, maxlength: 2000 },
+  recommendedAction: { type: String, trim: true, maxlength: 2000 },
+  technicianConfirmed: Boolean, confirmedAt: Date,
 };
 const detailFields = {
-  inspection: { findings: { type: String, maxlength: 2000 }, completedAt: Date, photos: [String] },
+  inspection: { ...inspectionFields, findings: { type: String, maxlength: 2000 }, completedAt: Date, photos: [String] },
   diagnosis: { summary: { type: String, maxlength: 2000 }, source: { type: String, enum: ['technician', 'ai_reviewed'] }, completedAt: Date },
   quotation: {
     parts: [{ name: String, cost: Number, quantity: Number, toolId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tool' } }],
@@ -23,4 +37,4 @@ const detailFields = {
     laborPriceReason: { type: String, maxlength: 500 },
   },
 };
-module.exports = { trackingFields, detailFields };
+module.exports = { trackingFields, detailFields, inspectionFields };

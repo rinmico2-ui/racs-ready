@@ -1,6 +1,7 @@
 'use strict';
 const team = require('./standardJobTeam');
 const units = require('./repairUnitWorkflow');
+const visitPayment = require('../public/js/repair-visit-payment');
 const { manilaDateKey, manilaDateTime, parseAppointmentTime } = require('./bookingDateTime');
 const fail = (message, status = 409, code = 'REPAIR_VISIT_BLOCKED') => Object.assign(new Error(message), { status, code });
 const keyFor = part => part.toolId ? `id:${team.ref(part.toolId)}` : `name:${String(part.name || '').trim().toLowerCase()}`;
@@ -64,7 +65,7 @@ function createService(overrides = {}) {
     if (!assignment) throw fail('Current repair assignment not found. Refresh your jobs.', 404);
     return { booking, assignment };
   }
-  async function inspect(state, technicianId, input = {}) {
+  async function inspect(state, technicianId, input = {}, { checkTime = true } = {}) {
     const { booking, assignment } = state, now = deps.now(), date = manilaDateKey(now);
     const requiresOnSiteConsent = !approvalReady(booking) && units.canDecideOnSite(booking);
     const confirmedQuotationTotal = units.summary(booking, ['staff_review', 'customer_review', 'approved', 'completed']).totalAmount;
@@ -76,13 +77,14 @@ function createService(overrides = {}) {
     }
     const repairMinutes = duration(input.repairMinutes, Math.ceil(Math.max(15, Math.min(480, Number(booking.repairExecution?.repairMinutes || booking.technicianAssistant?.estimatedDurationMinutes) || 90)) / 15) * 15);
     const purchaseMinutes = input.purchaseMinutes == null ? 45 : duration(input.purchaseMinutes);
-    const reasons = [];
-    if (!team.readiness(booking, now).ready) reasons.push('Every assigned technician must accept this visit.');
-    if (assignment.status !== 'in_progress') reasons.push('Go En Route, record arrival, then Start Work before planning repairs.');
-    if (manilaDateKey(assignment.bookingDate) !== date) reasons.push('Repair work can continue only on this visit\'s scheduled Philippine date.');
-    if (!approvalReady(booking) && !requiresOnSiteConsent) reasons.push('Submit the inspection and quotation first. Record the customer decision on site, or wait for the online quotation decision.');
-    if (booking.repairExecution?.status === 'deferred') reasons.push('This visit has ended. Operations must confirm the next repair schedule.');
-    if (booking.repairExecution?.status === 'cancelled') reasons.push('The customer cancelled this repair. Inspection payment and equipment returns remain separate.');
+    const visitReasons = [];
+    if (!team.readiness(booking, now).ready) visitReasons.push('Every assigned technician must accept this visit.');
+    if (assignment.status !== 'in_progress') visitReasons.push('Go En Route, record arrival, then Start Work before planning repairs.');
+    if (!approvalReady(booking) && !requiresOnSiteConsent) visitReasons.push('Submit the inspection and quotation first. Record the customer decision on site, or wait for the online quotation decision.');
+    if (booking.repairExecution?.status === 'deferred') visitReasons.push('This visit has ended. Operations must confirm the next repair schedule.');
+    if (booking.repairExecution?.status === 'cancelled') visitReasons.push('The customer cancelled this repair. Inspection payment and equipment returns remain separate.');
+    const reasons = [...visitReasons], visitDate = manilaDateKey(assignment.bookingDate);
+    if (visitDate !== date) reasons.push('Repair work can continue only on this visit\'s scheduled Philippine date. You can request a return visit.');
     const kit = await deps.Kit.findOne({ technicianId, workDate: { $gte: manilaDateTime(date, 0), $lt: manilaDateTime(date, 1440) } }).session(state.session || null).lean();
     const parts = approvalReady(pricedBooking) ? partCoverage(pricedBooking, kit) : [];
     const readiness = require('./dailyKitService').dailyKitReadiness(kit);
@@ -92,6 +94,7 @@ function createService(overrides = {}) {
     const minute = Math.ceil((now.getTime() - manilaDateTime(date, 0).getTime()) / 60000);
     const ids = team.ids(booking).length ? team.ids(booking) : [team.ref(technicianId)];
     async function windowFor(extraMinutes) {
+      if (!checkTime) return { available: false, reason: 'Check the team schedule when choosing Repair now.' };
       if (reasons.length) return { available: false, reason: reasons[0] };
       let end = minute + repairMinutes + extraMinutes;
       for (const id of ids) {
@@ -106,14 +109,14 @@ function createService(overrides = {}) {
     }
     const direct = await windowFor(0), local = parts.some(part => part.missing > 0) ? await windowFor(purchaseMinutes) : direct;
     return { ...state, version: booking.__v || 0, reference: booking.bookingReference || booking.workOrderNumber || team.ref(booking._id).slice(-6),
-      date, reasons, repairMinutes, purchaseMinutes, parts, direct, local,
-      canStart: !reasons.length && direct.available && toolsReady && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
+      date, visitDate, reasons, visitReasons, firstVisitPayment: visitPayment.summary(booking), repairMinutes, purchaseMinutes, parts, direct, local,
+      canStart: checkTime && !reasons.length && direct.available && toolsReady && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
       requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason: toolsReady ? '' : readiness.error || 'Some required tools are not issued or are no longer at the site.',
       approvalReady: approvalReady(booking), execution: booking.repairExecution || null,
       purchases: (booking.localPurchase || []).map(row => ({ key: row.quotationKey, partName: row.partName, quantity: row.quantity, purchaseStatus: row.purchaseStatus, purchaseByType: row.purchaseByType, supplierName: row.supplierName, expectedPurchaseCost: row.expectedPurchaseCost })),
     };
   }
-  async function read(id, technicianId, input) { return inspect(await load(id, technicianId), technicianId, input); }
+  async function read(id, technicianId, input = {}) { return inspect(await load(id, technicianId), technicianId, input, { checkTime: !['choice', 'later', 'cancel'].includes(input.mode) }); }
   async function act(id, technician, actorId, action, input) {
     if (!['start', 'defer', 'cancel-repair', 'plan-purchase', 'receipt', 'verify-customer-part'].includes(action)) throw fail('Unknown repair action.', 400);
     const date = manilaDateKey(deps.now());
@@ -125,8 +128,10 @@ function createService(overrides = {}) {
         const { booking, assignment } = state;
         const originalStatus = booking.status;
         if (!Number.isInteger(input.version) || input.version !== (booking.__v || 0)) throw fail('This repair record changed. Refresh the work plan before saving.');
-        const plan = await inspect(state, technician._id, input);
-        if (plan.reasons.length) throw fail(plan.reasons.join(' '));
+        const needsTime = ['start', 'plan-purchase'].includes(action);
+        const plan = await inspect(state, technician._id, input, { checkTime: needsTime });
+        const blockers = needsTime ? plan.reasons : plan.visitReasons;
+        if (blockers.length) throw fail(blockers.join(' '));
         const set = {}, now = deps.now();
         let notification = 'Repair work plan updated';
         if (action === 'cancel-repair' || plan.requiresOnSiteConsent && ['start', 'defer', 'plan-purchase'].includes(action)) {
@@ -185,7 +190,7 @@ function createService(overrides = {}) {
           notification = 'Repair part received; check the work plan before starting';
         } else if (action === 'cancel-repair') {
           const coreRemaining = (booking.services || []).some(item => item.type === 'core' && !['completed', 'cancelled'].includes(item.status));
-          if (!coreRemaining && Number(booking.initialCost || booking.totalPrice || booking.estimatedFee || 0) > 0 && !booking.inspectionFeeCollected) throw fail('Record the inspection payment before closing this visit. The repair itself will not be charged.', 409, 'PHASE_ONE_PAYMENT_REQUIRED');
+          if (!coreRemaining && !plan.firstVisitPayment.settled) throw fail(`Record the remaining first-visit payment of ₱${plan.firstVisitPayment.amountDue.toLocaleString('en-PH')} before closing this visit. The repair quotation is separate.`, 409, 'PHASE_ONE_PAYMENT_REQUIRED');
           set.repairExecution = { status: 'cancelled', workDate: date, reason: input.reason.trim() };
           notification = 'Customer cancelled the repair on site; inspection fees and completed core services remain payable';
         } else if (action === 'start') {
@@ -202,10 +207,7 @@ function createService(overrides = {}) {
           const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
           if (reason.length < 5 || reason.length > 1000) throw fail('Explain why another visit is needed (5 to 1,000 characters).', 400);
           if ((booking.services || []).some(item => item.type === 'core' && !['completed', 'cancelled'].includes(item.status))) throw fail('Finish the booked core services before closing this mixed visit.');
-          const repairInspection = (booking.services || []).filter(item => item.type === 'repair').reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-          const initialTarget = Math.max(Number(booking.totalPrice || booking.estimatedFee || 0), repairInspection + Number(booking.travelFare || 0));
-          if ((Number(booking.initialCost || repairInspection || 0) > 0 && !booking.inspectionFeeCollected)
-              || booking.serviceType === 'mixed' && initialTarget - Number(booking.amountPaid || 0) > 0.01) throw fail('Record the inspection and completed core-service payment before ending this visit.', 409, 'PHASE_ONE_PAYMENT_REQUIRED');
+          if (!plan.firstVisitPayment.settled) throw fail(`Record the remaining first-visit payment of ₱${plan.firstVisitPayment.amountDue.toLocaleString('en-PH')} before requesting the next visit. This covers inspection, travel and completed core services; the repair quotation is separate.`, 409, 'PHASE_ONE_PAYMENT_REQUIRED');
           const dates = input.preferredDates;
           if (!Array.isArray(dates) || dates.length < 1 || dates.length > 3 || new Set(dates).size !== dates.length || dates.some(day => !require('./bookingDateTime').strictManilaDateKey(day) || day <= date)) throw fail('Choose one to three distinct future Philippine dates.', 400);
           if (!['morning', 'afternoon', 'any'].includes(input.preferredTime)) throw fail('Choose a valid preferred time window.', 400);
@@ -231,7 +233,7 @@ function createService(overrides = {}) {
   return { read, act };
 }
 function present(plan) {
-  const { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
-  return { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
+  const { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
+  return { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
 }
 module.exports = { createService, present, partCoverage, approvedParts, approvalReady, duration, purchaseReceived };

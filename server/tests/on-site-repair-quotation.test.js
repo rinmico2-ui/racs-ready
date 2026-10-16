@@ -11,7 +11,7 @@ function booking() {
     initialCost: 500, totalPrice: 500, amountPaid: 500, inspectionFeeCollected: true, repairUnitTracking: true,
     services: [{ type: 'repair', name: 'Aircon repair', quantity: 1, units: [{ unitIndex: 1, label: 'Aircon', problemDescription: 'The aircon is not cooling.' }] }] });
 }
-const input = extra => ({ findings: 'The capacitor is outside its rated range.', diagnosis: 'Faulty run capacitor', laborCategory: 'minor', parts: [{ toolId, quantity: 1, cost: 1 }], ...extra });
+const input = extra => ({ findings: 'The capacitor is outside its rated range.', testsPerformed: 'The measured capacitance is below the rated range.', recommendedAction: 'Replace the capacitor and test the cooling cycle.', technicianConfirmed: true, diagnosis: 'Faulty run capacitor', laborCategory: 'minor', parts: [{ toolId, quantity: 1, cost: 1 }], ...extra });
 function quote(b, extra = {}) {
   flow.inspect(b, 'G1-U001', input(extra), { technicianId, laborFees: fees, catalog: [{ _id: toolId, itemName: 'Run Capacitor', sellingPrice: 500, costPrice: 200 }] });
   flow.submitInspection(b); b.inspection = { completedAt: new Date() };

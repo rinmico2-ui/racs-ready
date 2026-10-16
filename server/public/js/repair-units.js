@@ -43,15 +43,16 @@
     try {
       const findings = form.elements.findings.value.trim();
       const diagnosis = form.elements.diagnosis.value.trim();
+      const testsPerformed = form.elements.testsPerformed.value.trim();
       if (fromDiagnosis && diagnosis.length < 5) throw Error('Enter your diagnosis first (at least 5 characters), then request suggested labor and parts.');
       let report, suggestion;
       {
-        const data = await request(`/api/repair-units/booking/${encodeURIComponent(state.id)}/ai-diagnostic`, { key: form.dataset.key, findings, diagnosis });
+        const data = await request(`/api/repair-units/booking/${encodeURIComponent(state.id)}/ai-diagnostic`, { key: form.dataset.key, findings, diagnosis, testsPerformed });
         const latest = await request(`/api/repair-units/${state.scope}/${state.id}`);
         const previousUnit = state.units.find(unit => unit.key === form.dataset.key), latestUnit = latest.units.find(unit => unit.key === form.dataset.key);
         if (!latestUnit || previousUnit?.review?.revision !== latestUnit.review?.revision || previousUnit?.review?.state !== latestUnit.review?.state) throw Error('This appliance changed while suggestions were loading. Reopen its latest inspection before continuing.');
         if (!latest.canInspect) throw Error(latest.blockedReason || 'This inspection is no longer editable. Refresh the repair workspace.');
-        if (form.elements.findings.value.trim() !== findings || form.elements.diagnosis.value.trim() !== diagnosis) throw Error('Your findings or diagnosis changed while suggestions were loading. Generate again using the latest notes.');
+        if (form.elements.findings.value.trim() !== findings || form.elements.diagnosis.value.trim() !== diagnosis || form.elements.testsPerformed.value.trim() !== testsPerformed) throw Error('Your findings or diagnosis changed while suggestions were loading. Generate again using the latest notes.');
         state.version = latest.version; report = data.technicianAssistant; suggestion = data.quoteSuggestion;
       }
       const unit = state.units.find(unit => unit.key === form.dataset.key);
@@ -66,7 +67,8 @@
         if (!selected.length && !form.elements.diagnosis.value.trim()) return showError('Confirm an on-site diagnosis or enter your diagnosis before building the quotation draft.');
         if (selected.length) {
           form.elements.diagnosis.value = [...new Set([form.elements.diagnosis.value.trim(), ...selected].filter(Boolean))].join('\n');
-          if (!form.elements.findings.value.trim()) form.elements.findings.value = 'Confirmed on site: ' + selected.join('; ');
+          // Suggestions can help the diagnosis, but cannot invent observations or tests.
+          form.elements.technicianConfirmed.checked = false;
           form.dataset.diagnosisSource = 'ai_reviewed';
         }
         const category = suggestion?.laborCategory || ({ low:'minor', minor:'minor', medium:'standard', moderate:'standard', high:'complex', specialist_required:'major' })[analysis.repairComplexity] || 'standard';
@@ -91,26 +93,63 @@
     if (['pending','staff_review'].includes(unit.review?.state || 'pending')) {
       const canSubmit = state.units.every(other => other.key === unit.key || other.review?.state === 'staff_review');
       return `<form class="ru-inspect rq-inspection" data-key="${esc(unit.key)}" data-diagnosis-source="${esc(unit.diagnosis?.source || 'technician')}">
-        <section class="rq-section"><h3><span>1</span> Confirm the diagnosis</h3>${aiInspector(unit)}<div class="ru-grid"><label class="ru-field">Inspection findings<textarea name="findings" required minlength="10" maxlength="2000" placeholder="Record what you checked and the results.">${esc(unit.inspection?.findings)}</textarea></label><label class="ru-field">Technician diagnosis<textarea name="diagnosis" required minlength="5" maxlength="2000" placeholder="Confirm an AI suggestion or enter your own diagnosis.">${esc(unit.diagnosis?.summary)}</textarea></label></div></section>
-        <section class="rq-section"><h3><span>2</span> Prepare the repair quotation</h3><div class="ru-grid"><label class="ru-field">Repair complexity<select name="laborCategory">${Object.entries(state.laborFees || {}).map(([key,value]) => `<option value="${key}" ${(unit.quotation?.laborCategory || 'standard') === key ? 'selected' : ''}>${key[0].toUpperCase()+key.slice(1)} · ${money(value)}</option>`).join('')}</select></label><label class="ru-field">Labor pricing<select name="laborPricingMode"><option value="company">Company labor rate</option><option value="custom" ${unit.quotation?.laborPricingMode === 'custom' ? 'selected' : ''}>Set technician labor price</option></select></label><label class="ru-field">Labor amount (PHP)<input name="laborCost" type="number" min="0" max="1000000" step=".01" required value="${Number(unit.quotation?.laborCost || state.laborFees?.standard || 0)}"></label><label class="ru-field" data-labor-reason hidden>Reason for custom labor price<textarea name="laborPriceReason" minlength="5" maxlength="500" placeholder="Explain the work covered by this labor price.">${esc(unit.quotation?.laborPriceReason)}</textarea></label></div>
+        <nav class="rq-progress" aria-label="Inspection steps"><button type="button" data-inspection-step="inspection" aria-current="step">1. Inspect and diagnose</button><button type="button" data-inspection-step="quotation">2. Prepare quotation</button></nav>
+        <section class="rq-section" data-inspection-panel><h3><span>1</span> Inspect and diagnose</h3><p class="ru-muted">Record actual observations. AI suggestions need your on-site verification. Fields marked * are required before preparing the quotation.</p>${aiInspector(unit)}<div class="ru-grid">
+        <label class="ru-field">Inspection findings *<textarea name="findings" required minlength="10" maxlength="2000" placeholder="What did you observe? Describe the fault and condition of the appliance.">${esc(unit.inspection?.findings)}</textarea></label>
+        <label class="ru-field">Checks and test results *<textarea name="testsPerformed" required minlength="10" maxlength="2000" placeholder="Record checks, measurements and results. If a test was unsafe or unavailable, explain why.">${esc(unit.inspection?.testsPerformed)}</textarea></label>
+        <label class="ru-field">Technician diagnosis *<textarea name="diagnosis" required minlength="5" maxlength="2000" placeholder="Explain the likely fault based on your checks.">${esc(unit.diagnosis?.summary)}</textarea></label>
+        <label class="ru-field">Recommended repair *<textarea name="recommendedAction" required minlength="5" maxlength="2000" placeholder="What work is needed to address the fault? Include any limitations.">${esc(unit.inspection?.recommendedAction)}</textarea></label></div>
+        <div class="rq-evidence"><h4>Inspection photos <small>Optional</small></h4><p class="ru-muted">Appliance condition, model sticker or test readings. Up to four JPG, PNG or WEBP images, 5 MB each. Saved photos are visible only to the customer and authorised staff.</p><div data-evidence-gallery>${evidenceGallery(unit)}</div><label class="ru-field">Choose inspection photos<input type="file" name="inspectionPhotos" accept="image/jpeg,image/png,image/webp" multiple></label><button type="button" class="ru-btn" data-upload-evidence>Upload selected photos</button><p data-evidence-status role="status" class="ru-muted"></p></div>
+        <label class="rv-check"><input type="checkbox" name="technicianConfirmed" required ${unit.inspection?.technicianConfirmed ? 'checked' : ''}><span>I inspected this appliance and checked the findings, diagnosis and recommended repair.</span></label>
+        <div class="ru-actions"><button class="ru-btn" type="button" data-save-inspection>Save inspection draft</button><button class="ru-btn ru-btn-primary" type="button" data-continue-quote>Continue to quotation</button></div></section>
+        <section class="rq-section" data-quotation-panel hidden><h3><span>2</span> Prepare the repair quotation</h3><p class="rq-notice">Quote only the work and parts supported by this inspection. Submission does not start a repair or collect a payment. The customer must approve the price first.</p><div class="ru-grid"><label class="ru-field">Repair complexity<select name="laborCategory">${Object.entries(state.laborFees || {}).map(([key,value]) => `<option value="${key}" ${(unit.quotation?.laborCategory || 'standard') === key ? 'selected' : ''}>${key[0].toUpperCase()+key.slice(1)} · ${money(value)}</option>`).join('')}</select></label><label class="ru-field">Labor pricing<select name="laborPricingMode"><option value="company">Company labor rate</option><option value="custom" ${unit.quotation?.laborPricingMode === 'custom' ? 'selected' : ''}>Set technician labor price</option></select></label><label class="ru-field">Labor amount (PHP)<input name="laborCost" type="number" min="0" max="1000000" step=".01" required value="${Number(unit.quotation?.laborCost ?? state.laborFees?.standard ?? 0)}"></label><label class="ru-field" data-labor-reason hidden>Reason for custom labor price<textarea name="laborPriceReason" minlength="5" maxlength="500" placeholder="Explain the work covered by this labor price.">${esc(unit.quotation?.laborPriceReason)}</textarea></label></div>
         <div class="rq-section-heading"><h4>Replacement parts</h4><button class="ru-btn" type="button" data-add-part>Add part</button></div><p class="ru-muted">Catalog parts use saved selling prices. Other parts need a confirmed supplier price. Leave the list empty if no replacement is needed.</p><div class="ru-parts-list">${(unit.quotation?.parts || []).map(partRow).join('')}</div><label class="ru-field">Quotation notes<input name="notes" maxlength="2000" value="${esc(unit.quotation?.notes)}" placeholder="Warranty, repair scope, or details the customer should know."></label><div class="rq-quote-total" data-quote-preview aria-live="polite"></div></section>
-        <div class="ru-actions rq-submit"><button class="ru-btn" type="submit" data-save-draft>Save draft</button><button class="ru-btn" type="button" data-calculate-quote>Recalculate</button>${canSubmit ? '<button class="ru-btn ru-btn-primary" type="submit" data-submit-inspection>Submit inspection and quotation</button>' : '<p class="ru-muted">Save each appliance draft before submitting the whole inspection and quotation.</p>'}</div></form>`;
+        <div class="ru-actions rq-submit" data-quotation-actions hidden><button class="ru-btn" type="button" data-back-inspection>Back to inspection</button><button class="ru-btn" type="submit" data-save-draft>Save quotation draft</button><button class="ru-btn" type="button" data-calculate-quote>Recalculate</button>${canSubmit ? '<button class="ru-btn ru-btn-primary" type="submit" data-submit-inspection>Submit inspection and quotation</button>' : '<p class="ru-muted">Save each appliance draft before submitting the whole inspection and quotation.</p>'}</div></form>`;
     }
-    if (unit.review?.state === 'approved' && state.scope === 'booking' && state.canComplete) return `<form class="ru-complete" data-key="${esc(unit.key)}"><label class="ru-field">Repair and tests performed<textarea name="notes" required minlength="10" maxlength="1000"></textarea></label><button class="ru-btn ru-btn-primary" type="submit">Mark this appliance repaired</button></form>`;
+    if (unit.review?.state === 'approved' && state.scope === 'booking' && state.canComplete) return `<form class="ru-complete rq-section" data-key="${esc(unit.key)}"><h3>Test and verify the repair</h3><p class="ru-muted">Record the actual work and test results. An unresolved appliance remains open for follow-up.</p><div class="ru-grid"><label class="ru-field">Work performed *<textarea name="notes" required minlength="10" maxlength="1000">${esc(unit.repairVerification?.workPerformed)}</textarea></label><label class="ru-field">Final test results *<textarea name="testResults" required minlength="10" maxlength="2000" placeholder="Describe how operation was tested and the actual results.">${esc(unit.repairVerification?.testResults)}</textarea></label><label class="ru-field">Test outcome *<select name="outcome"><option value="">Choose an outcome</option><option value="resolved">Issue resolved; tests passed</option><option value="follow_up_required">Unresolved; follow-up needed</option></select></label><label class="ru-field" data-follow-up hidden>Follow-up reason and remaining work *<textarea name="followUpReason" minlength="10" maxlength="500">${esc(unit.repairVerification?.followUpReason)}</textarea></label></div><label class="rv-check" data-customer-confirmation><input type="checkbox" name="customerConfirmed"><span>I explained the work and test results to the customer, and they confirmed the appliance is working.</span></label><button class="ru-btn ru-btn-primary" type="submit">Save test outcome</button></form>`;
     return '';
+  }
+  function evidenceGallery(unit) {
+    return (unit.inspection?.photos || []).filter(url => /^\/api\/repair-units\/(booking|project)\/[a-f\d]{24}\/evidence\/[a-f\d]{24}$/i.test(url)).map((url, index) => `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="Inspection evidence ${index + 1}" loading="lazy"><span>Photo ${index + 1}</span></a>`).join('');
+  }
+  function inspectionPayload(form) {
+    return { key: form.dataset.key, findings: form.elements.findings.value, testsPerformed: form.elements.testsPerformed.value,
+      diagnosis: form.elements.diagnosis.value, recommendedAction: form.elements.recommendedAction.value, technicianConfirmed: form.elements.technicianConfirmed.checked };
+  }
+  function inspectionValid(form) {
+    return ['findings','testsPerformed','diagnosis','recommendedAction','technicianConfirmed'].every(name => form.elements[name].reportValidity());
+  }
+  function showInspectionStep(form, stage) {
+    if (stage === 'quotation' && !inspectionValid(form)) return;
+    form.dataset.step = stage;
+    form.querySelector('[data-inspection-panel]').hidden = stage !== 'inspection';
+    form.querySelector('[data-quotation-panel]').hidden = stage !== 'quotation';
+    form.querySelector('[data-quotation-actions]').hidden = stage !== 'quotation';
+    form.querySelectorAll('[data-inspection-step]').forEach(button => { if (button.dataset.inspectionStep === stage) button.setAttribute('aria-current','step'); else button.removeAttribute('aria-current'); });
+    form.querySelector(stage === 'quotation' ? '[data-quotation-panel]' : '[data-inspection-panel]').scrollIntoView({block:'start'});
   }
   function quotationDetails(unit) {
     if (!unit.quotation) return '';
     const quote = unit.quotation;
     return `<section class="rq-quote-total"><h4>Repair quotation</h4>${(quote.parts || []).map(part => `<span>${esc(part.name)} · ${part.quantity} × ${money(part.cost)}<strong>${money(Number(part.quantity) * Number(part.cost))}</strong></span>`).join('') || '<span>No replacement parts</span>'}<span>Labor ${quote.laborPricingMode === 'custom' ? '(technician price)' : '(company rate)'}<strong>${money(quote.laborCost)}</strong></span>${quote.laborPricingMode === 'custom' ? `<small>Price reason: ${esc(quote.laborPriceReason)}</small>` : ''}<span class="rq-total">Repair total<strong>${money(quote.totalCost)}</strong></span>${quote.notes ? `<small>${esc(quote.notes)}</small>` : ''}${unit.review?.decisionMethod === 'on_site' ? `<small class="rq-notice">Customer decision given verbally on site and recorded by the assigned technician. ${esc(unit.review.decisionNotes || '')}</small>` : ''}</section>`;
   }
+  function inspectionRecord(unit) {
+    const inspection = unit.inspection || {}, verification = unit.repairVerification;
+    return `${inspection.testsPerformed ? `<p class="ru-evidence"><strong>Inspection checks and test results:</strong> ${esc(inspection.testsPerformed)}</p>` : ''}${inspection.recommendedAction ? `<p class="ru-evidence"><strong>Recommended repair:</strong> ${esc(inspection.recommendedAction)}</p>` : ''}${inspection.photos?.length ? `<div class="rq-evidence-gallery">${evidenceGallery(unit)}</div>` : ''}${verification?.outcome ? `<section class="rq-notice"><strong>${verification.outcome === 'resolved' ? 'Issue resolved · customer confirmation recorded' : 'Follow-up required · appliance remains open'}</strong><p class="ru-evidence">Work performed: ${esc(verification.workPerformed)}\nTest results: ${esc(verification.testResults)}${verification.followUpReason ? `\nRemaining work: ${esc(verification.followUpReason)}` : ''}</p></section>` : ''}`;
+  }
+  function unitCard(unit) {
+    const editable = state.canInspect && !state.closed && !state.needsSetup && ['pending','staff_review'].includes(unit.review?.state || 'pending') && (!state.submitted || state.reviewStatus === 'rejected');
+    const status = unit.repairVerification?.outcome === 'follow_up_required' ? 'Follow-up required' : unit.review?.state === 'staff_review' ? state.submitted ? 'Quotation submitted' : 'Draft saved' : labels[unit.review?.state || 'pending'];
+    return `<details class="ru-unit" ${state.units.length === 1 ? 'open' : ''}><summary><span>${state.role === 'customer' && unit.review?.state === 'customer_review' ? `<input class="ru-choose" type="checkbox" data-key="${esc(unit.key)}" aria-label="Select ${esc(unit.label)}">` : ''} <strong>${esc(unit.key)} · ${esc(unit.label)}</strong><br><small class="ru-muted">${esc([unit.brand,unit.model].filter(Boolean).join(' · '))}</small></span><span class="ru-status">${esc(status)}</span>${unit.quotation && !editable ? `<span class="ru-price">${money(unit.quotation.totalCost)}</span>` : ''}</summary><div class="ru-unit-content"><p class="ru-evidence"><strong>Reported problem:</strong> ${esc(unit.problemDescription || 'Not recorded')}</p>${!editable ? `${unit.inspection?.findings ? `<p class="ru-evidence"><strong>Findings:</strong> ${esc(unit.inspection.findings)}<br><strong>Diagnosis:</strong> ${esc(unit.diagnosis?.summary)}</p>` : ''}${inspectionRecord(unit)}${quotationDetails(unit)}${!unit.repairVerification?.outcome && unit.completionNotes ? `<p class="ru-evidence"><strong>Repairs and tests:</strong> ${esc(unit.completionNotes)}</p>` : ''}` : ''}${inspector(unit)}</div></details>`;
+  }
   function render() {
     const reviewed = state.units.filter(unit => unit.review?.state === 'customer_review');
     const allInspected = state.units.length && state.units.every(unit => unit.review?.state === 'staff_review');
-    dialog.innerHTML = `<header class="ru-header"><div><h2>Inspection and quotation</h2><p>Review the diagnosis, prepare the price, and record the customer decision.</p></div><button class="ru-close" aria-label="Close appliance repairs">×</button></header><div class="ru-body"><div class="ru-error" role="alert" hidden></div><div class="ru-toolbar"><span>${state.units.length} appliance${state.units.length === 1 ? '' : 's'}</span>${!state.closed && state.canInspect && allInspected && (!state.submitted || state.reviewStatus === 'rejected') ? '<button class="ru-btn ru-btn-primary" data-submit>Submit inspection and quotation</button>' : ''}${!state.closed && state.submitted && allInspected && ['admin','secretary'].includes(state.role) && state.reviewStatus === 'pending' ? '<button class="ru-btn ru-btn-primary" data-review="approve">Send prices to customer</button><button class="ru-btn" data-review="reject">Return for changes</button><input id="ruReviewNotes" class="form-control" maxlength="1000" placeholder="Review notes / changes needed">' : ''}${!state.closed && state.role === 'customer' && reviewed.length ? '<button class="ru-btn" data-select-all>Select all waiting quotes</button><button class="ru-btn ru-btn-primary" data-decide="true">Approve selected repairs</button><button class="ru-btn" data-decide="false">Decline selected repairs</button>' : ''}</div>${state.units.map(unit => `<details class="ru-unit" ${state.units.length === 1 ? 'open' : ''}><summary><span>${state.role === 'customer' && unit.review?.state === 'customer_review' ? `<input class="ru-choose" type="checkbox" data-key="${esc(unit.key)}" aria-label="Select ${esc(unit.label)}">` : ''} <strong>${esc(unit.key)} · ${esc(unit.label)}</strong><br><small class="ru-muted">${esc([unit.brand,unit.model].filter(Boolean).join(' · '))}</small></span><span class="ru-status">${esc(unit.review?.state === 'staff_review' ? state.submitted ? 'Quotation submitted' : 'Draft saved' : labels[unit.review?.state || 'pending'])}</span>${unit.quotation ? `<span class="ru-price">${money(unit.quotation.totalCost)}</span>` : ''}</summary><div class="ru-unit-content"><p class="ru-evidence"><strong>Reported problem:</strong> ${esc(unit.problemDescription || 'Not recorded')}</p>${unit.inspection?.findings ? `<p class="ru-evidence"><strong>Findings:</strong> ${esc(unit.inspection.findings)}<br><strong>Diagnosis:</strong> ${esc(unit.diagnosis?.summary)}</p>` : ''}${quotationDetails(unit)}${unit.completionNotes ? `<p class="ru-evidence"><strong>Repairs and tests:</strong> ${esc(unit.completionNotes)}</p>` : ''}${inspector(unit)}</div></details>`).join('')}</div><footer class="ru-footer">Inspection fees are separate. For on-site repairs, the technician records the customer decision and checks time, tools, and parts.</footer>`;
+    dialog.innerHTML = `<header class="ru-header"><div><h2>Inspection and quotation</h2><p>Review the diagnosis, prepare the price, and record the customer decision.</p></div><button class="ru-close" aria-label="Close appliance repairs">×</button></header><div class="ru-body"><div class="ru-error" role="alert" hidden></div><div class="ru-toolbar"><span>${state.units.length} appliance${state.units.length === 1 ? '' : 's'}</span>${!state.closed && state.canInspect && allInspected && (!state.submitted || state.reviewStatus === 'rejected') ? '<button class="ru-btn ru-btn-primary" data-submit>Submit inspection and quotation</button>' : ''}${!state.closed && state.submitted && allInspected && ['admin','secretary'].includes(state.role) && state.reviewStatus === 'pending' ? '<button class="ru-btn ru-btn-primary" data-review="approve">Send prices to customer</button><button class="ru-btn" data-review="reject">Return for changes</button><input id="ruReviewNotes" class="form-control" maxlength="1000" placeholder="Review notes / changes needed">' : ''}${!state.closed && state.role === 'customer' && reviewed.length ? '<button class="ru-btn" data-select-all>Select all waiting quotes</button><button class="ru-btn ru-btn-primary" data-decide="true">Approve selected repairs</button><button class="ru-btn" data-decide="false">Decline selected repairs</button>' : ''}</div>${state.units.map(unitCard).join('')}</div><footer class="ru-footer">Inspection fees are separate. For on-site repairs, the technician records the customer decision and checks time, tools, and parts.</footer>`;
     if (state.blockedReason) { const hint=document.createElement('p');hint.className='ru-evidence';hint.textContent=state.blockedReason;dialog.querySelector('.ru-toolbar').after(hint); }
-    if (state.canPlanRepair && !state.canComplete && window.openRepairWorkflow) {
+    if (state.canPlanRepair && (!state.canComplete || state.units.some(unit => unit.repairVerification?.outcome === 'follow_up_required')) && window.openRepairWorkflow) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'ru-btn ru-btn-primary'; button.textContent = 'Customer decision: repair now, later, or cancel';
+      if (state.canComplete) button.textContent = 'Plan remaining work or a return visit';
       button.onclick = () => { dialog.close(); window.openRepairWorkflow(state.id); }; dialog.querySelector('.ru-toolbar').append(button);
     }
     if (state.readyForCompletion && window.completeRepair) {
@@ -132,24 +171,67 @@
       if (confirm(`${button.dataset.decide === 'true' ? 'Approve' : 'Decline'} repairs for these ${decisions.length} appliances?`)) save('decide', { decisions });
     });
     dialog.querySelectorAll('.ru-inspect').forEach(form => {
+      form.noValidate = true;
+      form.dataset.step = 'inspection';
+      form.querySelectorAll('[data-inspection-step]').forEach(button => button.onclick = () => showInspectionStep(form, button.dataset.inspectionStep));
+      form.querySelector('[data-continue-quote]').onclick = () => showInspectionStep(form, 'quotation');
+      form.querySelector('[data-back-inspection]').onclick = () => showInspectionStep(form, 'inspection');
+      form.querySelector('[data-save-inspection]').onclick = () => {
+        if (form.elements.findings.reportValidity()) save('inspection-draft', inspectionPayload(form));
+      };
+      form.querySelector('[data-upload-evidence]').onclick = () => uploadEvidence(form);
       form.querySelector('[data-add-part]').onclick = () => { form.querySelector('.ru-parts-list').insertAdjacentHTML('beforeend', partRow()); bindParts(form); };
       bindParts(form);
       form.querySelector('[data-unit-ai]')?.addEventListener('click',()=>generateUnitAi(form));
       form.querySelector('[data-unit-quote-ai]')?.addEventListener('click',()=>generateUnitAi(form, true));
       form.querySelector('[data-calculate-quote]').onclick=()=>quotePreview(form);
-      form.addEventListener('input',()=>{if(form.querySelector('[data-quote-preview]').textContent)quotePreview(form);});
+      form.addEventListener('input', event => {
+        if (['findings','testsPerformed','diagnosis','recommendedAction'].includes(event.target.name)) form.elements.technicianConfirmed.checked = false;
+        if(form.querySelector('[data-quote-preview]').textContent)quotePreview(form);
+      });
       form.elements.diagnosis.addEventListener('input', () => { form.dataset.diagnosisSource = 'technician'; });
       form.elements.laborPricingMode.addEventListener('change', () => quotePreview(form));
       form.elements.laborCategory.addEventListener('change', () => quotePreview(form));
       quotePreview(form);
       form.onsubmit = event => {
         event.preventDefault();
+        if (busy) return;
+        if (form.dataset.step !== 'quotation') return showInspectionStep(form, 'quotation');
+        if (!inspectionValid(form)) return showInspectionStep(form, 'inspection');
         if (!form.reportValidity()) return;
+        if (form.elements.inspectionPhotos.files.length) { showInspectionStep(form, 'inspection'); return showError('Upload the selected inspection photos before submitting, or clear the file selection.'); }
         const parts = [...form.querySelectorAll('.ru-parts')].map(row => ({ toolId:row.querySelector('select').value || null, name:row.querySelector('.ru-part-name').value, quantity:Number(row.querySelector('input[type=number]').value), cost:Number(row.querySelector('.ru-part-cost').value) }));
-        save(event.submitter?.hasAttribute('data-submit-inspection') ? 'inspect-and-submit' : 'inspect', { key:form.dataset.key, findings:form.elements.findings.value, diagnosis:form.elements.diagnosis.value, diagnosisSource:form.dataset.diagnosisSource, laborCategory:form.elements.laborCategory.value, laborPricingMode:form.elements.laborPricingMode.value, laborCost:Number(form.elements.laborCost.value), laborPriceReason:form.elements.laborPriceReason.value, notes:form.elements.notes.value, parts });
+        save(event.submitter?.hasAttribute('data-submit-inspection') ? 'inspect-and-submit' : 'inspect', { ...inspectionPayload(form), diagnosisSource:form.dataset.diagnosisSource, laborCategory:form.elements.laborCategory.value, laborPricingMode:form.elements.laborPricingMode.value, laborCost:Number(form.elements.laborCost.value), laborPriceReason:form.elements.laborPriceReason.value, notes:form.elements.notes.value, parts });
       };
     });
-    dialog.querySelectorAll('.ru-complete').forEach(form => form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) save('complete', { key:form.dataset.key, notes:form.elements.notes.value }); });
+    dialog.querySelectorAll('.ru-complete').forEach(form => {
+      form.elements.outcome.required = true;
+      const update = () => {
+        const followUp = form.elements.outcome.value === 'follow_up_required';
+        form.querySelector('[data-follow-up]').hidden = !followUp; form.elements.followUpReason.required = followUp;
+        form.querySelector('[data-customer-confirmation]').hidden = followUp; form.elements.customerConfirmed.required = !followUp;
+      };
+      form.elements.outcome.onchange = update; update();
+      form.onsubmit = event => { event.preventDefault(); if (form.reportValidity()) save('complete', { key:form.dataset.key, notes:form.elements.notes.value, testResults:form.elements.testResults.value, outcome:form.elements.outcome.value, customerConfirmed:form.elements.customerConfirmed.checked, followUpReason:form.elements.followUpReason.value }); };
+    });
+  }
+  async function uploadEvidence(form) {
+    if (busy) return;
+    const files = [...form.elements.inspectionPhotos.files], unit = state.units.find(unit => unit.key === form.dataset.key);
+    if (!files.length || files.length + (unit.inspection?.photos?.length || 0) > 4 || files.some(file => file.size > 5 * 1024 * 1024 || !['image/jpeg','image/png','image/webp'].includes(file.type))) return showError('Choose up to four JPG, PNG or WEBP photos per appliance, no more than 5 MB each.');
+    const body = new FormData(); body.append('key', form.dataset.key); body.append('version', String(state.version)); files.forEach(file => body.append('photos', file));
+    busy = true;
+    const controls = [...dialog.querySelectorAll('button,input,select,textarea')], disabled = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; }); form.querySelector('[data-evidence-status]').textContent = 'Uploading inspection photos…';
+    try {
+      const response = await fetch(`/api/repair-units/${state.scope}/${state.id}/evidence`, { method:'POST', credentials:'same-origin', body, signal:AbortSignal.timeout(45000) });
+      const data = await response.json().catch(() => ({ error:'The server could not save the photos. Please try again.' }));
+      if (!response.ok) throw Error(data.error || 'Could not save the inspection photos.');
+      state.version = data.version; unit.inspection = { ...unit.inspection, photos:data.photos };
+      form.querySelector('[data-evidence-gallery]').innerHTML = evidenceGallery(unit); form.elements.inspectionPhotos.value = '';
+      form.querySelector('[data-evidence-status]').textContent = 'Inspection photos saved. Your unsaved form details are still here.';
+    } catch (error) { form.querySelector('[data-evidence-status]').textContent = ''; showError(error.name === 'TimeoutError' || error.name === 'AbortError' ? 'The upload took too long. Reopen the inspection to check saved photos before retrying.' : error.message); }
+    finally { controls.forEach((control,index) => { control.disabled = disabled[index]; }); busy = false; }
   }
   function bindParts(form) {
     form.querySelectorAll('[data-remove-part]').forEach(button => button.onclick = () => { button.closest('.ru-parts').remove(); quotePreview(form); });
@@ -171,6 +253,12 @@
     try {
       const updated = await request(`/api/repair-units/${state.scope}/${state.id}/${action}`, { ...data, version:state.version });
       state = { ...state, ...updated }; render();
+      const notice = document.createElement('p'); notice.className = 'rq-notice'; notice.setAttribute('role','status');
+      notice.textContent = action === 'inspection-draft' ? 'Inspection draft saved. No quotation has been submitted.'
+        : action === 'inspect' ? 'Quotation draft saved. Review it before submitting to the customer and staff.'
+        : action === 'complete' && data.outcome === 'follow_up_required' ? 'Follow-up recorded and admin notified. This appliance remains open; plan the remaining work or a return visit.'
+        : action === 'complete' ? 'Repair testing and customer confirmation saved. Continue to the final payment and completion proof when every appliance is finished.' : 'Repair records updated.';
+      dialog.querySelector('.ru-toolbar').after(notice);
       openKeys.forEach(key => dialog.querySelector(`[data-key="${key}"]`)?.closest('details')?.setAttribute('open',''));
       window.dispatchEvent(new CustomEvent('repair-units:updated', { detail:{ scope:state.scope, id:state.id } }));
       if (['submit', 'inspect-and-submit'].includes(action) && state.scope === 'booking' && state.canPlanRepair && window.openRepairWorkflow) { dialog.close(); window.openRepairWorkflow(state.id); }

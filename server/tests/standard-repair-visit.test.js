@@ -111,6 +111,7 @@ test('deferral validates dates and inspection payment; presentation contains no 
   const f = fixture();
   await assert.rejects(f.act('defer', { reason: 'No time', preferredDates: [date], preferredTime: 'any' }), { status: 400 });
   f.store.booking.inspectionFeeCollected = false;
+  f.store.booking.amountPaid = 0;
   await assert.rejects(f.act('defer', { reason: 'No time', preferredDates: ['2026-10-20'], preferredTime: 'any' }), { code: 'PHASE_ONE_PAYMENT_REQUIRED' });
   const presented = visit.present(await f.read()); assert.equal(presented.booking, undefined); assert.equal(presented.assignment, undefined);
 });
@@ -183,6 +184,7 @@ test('on-site cancellation requires the customer reason and does not close unpai
   const f = fixture(), consent = pendingOnSite(f);
   await assert.rejects(f.act('cancel-repair', consent), { status: 400 });
   f.store.booking.inspectionFeeCollected = false;
+  f.store.booking.amountPaid = 0;
   await assert.rejects(f.act('cancel-repair', { ...consent, reason: 'The customer chose to replace the appliance.' }), { code: 'PHASE_ONE_PAYMENT_REQUIRED' });
   assert.equal(f.store.booking.status, 'awaiting_approval'); assert.equal(f.store.assignment.status, 'in_progress');
 });
@@ -191,4 +193,28 @@ test('a stale quotation total or failed write cannot partially record customer v
   await assert.rejects(f.act('start', { ...consent, confirmedQuotationTotal: 1 }), { status: 409 });
   f.failWrite(); await assert.rejects(f.act('start', consent), { status: 409 });
   assert.equal(f.store.booking.approval.status, 'pending'); assert.equal(f.store.booking.services[0].units[0].repairReview.state, 'staff_review');
+});
+
+test('an unfinished previous-day visit can request a return visit without same-day schedule access',async()=>{
+  const f=fixture();f.store.assignment.bookingDate=manilaDateTime('2026-10-18',0);
+  f.deps.slots=async()=>{throw Error('Schedule provider unavailable');};const service=visit.createService(f.deps);
+  const plan=await service.read(bookingId,lead,{mode:'later'});
+  assert.equal(plan.visitReasons.length,0);assert.equal(plan.canStart,false);assert.match(plan.reasons[0],/scheduled/);
+  await service.act(bookingId,{_id:lead,name:'Primary'},actorId,'defer',{version:0,reason:'Replacement parts require another visit.',preferredDates:['2026-10-20'],preferredTime:'morning'});
+  assert.equal(f.store.booking.repairExecution.status,'deferred');assert.equal(f.store.assignment.status,'completed');
+});
+test('return visits use original mixed-service charges and recognise recorded payment despite a missing flag',async()=>{
+  const f=fixture();Object.assign(f.store.booking,{serviceType:'mixed',inspectionFeeCollected:false,totalInitialCost:1750,totalPrice:3880,amountPaid:1750,travelFare:50});
+  f.store.booking.services[0].initialCost=500;f.store.booking.services[0].totalPrice=2630;
+  f.store.booking.services.push({type:'core',status:'completed',initialCost:1200,quantity:1,totalPrice:1200});
+  const plan=await f.read({mode:'later'});assert.equal(plan.firstVisitPayment.amountDue,0);
+  await f.act('defer',{reason:'Customer prefers another repair date.',preferredDates:['2026-10-20'],preferredTime:'any'});
+  assert.equal(f.store.booking.status,'repair_approved');assert.equal(f.store.booking.amountPaid,1750);assert.equal(f.store.expenses.length,0);
+});
+test('a recorded inspection flag alone cannot close an unpaid visit and pending core work remains protected',async()=>{
+  const f=fixture();f.store.booking.amountPaid=0;f.store.booking.inspectionFeeCollected=true;
+  await assert.rejects(f.act('defer',{reason:'Needs another repair date.',preferredDates:['2026-10-20'],preferredTime:'any'}),{code:'PHASE_ONE_PAYMENT_REQUIRED'});
+  assert.equal(f.store.assignment.status,'in_progress');
+  f.store.booking.amountPaid=500;f.store.booking.services.push({type:'core',status:'in_progress',initialCost:1200,quantity:1});
+  await assert.rejects(f.act('defer',{reason:'Needs another repair date.',preferredDates:['2026-10-20'],preferredTime:'any'}),/Finish.*core/);
 });
