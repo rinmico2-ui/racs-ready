@@ -267,6 +267,7 @@
       </div>
     </div>
 
+    <p id="sameDayRepairs" class="small text-muted" aria-live="polite"></p>
     <!-- Filters -->
     <div class="rsq-filters">
       <div class="rsq-search">
@@ -277,6 +278,7 @@
       </div>
       <select class="form-select form-select-sm" id="filterStatus" style="width:auto;min-width:150px;">
         <option value="">All Status</option>
+        <option value="repair_in_progress">Repair now / in progress</option>
         <option value="repair_approved">Pending Scheduling</option>
         <option value="waiting_parts">Waiting Parts</option>
         <option value="repair_scheduled">Scheduled</option>
@@ -536,6 +538,7 @@
       document.getElementById('statPending').textContent = statsData.pendingScheduling || 0;
       document.getElementById('statScheduled').textContent = statsData.scheduled || 0;
       document.getElementById('statTotal').textContent = statsData.total || 0;
+      document.getElementById('sameDayRepairs').textContent = (statsData.inProgress || 0) + ' same-day repairs in progress';
 
       document.getElementById('statParts').textContent = statsData.waitingParts || 0;
 
@@ -567,7 +570,7 @@
     });
 
     if (filtered.length === 0) {
-      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-calendar2-check"></i><p>No scheduling requests found</p><p class="sub">Customers who choose "Schedule Repair Later" will appear here.</p></div>';
+      container.innerHTML = '<div class="rsq-empty"><i class="bi bi-calendar2-check"></i><p>No scheduling requests found</p><p class="sub">Same-day repairs and requests for another visit appear here.</p></div>';
       return;
     }
 
@@ -585,7 +588,7 @@
     const timeLabel = { morning: 'Morning', afternoon: 'Afternoon', any: 'Any Time' }[b.preferredTimeWindow] || 'Any Time';
 
     const statusClass = b.status === 'repair_scheduled' ? 'rsq-status-scheduled' : (b.status === 'waiting_parts' ? 'rsq-priority-critical' : (b.status === 'ready_for_repair' ? 'rsq-status-scheduled' : 'rsq-status-pending'));
-    const statusLabel = b.status === 'repair_scheduled' ? 'Scheduled' : (b.status === 'waiting_parts' ? 'Waiting Parts' : (b.status === 'ready_for_repair' ? 'Ready to Schedule' : 'Pending Scheduling'));
+    const statusLabel = b.status === 'repair_in_progress' ? 'Repair now · In progress' : b.status === 'repair_scheduled' ? 'Scheduled' : (b.status === 'waiting_parts' ? 'Waiting Parts' : (b.status === 'ready_for_repair' ? 'Ready to Schedule' : 'Pending Scheduling'));
 
     const priorityClass = `rsq-priority-${b.priority || 'medium'}`;
 
@@ -609,6 +612,8 @@
         <div class="rsq-card-header">
           <div>
             <div class="rsq-card-id">${b.workOrderNumber}</div>
+            ${b.repairTiming === 'today' ? '<span class="rsq-status-badge rsq-status-scheduled">Same-day repair · Time and on-site parts checked</span>' : ''}
+            ${b.decisionMethod === 'on_site' ? '<div class="small text-muted mt-1">Customer verbal decision recorded by technician</div>' : ''}
             <div class="rsq-card-customer">${b.customer?.name || 'Unknown Customer'}</div>
             ${unitInfo ? `<div class="rsq-card-unit">${unitInfo}</div>` : ''}
           </div>

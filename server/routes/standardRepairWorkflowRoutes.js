@@ -17,7 +17,7 @@ router.post('/:action', async (req, res, next) => {
     const result = await visit.createService().act(req.params.id, tech, req.user._id, req.params.action, req.body || {});
     const io = req.app.get('io');
     await require('../utils/notify').createNotification({ role: 'admin', type: 'system', title: 'Repair visit updated', message: result.message,
-      referenceId: result.bookingId, referenceModel: 'BookingService', link: req.params.action === 'defer' ? '/admin/appointments/repair-scheduling' : '/admin/appointments?tab=active', io }).catch(() => {});
+      referenceId: result.bookingId, referenceModel: 'BookingService', link: ['defer', 'start'].includes(req.params.action) ? '/admin/appointments/repair-scheduling' : '/admin/appointments?tab=active', io }).catch(() => {});
     await require('../utils/notify').createNotification({ userId: result.customerId, type: 'system', title: 'Repair visit update', message: result.message,
       referenceId: result.bookingId, referenceModel: 'BookingService', link: '/book-history', io }).catch(() => {});
     io?.to('admin-room').emit('booking:updated', { bookingId: result.bookingId });

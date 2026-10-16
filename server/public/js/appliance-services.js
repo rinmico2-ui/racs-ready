@@ -76,18 +76,20 @@
       seen.add(hp); return true;
     }).map(row => ({ ...row, hp: Number(row.hp), price: Number(row.price) })).sort((a, b) => a.hp - b.hp);
   }
-  function price(catalog, selection) {
+  function unitPrice(catalog, selection) {
     if (!catalog || catalog.active === false) throw new Error('This service is unavailable.');
     const kind = selection.applianceKind || 'aircon';
     const supported = profile(catalog, kind);
     if (!supported) throw new Error('This service is not available for the selected appliance.');
-    if (!String(selection.brand || '').trim() || ['__other__', '__unknown__'].includes(selection.brand)) throw new Error('Enter the appliance brand.');
     if (kind !== 'aircon') {
       const hp = selection.hp == null || selection.hp === '' ? null : parseHp(selection.hp);
       if (hp !== null && !Number.isFinite(hp)) throw new Error('Choose a valid compressor HP.');
       if (supported.pricingMode === 'hp') {
         const tier = (supported.hpPricing || []).find(row => parseHp(row.hp) === hp);
-        if (!tier || hp === null) throw new Error('Choose a compressor HP with a saved price for this service. If you do not know it, use Repair Service for an inspection.');
+        if (!tier || hp === null) {
+          const error = new Error('Choose a compressor HP with a saved price for this service. If you do not know it, use Repair Service for an inspection.');
+          error.hpNeeded = true; throw error;
+        }
         if (tier.price == null || !Number.isFinite(Number(tier.price)) || Number(tier.price) < 0 || !(Number(tier.durationMinutes) > 0)) throw new Error('Staff must set a price and work time for this compressor HP.');
         return { unitPrice: Number(tier.price), duration: Number(tier.durationMinutes), hp, airconType: null, airconTypeName: null };
       }
@@ -100,11 +102,23 @@
     const tier = airconHpOptions(catalog, selection.airconType).find(row => row.hp === Number(selection.hp));
     if (pricedByHp && (!tier || !(Number(selection.hp) > 0))) throw new Error('This aircon type and HP combination is unavailable. Staff must configure its price.');
     const rawPrice = pricedByHp ? tier.price : catalog.basePrice;
-    const unitPrice = Number(rawPrice);
-    if (rawPrice == null || String(rawPrice).trim() === '' || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('This service does not have a valid catalog price.');
-    return { unitPrice, duration: Number(tier?.durationMinutes || catalog.durationMinutes || catalog.durationRange?.max || 60),
+    const amount = Number(rawPrice);
+    if (rawPrice == null || String(rawPrice).trim() === '' || !Number.isFinite(amount) || amount < 0) throw new Error('This service does not have a valid catalog price.');
+    return { unitPrice: amount, duration: Number(tier?.durationMinutes || catalog.durationMinutes || catalog.durationRange?.max || 60),
       hp: pricedByHp ? Number(selection.hp) : null, airconType: selectedType?.type || selection.airconType || null,
       airconTypeName: selectedType?.name || selection.airconTypeName || null };
+  }
+  function price(catalog, selection) {
+    if (!String(selection.brand || '').trim() || ['__other__', '__unknown__'].includes(selection.brand)) throw new Error('Enter the appliance brand.');
+    return unitPrice(catalog, selection);
+  }
+  function availability(catalog, selection) {
+    try {
+      const pricing = unitPrice(catalog, selection);
+      return { available: true, pricing };
+    } catch (error) {
+      return { available: false, reason: error?.message || 'Service unavailable', hpNeeded: Boolean(error?.hpNeeded) };
+    }
   }
   function isRelocation(service) {
     return service?.slug === 'aircon-relocation' || Boolean(service?.relocation?.scope) || /^aircon relocation$/i.test(service?.name || '');
@@ -160,5 +174,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, airconHpOptions, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

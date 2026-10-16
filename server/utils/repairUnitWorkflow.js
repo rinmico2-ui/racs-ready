@@ -75,24 +75,34 @@ function inspect(document, key, input, { technicianId, catalog = [], laborFees }
   const row = ensureUnits(document).find(row => row.key === key);
   if (!row) fail('Appliance not found.', 404);
   if (!['pending', 'staff_review'].includes(row.unit.repairReview.state)) fail('This quote is already under review or decided. Staff must return it for changes.');
-  const findings = String(input.findings || '').trim(), diagnosis = String(input.diagnosis || '').trim();
+  if (typeof input.findings !== 'string' || typeof input.diagnosis !== 'string') fail('Enter inspection findings and a diagnosis as text.', 400);
+  const findings = input.findings.trim(), diagnosis = input.diagnosis.trim();
   if (findings.length < 10 || findings.length > 2000 || diagnosis.length < 5 || diagnosis.length > 2000) fail('Add inspection findings (10–2000 characters) and a diagnosis (5–2000 characters).', 400);
   if (!Array.isArray(input.parts) || input.parts.length > 50) fail('Provide up to 50 parts for this appliance.', 400);
   const parts = input.parts.map(part => {
+    if (!part || typeof part !== 'object' || Array.isArray(part)) fail('Choose a valid repair part.', 400);
     const quantity = Number(part.quantity);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) fail('Part quantities must be whole numbers from 1 to 999.', 400);
     const stored = part.toolId ? catalog.find(tool => String(tool._id) === String(part.toolId)) : null;
     if (part.toolId && !stored) fail('A selected repair part is unavailable.', 400);
+    if (!stored && (typeof part.name !== 'string' || typeof part.cost !== 'number')) fail('Enter a part name and a confirmed numeric supplier price.', 400);
     const name = String(stored?.itemName || part.name || '').trim();
     if (!name || name.length > 200) fail('Enter a part name of up to 200 characters.', 400);
     return { name, quantity, toolId: stored?._id || null, cost: money(stored ? stored.sellingPrice ?? stored.costPrice ?? 0 : part.cost, 'Part price') };
   });
   const category = String(input.laborCategory || 'standard');
   if (!Object.hasOwn(laborFees, category)) fail('Choose a valid labor category.', 400);
-  const laborCost = money(laborFees[category], 'Labor price');
+  const laborPricingMode = input.laborPricingMode || 'company';
+  if (!['company', 'custom'].includes(laborPricingMode)) fail('Choose company labor pricing or a custom labor price.', 400);
+  if (laborPricingMode === 'custom' && typeof input.laborCost !== 'number') fail('Enter a numeric custom labor price.', 400);
+  const laborPriceReason = typeof input.laborPriceReason === 'string' ? input.laborPriceReason.trim() : '';
+  if (laborPricingMode === 'custom' && (laborPriceReason.length < 5 || laborPriceReason.length > 500)) fail('Explain the custom labor price in 5 to 500 characters.', 400);
+  const laborCost = money(laborPricingMode === 'custom' ? input.laborCost : laborFees[category], 'Labor price');
+  const diagnosisSource = input.diagnosisSource || 'technician';
+  if (!['technician', 'ai_reviewed'].includes(diagnosisSource)) fail('Choose a valid diagnosis source.', 400);
   row.unit.inspection = { findings, completedAt: new Date(), photos: row.unit.inspection?.photos || [] };
-  row.unit.diagnosis = { summary: diagnosis, completedAt: new Date() };
-  row.unit.quotation = { parts, laborCategory: category, laborCost, totalCost: money(parts.reduce((sum, part) => sum + part.cost * part.quantity, laborCost), 'Repair total'), notes: String(input.notes || '').slice(0, 2000) };
+  row.unit.diagnosis = { summary: diagnosis, source: diagnosisSource, completedAt: new Date() };
+  row.unit.quotation = { parts, laborCategory: category, laborCost, laborPricingMode, companyLaborCost: money(laborFees[category], 'Company labor price'), laborPriceReason: laborPricingMode === 'custom' ? laborPriceReason : '', totalCost: money(parts.reduce((sum, part) => sum + part.cost * part.quantity, laborCost), 'Repair total'), notes: String(input.notes || '').slice(0, 2000) };
   row.unit.repairReview = { state: 'staff_review', revision: Number(row.unit.repairReview.revision || 0) + 1, inspectedBy: technicianId };
   row.unit.status = 'inspected';
   document.repairUnitTracking = true;
@@ -165,4 +175,44 @@ function selectCompletedUnits(project, workOrder, line) {
   }
   return selected;
 }
-module.exports = { unitKey, hasRepair, initialUnits, customerUnits, buildUnitGroups, ensureUnits, rows, inspect, summary, submitInspection, review, decide, selectCompletedUnits, fail };
+function canDecideOnSite(booking) {
+  const records = rows(booking);
+  return !booking.isProject && !!booking.inspection?.completedAt && ['pending', 'awaiting_customer', 'approved'].includes(booking.quotationReview?.status)
+    && records.length > 0 && records.every(({ unit }) => ['staff_review', 'customer_review', 'approved', 'declined', 'completed'].includes(unit.repairReview?.state)
+      && unit.quotation && Number.isFinite(Number(unit.quotation.totalCost)) && Number(unit.quotation.totalCost) >= 0);
+}
+function bookingQuotationSummary(booking, now = new Date()) {
+  const approved = rows(booking).filter(row => ['approved', 'completed'].includes(row.unit.repairReview?.state));
+  const aggregate = records => ({ parts: records.flatMap(row => (row.unit.quotation.parts || []).map(part => ({ ...plain(part) }))),
+    laborCost: records.reduce((sum, row) => sum + Number(row.unit.quotation.laborCost || 0), 0), laborCategory: 'standard',
+    totalCost: money(records.reduce((sum, row) => sum + Number(row.unit.quotation.totalCost || 0), 0), 'Repair total') });
+  booking.quotation = { ...aggregate(approved), createdAt: now };
+  booking.approval = { ...plain(booking.approval || {}), status: approved.length ? 'approved' : 'declined', decidedAt: now };
+  booking.balanceAmount = booking.quotation.totalCost + (booking.inspectionFeeCollected && booking.serviceType !== 'mixed' ? 0 : Math.max(0, Number(booking.totalPrice || booking.estimatedFee || 0) - Number(booking.amountPaid || booking.downpaymentAmount || 0)));
+  if (booking.serviceType === 'repair') booking.status = approved.length ? 'repair_approved' : 'repair_declined';
+  for (const item of (booking.services || []).filter(item => item.type === 'repair')) {
+    const allowed = rows({ services: [item] }).filter(row => ['approved', 'completed'].includes(row.unit.repairReview?.state));
+    item.status = allowed.length ? 'repair_approved' : 'repair_declined';
+    item.quotation = { ...aggregate(allowed), status: allowed.length ? 'approved' : 'declined', decidedAt: now };
+  }
+}
+function recordOnSiteDecision(booking, input, { technicianId, actorId, now = new Date(), cancel = false }) {
+  if (!canDecideOnSite(booking)) fail('Submit the complete inspection and quotation before recording the customer decision. Returned quotations need to be corrected and resubmitted.');
+  if (input.customerAgreed !== true) fail('Confirm that the customer heard the quotation and gave this decision on site.', 400);
+  const records = rows(booking), quoted = summary(booking, ['staff_review', 'customer_review', 'approved', 'completed']).totalAmount;
+  if (!Number.isFinite(input.confirmedQuotationTotal) || Math.abs(input.confirmedQuotationTotal - quoted) > 0.001) fail('The quotation total changed. Show the latest price to the customer before recording a decision.');
+  if (cancel && (booking.repairExecution?.status === 'in_progress' || booking.repairPaymentCollected || Number(booking.repairPaymentAmount || 0) > 0 || records.some(row => row.unit.repairReview?.state === 'completed'))) fail('Repair work or repair payment has already started. Ask staff to review cancellation and any refund.');
+  for (const { unit } of records) {
+    if (['declined', 'completed'].includes(unit.repairReview?.state)) continue;
+    if (!cancel && unit.repairReview?.state === 'approved') continue;
+    unit.repairReview = { ...plain(unit.repairReview), state: cancel ? 'declined' : 'approved', decisionMethod: 'on_site',
+      decidedBy: booking.customerId, decidedAt: now, recordedBy: actorId, recordedByTechnician: technicianId,
+      decisionNotes: cancel ? input.reason : 'Customer verbally agreed to the displayed quotation on site.' };
+    if (cancel) unit.status = 'skipped';
+  }
+  booking.quotationReview = { ...plain(booking.quotationReview), ...summary(booking, ['approved', 'completed']), status: 'approved' };
+  bookingQuotationSummary(booking, now);
+  booking.approval = { ...plain(booking.approval), method: 'on_site', recordedBy: actorId, recordedByTechnician: technicianId,
+    confirmedQuotationTotal: quoted, reason: cancel ? input.reason : 'Customer verbal approval recorded on site by the assigned technician.' };
+}
+module.exports = { unitKey, hasRepair, initialUnits, customerUnits, buildUnitGroups, ensureUnits, rows, inspect, summary, submitInspection, review, decide, selectCompletedUnits, canDecideOnSite, bookingQuotationSummary, recordOnSiteDecision, fail };

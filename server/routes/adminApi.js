@@ -5048,8 +5048,8 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
           "partsRequest.resumeStatus": { $in: ["assigned", "accepted", "confirmed", "inspection_scheduled", "inspection_in_progress"] },
         },
         {
-          "repairSchedule.preference": "later",
-          status: { $in: ["repair_approved", "repair_scheduled", "ready_for_repair"] },
+          "repairSchedule.preference": { $in: ["today", "later"] },
+          status: { $in: ["repair_approved", "repair_scheduled", "ready_for_repair", "repair_in_progress"] },
         },
       ],
     })
@@ -5227,7 +5227,8 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         inspectionDate: b.inspection?.completedAt || b.inspection?.scheduledDate,
         preferredDates: b.preferredSchedule?.dates || [],
         preferredTimeWindow: b.preferredSchedule?.timeWindow || 'any',
-        submittedAt: partsReq?.requestedAt || b.partsRequest?.requestedAt || b.preferredSchedule?.submittedAt,
+        submittedAt: b.repairExecution?.startedAt || partsReq?.requestedAt || b.partsRequest?.requestedAt || b.preferredSchedule?.submittedAt,
+        repairTiming: b.repairSchedule?.preference, decisionMethod: b.approval?.method, repairExecution: b.repairExecution,
         status: effectiveStatus,
         scheduledDate: b.schedulingRequest?.scheduledDate || null,
         unitInfo: b.unitInfo,
@@ -5247,7 +5248,7 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
         partsRequestStatus,
         requestPhase,
         requestResumeStatus: requestResumeStatus || null,
-        stockAvailable: partsStatus === 'reserved' || partsStatus === 'none' || effectiveStatus === 'repair_approved',
+        stockAvailable: effectiveStatus === 'repair_in_progress' || partsStatus === 'reserved' || partsStatus === 'none' || effectiveStatus === 'repair_approved',
       });
     }
 
@@ -5746,32 +5747,33 @@ router.get("/repair-scheduling-queue/stats", async (req, res, next) => {
   try {
     const BookingService = require("../models/BookingService");
 
-    const [pendingCount, scheduledCount, totalCount, waitingPartsCount] = await Promise.all([
+    const [pendingCount, scheduledCount, totalCount, waitingPartsCount, inProgressCount] = await Promise.all([
       BookingService.countDocuments({
-        "repairSchedule.preference": "later",
+        "repairSchedule.preference": { $in: ["today", "later"] },
         status: { $in: ["repair_approved", "ready_for_repair"] },
       }),
       BookingService.countDocuments({
-        "repairSchedule.preference": "later",
+        "repairSchedule.preference": { $in: ["today", "later"] },
         status: "repair_scheduled",
       }),
       BookingService.countDocuments({
         $or: [
           { status: "waiting_parts" },
           {
-            "repairSchedule.preference": "later",
-            status: { $in: ["repair_approved", "ready_for_repair", "repair_scheduled"] },
+            "repairSchedule.preference": { $in: ["today", "later"] },
+            status: { $in: ["repair_approved", "ready_for_repair", "repair_scheduled", "repair_in_progress"] },
           },
         ],
       }),
       BookingService.countDocuments({ status: "waiting_parts" }),
+      BookingService.countDocuments({ "repairSchedule.preference": "today", status: "repair_in_progress" }),
     ]);
 
     return res.json({
       pendingScheduling: pendingCount,
       scheduled: scheduledCount,
       total: totalCount,
-      waitingParts: waitingPartsCount,
+      waitingParts: waitingPartsCount, inProgress: inProgressCount,
     });
   } catch (err) {
     next(err);

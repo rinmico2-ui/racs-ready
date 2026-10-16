@@ -157,3 +157,26 @@ test('older technician actions cannot skip customer decisions or individual repa
   f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Replaced capacitor and passed the cooling test.'})).error);
   assert.equal((await check('complete-repair')).passed,true);
 });
+
+test('Submit inspection and quotation saves the final draft and notifies both customer and staff', async t => {
+  const f = fixture(t, true);
+  const body = { findings: 'The capacitor is below the rated capacitance.', diagnosis: 'Replace the faulty capacitor', parts: [], laborCategory: 'minor', laborPricingMode: 'custom', laborCost: 650, laborPriceReason: 'Includes wiring repair and electrical tests.' };
+  assert.ifError((await f.call('inspect', 'technician', { ...body, key: 'G1-U001' })).error);
+  const result = await f.call('inspect-and-submit', 'technician', { ...body, key: 'G1-U002' });
+  assert.ifError(result.error); assert.equal(result.result.submitted, true); assert.equal(result.result.canPlanRepair, true);
+  assert.equal(f.booking.quotationReview.totalAmount, 1300); assert.equal(f.booking.services[0].units[1].quotation.laborPricingMode, 'custom');
+  assert.ok(notifications.some(row => row.role === 'admin' && /quotation/i.test(row.title)));
+  assert.ok(notifications.some(row => String(row.userId) === String(f.customerId) && /quotation/i.test(row.title)));
+});
+test('AI diagnostic can use the recorded customer problem first, or the technician own diagnosis', async t => {
+  const f = fixture(t, true); let captured;
+  t.mock.method(require('../utils/aiTechnicianAssistant'), 'generateAssistantReport', async input => { captured = input; return { technicianAssistant: { summary: 'Check the compressor circuit.', repairComplexity: 'high', possibleParts: ['Capacitor'] } }; });
+  const handler = router.stack.find(layer => layer.route?.path === '/:scope/:id/ai-diagnostic').route.stack.at(-1).handle;
+  for (const diagnosis of ['', 'The compressor starting circuit has failed.']) {
+    let result, error;
+    await handler({ params: { scope: 'booking', id: String(f.booking._id) }, user: { role: 'technician', _id: f.techUser }, body: { key: 'G1-U001', findings: '', diagnosis } }, { json: value => { result = value; } }, value => { error = value; });
+    assert.ifError(error); assert.equal(result.quoteSuggestion.laborCost, 800); assert.equal(result.quoteSuggestion.parts[0].requiresPrice, true);
+    if (diagnosis) assert.ok(captured.problemDescription.includes(diagnosis));
+  }
+  assert.equal(f.writes.length, 0); assert.notEqual(f.booking.approval.status, 'approved');
+});
