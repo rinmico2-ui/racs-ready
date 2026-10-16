@@ -40,6 +40,24 @@ test('repair uses the shared builder with catalog inspection fees and produces r
   assert.equal(rows[0].problemDescription, f.fields.assistanceNotes.value); assert.equal(base.unitCount(rows), 1);
   options.commit(rows, null); assert.equal(f.writes.length, 1); assert.equal(f.writes[0][0].model, 'MODEL-123');
 });
+
+test('repair availability uses the inspection catalog rather than the core appliance pricing validator', () => {
+  const f=fixture(),{adapter}=f.captured.options;
+  const selected={applianceKind:adapter.kinds[0],quantity:1,hp:1,brand:'Carrier'};
+  const result=adapter.availability(f.captured.services[0],selected);
+  assert.equal(result.available,true);assert.equal(result.pricing.unitPrice,700);assert.equal(result.pricing.duration,120);
+  assert.equal(adapter.price(f.captured.services[0],selected).unitPrice,result.pricing.unitPrice);
+  assert.match(f.captured.options.priceNotice(selected,{unknown:false}).value,/700/);
+  assert.match(f.captured.options.priceNotice(selected,{unknown:true}).value,/Pending staff confirmation/);
+  assert.equal(adapter.availability(f.captured.services[0],{...selected,applianceKind:'missing'}).available,false);
+});
+
+test('inspection fee display preserves configured, default and free rates and rejects corrupt prices', () => {
+  assert.equal(api.inspectionFee({inspectionFee:650},400),650);
+  assert.equal(api.inspectionFee({},400),400);assert.equal(api.inspectionFee({inspectionFee:''},400),400);
+  assert.equal(api.inspectionFee({inspectionFee:0},400),0);
+  for(const value of [-1,Infinity,NaN,true,{},'bad',100001])assert.throws(()=>api.inspectionFee({inspectionFee:value},400),/fee is unavailable/);
+});
 test('repair staff requests carry the selected appliance and problem without hidden model, brand or Core service fields', async () => {
   const f = fixture(), options = f.captured.options;
   await options.assistance({ applianceKind: options.adapter.kinds[0], serviceId: 'repair-inspection', brand: 'STALE', model: 'STALE', notes: 'The appliance does not cool anymore.', quantity: 2, clientRequestId: 'request-token' }, []);

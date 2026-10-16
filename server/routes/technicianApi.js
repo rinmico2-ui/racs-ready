@@ -4830,9 +4830,10 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     if (maintenancePaymentSession) paymentQuery.session(maintenancePaymentSession);
     const existingPayments = await paymentQuery.lean();
     const { reconcileBookingPayments } = require("../utils/paymentSummary");
-    const reconciliation = reconcileBookingPayments(booking, existingPayments);
-    const hasTraceableMismatch = reconciliation.hasLedgerMismatch && existingPayments.length > 0;
-    if (booking.balanceCollected && !hasTraceableMismatch) {
+    const calculatedPayment = require('../public/js/repair-visit-payment').balance(booking);
+    const reconciliation = reconcileBookingPayments({ totalPrice:calculatedPayment.total, amountPaid:booking.amountPaid, balanceAmount:booking.balanceAmount, balanceCollected:booking.balanceCollected, paymentStatus:booking.paymentStatus }, existingPayments);
+    const currentDue = existingPayments.length ? reconciliation.outstandingFromLedger : calculatedPayment.amountDue;
+    if (currentDue <= 0.01) {
       return res.json({
         message: "Payment was already recorded. Continue to proof of completion.",
         alreadyCollected: true,
@@ -4852,16 +4853,9 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     if (["gcash", "bank"].includes(paymentMethod) && (!String(reference || "").trim() || !proofUrl)) {
       return res.status(400).json({ error: "Reference number and receipt screenshot are required." });
     }
-    // Prefer the ledger-derived shortage when an older record says "settled"
-    // but its traceable transactions do not cover the booking total.
-    const storedBalance = Number(booking.balanceAmount);
-    const calculatedBalance = Math.max(
-      0,
-      Number(booking.totalPrice || booking.estimatedFee || 0) - Number(booking.amountPaid || 0),
-    );
-    const due = hasTraceableMismatch
-      ? reconciliation.outstandingFromLedger
-      : Math.max(Number.isFinite(storedBalance) ? storedBalance : 0, calculatedBalance);
+    // Traceable payments determine the balance; legacy bookings fall back to
+    // the saved amount paid, rather than a potentially stale collection flag.
+    const due = currentDue;
     if (due <= 0) {
       return res.status(409).json({ error: "This booking has no remaining balance to collect." });
     }
@@ -4888,7 +4882,7 @@ router.post("/assignments/:id/collect-payment", async (req, res, next) => {
     const payment = maintenancePaymentSession
       ? (await Payment.create([paymentData], { session: maintenancePaymentSession }))[0]
       : await Payment.create(paymentData);
-    booking.amountPaid = (hasTraceableMismatch ? reconciliation.ledgerCollected : Number(booking.amountPaid || 0)) + value;
+    booking.amountPaid = (existingPayments.length ? reconciliation.ledgerCollected : calculatedPayment.amountPaid) + value;
     booking.balanceAmount = Math.max(0, due - value);
     booking.balanceCollected = booking.balanceAmount === 0;
     if (booking.balanceCollected) {
@@ -8789,13 +8783,14 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
     if (!["repair_in_progress", "arrived", "in-progress"].includes(booking.status)) {
       return res.status(400).json({ error: "Can only collect payment when repair is in progress." });
     }
-    if (booking.repairPaymentCollected) {
+    const currentBalance = require('../public/js/repair-visit-payment').balance(booking);
+    if (currentBalance.paidInFull) {
       return res.json({
         success: true,
         alreadyCollected: true,
         message: "Repair payment was already recorded. Continue to proof of completion.",
         booking: {
-          repairPaymentCollected: true,
+          repairPaymentCollected: booking.repairPaymentCollected,
           repairPaymentAmount: booking.repairPaymentAmount,
           repairPaymentMethod: booking.repairPaymentMethod,
           amountPaid: booking.amountPaid,
@@ -8973,9 +8968,9 @@ router.post("/appointments/:id/complete-repair", async (req, res, next) => {
     }
 
     // Require payment collection before completing repair
-    const paymentRequired = (booking.quotation?.totalCost || 0) + (booking.travelFare || 0);
-    const paymentSettled = Boolean(booking.repairPaymentCollected || booking.balanceCollected);
-    if (paymentRequired > 0 && !paymentSettled) {
+    const paymentRequired = Number(booking.quotation?.totalCost || 0);
+    const paymentSettled = require('../public/js/repair-visit-payment').balance(booking).paidInFull;
+    if (!paymentSettled) {
       return res.status(400).json({ error: "Payment must be collected before completing the repair." });
     }
 

@@ -22,7 +22,7 @@ function fixture(options = {}) {
     async abortTransaction() { stagedPayment = undefined; this.active = false; events.push("abort"); }, async endSession() { events.push("end"); } };
   const booking = { _id: bookingId, status: options.cancelled ? "cancelled" : "in_progress", serviceType: "core", paymentMethod: "cod",
     maintenance: { isMaintenance: true, paymentOnSite: true }, totalPrice: 1450, estimatedFee: 1450, downpaymentAmount: 0,
-    amountPaid: options.alreadyPaid ? 1450 : 0, balanceAmount: options.alreadyPaid ? 0 : 1450, balanceCollected: Boolean(options.alreadyPaid),
+    amountPaid: options.alreadyPaid || options.paidWithoutFlag ? 1450 : 0, balanceAmount: options.alreadyPaid ? 0 : 1450, balanceCollected: Boolean(options.alreadyPaid),
     paymentStatus: options.alreadyPaid ? "waiting_for_remittance" : "pending", statusHistory: [],
     async save(opts) {
       assert.equal(opts.session, session);
@@ -35,9 +35,10 @@ function fixture(options = {}) {
     require(name) {
       if (name.endsWith("/Assignment")) return { findOne(filter) { filters.push(filter); return query(options.foreign ? null : assignment); } };
       if (name.endsWith("/BookingService")) return { findById: () => query(booking) };
-      if (name.endsWith("/Payment")) return { find: () => query(options.alreadyPaid ? [{ amount: 1450, type: "final", status: "waiting_for_remittance" }] : []),
+      if (name.endsWith("/Payment")) return { find: () => query(options.payments || (options.alreadyPaid ? [{ amount: 1450, type: "final", status: "waiting_for_remittance" }] : [])),
         async create(rows, opts) { assert.ok(Array.isArray(rows)); assert.equal(opts.session, session); stagedPayment = { _id: id, ...rows[0] }; events.push("payment"); return [stagedPayment]; } };
       if (name.endsWith("/paymentSummary")) return { reconcileBookingPayments };
+      if (name.endsWith("/repair-visit-payment")) return require('../public/js/repair-visit-payment');
       throw Error(name);
     }, router: { post(...args) { handler = args.at(-1); } },
   };
@@ -76,6 +77,21 @@ test("maintenance payment requires the complete balance and customer payment evi
 test("maintenance payment retries do not collect an already recorded final balance again", async () => {
   const f = fixture({ alreadyPaid: true }), res = await f.invoke();
   assert.equal(res.statusCode, 200); assert.equal(res.body.alreadyCollected, true); assert.equal(f.payment, undefined);
+});
+
+test("verified full payments and legacy paid amounts do not require a collection flag", async () => {
+  for (const options of [{ paidWithoutFlag: true }, { payments: [{ amount: 1450, status: 'verified', type: 'full' }] }]) {
+    const f = fixture(options), res = await f.invoke();
+    assert.equal(res.error, undefined); assert.equal(res.statusCode, 200); assert.equal(res.body.alreadyCollected, true);
+    assert.equal(f.payment, undefined); assert.equal(f.committed, false);
+  }
+});
+
+test("a partial verified ledger is credited even if the saved paid amount is stale", async () => {
+  const f = fixture({ payments: [{ amount: 1000, status: 'verified', type: 'downpayment' }] });
+  const res = await f.invoke({ amount: 450 });
+  assert.equal(res.error, undefined); assert.equal(res.statusCode, 201); assert.equal(f.payment.amount, 450);
+  assert.equal(f.booking.amountPaid, 1450); assert.equal(f.booking.balanceAmount, 0);
 });
 
 test("a failed maintenance payment save rolls back its receipt and asks the technician to refresh", async () => {

@@ -6,7 +6,12 @@ aircon core service. It also adds split-suspended and cassette tables where thos
 requested types are absent. Archived services and refrigeration profiles remain
 unchanged. No prices are updated automatically on deployment.
 
-Every saved price is retained. Missing HP prices are **proposals** calculated
+Every saved price is retained. Under the owner's October 17 pricing rule, missing
+suspended/cassette capacities with an exact saved split-type match use that
+price and work time. Customer booking already applies this rule through the
+shared pricing helper; the script is not required to enable those matches.
+
+Other missing HP prices are **proposals** calculated
 from that type's existing price trend and rounded to the nearest PHP 50. Where
 an entire suspended/cassette table is absent, the proposal uses that service's
 split-type table as its base. New durations follow saved duration trends and are

@@ -20,6 +20,12 @@
           kind: `repair_${category.slug}_${unit.value}` })));
   }
   const identity = row => String(row.id || row._id || '');
+  const money = value => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value);
+  function inspectionFee(unit, defaultFee = 500) {
+    const value = unit?.inspectionFee == null || unit.inspectionFee === '' ? defaultFee : unit.inspectionFee;
+    if (value == null || typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 100000) throw Error('The inspection fee is unavailable. Please contact staff before booking.');
+    return Number(value);
+  }
   function problemSuggestions(unit) {
     const cooling = /aircon|air conditioning|refrigerator|freezer/i.test(`${unit?.category || ''} ${unit?.value || ''}`);
     const washing = /washing|washer|dryer/i.test(unit?.value || '');
@@ -58,7 +64,10 @@
       root.querySelectorAll('[data-repair-category]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.repairCategory === selectedCategory)));
       root.querySelector('[data-repair-types]').hidden = !selectedCategory;
       root.querySelector('[data-repair-type-grid]').innerHTML = units.filter(unit => unit.category === selectedCategory)
-        .map(unit => `<button type="button" class="cab-repair-type" data-repair-kind="${escape(unit.kind)}" aria-pressed="${unit.kind === selected}"><i class="bi ${icon(unit.icon, unit.categoryIcon)}" aria-hidden="true"></i><span>${escape(unit.label)}</span><i class="bi bi-check-circle-fill cab-repair-check" aria-hidden="true"></i></button>`).join('');
+        .map(unit => {
+          let fee; try { fee = money(inspectionFee(unit, hooks.defaultInspectionFee)); } catch (_) { fee = 'Confirm fee with staff'; }
+          return `<button type="button" class="cab-repair-type" data-repair-kind="${escape(unit.kind)}" aria-pressed="${unit.kind === selected}"><i class="bi ${icon(unit.icon, unit.categoryIcon)}" aria-hidden="true"></i><span><strong>${escape(unit.label)}</strong><small class="cab-repair-type-fee">Inspection fee <b>${escape(fee)}</b></small></span><i class="bi bi-check-circle-fill cab-repair-check" aria-hidden="true"></i></button>`;
+        }).join('');
     }
     function mount(options) {
       hooks = options; units = catalog(options.categories);
@@ -69,14 +78,18 @@
       const pricing = selected => {
         const unit = selectedUnit(selected.applianceKind);
         if (!unit) throw Error('Choose an available repair appliance.');
-        const override = unit.inspectionFee == null || unit.inspectionFee === '' ? NaN : Number(unit.inspectionFee);
-        const unitPrice = Number.isFinite(override) && override >= 0 ? override : Number(options.defaultInspectionFee ?? 500);
+        const unitPrice = inspectionFee(unit, options.defaultInspectionFee);
         return { unitPrice, totalPrice: unitPrice * Number(selected.quantity), duration: Number(options.inspectionDuration) || 90,
           hp: unit.category === 'aircon' && selected.hp != null ? Number(selected.hp) : null, airconType: unit.category === 'aircon' ? unit.value : null };
       };
       const adapter = { ...base, kinds: units.map(unit => unit.kind), labels: Object.fromEntries(units.map(unit => [unit.kind, unit.label])),
         profile: (_service, kind) => selectedUnit(kind) ? { pricingMode: 'fixed', enabled: true } : null,
-        price: (_service, selected) => pricing(selected), needsVerification: () => false, isRelocation: () => false,
+        price: (_service, selected) => pricing(selected), unitPrice: (_service, selected) => pricing(selected),
+        availability: (_service, selected) => {
+          try { return { available: true, pricing: pricing(selected) }; }
+          catch (error) { return { available: false, reason: error.message }; }
+        },
+        needsVerification: () => false, isRelocation: () => false,
         remainingUnits: (rows, editingId) => Math.max(0, 40 - base.unitCount(rows.filter(row => !editingId || identity(row) !== String(editingId)))),
         serviceLines: (_catalog, selected, _ids, editingId) => {
           const unit = selectedUnit(selected.applianceKind), price = pricing(selected);
@@ -91,6 +104,12 @@
       };
       builder = window.CoreApplianceBooking.create();
       builder.mount([service], { ...options, repair: true, adapter, applianceChoices: choiceMarkup(), syncApplianceChoices: syncChoices,
+        priceNotice: (selected, { unknown }) => {
+          const unit = selectedUnit(selected.applianceKind); if (!unit) return null;
+          if (unknown) return { label: 'Inspection fee', value: 'Pending staff confirmation', note: 'Staff will identify the unit and confirm the fee before you book.' };
+          try { return { label: `${unit.label} inspection`, value: money(inspectionFee(unit, options.defaultInspectionFee)), note: 'For inspection only. Travel is added once for the visit; repair labor and parts are quoted afterward.' }; }
+          catch (error) { return { label: 'Inspection fee', value: 'Fee unavailable', note: error.message }; }
+        },
         problemSuggestions: selected => problemSuggestions(selectedUnit(selected.applianceKind)), toggleProblem,
         isAirconKind: kind => selectedUnit(kind)?.category === 'aircon', airconTypeFor: kind => selectedUnit(kind)?.category === 'aircon' ? selectedUnit(kind).value : null,
         state: { get selectedServices() { return options.state.selectedServices; }, applianceDraft: options.draft || null },
@@ -138,5 +157,5 @@
     return { mount, edit, sync: () => builder?.sync(), pending: () => builder?.pending() || false,
       start: () => builder?.start(), reset: () => builder?.reset() };
   }
-  return { create, catalog, problemSuggestions, toggleProblem };
+  return { create, catalog, inspectionFee, problemSuggestions, toggleProblem };
 });

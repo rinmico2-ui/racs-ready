@@ -7051,7 +7051,7 @@
       }
       if (a.status === 'in_progress' && (isRepair || isMixedAssignment(a)) && (['inspection', 'repair-service'].includes(pageId) || (isRepair && pageId === 'overview' && a.bookingId?.repairUnitTracking && ['pending','awaiting_customer'].includes(a.bookingId?.quotationReview?.status)))) {
         const repairs = `<button type="button" class="btn btn-success" onclick="openRepairUnits('booking','${bId}')">Inspect and quote</button>`;
-        const collect = a.bookingId?.quotationReview && !a.bookingId?.inspectionFeeCollected
+        const collect = a.bookingId?.quotationReview && !window.RepairVisitPayment.summary(a.bookingId).settled
           ? `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'Inspection recorded per appliance','Diagnosis recorded per appliance',()=>refreshOpenAssignmentDetail('inspection'))">Collect inspection fee</button>` : '';
         return repairs + collect;
       }
@@ -7224,7 +7224,7 @@ if (a.status === 'accepted') {
             }
             if (bs === 'repair_declined') {
               const hasFee = (a.bookingId?.initialCost || 0) > 0;
-              if (hasFee && !a.balanceCollected) {
+              if (hasFee && !window.RepairVisitPayment.summary(a.bookingId || a).settled) {
                 return `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'${esc(a.bookingId?.inspection?.findings || '')}','${esc(a.bookingId?.diagnosis?.findings || '')}',()=>refreshOpenAssignmentDetail('inspection'));"><i class="bi bi-cash me-2"></i>Collect Inspection Fee</button>`;
               }
               return `<span class="badge bg-danger" style="font-size:0.78rem;padding:8px 16px;"><i class="bi bi-x-circle me-1"></i>Repair Declined</span>`;
@@ -7237,15 +7237,9 @@ if (a.status === 'accepted') {
 
             // Phase 2 Execution (At Site)
             if (bs === 'repair_in_progress') {
-              const qTotal = a.bookingId?.quotation?.totalCost || 0;
-              const paymentDue = isMixedAssignment(a)
-                ? Number(a.bookingId?.balanceAmount ?? a.balanceAmount ?? qTotal)
-                : qTotal;
-              const repairPaymentSettled = Boolean(
-                a.bookingId?.repairPaymentCollected || a.repairPaymentCollected
-                || a.bookingId?.balanceCollected || a.balanceCollected
-              );
-              const needsRepairPay = !repairPaymentSettled && paymentDue > 0;
+              const payment = window.RepairVisitPayment.balance(a.bookingId || a);
+              const paymentDue = payment.amountDue;
+              const needsRepairPay = !payment.paidInFull;
               if (needsRepairPay) {
                 return `<button type="button" class="btn btn-warning" onclick="collectRepairPayment('${bId}',${paymentDue});"><i class="bi bi-cash me-2"></i>Collect Booking Balance (₱${paymentDue.toLocaleString()})</button>`;
               }
@@ -7301,13 +7295,10 @@ if (a.status === 'accepted') {
           }
           if (bs === 'repair_in_progress') {
             const qTotal = a.bookingId?.quotation?.totalCost || 0;
-            const repairPaymentSettled = Boolean(
-              a.bookingId?.repairPaymentCollected || a.repairPaymentCollected
-              || a.bookingId?.balanceCollected || a.balanceCollected
-            );
-            const needsRepairPay = !repairPaymentSettled && qTotal > 0;
+            const repairBalance = window.RepairVisitPayment.balance(a.bookingId || a);
+            const needsRepairPay = !repairBalance.paidInFull;
             if (needsRepairPay) {
-              return `<button type="button" class="btn btn-warning" onclick="collectRepairPayment('${bId}',${qTotal});"><i class="bi bi-cash me-2"></i>Collect Final Payment (₱${qTotal.toLocaleString()})</button>`;
+              return `<button type="button" class="btn btn-warning" onclick="collectRepairPayment('${bId}',${qTotal});"><i class="bi bi-cash me-2"></i>Collect Final Payment (₱${repairBalance.amountDue.toLocaleString()})</button>`;
             }
             return `<button type="button" class="btn btn-success" onclick="completeRepair('${bId}');"><i class="bi bi-camera me-2"></i>Proof of Completion</button>`;
           }
@@ -7316,7 +7307,7 @@ if (a.status === 'accepted') {
           }
           if (bs === 'repair_declined') {
             const hasFee = (a.bookingId?.initialCost || 0) > 0;
-            if (hasFee && !a.balanceCollected) {
+            if (hasFee && !window.RepairVisitPayment.summary(a.bookingId || a).settled) {
               return `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'${esc(a.bookingId?.inspection?.findings || '')}','${esc(a.bookingId?.diagnosis?.findings || '')}',()=>refreshOpenAssignmentDetail('inspection'));"><i class="bi bi-cash me-2"></i>Collect Inspection Fee</button>`;
             }
             return `<span class="badge bg-danger" style="font-size:0.78rem;padding:8px 16px;"><i class="bi bi-x-circle me-1"></i>Repair Declined</span>`;
@@ -7334,7 +7325,7 @@ if (a.status === 'accepted') {
           const icons = { en_route: 'bi-sign-turn-right', on_site: 'bi-geo-alt', in_progress: 'bi-tools', completed: 'bi-check-circle' };
           const canCancel = ['accepted', 'en_route', 'on_site'].includes(a.status);
           const isCompleteStep = a.status === 'in_progress';
-          const needsPayment = !a.balanceCollected && (a.balanceAmount || 0) > 0;
+          const needsPayment = !window.RepairVisitPayment.balance(a.bookingId && typeof a.bookingId==='object' ? a.bookingId : a).paidInFull;
           const nextAction = next[a.status];
           const isEnRouteStep = nextAction === 'en_route';
           const enRouteLocked = isEnRouteStep && !canEnRoute(a);
@@ -7407,7 +7398,7 @@ if (a.status === 'accepted') {
       }
 
       if (pageId === 'invoice') {
-        const needsPay = !a.balanceCollected && (a.balanceAmount || 0) > 0;
+        const needsPay = !window.RepairVisitPayment.balance(a.bookingId && typeof a.bookingId==='object' ? a.bookingId : a).paidInFull;
         if (needsPay) {
           return `<button type="button" class="btn btn-warning" onclick="openCollectPaymentModal('${a._id}',window._detailAssignment,true);"><i class="bi bi-cash me-2"></i>Collect ₱${Number(a.balanceAmount).toLocaleString()}</button>`;
         }
@@ -8726,7 +8717,7 @@ ${isRepair ? `
           if (hideCardBtns) {
             return `<button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();showDetail('${a._id}')"><i class="bi bi-eye me-1"></i>View Details</button>`;
           }
-          const needsPayment2 = !a.balanceCollected && (a.balanceAmount || 0) > 0;
+          const needsPayment2 = !window.RepairVisitPayment.balance(a.bookingId && typeof a.bookingId==='object' ? a.bookingId : a).paidInFull;
           if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<span class="badge bg-warning text-dark">Awaiting next visit schedule</span>';
           let btns = '';
           if (a.status === 'pending_acceptance') {
@@ -10056,9 +10047,7 @@ function preparationEscapeHtml(value) {
           showNotification({ type: 'error', title: 'Assignment Not Found', message: 'Refresh the page and try again.', duration: 5000 });
           return;
         }
-        const needsPayment = !assignment.balanceCollected && Number(assignment.balanceAmount || 0) > 0;
-        if (needsPayment) openCollectPaymentModal(id, assignment, true);
-        else openProofModal(id, assignment.customerName, assignment.serviceName, assignment.totalPrice || assignment.estimatedFee || 0);
+        openCollectPaymentModal(id, assignment, true);
         return;
       }
       // ── Front-end En Route Time Guard ────────────────────────────────────
@@ -10615,6 +10604,20 @@ function preparationEscapeHtml(value) {
     let collectSubmitting = false;
 
     window.openCollectPaymentModal = async function (id, assignment, autoComplete = false, postPaymentAction = null) {
+      const bookingReference = assignment?.bookingId?._id || assignment?.bookingId;
+      if (bookingReference && typeof bookingReference !== 'object') {
+        try {
+          const response = await fetch('/api/technician/appointments/'+encodeURIComponent(bookingReference),{credentials:'same-origin'});
+          const detail = await response.json(); if(!response.ok)throw Error(detail.error || 'Could not verify the current balance.');
+          assignment = {...assignment,bookingId:detail.booking || detail};
+        } catch(error){await Swal.fire('Payment check unavailable',error.message,'error');return;}
+      }
+      const currentPayment = window.RepairVisitPayment.balance(assignment?.bookingId && typeof assignment.bookingId==='object' ? assignment.bookingId : assignment);
+      if (currentPayment.paidInFull) {
+        if(postPaymentAction)return postPaymentAction();
+        if(autoComplete)return openProofModal(id,assignment.customerName || '',assignment.serviceName || '',currentPayment.total,true);
+        await Swal.fire({icon:'success',title:'Paid in full',text:'Payment is already recorded. No collection is needed.',confirmButtonText:'Done'});return;
+      }
       // Opening a modal is never a status transition. When `autoComplete` is
       // requested, payment is saved first and completion is committed only by
       // the proof-of-completion endpoint after the technician submits proof.
@@ -10634,10 +10637,10 @@ function preparationEscapeHtml(value) {
       if (!total) total = assignment.totalPrice || assignment.estimatedFee || _b.totalPrice || _b.totalCost || 0;
       // Downpayment already collected at booking — show it so the technician
       // isn't confused about the remaining balance to collect on-site.
-      const downpayment = _isRepairPay ? Number(_b.amountPaid || 0) : Number(_b.downpaymentAmount || assignment.downpaymentAmount || 0);
+      const downpayment = currentPayment.amountPaid;
       const dpRow = document.getElementById('paymentDownpaymentRow');
       const dpEl = document.getElementById('paymentDownpayment');
-      document.getElementById('paymentCreditLabel').textContent = _isRepairPay ? 'Less: Recorded payments:' : 'Less: Downpayment:';
+      document.getElementById('paymentCreditLabel').textContent = 'Less: Recorded payments:';
       if (downpayment > 0) {
         dpRow.style.display = 'flex';
         dpEl.textContent = '-₱' + downpayment.toLocaleString();
@@ -10645,11 +10648,7 @@ function preparationEscapeHtml(value) {
         dpRow.style.display = 'none';
         dpEl.textContent = '-₱0';
       }
-      // Remaining balance = stored balance, but fall back to (total - downpayment)
-      // so the technician collects only what's actually left.
-      const storedBalance = Number(assignment.balanceAmount ?? _b.balanceAmount);
-      const calculatedBalance = Math.max(0, total - Number(_b.amountPaid ?? assignment.amountPaid ?? downpayment));
-      let balance = _isRepairPay ? calculatedBalance : Math.max(Number.isFinite(storedBalance) ? storedBalance : 0, calculatedBalance);
+      let balance = currentPayment.amountDue;
       document.getElementById('paymentTotalFee').textContent = '₱' + total.toLocaleString();
       document.getElementById('paymentBalanceDue').textContent = '₱' + balance.toLocaleString();
       document.getElementById('paymentPartsTotal').textContent = '₱0';
@@ -10917,6 +10916,8 @@ function preparationEscapeHtml(value) {
         Swal.fire('Payment Unavailable', error.message, 'error');
         return;
       }
+      const currentBalance = window.RepairVisitPayment.balance(paymentBooking);
+      if(currentBalance.paidInFull){await Swal.fire({icon:'success',title:'Paid in full',text:'Payment is recorded. Continue to completion proof.',confirmButtonText:'Continue'});return completeRepair(bookingId);}
       const repairTotal = Number(paymentBooking.quotation?.totalCost || totalAmount) || 0;
       const firstVisitBill = window.RepairVisitPayment.summary(paymentBooking);
       const isMixedPayment = firstVisitBill.isMixedBooking;
@@ -11073,17 +11074,23 @@ function preparationEscapeHtml(value) {
       return technicianAftercarePolicyPromise;
     }
 
-    window.openProofModal = async function (id, customerName, serviceName, fee, paymentJustCollected = false) {
-      // Block if balance not collected (unless payment was just collected in the flow)
+    window.openProofModal = async function (id, customerName, serviceName, fee, paymentChecked = false) {
+      // Check current payment unless the collection flow has just verified it.
       let a = allItems.find(item => String(item._id) === String(id));
       if (!a && window._detailAssignment && String(window._detailAssignment._id) === String(id)) {
         a = window._detailAssignment;
       }
-      const balanceStillDue = a && !a.balanceCollected && (a.balanceAmount || 0) > 0;
-      if (!paymentJustCollected && balanceStillDue) {
-        showNotification({ type: 'warning', title: 'Payment Required', message: 'You must collect the remaining balance before completing this job.', duration: 5000 });
-        openCollectPaymentModal(id, a, true);
-        return;
+      if (!paymentChecked && a) {
+        try {
+          const bookingId = a.bookingId?._id || a.bookingId;
+          const response = await fetch('/api/technician/appointments/'+encodeURIComponent(bookingId),{credentials:'same-origin'});
+          const detail = await response.json();if(!response.ok)throw Error(detail.error || 'Could not check the latest payment.');
+          a = {...a,bookingId:detail.booking || detail};
+        }catch(error){showNotification({type:'error',title:'Payment check unavailable',message:error.message,duration:5000});return;}
+        if (!window.RepairVisitPayment.balance(a.bookingId).paidInFull) {
+          openCollectPaymentModal(id,a,true);
+          return;
+        }
       }
       proofTargetId = id;
       proofFile = null;
@@ -16056,7 +16063,12 @@ function preparationEscapeHtml(value) {
   let _inspPayRequired = false;
   let _inspPayCredit = 0;
 
-  function openInspectionPaymentModal(bookingId, assignment, findings, diagnosis, proceedFn, required = false) {
+  async function openInspectionPaymentModal(bookingId, assignment, findings, diagnosis, proceedFn, required = false) {
+    try {
+      const response = await fetch('/api/technician/appointments/'+encodeURIComponent(bookingId),{credentials:'same-origin'});
+      const detail = await response.json();if(!response.ok)throw Error(detail.error || 'Could not verify the current visit payment.');
+      assignment={...assignment,bookingId:detail.booking || detail};
+    }catch(error){await Swal.fire('Payment check unavailable',error.message,'error');return;}
     _inspPayBookingId = bookingId;
     _inspPayAssignment = assignment;
     _inspPayProceedFn = proceedFn;
@@ -16064,6 +16076,9 @@ function preparationEscapeHtml(value) {
     _inspPayRequired = Boolean(required);
 
     const booking = assignment?.bookingId || assignment || {};
+    if(window.RepairVisitPayment.summary(booking).settled){
+      if(proceedFn)proceedFn();else Swal.fire({icon:'success',title:'Visit payment recorded',text:'There is no first-visit balance to collect.'});return;
+    }
     const serviceName = assignment?.serviceName || 'Inspection Service';
     const customerName = assignment?.customerName || 'Customer';
     const address = assignment?.address || '';
@@ -18159,25 +18174,16 @@ function preparationEscapeHtml(value) {
       const detail = await res.json();
       const booking = detail.booking || detail;
 
-      const qTotal = booking.quotation?.totalCost || 0;
-      const repairItems = Array.isArray(booking.services) ? booking.services : [];
-      const isMixedBooking = booking.serviceType === 'mixed'
-        || (repairItems.some(item => item.type === 'core') && repairItems.some(item => item.type === 'repair'));
-      const paymentDue = isMixedBooking ? Number(booking.balanceAmount || 0) : qTotal;
-      // Older repair collections may have been saved through the shared final-
-      // balance endpoint. A fully collected balance is authoritative payment
-      // evidence and must not trigger a second repair charge.
-      const repairPaymentSettled = Boolean(booking.repairPaymentCollected || booking.balanceCollected);
-      const needsRepairPay = !repairPaymentSettled && paymentDue > 0;
-      const needsPayment = !booking.balanceCollected && (booking.balanceAmount || 0) > 0;
+      if(!res.ok)throw Error(detail.error || 'Could not verify the latest payment.');
+      const payment = window.RepairVisitPayment.balance(booking);
+      const paymentDue = payment.amountDue;
+      const needsRepairPay = !payment.paidInFull;
 
       // Step 1: If repair quotation payment needed, collect that first
       if (needsRepairPay) {
         Swal.fire({
-          title: isMixedBooking ? 'Collect Booking Balance' : 'Collect Repair Payment',
-          html: isMixedBooking
-            ? `The shared Core + Repair booking balance of <strong>₱${paymentDue.toLocaleString()}</strong> must be collected before completing Repair.`
-            : `The repair quotation of <strong>₱${qTotal.toLocaleString()}</strong> must be collected before completing.`,
+          title: 'Remaining payment',
+          html: 'The remaining balance of <strong>PHP '+paymentDue.toLocaleString()+'</strong> is due before completion. Recorded payments have already been deducted.',
           icon: 'info',
           confirmButtonText: 'Collect Payment',
           showCancelButton: true,
@@ -18204,28 +18210,10 @@ function preparationEscapeHtml(value) {
         return;
       }
 
-      // Step 2: If inspection balance needed, collect that before materials
-      if (needsPayment) {
-        const paymentData = {
-          ...booking,
-          _id: assignmentId,
-          bookingId: booking,
-          customerName: booking.customer?.name || a.customerName || '',
-          serviceName: a.serviceName || booking.serviceType || '',
-          address: booking.customer?.address || a.address || '',
-          paymentMethod: booking.paymentMethod,
-        };
-        openModalAfterClose('materialsModal', 'assignDetailModal', () => {
-          openCollectPaymentModal(paymentData._id, paymentData, false, function () {
-            openMaterialsModal(bookingId);
-          });
-        });
-      } else {
-        // Step 3: Go straight to materials modal, then proof modal
-        openModalAfterClose('materialsModal', 'assignDetailModal', () => openMaterialsModal(bookingId));
-      }
+      // Payment is settled; continue to actual usage and completion proof.
+      openModalAfterClose('materialsModal', 'assignDetailModal', () => openMaterialsModal(bookingId));
     } catch (e) {
-      Swal.fire('Error', 'Network error.', 'error');
+      Swal.fire('Unable to continue', e.message || 'Could not verify completion. Please try again.', 'error');
     }
   }
 
@@ -18593,8 +18581,8 @@ function preparationEscapeHtml(value) {
 })();
 </script>
 <script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-return-visit">
-<script src="/js/repair-units.js?v=20261017-verified-inspection"></script>
-<script src="/js/repair-visit-payment.js?v=20261017-return-visit"></script>
-<script src="/js/repair-visit.js?v=20261017-return-visit"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261017-repair-workspace-v2">
+<script src="/js/repair-units.js?v=20261017-repair-workspace-v2"></script>
+<script src="/js/repair-visit-payment.js?v=20261017-repair-workspace-v2"></script>
+<script src="/js/repair-visit.js?v=20261017-repair-workspace-v2"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>

@@ -16,7 +16,7 @@ function resolveCoreServicePricing(catalog, selection) {
     const hp = Number(selection.hp);
     if (!Number.isFinite(hp) || hp <= 0) throw new Error('Aircon HP must be identified before booking.');
     if (types.length) {
-      selectedType = types.find(item => item.type === selection.airconType);
+      selectedType = require('../public/js/appliance-services').effectiveAirconTypes(catalog).find(item => item.type === selection.airconType);
       if (!selectedType) throw new Error('Choose a supported aircon type before booking.');
       tier = require('../public/js/appliance-services').airconHpOptions(catalog, selection.airconType).find(item => item.hp === hp);
     } else {

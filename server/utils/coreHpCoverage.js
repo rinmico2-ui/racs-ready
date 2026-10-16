@@ -27,7 +27,7 @@ function buildProposal(original) {
       types.push({ type, name, hpPricing: [] }); addedTypes++;
     }
     for (const type of types) {
-      const saved = airconHpOptions(service, type.type);
+      const saved = airconHpOptions(service, type.type, { inheritSplit: false });
       if (saved.length !== (service.airconTypes?.find(row => row.type === type.type)?.hpPricing || []).length) throw Error(`${service.name}: fix invalid or duplicate saved HP prices first.`);
       const source = saved.length ? saved : airconHpOptions(service, 'split');
       if (!source.length) throw Error(`${service.name}: staff must provide source prices before generating missing HP tiers.`);
@@ -36,13 +36,16 @@ function buildProposal(original) {
         const existing = saved.find(row => row.hp === hp);
         if (existing) { rows.push([service.name, type.name, hp, existing.price, existing.price,
           existing.durationMinutes ?? '', existing.durationMinutes ?? '', 'Saved price retained', base]); continue; }
-        const exact = source.find(row => row.hp === hp);
+        const sharedExact = Object.hasOwn(REQUIRED_TYPES, type.type)
+          ? airconHpOptions(service, 'split', { inheritSplit: false }).find(row => row.hp === hp) : null;
+        const exact = sharedExact || source.find(row => row.hp === hp);
         const price = exact ? exact.price : Math.round(estimate(source, hp, 'price') / 50) * 50;
         const defaultMinutes = Number(service.durationMinutes || service.durationRange?.max || 60);
-        const durationMinutes = Math.ceil((exact?.durationMinutes || estimate(source, hp, 'durationMinutes', defaultMinutes)) / 15) * 15;
+        const durationMinutes = sharedExact ? Number(sharedExact.durationMinutes || defaultMinutes)
+          : Math.ceil((exact?.durationMinutes || estimate(source, hp, 'durationMinutes', defaultMinutes)) / 15) * 15;
         if (!(price > 0) || price > 1000000 || !(durationMinutes > 0) || durationMinutes > 10080) throw Error(`${service.name}: a proposed rate or duration needs manual review.`);
         type.hpPricing.push({ hp, price, durationMinutes }); addedTiers++;
-        rows.push([service.name, type.name, hp, '', price, '', durationMinutes, 'PROPOSED - company review required', base]);
+        rows.push([service.name, type.name, hp, '', price, '', durationMinutes, 'PROPOSED - company review required', sharedExact ? 'split' : base]);
       }
       type.hpPricing.sort((a, b) => Number(a.hp) - Number(b.hp));
       type.supportedHpRange = { min: Math.min(...type.hpPricing.map(row => Number(row.hp))), max: Math.max(...type.hpPricing.map(row => Number(row.hp))) };
@@ -52,7 +55,7 @@ function buildProposal(original) {
   }
   return { proposed, csv: csvRows(['Service', 'Aircon type', 'HP', 'Saved price PHP', 'Proposed price PHP', 'Saved work minutes', 'Proposed work minutes', 'Review status', 'Source type'], rows),
     summary: { operation: OPERATION, services: original.length, hpTiers: HP, addedTypes, addedHpPrices: addedTiers,
-      existingPricesChanged: 0, pricingMethod: 'Retain saved prices; use same-type interpolation/extrapolation rounded to PHP 50 for missing HP. Absent suspended/cassette types use that service\'s split table as their proposed base. New work times follow saved duration trends rounded up to 15 minutes.',
+      existingPricesChanged: 0, pricingMethod: 'Retain saved prices. Missing suspended/cassette HP use exact saved split prices and work times when available. Other missing HP are proposals using same-type trends rounded to PHP 50; estimated work times are rounded up to 15 minutes.',
       reviewRequired: 'New rates are proposals, not company-approved prices. Review the CSV before applying.',
       bookingsChanged: 0, paymentsChanged: 0, physicalStockChanges: 0 } };
 }

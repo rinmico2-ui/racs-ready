@@ -75,8 +75,9 @@ module.exports = {
   summarizeBookingPayments,
   reconcileBookingPayments,
   outstandingBookingBalance(booking, payments = []) {
-    const reconciliation = reconcileBookingPayments(booking, payments);
+    const bill = require('../public/js/repair-visit-payment').balance(booking);
+    const reconciliation = reconcileBookingPayments({ totalPrice: bill.total, amountPaid: bill.amountPaid }, payments);
     if (payments.length) return reconciliation.outstandingFromLedger;
-    return Math.max(0, money(booking?.balanceAmount), reconciliation.total - money(booking?.amountPaid));
+    return bill.amountDue;
   },
 };

@@ -22,7 +22,7 @@ function amount(value) {
   return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) / 100 : null;
 }
 function coreRows(service) {
-  const types = Array.isArray(service.airconTypes) ? service.airconTypes : [];
+  const types = require('../public/js/appliance-services').effectiveAirconTypes(service);
   if (types.length) {
     return types.flatMap(type => (type.hpPricing || []).flatMap(tier => {
       const price = amount(tier.price);

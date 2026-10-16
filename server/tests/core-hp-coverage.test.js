@@ -16,8 +16,8 @@ const service = () => ({ _id: id, name: 'Cleaning', slug: 'cleaning', category: 
     { type: 'cassette', name: 'Cassette Type', hpPricing: [{ hp: 1.5, price: 2500, durationMinutes: 90 }, { hp: 3, price: 4000, durationMinutes: 180 }] }] });
 
 test('type-specific HP choices do not borrow unrelated legacy capacities or blank prices', () => {
-  assert.deepEqual(A.airconHpOptions(service(), 'cassette').map(row => row.hp), [1.5, 3]);
-  assert.deepEqual(A.airconHpOptions(service(), 'split_suspended'), []);
+  assert.deepEqual(A.airconHpOptions(service(), 'cassette', { inheritSplit: false }).map(row => row.hp), [1.5, 3]);
+  assert.deepEqual(A.airconHpOptions(service(), 'split_suspended', { inheritSplit: false }), []);
   const unpriced = service(); unpriced.airconTypes[0].hpPricing.push({ hp: 5, price: null }, { hp: 4, price: '' });
   assert.deepEqual(A.airconHpOptions(unpriced, 'split').map(row => row.hp), [1, 2]);
   for (const selection of [{ applianceKind: 'aircon' }, {}]) {
@@ -48,6 +48,15 @@ test('saved zero rates stay saved, malformed source rates block proposals, and a
   assert.throws(() => coverage.buildProposal([invalid]), /invalid or duplicate/);
   assert.throws(() => normalizeCoreServicePayload({ airconTypes: [{ type: 'cassette', hpPricing: [] }] }), /priced HP tier/);
   assert.doesNotThrow(() => normalizeCoreServicePayload({ active: false, airconTypes: [{ type: 'cassette', hpPricing: [] }] }));
+});
+
+test('HP expansion preserves exact split prices and work minutes for missing suspended and cassette rates', () => {
+  const original=service();original.airconTypes[0].hpPricing[0].durationMinutes=80;
+  const result=coverage.buildProposal([original]);
+  for(const type of ['split_suspended','cassette']){
+    const tier=result.proposed[0].airconTypes.find(row=>row.type===type).hpPricing.find(row=>row.hp===1);
+    assert.equal(tier.price,1000);assert.equal(tier.durationMinutes,80);
+  }
 });
 
 function fixture(t) {

@@ -46,6 +46,17 @@ test('received ledger payments override stale snapshots and completed refunds re
   assert.equal(outstandingBookingBalance(booking, [{ status: 'verified', amount: 5000 }]), 0);
   assert.equal(outstandingBookingBalance(booking, [{ status: 'verified', amount: 5000, refundAmount: 1200 }]), 1200);
 });
+
+test('completion ignores an obsolete balance counter when the saved amount covers the full price', () => {
+  assert.equal(outstandingBookingBalance({serviceType:'core',totalPrice:5000,amountPaid:5000,balanceAmount:5000,balanceCollected:false}),0);
+  assert.equal(outstandingBookingBalance({serviceType:'core',totalPrice:5000,amountPaid:1000,balanceAmount:0,balanceCollected:true}),4000);
+});
+
+test('repair completion checks original visit charges plus the approved repair against actual payments', () => {
+  const booking={serviceType:'repair',totalInitialCost:550,initialCost:500,travelFare:50,quotation:{totalCost:900},totalPrice:900,amountPaid:550};
+  assert.equal(outstandingBookingBalance(booking,[{status:'verified',amount:550}]),900);
+  assert.equal(outstandingBookingBalance(booking,[{status:'verified',amount:550},{status:'waiting_for_remittance',amount:900}]),0);
+});
 test('continuation requires a meaningful reason, work description and bounded duration', () => {
   for (const input of [{ ...details, reason: {} }, { ...details, remainingWork: 'x' }, { ...details, remainingMinutes: 14 }, { ...details, remainingMinutes: 481 }, { ...details, remainingMinutes: 30.5 }]) {
     assert.throws(() => continuationRequest(input), error => error.status === 400);
