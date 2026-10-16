@@ -23,14 +23,14 @@ test("profit breakdown exposes each cost source and reconciles the reported loss
   const view = costView();
   view.render(analytics());
   const rows = view.rows();
-  assert.equal(rows["Completed sales after period refunds"], 1100);
+  assert.equal(rows["Completed sales after refunds"], 1100);
   assert.equal(rows["Less walk-in / POS product costs"], -400);
   assert.equal(rows["Less approved operating expenses"], -1266);
   assert.equal(rows["Less approved and paid payroll"], 0);
   assert.equal(rows["Total costs deducted"], 1666);
   assert.equal(rows["Profit after expenses"], -566);
   const deductions = Object.entries(rows).filter(([label]) => label.startsWith("Less ")).reduce((sum, [, value]) => sum + value, 0);
-  assert.equal(rows["Completed sales after period refunds"] + deductions, rows["Profit after expenses"]);
+  assert.equal(rows["Completed sales after refunds"] + deductions, rows["Profit after expenses"]);
 });
 
 test("payroll is separate from operating expenses and refresh replaces old costs", () => {
@@ -49,7 +49,7 @@ test("profit rows use the report reconciliation and still render without unrelat
   const view = costView();
   const reconciliation = { netSales: 1000, savedDirectCosts: 400, approvedExpenses: 1266, payroll: 0, operatingProfit: -666, cashBreakdown: [] };
   view.render(analytics({ reconciliation, salesView: {} }));
-  assert.equal(view.rows()["Completed sales after period refunds"], 1000);
+  assert.equal(view.rows()["Completed sales after refunds"], 1000);
   assert.equal(view.rows()["Profit after expenses"], -666);
   view.render({ reconciliation: { ...reconciliation, savedDirectCosts: 200, approvedExpenses: 0, payroll: 0, operatingProfit: 800 } });
   assert.equal(view.rows()["Less saved job and product costs"], -200);

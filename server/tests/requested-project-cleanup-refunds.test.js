@@ -152,7 +152,7 @@ test("revenue page SSR and its dynamic renderer show unavailable margins instead
   const html = ejs.render(source, { analytics: { recognizedRevenue: -896007, refunds: 925227, operatingProfit: -902386, operatingProfitMargin: null } }, { filename });
   assert.match(html, /Margin unavailable/); assert.doesNotMatch(html, /0\.0% profit/);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]); scripts.forEach(script => new Function(script));
-  assert.match(source, /\$\{profitBadge\(A\)\}/); assert.match(source, /completed period refunds/);
+  assert.match(source, /\$\{profitBadge\(A\)\}/); assert.match(source, /minus refunds sent/);
 });
 
 async function revenueFixture({ refundStatus = "pending", excluded = false } = {}) {

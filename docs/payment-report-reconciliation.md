@@ -5,7 +5,7 @@ The payment ledger and revenue report answer different questions. Select the sam
 | View | Basis |
 | --- | --- |
 | Payments received | Accepted Payment amounts on their collection date, including money still held by technicians. Pending proofs and failed payments contribute zero. |
-| Payments after refunds | Collections minus completed refunds dated in the selected period. Refund requests contribute zero. |
+| Money received (revenue report) | Customer payments minus refunds actually sent in the selected dates. Includes deposits, full payments and money still held by technicians. Refund requests contribute zero. The card shows customer payments and refunds separately. |
 | Completed sales | Services and orders completed in the selected period, plus completed POS counter sales, less completed period refunds. |
 | Unpaid balance | Work requested in the selected period, less dated payments applied to that specific work. |
 | Service profit | Completed service charges after applicable period refunds, less saved internal job costs and project materials. |
