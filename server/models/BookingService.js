@@ -221,6 +221,7 @@ const bookingSchema = new mongoose.Schema({
       // Per-unit diagnosis
       diagnosis: {
         summary: String,
+        source: { type: String, enum: ['technician', 'ai_reviewed'] },
         confirmedDiagnoses: [String],
         laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
         laborDuration: String,
@@ -236,6 +237,8 @@ const bookingSchema = new mongoose.Schema({
           toolId: { type: mongoose.Schema.Types.ObjectId, ref: "Tool", default: null },
         }],
         laborCost: Number,
+        laborPricingMode: { type: String, enum: ['company', 'custom'] }, companyLaborCost: Number,
+        laborPriceReason: { type: String, maxlength: 500 },
         laborCategory: { type: String, enum: ["minor", "standard", "complex", "major"], default: "standard" },
         totalCost: Number,
         notes: String,
@@ -430,6 +433,10 @@ const bookingSchema = new mongoose.Schema({
     status: { type: String, enum: ["pending", "approved", "declined"], default: "pending" },
     decidedAt: Date,
     reason: String,
+    method: { type: String, enum: ['online', 'on_site'] },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    recordedByTechnician: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
+    confirmedQuotationTotal: Number,
   },
 
   // ── Parts Reservation ───────────────────────────────────────────────────
@@ -554,7 +561,7 @@ const bookingSchema = new mongoose.Schema({
     decidedAt: { type: Date },
   },
   repairExecution: {
-    status: { type: String, enum: ['purchase_pending', 'in_progress', 'deferred'] },
+    status: { type: String, enum: ['purchase_pending', 'in_progress', 'deferred', 'cancelled'] },
     workDate: String, startedAt: Date, startedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
     repairMinutes: Number, purchaseMinutes: Number, plannedEndTime: String,
     reason: { type: String, maxlength: 1000 },

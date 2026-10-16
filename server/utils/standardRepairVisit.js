@@ -36,7 +36,7 @@ function partCoverage(booking, kit) {
   if (kit && ['confirmed', 'in_progress'].includes(kit.status) && !kit.hasDelta) for (const item of kit.items || []) {
     if (!(item.bookingIds || []).concat(item.issuedBookingIds || []).some(id => team.ref(id) === team.ref(booking._id))) continue;
     if (!['repair_part', 'consumable'].includes(item.category) || !['issued', 'checked_out', 'in_custody'].includes(item.checkoutStatus)) continue;
-    const quantity = Math.max(0, Number(item.quantityIssued || 0) - Number(item.quantityUsed || 0) - Number(item.quantityReturned || 0) - Number(item.returnPendingQuantity || 0));
+    const quantity = require('./kitMaterialBalance').available(item);
     const key = keyFor({ name: item.name, toolId: item.toolId }); carried.set(key, (carried.get(key) || 0) + quantity);
   }
   return approvedParts(booking).map(part => {
@@ -66,16 +66,29 @@ function createService(overrides = {}) {
   }
   async function inspect(state, technicianId, input = {}) {
     const { booking, assignment } = state, now = deps.now(), date = manilaDateKey(now);
+    const requiresOnSiteConsent = !approvalReady(booking) && units.canDecideOnSite(booking);
+    const confirmedQuotationTotal = units.summary(booking, ['staff_review', 'customer_review', 'approved', 'completed']).totalAmount;
+    let pricedBooking = booking;
+    if (requiresOnSiteConsent) {
+      // Preview the submitted price and parts without writing a customer decision.
+      pricedBooking = { ...booking, services: (booking.services || []).map(item => ({ ...item, units: (item.units || []).map(unit => ({ ...unit, repairReview: { ...unit.repairReview } })) })) };
+      units.recordOnSiteDecision(pricedBooking, { customerAgreed: true, confirmedQuotationTotal }, { technicianId, now });
+    }
     const repairMinutes = duration(input.repairMinutes, Math.ceil(Math.max(15, Math.min(480, Number(booking.repairExecution?.repairMinutes || booking.technicianAssistant?.estimatedDurationMinutes) || 90)) / 15) * 15);
     const purchaseMinutes = input.purchaseMinutes == null ? 45 : duration(input.purchaseMinutes);
     const reasons = [];
     if (!team.readiness(booking, now).ready) reasons.push('Every assigned technician must accept this visit.');
     if (assignment.status !== 'in_progress') reasons.push('Go En Route, record arrival, then Start Work before planning repairs.');
     if (manilaDateKey(assignment.bookingDate) !== date) reasons.push('Repair work can continue only on this visit\'s scheduled Philippine date.');
-    if (!approvalReady(booking)) reasons.push('Finish inspection, staff review and the customer\'s quotation approval first.');
+    if (!approvalReady(booking) && !requiresOnSiteConsent) reasons.push('Submit the inspection and quotation first. Record the customer decision on site, or wait for the online quotation decision.');
     if (booking.repairExecution?.status === 'deferred') reasons.push('This visit has ended. Operations must confirm the next repair schedule.');
+    if (booking.repairExecution?.status === 'cancelled') reasons.push('The customer cancelled this repair. Inspection payment and equipment returns remain separate.');
     const kit = await deps.Kit.findOne({ technicianId, workDate: { $gte: manilaDateTime(date, 0), $lt: manilaDateTime(date, 1440) } }).session(state.session || null).lean();
-    const parts = approvalReady(booking) ? partCoverage(booking, kit) : [];
+    const parts = approvalReady(pricedBooking) ? partCoverage(pricedBooking, kit) : [];
+    const readiness = require('./dailyKitService').dailyKitReadiness(kit);
+    const tools = (kit?.items || []).filter(item => item.category === 'equipment' && (item.source === 'standard' || (item.bookingIds || []).concat(item.issuedBookingIds || []).some(id => team.ref(id) === team.ref(booking._id))))
+      .map(item => ({ name: item.name, ready: ['issued', 'checked_out', 'in_custody', 'standard_kit'].includes(item.checkoutStatus) }));
+    const toolsReady = readiness.ready && tools.every(tool => tool.ready);
     const minute = Math.ceil((now.getTime() - manilaDateTime(date, 0).getTime()) / 60000);
     const ids = team.ids(booking).length ? team.ids(booking) : [team.ref(technicianId)];
     async function windowFor(extraMinutes) {
@@ -94,14 +107,15 @@ function createService(overrides = {}) {
     const direct = await windowFor(0), local = parts.some(part => part.missing > 0) ? await windowFor(purchaseMinutes) : direct;
     return { ...state, version: booking.__v || 0, reference: booking.bookingReference || booking.workOrderNumber || team.ref(booking._id).slice(-6),
       date, reasons, repairMinutes, purchaseMinutes, parts, direct, local,
-      canStart: !reasons.length && direct.available && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
+      canStart: !reasons.length && direct.available && toolsReady && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
+      requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason: toolsReady ? '' : readiness.error || 'Some required tools are not issued or are no longer at the site.',
       approvalReady: approvalReady(booking), execution: booking.repairExecution || null,
       purchases: (booking.localPurchase || []).map(row => ({ key: row.quotationKey, partName: row.partName, quantity: row.quantity, purchaseStatus: row.purchaseStatus, purchaseByType: row.purchaseByType, supplierName: row.supplierName, expectedPurchaseCost: row.expectedPurchaseCost })),
     };
   }
   async function read(id, technicianId, input) { return inspect(await load(id, technicianId), technicianId, input); }
   async function act(id, technician, actorId, action, input) {
-    if (!['start', 'defer', 'plan-purchase', 'receipt', 'verify-customer-part'].includes(action)) throw fail('Unknown repair action.', 400);
+    if (!['start', 'defer', 'cancel-repair', 'plan-purchase', 'receipt', 'verify-customer-part'].includes(action)) throw fail('Unknown repair action.', 400);
     const date = manilaDateKey(deps.now());
     return deps.lock(`repair-visit:${id}`, () => deps.lock(require('./operationLock').bookingCapacityLockKey(date), async () => {
       const session = await deps.mongoose.startSession();
@@ -109,11 +123,17 @@ function createService(overrides = {}) {
       try { await session.withTransaction(async () => {
         const state = await load(id, technician._id, session); state.session = session;
         const { booking, assignment } = state;
+        const originalStatus = booking.status;
         if (!Number.isInteger(input.version) || input.version !== (booking.__v || 0)) throw fail('This repair record changed. Refresh the work plan before saving.');
         const plan = await inspect(state, technician._id, input);
         if (plan.reasons.length) throw fail(plan.reasons.join(' '));
         const set = {}, now = deps.now();
         let notification = 'Repair work plan updated';
+        if (action === 'cancel-repair' || plan.requiresOnSiteConsent && ['start', 'defer', 'plan-purchase'].includes(action)) {
+          if (action === 'cancel-repair' && (typeof input.reason !== 'string' || input.reason.trim().length < 5 || input.reason.length > 1000)) throw fail('Record the customer\'s reason for cancelling the repair (5 to 1,000 characters).', 400);
+          units.recordOnSiteDecision(booking, input, { technicianId: technician._id, actorId, now, cancel: action === 'cancel-repair' });
+          for (const key of ['services', 'quotation', 'quotationReview', 'approval', 'balanceAmount', 'status']) set[key] = booking[key];
+        }
         if (action === 'plan-purchase') {
           if (!plan.local.available) throw fail(plan.local.reason);
           if (input.customerAgreed !== true || input.supplierCanProvide !== true || typeof input.supplierName !== 'string' || input.supplierName.trim().length < 2 || input.supplierName.length > 160) throw fail('Record customer consent, the nearby supplier name, and confirmed part availability.', 400);
@@ -163,9 +183,14 @@ function createService(overrides = {}) {
           }
           set.localPurchase = purchases;
           notification = 'Repair part received; check the work plan before starting';
+        } else if (action === 'cancel-repair') {
+          const coreRemaining = (booking.services || []).some(item => item.type === 'core' && !['completed', 'cancelled'].includes(item.status));
+          if (!coreRemaining && Number(booking.initialCost || booking.totalPrice || booking.estimatedFee || 0) > 0 && !booking.inspectionFeeCollected) throw fail('Record the inspection payment before closing this visit. The repair itself will not be charged.', 409, 'PHASE_ONE_PAYMENT_REQUIRED');
+          set.repairExecution = { status: 'cancelled', workDate: date, reason: input.reason.trim() };
+          notification = 'Customer cancelled the repair on site; inspection fees and completed core services remain payable';
         } else if (action === 'start') {
           if (booking.repairExecution?.status === 'in_progress') throw fail('Repair work has already started. Record the repair and tests in Appliance repairs.');
-          if (!plan.canStart) throw fail(!plan.direct.available ? plan.direct.reason : 'Some approved parts have not been brought or received. Buy the missing parts nearby or request another visit.');
+          if (!plan.canStart) throw fail(!plan.direct.available ? plan.direct.reason : !plan.toolsReady ? plan.toolReason : 'Some approved parts have not been brought or received. Buy the missing parts nearby or request another visit.');
           set.status = 'repair_in_progress'; set.endTime = plan.direct.endTime;
           set.technicianTeamSchedule = team.scheduleKey('booking', { ...booking, endTime: set.endTime });
           set.repairExecution = { status: 'in_progress', workDate: date, startedAt: now, startedBy: technician._id, repairMinutes: plan.repairMinutes, plannedEndTime: set.endTime };
@@ -190,13 +215,13 @@ function createService(overrides = {}) {
           set.services = (booking.services || []).map(item => item.type === 'repair' && !['completed', 'repair_declined', 'cancelled'].includes(item.status) ? { ...item, status: 'repair_approved', phase: 'repair_phase_2' } : item);
           notification = 'Repair follow-up requested; Operations will confirm the next visit';
         }
-        set.statusHistory = [...(booking.statusHistory || []), { fromStatus: booking.status, toStatus: set.status || booking.status, timestamp: now,
+        set.statusHistory = [...(booking.statusHistory || []), { fromStatus: originalStatus, toStatus: set.status || originalStatus, timestamp: now,
           changedBy: technician._id, changedByModel: 'Technician', changedByName: technician.name || 'Technician', reason: notification }];
         set.updatedAt = now;
-        const written = await deps.Booking.updateOne({ _id: booking._id, status: booking.status, technicianId: booking.technicianId,
+        const written = await deps.Booking.updateOne({ _id: booking._id, status: originalStatus, technicianId: booking.technicianId,
           ...(booking.updatedAt ? { updatedAt: booking.updatedAt } : {}), ...(booking.__v == null ? { $or: [{ __v: 0 }, { __v: { $exists: false } }] } : { __v: booking.__v }) }, { $set: set, $inc: { __v: 1 } }, { session, runValidators: true });
         if (written.modifiedCount !== 1) throw fail('This repair changed. Refresh before trying again.');
-        if (action === 'start' || action === 'defer') await deps.Assignment.updateMany({ bookingId: booking._id, technicianId: { $in: team.ids(booking) }, status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress'] } },
+        if (action === 'start' || action === 'defer' || action === 'cancel-repair' && !(booking.services || []).some(item => item.type === 'core' && !['completed', 'cancelled'].includes(item.status))) await deps.Assignment.updateMany({ bookingId: booking._id, technicianId: { $in: team.ids(booking) }, status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress'] } },
           { $set: action === 'start' ? { endTime: set.endTime, status: 'in_progress' } : { status: 'completed', completedAt: now } }, { session, runValidators: true });
         result = { success: true, action, message: notification, bookingId: booking._id, customerId: booking.customerId };
       }); } finally { await session.endSession(); }
@@ -206,7 +231,7 @@ function createService(overrides = {}) {
   return { read, act };
 }
 function present(plan) {
-  const { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases } = plan;
-  return { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases };
+  const { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
+  return { version, reference, date, reasons, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
 }
 module.exports = { createService, present, partCoverage, approvedParts, approvalReady, duration, purchaseReceived };

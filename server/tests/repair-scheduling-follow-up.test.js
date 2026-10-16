@@ -24,6 +24,33 @@ function fixture(t) {
   }
   return { booking, calls, messages, schedule };
 }
+
+test('same-day on-site repairs appear in the scheduling monitor and its aggregate totals', async t => {
+  const records = [
+    { _id: id(31), status: 'repair_in_progress', repairSchedule: { preference: 'today' }, approval: { method: 'on_site' }, repairExecution: { status: 'in_progress', startedAt: new Date('2026-10-19T02:00:00Z') } },
+    { _id: id(32), status: 'repair_approved', repairSchedule: { preference: 'later' } },
+    { _id: id(33), status: 'repair_scheduled', repairSchedule: { preference: 'later' } },
+    { _id: id(34), status: 'repair_completed', repairSchedule: { preference: 'today' } },
+  ].map(row => ({ ...row, quotation: { parts: [], totalCost: 650 }, customer: { name: 'Fixture customer' }, services: [] }));
+  const matches = (row, filter) => Object.entries(filter).every(([key, condition]) => {
+    if (key === '$or') return condition.some(item => matches(row, item));
+    const actual = key.split('.').reduce((value, part) => value?.[part], row);
+    return condition && typeof condition === 'object' && condition.$in ? condition.$in.includes(actual) : actual === condition;
+  });
+  const resultQuery = value => ({ populate() { return this; }, sort() { return this; }, lean: async () => value });
+  t.mock.method(Booking, 'find', filter => resultQuery(records.filter(row => matches(row, filter))));
+  t.mock.method(Booking, 'countDocuments', async filter => records.filter(row => matches(row, filter)).length);
+  t.mock.method(require('../models/PartsRequest'), 'findOne', () => resultQuery(null));
+  const call = async path => {
+    let body; const handler = router.stack.find(layer => layer.route?.path === path && layer.route.methods.get).route.stack.at(-1).handle;
+    await handler({}, { json(value) { body = value; } }, error => { throw error; }); return body;
+  };
+  const list = await call('/repair-scheduling-queue'), stats = await call('/repair-scheduling-queue/stats');
+  assert.equal(list.bookings.length, 3); assert.equal(stats.total, 3); assert.equal(stats.inProgress, 1);
+  assert.equal(stats.pendingScheduling, 1); assert.equal(stats.scheduled, 1);
+  const current = list.bookings.find(row => row.status === 'repair_in_progress');
+  assert.equal(current.repairTiming, 'today'); assert.equal(current.decisionMethod, 'on_site'); assert.equal(current.stockAvailable, true);
+});
 test('the repair scheduling queue preserves the support crew and delegates new visit acceptance to the canonical team workflow', async t => {
   const f = fixture(t), res = await f.schedule(); assert.equal(res.statusCode, 200);
   assert.deepEqual(f.calls[0][2].technicianIds, [id(3), id(4)]); assert.equal(f.calls[0][2].scheduledDate, '2035-01-02'); assert.equal(f.calls[0][4].repairVisit, true);

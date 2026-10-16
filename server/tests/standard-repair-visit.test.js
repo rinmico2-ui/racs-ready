@@ -14,7 +14,7 @@ function fixture({ part = false } = {}) {
     services: [{ name: 'Repair inspection', type: 'repair', status: 'repair_approved', quantity: 1, totalPrice: 500, units: [{ unitIndex: 1, repairReview: { state: 'approved' }, quotation: { laborCost: 300, totalCost: part ? 800 : 300, parts: part ? [{ name: 'Capacitor', toolId, quantity: 1, cost: 500 }] : [] } }] }],
     quotation: { laborCost: 300, totalCost: part ? 800 : 300, parts: part ? [{ name: 'Capacitor', toolId, quantity: 1, cost: 500 }] : [] }, localPurchase: [], statusHistory: [] },
     assignment: { _id: assignmentId, bookingId, technicianId: lead, status: 'in_progress', bookingDate: manilaDateTime(date, 0), startTime: '08:00' },
-    kit: null, expenses: [] };
+    kit: { status: 'confirmed', hasDelta: false, items: [] }, expenses: [] };
   const calls = [], blocked = new Set(); let failWrite = false;
   const deps = {
     mongoose: { isValidObjectId: value => /^[a-f\d]{24}$/i.test(value), async startSession() { return { async withTransaction(work) { const before = structuredClone(store); try { await work(); } catch (error) { Object.assign(store, before); throw error; } }, async endSession() {} }; } },
@@ -43,10 +43,10 @@ test('the current on-site job is excluded and every team member is checked at th
   assert.equal(f.store.assignment.status, 'in_progress'); assert.ok(parseAppointmentTime(f.store.assignment.endTime) > 544);
   await assert.rejects(f.act('start'), /already started/);
 });
-test('arrival, Start Work, same-day schedule, acceptance and customer approval remain required', async () => {
+test('arrival, Start Work, same-day schedule, acceptance and recorded customer consent remain required', async () => {
   for (const change of [f => { f.store.assignment.status = 'on_site'; }, f => { f.store.assignment.bookingDate = manilaDateTime('2026-10-20', 0); },
     f => { f.store.booking.approval.status = 'pending'; }, f => { f.store.booking.technicianTeam[1].status = 'pending'; }, f => { f.store.booking.quotationReview.status = 'pending'; }]) {
-    const f = fixture(); change(f); assert.equal((await f.read()).canStart, false); await assert.rejects(f.act('start'), { status: 409 }); assert.ok(!f.calls.some(call => call[0] === 'booking-write'));
+    const f = fixture(); change(f); const plan = await f.read(); assert.ok(plan.reasons.length || plan.requiresOnSiteConsent); await assert.rejects(f.act('start'), { status: plan.requiresOnSiteConsent && !plan.reasons.length ? 400 : 409 }); assert.ok(!f.calls.some(call => call[0] === 'booking-write'));
   }
   const f = fixture(); await assert.rejects(f.api.read(bookingId, support), { status: 403 });
 });
@@ -125,4 +125,70 @@ test('already received local parts are not requested from company inventory in a
     { name: 'Piping', quantity: 3, externalQuantity: 2, source: 'inventory', toolId },
   ] } }], new Map());
   assert.equal(rows.length, 1); assert.equal(rows[0].name, 'Piping'); assert.equal(rows[0].quantity, 1);
+});
+
+function pendingOnSite(f) {
+  f.store.booking.status = 'awaiting_approval'; f.store.booking.approval.status = 'pending'; f.store.booking.quotationReview.status = 'pending';
+  for (const item of f.store.booking.services) for (const unit of item.units || []) unit.repairReview = { state: 'staff_review', revision: 1 };
+  return { customerAgreed: true, confirmedQuotationTotal: f.store.booking.quotation.totalCost };
+}
+test('reading a submitted on-site quotation previews time and parts without saving a customer decision', async () => {
+  const f = fixture(); pendingOnSite(f); const before = structuredClone(f.store.booking);
+  const plan = await f.read(); assert.equal(plan.requiresOnSiteConsent, true); assert.equal(plan.canStart, true); assert.equal(plan.confirmedQuotationTotal, 300);
+  assert.deepEqual(f.store.booking, before); assert.ok(!f.calls.some(call => call[0] === 'booking-write'));
+});
+test('on-site Repair now records verbal approval and starts in one transaction without another admin confirmation', async () => {
+  const f = fixture(), consent = pendingOnSite(f);
+  await f.act('start', consent);
+  assert.equal(f.store.booking.status, 'repair_in_progress'); assert.equal(f.store.booking.repairSchedule.preference, 'today');
+  assert.equal(f.store.booking.approval.method, 'on_site'); assert.equal(f.store.booking.services[0].units[0].repairReview.state, 'approved');
+  assert.equal(f.store.booking.repairExecution.status, 'in_progress'); assert.equal(f.store.booking.statusHistory.at(-1).fromStatus, 'awaiting_approval');
+  assert.equal(f.store.booking.amountPaid, 500);
+});
+test('on-site Repair now still refuses missing tools, unreceived parts and an unavailable crew member', async () => {
+  for (const blockedBy of ['kit', 'part', 'crew']) {
+    const f = fixture({ part: blockedBy === 'part' }), consent = pendingOnSite(f);
+    if (blockedBy === 'kit') f.store.kit = null;
+    if (blockedBy === 'crew') f.blocked.add(support);
+    await assert.rejects(f.act('start', consent), { status: 409 });
+    assert.equal(f.store.booking.approval.status, 'pending'); assert.equal(f.store.booking.status, 'awaiting_approval');
+  }
+});
+test('a pending or returned required tool cannot be used even when the daily kit says confirmed', async () => {
+  const f = fixture(); f.store.kit.items = [{ category: 'equipment', source: 'standard', name: 'Multimeter', checkoutStatus: 'returned' }];
+  assert.equal((await f.read()).toolsReady, false); await assert.rejects(f.act('start'), /tools/);
+});
+test('damaged, missing, and pending-return parts do not count as usable parts at the site', async () => {
+  for (const field of ['quantityDamaged', 'quantityMissing', 'returnPendingQuantity']) {
+    const f = fixture({ part: true });
+    f.store.kit.items = [{ category: 'repair_part', name: 'Capacitor', toolId, bookingIds: [bookingId], checkoutStatus: 'issued', quantityIssued: 1, [field]: 1 }];
+    assert.equal((await f.read()).parts[0].available, 0); assert.equal((await f.read()).canStart, false);
+    await assert.rejects(f.act('start'), { status: 409 });
+  }
+});
+test('on-site Repair later records the customer price acceptance and keeps the request in Repair Scheduling', async () => {
+  const f = fixture(), consent = pendingOnSite(f);
+  await f.act('defer', { ...consent, reason: 'The customer prefers a follow-up visit next day.', preferredDates: ['2026-10-20'], preferredTime: 'any' });
+  assert.equal(f.store.booking.approval.method, 'on_site'); assert.equal(f.store.booking.repairSchedule.preference, 'later');
+  assert.equal(f.store.assignment.status, 'completed'); assert.equal(f.store.booking.quotation.totalCost, 300);
+});
+test('on-site cancellation closes a paid inspection but preserves its money and physical stock custody', async () => {
+  const f = fixture(), consent = pendingOnSite(f);
+  await f.act('cancel-repair', { ...consent, reason: 'The customer chose to replace the appliance.' });
+  assert.equal(f.store.booking.status, 'repair_declined'); assert.equal(f.store.booking.repairExecution.status, 'cancelled');
+  assert.equal(f.store.booking.amountPaid, 500); assert.equal(f.store.booking.quotation.totalCost, 0); assert.equal(f.store.assignment.status, 'completed');
+  assert.equal(f.store.kit.status, 'confirmed'); assert.equal(f.store.expenses.length, 0);
+});
+test('on-site cancellation requires the customer reason and does not close unpaid inspections', async () => {
+  const f = fixture(), consent = pendingOnSite(f);
+  await assert.rejects(f.act('cancel-repair', consent), { status: 400 });
+  f.store.booking.inspectionFeeCollected = false;
+  await assert.rejects(f.act('cancel-repair', { ...consent, reason: 'The customer chose to replace the appliance.' }), { code: 'PHASE_ONE_PAYMENT_REQUIRED' });
+  assert.equal(f.store.booking.status, 'awaiting_approval'); assert.equal(f.store.assignment.status, 'in_progress');
+});
+test('a stale quotation total or failed write cannot partially record customer verbal consent', async () => {
+  const f = fixture(), consent = pendingOnSite(f);
+  await assert.rejects(f.act('start', { ...consent, confirmedQuotationTotal: 1 }), { status: 409 });
+  f.failWrite(); await assert.rejects(f.act('start', consent), { status: 409 });
+  assert.equal(f.store.booking.approval.status, 'pending'); assert.equal(f.store.booking.services[0].units[0].repairReview.state, 'staff_review');
 });

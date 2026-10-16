@@ -136,7 +136,26 @@
     if (helpOpen) return false;
     return available() > 0 && requiredDetailFields().every(name => field(name).disabled || field(name).validity.valid) && Boolean(selection().brand);
   }
-  function requiredDetailFields() { return ['brand', ...(field('brand').value === '__other__' ? ['brandCustom'] : []), ...(hooks.repair ? ['model'] : []), 'quantity', ...(aircon() ? hooks.repair ? ['hp'] : ['airconType', 'hp'] : [])]; }
+  function requiredDetailFields() {
+    return ['brand', ...(field('brand').value === '__other__' ? ['brandCustom'] : []), ...(hooks.repair ? ['model'] : []), 'quantity',
+      ...(aircon() ? hooks.repair ? ['hp'] : ['airconType', 'hp'] : compressorHpRequired() ? ['compressorHp'] : [])];
+  }
+  function compressorHpRequired() {
+    if (hooks.repair || aircon()) return false;
+    const kind = field('kind').value;
+    const services = catalog.filter(service => service.active !== false && A.profile(service, kind));
+    if (!services.length) return false;
+    const priced = value => value != null && Number.isFinite(Number(value)) && Number(value) >= 0;
+    const fixed = services.some(service => {
+      const p = A.profile(service, kind);
+      return p.pricingMode !== 'hp' && priced(p.unitPrice) && Number(p.durationMinutes) > 0;
+    });
+    if (fixed) return false;
+    return services.some(service => {
+      const p = A.profile(service, kind);
+      return p.pricingMode === 'hp' && (p.hpPricing || []).some(row => Number.isFinite(A.parseHp(row.hp)) && priced(row.price) && Number(row.durationMinutes) > 0);
+    });
+  }
   function closeConfirmation() {
     confirmationOpen = false;
     host.querySelector('[data-request-confirmation]').hidden = true;
@@ -239,17 +258,34 @@
     const candidates = catalog.filter(service => service.active !== false && A.profile(service, selected.applianceKind) && (!A.isRelocation(service) || selected.applianceKind === 'aircon'));
     const typeName = selected.airconType ? field('airconType').selectedOptions[0]?.textContent : '';
     host.querySelector('[data-service-appliance]').textContent = [detailsUnknown ? 'Staff identification' : selected.brand, A.labels[selected.applianceKind], typeName, selected.hp ? `${selected.hp} HP` : '', `${selected.quantity || 0} appliance${selected.quantity === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-    host.querySelector('[data-services]').innerHTML = candidates.map(service => {
-      let pricing, error; try { pricing = A.price(service, { ...selected, brand: selected.brand || 'Brand not entered' }); } catch (err) { error = err.message; }
+    const rows = [];
+    let excluded = 0;
+    candidates.forEach(service => {
+      const state = A.availability(service, selected);
+      const pricing = state.available ? state.pricing : null;
       if (canAsk() && (detailsUnknown || A.needsVerification(service, selected) && (!selected.airconType || !selected.hp))) {
-        return `<label class="cab-service"><input type="radio" name="service" value="${escape(service._id)}" data-verification ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>Staff will confirm your unit details and send a price for approval.</small></span><span class="cab-service-price">Price pending verification</span></label>`;
+        rows.push(`<label class="cab-service"><input type="radio" name="service" value="${escape(service._id)}" data-verification ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>Staff will confirm your unit details and send a price for approval.</small></span><span class="cab-service-price">Price pending verification</span></label>`);
+        return;
       }
       if (A.isRelocation(service)) {
         const tooMany = selected.quantity !== 1 || !pricing;
-        return `<label class="cab-service ${tooMany ? 'is-unavailable' : ''}"><input type="checkbox" name="service" value="${escape(service._id)}" ${tooMany ? 'disabled data-unavailable' : ''} ${!tooMany && checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${tooMany ? 'Add one aircon at a time for relocation.' : 'Move within the same property or to another address. Your aircon details are already saved above.'}</small></span><span class="cab-service-price">${pricing ? money(pricing.unitPrice) : 'Unavailable'}<small>service price</small></span></label>`;
+        rows.push(`<label class="cab-service ${tooMany ? 'is-unavailable' : ''}"><input type="checkbox" name="service" value="${escape(service._id)}" ${tooMany ? 'disabled data-unavailable' : ''} ${!tooMany && checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${tooMany ? 'Add one aircon at a time for relocation.' : 'Move within the same property or to another address. Your aircon details are already saved above.'}</small></span><span class="cab-service-price">${pricing ? money(pricing.unitPrice) : 'Unavailable'}<small>service price</small></span></label>`);
+        return;
       }
-      return `<label class="cab-service ${error ? 'is-unavailable' : ''}"><input type="checkbox" name="service" value="${escape(service._id)}" ${error ? 'disabled data-unavailable' : ''} ${pricing && checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(error || service.description || 'Service for your selected appliance.')}</small></span><span class="cab-service-price">${pricing ? money(pricing.unitPrice) : 'Unavailable'}<small>${pricing ? `per appliance · ${pricing.duration} min` : 'Choose another service'}</small></span></label>`;
-    }).join('') || '<div class="cab-empty"><strong>No services are available for this appliance yet.</strong><p>Choose another appliance, or use Repair Service if it needs an inspection.</p></div>';
+      if (!pricing) {
+        if (hooks.repair) {
+          const error = state.reason || 'Staff must set a price for this service.';
+          rows.push(`<label class="cab-service is-unavailable"><input type="checkbox" name="service" value="${escape(service._id)}" disabled data-unavailable><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(error || service.description || 'Service for your selected appliance.')}</small></span><span class="cab-service-price">Unavailable<small>Choose another service</small></span></label>`);
+        } else excluded += 1;
+        return;
+      }
+      rows.push(`<label class="cab-service"><input type="checkbox" name="service" value="${escape(service._id)}" ${checked.has(String(service._id)) ? 'checked' : ''}><span class="cab-service-copy"><strong>${escape(service.name)}</strong><small>${escape(service.description || 'Service for your selected appliance.')}</small></span><span class="cab-service-price">${money(pricing.unitPrice)}<small>per appliance · ${pricing.duration} min</small></span></label>`);
+    });
+    const servicesList = host.querySelector('[data-services]');
+    servicesList.innerHTML = rows.join('') || '<div class="cab-empty"><strong>No services are available for this appliance yet.</strong><p>Choose another appliance, or use Repair Service if it needs an inspection.</p></div>';
+    if (excluded && rows.length) {
+      servicesList.insertAdjacentHTML('beforeend', `<p class="cab-note">${excluded} other service${excluded === 1 ? ' is' : 's are'} not offered for ${selected.applianceKind === 'aircon' ? 'this aircon type and HP' : 'this appliance'}.</p>`);
+    }
     if (!canAsk() && selected.applianceKind !== 'aircon' && candidates.some(service => A.profile(service, selected.applianceKind)?.pricingMode === 'hp') && !selected.hp) host.querySelector('[data-services]').insertAdjacentHTML('beforeend', '<div class="cab-empty"><strong>Not sure about the compressor HP?</strong><p>You can book services with a fixed price, or request a repair inspection.</p><button type="button" class="cab-secondary" data-repair>Choose Repair Service</button></div>');
     updateTotal();
   }
@@ -263,6 +299,14 @@
     field('model').disabled = assisted || !hooks.repair; field('model').required = false;
     syncBrand();
     field('compressorHp').disabled = assisted || hooks.repair || field('kind').value === 'aircon';
+    const compressorRequired = compressorHpRequired() && !field('compressorHp').disabled;
+    field('compressorHp').required = compressorRequired;
+    const compressorCard = host.querySelector('[data-compressor-details]');
+    if (compressorCard && !compressorCard.hidden) {
+      compressorCard.querySelector('.cab-optional').hidden = compressorRequired;
+      compressorCard.querySelector('label').firstChild.textContent = compressorRequired ? 'Compressor HP * ' : 'Compressor HP ';
+      compressorCard.querySelector('.cab-note').textContent = compressorRequired ? 'Needed to show prices for these services. Use the HP printed on the compressor label.' : 'Use the HP on the compressor label. It is needed only for services priced by HP.';
+    }
     const model = field('model');
     model.setCustomValidity(!hooks.repair || assisted || !model.value.trim() ? '' : /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Use letters, numbers, spaces, and . - _ / # ( ) + only.');
     ['airconType', 'hp'].forEach(name => { const enabled = aircon() && !assisted && (name === 'hp' || !hooks.repair); field(name).required = enabled; field(name).disabled = !enabled; });

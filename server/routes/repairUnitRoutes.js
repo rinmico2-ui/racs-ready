@@ -68,7 +68,8 @@ function view(document, req, technician, assignment) {
     role: req.user.role, canInspect: req.user.role === 'technician' && (access ? access.canInspect : String(document.leadTechnicianId) === String(technician?._id)), blockedReason: access?.reason || '',
     aiReport: req.user.role === 'technician' && access?.canInspect ? document.technicianAssistant : undefined,
     canComplete: Boolean(access?.canComplete),
-    canPlanRepair: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && document.approval?.status === 'approved',
+    canPlanRepair: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && (document.approval?.status === 'approved' || flow.canDecideOnSite(document)),
+    canRecordOnSiteDecision: req.user.role === 'technician' && !document.unitGroups && access?.canInspect && flow.canDecideOnSite(document),
     readyForCompletion: Boolean(access?.canComplete && flow.rows(document).length && flow.rows(document).some(row => row.unit.repairReview?.state === 'completed')
       && flow.rows(document).every(row => ['completed', 'declined'].includes(row.unit.repairReview?.state))),
     units: flow.rows(document).map(({ key, group, groupIndex, unit }) => ({ key, serviceIndex: groupIndex, serviceItemId: group._id, label: unit.label, brand: group.brand, model: group.model, problemDescription: unit.problemDescription,
@@ -98,16 +99,22 @@ router.post('/:scope/:id/ai-diagnostic', diagnosticLimiter, async (req, res, nex
     if (req.user.role !== 'technician' || document.unitGroups) flow.fail('Use the assigned technician repair workspace for this diagnosis.', 403);
     const access = repairWorkAccess(document, technician._id, assignment);
     if (!access.canInspect) flow.fail(access.reason);
+    assertActive(document, document);
     const row = flow.rows(document).find(row => row.key === req.body.key);
     const findings = typeof req.body.findings === 'string' ? req.body.findings.trim() : '';
-    if (!row || findings.length < 10 || findings.length > 2000) flow.fail('Select an appliance and enter on-site findings of 10 to 2,000 characters.', 400);
+    const diagnosis = typeof req.body.diagnosis === 'string' ? req.body.diagnosis.trim() : '';
+    if (!row || findings.length > 2000 || diagnosis.length > 2000 || (req.body.findings != null && typeof req.body.findings !== 'string') || (req.body.diagnosis != null && typeof req.body.diagnosis !== 'string')
+      || (!findings && !diagnosis && String(row.unit.problemDescription || '').trim().length < 10)) flow.fail('Select an appliance with a reported problem, or enter your inspection findings or diagnosis (up to 2,000 characters).', 400);
     if (activeDiagnostics >= 4) flow.fail('Diagnostic assistance is busy. Try again shortly or continue with a manual diagnosis.', 503);
     activeDiagnostics++; admitted = true;
     const result = await require('../utils/aiTechnicianAssistant').generateAssistantReport({
       unitType: row.group.applianceTypeName || row.group.unitType || row.group.name || 'Appliance', brand: row.group.brand, model: row.group.model,
-      problemDescription: `${row.unit.problemDescription || ''}\nTechnician on-site findings: ${findings}`, photos: [],
+      problemDescription: `${row.unit.problemDescription || ''}${findings ? `\nTechnician on-site findings: ${findings}` : ''}${diagnosis ? `\nTechnician confirmed diagnosis: ${diagnosis}` : ''}`, photos: [],
     });
-    res.json({ technicianAssistant: result.technicianAssistant, version: document.__v || 0 });
+    const [catalog, fees] = await Promise.all([
+      Tool.find({ $and: [Tool.merchandiseFilter()], active: { $ne: false } }).select('_id itemName sellingPrice costPrice').limit(500).lean(), getRepairLaborFees(),
+    ]);
+    res.json({ technicianAssistant: result.technicianAssistant, quoteSuggestion: require('../utils/repairQuoteSuggestion').buildRepairQuoteSuggestion(result.technicianAssistant, catalog, fees), version: document.__v || 0 });
   } catch (error) { next(error); }
   finally { if (admitted) activeDiagnostics--; }
 });
@@ -115,7 +122,7 @@ router.post('/:scope/:id/ai-diagnostic', diagnosticLimiter, async (req, res, nex
 router.post('/:scope/:id/:action', async (req, res, next) => {
   let session;
   try {
-    if (!['prepare', 'inspect', 'submit', 'review', 'decide', 'complete'].includes(req.params.action)) flow.fail('Unknown repair action.', 404);
+    if (!['prepare', 'inspect', 'inspect-and-submit', 'submit', 'review', 'decide', 'complete'].includes(req.params.action)) flow.fail('Unknown repair action.', 404);
     session = await mongoose.startSession();
     let state;
     await session.withTransaction(async () => {
@@ -124,7 +131,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
       assertActive(document, booking);
       if (!Number.isInteger(req.body.version) || req.body.version !== (document.__v || 0)) flow.fail('This repair record changed. Refresh it before saving.');
       const action = req.params.action;
-      if (['inspect', 'submit', 'complete'].includes(action)) {
+      if (['inspect', 'inspect-and-submit', 'submit', 'complete'].includes(action)) {
         if (req.user.role !== 'technician' || (document.unitGroups && String(document.leadTechnicianId) !== String(technician?._id))) flow.fail('Only the assigned technician or project lead can record this action.', 403);
         if (document.unitGroups && !['arrived', 'completed'].includes(document.assessmentVisit?.status)) flow.fail('Record arrival for the inspection visit first.');
         if (!document.unitGroups) { const access = repairWorkAccess(booking, technician._id, assignment); if (!access.canInspect) flow.fail(access.reason); }
@@ -134,16 +141,22 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
         if (await WorkOrder.exists({ projectId: document._id, $or: [{ completedUnitCount: { $gt: 0 } }, { status: { $in: ['in_progress', 'partially_completed', 'awaiting_review', 'completed'] } }] }).session(session)) flow.fail('Some work has already started. Ask staff to review this existing project.');
         document.repairQuoteHistory.push({ recordedAt: new Date(), recordedBy: req.user._id, quotation: document.quotationReview?.toObject?.() || document.quotationReview });
         document.projectPhase = 'assessment'; document.quotationReview = { status: 'rejected', totalAmount: 0, items: [] };
-      } else if (action === 'inspect') {
+      } else if (action === 'inspect' || action === 'inspect-and-submit') {
         if (!document.unitGroups && ['pending', 'awaiting_customer', 'approved'].includes(document.quotationReview?.status)) flow.fail('The submitted quotation is locked. Staff must return it for changes before it can be edited.');
         if (document.unitGroups && document.projectPhase !== 'assessment') flow.fail('Staff must return this inspection for changes first.');
         if (!Array.isArray(req.body.parts) || req.body.parts.length > 50) flow.fail('Provide up to 50 parts.', 400);
         const unitRow = flow.rows(document).find(row => row.key === req.body.key);
         if (!document.unitGroups && unitRow?.group.technicianId && String(unitRow.group.technicianId) !== String(technician._id)) flow.fail('This appliance is assigned to another technician.', 403);
+        if (req.body.parts.some(part => !part || typeof part !== 'object' || Array.isArray(part))) flow.fail('Choose valid repair parts.', 400);
         const ids = req.body.parts.map(part => part.toolId).filter(Boolean);
         if (ids.some(id => !mongoose.isValidObjectId(id))) flow.fail('Invalid repair part.', 400);
         const catalog = await Tool.find({ _id: { $in: ids }, $and: [Tool.merchandiseFilter()] }).select('_id itemName sellingPrice costPrice').session(session).lean();
         flow.inspect(document, req.body.key, req.body, { technicianId: technician._id, catalog, laborFees: await getRepairLaborFees() });
+        if (action === 'inspect-and-submit') {
+          flow.submitInspection(document);
+          if (document.unitGroups) document.assessmentVisit.status = 'completed';
+          else { document.inspection = { findings: 'Findings and quotation recorded for each appliance.', completedAt: new Date(), technicianId: technician._id }; if (booking.serviceType === 'repair') document.status = 'awaiting_approval'; }
+        }
       } else if (action === 'submit') {
         if (!document.unitGroups && document.inspection?.completedAt && ['pending', 'awaiting_customer', 'approved'].includes(document.quotationReview?.status)) flow.fail('This inspection has already been submitted. Refresh its review status.');
         flow.submitInspection(document);
@@ -192,16 +205,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
           document.totalUnits = require('../public/js/appliance-services').unitCount(activeGroups);
           if (!document.totalUnits) { document.status = 'on_hold'; document.projectPhase = 'quotation_review'; }
         } else if (settled) {
-          const approved = flow.rows(document).filter(row => row.unit.repairReview.state === 'approved');
-          document.quotation = { parts: approved.flatMap(row => row.unit.quotation.parts.map(part => ({ ...part.toObject?.() || part }))), laborCost: approved.reduce((sum, row) => sum + row.unit.quotation.laborCost, 0), laborCategory: 'standard', totalCost: approved.reduce((sum, row) => sum + row.unit.quotation.totalCost, 0), createdAt: new Date() };
-          document.approval = { status: approved.length ? 'approved' : 'declined', decidedAt: new Date(), decidedBy: req.user._id };
-          document.balanceAmount = document.quotation.totalCost + (document.inspectionFeeCollected ? 0 : Math.max(0, Number(document.totalPrice || document.estimatedFee || 0) - Number(document.amountPaid || document.downpaymentAmount || 0)));
-          if (document.serviceType === 'repair') document.status = approved.length ? 'repair_approved' : 'repair_declined';
-          for (const item of document.services.filter(item => item.type === 'repair')) {
-            const allowed = item.units.filter(unit => unit.repairReview.state === 'approved');
-            item.status = allowed.length ? 'repair_approved' : 'repair_declined';
-            item.quotation = { parts: allowed.flatMap(unit => unit.quotation.parts.map(part => ({ ...part.toObject?.() || part }))), laborCost: allowed.reduce((sum, unit) => sum + unit.quotation.laborCost, 0), laborCategory: 'standard', totalCost: allowed.reduce((sum, unit) => sum + unit.quotation.totalCost, 0), status: allowed.length ? 'approved' : 'declined', decidedAt: new Date() };
-          }
+          flow.bookingQuotationSummary(document); document.approval.method = 'online';
         }
       } else if (action === 'complete') {
         if (document.unitGroups) flow.fail('Complete project appliances using the work submission with proof.');
@@ -226,7 +230,8 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
     });
     const { document, booking, technician, assignment } = state;
     if (req.params.action === 'review' && req.body.action === 'approve') await createNotification({ type: 'system', title: 'Repair prices ready', message: 'Review the price for each appliance and choose which repairs to approve.', userId: booking.customerId, referenceId: booking._id, referenceModel: 'BookingService', link: '/book-history', io: req.app.get('io') }).catch(() => {});
-    if (['submit', 'decide'].includes(req.params.action)) await createNotification({ type: 'system', title: req.params.action === 'submit' ? 'Repair inspections ready' : 'Repair decision received', message: `Appliance repair records updated for ${booking.bookingReference || booking._id}.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: document.unitGroups ? `/admin/projects/${document._id}` : `/admin/appointments?booking=${booking._id}`, io: req.app.get('io') }).catch(() => {});
+    if (['submit', 'inspect-and-submit', 'decide'].includes(req.params.action)) await createNotification({ type: 'system', title: req.params.action === 'decide' ? 'Repair decision received' : 'Inspection and quotation submitted', message: `Appliance repair records updated for ${booking.bookingReference || booking._id}.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: document.unitGroups ? `/admin/projects/${document._id}` : `/admin/appointments?booking=${booking._id}`, io: req.app.get('io') }).catch(() => {});
+    if (['submit', 'inspect-and-submit'].includes(req.params.action)) await createNotification({ type: 'system', title: 'Inspection and quotation submitted', message: document.unitGroups ? 'Your technician submitted the inspection and quotation for staff review.' : 'Your technician submitted the findings and repair quotation. You can review it in Booking History or give your decision to the technician on site.', userId: booking.customerId, referenceId: booking._id, referenceModel: 'BookingService', link: '/book-history', io: req.app.get('io') }).catch(() => {});
     if (req.params.action === 'decide') {
       const ids = document.unitGroups ? [document.leadTechnicianId, ...document.assignedTechnicians.map(member => member._id)] : [document.technicianId, ...document.services.map(item => item.technicianId)];
       const recipients = await Technician.find({ _id: { $in: ids.filter(Boolean) } }).select('user').lean().catch(() => []);

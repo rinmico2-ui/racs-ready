@@ -8,14 +8,19 @@ const trackingFields = {
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, reviewedAt: Date,
     decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, decidedAt: Date,
     decisionNotes: { type: String, maxlength: 1000 },
+    decisionMethod: { type: String, enum: ['online', 'on_site'] },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    recordedByTechnician: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician' },
   },
 };
 const detailFields = {
   inspection: { findings: { type: String, maxlength: 2000 }, completedAt: Date, photos: [String] },
-  diagnosis: { summary: { type: String, maxlength: 2000 }, completedAt: Date },
+  diagnosis: { summary: { type: String, maxlength: 2000 }, source: { type: String, enum: ['technician', 'ai_reviewed'] }, completedAt: Date },
   quotation: {
     parts: [{ name: String, cost: Number, quantity: Number, toolId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tool' } }],
     laborCost: Number, laborCategory: String, totalCost: Number, notes: String,
+    laborPricingMode: { type: String, enum: ['company', 'custom'] }, companyLaborCost: Number,
+    laborPriceReason: { type: String, maxlength: 500 },
   },
 };
 module.exports = { trackingFields, detailFields };

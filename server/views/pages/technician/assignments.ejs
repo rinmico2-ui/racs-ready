@@ -7046,11 +7046,11 @@
       const bId = a.bookingId?._id || a.bookingId;
       const esc = (s) => (s || '').replace(/'/g, "\\'");
       const isRepair = isRepairAssignment(a);
-      if (a.status === 'in_progress' && ['overview', 'inspection', 'repair-service', 'repair'].includes(pageId) && a.bookingId?.repairUnitTracking && a.bookingId?.approval?.status === 'approved' && (bs === 'repair_approved' || (isMixedAssignment(a) && bs === 'in-progress'))) {
-        return `<button class="btn btn-success" onclick="(async()=>{if(await requirePhaseOneInspectionPayment('${bId}',()=>openRepairSchedulingModal('${bId}','${esc(a.customerName)}')))openRepairSchedulingModal('${bId}','${esc(a.customerName)}');})()">Plan approved repairs</button><button class="btn btn-outline-success" onclick="openRepairUnits('booking','${bId}')">Appliance repairs</button>`;
+      if (a.status === 'in_progress' && ['overview', 'inspection', 'repair-service', 'repair'].includes(pageId) && a.bookingId?.repairUnitTracking && ['pending', 'awaiting_customer', 'approved'].includes(a.bookingId?.quotationReview?.status) && a.bookingId?.approval?.status !== 'declined' && !['repair_in_progress', 'repair_completed', 'repair_declined'].includes(bs)) {
+        return `<button type="button" class="btn btn-success" onclick="openRepairWorkflow('${bId}')">Customer repair decision</button><button type="button" class="btn btn-outline-success" onclick="openRepairUnits('booking','${bId}')">View inspection and quotation</button>`;
       }
       if (a.status === 'in_progress' && (isRepair || isMixedAssignment(a)) && (['inspection', 'repair-service'].includes(pageId) || (isRepair && pageId === 'overview' && a.bookingId?.repairUnitTracking && ['pending','awaiting_customer'].includes(a.bookingId?.quotationReview?.status)))) {
-        const repairs = `<button type="button" class="btn btn-success" onclick="openRepairUnits('booking','${bId}')">Appliance repairs</button>`;
+        const repairs = `<button type="button" class="btn btn-success" onclick="openRepairUnits('booking','${bId}')">Inspect and quote</button>`;
         const collect = a.bookingId?.quotationReview && !a.bookingId?.inspectionFeeCollected
           ? `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'Inspection recorded per appliance','Diagnosis recorded per appliance',()=>refreshOpenAssignmentDetail('inspection'))">Collect inspection fee</button>` : '';
         return repairs + collect;
@@ -12041,7 +12041,7 @@ function preparationEscapeHtml(value) {
         if (actionsHtml || showApplianceRepairs) {
           actionBar.innerHTML = actionsHtml || '';
           if (showApplianceRepairs && !actionsHtml.includes('openRepairUnits') && !actionsHtml.includes('openInspectionModal')) {
-            const button=document.createElement('button');button.type='button';button.className='btn btn-success';button.textContent='Appliance repairs';button.onclick=()=>openRepairUnits('booking',a.bookingId._id || a.bookingId);actionBar.append(button);
+            const button=document.createElement('button');button.type='button';button.className='btn btn-success';button.textContent='Inspection and quotation';button.onclick=()=>openRepairUnits('booking',a.bookingId._id || a.bookingId);actionBar.append(button);
           }
           actionBar.style.display = 'flex';
         } else {
@@ -18656,7 +18656,7 @@ function preparationEscapeHtml(value) {
 })();
 </script>
 <script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261017-clean-repair-flow">
-<script src="/js/repair-units.js?v=20261017-clean-repair-flow"></script>
-<script src="/js/repair-visit.js?v=20261017-clean-repair-flow"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261017-onsite-repair-quote">
+<script src="/js/repair-units.js?v=20261017-onsite-repair-quote"></script>
+<script src="/js/repair-visit.js?v=20261017-onsite-repair-quote"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>
