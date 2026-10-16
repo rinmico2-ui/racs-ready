@@ -150,37 +150,7 @@ function parseTimeStr(value) {
 }
 
 function getMixedPhaseOnePayment(booking) {
-  const services = Array.isArray(booking?.services) ? booking.services : [];
-  const coreItems = services.filter(item => item.type === "core");
-  const repairItems = services.filter(item => item.type === "repair");
-  const isMixedBooking = booking?.serviceType === "mixed" || (coreItems.length > 0 && repairItems.length > 0);
-  const repairInspectionFee = repairItems.reduce((sum, item) => (
-    sum + Math.max(0, Number(item.totalPrice || ((item.unitPrice || 0) * (item.quantity || 1))) || 0)
-  ), 0);
-  const distanceFare = Math.max(0, Number(booking?.travelFare) || 0);
-  const inspectionTarget = repairInspectionFee + distanceFare;
-  const allCoreCompleted = coreItems.length > 0 && coreItems.every(item => item.status === "completed");
-  const initialBookingTotal = Math.max(0, Number(booking?.totalPrice || booking?.estimatedFee) || 0);
-  const phaseOneTarget = allCoreCompleted
-    ? Math.max(initialBookingTotal, inspectionTarget)
-    : inspectionTarget;
-  const amountPaid = Math.max(0, Number(booking?.amountPaid) || 0);
-  const amountDue = Math.max(0, phaseOneTarget - amountPaid);
-  const coreServiceAmount = allCoreCompleted
-    ? Math.max(0, phaseOneTarget - inspectionTarget)
-    : 0;
-  return {
-    isMixedBooking,
-    allCoreCompleted,
-    repairInspectionFee,
-    distanceFare,
-    inspectionTarget,
-    initialBookingTotal,
-    phaseOneTarget,
-    amountPaid,
-    amountDue,
-    coreServiceAmount,
-  };
+  return require('../public/js/repair-visit-payment').summary(booking);
 }
 
 function parseCalendarDateParam(value) {
@@ -7450,157 +7420,18 @@ function _autoGenerateActions(diagnoses, parts) {
 // Technician collects inspection/diagnosis fee from customer
 router.post("/appointments/:id/collect-inspection-payment", async (req, res, next) => {
   try {
-    const BookingService = require("../models/BookingService");
-    const Payment = require("../models/Payment");
-    const { id } = req.params;
-    const { amount, inspectionFee, distanceFare, method, notes } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-
-    const tech = await Technician.findOne({ user: req.user._id }).populate("user", "firstName lastName name email");
-    if (!tech) return res.status(404).json({ error: "Technician profile not found" });
-
-    const booking = await BookingService.findById(id);
-    if (!booking) return res.status(404).json({ error: "Booking not found" });
-    const mixedPhaseOne = getMixedPhaseOnePayment(booking);
-    const isMixedBooking = mixedPhaseOne.isMixedBooking;
-    if ((!isMixedBooking && booking.inspectionFeeCollected)
-      || (isMixedBooking && booking.inspectionFeeCollected && mixedPhaseOne.amountDue <= 0.01)) {
-      return res.json({
-        success: true,
-        alreadyCollected: true,
-        message: mixedPhaseOne.allCoreCompleted ? "Phase 1 payment was already recorded." : "Inspection fee was already recorded.",
-        booking: {
-          amountPaid: booking.amountPaid,
-          inspectionFeeCollected: true,
-          inspectionFeeAmount: booking.inspectionFeeAmount,
-          inspectionFeeDistanceFare: booking.inspectionFeeDistanceFare,
-          inspectionFeeTotalCollected: booking.inspectionFeeTotalCollected,
-          coreServicePaymentCollected: booking.coreServicePaymentCollected,
-          coreServicePaymentAmount: booking.coreServicePaymentAmount,
-        },
-      });
+    const tech = await Technician.findOne({ user:req.user._id }).select('_id name user').lean();
+    if (!tech) return res.status(404).json({ error:'Technician profile not found.' });
+    const result = await require('../utils/repairVisitCollection').createService()(req.params.id, tech, req.user._id, req.body || {});
+    if (!result.alreadyCollected) {
+      const io = req.app.get('io');
+      await require('../utils/notify').createNotification({ type:'payment_collected',role:'admin',title:'First-visit payment recorded',
+        message:'The technician recorded the inspection and completed service payment. The repair quotation remains separate.',referenceId:req.params.id,referenceModel:'BookingService',link:'/admin/payments',io }).catch(() => {});
+      await audit.logEvent({ actor:req.user._id,target:req.params.id,action:'repair.visit.payment',module:'payments',req,details:{amount:result.phaseOnePayment.amountCollected} }).catch(() => {});
+      io?.to('admin-room').emit('booking:updated',{bookingId:req.params.id});
     }
-
-    const grossInspectionFee = Math.max(0, Number(
-      isMixedBooking ? mixedPhaseOne.repairInspectionFee : (inspectionFee !== undefined ? inspectionFee : amount)
-    ) || 0);
-    const grossDistanceFare = isMixedBooking ? mixedPhaseOne.distanceFare : Math.max(0, Number(distanceFare) || 0);
-    const downpaymentCredit = Math.min(Math.max(0, Number(booking.downpaymentAmount) || 0), grossInspectionFee + grossDistanceFare);
-    const expectedCollection = isMixedBooking ? mixedPhaseOne.amountDue : Math.max(0, grossInspectionFee + grossDistanceFare - downpaymentCredit);
-    const submittedCollection = inspectionFee !== undefined ? Number(amount) : expectedCollection;
-    if ((!isMixedBooking && grossInspectionFee <= 0) || !Number.isFinite(submittedCollection) || Math.abs(submittedCollection - expectedCollection) > 0.01) {
-      return res.status(400).json({ error: `Inspection collection must equal the remaining Phase 1 balance of ₱${expectedCollection.toLocaleString()}.` });
-    }
-
-    const now = new Date();
-    const techName = (tech.user && (tech.user.name || [tech.user.firstName, tech.user.lastName].filter(Boolean).join(' '))) || tech.name || 'Technician';
-    const totalCollected = expectedCollection;
-    const amountPaidBefore = Math.max(0, Number(booking.amountPaid) || 0);
-    const outstandingInspectionCash = Math.max(0, grossInspectionFee + grossDistanceFare - amountPaidBefore);
-    const inspectionCashCollectedNow = Math.min(totalCollected, outstandingInspectionCash);
-    const coreCashCollectedNow = isMixedBooking && mixedPhaseOne.allCoreCompleted
-      ? Math.max(0, totalCollected - inspectionCashCollectedNow)
-      : 0;
-
-    // Map frontend method values to valid Payment model enum values
-    const methodMap = { cash: 'cod', cod: 'cod', gcash: 'gcash', maya: 'other', bank_transfer: 'bank' };
-    const paymentMethod = methodMap[method] || 'cod';
-
-    // Update booking payment records
-    booking.amountPaid = amountPaidBefore + totalCollected;
-    booking.inspectionFeeCollected = true;
-    booking.inspectionFeeAmount = grossInspectionFee;
-    booking.inspectionFeeDistanceFare = grossDistanceFare;
-    booking.inspectionFeeTotalCollected = Math.max(Number(booking.inspectionFeeTotalCollected) || 0, inspectionCashCollectedNow);
-    booking.downpaymentAppliedToInspection = downpaymentCredit;
-    booking.inspectionFeeMethod = method || 'cash';
-    booking.inspectionFeeCollectedAt = booking.inspectionFeeCollectedAt || now;
-    if (isMixedBooking && mixedPhaseOne.allCoreCompleted) {
-      booking.coreServicePaymentCollected = true;
-      booking.coreServicePaymentAmount = mixedPhaseOne.coreServiceAmount;
-      booking.coreServicePaymentCashCollected = (Number(booking.coreServicePaymentCashCollected) || 0) + coreCashCollectedNow;
-      booking.coreServicePaymentMethod = method || 'cash';
-      booking.coreServicePaymentCollectedAt = now;
-    }
-    booking.paymentStatus = "waiting_for_remittance";
-    if (isMixedBooking) {
-      // Once all Core work is complete, Phase 1 settles the original mixed
-      // booking total. Only the approved Repair quotation remains for Phase 2.
-      const initialBookingTotal = mixedPhaseOne.phaseOneTarget;
-      const repairQuotationTotal = Math.max(0, Number(booking.quotation?.totalCost) || 0);
-      booking.balanceAmount = Math.max(0, initialBookingTotal + repairQuotationTotal - Number(booking.amountPaid || 0));
-    } else if (booking.quotation?.totalCost > 0) {
-      // Repair-only Phase 1 is settled; only the quotation remains.
-      booking.balanceAmount = Number(booking.quotation.totalCost);
-    }
-    if (notes) {
-      booking.notes = (booking.notes ? booking.notes + "\n" : "") + `[${isMixedBooking && mixedPhaseOne.allCoreCompleted ? 'Mixed Phase 1' : 'Inspection Fee'}] ₱${totalCollected.toLocaleString()} collected via ${method || 'cash'} — ${notes || ''}`;
-    }
-    await booking.save();
-
-    // Create a Payment record
-    await Payment.create({
-      bookingId: booking._id,
-      amount: totalCollected,
-      method: paymentMethod,
-      type: "inspection",
-      gateway: paymentMethod,
-      status: "waiting_for_remittance",
-      reference: notes || `Inspection fee collected by ${techName}`,
-      collectedBy: tech._id,
-      collectedByName: techName,
-      collectedAt: now,
-      events: [
-        { status: "payment_collected", actor: req.user._id, actorName: techName, actorRole: "technician", at: now },
-        { status: "waiting_for_remittance", actor: req.user._id, actorName: techName, actorRole: "technician", at: now },
-      ],
-      notes: isMixedBooking && mixedPhaseOne.allCoreCompleted
-        ? `Mixed Phase 1 payment — inspection: ₱${grossInspectionFee.toLocaleString()}, fare: ₱${grossDistanceFare.toLocaleString()}, completed Core service: ₱${mixedPhaseOne.coreServiceAmount.toLocaleString()}; cash collected: ₱${totalCollected.toLocaleString()} by ${techName}`
-        : `Inspection fee: ₱${grossInspectionFee.toLocaleString()}${grossDistanceFare > 0 ? ' + fare: ₱' + grossDistanceFare.toLocaleString() : ''}. Collected by ${techName}`,
-    });
-
-    // Notify admins
-    const { createNotification } = require("../utils/notify");
-    const io = req.app.get("io");
-    await createNotification({
-      type: "payment_collected",
-      title: isMixedBooking && mixedPhaseOne.allCoreCompleted ? "Mixed Phase 1 Payment Collected" : "Inspection Fee Collected",
-      message: `${techName} collected ₱${totalCollected.toLocaleString()} for ${isMixedBooking && mixedPhaseOne.allCoreCompleted ? 'Repair inspection and completed Core service' : 'Repair inspection'} on ${booking.bookingReference || booking.workOrderNumber || id}.`,
-      role: "admin",
-      referenceId: booking._id,
-      referenceModel: "BookingService",
-      link: "/admin/appointments/completed",
-      priority: "normal",
-      io,
-    });
-
-    console.log(`💰 Inspection payment collected for ${booking.bookingReference || id}: ₱${totalCollected} via ${method || 'cash'}`);
-    return res.json({
-      success: true,
-      message: `₱${totalCollected.toLocaleString()} ${isMixedBooking && mixedPhaseOne.allCoreCompleted ? "Phase 1 balance" : "inspection fee"} collected.`,
-      phaseOnePayment: {
-        inspectionFee: grossInspectionFee,
-        distanceFare: grossDistanceFare,
-        coreServiceAmount: isMixedBooking && mixedPhaseOne.allCoreCompleted ? mixedPhaseOne.coreServiceAmount : 0,
-        amountCollected: totalCollected,
-        remainingInitialBalance: Math.max(0, mixedPhaseOne.phaseOneTarget - Number(booking.amountPaid || 0)),
-      },
-      booking: {
-        amountPaid: booking.amountPaid,
-        inspectionFeeCollected: booking.inspectionFeeCollected,
-        inspectionFeeAmount: booking.inspectionFeeAmount,
-        inspectionFeeDistanceFare: booking.inspectionFeeDistanceFare,
-        inspectionFeeTotalCollected: booking.inspectionFeeTotalCollected,
-        coreServicePaymentCollected: booking.coreServicePaymentCollected,
-        coreServicePaymentAmount: booking.coreServicePaymentAmount,
-        balanceAmount: booking.balanceAmount,
-      },
-    });
-  } catch (err) {
-    console.error("Collect inspection payment error:", err);
-    return res.status(500).json({ error: err.message || "Server error collecting payment" });
-  }
+    return res.json(result);
+  } catch (error) { if (error.status) return res.status(error.status).json({error:error.message}); next(error); }
 });
 
 // POST /appointments/:id/submit-diagnosis
@@ -8112,8 +7943,7 @@ router.post("/appointments/:id/technician-schedule-later", async (req, res, next
         code: "CORE_SERVICE_PENDING",
       });
     }
-    const phaseOnePaymentMissing = !booking.inspectionFeeCollected
-      || (mixedPhaseOne.isMixedBooking && mixedPhaseOne.allCoreCompleted && mixedPhaseOne.amountDue > 0.01);
+    const phaseOnePaymentMissing = !mixedPhaseOne.settled;
     if (Number(booking.initialCost || mixedPhaseOne.repairInspectionFee || 0) > 0 && phaseOnePaymentMissing) {
       return res.status(409).json({
         error: mixedPhaseOne.isMixedBooking && mixedPhaseOne.allCoreCompleted
@@ -8990,21 +8820,16 @@ router.post("/appointments/:id/collect-repair-payment", async (req, res, next) =
       || booking.totalInitialCost || booking.servicePrice || booking.estimatedFee
     ) || 0);
     const distanceFare = Math.max(0, Number(booking.inspectionFeeDistanceFare || booking.travelFare) || 0);
-    const phase1Settled = Boolean(booking.inspectionFeeCollected);
+    const firstVisitBill = getMixedPhaseOnePayment(booking);
+    const phase1Settled = firstVisitBill.settled;
     // The booking downpayment is a Phase 1 inspection credit only. It must
     // never discount the approved Phase 2 repair quotation.
     const downpaymentCredit = phase1Settled
       ? Math.max(0, Number(booking.downpaymentAppliedToInspection) || 0)
       : Math.min(Math.max(0, Number(booking.downpaymentAmount) || 0), inspectionFee + distanceFare);
-    const phase1CashDue = phase1Settled ? 0 : Math.max(0, inspectionFee + distanceFare - downpaymentCredit);
-    const initialBookingTotal = isMixedBooking
-      ? getMixedPhaseOnePayment(booking).phaseOneTarget
-      : Math.max(0, Number(booking.totalPrice || booking.estimatedFee) || 0);
-    const finalAmountDue = isMixedBooking
-      ? Math.max(0, initialBookingTotal + quotationTotal - Number(booking.amountPaid || 0))
-      : phase1Settled
-        ? quotationTotal
-        : quotationTotal + phase1CashDue;
+    const phase1CashDue = firstVisitBill.amountDue;
+    const initialBookingTotal = firstVisitBill.initialBookingTotal;
+    const finalAmountDue = Math.max(0, initialBookingTotal + quotationTotal - Number(booking.amountPaid || 0));
     const collected = Number(amount);
     if (!Number.isFinite(collected) || collected <= 0 || Math.abs(collected - finalAmountDue) > 0.01) {
       return res.status(400).json({ error: `Final payment must equal the remaining balance of ₱${finalAmountDue.toLocaleString()}.`, finalAmountDue });

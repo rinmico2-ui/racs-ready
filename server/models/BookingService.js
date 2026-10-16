@@ -208,13 +208,13 @@ const bookingSchema = new mongoose.Schema({
       },
       // Per-unit inspection data
       inspection: {
+        ...require('./repairUnitFields').inspectionFields,
         scheduledDate: Date,
         completedAt: Date,
         technicianId: { type: mongoose.Schema.Types.ObjectId, ref: "Technician" },
         findings: String,
         severity: { type: String, enum: ["", "minor", "major", "critical"] },
         damagedParts: [String],
-        recommendedAction: String,
         photos: [String],
         notes: String,
       },

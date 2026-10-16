@@ -3,6 +3,9 @@ const test = require('node:test'), assert = require('node:assert/strict'), mongo
 const Booking = require('../models/BookingService'), Project = require('../models/Project'), Technician = require('../models/Technician'), Tool = require('../models/Tool'), SiteSetting = require('../models/SiteSetting'), WorkOrder = require('../models/WorkOrder'), DailyAssignment = require('../models/DailyAssignment');
 const flow = require('../utils/repairUnitWorkflow'), notify = require('../utils/notify'), audit = require('../utils/audit');
 const Assignment = require('../models/Assignment');
+const ServiceReport = require('../models/ServiceReport');
+const inspection = { testsPerformed:'Measured capacitance is below the rated value.', recommendedAction:'Replace the capacitor and retest cooling.', technicianConfirmed:true };
+const verification = { testResults:'Cooling and electrical tests passed after replacement.', outcome:'resolved', customerConfirmed:true };
 const originalNotification = notify.createNotification;
 const notifications = [];
 notify.createNotification = async body => { notifications.push(body); };
@@ -21,6 +24,7 @@ function fixture(t, standard = false) {
   t.mock.method(Assignment,'findOne',()=>query({ status: 'in_progress', technicianId: techId, bookingId: booking._id }));
   t.mock.method(Tool,'find',()=>query([]));t.mock.method(SiteSetting,'find',()=>query([]));
   t.mock.method(WorkOrder,'find',()=>query([]));t.mock.method(WorkOrder,'exists',()=>query(null));t.mock.method(DailyAssignment,'find',()=>query([]));
+  t.mock.method(ServiceReport,'updateOne',async()=>({modifiedCount:1}));
   t.mock.method(mongoose,'startSession',async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}}));
   t.mock.method(standard?Booking:Project,'updateOne',async(filter,change,options)=>{writes.push({filter,change,options});return{modifiedCount:1};});
   t.mock.method(audit,'logEvent',async()=>{});
@@ -32,7 +36,7 @@ function fixture(t, standard = false) {
     return{result,error};
   }
   async function inspections() {
-    for(const key of ['G1-U001','G1-U002']) { const result=await call('inspect','technician',{key,findings:'Cooling test confirms a damaged capacitor.',diagnosis:'Faulty capacitor',parts:[],laborCategory:'minor'});assert.ifError(result.error); }
+    for(const key of ['G1-U001','G1-U002']) { const result=await call('inspect','technician',{...inspection,key,findings:'Cooling test confirms a damaged capacitor.',diagnosis:'Faulty capacitor',parts:[],laborCategory:'minor'});assert.ifError(result.error); }
     assert.ifError((await call('submit')).error);
   }
   return{booking,project,principal,customerId,techUser,techId,writes,call,inspections};
@@ -80,7 +84,7 @@ test('standard repair keeps separate appliance decisions and produces only the a
   assert.ifError((await f.call('decide','customer',{decisions:[{key:'G1-U001',approved:true,revision:1},{key:'G1-U002',approved:false,revision:1}]})).error);
   assert.equal(f.booking.status,'repair_approved');assert.equal(f.booking.quotation.totalCost,300);assert.equal(f.booking.services[0].quotation.totalCost,300);
   assert.equal(f.booking.services[0].units[1].repairReview.state,'declined');
-  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Capacitor replaced; cooling and electrical tests passed.'})).error);
+  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{...verification,key:'G1-U001',notes:'Capacitor replaced; cooling and electrical tests passed.'})).error);
   assert.equal(f.booking.services[0].units[0].repairReview.state,'completed');
   assert.equal((await f.call(null)).result.readyForCompletion, true);
 });
@@ -154,13 +158,13 @@ test('older technician actions cannot skip customer decisions or individual repa
   assert.ifError((await f.call('decide','customer',{decisions:[{key:'G1-U001',approved:true,revision:1},{key:'G1-U002',approved:false,revision:1}]})).error);
   assert.equal((await check('start-repair')).result.body.code,'REPAIR_WORK_PLAN_REQUIRED');
   assert.equal((await check('complete-repair')).result.code,409);
-  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Replaced capacitor and passed the cooling test.'})).error);
+  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{...verification,key:'G1-U001',notes:'Replaced capacitor and passed the cooling test.'})).error);
   assert.equal((await check('complete-repair')).passed,true);
 });
 
 test('Submit inspection and quotation saves the final draft and notifies both customer and staff', async t => {
   const f = fixture(t, true);
-  const body = { findings: 'The capacitor is below the rated capacitance.', diagnosis: 'Replace the faulty capacitor', parts: [], laborCategory: 'minor', laborPricingMode: 'custom', laborCost: 650, laborPriceReason: 'Includes wiring repair and electrical tests.' };
+  const body = { ...inspection, findings: 'The capacitor is below the rated capacitance.', diagnosis: 'Replace the faulty capacitor', parts: [], laborCategory: 'minor', laborPricingMode: 'custom', laborCost: 650, laborPriceReason: 'Includes wiring repair and electrical tests.' };
   assert.ifError((await f.call('inspect', 'technician', { ...body, key: 'G1-U001' })).error);
   const result = await f.call('inspect-and-submit', 'technician', { ...body, key: 'G1-U002' });
   assert.ifError(result.error); assert.equal(result.result.submitted, true); assert.equal(result.result.canPlanRepair, true);
@@ -179,4 +183,92 @@ test('AI diagnostic can use the recorded customer problem first, or the technici
     if (diagnosis) assert.ok(captured.problemDescription.includes(diagnosis));
   }
   assert.equal(f.writes.length, 0); assert.notEqual(f.booking.approval.status, 'approved');
+});
+
+test('an inspection draft is saved without pricing or submission and quotation submission enforces verified checks', async t => {
+  const f = fixture(t,true);
+  assert.ifError((await f.call('inspection-draft','technician',{key:'G1-U001',findings:'The compressor is not starting during the cooling test.'})).error);
+  assert.equal(f.booking.inspection?.completedAt,undefined); assert.notEqual(f.booking.approval?.status,'approved');
+  assert.equal(f.booking.services[0].units[0].repairReview.state,'pending');
+  await f.inspections();
+  assert.ifError((await f.call('review','admin',{action:'reject',notes:'Check the measured readings again.'})).error);
+  for (const key of ['G1-U001','G1-U002']) assert.ifError((await f.call('inspect','technician',{...inspection,key,findings:'The measured capacitor value is below specification.',diagnosis:'Faulty capacitor',parts:[],technicianConfirmed:false})).error);
+  const written = f.writes.length;
+  assert.match((await f.call('submit')).error.message,/Confirm/); assert.equal(f.writes.length,written);
+});
+
+test('failed final tests create an admin follow-up case without completion, payment or inventory changes', async t => {
+  const f = fixture(t,true); await f.inspections();
+  assert.ifError((await f.call('review','admin',{action:'approve'})).error);
+  assert.ifError((await f.call('decide','customer',{decisions:['G1-U001','G1-U002'].map(key=>({key,revision:1,approved:true}))})).error);
+  f.booking.status='repair_in_progress'; f.booking.repairExecution={status:'in_progress'};
+  const reports=[];t.mock.method(ServiceReport,'updateOne',async(...args)=>{reports.push(args);return{modifiedCount:1};});
+  const body={key:'G1-U001',notes:'Replaced the capacitor and checked electrical connections.',testResults:'The compressor still does not start after replacement.',outcome:'follow_up_required',followUpReason:'Compressor requires further testing and a return visit.'};
+  const result=await f.call('complete','technician',body); assert.ifError(result.error);
+  assert.equal(result.result.readyForCompletion,false); assert.equal(result.result.units[0].review.state,'approved');
+  assert.equal(result.result.units[0].repairVerification.outcome,'follow_up_required'); assert.equal(f.booking.status,'repair_in_progress');
+  assert.equal(reports[0][0].serviceItemId,f.booking.services[0]._id); assert.equal(reports[0][1].$set.followUpRequired,true);
+  assert.ok(reports[0][2].session); assert.equal(reports[0][2].upsert,true); assert.equal(reports[0][1].$setOnInsert.status,'draft');
+  const changed=f.writes.at(-1).change.$set; assert.equal(changed.repairCompletion,undefined); assert.equal(changed.amountPaid,undefined);
+  assert.ok(notifications.some(row=>row.role==='admin' && row.title==='Repair follow-up required'));
+  assert.ok(notifications.some(row=>String(row.userId)===String(f.customerId) && row.title==='Repair follow-up required'));
+  const repaired=await f.call('complete','technician',{...body,...verification}); assert.ifError(repaired.error);
+  assert.equal(reports[1][1].$set.followUpRequired,false);
+});
+
+test('a direct API completion cannot omit final testing or customer confirmation', async t => {
+  const f = fixture(t,true); await f.inspections(); await f.call('review','admin',{action:'approve'});
+  await f.call('decide','customer',{decisions:['G1-U001','G1-U002'].map(key=>({key,revision:1,approved:true}))});
+  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};
+  const count=f.writes.length;
+  for (const invalid of [{testResults:''},{customerConfirmed:false},{outcome:'fake'}]) {
+    const result=await f.call('complete','technician',{...verification,key:'G1-U001',notes:'Replaced capacitor and checked connections.',...invalid});
+    assert.equal(result.error.status,400);assert.equal(f.writes.length,count);
+  }
+});
+
+test('inspection evidence upload is bound to the appliance and version and compensates a stale write', async t => {
+  const f=fixture(t,true), storage=require('../utils/repairInspectionEvidence'), stored=[],removed=[];
+  const png={buffer:Buffer.from('89504e470d0a1a0a','hex'),mimetype:'image/png',originalname:'test.png'};
+  t.mock.method(storage,'store',async(file,metadata)=>{const id=new mongoose.Types.ObjectId();stored.push({id,metadata});return id;});
+  t.mock.method(storage,'remove',async id=>{removed.push(id);});
+  const route=router.stack.find(layer=>layer.route?.path==='/:scope/:id/evidence').route;
+  const handler=route.stack.at(-1).handle;
+  async function upload(body,role='technician',files=[png]) {
+    let result,error;
+    await handler({params:{scope:'booking',id:String(f.booking._id)},user:{role,_id:role==='customer'?f.customerId:f.techUser},body,files},{json:value=>{result=value;}},value=>{error=value;});
+    return{result,error};
+  }
+  const request={key:'G1-U001',version:'0'};
+  assert.equal((await upload(request,'customer')).error.status,403); assert.equal(stored.length,0);
+  assert.equal((await upload({...request,version:'999'})).error.status,409); assert.equal(stored.length,0);
+  assert.equal((await upload(request,'technician',[{...png,buffer:Buffer.from('<script>not an image</script>')}])).error.status,400);
+  const response=await upload(request);assert.ifError(response.error);assert.equal(response.result.version,1);
+  assert.equal(stored[0].metadata.documentId,String(f.booking._id));assert.equal(stored[0].metadata.unitKey,'G1-U001');
+  assert.match(response.result.photos[0],new RegExp(`/booking/${f.booking._id}/evidence/`));
+  t.mock.method(Booking,'updateOne',async()=>({modifiedCount:0}));
+  const stale=await upload(request);assert.equal(stale.error.status,409);assert.equal(removed.length,1);
+});
+
+test('inspection evidence cannot be fetched by another customer or from a different repair', async t => {
+  const f=fixture(t,true), storage=require('../utils/repairInspectionEvidence'), fileId=new mongoose.Types.ObjectId();
+  t.mock.method(storage,'find',async()=>({metadata:{scope:'booking',documentId:String(new mongoose.Types.ObjectId()),unitKey:'G1-U001'}}));
+  const handler=router.stack.find(layer=>layer.route?.path==='/:scope/:id/evidence/:fileId').route.stack.at(-1).handle;
+  for(const userId of [new mongoose.Types.ObjectId(),f.customerId]) {
+    let error;await handler({params:{scope:'booking',id:String(f.booking._id),fileId:String(fileId)},user:{role:'customer',_id:userId}},{},value=>{error=value;});
+    assert.equal(error.status,String(userId)===String(f.customerId)?404:403);
+  }
+});
+
+test('the owning customer can fetch saved inspection evidence using modern GridFS MIME metadata', async t => {
+  const f=fixture(t,true),storage=require('../utils/repairInspectionEvidence'),fileId=new mongoose.Types.ObjectId();
+  const url=`/api/repair-units/booking/${f.booking._id}/evidence/${fileId}`;
+  f.booking.services[0].units[0].inspection={photos:[url]};
+  t.mock.method(storage,'find',async()=>({metadata:{scope:'booking',documentId:String(f.booking._id),unitKey:'G1-U001',contentType:'image/png'}}));
+  const stream=new(require('node:stream').PassThrough)();let target,headers;
+  stream.pipe=value=>{target=value;};t.mock.method(storage,'download',()=>stream);
+  const handler=router.stack.find(layer=>layer.route?.path==='/:scope/:id/evidence/:fileId').route.stack.at(-1).handle;
+  const res={set(value){headers=value;},once(){}};let error;
+  await handler({params:{scope:'booking',id:String(f.booking._id),fileId:String(fileId)},user:{role:'customer',_id:f.customerId}},res,value=>{error=value;});
+  assert.ifError(error);assert.equal(target,res);assert.equal(headers['Content-Type'],'image/png');assert.equal(headers['Cache-Control'],'private, no-store');
 });

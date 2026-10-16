@@ -13,7 +13,7 @@ function project(quantity = 2) {
   const booking = new Booking({ customerId: actor, serviceType:'repair', quantity, services:[{ name:'Aircon repair', unitType:'Split Aircon', type:'repair', quantity, brand:'Carrier', model:'Nexus', problemDescription:'Different cooling problems', units:flow.customerUnits({ quantity, problemDescription:'Different cooling problems', units:Array.from({length:quantity}, (_,i) => ({label:`Room ${i+1}`, problemDescription:i % 2 ? 'Water leaking inside' : 'Aircon does not cool'})) }) }] });
   return new Project({ bookingId:booking._id, customerId:actor, quantity, totalUnits:quantity, estimatedTotalHours:quantity * 1.5, requestedUnitCount:quantity, repairUnitTracking:true, projectPhase:'assessment', unitGroups:flow.buildUnitGroups(booking) });
 }
-const input = overrides => ({findings:'Cooling test confirms faulty capacitor.',diagnosis:'Faulty capacitor',parts:[{name:'Capacitor',quantity:1,cost:120}],laborCategory:'minor',totalCost:99999,...overrides});
+const input = overrides => ({findings:'Cooling test confirms faulty capacitor.',testsPerformed:'Measured capacitance is below the rated value.',recommendedAction:'Replace capacitor and test the cooling cycle.',technicianConfirmed:true,diagnosis:'Faulty capacitor',parts:[{name:'Capacitor',quantity:1,cost:120}],laborCategory:'minor',totalCost:99999,...overrides});
 function inspectAll(p) { for (const row of flow.ensureUnits(p)) flow.inspect(p,row.key,input({laborCategory:row.unit.unitIndex % 2 ? 'minor' : 'complex'}),{technicianId:technician,laborFees:fees}); }
 function reviewAll(p) { inspectAll(p); flow.submitInspection(p); flow.review(p,'approve',actor); }
 
@@ -101,4 +101,54 @@ test('aftercare is created for repaired appliances and excludes declined applian
   const { bookingAssetSeeds } = require('../utils/maintenanceLifecycle');
   const booking = { _id:new mongoose.Types.ObjectId(), customerId:actor, repairUnitTracking:true, services:[{type:'repair',quantity:2,name:'Aircon repair',units:[{unitIndex:1,label:'Bedroom',repairReview:{state:'completed'}},{unitIndex:2,label:'Office',repairReview:{state:'declined'}}]}] };
   const assets=bookingAssetSeeds(booking);assert.equal(assets.length,1);assert.equal(assets[0].equipment.unitLabel,'Bedroom');
+});
+
+test('inspection notes can be saved before a diagnosis or price without authorising a repair', async () => {
+  const p = project(1);
+  flow.saveInspectionDraft(p, 'G1-U001', { findings: 'Unit fails to cool; the compressor does not start.', testsPerformed: 'Electrical tests not completed yet.' }, { technicianId: technician });
+  const unit = flow.rows(p)[0].unit;
+  assert.equal(unit.repairReview.state, 'pending'); assert.equal(unit.inspection.completedAt, undefined);
+  assert.equal(unit.inspection.technicianConfirmed, false); assert.equal(unit.quotation.totalCost, undefined);
+  assert.throws(() => flow.submitInspection(p), /every appliance/);
+  await p.validate();
+});
+
+test('AI diagnosis and a priced draft cannot submit without actual checks, recommendation and technician confirmation', () => {
+  for (const missing of [{ testsPerformed:'' }, { recommendedAction:'' }, { technicianConfirmed:false }, { technicianConfirmed:'true' }]) {
+    const p = project(1);
+    flow.inspect(p, 'G1-U001', input({ diagnosisSource:'ai_reviewed', ...missing }), { laborFees:fees, technicianId:technician });
+    assert.throws(() => flow.submitInspection(p), /Checks|Recommended|Confirm/);
+    assert.equal(p.inspectionReport?.submittedAt, undefined); assert.equal(p.projectPhase, 'assessment');
+  }
+});
+
+test('confirmed inspection preserves stored evidence, records submission time and rejects forged evidence URLs', async () => {
+  const p = project(1), unit = flow.rows(p)[0].unit;
+  unit.inspection.photos = ['/api/repair-units/project/stored/evidence/owned'];
+  flow.inspect(p, 'G1-U001', input({ photos:['https://untrusted.example/private.jpg'] }), { laborFees:fees, technicianId:technician });
+  assert.equal(unit.inspection.completedAt, undefined);
+  flow.submitInspection(p);
+  const roundtrip = new Project(p.toObject()).unitGroups[0].units[0];
+  assert.equal(roundtrip.inspection.testsPerformed, input().testsPerformed);
+  assert.equal(roundtrip.inspection.recommendedAction, input().recommendedAction);
+  assert.equal(roundtrip.inspection.technicianConfirmed, true);
+  assert.ok(roundtrip.inspection.confirmedAt instanceof Date);
+  assert.deepEqual([...roundtrip.inspection.photos], ['/api/repair-units/project/stored/evidence/owned']);
+  await p.validate();
+});
+
+test('repair verification requires tests and customer confirmation and keeps unresolved appliances open', async () => {
+  const p = project(1); reviewAll(p); flow.decide(p, [{ key:'G1-U001', revision:1, approved:true }], actor);
+  const verified = { notes:'Replaced the capacitor and checked wiring.', testResults:'The compressor still fails to start.', outcome:'resolved', customerConfirmed:false };
+  assert.throws(() => flow.verifyRepair(p,'G1-U001',verified,technician), /customer/);
+  assert.throws(() => flow.verifyRepair(p,'G1-U001',{...verified,customerConfirmed:true,testResults:''},technician), /test results/);
+  assert.throws(() => flow.verifyRepair(p,'G1-U001',{...verified,outcome:'follow_up_required',followUpReason:''},technician), /Follow-up/);
+  flow.verifyRepair(p,'G1-U001',{...verified,outcome:'follow_up_required',followUpReason:'Compressor replacement requires a return visit.'},technician);
+  let unit = flow.rows(p)[0].unit;
+  assert.equal(unit.repairReview.state,'approved'); assert.notEqual(unit.status,'completed'); assert.equal(unit.completedAt,undefined);
+  assert.equal(unit.repairVerification.outcome,'follow_up_required');
+  flow.verifyRepair(p,'G1-U001',{...verified,customerConfirmed:true,testResults:'The appliance now passes cooling and electrical tests.'},technician);
+  unit = new Project(p.toObject()).unitGroups[0].units[0];
+  assert.equal(unit.repairReview.state,'completed'); assert.equal(unit.repairVerification.customerConfirmed,true);
+  assert.equal(unit.repairVerification.outcome,'resolved'); await p.validate();
 });
