@@ -316,6 +316,19 @@ async function previewSeed({ db, config = DEFAULTS, now = new Date(), prepare = 
     next: 'Download both private recovery files before applying. This preparation only writes files; it does not insert transactions.' };
 }
 
+function storedRecordDigest(rows) {
+  // MongoDB places _id first in stored documents. Field order is not a change
+  // to this seed's data; values, BSON types and array order must still match.
+  const ordered = value => Array.isArray(value) ? value.map(ordered)
+    : value && typeof value === 'object'
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  const hash = crypto.createHash('sha256');
+  for (const row of [...rows].sort((a, b) => id(a).localeCompare(id(b)))) {
+    hash.update(JSON.stringify(ordered(mongoose.mongo.BSON.EJSON.serialize(row, { relaxed: false }))) + '\n');
+  }
+  return hash.digest('hex');
+}
+
 async function applySeed({ db, client, backupFile, now = new Date(), verifyOnly = false }) {
   const { artifact: rawArtifact } = await recovery.readResetBackup(backupFile);
   // Recovery files preserve BSON numeric types; application validators and
@@ -331,8 +344,7 @@ async function applySeed({ db, client, backupFile, now = new Date(), verifyOnly 
     const actual = {};
     for (const collection of Object.keys(COLLECTIONS)) {
       actual[collection] = await db.collection(collection).find({ 'demonstration.batch': config.batch }, { session }).sort({ _id: 1 }).toArray();
-      const expected = [...artifact.seed[collection]].sort((a, b) => id(a).localeCompare(id(b)));
-      if (recovery.digest({ rows: actual[collection] }) !== recovery.digest({ rows: expected })) throw Error('Seed verification failed: ' + collection + ' changed or is incomplete.');
+      if (storedRecordDigest(actual[collection]) !== storedRecordDigest(artifact.seed[collection])) throw Error('Seed verification failed: ' + collection + ' changed or is incomplete.');
     }
     return { mode: 'verified', ...summary(actual, config), databaseChanges: 0, reconciliation: { matches: true } };
   }
