@@ -1013,7 +1013,7 @@ document.addEventListener("DOMContentLoaded", function () {
         records: orders.map(o => ({ id:o._id, source:o, reference:orderRef(o), customer:o.customer?.name,
           description:(o.items || []).map(i => `${i.modelLine || "Aircon"} ${i.capacity || ""}${i.capacityUnit || "HP"} \u00d7 ${i.quantity}`).join(", "),
           schedule:`${fmtDate(o.delivery?.preferredDate)} ${fmtTime(o.timeSlot)}`, address:o.delivery?.address,
-          technician:o.technician?.name, deadline:o.acceptanceDeadlineAt, isPastDate:o.isPastDate === true,
+          technician:o.technician?.name, technicians:(o.technicianTeam||[]).map(member=>({...member,role:String(member.technicianId?._id||member.technicianId)===String(o.technicianId?._id||o.technicianId)?'primary':'support'})), deadline:o.acceptanceDeadlineAt, isPastDate:o.isPastDate === true,
           canExtend:true, canRequeue:o.isAcceptanceOverdue === true, canResolve:canResolveOrders,
           requeueHint:"Available after the technician response deadline. Extend the deadline to allow more time."
         })), onAction:async (action, record) => {

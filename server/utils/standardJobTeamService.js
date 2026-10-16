@@ -168,7 +168,37 @@ function createService(overrides = {}) {
       await job.save({ session }); return { job, response: true };
     }));
   }
-  return { load, candidates, assign, respond, schedule, addNote };
+  async function extend(source, id, minutes, assignmentId) {
+    return deps.lock(`job-team:${source}:${id}`, () => transaction(async session => {
+      const job = await load(source, id, session); schedule(source, job);
+      if (!['assigned', 'confirmed', 'inspection_scheduled', 'repair_scheduled', 'technician_assigned'].includes(job.status)) throw team.failure('This job is no longer waiting for acceptance.');
+      const pending = team.members(job).filter(row => row.status === 'pending' && (source === 'order' || team.ref(row.assignmentId) === String(assignmentId)));
+      if (!pending.length) throw team.failure('This assignment has already been answered. Refresh the page.');
+      for (const entry of pending) {
+        entry.deadlineAt = require('./acceptanceDeadline').extendAcceptanceDeadline(entry.deadlineAt, minutes);
+        if (source === 'booking') {
+          const result = await deps.Assignment.updateOne({ _id: entry.assignmentId, bookingId: job._id, technicianId: entry.technicianId, status: 'pending_acceptance' }, { $set: { acceptanceDeadline: entry.deadlineAt } }, { session });
+          if (!result.matchedCount) throw team.failure('This assignment changed. Refresh before trying again.');
+        }
+      }
+      if (source === 'order') job.technicianAcceptance.deadlineAt = new Date(Math.min(...pending.map(row => Number(row.deadlineAt))));
+      await job.save({ session }); return { source, job, response: true };
+    }));
+  }
+  async function releaseBooking(id, reason = '', actor = {}) {
+    return deps.lock(`job-team:booking:${id}`, () => transaction(async session => {
+      const job = await load('booking', id, session); schedule('booking', job);
+      if (!['assigned', 'inspection_scheduled', 'repair_scheduled', 'pending_reassignment'].includes(job.status) || !team.members(job).some(row => row.status === 'pending')) throw team.failure('This job is no longer waiting for acceptance.');
+      const assignments = await deps.Assignment.find({ bookingId: id, status: { $nin: ['completed', 'cancelled', 'declined', 'expired'] } }).session(session).lean();
+      if (assignments.some(row => ['en_route', 'on_site', 'in_progress'].includes(row.status))) throw team.failure('Work has started. Operations must review the team.');
+      for (const row of assignments) await deps.Assignment.updateOne({ _id: row._id }, { $set: { status: row.status === 'pending_acceptance' ? 'expired' : 'cancelled', expiredAt: new Date(), expiredReason: 'Returned to assignment queue by staff' } }, { session });
+      for (const row of team.members(job)) if (row.status === 'pending') { row.status = 'expired'; row.respondedAt = new Date(); row.reason = 'Returned to assignment queue by staff'; }
+      const before = job.status; job.status = 'pending_reassignment'; job.technicianId = null; job.assignmentId = null; job.reassignmentCount = (job.reassignmentCount || 0) + 1;
+      job.recordStatusHistory?.({ fromStatus: before, toStatus: job.status, changedBy: actor._id, changedByName: actor.name || actor.email || 'Staff', reason: String(reason || 'Staff returned the technician team to the assignment queue').slice(0, 500) });
+      await job.save({ session }); return { source: 'booking', job, response: true };
+    }));
+  }
+  return { load, candidates, assign, respond, schedule, addNote, extend, releaseBooking };
 }
 async function publish(result, req) {
   const { source, job } = result, io = req.app.get('io') || global.io;

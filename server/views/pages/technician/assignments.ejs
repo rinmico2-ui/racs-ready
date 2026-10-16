@@ -7007,7 +7007,7 @@
     function getWizardPageActions(pageId, a, allowMixedRepairActions = false) {
       if (!a) return '';
       if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.assignmentActions(a);
-      if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam)) return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.</div>';
+      if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam) && pageId !== 'ai-assistant') return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.'+(isRepairAssignment(a)?'<button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="switchDetailTab(\'ai-assistant\')">Review AI preparation</button>':'')+'</div>';
       if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule. Completed work and payments remain recorded.</div>';
       const actions = getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions);
       const canContinue = a.status === 'in_progress' && ['overview', 'core-service', 'repair-service', 'repair', 'inspection'].includes(pageId) && !actions.includes('data-continuation-request');
@@ -7023,7 +7023,7 @@
       if (a.status === 'in_progress' && ['overview', 'inspection', 'repair-service', 'repair'].includes(pageId) && a.bookingId?.repairUnitTracking && a.bookingId?.approval?.status === 'approved' && (bs === 'repair_approved' || (isMixedAssignment(a) && bs === 'in-progress'))) {
         return `<button class="btn btn-success" onclick="(async()=>{if(await requirePhaseOneInspectionPayment('${bId}',()=>openRepairSchedulingModal('${bId}','${esc(a.customerName)}')))openRepairSchedulingModal('${bId}','${esc(a.customerName)}');})()">Plan approved repairs</button><button class="btn btn-outline-success" onclick="openRepairUnits('booking','${bId}')">Appliance repairs</button>`;
       }
-      if ((isRepair || isMixedAssignment(a)) && (['inspection', 'repair-service'].includes(pageId) || (isRepair && pageId === 'overview' && a.bookingId?.repairUnitTracking && ['pending','awaiting_customer'].includes(a.bookingId?.quotationReview?.status)))) {
+      if (a.status === 'in_progress' && (isRepair || isMixedAssignment(a)) && (['inspection', 'repair-service'].includes(pageId) || (isRepair && pageId === 'overview' && a.bookingId?.repairUnitTracking && ['pending','awaiting_customer'].includes(a.bookingId?.quotationReview?.status)))) {
         const repairs = `<button type="button" class="btn btn-success" onclick="openRepairUnits('booking','${bId}')">Appliance repairs</button>`;
         const collect = a.bookingId?.quotationReview && !a.bookingId?.inspectionFeeCollected
           ? `<button type="button" class="btn btn-warning" onclick="openInspectionPaymentModal('${bId}',window._detailAssignment,'Inspection recorded per appliance','Diagnosis recorded per appliance',()=>refreshOpenAssignmentDetail('inspection'))">Collect inspection fee</button>` : '';
@@ -7043,7 +7043,7 @@
         const ta = a.bookingId?.technicianAssistant;
         if (ta?.summary) {
           return `<div class="d-flex gap-2 flex-wrap">
-            ${(ta.possibleParts || []).length ? `<button type="button" class="btn btn-outline-success" onclick="verifyAiAssistant('${bId}')"><i class="bi bi-box-seam me-2"></i>Select Optional Contingency Parts</button>` : ''}
+            <button type="button" class="btn btn-outline-success" onclick="verifyAiAssistant('${bId}')"><i class="bi bi-clipboard2-check me-2"></i>${ta.verifiedByTechnician ? 'Review AI diagnosis again' : 'Confirm AI diagnosis review'}</button>
             <button type="button" class="btn btn-outline-primary" onclick="switchDetailTab('overview')"><i class="bi bi-arrow-right-circle me-2"></i>Continue Preparation</button>
           </div>`;
         }
@@ -8137,6 +8137,7 @@ ${isRepair ? `
       const esc = (s) => s != null ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;') : '';
       const escJs = (s) => s != null ? String(s).replace(/[\\'"]/g, '\\$&').replace(/\n/g, '\\n').replace(/\r/g, '\\r') : '';
       const ta = a.bookingId?.technicianAssistant;
+      if (a.status === 'pending_acceptance') return '<div class="alert alert-info m-3">Accept your assignment first. AI suggestions help preparation; inspections and quotations become available after Start Work.</div>';
       const bId = a.bookingId?._id || (typeof a.bookingId === 'string' ? a.bookingId : '');
       if (!ta?.summary) {
         const isRepair = isRepairAssignment(a);
@@ -11552,8 +11553,14 @@ function preparationEscapeHtml(value) {
     window.refreshOpenAssignmentDetail = async function (preferredTab) {
       const detailId = window._currentDetailId;
       if (!detailId) return loadAssignments(currentFilter, currentPage);
+      const previousDetailLoad = detailLoad?.id === String(detailId) ? detailLoad.promise : null;
       if (preferredTab) window._activeDetailTab = preferredTab;
       await loadAssignments(currentFilter, currentPage, document.getElementById('searchInput')?.value || '');
+      // AI generation can finish during the original detail request. Wait for
+      // that request so showDetail fetches the saved report instead of reusing
+      // its earlier response through the in-flight request deduplication.
+      if (previousDetailLoad) await previousDetailLoad;
+      if (String(window._currentDetailId || '') !== String(detailId)) return;
       await showDetail(detailId);
       if (preferredTab) switchDetailTab(preferredTab);
     };
@@ -12002,11 +12009,12 @@ function preparationEscapeHtml(value) {
 
         // ── Action bar ──
         const actionBar = document.getElementById('detailPanelActions');
-        const actionPage = isMixed ? (window._activeDetailTab || 'overview') : 'overview';
+        const actionPage = window._activeDetailTab || 'overview';
         const actionsHtml = getWizardPageActions(actionPage, a);
-        if (actionsHtml) {
-          actionBar.innerHTML = actionsHtml;
-          if (a.bookingId?.repairUnitTracking && !actionsHtml.includes('openRepairUnits') && !actionsHtml.includes('openInspectionModal')) {
+        const showApplianceRepairs = a.status === 'in_progress' && a.crewRole !== 'support' && a.bookingId?.repairUnitTracking && (!window.RACSJobTeams || RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam));
+        if (actionsHtml || showApplianceRepairs) {
+          actionBar.innerHTML = actionsHtml || '';
+          if (showApplianceRepairs && !actionsHtml.includes('openRepairUnits') && !actionsHtml.includes('openInspectionModal')) {
             const button=document.createElement('button');button.type='button';button.className='btn btn-success';button.textContent='Appliance repairs';button.onclick=()=>openRepairUnits('booking',a.bookingId._id || a.bookingId);actionBar.append(button);
           }
           actionBar.style.display = 'flex';
@@ -18623,5 +18631,5 @@ function preparationEscapeHtml(value) {
 </script>
 <script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
-<script src="/js/repair-units.js?v=20261013"></script>
+<script src="/js/repair-units.js?v=20261016-diagnostic-quote-v2"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>

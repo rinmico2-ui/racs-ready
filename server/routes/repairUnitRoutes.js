@@ -8,6 +8,9 @@ const Technician = require('../models/Technician');
 const Tool = require('../models/Tool');
 const WorkOrder = require('../models/WorkOrder');
 const DailyAssignment = require('../models/DailyAssignment');
+const Assignment = require('../models/Assignment');
+const team = require('../utils/standardJobTeam');
+const { repairWorkAccess } = require('../utils/repairWorkAccess');
 const flow = require('../utils/repairUnitWorkflow');
 const { getRepairLaborFees } = require('../utils/repairLaborPricing');
 const { createNotification } = require('../utils/notify');
@@ -33,37 +36,45 @@ async function load(req, session) {
   if (document.unitGroups && !document.unitGroups.length) document.unitGroups = flow.buildUnitGroups(booking);
   if (!document.unitGroups && !document.services.length) document.services = flow.buildUnitGroups(booking).map(group => ({ ...group, name: group.serviceName, type: 'repair' }));
   flow.ensureUnits(document);
-  let technician = null;
+  let technician = null, assignment = null;
   if (req.user.role === 'customer') {
     if (String(booking.customerId) !== String(req.user._id)) flow.fail('This repair request is not yours.', 403);
   } else if (req.user.role === 'technician') {
     const techQuery = Technician.findOne({ user: req.user._id }); if (session) techQuery.session(session); technician = await techQuery;
     const allowed = technician && (document.unitGroups
       ? String(document.leadTechnicianId) === String(technician._id) || document.assignedTechnicians.some(member => String(member._id) === String(technician._id))
-      : String(document.technicianId) === String(technician._id) || document.services.some(item => String(item.technicianId) === String(technician._id)));
+      : team.ids(document).includes(String(technician._id)) || document.services.some(item => String(item.technicianId) === String(technician._id)));
     if (!allowed) flow.fail('This repair work is not assigned to you.', 403);
+    if (!document.unitGroups) {
+      const current = Assignment.findOne({ bookingId: booking._id, technicianId: technician._id,
+        ...(String(booking.technicianId) === String(technician._id) && booking.assignmentId ? { _id: booking.assignmentId } : {}),
+        status: { $nin: ['cancelled', 'declined', 'expired'] } });
+      if (session) current.session(session); assignment = await current;
+    }
   } else if (!['admin', 'secretary'].includes(req.user.role)) flow.fail('Access denied.', 403);
-  return { document, booking, technician };
+  return { document, booking, technician, assignment };
 }
 function assertActive(document, booking) {
   if (document.archivedAt || ['cancelled', 'completed', 'closed', 'repair_completed', 'under_warranty'].includes(document.status) || ['cancelled', 'completed', 'repair_completed'].includes(booking.status)) flow.fail('This repair request is already closed.');
 }
-function view(document, req, technician) {
+function view(document, req, technician, assignment) {
+  const access = req.user.role === 'technician' && !document.unitGroups ? repairWorkAccess(document, technician?._id, assignment) : null;
   return {
     scope: document.unitGroups ? 'project' : 'booking', id: document._id, version: document.__v || 0,
     phase: document.projectPhase, reviewStatus: document.quotationReview?.status,
     submitted: document.unitGroups ? !!document.inspectionReport?.submittedAt && document.projectPhase === 'quotation_review' : !!document.inspection?.completedAt,
     needsSetup: !!document.unitGroups && !document.repairUnitTracking && document.projectPhase === 'execution' && !document.completedUnits,
     closed: !!document.archivedAt || ['cancelled', 'completed', 'closed', 'repair_completed', 'under_warranty'].includes(document.status),
-    role: req.user.role, canInspect: req.user.role === 'technician' && (!document.unitGroups || String(document.leadTechnicianId) === String(technician?._id)),
-    units: flow.rows(document).map(({ key, group, unit }) => ({ key, label: unit.label, brand: group.brand, model: group.model, problemDescription: unit.problemDescription,
+    role: req.user.role, canInspect: req.user.role === 'technician' && (access ? access.canInspect : String(document.leadTechnicianId) === String(technician?._id)), blockedReason: access?.reason || '',
+    aiReport: req.user.role === 'technician' && access?.canInspect ? document.technicianAssistant : undefined,
+    units: flow.rows(document).map(({ key, group, groupIndex, unit }) => ({ key, serviceIndex: groupIndex, serviceItemId: group._id, label: unit.label, brand: group.brand, model: group.model, problemDescription: unit.problemDescription,
       inspection: unit.inspection, diagnosis: unit.diagnosis, quotation: unit.quotation, review: unit.repairReview, status: unit.status, completionNotes: unit.completionNotes, completedAt: unit.completedAt })),
   };
 }
 router.get('/:scope/:id', async (req, res, next) => {
   try {
-    const { document, technician } = await load(req);
-    const result = view(document, req, technician);
+    const { document, technician, assignment } = await load(req);
+    const result = view(document, req, technician, assignment);
     if (result.canInspect) {
       result.laborFees = await getRepairLaborFees();
       result.parts = await Tool.find({ $and: [Tool.merchandiseFilter()], active: { $ne: false } }).select('_id itemName sellingPrice costPrice').limit(500).lean();
@@ -80,14 +91,14 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
     let state;
     await session.withTransaction(async () => {
       state = await load(req, session);
-      const { document, booking, technician } = state;
+      const { document, booking, technician, assignment } = state;
       assertActive(document, booking);
       if (!Number.isInteger(req.body.version) || req.body.version !== (document.__v || 0)) flow.fail('This repair record changed. Refresh it before saving.');
       const action = req.params.action;
       if (['inspect', 'submit', 'complete'].includes(action)) {
         if (req.user.role !== 'technician' || (document.unitGroups && String(document.leadTechnicianId) !== String(technician?._id))) flow.fail('Only the assigned technician or project lead can record this action.', 403);
         if (document.unitGroups && !['arrived', 'completed'].includes(document.assessmentVisit?.status)) flow.fail('Record arrival for the inspection visit first.');
-        if (!document.unitGroups && !['arrived', 'in-progress', 'inspection_in_progress', 'inspection_completed', 'awaiting_approval', 'repair_approved', 'ready_for_repair', 'repair_in_progress'].includes(booking.status)) flow.fail('Arrive at the customer site before recording repair work.');
+        if (!document.unitGroups) { const access = repairWorkAccess(booking, technician._id, assignment); if (!access.canInspect) flow.fail(access.reason); }
       }
       if (action === 'prepare') {
         if (!document.unitGroups || document.repairUnitTracking || document.completedUnits || (!['admin', 'secretary'].includes(req.user.role) && String(document.leadTechnicianId) !== String(technician?._id))) flow.fail('This repair plan cannot be restarted.');
@@ -181,7 +192,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
       if (updated.modifiedCount !== 1) flow.fail('This repair record changed. Refresh it before saving.');
       document.__v = (document.__v || 0) + 1;
     });
-    const { document, booking, technician } = state;
+    const { document, booking, technician, assignment } = state;
     if (req.params.action === 'review' && req.body.action === 'approve') await createNotification({ type: 'system', title: 'Repair prices ready', message: 'Review the price for each appliance and choose which repairs to approve.', userId: booking.customerId, referenceId: booking._id, referenceModel: 'BookingService', link: '/book-history', io: req.app.get('io') }).catch(() => {});
     if (['submit', 'decide'].includes(req.params.action)) await createNotification({ type: 'system', title: req.params.action === 'submit' ? 'Repair inspections ready' : 'Repair decision received', message: `Appliance repair records updated for ${booking.bookingReference || booking._id}.`, role: 'admin', referenceId: booking._id, referenceModel: 'BookingService', link: document.unitGroups ? `/admin/projects/${document._id}` : `/admin/appointments?booking=${booking._id}`, io: req.app.get('io') }).catch(() => {});
     if (req.params.action === 'decide') {
@@ -193,7 +204,7 @@ router.post('/:scope/:id/:action', async (req, res, next) => {
     const io = req.app.get('io');
     io?.to(`customer:${booking.customerId}`).emit('booking:status-change', { bookingId: booking._id });
     io?.to('admin').emit('booking:updated', { bookingId: booking._id });
-    res.json({ success: true, ...view(document, req, technician) });
+    res.json({ success: true, ...view(document, req, technician, assignment) });
   } catch (error) { next(error); }
   finally { if (session) await session.endSession(); }
 });

@@ -6,6 +6,9 @@ Admin and secretary can choose **Assign one technician** or **Assign multiple te
 
 - Availability is checked for the entire appointment, including working hours, leave, other appointments, order installations, and confirmed project work. The server checks again when saving.
 - Every selected member receives an individual acceptance request. Everyone must accept before departure. A decline or expired response requires an Operations review.
+- Waiting for Acceptance lists every member, primary/supporting role and response. Staff can extend a pending member's deadline without resetting accepted members. Returning a service team to the queue releases all current invitations together before work starts.
+- The primary technician can generate and confirm AI preparation suggestions after accepting their own invitation, while teammates are still responding. This does not authorize departure or on-site work. Inspection and quotation forms unlock after Start Work and remain read-only for supporting members.
+- Appliance inspections include diagnostic suggestions, technician-confirmed diagnoses and optional parts, plus a quotation draft using catalog prices and official labor fees. Suggestions never save a quotation, charge a customer or bypass staff/customer review. The existing manual form remains usable when suggestions are unavailable.
 - The primary technician records job progress, shared equipment custody, payment collections, and completion. Supporting technicians see the assignment and can add work notes.
 - The existing automatic daily-kit monitor includes all team members. Shared equipment and materials belong to the primary technician's kit. Supporting membership does not create another set of product or material requirements.
 - Rescheduling checks every member and resets acceptance for the new visit. Continuations retain the team and require fresh acceptance. Cancelled or completed service bookings synchronize supporting assignments.

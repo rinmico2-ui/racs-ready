@@ -2,6 +2,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), mongoose = require('mongoose');
 const Booking = require('../models/BookingService'), Project = require('../models/Project'), Technician = require('../models/Technician'), Tool = require('../models/Tool'), SiteSetting = require('../models/SiteSetting'), WorkOrder = require('../models/WorkOrder'), DailyAssignment = require('../models/DailyAssignment');
 const flow = require('../utils/repairUnitWorkflow'), notify = require('../utils/notify'), audit = require('../utils/audit');
+const Assignment = require('../models/Assignment');
 const originalNotification = notify.createNotification;
 const notifications = [];
 notify.createNotification = async body => { notifications.push(body); };
@@ -17,6 +18,7 @@ function fixture(t, standard = false) {
   const writes=[];
   t.mock.method(Booking,'findById',()=>query(booking)); t.mock.method(Project,'findById',()=>query(project)); t.mock.method(Project,'findOne',()=>query(project));
   t.mock.method(Technician,'findOne',()=>query({_id:techId,user:techUser})); t.mock.method(Technician,'find',()=>query([{user:techUser}]));
+  t.mock.method(Assignment,'findOne',()=>query({ status: 'in_progress', technicianId: techId, bookingId: booking._id }));
   t.mock.method(Tool,'find',()=>query([]));t.mock.method(SiteSetting,'find',()=>query([]));
   t.mock.method(WorkOrder,'find',()=>query([]));t.mock.method(WorkOrder,'exists',()=>query(null));t.mock.method(DailyAssignment,'find',()=>query([]));
   t.mock.method(mongoose,'startSession',async()=>({withTransaction:async fn=>fn(),endSession:async()=>{}}));
@@ -80,6 +82,31 @@ test('standard repair keeps separate appliance decisions and produces only the a
   assert.equal(f.booking.services[0].units[1].repairReview.state,'declined');
   f.booking.status='repair_in_progress';assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Capacitor replaced; cooling and electrical tests passed.'})).error);
   assert.equal(f.booking.services[0].units[0].repairReview.state,'completed');
+});
+test('accepted repair remains read-only before Start Work, including after arrival',async t=>{
+  const f=fixture(t,true); f.booking.status='arrived';
+  t.mock.method(Assignment,'findOne',()=>query({status:'on_site'}));
+  assert.equal((await f.call(null)).result.canInspect,false);
+  const result=await f.call('inspect','technician',{key:'G1-U001',parts:[]});
+  assert.equal(result.error.status,409);assert.match(result.error.message,/Start Work/);assert.equal(f.writes.length,0);
+});
+test('starting the assignment unlocks inspection even while the booking still says inspection scheduled',async t=>{
+  const f=fixture(t,true);f.booking.status='inspection_scheduled';
+  assert.equal((await f.call(null)).result.canInspect,true);
+  const result=await f.call('inspect','technician',{key:'G1-U001',findings:'Electrical tests confirm the damaged capacitor.',diagnosis:'Faulty capacitor',parts:[],laborCategory:'standard'});
+  assert.ifError(result.error);assert.equal(result.result.units[0].quotation.totalCost,500);
+});
+test('supporting repair team members can view records but cannot create quotations',async t=>{
+  const f=fixture(t,true),supportId=new mongoose.Types.ObjectId();
+  f.booking.technicianTeam=[{technicianId:f.techId,name:'Primary',status:'accepted'},{technicianId:supportId,name:'Support',status:'accepted'}];
+  t.mock.method(Technician,'findOne',()=>query({_id:supportId,user:f.techUser}));
+  const view=await f.call(null);assert.ifError(view.error);assert.equal(view.result.canInspect,false);assert.match(view.result.blockedReason,/primary technician/);
+  assert.equal((await f.call('inspect','technician',{key:'G1-U001',parts:[]})).error.status,409);
+});
+test('unanswered team invitations block inspection mutations even if an old assignment says in progress',async t=>{
+  const f=fixture(t,true);f.booking.technicianTeam=[{technicianId:f.techId,name:'Primary',status:'accepted'},{technicianId:new mongoose.Types.ObjectId(),name:'Support',status:'pending'}];
+  assert.equal((await f.call(null)).result.canInspect,false);
+  assert.equal((await f.call('inspect','technician',{key:'G1-U001',parts:[]})).error.status,409);assert.equal(f.writes.length,0);
 });
 test('declined appliance is removed from work-order quantity and its daily allocation without phantom targets',async t=>{
   const f=fixture(t);await f.inspections();assert.ifError((await f.call('review','admin',{action:'approve'})).error);

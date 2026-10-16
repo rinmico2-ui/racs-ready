@@ -619,7 +619,7 @@
 <link rel="stylesheet" href="/css/admin-workflow-overview.css?v=1">
 <link rel="stylesheet" href="/css/admin-workflow-records.css?v=1">
 <link rel="stylesheet" href="/css/acceptance-workspace.css?v=20261015">
-<script src="/js/acceptance-workspace.js?v=20261015"></script>
+<script src="/js/acceptance-workspace.js?v=20261016-team-responses-v2"></script>
 <link rel="stylesheet" href="/css/appointments-workspace.css?v=20261015-calendar-header">
 <link rel="stylesheet" href="/css/operations-workspace-header.css?v=20261015">
 
@@ -1789,7 +1789,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/js/operations-request.js?v=20260926"></script>
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
-<script src="/js/repair-units.js?v=20261013"></script>
+<script src="/js/repair-units.js?v=20261016-diagnostic-quote-v2"></script>
 <script>
 (function() {
   'use strict';
@@ -2586,11 +2586,11 @@
         records:bookings.map(function(b){return {
           id:b._id,source:b,reference:b.bookingReference||b._id.slice(-8).toUpperCase(),customer:b.customer?.name,
           description:b.service?.name||'Service booking',schedule:formatDate(b.bookingDate)+' '+formatTime(b.startTime)+(b.endTime?' - '+formatTime(b.endTime):''),
-          technician:b.technician?.name,address:b.address,deadline:b.acceptanceDeadline,isPastDate:b.isPastDate===true,
-          canExtend:!!b.assignmentId&&b.assignmentStatus==='pending_acceptance',canRequeue:b.assignmentStatus==='pending_acceptance',canResolve:APPOINTMENTS_CAN_RESOLVE
-        };}),onAction:function(action,record){
+          technician:b.technician?.name,technicians:b.technicianTeam,address:b.address,deadline:b.acceptanceDeadline,isPastDate:b.isPastDate===true,
+          canExtend:b.technicianTeam?.length?b.technicianTeam.some(function(member){return member.status==='pending';}):!!b.assignmentId&&b.assignmentStatus==='pending_acceptance',canRequeue:b.technicianTeam?.length?b.technicianTeam.some(function(member){return member.status==='pending';}):b.assignmentStatus==='pending_acceptance',canResolve:APPOINTMENTS_CAN_RESOLVE
+        };}),onAction:function(action,record,member){
           if(action==='view')AU.Overview.viewDetail(record.id);
-          if(action==='extend')window.extendDeadline(record.source.assignmentId);
+          if(action==='extend')window.extendDeadline(member?.assignmentId||record.source.assignmentId);
           if(action==='requeue')window.forceReassign(record.id);
           if(action==='recover')window.location.href=bookingResolutionUrl(record.source).replace(/&amp;/g,'&');
         }});
