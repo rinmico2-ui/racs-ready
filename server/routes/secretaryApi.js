@@ -30,6 +30,10 @@ const {
 router.use(auth.authenticate);
 router.use(auth.requireRole("secretary"));
 
+const leaveRequests = require('../controllers/leaveRequestController');
+router.get('/leave-requests', requirePermission('technicians.view'), leaveRequests.list);
+router.patch('/leave-requests/:id', requirePermission('technicians.manage'), leaveRequests.review);
+
 const secretaryServiceImageDir = path.join(__dirname, "../public/uploads/service-images");
 if (!fs.existsSync(secretaryServiceImageDir)) fs.mkdirSync(secretaryServiceImageDir, { recursive: true });
 const secretaryServiceImageUpload = multer({

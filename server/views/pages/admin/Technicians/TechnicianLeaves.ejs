@@ -96,6 +96,7 @@
         </div>
       </div>
       <div class="au-hero-actions">
+        <button type="button" id="refreshLeaves" class="btn btn-light border"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
         <span id="pendingBadgeHero" class="badge bg-warning text-white fs-6 py-2 px-3" style="display:none;">
           <i class="bi bi-hourglass-split me-1"></i>
           <span id="pendingCountHero">0</span> Pending
@@ -113,7 +114,6 @@
             <div class="kpi-title">Pending</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiPending">—</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
               <span class="badge inv-kpi-pill bg-warning-subtle text-warning">Pending</span>
             </div>
             <span class="inv-kpi-sub">Awaiting decision</span>
@@ -122,7 +122,6 @@
             <i class="bi bi-hourglass-split"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkPending"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
@@ -132,7 +131,6 @@
             <div class="kpi-title">Approved</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiApproved">—</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-up"></i>+0.0%</span>
               <span class="badge inv-kpi-pill bg-success-subtle text-success">Approved</span>
             </div>
             <span class="inv-kpi-sub">Granted requests</span>
@@ -141,7 +139,6 @@
             <i class="bi bi-check-circle"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkApproved"></canvas></div>
       </div>
     </div>
     <div class="col-lg col-md-6">
@@ -151,7 +148,6 @@
             <div class="kpi-title">Rejected</div>
             <div class="d-flex align-items-center gap-2">
               <span class="inv-kpi-value mb-0" id="kpiRejected">—</span>
-              <span class="kpi-trend"><i class="bi bi-arrow-down"></i>-0.0%</span>
               <span class="badge inv-kpi-pill bg-danger-subtle text-danger">Rejected</span>
             </div>
             <span class="inv-kpi-sub">Denied requests</span>
@@ -160,11 +156,11 @@
             <i class="bi bi-x-circle"></i>
           </div>
         </div>
-        <div class="inv-kpi-spark-wrap"><canvas class="inv-kpi-spark" id="sparkRejected"></canvas></div>
       </div>
     </div>
   </div>
 
+  <div id="leaveFeedback" class="alert d-none" role="status" aria-live="polite"></div>
   <div class="rp-toolbar">
     <div class="rp-filter-group search">
       <label class="rp-filter-label" for="leaveSearch"><i class="bi bi-search me-1"></i>Search Technician</label>
@@ -181,7 +177,7 @@
     </div>
     <div class="rp-filter-group">
       <label class="rp-filter-label"><i class="bi bi-funnel me-1"></i>Status</label>
-      <div class="d-flex gap-2" id="leaveTabs" role="group" aria-label="Leave filters">
+      <div class="d-flex flex-wrap gap-2" id="leaveTabs" role="group" aria-label="Leave filters">
         <button type="button" class="btn btn-light rp-filter-btn active" data-filter="all">All</button>
         <button type="button" class="btn btn-light rp-filter-btn" data-filter="pending">Pending</button>
         <button type="button" class="btn btn-light rp-filter-btn" data-filter="approved">Approved</button>
@@ -239,7 +235,7 @@
             placeholder="Add a note for the technician (e.g. reason for rejection, reminder)…"
             maxlength="500"></textarea>
         </div>
-        <div id="reviewError" class="alert alert-danger d-none py-2 small"></div>
+        <div id="reviewError" role="alert" class="alert alert-danger d-none py-2 small"></div>
       </div>
       <div class="modal-footer justify-content-between">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -256,296 +252,5 @@
   </div>
 </div>
 
-<script id="techLeavesInitial" type="application/json"><%- (JSON.stringify(initialLeaves || [])).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-(function () {
-  const rawData   = JSON.parse(document.getElementById("techLeavesInitial")?.textContent || "[]");
-  const tbody     = document.getElementById("leavesTableBody");
-  const footer    = document.getElementById("leavesFooter");
-  const searchEl  = document.getElementById("leaveSearch");
-
-  let allItems    = rawData;
-  let activeFilter = "all";
-
-  // ── Formatters ────────────────────────────────────────────────────────────
-  function fmtDate(d) {
-    const dt = new Date(d);
-    return isNaN(dt.getTime()) ? "—"
-      : dt.toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
-  }
-
-  function daysBetween(start, end) {
-    const s = new Date(start);
-    const e = new Date(end);
-    if (isNaN(s.getTime()) || isNaN(e.getTime())) return 1;
-    return Math.max(1, Math.round((e - s) / 86400000) + 1);
-  }
-
-  function statusBadge(s) {
-    if (s === "approved") return '<span class="badge bg-success-subtle text-success border border-success-subtle">Approved</span>';
-    if (s === "rejected") return '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>';
-    return '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>';
-  }
-
-  function actionButtons(lv) {
-    if (lv.status !== "pending") {
-      return `<button class="btn btn-micro btn-light border"
-        onclick="openReview('${lv._id}')" title="Update decision">
-        <i class="bi bi-pencil"></i>
-      </button>`;
-    }
-    return `<div class="d-flex gap-1 justify-content-end">
-      <button class="btn btn-micro btn-light border"
-        onclick="quickAction('${lv._id}','approved')" title="Approve">
-        <i class="bi bi-check-lg text-success"></i>
-      </button>
-      <button class="btn btn-micro btn-light border"
-        onclick="openReview('${lv._id}')" title="Reject / Review">
-        <i class="bi bi-x-lg text-danger"></i>
-      </button>
-    </div>`;
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────
-  function render() {
-    const q = (searchEl.value || "").toLowerCase().trim();
-    let items = allItems;
-
-    if (activeFilter !== "all") {
-      items = items.filter((lv) => lv.status === activeFilter);
-    }
-    if (q) {
-      items = items.filter((lv) => {
-        const tech = (lv.technician && (lv.technician.name || lv.technician.email)) || "";
-        return tech.toLowerCase().includes(q);
-      });
-    }
-
-    // KPI recount from full list
-    const pending  = allItems.filter((l) => l.status === "pending").length;
-    const approved = allItems.filter((l) => l.status === "approved").length;
-    const rejected = allItems.filter((l) => l.status === "rejected").length;
-    const kpiPending = document.getElementById("kpiPending");
-    const kpiApproved = document.getElementById("kpiApproved");
-    const kpiRejected = document.getElementById("kpiRejected");
-    const tabPendingBadge = document.getElementById("tabPendingBadge");
-    const hero = document.getElementById("pendingBadgeHero");
-    const pendingCountHero = document.getElementById("pendingCountHero");
-
-    if (kpiPending) kpiPending.textContent = pending;
-    if (kpiApproved) kpiApproved.textContent = approved;
-    if (kpiRejected) kpiRejected.textContent = rejected;
-    if (tabPendingBadge) tabPendingBadge.textContent = pending;
-    if (pendingCountHero) pendingCountHero.textContent = pending;
-    if (hero) hero.style.display = pending > 0 ? "" : "none";
-
-    const totalCount = document.getElementById("totalCount");
-    const resultCount = document.getElementById("resultCount");
-    if (totalCount) totalCount.textContent = allItems.length + " total requests";
-    if (resultCount) resultCount.textContent = items.length;
-
-    leaveCurrentPage = 1;
-    renderPage(leaveCurrentPage, items);
-  }
-
-  let leavePageSize = 10;
-  let leaveCurrentPage = 1;
-
-  function renderPage(page, items) {
-    const start = (page - 1) * leavePageSize;
-    const slice = items.slice(start, start + leavePageSize);
-
-    if (!slice.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted text-micro">No leave requests found.</td></tr>';
-      footer.innerHTML = '<nav aria-label="Leave pagination"><ul class="inv-pagination justify-content-end mb-0"><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">‹ Prev</a></li><li class="page-item active"><span class="page-link">1 / 1</span></li><li class="page-item disabled"><a class="page-link" href="javascript:void(0)">Next ›</a></li></ul></nav>';
-      return;
-    }
-
-    tbody.innerHTML = slice.map((lv) => {
-      const techName  = (lv.technician && (lv.technician.name || lv.technician.email)) || "Unknown";
-      const s         = fmtDate(lv.startDate);
-      const e         = fmtDate(lv.endDate);
-      const dateRange = s === e ? s : `${s} – ${e}`;
-      const days      = daysBetween(lv.startDate, lv.endDate);
-      const submitted = fmtDate(lv.createdAt);
-      const reason    = lv.reason || '<span class="text-muted fst-italic">—</span>';
-      return `<tr id="leaveRow-${lv._id}">
-        <td class="ps-4">
-          <div class="fw-semibold">${techName}</div>
-          ${lv.technician && lv.technician.email ? `<div class="text-muted text-micro">${lv.technician.email}</div>` : ""}
-        </td>
-        <td><span class="text-micro">${dateRange}</span></td>
-        <td><span class="fw-bold">${days}</span><span class="text-muted text-micro ms-1">day${days > 1 ? "s" : ""}</span></td>
-        <td class="text-micro" style="max-width:200px;">${reason}</td>
-        <td class="text-muted text-micro">${submitted}</td>
-        <td>${statusBadge(lv.status)}
-          ${lv.adminNote ? `<div class="text-muted text-micro mt-1 fst-italic">${lv.adminNote}</div>` : ""}
-        </td>
-        <td class="text-end pe-4">${actionButtons(lv)}</td>
-      </tr>`;
-    }).join("");
-
-    const total = items.length;
-    const pages = Math.ceil(total / leavePageSize);
-
-    let pgHtml = `<nav aria-label="Leave pagination">
-      <ul class="inv-pagination justify-content-end mb-0">
-        <li class="page-item ${page <= 1 ? 'disabled' : ''}">
-          <a class="page-link" href="javascript:void(0)" data-page="${page - 1}">‹ Prev</a>
-        </li>
-        <li class="page-item active">
-          <span class="page-link">${page} / ${pages}</span>
-        </li>
-        <li class="page-item ${page >= pages ? 'disabled' : ''}">
-          <a class="page-link" href="javascript:void(0)" data-page="${page + 1}">Next ›</a>
-        </li>
-      </ul>
-    </nav>`;
-    footer.innerHTML = pgHtml;
-
-    footer.querySelectorAll('.page-link[data-page]').forEach(el => {
-       el.addEventListener('click', (e) => {
-         e.preventDefault();
-         const target = e.target.closest('.page-link');
-         const newPage = parseInt(target.dataset.page);
-         if (!target.closest('.page-item.disabled') && newPage >= 1 && newPage <= pages) {
-           leaveCurrentPage = newPage;
-           renderPage(leaveCurrentPage, items);
-         }
-       });
-    });
-  }
-
-  // ── Fetch latest from server ───────────────────────────────────────────────
-  async function refreshFromServer() {
-    try {
-      const r = await fetch("/api/admin/leave-requests");
-      const d = await r.json();
-      if (r.ok && Array.isArray(d.items)) {
-        allItems = d.items;
-        render();
-      }
-    } catch (_) { /* ignore, keep current data */ }
-  }
-
-  // ── Quick approve without note ─────────────────────────────────────────────
-  window.quickAction = async function (id, status) {
-    if (!id || !status) return;
-    const row = document.getElementById(`leaveRow-${id}`);
-    if (row) row.style.opacity = "0.5";
-    try {
-      const r = await fetch(`/api/admin/leave-requests/${id}`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ status, adminNote: "" }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Failed");
-      // Update local data
-      const item = allItems.find((l) => String(l._id) === String(id));
-      if (item) { item.status = status; item.adminNote = ""; }
-      render();
-      if (window.notify) window.notify.toast(`Leave request ${status}.`, status === "approved" ? "success" : "danger");
-    } catch (err) {
-      if (row) row.style.opacity = "";
-      if (window.notify) window.notify.toast(err.message || "Error", "danger");
-    }
-  };
-
-  // ── Review modal ───────────────────────────────────────────────────────────
-  let _reviewId = null;
-  window.openReview = function (id) {
-    _reviewId = id;
-    const lv = allItems.find((l) => String(l._id) === String(id));
-    if (!lv) return;
-    const techName  = (lv.technician && lv.technician.name) || "Unknown";
-    const s         = fmtDate(lv.startDate);
-    const e         = fmtDate(lv.endDate);
-    const dateRange = s === e ? s : `${s} – ${e}`;
-    document.getElementById("reviewSummary").innerHTML =
-      `<strong>${techName}</strong> — <span class="text-muted text-micro">${dateRange}</span><br/>` +
-      (lv.reason ? `<em class="text-muted text-micro">${lv.reason}</em>` : "");
-    document.getElementById("reviewNote").value = lv.adminNote || "";
-    document.getElementById("reviewError").classList.add("d-none");
-    new bootstrap.Modal(document.getElementById("reviewModal")).show();
-  };
-
-  async function submitReview(status) {
-    if (!_reviewId) return;
-    const note = document.getElementById("reviewNote").value;
-    const errEl = document.getElementById("reviewError");
-    const approveBtn = document.getElementById("btnApproveLeave");
-    const rejectBtn  = document.getElementById("btnRejectLeave");
-    errEl.classList.add("d-none");
-    approveBtn.disabled = rejectBtn.disabled = true;
-    try {
-      const r = await fetch(`/api/admin/leave-requests/${_reviewId}`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ status, adminNote: note }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Failed");
-      const item = allItems.find((l) => String(l._id) === String(_reviewId));
-      if (item) { item.status = status; item.adminNote = note; }
-      bootstrap.Modal.getInstance(document.getElementById("reviewModal")).hide();
-      render();
-      if (window.notify) window.notify.toast(`Leave request ${status}.`, status === "approved" ? "success" : "danger");
-    } catch (err) {
-      errEl.textContent = err.message || "Action failed.";
-      errEl.classList.remove("d-none");
-    } finally {
-      approveBtn.disabled = rejectBtn.disabled = false;
-    }
-  }
-
-  document.getElementById("btnApproveLeave")?.addEventListener("click", () => submitReview("approved"));
-  document.getElementById("btnRejectLeave")?.addEventListener("click",  () => submitReview("rejected"));
-
-  // ── Filter tabs ────────────────────────────────────────────────────────────
-  document.getElementById("leaveTabs")?.querySelectorAll("[data-filter]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll("#leaveTabs [data-filter]").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      activeFilter = btn.dataset.filter;
-      render();
-    });
-  });
-
-  document.getElementById("clearLeaveSearch")?.addEventListener("click", () => {
-    if (searchEl) { searchEl.value = ""; render(); }
-  });
-
-  searchEl?.addEventListener("input", render);
-
-  // ── KPI sparklines ──────────────────────────────────────────────────────────
-  function createSparkline(id, data, color) {
-    var c = document.getElementById(id);
-    if (!c || typeof Chart === 'undefined') return;
-    var bg = color.startsWith('#') ? color + '20' : color.replace('rgb','rgba').replace(')',',0.12)');
-    return new Chart(c, {
-      type: 'line',
-      data: {
-        labels: data.map((_, i) => i + 1),
-        datasets: [{ data: data, borderColor: color, backgroundColor: bg, fill: true, borderWidth: 2, tension: 0.35 }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: false } },
-        elements: { point: { radius: 0 } },
-        scales: { x: { display: false }, y: { display: false } }
-      }
-    });
-  }
-
-  // ── Init ────────────────────────────────────────────────────────────────────
-  render();
-  createSparkline('sparkPending',   [2, 3, 2, 4, 3, 5, 4], '#f59e0b');
-  createSparkline('sparkApproved',  [1, 2, 3, 4, 5, 6, 7], '#10b981');
-  createSparkline('sparkRejected',  [1, 1, 0, 2, 1, 1, 0], '#ef4444');
-  // Silently refresh every 60 seconds (in case another admin acted)
-  setInterval(refreshFromServer, 60000);
-})();
-</script>
+<script id="techLeavesInitial" type="application/json"><%- JSON.stringify({ items: initialLeaves || [], apiBase: leaveApiBase, canManage: leaveCanManage }).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %></script>
+<script src="/js/technician-leaves-admin.js?v=20261016-leave-review" defer></script>

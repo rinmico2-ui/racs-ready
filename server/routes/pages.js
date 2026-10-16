@@ -2321,8 +2321,8 @@ router.get(
 
 // Admin - Technician Leave Requests
 router.get(
-  "/admin/technicians/leaves",
-  pageAuth.requireRole("admin"),
+  ["/admin/technicians/leaves", "/secretary/technicians/leaves"],
+  pageAuth.requireRole(["admin", "secretary"]),
   async (req, res, next) => {
     try {
       const LeaveRequest = require("../models/LeaveRequest");
@@ -2332,7 +2332,9 @@ router.get(
       ]);
       res.render("pages/admin/Technicians/TechnicianLeaves", {
         title:        "Leave Requests",
-        layout:       "layouts/admin",
+        layout:       req.user.role === "secretary" ? "layouts/secretary" : "layouts/admin",
+        leaveApiBase: req.user.role === "secretary" ? "/api/secretary/leave-requests" : "/api/admin/leave-requests",
+        leaveCanManage: res.locals.can('technicians.manage'),
         initialLeaves: items,
         pendingCount,
       });
