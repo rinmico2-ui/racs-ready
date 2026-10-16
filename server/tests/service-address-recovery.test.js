@@ -31,6 +31,7 @@ function fixture() {
   const timers = new Map(), calls = [], displayed = []; let clock = Date.now(), timerId = 0;
   const ctx = {
     document:{ getElementById:id => nodes[id], createElement:node, addEventListener() {} },
+    relocationLocationController: () => null,
     BookingState:{ customerLocation:null }, AbortController, Date:class extends Date { static now() { return clock; } },
     addressAutocompleteDebounceTimer:null, addressSuggestionRequestToken:0, addressSuggestionAbortController:null,
     addressAutocompleteEnabled:true, addressAutocompleteStatusLoaded:true, addressAutocompleteRetryAt:0,

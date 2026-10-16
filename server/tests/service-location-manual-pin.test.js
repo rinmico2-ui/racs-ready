@@ -38,7 +38,7 @@ test("map pin action is ready before an address is entered", () => {
 
   const input = { value: "" };
   const status = { textContent: "" };
-  let scrolled = false;
+  let scrolled = false; const targets = [];
   const guide = vm.runInNewContext(`(${guideSource})`, {
     document: { getElementById: id => ({
       locationInput: input,
@@ -46,12 +46,13 @@ test("map pin action is ready before an address is entered", () => {
       serviceCheckoutMapCard: { scrollIntoView: () => { scrolled = true; } },
       technicianMap: { focus: () => {} },
     })[id] },
+    relocationLocationController: () => ({ chooseTarget: target => targets.push(target) }),
     BookingState: { pendingManualAddress: null, map: { invalidateSize: () => {} } },
     window: { setTimeout: callback => callback() },
   });
 
   guide();
-  assert.equal(scrolled, true);
+  assert.equal(scrolled, true); assert.deepEqual(targets, ["from"]);
   assert.match(status.textContent, /Place the pin at the service address, then confirm it/);
 });
 

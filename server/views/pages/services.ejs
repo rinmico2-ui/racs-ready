@@ -1,5 +1,5 @@
 <link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261016-simple-unit-details">
-<script src="/js/relocation-booking-locations.js?v=20261017-standalone-relocation"></script>
+<script src="/js/relocation-booking-locations.js?v=20261017-relocation-address-pins"></script>
 <script src="/js/appliance-services.js?v=20261017-standalone-relocation"></script>
 <script src="/js/core-appliance-booking.js?v=20261017-standalone-relocation"></script>
 <script src="/js/repair-appliance-booking.js?v=20261016-simple-unit-details"></script>
@@ -663,12 +663,12 @@
               <div class="service-map-search mb-3 d-none" id="relocationDestinationSection">
                 <label class="form-label fw-semibold" for="relocationDestinationAddress">New address for the aircon</label>
                 <div class="position-relative"><div class="input-group">
-                  <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="300" role="combobox" aria-controls="relocationDestinationSuggest" aria-expanded="false" aria-autocomplete="list" autocomplete="off" placeholder="Type the new address or place the orange pin" />
+                  <input type="text" class="form-control" id="relocationDestinationAddress" maxlength="250" role="combobox" aria-controls="relocationDestinationSuggest" aria-expanded="false" aria-autocomplete="list" autocomplete="off" placeholder="Type the new address or place the orange pin" />
                   <button type="button" class="btn btn-outline-primary" id="relocationDestinationSearch" aria-label="Search for the new address"><i class="bi bi-search" aria-hidden="true"></i></button>
                 </div><div id="relocationDestinationSuggest" class="list-group position-absolute w-100 d-none service-map-suggestions" role="listbox" aria-label="New address suggestions"></div></div>
                 <button type="button" class="service-manual-pin-link mt-2" id="relocationDestinationPin"><i class="bi bi-pin-map-fill me-1" aria-hidden="true"></i>Place the new location on the map</button>
                 <small class="text-muted d-block mt-1" id="relocationDestinationStatus" role="status" aria-live="polite">Choose the current address first.</small>
-                <small class="text-muted d-block mt-1">Staff will check both locations and send a quote. No payment is needed now.</small>
+                <small class="text-muted d-block mt-1">Check both map pins, then continue to your schedule and payment.</small>
               </div>
 
               <div class="service-checkout-map-card" id="serviceCheckoutMapCard">
@@ -2763,7 +2763,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261017-standalone-relocation':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261017-relocation-address-pins':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>
