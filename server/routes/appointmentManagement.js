@@ -690,13 +690,19 @@ router.patch('/:id/priority', requireRole(["admin", "secretary"]), async (req, r
 
 /** POST /api/admin/appointments/:id/assign — assign technician to booking. */
 router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res) => {
+  if (Array.isArray(req.body.technicianIds)) return require('../utils/standardJobTeamService').assignmentResponse('booking', req, res);
   try {
     const { technicianId, priority, notes } = req.body;
     if (!technicianId) return res.status(400).json({ error: 'Technician ID is required' });
 
-    const booking = await BookingService.findById(req.params.id);
+    let booking = await BookingService.findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.technicianTeam?.length) { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('booking', req, res); }
 
+    // Shared capacity lease includes legacy single-technician assignments.
+    return await withOperationLock(bookingCapacityLockKey(booking.bookingDate), async () => {
+    booking = await BookingService.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
     // Reject assignment of past bookings â€” require reschedule instead
     if (isAssignmentWindowExpired(booking)) {
       return res.status(400).json({
@@ -962,6 +968,7 @@ router.post('/:id/assign', requireRole(["admin", "secretary"]), async (req, res)
 
     console.log(`ðŸ‘¤ Technician ${technicianId} assigned to booking ${booking.bookingReference}`);
     res.json({ success: true, booking, assignment, equipment: [], aiRecommendations });
+    }, { leaseMs: 120000 });
   } catch (error) {
     console.error('âŒ Error assigning technician:', error);
     res.status(500).json({ error: 'Failed to assign technician' });

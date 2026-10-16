@@ -24,8 +24,11 @@ async function notify(req, source, job, scheduled) {
   if (userId) await createNotification({ type: 'work_continuation', userId, role: 'customer', title: scheduled ? 'Your next visit is scheduled' : 'Another visit is being arranged', message, referenceId: job._id, referenceModel: source === 'booking' ? 'BookingService' : 'Order', link: source === 'booking' ? '/book-history' : `/my-orders/${job._id}`, io }).catch(() => {});
   if (!scheduled) await createNotification({ type: 'work_continuation_requested', role: 'admin', title: 'Unfinished work needs scheduling', message, referenceId: job._id, referenceModel: source === 'booking' ? 'BookingService' : 'Order', link: source === 'booking' ? '/admin/appointments?tab=active' : '/admin/appointments/orders?tab=active', priority: 'high', io }).catch(() => {});
   if (scheduled) {
-    const technician = await Technician.findById(job.technicianId).select('user').lean().catch(() => null);
-    if (technician?.user) await createNotification({ type: 'work_continuation_scheduled', userId: technician.user, role: 'technician', title: 'Continuation visit scheduled', message, link: source === 'booking' ? '/technician/assignments' : '/technician/orders', io }).catch(() => {});
+    for (const technicianId of require('../utils/standardJobTeam').ids(job)) {
+      const technician = await Technician.findById(technicianId).select('user').lean().catch(() => null);
+      if (technician?.user) await createNotification({ type: 'work_continuation_scheduled', userId: technician.user, role: 'technician', title: 'Continuation visit scheduled', message: message + (job.technicianTeam?.length > 1 ? ' Please accept the new team assignment.' : ''), link: source === 'booking' ? '/technician/assignments' : '/technician/orders', io }).catch(() => {});
+      io?.to(`tech:${technicianId}`).emit(source === 'booking' ? 'assignment:updated' : 'order:status-change', { bookingId: job._id, orderId: job._id });
+    }
   }
   io?.to('admin-room').emit('work:continuation', { source, id: job._id });
   if (userId) io?.to(`customer:${userId}`).emit(source === 'booking' ? 'booking:updated' : 'order:status-updated', { bookingId: job._id, orderId: job._id });

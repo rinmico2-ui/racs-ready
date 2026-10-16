@@ -14,10 +14,16 @@ let running = false;
 
 async function finishExpiry(assignment, now, io) {
   const booking = await Booking.findById(assignment.bookingId);
+  const teamEntry = require('./standardJobTeam').member(booking, assignment.technicianId);
+  const teamAssignment = teamEntry && String(teamEntry.assignmentId) === String(assignment._id);
+  if (teamAssignment) {
+    teamEntry.status = 'expired'; teamEntry.respondedAt = now; teamEntry.reason = REASON;
+    await booking.save();
+  }
   const current = booking && (booking.assignmentId
     ? String(booking.assignmentId) === String(assignment._id)
     : String(booking.technicianId || "") === String(assignment.technicianId));
-  if (current && !["completed", "cancelled", "rejected", "no_show"].includes(booking.status)) {
+  if (current && !teamAssignment && !["completed", "cancelled", "rejected", "no_show"].includes(booking.status)) {
     const other = await Assignment.exists({ _id: { $ne: assignment._id }, bookingId: booking._id, status: { $in: ACTIVE } });
     if (!other) {
       booking.recordStatusHistory({ fromStatus: booking.status, toStatus: "pending_reassignment",

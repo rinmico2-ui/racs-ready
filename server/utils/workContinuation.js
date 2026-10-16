@@ -66,7 +66,7 @@ function createService(overrides = {}) {
         previousStatus: state.job.status, history: [...previous, visit], ...details };
       const changes = [{ Model: source === 'booking' ? deps.Booking : deps.Order, before: state.job, set: { continuation } }];
       if (state.assignment) changes.push({ Model: deps.Assignment, before: state.assignment, set: { continuation } });
-      if (source === 'order' && state.booking) changes.push({ Model: deps.Booking, before: state.booking, set: { continuation } });
+      if (source === 'order' && state.booking && !state.job.technicianTeam?.length) changes.push({ Model: deps.Booking, before: state.booking, set: { continuation } });
       const saved = await deps.write(changes, deps.mongoose);
       return { ...state, job: saved[0], continuation };
     });
@@ -86,6 +86,16 @@ function createService(overrides = {}) {
     const result = await deps.slots({ date, technicianId: String(technicianId), duration: String(minutes), quantity: '1', travelTime: String(state.job.travelTime || state.job.routeDurationMin || 30) },
       { excludeBookingId: state.booking?._id, excludeOrderId: source === 'order' ? state.job._id : null });
     if (result.statusCode >= 400) throw fail(result.payload?.message || result.payload?.error || 'Could not check this technician schedule.', result.statusCode);
+    if ((state.job.technicianTeam || []).length > 1) {
+      const supportingIds = require('./standardJobTeam').ids(state.job).filter(id => id !== String(state.owner));
+      if (supportingIds.includes(String(technicianId))) throw fail('Choose a primary technician who is not already a supporting member.');
+      for (const memberId of supportingIds) {
+        const check = await deps.slots({ date, technicianId: memberId, duration: String(minutes), quantity: '1', travelTime: String(state.job.travelTime || state.job.routeDurationMin || 30) },
+          { excludeBookingId: state.booking?._id, excludeOrderId: source === 'order' ? state.job._id : null });
+        if (check.statusCode >= 400) throw fail('Could not check every team member. Try again.', check.statusCode);
+        for (const slot of result.payload?.timeSlots || []) if (!check.payload?.timeSlots?.some(other => other.available === true && parseAppointmentTime(other.startTime) === parseAppointmentTime(slot.startTime))) slot.available = false;
+      }
+    }
     return { ...state, date, technicianId, technician, minutes, timeSlots: result.payload?.timeSlots || [] };
   }
 
@@ -104,6 +114,12 @@ function createService(overrides = {}) {
       const technician = { _id: state.technicianId, name: state.technician.name, phone: state.technician.phone || '', email: state.technician.userEmail || '' };
       const acceptanceDeadline = new Date(Date.now() + (Number(state.assignment?.responseSLAMinutes) || 30) * 60000);
       const continuation = { ...state.job.continuation, status: 'scheduled', scheduledDate: date, startTime, endTime, remainingMinutes: state.minutes, decidedBy: actorId, decidedAt: new Date() };
+      const team = require('./standardJobTeam');
+      const hasTeam = team.members(state.job).length > 0;
+      const technicianTeam = hasTeam ? team.members(state.job).map(row => ({ ...row,
+        ...(String(row.technicianId) === String(state.owner) ? { technicianId: state.technicianId, name: state.technician.name } : {}),
+        status: 'pending', deadlineAt: acceptanceDeadline, respondedAt: null, reason: '' })) : undefined;
+      const crew = hasTeam ? { technicianTeam, technicianTeamSchedule: team.scheduleKey(source, { ...state.job, bookingDate: date, startTime, endTime, delivery: { ...state.job.delivery, preferredDate: date }, timeSlot: startTime, continuation }) } : {};
       const changes = [];
       if (source === 'booking') {
         const phaseTwo = state.job.continuation.previousStatus === 'repair_in_progress' || state.job.services?.some(row => row.type === 'repair' && row.status === 'repair_in_progress');
@@ -112,18 +128,22 @@ function createService(overrides = {}) {
           technicianId: state.technicianId, technicianName: state.technician.name, schedule: { ...(row.schedule || {}), date, startTime, endTime },
           status: row.type === 'repair' ? (phaseTwo ? 'repair_scheduled' : 'inspection_scheduled') : 'assigned' });
         changes.push({ Model: deps.Booking, before: state.job, guard: { 'continuation.requestId': input.requestId, 'continuation.status': 'pending' },
-          set: { status, bookingDate: date, startTime, endTime, serviceDurationMinutes: state.minutes, technicianId: state.technicianId, technician, services, continuation,
+          set: { status: hasTeam && status === 'confirmed' ? 'assigned' : status, bookingDate: date, startTime, endTime, serviceDurationMinutes: state.minutes, technicianId: state.technicianId, technician, services, continuation, ...crew,
             ...(phaseTwo ? { 'repairSchedule.date': date, 'repairSchedule.startTime': startTime, 'repairSchedule.time': startTime } : {}) } });
-        changes.push({ Model: deps.Assignment, before: state.assignment, set: { status: reassigned ? 'pending_acceptance' : 'accepted', bookingDate: date, startTime, endTime, technicianId: state.technicianId, continuation,
-          ...(reassigned ? { acceptanceDeadline, assignedAt: new Date() } : {}), equipmentCheckedOut: false, preparationStatus: 'pending' }, unset: { ...(reassigned ? { acceptedAt: '', expiryProcessedAt: '' } : {}), arrivedAt: '', enRouteAt: '', startedAt: '', arrivalProofUrl: '', startProofUrl: '' } });
+        changes.push({ Model: deps.Assignment, before: state.assignment, set: { status: reassigned || hasTeam ? 'pending_acceptance' : 'accepted', bookingDate: date, startTime, endTime, technicianId: state.technicianId, continuation,
+          ...(reassigned || hasTeam ? { acceptanceDeadline, assignedAt: new Date() } : {}), equipmentCheckedOut: false, preparationStatus: 'pending' }, unset: { ...(reassigned || hasTeam ? { acceptedAt: '', expiryProcessedAt: '' } : {}), arrivedAt: '', enRouteAt: '', startedAt: '', arrivalProofUrl: '', startProofUrl: '' } });
       } else {
         changes.push({ Model: deps.Order, before: state.job, guard: { 'continuation.requestId': input.requestId, 'continuation.status': 'pending' },
-          set: { status: reassigned ? 'technician_assigned' : 'technician_accepted', 'delivery.preferredDate': date, timeSlot: startTime, technicianId: state.technicianId,
-            ...(reassigned ? { technicianAcceptance: { status: 'pending', deadlineAt: acceptanceDeadline } } : {}), technician, continuation }, unset: { arrivedAt: '', enRouteAt: '', startedAt: '', arrivalProofUrl: '', startProofUrl: '' } });
-        if (state.booking) changes.push({ Model: deps.Booking, before: state.booking, set: { status: 'scheduled', bookingDate: date, startTime, endTime, serviceDurationMinutes: state.minutes, technicianId: state.technicianId, technician, continuation } });
+          set: { status: reassigned || hasTeam ? 'technician_assigned' : 'technician_accepted', 'delivery.preferredDate': date, timeSlot: startTime, technicianId: state.technicianId,
+            ...(reassigned || hasTeam ? { technicianAcceptance: { status: 'pending', deadlineAt: acceptanceDeadline } } : {}), technician, continuation, ...crew }, unset: { arrivedAt: '', enRouteAt: '', startedAt: '', arrivalProofUrl: '', startProofUrl: '' } });
+        if (state.booking && !hasTeam) changes.push({ Model: deps.Booking, before: state.booking, set: { status: 'scheduled', bookingDate: date, startTime, endTime, serviceDurationMinutes: state.minutes, technicianId: state.technicianId, technician, continuation } });
       }
+      // Save the primary invitation first: the booking's team hook then moves
+      // supporting invitations in this same transaction, without invalidating
+      // the primary assignment's optimistic version guard.
+      if (hasTeam && source === 'booking') changes.reverse();
       const saved = await deps.write(changes, deps.mongoose);
-      return { ...state, job: saved[0] };
+      return { ...state, job: saved[hasTeam && source === 'booking' ? 1 : 0] };
     }));
   }
   return { load, request, availability, schedule };

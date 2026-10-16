@@ -1491,4 +1491,5 @@ bookingSchema.index({ customerRating: 1, updatedAt: -1 }); // For service-rating
 bookingSchema.index({ technicianId: 1, customerRating: 1, updatedAt: -1 }); // For technician quality reporting
 
 bookingSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
+require('../utils/standardJobTeam').installHooks(bookingSchema, 'booking');
 module.exports = mongoose.model("BookingService", bookingSchema);

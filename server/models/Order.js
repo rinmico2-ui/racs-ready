@@ -523,4 +523,5 @@ orderSchema.methods.pushStatus = function (newStatus, note, opts) {
 
 orderSchema.index({ 'continuation.status': 1, 'continuation.requestedAt': 1 }, { partialFilterExpression: { 'continuation.status': 'pending' } });
 orderSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
+require('../utils/standardJobTeam').installHooks(orderSchema, 'order');
 module.exports = mongoose.model("Order", orderSchema);

@@ -413,7 +413,7 @@ async function generateTimeWindowsForDate(date, params) {
   // completed) cannot be re-dispatched in a later window.
   const techWindows = new Map();
   const bookingsByWindow = new Map();
-  for (const b of activeBookings) {
+  for (const b of require('./standardJobTeam').capacityRows(activeBookings)) {
     const bStart = bookingStartMinutes(b);
     if (bStart === null) continue;
     const win = winOfMinute(bStart);
@@ -484,7 +484,7 @@ async function getActiveBookingsForDate(dateStr) {
     bookingDate: { $gte: dayStart, $lte: dayEnd },
     status: { $in: OVERLAP_ACTIVE_STATUSES },
   })
-    .select("startTime endTime serviceDurationMinutes travelTime")
+    .select("technicianId technicianTeam startTime endTime serviceDurationMinutes travelTime")
     .lean();
 }
 
@@ -821,11 +821,11 @@ async function validateProjectDateRange(params) {
   const allBookings = await BookingService.find({
     bookingDate: { $gte: sDate, $lte: eDate },
     status: { $in: activeStatuses },
-  }).select("technicianId bookingDate startTime endTime serviceDurationMinutes travelTime").lean();
+  }).select("technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes travelTime").lean();
 
   // Build per-date per-tech booking intervals
   const bookingMap = new Map();
-  for (const b of allBookings) {
+  for (const b of require('./standardJobTeam').capacityRows(allBookings)) {
     const bd = new Date(b.bookingDate);
     const dateKey = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(bd.getDate()).padStart(2, "0")}`;
     if (!bookingMap.has(dateKey)) bookingMap.set(dateKey, new Map());

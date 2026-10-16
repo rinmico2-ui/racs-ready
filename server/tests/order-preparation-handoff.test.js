@@ -188,6 +188,7 @@ test("actual departure route rejects unprepared units and unconfirmed kits for s
         current.save = () => assert.fail("Must not mark En Route");
         const kit = { technicianId: techId, status: unitReady ? "draft" : "confirmed", items: [{ name: "Pump", category: "equipment", orderIds: [id] }], deltaItems: [] };
         vm.runInNewContext(routeSource.slice(start, end), {
+          require: module.require.bind(module),
           router: { patch(_path, _authenticate, fn) { handler = fn; } }, authenticate: () => {},
           Order: { findById: async () => current }, Technician: { findOne: async () => ({ _id: techId }) },
           orderAttentionState: () => ({ isPastDate: false }), syncDailyKit: async () => kit, orderDepartureReadiness,

@@ -63,10 +63,13 @@ test('discovery uses Manila days, accepted work, confirmed project schedules and
   const unions = pipeline.filter(stage => stage.$unionWith).map(stage => stage.$unionWith);
   assert.equal(unions[0].pipeline[0].$match.fulfillmentType, 'delivery_installation');
   assert.deepEqual(unions[0].pipeline[0].$match.status.$in, ['technician_accepted','out_for_delivery','arrived','installing']);
-  assert.equal(unions[1].pipeline[0].$match.planningOnly.$ne, true);
-  assert.deepEqual(unions[1].pipeline[0].$match.status.$in, ['pending','in_progress']);
-  assert.deepEqual(unions[2].pipeline[0].$match.status.$in, ['draft','prepared','confirmed','in_progress']);
-  assert.equal(unions[2].pipeline[0].$match.workDate.$type, 'date');
+  assert.equal(unions[1].pipeline[0].$match['technicianTeam.1'].$exists, true);
+  assert.equal(unions[1].pipeline[1].$unwind, '$technicianTeam');
+  assert.equal(unions[1].pipeline[2].$set.technicianId, '$technicianTeam.technicianId');
+  assert.equal(unions[2].pipeline[0].$match.planningOnly.$ne, true);
+  assert.deepEqual(unions[2].pipeline[0].$match.status.$in, ['pending','in_progress']);
+  assert.deepEqual(unions[3].pipeline[0].$match.status.$in, ['draft','prepared','confirmed','in_progress']);
+  assert.equal(unions[3].pipeline[0].$match.workDate.$type, 'date');
   assert.deepEqual(pipeline.at(-2).$group._id, { technicianId:'$technicianId', date:'$date' });
 });
 

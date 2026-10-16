@@ -103,13 +103,13 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
     TechnicianSchedule.find({ technicianId: { $in: technicianIds } }).lean(),
     LeaveRequest.find({ technicianId: { $in: technicianIds }, status: 'approved', startDate: { $lte: maxDate }, endDate: { $gte: minDate } }).lean(),
     BookingService.find({
-      technicianId: { $in: technicianIds }, bookingDate: { $gte: minDate, $lte: maxDate },
+      ...require('./standardJobTeam').scope({ $in: technicianIds }), bookingDate: { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_BOOKING_STATUSES }, sourceOrderId: null,
-    }).select('_id technicianId bookingDate startTime endTime serviceDurationMinutes').lean(),
+    }).select('_id technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes').lean(),
     Order.find({
-      technicianId: { $in: technicianIds }, 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
+      ...require('./standardJobTeam').scope({ $in: technicianIds }), 'delivery.preferredDate': { $gte: minDate, $lte: maxDate },
       status: { $in: ACTIVE_ORDER_STATUSES },
-    }).select('_id technicianId delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
+    }).select('_id technicianId technicianTeam continuation delivery.preferredDate timeSlot fulfillmentType items routeDurationMin').lean(),
     Assignment.find({ technicianId: { $in: technicianIds }, status: { $in: ['pending_acceptance', 'accepted', 'en_route', 'on_site', 'in_progress'] } })
       .select('technicianId').lean(),
   ]);
@@ -119,8 +119,8 @@ async function buildOrderAssignmentPlan(orders, options = {}) {
   activeAssignments.forEach(assignment => activeLoad.set(String(assignment.technicianId), (activeLoad.get(String(assignment.technicianId)) || 0) + 1));
   existingOrders.forEach(order => activeLoad.set(String(order.technicianId), (activeLoad.get(String(order.technicianId)) || 0) + 1));
   const allocations = new Map(technicianIds.map(id => [String(id), []]));
-  existingBookings.forEach(booking => allocations.get(String(booking.technicianId))?.push({ ...bookingWindow(booking), date: dateKey(booking.bookingDate), planned: false }));
-  existingOrders.forEach(order => allocations.get(String(order.technicianId))?.push({ ...orderWindow(order), date: dateKey(orderDate(order)), planned: false }));
+  require('./standardJobTeam').capacityRows(existingBookings).forEach(booking => allocations.get(String(booking.technicianId))?.push({ ...bookingWindow(booking), date: dateKey(booking.bookingDate), planned: false }));
+  require('./standardJobTeam').capacityRows(existingOrders).forEach(order => allocations.get(String(order.technicianId))?.push({ ...orderWindow(order), date: dateKey(orderDate(order)), planned: false }));
 
   const plan = [];
   for (const order of rows) {

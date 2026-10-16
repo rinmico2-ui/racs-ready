@@ -717,6 +717,7 @@
   };
 
   window.openAssignModal = async function(bookingId, customerName, serviceName, bookingDate, bookingTime) {
+    if(window.RACSJobTeams) return RACSJobTeams.open('booking',bookingId,{onAssigned:()=>location.reload()});
     currentBookingId = bookingId;
     selectedTechId = null;
     selectedEquipment = [];

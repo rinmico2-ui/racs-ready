@@ -192,6 +192,7 @@ async function resolvePartTool(part) {
 async function partRequirementsFor(assignments, bookings, requirements) {
   const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
   for (const assignment of assignments) {
+    if (assignment.crewRole === 'support') continue;
     const booking = bookingMap.get(String(assignment.bookingId));
     if (!booking) continue;
     const isRepairVisit = hasScheduledRepairWork(booking);
@@ -211,7 +212,7 @@ async function partRequirementsFor(assignments, bookings, requirements) {
   }
 }
 
-async function requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds) {
+async function requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds, technicianId) {
   const bookingMap = new Map(bookings.map(booking => [String(booking._id), booking]));
   const linkedOrderBookingIds = new Set(
     orders.map(order => order.bookingId).filter(Boolean).map(String),
@@ -219,6 +220,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
   const requirements = new Map();
   const noItemsOrderIds = [];
   for (const assignment of assignments) {
+    if (assignment.crewRole === 'support') continue;
     const booking = bookingMap.get(String(assignment.bookingId));
     // A linked order booking is a calendar/history projection. The Order is
     // the sole inventory-demand source for delivery + installation. Matching
@@ -234,6 +236,7 @@ async function requirementsFor(assignments, bookings, orders, projectRequirement
     }
   }
   for (const order of orders) {
+    if (technicianId && !require('./standardJobTeam').isPrimary(order, technicianId)) continue;
     const prep = await buildOrderInstallationPreparation(order, { preferToolIds });
     if (prep.ruleControlled && !prep.recommendations?.length) noItemsOrderIds.push(order._id);
     for (const rec of prep.recommendations || []) {
@@ -454,6 +457,7 @@ async function syncOrderPreparationSummaries(kit, orderIds, { session = null, ev
   const now = new Date();
   for (const order of orders) {
     if (order.fulfillmentType !== "delivery_installation") continue;
+    if (kit.technicianId && String(order.technicianId) !== String(kit.technicianId)) continue;
     const previousReadiness = order.preparation?.installation?.status;
     const readiness = orderInstallationReadiness(order, kit);
     const installation = {
@@ -518,7 +522,7 @@ async function syncDailyKit(technicianId, date, { session = null, automatic = fa
     () => Order.find({
       isProject: { $ne: true },
       'continuation.status': { $ne: 'pending' },
-      technicianId,
+      ...require('./standardJobTeam').scope(technicianId),
       fulfillmentType: "delivery_installation",
       status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES },
       "delivery.preferredDate": { $gte: start, $lt: end },
@@ -601,7 +605,7 @@ async function syncDailyKit(technicianId, date, { session = null, automatic = fa
       if (src?.toolId && !["returned"].includes(src.checkoutStatus)) preferToolIds.add(String(src.toolId));
     }
   }
-  const requirements = await requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds);
+  const requirements = await requirementsFor(assignments, bookings, orders, projectRequirements, preferToolIds, technicianId);
   if (kit) kit.noItemsOrderIds = requirements.noItemsOrderIds || [];
   const holderIds = await technicianScope(technicianId, session);
   const reservations = await EquipmentAssignment.find({ technicianId: { $in: holderIds }, status: 'reserved', workDate: { $gte: start, $lt: end },

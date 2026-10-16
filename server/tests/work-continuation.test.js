@@ -125,3 +125,23 @@ test('repair continuation retains the repair phase instead of charging a new ins
   assert.equal(f.rows.booking.status, 'repair_scheduled'); assert.equal(f.rows.booking.services[0].status, 'repair_scheduled');
   assert.equal(f.rows.booking.totalPrice, 9500);
 });
+for (const source of ['booking', 'order']) test(`${source} continuation keeps the team and requires everyone to accept the next visit`, async () => {
+  const f = fixture(); const job = f.rows[source];
+  job.technicianTeam = [{ technicianId: T, name: 'Primary', assignmentId: A, status: 'accepted' }, { technicianId: O, name: 'Supporting', assignmentId: '670000000000000000000099', status: 'accepted' }];
+  await f.service.request(source, source === 'booking' ? A : O, T, details);
+  const result = await f.service.schedule(source, source === 'booking' ? B : O, A, { date: '2099-10-19', startTime: '09:00', requestId: job.continuation.requestId });
+  assert.equal(result.job._id, job._id);
+  assert.ok(job.technicianTeam.every(row => row.status === 'pending' && row.deadlineAt));
+  assert.equal(job.technicianTeam[1].technicianId, O); assert.equal(job.amountPaid, source === 'booking' ? 3500 : 30000);
+  assert.equal(job.status, source === 'booking' ? 'assigned' : 'technician_assigned');
+  if (source === 'booking') assert.equal(f.rows.assignment.status, 'pending_acceptance');
+});
+test('a continuation cannot use a slot when a supporting technician becomes unavailable', async () => {
+  const f = fixture({ slots: async input => ({ statusCode: 200, payload: { timeSlots: [{ startTime: '09:00', available: input.technicianId !== O }] } }) });
+  f.rows.booking.technicianTeam = [{ technicianId: T, status: 'accepted' }, { technicianId: O, status: 'accepted' }];
+  await f.service.request('booking', A, T, details);
+  const preview = await f.service.availability('booking', B, { date: '2099-10-19' });
+  assert.equal(preview.timeSlots[0].available, false);
+  await assert.rejects(f.service.schedule('booking', B, O, { date: '2099-10-19', startTime: '09:00', requestId: f.rows.booking.continuation.requestId }), /no longer available/);
+  assert.equal(f.writes.length, 1); assert.equal(f.rows.booking.continuation.status, 'pending');
+});

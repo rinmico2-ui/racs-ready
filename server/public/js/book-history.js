@@ -1125,6 +1125,7 @@
     html += ratingHtml;
   
     el.modalBody.innerHTML = html;
+    window.RACSJobTeams?.display('booking', b, el.modalBody);
 
     // Warm the shared catalog while the customer reviews the details. If they
     // choose Edit Booking, only the booking-specific service items remain to load.
