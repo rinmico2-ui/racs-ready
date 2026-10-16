@@ -6,6 +6,14 @@ const dates = require("./reportingDates");
 const { strictManilaDateKey } = require("./bookingDateTime");
 
 const OPERATION = "scheduled-booking-order-cleanup-v1";
+// The owner confirmed these exact records from the live preview are simulated:
+// nothing was physically taken. This is not a general force-delete option.
+const TEST_CUSTODY_ACKNOWLEDGEMENT = Object.freeze({
+  from: "2026-10-15", to: "2026-10-21",
+  equipmentassignments: Object.freeze(["6ad1109a0444f9852ad6c52e", "6ad1109a0444f9852ad6c52f", "6ad1109a0444f9852ad6c530"]),
+  dailykits: Object.freeze(["6ad110780444f9852ad6c460"]),
+  reason: "Owner confirmed on October 17, 2026 that these previewed equipment records and daily kit are test entries only; nothing was physically taken.",
+});
 const MODEL_NAMES = Object.freeze([
   "BookingService", "Order", "Project", "WorkOrder", "DailyAssignment", "Assignment",
   "ProjectMaterial", "ProjectIssue", "ProjectResourcePurchase", "ProjectWorkSubmission",
@@ -174,16 +182,30 @@ async function snapshot(db, config, session, { decryptEmail } = {}) {
 
 function plan(data, config) {
   const blockers = [...data.checks[0].blockers];
+  const acknowledgement = config.from === TEST_CUSTODY_ACKNOWLEDGEMENT.from && config.to === TEST_CUSTODY_ACKNOWLEDGEMENT.to
+    ? Object.fromEntries(["equipmentassignments", "dailykits"].map(name => [name,
+      data.remove[name].filter(row => TEST_CUSTODY_ACKNOWLEDGEMENT[name].includes(id(row._id))).map(row => id(row._id)),
+    ])) : null;
+  const acknowledgedTestCustody = acknowledgement && Object.values(acknowledgement).some(values => values.length)
+    ? { ...acknowledgement, reason: TEST_CUSTODY_ACKNOWLEDGEMENT.reason, physicalStockChanges: 0, reservationCounterChanges: 0 } : null;
+  const simulated = (name, row) => acknowledgedTestCustody?.[name].includes(id(row._id));
   const block = (collection, code, predicate) => {
     const rows = data.remove[collection].filter(predicate);
     if (rows.length) blockers.push({ code, collection, count: rows.length, ids: rows.slice(0, 10).map(row => id(row._id)) });
   };
-  block("equipmentassignments", "settle_or_release_equipment_first", row => !["released", "returned", "consumed", "damaged", "lost"].includes(row.status) || row.returnPending);
+  block("equipmentassignments", "settle_or_release_equipment_first", row => {
+    // Even an acknowledged test reservation needs its soft hold released first.
+    // Deleting a reserved ledger while preserving counters would strand stock.
+    if (row.status === "reserved") return true;
+    return !simulated("equipmentassignments", row)
+      && (!["released", "returned", "consumed", "damaged", "lost"].includes(row.status) || row.returnPending);
+  });
   block("stockreservations", "settle_or_release_stock_reservations_first", row => ["reserved", "checked_out"].includes(row.status));
   block("projectmaterials", "settle_or_release_project_materials_first", row => row.status === "reserved");
   block("kitreturns", "review_pending_kit_returns_first", row => row.status === "pending");
   const custody = new Map(data.remove.equipmentassignments.map(row => [id(row._id), row]));
-  block("dailykits", "resolve_unsettled_daily_kit_items_first", row => ["items", "returnedItems", "deltaItems"].some(group => (row[group] || []).some(item => {
+  block("dailykits", "resolve_unsettled_daily_kit_items_first", row => !simulated("dailykits", row)
+    && ["items", "returnedItems", "deltaItems"].some(group => (row[group] || []).some(item => {
     if (Number(item.returnPendingQuantity) > 0) return true;
     const assignments = [item.equipmentAssignmentId, ...(item.custodyAssignmentIds || [])].map(value => custody.get(id(value))).filter(Boolean);
     if (assignments.length && assignments.every(entry => ["returned", "released", "consumed", "damaged", "lost"].includes(entry.status))) return false;
@@ -202,7 +224,7 @@ function plan(data, config) {
       const rows = data.remove.payments.filter(row => (row.status || "unknown") === status);
       return [status, { count: rows.length, amount: Math.round(rows.reduce((sum, row) => sum + Number(row.amount || 0), 0) * 100) / 100 }];
     })),
-    blockers, physicalStockChanges: 0, reservationCounterChanges: 0, seedRecords: 0,
+    blockers, acknowledgedTestCustody, physicalStockChanges: 0, reservationCounterChanges: 0, seedRecords: 0,
     preserved: ["bookings and orders outside the selected schedule dates (shared dependencies block cleanup)", "accounts and staff", "physical inventory and reservation counters", "independent POS sales", "unrelated expenses and payroll", "audit history and uploaded files"],
   };
 }
@@ -230,7 +252,7 @@ async function prepare({ db, config, decryptEmail, backupDirectory, now = new Da
   if (summary.blockers.length) return { ...summary, mode: "blocked", databaseChanges: 0 };
   if (!original.remove.bookingservices.length && !original.remove.orders.length) return { ...summary, mode: "nothing-to-delete", databaseChanges: 0 };
   const prepared = await recovery.writeResetBackup({ operation: OPERATION, schemaVersion: 1, database: db.databaseName, config,
-    preparedAt: now, original, seed: {} }, backupDirectory);
+    preparedAt: now, original, seed: {}, acknowledgedTestCustody: summary.acknowledgedTestCustody }, backupDirectory);
   return { ...summary, ...prepared, mode: "prepared", databaseChanges: 0,
     next: "Download the private backup and checksum before applying this exact prepared scope. Maintenance is unchanged." };
 }
@@ -250,6 +272,9 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
   validateBackup(artifact, db, config);
   if (!restore && (now - artifact.preparedAt < 0 || now - artifact.preparedAt > 30 * 60000)) throw Error("Prepared cleanup expired. Prepare a fresh backup.");
   const summary = plan(artifact.original, config);
+  if (recovery.serialize(artifact.acknowledgedTestCustody || null) !== recovery.serialize(summary.acknowledgedTestCustody)) {
+    throw Error("The test-custody acknowledgement changed. Prepare a fresh recovery backup.");
+  }
   if (summary.blockers.length) throw Error("This backup contains unresolved dependencies or custody records. No changes made.");
   await requireMaintenance(db); await requireTransactions(db);
   const key = operationKey(config), session = client.startSession();
@@ -274,11 +299,13 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
           if (removed.deletedCount !== rows.length) throw Error("Cleanup record counts changed; all changes were rolled back.");
         }
         if (marker) await db.collection("sitesettings").deleteOne({ key }, { session });
-        await db.collection("sitesettings").insertOne({ key, value: { appliedAt: now, backupSha256, config }, createdAt: now, updatedAt: now }, { session });
+        await db.collection("sitesettings").insertOne({ key, value: { appliedAt: now, backupSha256, config,
+          acknowledgedTestCustody: summary.acknowledgedTestCustody }, createdAt: now, updatedAt: now }, { session });
       }
       await db.collection("activitylogs").insertOne({ action: restore ? "SCHEDULED_TRANSACTIONS_RESTORED" : "SCHEDULED_TRANSACTIONS_REMOVED",
         actionType: "system", source: "system", actorName: "Owner-authorized scheduled transaction cleanup", outcome: "success", createdAt: now,
-        details: { config, backup: path.basename(backupFile), backupSha256, counts: summary.deletionCounts } }, { session });
+        details: { config, backup: path.basename(backupFile), backupSha256, counts: summary.deletionCounts,
+          acknowledgedTestCustody: summary.acknowledgedTestCustody } }, { session });
     }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" }, maxCommitTimeMS: 15000 });
   } catch (error) {
     error.message += ` Verified recovery backup retained at ${backupFile}.`;
@@ -288,4 +315,4 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
     maintenanceChanged: false, message: "Only the prepared bookings/orders and their linked records were changed. No seeding or physical stock changes. Allow 30 seconds for report caches, then refresh." };
 }
 
-module.exports = { OPERATION, MODEL_NAMES, configuration, operationKey, orderDate, valuesAt, registry, links, selectRecords, snapshot, plan, preview, prepare, apply };
+module.exports = { OPERATION, TEST_CUSTODY_ACKNOWLEDGEMENT, MODEL_NAMES, configuration, operationKey, orderDate, valuesAt, registry, links, selectRecords, snapshot, plan, preview, prepare, apply };

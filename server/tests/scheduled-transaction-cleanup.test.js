@@ -333,3 +333,82 @@ test("recovery refuses existing IDs and corrupt files instead of overwriting dat
   await assert.rejects(apply(f, backup, { restore: true }), /checksum/);
   assert.deepEqual(f.state, before);
 });
+
+function acknowledgedFixture() {
+  const f = fixture(); f.config = cleanup.configuration("2026-10-15", "2026-10-21");
+  f.outside.bookingDate = new Date("2026-10-22T00:00:00+08:00");
+  f.state.equipmentassignments = cleanup.TEST_CUSTODY_ACKNOWLEDGEMENT.equipmentassignments.map(value => ({
+    _id: new mongoose.Types.ObjectId(value), bookingId: f.booking._id, status: "checked_out", quantity: 1,
+  }));
+  f.state.dailykits[0]._id = new mongoose.Types.ObjectId(cleanup.TEST_CUSTODY_ACKNOWLEDGEMENT.dailykits[0]);
+  f.state.dailykits[0].items = [{ quantityIssued: 2, quantityUsed: 0 }];
+  return f;
+}
+
+test("only the owner-confirmed three equipment records and one kit are acknowledged for October 15-21", async t => {
+  const f = acknowledgedFixture(), result = await prepare(t, f);
+  assert.equal(result.mode, "prepared"); assert.deepEqual(result.blockers, []);
+  assert.deepEqual(result.acknowledgedTestCustody.equipmentassignments, [...cleanup.TEST_CUSTODY_ACKNOWLEDGEMENT.equipmentassignments]);
+  assert.deepEqual(result.acknowledgedTestCustody.dailykits, [...cleanup.TEST_CUSTODY_ACKNOWLEDGEMENT.dailykits]);
+  assert.equal(result.acknowledgedTestCustody.physicalStockChanges, 0); assert.equal(f.writes, 0);
+  assert.match(result.acknowledgedTestCustody.reason, /nothing was physically taken/);
+});
+
+test("the test-custody acknowledgement never applies to a different date range", async t => {
+  for (const config of [cleanup.configuration("2026-10-15", "2026-10-20"), cleanup.configuration("2026-10-14", "2026-10-21")]) {
+    const f = acknowledgedFixture(); f.config = config;
+    const result = await prepare(t, f);
+    assert.equal(result.mode, "blocked"); assert.equal(result.acknowledgedTestCustody, null);
+    assert.ok(result.blockers.some(row => row.code === "settle_or_release_equipment_first"));
+    assert.ok(result.blockers.some(row => row.code === "resolve_unsettled_daily_kit_items_first"));
+  }
+});
+
+test("new issued equipment and a different unsettled kit still block the acknowledged cleanup", async t => {
+  const f = acknowledgedFixture();
+  f.state.equipmentassignments.push({ _id: oid(), bookingId: f.booking._id, status: "checked_out" });
+  f.state.dailykits.push({ _id: oid(), bookingIds: [f.booking._id], items: [{ quantityIssued: 1 }] });
+  const result = await prepare(t, f);
+  assert.equal(result.mode, "blocked");
+  assert.equal(result.blockers.find(row => row.code === "settle_or_release_equipment_first").count, 1);
+  assert.equal(result.blockers.find(row => row.code === "resolve_unsettled_daily_kit_items_first").count, 1);
+});
+
+test("an acknowledged soft reservation must be released rather than stranding inventory counters", async t => {
+  const f = acknowledgedFixture(); f.state.equipmentassignments[0].status = "reserved";
+  const result = await prepare(t, f);
+  assert.equal(result.mode, "blocked");
+  assert.equal(result.blockers.find(row => row.code === "settle_or_release_equipment_first").count, 1);
+  assert.equal(f.writes, 0);
+});
+
+test("a confirmed test kit shared with outside-range work remains blocked", async t => {
+  const f = acknowledgedFixture(); f.state.dailykits[0].bookingIds.push(f.outside._id);
+  const result = await prepare(t, f);
+  assert.equal(result.mode, "blocked");
+  assert.ok(result.blockers.some(row => row.code === "shared_or_outside_range_transaction"));
+});
+
+test("test custody originals are backed up and removed without stock changes or fabricated returns", async t => {
+  const f = acknowledgedFixture(), original = clone(f.state), prepared = await prepare(t, f);
+  const { artifact } = await recovery.readResetBackup(prepared.backup);
+  assert.deepEqual(clone(artifact.acknowledgedTestCustody), prepared.acknowledgedTestCustody);
+  assert.ok(artifact.original.remove.equipmentassignments.every(row => row.status === "checked_out"));
+  await apply(f, prepared);
+  assert.deepEqual(f.state.equipmentassignments, []); assert.deepEqual(f.state.dailykits, []);
+  assert.deepEqual(f.state.tools, original.tools); assert.deepEqual(f.state.inventories, original.inventories);
+  assert.deepEqual(f.state.activitylogs.at(-1).details.acknowledgedTestCustody, prepared.acknowledgedTestCustody);
+  assert.deepEqual(f.state.sitesettings.at(-1).value.acknowledgedTestCustody, prepared.acknowledgedTestCustody);
+  await apply(f, prepared, { restore: true });
+  const ordered = rows => rows.map(row => recovery.serialize(row)).sort();
+  assert.deepEqual(ordered(f.state.equipmentassignments), ordered(original.equipmentassignments));
+  assert.deepEqual(ordered(f.state.dailykits), ordered(original.dailykits));
+  assert.deepEqual(f.state.tools, original.tools);
+});
+
+test("changing an acknowledged custody record after preparation still refuses deletion", async t => {
+  const f = acknowledgedFixture(), prepared = await prepare(t, f);
+  f.state.equipmentassignments[0].quantity = 99;
+  await assert.rejects(apply(f, prepared), /changed after preparation/);
+  assert.equal(f.writes, 0);
+});
