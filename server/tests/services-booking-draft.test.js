@@ -98,6 +98,7 @@ test("changing project workload clears the old range and requires a new appointm
     window: { ApplianceServices: require('../public/js/appliance-services'), __bookingPolicy: { largeProjectThresholdHours: 8 } },
     document: { getElementById: () => null },
     syncScheduleNextAction: () => {},
+    syncServiceScheduleCopy: () => {},
     scheduleBookingProgressSave: () => { saves += 1; },
   };
   vm.runInNewContext(`const LARGE_SCALE_MIN_UNITS = 8;\n${servicesScript.slice(start, end)}\nthis.bookingSchedule = { reconcileBookingScheduleAfterServiceChange, bookingRequiresProjectSchedule };`, context);

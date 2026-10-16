@@ -33,6 +33,8 @@ const EnterpriseCalendar = (() => {
   let _nextStep = 5;
   let _showCommercialProjects = true;
   let _timeSlotRequestId = 0;
+  let _initializationId = 0;
+  let _dataRequestId = 0;
   let _root = document;
   let _syncGlobalState = true;
   let _availabilityUrl = null;
@@ -185,6 +187,7 @@ const EnterpriseCalendar = (() => {
   }
 
   async function init(opts = {}) {
+    const initializationId = ++_initializationId;
     _availabilityRequestId++;
     _projectRangeRequestId++;
     _isValidating = false;
@@ -252,17 +255,21 @@ const EnterpriseCalendar = (() => {
     _mode = opts.mode === 'preferred' ? 'preferred' : opts.mode === 'project' ? 'project' : 'appointment';
     _isLargeProject = false;
     if (_autoDetectProject && _mode !== 'preferred' && _totalEstimatedMinutes > 0) {
-      _isLargeProject = await detectLargeProject(_totalEstimatedMinutes);
+      const isLargeProject = await detectLargeProject(_totalEstimatedMinutes);
+      if (initializationId !== _initializationId) return;
+      _isLargeProject = isLargeProject;
     }
     if (_mode === 'project' || _isLargeProject) {
       _mode = 'project';
     }
 
     injectStyles();
-    await loadData();
+    const loaded = await loadData();
+    if (loaded === false || initializationId !== _initializationId) return;
     if (_mode === 'project') {
       await ensureProjectAvailabilityThrough(new Date(_currentMonth.getFullYear(), _currentMonth.getMonth() + 1, 0));
     }
+    if (initializationId !== _initializationId) return;
     render();
     if (_mode === 'appointment' && _selectedDate) await loadTimeSlots(_selectedDate);
   }
@@ -285,6 +292,9 @@ const EnterpriseCalendar = (() => {
   }
 
   async function loadData() {
+    const requestId = ++_dataRequestId;
+    const initializationId = _initializationId;
+    const isCurrent = () => requestId === _dataRequestId && initializationId === _initializationId;
     try {
       const holPromise = fetch('/api/schedule/holidays-and-nonworking');
       const policyPromise = fetch('/api/schedule/booking-policy');
@@ -303,13 +313,18 @@ const EnterpriseCalendar = (() => {
         schPromise = Promise.resolve({ ok: false });
       }
       const [schRes, holRes, policyRes, projRes] = await Promise.all([schPromise, holPromise, policyPromise, projPromise]);
-      _scheduleData = schRes.ok ? await schRes.json() : { availableDates: [] };
-      _holidaysData = holRes.ok ? await holRes.json() : { holidays: [], nonWorkingDays: [] };
+      const [scheduleData, holidaysData, policyData] = await Promise.all([
+        schRes.ok ? schRes.json() : { availableDates: [] },
+        holRes.ok ? holRes.json() : { holidays: [], nonWorkingDays: [] },
+        policyRes.ok ? policyRes.json() : null,
+      ]);
+      if (!isCurrent()) return false;
+      _scheduleData = scheduleData;
+      _holidaysData = holidaysData;
       _projectsData = (projRes && Array.isArray(projRes.projects)) ? projRes.projects : [];
 
       // Load inspection duration from booking policy for repair services
-      if (policyRes.ok) {
-        const policyData = await policyRes.json();
+      if (policyData) {
         window.__bookingPolicy = policyData;
         if (!_serviceId && !_hasExplicitDuration && policyData.inspectionDurationMinutes) {
           _duration = policyData.inspectionDurationMinutes;
@@ -322,9 +337,11 @@ const EnterpriseCalendar = (() => {
       // The configured threshold may differ from the fallback used before
       // this request. Apply it before loading project availability.
       if (_autoDetectProject && _mode !== 'preferred' && _totalEstimatedMinutes > 0 && await detectLargeProject(_totalEstimatedMinutes)) {
+        if (!isCurrent()) return false;
         _isLargeProject = true;
         _mode = 'project';
       }
+      if (!isCurrent()) return false;
 
       // ── Load project-mode availability data ─────────────────────────────
       // Project mode uses the window-availability endpoint, which returns
@@ -345,8 +362,10 @@ const EnterpriseCalendar = (() => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ startDate: todayKey, endDate: formatDateKey(horizon) }),
           });
+          if (!isCurrent()) return false;
           if (avRes.ok) {
             const avData = await avRes.json();
+            if (!isCurrent()) return false;
             _projectAvailability = new Map((avData.days || []).map(d => [d.date, d]));
             _availabilityMeta = {
               totalActiveTechnicians: avData.totalActiveTechnicians || 0,
@@ -358,6 +377,7 @@ const EnterpriseCalendar = (() => {
             _availabilityError = 'Could not load available project dates. Try again.';
           }
         } catch (avErr) {
+          if (!isCurrent()) return false;
           calendarDebug('EnterpriseCalendar: window-availability load error', avErr);
           _availabilityError = 'Could not load available project dates. Try again.';
         }
@@ -372,11 +392,14 @@ const EnterpriseCalendar = (() => {
             });
             if (_serviceId) capParams.set('serviceId', _serviceId);
             const capRes = await fetch(`/api/schedule/available-dates?${capParams.toString()}`);
+            if (!isCurrent()) return false;
             if (capRes.ok) {
               const capData = await capRes.json();
+              if (!isCurrent()) return false;
               _projectCapacityData = capData.availableDates || null;
             }
           } catch (capErr) {
+            if (!isCurrent()) return false;
             calendarDebug('EnterpriseCalendar: project capacity data load error', capErr);
             _projectCapacityData = null;
           }
@@ -394,14 +417,17 @@ const EnterpriseCalendar = (() => {
         blocked: !!_scheduleData.blocked,
       });
     } catch (e) {
+      if (!isCurrent()) return false;
       console.error('EnterpriseCalendar: load error', e);
       _scheduleData = { availableDates: [] };
       _holidaysData = { holidays: [], nonWorkingDays: [] };
       _projectCapacityData = null;
     }
+    return true;
   }
 
   async function refresh(opts = {}) {
+    const initializationId = _initializationId;
     if (opts.invalidateSelection) {
       _projectRangeRequestId++;
       _isValidating = false;
@@ -410,13 +436,15 @@ const EnterpriseCalendar = (() => {
       _selectingEndDate = _mode === 'project' && Boolean(_selectedDate);
       _windowResult = null;
     }
-    await loadData();
+    const loaded = await loadData();
+    if (loaded === false || initializationId !== _initializationId) return;
     render();
     if (opts.invalidateSelection && _mode === 'appointment' && _selectedDate) await loadTimeSlots(_selectedDate);
   }
 
   function render() {
     if (_onStateChangeCb) _onStateChangeCb();
+    if (_mode !== 'project') clearProjectPreferences();
     if (_mode === 'project') {
       renderProjectMode();
       return;
@@ -824,7 +852,9 @@ const EnterpriseCalendar = (() => {
     if (_mode === 'project') return true;
     if (!_selectedDate || !_selectedSlot) return false;
     const selectedMinutes = timeToMinutes(_selectedSlot.startTime || _selectedSlot.label);
+    const requestId = _timeSlotRequestId;
     const result = await fetchTimeSlotsFromAPI(_selectedDate);
+    if (requestId !== _timeSlotRequestId || _mode !== 'appointment') return false;
     const stillAvailable = Number.isFinite(selectedMinutes)
       && Array.isArray(result?.slots)
       && result.slots.some(slot => slot.available === true && !slot.isPast
@@ -1743,8 +1773,49 @@ const EnterpriseCalendar = (() => {
   function getMode() { return _mode; }
   function getWindowVerdict() { return _windowResult; }
 
+  function clearProjectPreferences() {
+    const host = getElement('projectPrefs');
+    if (!host) return;
+    host.innerHTML = '';
+    host.classList.add('d-none');
+  }
+
+  // Discard the old workload's selections and requests without rendering its
+  // capacity again. The owner initializes fresh availability on the next visit.
+  function invalidate({ mode = 'appointment' } = {}) {
+    _initializationId++;
+    _dataRequestId++;
+    _availabilityRequestId++;
+    _projectRangeRequestId++;
+    _timeSlotRequestId++;
+    _mode = mode === 'project' || mode === 'preferred' ? mode : 'appointment';
+    _isLargeProject = _mode === 'project';
+    _selectedDate = null;
+    _selectedEndDate = null;
+    _selectedSlot = null;
+    _selectingEndDate = false;
+    _lastValidationResult = null;
+    _windowResult = null;
+    _windowError = null;
+    _isValidating = false;
+    _availabilityExtendPromise = null;
+    _availabilityError = null;
+    _projectAvailability = null;
+    _availabilityMeta = null;
+    _projectCapacityData = null;
+    _scheduleData = null;
+    _projectPreferences = normalizeProjectPreferences(null);
+    clearProjectPreferences();
+    const grid = getElement('calendarGrid');
+    if (grid) grid.innerHTML = '';
+    const slots = getElement('timeSlots');
+    if (slots) slots.innerHTML = '';
+    getElement('timeSelection')?.classList.add('d-none');
+  }
+
   function resetRange() {
     _projectRangeRequestId++;
+    _timeSlotRequestId++;
     _selectedDate = null;
     _selectedEndDate = null;
     _selectedSlot = null;
@@ -1755,8 +1826,12 @@ const EnterpriseCalendar = (() => {
     _isValidating = false;
     if (_syncGlobalState && window.BookingState) {
       window.BookingState.selectedDate = null;
+      window.BookingState.scheduleDate = null;
       window.BookingState.selectedTimeSlot = null;
+      window.BookingState.selectedTime = null;
+      window.BookingState.scheduleTime = null;
       window.BookingState.projectScheduling = null;
+      window.BookingState.isProject = false;
       if (typeof window.saveBookingProgress === 'function') window.saveBookingProgress();
       window.syncScheduleNextAction?.();
     }
@@ -1837,6 +1912,7 @@ const EnterpriseCalendar = (() => {
     formatDateKey,
     minutesToTime,
     resetRange,
+    invalidate,
     applySuggestedRange,
     resetValidation,
   };
