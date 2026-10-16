@@ -48,7 +48,7 @@
       primary.value = selected.includes(previous) ? previous : selected[0] || '';
       submit.textContent = multiple ? `Assign ${selected.length} technicians` : 'Assign technician';
       submit.disabled = loading || busy || !primary.value || !selected.length || selected.length > 10 || multiple && selected.length < 2;
-      element.querySelector('[name=primary]').closest('label').hidden = !multiple;
+      const primaryLabel = primary.closest('label'); primaryLabel.hidden = !multiple; primaryLabel.classList.toggle('d-block', multiple);
     }
     form.addEventListener('change', event => {
       if (event.target.name === 'member' && form.querySelectorAll('[name=member]:checked').length > 10) { event.target.checked = false; error.textContent = 'Choose up to ten technicians.'; }
