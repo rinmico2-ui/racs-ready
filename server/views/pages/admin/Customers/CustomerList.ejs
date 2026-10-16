@@ -551,8 +551,8 @@
             (canAccountAction ? '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
               '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock Account' : 'Block Account') +
             '</button>' : '') +
-            (customerCanManage ? '<button class="btn ' + (c.vip ? 'btn-outline-warning' : 'btn-warning') + ' action-btn" data-action="' + (c.vip ? 'revoke_vip' : 'grant_vip') + '" data-id="' + c._id + '">' +
-              '<i class="bi ' + (c.vip ? 'bi-star' : 'bi-star-fill') + ' me-1"></i>' + (c.vip ? 'Revoke VIP' : 'Grant VIP') +
+            (customerCanManage && c.vip ? '<button class="btn btn-outline-warning action-btn" data-action="revoke_vip" data-id="' + c._id + '">' +
+              '<i class="bi bi-star me-1"></i>Revoke VIP' +
             '</button>' : '');
           if (customerApiBase === '/api/admin/customers') {
             var performanceLink = document.createElement('a');

@@ -67,7 +67,7 @@
       <label class="rp-filter-label" for="techSearch"><i class="bi bi-search me-1"></i>Search Technicians</label>
       <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input id="techSearch" type="search" class="form-control" placeholder="Search by name, email, phone, skill..." aria-label="Search technicians" />
+        <input id="techSearch" type="search" class="form-control" placeholder="Search by name, email, phone, location..." aria-label="Search technicians" />
       </div>
     </div>
     <div class="rp-filter-group" style="flex: 0; min-width: auto;">
@@ -114,7 +114,6 @@
               <th class="d-none d-lg-table-cell">
                 <i class="bi bi-geo-alt"></i> Location
               </th>
-              <th style="width: 220px"><i class="bi bi-tags"></i> Skills</th>
               <th style="width: 100px"><i class="bi bi-star"></i> Rating</th>
               <th style="width: 120px">
                 <i class="bi bi-slash-circle"></i> Status
@@ -124,7 +123,7 @@
           </thead>
           <tbody id="techTableBody">
             <tr>
-              <td colspan="8" class="text-center small text-muted py-4">
+              <td colspan="7" class="text-center small text-muted py-4">
                 Loading technicians…
               </td>
             </tr>
@@ -155,16 +154,6 @@
       height: 40px;
       border-radius: 8px;
       object-fit: cover;
-    }
-    .skill-badge {
-      display: inline-block;
-      margin-right: 6px;
-      margin-bottom: 4px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #eef2ff;
-      color: #3730a3;
-      font-size: 12px;
     }
     .status-pill {
       padding: 6px 10px;
@@ -254,12 +243,6 @@
         const tr = document.createElement("tr");
         tr.dataset.id = t._id;
         
-        // Handle skills correctly if they are objects
-        const skillsArr = (t.skills || []).slice(0, 5).map(s => {
-          let skillName = typeof s === 'object' ? (s.name || s.title || s.skill || JSON.stringify(s)) : s;
-          return `<span class="skill-badge">${escapeHtml(skillName)}</span>`;
-        }).join("");
-
         // Handle location correctly if it's an object
         const locationStr = typeof t.location === 'object' ? (t.location.address || t.location.formattedAddress || '—') : (t.location || '—');
 
@@ -270,7 +253,6 @@
         <td><div class="fw-semibold">${escapeHtml(t.name || ((t.firstName || "") + " " + (t.lastName || "")).trim() || "—")}</div><div class="small text-muted">${escapeHtml(t.email || "")}</div></td>
         <td class="d-none d-md-table-cell small text-muted">${escapeHtml(t.phone || "—")}</td>
         <td class="d-none d-lg-table-cell small text-muted">${escapeHtml(locationStr)}</td>
-        <td>${skillsArr || '<span class="text-muted">—</span>'}</td>
         <td class="small text-warning">${ratingStars}</td>
         <td><span class="badge fs-7 fw-semibold px-2 py-1 ${t.active ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary"}">${t.active ? "Active" : "Inactive"}</span>${techniciansCanManageAccounts ? `<div class="small mt-1 ${t.loginState === 'ready' ? 'text-muted' : 'text-warning'}">${t.loginState === 'ready' ? 'Sign-in ready' : t.loginState === 'invited' ? 'Waiting for email confirmation' : 'No sign-in account'}</div>` : ''}</td>
         <td class="text-end">
@@ -299,7 +281,7 @@
         body.innerHTML = "";
         if (pageItems.length === 0) {
           body.innerHTML =
-            '<tr><td colspan="8" class="text-center small text-muted py-4">No technicians found.</td></tr>';
+            '<tr><td colspan="7" class="text-center small text-muted py-4">No technicians found.</td></tr>';
         }
         pageItems.forEach((t) => body.appendChild(renderRow(t)));
         el("pageInfo").innerText =
@@ -331,7 +313,6 @@
             loginState: t.user ? (t.user.emailVerified === false ? 'invited' : 'ready') : 'missing',
             phone: t.phone,
             location: t.locationText || t.location,
-            skills: t.skills || [],
             active: !!t.active,
             avatar: t.avatarUrl || t.avatar || "",
           }));
@@ -357,7 +338,6 @@
             t.email,
             t.phone,
             t.location,
-            (t.skills || []).join(" "),
           ]
             .join(" ")
             .toLowerCase();
