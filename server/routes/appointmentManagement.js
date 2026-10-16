@@ -1272,10 +1272,7 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
     const candidateById = new Map((assignmentPlan?.candidates || []).map(candidate => [candidate.technicianId, candidate]));
 
     // â”€â”€ 2. Fetch ALL active technicians â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const allTechs = await Technician.find({ active: true })
-      .select('name phone email availabilityStatus rating location locationText')
-      .sort({ name: 1 })
-      .lean();
+    const allTechs = await require('../utils/technicianRoster').loadTechnicianRoster({ Technician });
 
     if (allTechs.length === 0) {
       return res.json({ available: [], offlinePresent: [], total: 0 });
@@ -1303,10 +1300,10 @@ router.get('/:id/eligible-technicians', requireRole(["admin", "secretary"]), asy
     for (const tech of allTechs) {
       const tid = tech._id.toString();
 
-      if (!candidateById.has(tid)) {
+      if (!tech.assignmentEligible || !candidateById.has(tid)) {
         ineligible.push({ ...tech, reason: assignmentPlan?.assignmentTiming?.isExpired
           ? 'Requested Time Has Passed'
-          : assignmentPlan?.exclusionReasons?.[tid] || 'Not Available for This Booking' });
+          : tech.assignmentReason || assignmentPlan?.exclusionReasons?.[tid] || 'Not Available for This Booking' });
         continue;
       }
 

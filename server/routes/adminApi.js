@@ -152,6 +152,7 @@ router.get("/staff/policy", admin.getStaffRetentionPolicy);
 router.get("/staff/:id/archive-preview", admin.previewStaffArchive);
 router.post("/staff/:id/archive", admin.archiveStaff);
 router.post("/staff/:id/restore", admin.restoreStaff);
+router.post("/staff/:id/technician-profile", admin.createStaffWorkProfile);
 router.get("/staff/check-email", require("../controllers/technicianAccountController").checkEmail);
 router.post("/staff/:id/account-invitation", require("../controllers/technicianAccountController").inviteStaff);
 router.get("/staff/:id", admin.getStaff);

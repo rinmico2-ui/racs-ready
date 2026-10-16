@@ -24,19 +24,8 @@ const { loadActiveOrderCapacityRows } = require('../utils/orderScheduleCapacity'
 const { latestAllowedFinish, overtimeMinutesForWindow } = require('../utils/technicianOvertimePolicy');
 
 // ── Company-wide working hours (internal constants) ───────────────────────────
-const COMPANY_START_MINUTES = 480; // 8:00 AM (fallback default)
-const COMPANY_END_MINUTES = 1140;  // 7:00 PM (fallback default, includes overtime)
-
-// Default working days for technicians without a schedule (Mon–Fri 8–5)
-const DEFAULT_WORKING_DAYS = [
-  { dayOfWeek: 1, startMinutes: COMPANY_START_MINUTES, endMinutes: COMPANY_END_MINUTES },
-  { dayOfWeek: 3, startMinutes: COMPANY_START_MINUTES, endMinutes: COMPANY_END_MINUTES },
-  { dayOfWeek: 4, startMinutes: COMPANY_START_MINUTES, endMinutes: COMPANY_END_MINUTES },
-  { dayOfWeek: 5, startMinutes: COMPANY_START_MINUTES, endMinutes: COMPANY_END_MINUTES },
-];
-const DEFAULT_NON_WORKING = [
-  { dayOfWeek: 0 }, { dayOfWeek: 2 }, { dayOfWeek: 6 },
-];
+const { COMPANY_START_MINUTES, COMPANY_END_MINUTES, DEFAULT_WORKING_DAYS, DEFAULT_NON_WORKING }
+  = require('../utils/technicianScheduleDefaults');
 
 function formatDateKey(d) {
   const dt = new Date(d);
@@ -936,7 +925,7 @@ async function handleTimeSlots(req, res) {
       }
 
       // Advance notice filtering
-      const minAdvMinutes = await getMinAdvanceMinutes();
+      const minAdvMinutes = req._trustedExistingAppointment ? 0 : await getMinAdvanceMinutes();
       const now = new Date();
 
       const timeSlots = [];
@@ -947,7 +936,7 @@ async function handleTimeSlots(req, res) {
         if (!manilaSlotTiming(requestedDateKey, slotStart, {
           now,
           minAdvanceMinutes: minAdvMinutes,
-          safetyBufferMinutes: 30,
+          safetyBufferMinutes: req._trustedExistingAppointment ? 0 : 30,
         }).allowed) continue;
 
         // Check if this slot conflicts with any existing booking
@@ -1215,6 +1204,8 @@ function schedulingResult(handler, query, trustedExclusions = {}) {
       query,
       _trustedExcludeOrderId: trustedExclusions.excludeOrderId || null,
       _trustedExcludeBookingId: trustedExclusions.excludeBookingId || null,
+      _trustedExistingAppointment: trustedExclusions.existingAppointment === true
+        && Boolean(trustedExclusions.excludeBookingId || trustedExclusions.excludeOrderId),
     }, response)).catch(reject);
   });
 }

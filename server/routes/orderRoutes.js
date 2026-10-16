@@ -204,7 +204,7 @@ async function findAvailableTechnician(preferredDate) {
   const dayOfWeek = date.getDay(); // 0=Sun
 
   // 1. Get all active technicians
-  const technicians = await Technician.find({ active: true }).lean();
+  const technicians = (await require('../utils/technicianRoster').loadTechnicianRoster({ Technician })).filter(technician => technician.assignmentEligible);
   if (!technicians.length) return { technician: null, nextDate: null };
 
   // 2. Get schedules for all technicians
@@ -1305,10 +1305,9 @@ router.get("/:id/eligible-technicians", authenticate, requireRole(["admin", "sec
       if (tid) workloadMap[tid] = (workloadMap[tid] || 0) + 1;
     });
 
-    const technicians = await Technician.find({ active: true })
-      .populate("user", "name email")
-      .select("firstName lastName name email phone rating availabilityStatus lastSeen location locationText")
-      .lean();
+    const technicians = await require('../utils/technicianRoster').loadTechnicianRoster({ Technician });
+    const plan = (await buildOrderAssignmentPlan([order], { reservePlan: false, includeAllCandidates: true }))[0];
+    const candidateIds = new Set((plan?.candidates || []).map(candidate => candidate.technicianId));
 
     const available = [];
     const offlinePresent = [];
@@ -1352,26 +1351,15 @@ router.get("/:id/eligible-technicians", authenticate, requireRole(["admin", "sec
         avatar: (name.charAt(0) || '?').toUpperCase(),
       };
 
-      // Admin assignment: ALL active technicians are selectable.
-      // Technicians that are genuinely on-break or actively busy are shown
-      // in a separate "secondary" bucket so admin is informed, but they
-      // remain assignable (admin has authority to override availability).
-      const trulyBusy = status === 'on_break' || status === 'busy' ||
-                        status === 'assigned' || status === 'on the way' ||
-                        status === 'in progress';
-
-      if (trulyBusy) {
-        const reason = status === 'on_break'   ? 'On Break' :
-                       status === 'busy'        ? 'Currently Busy' :
-                       status === 'assigned'    ? 'Currently Assigned' :
-                       status === 'on the way'  ? 'En Route' :
-                       status === 'in progress' ? 'In Progress' :
-                                                  'Busy';
-        offlinePresent.push({ ...techInfo, reason });
-      } else {
-        // Available, Offline, Unknown/blank â€” all go into selectable list
-        available.push(techInfo);
+      if (!tech.assignmentEligible || !candidateIds.has(String(tech._id))) {
+        offlinePresent.push({ ...techInfo, available: false, reason: tech.assignmentReason || 'Unavailable for the selected delivery schedule' });
+        continue;
       }
+
+      // Current GPS/attendance status is descriptive. Eligibility above is for
+      // the requested future delivery window, including all scheduling conflicts.
+      available.push({ ...techInfo, available: true });
+
     }
 
     // Sort available by AI score â€” genuinely rank by best fit
@@ -2939,8 +2927,9 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
       return res.status(400).json({ error: "Order already has a technician assigned. Use reassign if needed." });
     }
 
-    const tech = await Technician.findById(technicianId);
-    if (!tech) return res.status(404).json({ error: "Technician not found" });
+    const tech = (await require('../utils/technicianRoster').loadTechnicianRoster({ Technician, technicianIds: [technicianId] }))
+      .find(technician => technician.assignmentEligible);
+    if (!tech) return res.status(400).json({ error: "Choose an active technician from Staff List with a completed sign-in setup." });
     if (assignmentSource === "reviewed_plan") {
       const freshPlan = (await buildOrderAssignmentPlan([proposedSchedule], { reservePlan: false }))[0];
       const stillEligible = freshPlan?.candidates?.some(candidate => candidate.technicianId === String(technicianId));

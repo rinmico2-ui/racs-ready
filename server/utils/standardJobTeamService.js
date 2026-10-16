@@ -6,6 +6,7 @@ const { withOperationLock, bookingCapacityLockKey } = require('./operationLock')
 function createService(overrides = {}) {
   const deps = { mongoose: require('mongoose'), Booking: require('../models/BookingService'), Order: require('../models/Order'),
     Assignment: require('../models/Assignment'), Technician: require('../models/Technician'),
+    roster: options => require('./technicianRoster').loadTechnicianRoster(options),
     slots: (...args) => require('../routes/scheduleRoutes').getTimeSlotsForQuery(...args), lock: withOperationLock, ...overrides };
   const model = source => source === 'booking' ? deps.Booking : deps.Order;
   async function load(source, id, session) {
@@ -31,21 +32,21 @@ function createService(overrides = {}) {
   }
   async function candidates(source, job, input = {}) {
     const visit = schedule(source, job, input);
-    const technicians = await deps.Technician.find({ active: { $ne: false }, archivedAt: null })
-      .populate('user', 'active blocked role').select('_id name user phone userEmail').lean();
+    const technicians = await deps.roster({ Technician: deps.Technician });
     const rows = [];
     // Bounded batches avoid opening one database-heavy slot calculation for
     // every staff account at once.
     for (let offset = 0; offset < technicians.length; offset += 4) {
       rows.push(...await Promise.all(technicians.slice(offset, offset + 4).map(async technician => {
-        const eligible = technician.user && technician.user.active !== false && !technician.user.blocked && technician.user.role === 'technician';
-        let available = false, reason = eligible ? 'Unavailable for this appointment' : 'No active technician account';
+        const eligible = technician.assignmentEligible;
+        let available = false, reason = eligible ? 'Unavailable for this appointment' : technician.assignmentReason;
         if (eligible) {
           const result = await deps.slots({ date: visit.date, technicianId: team.ref(technician._id), duration: String(visit.minutes), quantity: '1', travelTime: String(visit.travel) },
-            { excludeBookingId: source === 'booking' ? job._id : job.bookingId, excludeOrderId: source === 'order' ? job._id : null });
+            { excludeBookingId: source === 'booking' ? job._id : job.bookingId, excludeOrderId: source === 'order' ? job._id : null, existingAppointment: true });
           if (result.statusCode >= 500) throw team.failure('Availability could not be checked. Try again.', 503);
           available = (result.payload?.timeSlots || []).some(slot => slot.available === true && parseAppointmentTime(slot.startTime) === visit.start);
           if (available) reason = 'Available for the full appointment';
+          else if (result.payload?.message) reason = result.payload.message;
         }
         return { technicianId: team.ref(technician._id), name: technician.name || 'Technician', available, reason };
       })));
@@ -88,7 +89,7 @@ function createService(overrides = {}) {
         const allowed = source === 'booking' ? ['awaiting_assignment', 'pending_reassignment', 're-scheduled', 'assigned', 'confirmed', 'scheduled', 'inspection_scheduled', 'repair_scheduled', 'repair_approved'] : ['preparing_unit', 'technician_declined', 'technician_assigned', 'technician_accepted'];
         if (!allowed.includes(job.status)) throw team.failure('The team can only be changed before work starts.');
         if (source === 'order' && !['paid', 'partial', 'verified', 'remitted'].includes(job.paymentStatus)) throw team.failure('Verify payment before assigning the installation team.');
-        const technicians = await deps.Technician.find({ _id: { $in: technicianIds }, active: { $ne: false }, archivedAt: null }).session(session).lean();
+        const technicians = (await deps.roster({ Technician: deps.Technician, technicianIds, session })).filter(technician => technician.assignmentEligible);
         require('./assignmentStaffing').assertRecommendedCrew(source, job, input, technicianIds);
         const responseMinutes = Math.min(720, Math.max(5, Number(input.responseMinutes) || 30));
         const deadlineAt = new Date(Date.now() + responseMinutes * 60000);
