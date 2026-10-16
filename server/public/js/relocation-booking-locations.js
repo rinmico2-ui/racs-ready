@@ -9,6 +9,7 @@
   }
   function createController(options) {
     const { document, fetch, getItem, getOrigin, setPin, setTarget, changed } = options;
+    const acceptPoint = place => validPoint(place) && (!options.contains || options.contains(Number(place.lat), Number(place.lng)));
     const byId = id => document.getElementById(id);
     const input = byId('relocationDestinationAddress'), list = byId('relocationDestinationSuggest');
     let active = null, originKey = '', target = 'from', version = 0, abort, timer;
@@ -16,7 +17,7 @@
     function cancel() { ++version; clearTimeout(timer); abort?.abort(); abort = null; }
     function close() { if (list) { list.replaceChildren(); list.classList.add('d-none'); } input?.setAttribute('aria-expanded', 'false'); }
     function chooseTarget(next, focus = false) {
-      if (next === 'to' && !validPoint(getOrigin())) return;
+      if (next === 'to' && !acceptPoint(getOrigin())) return;
       target = next; setTarget(next);
       ['From', 'To'].forEach(name => {
         const button = byId('relocationMapStep' + name); if (!button) return;
@@ -28,17 +29,17 @@
       if (focus) { const field = next === 'to' ? input : byId('locationInput'); field?.focus({ preventScroll: true }); field?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     }
     function sync() {
-      const item = getItem(), origin = getOrigin(), custom = item?.relocation?.scope === 'custom_quote' && !item.relocation.requestId;
+      const item = getItem(), origin = getOrigin(), custom = item?.relocation?.scope === 'different_address' && !item.relocation.requestId;
       byId('relocationMapSteps')?.classList.toggle('d-none', !custom);
       byId('relocationDestinationSection')?.classList.toggle('d-none', !custom);
       if (active !== item) { cancel(); close(); active = item; originKey = ''; chooseTarget('from'); }
       if (!item) return;
-      if (validPoint(origin) && !item.relocation.requestId) {
+      if (acceptPoint(origin) && !item.relocation.requestId) {
         item.relocation.from = { ...(item.relocation.from || {}), address: origin.address || '', lat: Number(origin.lat), lng: Number(origin.lng) };
         if (item.relocation.scope === 'same_property') item.relocation.to = { ...(item.relocation.to || {}), address: origin.address || '', lat: Number(origin.lat), lng: Number(origin.lng) };
       }
       if (!custom || !input) return;
-      const ready = validPoint(origin), key = ready ? `${origin.lat},${origin.lng}` : '';
+      const ready = acceptPoint(origin), key = ready ? `${origin.lat},${origin.lng}` : '';
       input.disabled = !ready;
       const destinationStep = byId('relocationMapStepTo'); if (destinationStep) destinationStep.disabled = !ready;
       ['relocationDestinationPin', 'relocationDestinationSearch'].forEach(id => { const button = byId(id); if (button) button.disabled = !ready; });
@@ -46,7 +47,7 @@
       if (!ready) { cancel(); originKey = ''; chooseTarget('from'); status('Choose the current address first.'); close(); }
       else if (key !== originKey) {
         originKey = key; chooseTarget('to');
-        if (!validPoint(item.relocation.to)) {
+        if (!acceptPoint(item.relocation.to)) {
           status('Current location saved. Choose the new address or place its orange pin.');
           if (options.isLocationStep?.() && document.activeElement === byId('locationInput')) chooseTarget('to', true);
         }
@@ -54,13 +55,13 @@
     }
     function apply(point, address) {
       const item = getItem();
-      if (!item || item !== active || !validPoint(point) || !validPoint(getOrigin())) return false;
+      if (!item || item !== active || !acceptPoint(point) || !acceptPoint(getOrigin())) return false;
       item.relocation.to = { ...(item.relocation.to || {}), address: String(address || '').trim(), lat: Number(point.lat), lng: Number(point.lng) };
       if (input) input.value = item.relocation.to.address;
       setPin(Number(point.lat), Number(point.lng)); close(); changed(); return true;
     }
     async function pin(lat, lng) {
-      const item = getItem(); if (item?.relocation?.scope !== 'custom_quote' || item !== active || !validPoint({ lat, lng }) || !validPoint(getOrigin())) return;
+      const item = getItem(); if (item?.relocation?.scope !== 'different_address' || item !== active || !acceptPoint({ lat, lng }) || !acceptPoint(getOrigin())) return;
       cancel(); close(); const token = version, typed = input?.value.trim() || '';
       const address = typed || `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
       apply({ lat, lng }, address); chooseTarget('to');
@@ -79,14 +80,14 @@
     }
     async function search() {
       cancel(); close(); const item = getItem(), query = input?.value.trim() || '', token = version;
-      if (item?.relocation?.scope !== 'custom_quote' || item !== active || !validPoint(getOrigin()) || query.length < 3) return;
+      if (item?.relocation?.scope !== 'different_address' || item !== active || !acceptPoint(getOrigin()) || query.length < 3) return;
       abort = new AbortController(); status('Finding address suggestions...');
       try {
         const response = await fetch(`/api/geocoding/search?q=${encodeURIComponent(query)}&limit=5`, { signal: abort.signal, credentials: 'same-origin' });
         if (!response.ok) throw new Error('Address search unavailable');
         const result = await response.json();
         if (token !== version || getItem() !== item || input.value.trim() !== query) return;
-        const rows = Array.isArray(result) ? result.filter(row => validPoint({ lat: row.lat, lng: row.lon })) : [];
+        const rows = Array.isArray(result) ? result.filter(row => acceptPoint({ lat: row.lat, lng: row.lon })) : [];
         if (!rows.length) { status('No address match. Keep typing or place the orange pin on the map.'); return; }
         rows.forEach(row => {
           const button = document.createElement('button'); button.type = 'button'; button.className = 'list-group-item list-group-item-action'; button.setAttribute('role', 'option'); button.textContent = row.display_name;
@@ -103,7 +104,7 @@
       options.clearPin?.(); changed(); status('Choose an address suggestion or place the orange pin.');
       if (input.value.trim().length >= 3) timer = setTimeout(search, 350);
     });
-    input?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'custom_quote') chooseTarget('to'); });
+    input?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'different_address') chooseTarget('to'); });
     input?.addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); search(); }
       if (event.key === 'Escape') { cancel(); close(); }
@@ -114,7 +115,7 @@
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus(); }
       if (event.key === 'Escape') { close(); input.focus(); }
     });
-    byId('locationInput')?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'custom_quote') chooseTarget('from'); });
+    byId('locationInput')?.addEventListener('focus', () => { if (getItem()?.relocation?.scope === 'different_address') chooseTarget('from'); });
     byId('relocationMapStepFrom')?.addEventListener('click', () => chooseTarget('from', true));
     byId('relocationMapStepTo')?.addEventListener('click', () => chooseTarget('to', true));
     byId('relocationDestinationSearch')?.addEventListener('click', search);

@@ -25,7 +25,7 @@
         const total = stages.reduce((sum, stage) => sum + stage.tasks.length, 0);
         const activeStage = stages.findIndex(stage => stage.tasks.some(([key]) => !done.includes(stage.key + '.' + key)));
         const sameProperty = item.scope === 'same_property';
-        const differentAddress = item.scope === 'custom_quote';
+        const differentAddress = ['different_address', 'custom_quote'].includes(item.scope);
         const moveTitle = sameProperty ? 'Move within the same property' : differentAddress ? 'Move to another address' : 'Move type needs confirmation';
         const details = [item.brand, item.airconTypeName, item.hp ? item.hp + ' HP' : '', item.quantity > 1 ? item.quantity + ' units' : '', item.model].filter(Boolean);
         const missing = item.missingDetails || [];

@@ -1556,8 +1556,8 @@
             const row = rows[Number(button.dataset.index)];
             if (!row) return;
             try {
-            if (row.relocation || core.some(service => String(service._id) === String(row.serviceId) && window.ApplianceServices.isRelocation(service))) {
-              alert('Relocation changes need staff review of both locations. Contact staff through your relocation request.'); return;
+            if (row.relocation?.scope === 'custom_quote') {
+              alert('Contact staff to change this historical relocation booking.'); return;
             }
             if (row.type === 'repair') {
               bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-repair-tab')).show(); repairBuilder.edit(String(row.id || row._id));
@@ -1593,25 +1593,27 @@
         const review = () => host.querySelector('.bh-editor-cart').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         const next = () => bootstrap.Tab.getOrCreateInstance(host.querySelector('#bh-tab-schedule')).show();
         coreBuilder = window.CoreApplianceBooking.create();
-        coreBuilder.mount(core.filter(service => !window.ApplianceServices.isRelocation(service)), { host: host.querySelector('#bhCoreApplianceBuilder'), embedded: true, state: editorState, assistance, review, next,
+        coreBuilder.mount(core.filter(service => !window.ApplianceServices.isRelocation(service) || rows.some(row => String(row.serviceId) === String(service._id))), { host: host.querySelector('#bhCoreApplianceBuilder'), embedded: true, state: editorState, assistance, review, next,
           remaining: editingId => {
             const editing = rows.filter(row => (row.applianceGroupId || String(row.id || row._id || '')) === String(editingId));
             return 40 - selectedUnits() + (editing.length ? Number(editing[0].quantity) || 0 : 0);
           },
           commit: (added, editingId) => {
             const previous = rows.filter(row => (row.applianceGroupId || String(row.id || row._id || '')) === String(editingId));
+            window.ApplianceServices.assertStandaloneServices(rows.filter(row => !previous.includes(row)).concat(added));
             const updated = added.map(row => ({ ...row, ...(previous.find(item => String(item.serviceId) === String(row.serviceId))?._id ? { _id: previous.find(item => String(item.serviceId) === String(row.serviceId))._id } : {}) }));
             for (let i = rows.length - 1; i >= 0; i--) if (previous.includes(rows[i])) rows.splice(i, 1);
             rows.push(...updated); renderCurrentItems();
           } });
         if (core.some(window.ApplianceServices.isRelocation)) {
-          host.querySelector('#bhCoreApplianceBuilder').insertAdjacentHTML('beforeend', '<p class="small text-muted mt-3">For aircon relocation, <a href="/services">request a dedicated quote on Services</a> so staff can review both locations.</p>');
+          host.querySelector('#bhCoreApplianceBuilder').insertAdjacentHTML('beforeend', '<p class="small text-muted mt-3">For aircon relocation, <a href="/services">book separately on Services</a> to choose both map locations. Existing relocation details keep their saved locations.</p>');
         }
         repairBuilder = window.RepairApplianceBooking.create();
         repairBuilder.mount({ host: host.querySelector('#bhRepairApplianceBuilder'), embedded: true, state: editorState,
           coreServices: core, categories, defaultInspectionFee: defaultRepairInspectionFee, inspectionDuration: state.inspectionDurationMinutes,
           photos: false, assistance, review, next,
           commit: (row, editingId) => {
+            window.ApplianceServices.assertStandaloneServices(rows.filter(item => String(item.id || item._id || '') !== String(editingId)).concat(row));
             const index = rows.findIndex(item => String(item.id || item._id || '') === String(editingId));
             if (index >= 0) rows.splice(index, 1, row); else rows.push(row);
             renderCurrentItems();

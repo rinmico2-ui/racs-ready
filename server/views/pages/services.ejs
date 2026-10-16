@@ -1,7 +1,7 @@
 <link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261016-simple-unit-details">
-<script src="/js/relocation-booking-locations.js?v=20261013-guided-relocation"></script>
-<script src="/js/appliance-services.js?v=20261016-simple-unit-details"></script>
-<script src="/js/core-appliance-booking.js?v=20261016-optional-repair-model"></script>
+<script src="/js/relocation-booking-locations.js?v=20261017-standalone-relocation"></script>
+<script src="/js/appliance-services.js?v=20261017-standalone-relocation"></script>
+<script src="/js/core-appliance-booking.js?v=20261017-standalone-relocation"></script>
 <script src="/js/repair-appliance-booking.js?v=20261016-simple-unit-details"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
@@ -610,7 +610,7 @@
             <div class="ent-step-body">
               <div class="alert alert-info d-none" id="relocationLocationHint" role="note">
                 <i class="bi bi-geo-alt-fill me-1" aria-hidden="true"></i>
-                For aircon relocation, pin the unit's current address. The standard booking price applies only when the new position is nearby on the same property.
+                For aircon relocation, pin the current property. For a move to another address, also pin the destination before choosing your date and time.
               </div>
               <% if (accountAddress) { %>
                 <div class="saved-address-card mb-3">
@@ -770,7 +770,6 @@
             </div>
             <div class="ent-step-body">
               <p class="booking-step-lead" id="serviceScheduleLead">Pick a date, then choose a start time. We will assign an available technician for you.</p>
-              <p id="relocationPreferredDateSection" class="d-none text-muted small mb-3">Select a preferred day on the calendar. Staff will confirm availability when they send the custom quote; no time or technician is reserved.</p>
               <div id="serviceScheduleHours"><%- include('../partials/customer-hours-note', {
                 hoursLabel: 'Service team hours',
                 hoursSummary: (locals.businessHours && businessHours.summary) || 'See available times below',
@@ -1527,8 +1526,6 @@
 
 <style>
 /* Quote requests need only a preferred date; time is arranged after approval. */
-#manualCalendar.relocation-quote-schedule #timeSelection,
-#manualCalendar.relocation-quote-schedule #projectPrefs { display: none !important; }
 .service-map-dot.destination{background:#ea580c;box-shadow:0 0 0 2px #ffedd5}
 .relocation-map-locations{display:grid;gap:.65rem;padding:.85rem 1rem;border-bottom:1px solid #e2e8f0;background:#fff}
 .relocation-map-locations>div{display:grid;gap:.2rem;min-width:0}
@@ -2766,7 +2763,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261016-optional-repair-model':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261017-standalone-relocation':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

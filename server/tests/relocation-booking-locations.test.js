@@ -20,7 +20,7 @@ function harness(fetch = async () => ({ ok: true, json: async () => [] })) {
   }
   const fields = new Map();
   const document = { activeElement: null, getElementById(id) { if (!fields.has(id)) fields.set(id, new Node(id)); return fields.get(id); }, createElement() { return new Node(''); }, addEventListener() {} };
-  let item = { relocation: { scope: 'custom_quote', from: {}, to: {} } }, origin = null;
+  let item = { relocation: { scope: 'different_address', from: {}, to: {} } }, origin = null;
   const pins = [], targets = [], requests = [];
   const controller = createController({ document, fetch: (url, options) => { requests.push(url); return fetch(url, options); },
     getItem: () => item, getOrigin: () => origin, setPin: (lat, lng) => pins.push({ lat, lng }),
@@ -68,7 +68,7 @@ test('a late suggestion response cannot overwrite newer text or a different relo
   const pending = h.controller.search(); h.type('New search');
   release({ ok: true, json: async () => [{ display_name: 'Old address', lat: 15.4, lon: 121.2 }] }); await pending;
   assert.equal(h.field('relocationDestinationSuggest').children.length, 0); assert.equal(h.item().relocation.to.address, 'New search');
-  const second = h.controller.search(); const old = h.item(); h.setItem({ relocation: { scope: 'custom_quote', from: {}, to: {} } }); h.controller.sync();
+  const second = h.controller.search(); const old = h.item(); h.setItem({ relocation: { scope: 'different_address', from: {}, to: {} } }); h.controller.sync();
   release({ ok: true, json: async () => [{ display_name: 'New search address', lat: 15.4, lon: 121.2 }] }); await second;
   assert.equal(h.field('relocationDestinationSuggest').children.length, 0); assert.equal(h.item().relocation.to.address, undefined); assert.equal(old.relocation.to.lat, null);
 });

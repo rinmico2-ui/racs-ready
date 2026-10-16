@@ -162,10 +162,10 @@ test('replacing a service under the same row ID updates the service used for ava
   assert.equal(f.state.selectedServiceId, 'installation'); assert.equal(f.state.selectedDate, null);
 });
 
-test('switching to a relocation quote removes all project selections and uses preferred dates', async () => {
+test('switching to one relocation removes project selections and uses normal appointment availability', async () => {
   const f = fixture(); await selectProject(f);
-  f.state.selectedServices[0].relocation = { scope: 'custom_quote' }; reconcile(f);
-  assert.equal(f.api.getMode(), 'preferred'); assert.equal(f.state.projectScheduling, null);
+  f.state.selectedServices[0].quantity = 1; f.state.selectedServices[0].relocation = { scope: 'different_address' }; reconcile(f);
+  assert.equal(f.api.getMode(), 'appointment'); assert.equal(f.state.projectScheduling, null);
   assert.equal(f.api.getSelectedDate(), null);
 });
 

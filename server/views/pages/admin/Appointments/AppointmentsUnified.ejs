@@ -652,7 +652,7 @@
     </div>
     <nav class="appointment-tools workspace-header-tools" aria-label="Appointment tools">
       <a class="appointment-shortcut workspace-header-action" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/unit-assistance"><i class="bi bi-search" aria-hidden="true"></i><span>Unit Identification</span></a>
-      <a class="appointment-shortcut workspace-header-action" href="/<%= appointmentsWorkspaceRole === 'secretary' ? 'secretary' : 'admin' %>/relocation-requests"><i class="bi bi-geo-alt" aria-hidden="true"></i><span>Relocation Requests</span></a>
+
       <button type="button" class="appointment-shortcut workspace-header-action" id="openServiceChangeQueue" aria-haspopup="dialog" aria-controls="serviceChangeQueueModal"><i class="bi bi-list-check" aria-hidden="true"></i><span>Service Change Requests</span><span class="appointment-shortcut-count" id="serviceChangeCount" style="display:none">0</span></button>
     </nav>
   </header>

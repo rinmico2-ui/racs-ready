@@ -1049,13 +1049,13 @@ router.get('/unit-assistance', pageAuth.requireRole('customer'), (req, res) => {
   res.render('pages/unit-assistance', { title: 'Unit identification requests' });
 });
 router.get('/relocation-requests', pageAuth.requireRole('customer'), (req, res) => {
-  res.render('pages/relocation-requests', { title: 'Aircon relocation requests' });
+  res.redirect('/book-history');
 });
 router.get('/admin/relocation-requests', pageAuth.requireRole('admin'), (req, res) => {
-  res.render('pages/relocation-requests-staff', { title: 'Aircon relocation requests', layout: 'layouts/admin' });
+  res.redirect('/admin/appointments');
 });
 router.get('/secretary/relocation-requests', pageAuth.requireRole('secretary'), (req, res) => {
-  res.render('pages/relocation-requests-staff', { title: 'Aircon relocation requests', layout: 'layouts/secretary' });
+  res.redirect('/secretary/appointments');
 });
 router.get('/admin/unit-assistance', pageAuth.requireRole('admin'), (req, res) => {
   res.render('pages/unit-assistance-staff', { title: 'Unit identification requests', layout: 'layouts/admin' });
