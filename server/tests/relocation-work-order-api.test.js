@@ -281,7 +281,7 @@ test("the customer's same-property choice shows two positions and carries the un
 test("the customer's different-address choice shows the two saved addresses without treating it as a room move", async () => {
   const far = clone(booking);
   far.services[0].airconType = "split";
-  far.services[0].relocation = { scope: "custom_quote", from: { address: "Saved current property", lat: 15.3, lng: 120.9 }, to: { address: "Saved new property", lat: 15.4, lng: 121.0 } };
+  far.services[0].relocation = { scope: "different_address", from: { address: "Saved current property", lat: 15.3, lng: 120.9 }, to: { address: "Saved new property", lat: 15.4, lng: 121.0 } };
   const result = await harness(far).run("get");
   assert.deepEqual(Array.from(result.data.items[0].missingDetails), []);
   const html = await browserMarkup(result.data);

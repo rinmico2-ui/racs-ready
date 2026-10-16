@@ -224,7 +224,14 @@ function restoreBookingProgress() {
     if (bookingDraftHasProgress(data)) {
       const restoredDate = data.selectedDate || data.scheduleDate;
       const parsedDate = restoredDate ? new Date(restoredDate) : null;
-      BookingState.selectedServices = Array.isArray(data.selectedServices) ? data.selectedServices : [];
+      const restoredServices = Array.isArray(data.selectedServices) ? data.selectedServices : [];
+      // A quote-based draft cannot be repriced or charged without a fresh selection.
+      if (restoredServices.some(item => item.relocation?.scope === 'custom_quote')) {
+        localStorage.removeItem(BOOKING_STORAGE_KEY);
+        return false;
+      }
+      window.ApplianceServices.assertStandaloneServices(restoredServices);
+      BookingState.selectedServices = restoredServices;
       BookingState.applianceDraft = data.applianceDraft && typeof data.applianceDraft === 'object' ? data.applianceDraft : null;
       BookingState.repairDraft = data.repairDraft && typeof data.repairDraft === 'object' ? data.repairDraft : null;
       BookingState.totalEstimatedPrice = Number(data.totalEstimatedPrice) ||
@@ -483,10 +490,8 @@ function bookingRequiresProjectSchedule() {
 let bookingScheduleServiceSignature = null;
 let bookingCalendarRenderId = 0;
 function reconcileBookingScheduleAfterServiceChange() {
-  const hasPendingRelocationQuote = (BookingState.selectedServices || []).some(service =>
-    service.relocation?.scope === 'custom_quote' && !service.relocation?.requestId);
-  const requiresProject = !hasPendingRelocationQuote && bookingRequiresProjectSchedule();
-  const mode = hasPendingRelocationQuote ? 'preferred' : requiresProject ? 'project' : 'appointment';
+  const requiresProject = bookingRequiresProjectSchedule();
+  const mode = requiresProject ? 'project' : 'appointment';
   const signature = JSON.stringify([mode, selectedServiceMinutes(), (BookingState.selectedServices || []).map(service => [
     service.id || service._id || service.serviceId,
     service.serviceId,
@@ -512,7 +517,7 @@ function reconcileBookingScheduleAfterServiceChange() {
   // Invalidate it before an old project response can repopulate this booking.
   window.EnterpriseCalendar?.invalidate?.({ mode });
   document.getElementById('timeSelection')?.classList.add('d-none');
-  syncServiceScheduleCopy(hasPendingRelocationQuote);
+  syncServiceScheduleCopy();
   syncScheduleNextAction();
   scheduleBookingProgressSave();
 }
@@ -656,7 +661,7 @@ function initMultiServiceBooking() {
     Promise.resolve(catalogReady).then(() => {
       openAftercareMaintenanceService();
       openAcceptedUnitAssistance();
-      openAcceptedRelocation();
+
     });
 
   }, 500); // 500ms delay to ensure everything is loaded
@@ -741,48 +746,7 @@ async function openAcceptedUnitAssistance() {
   }
 }
 
-async function openAcceptedRelocation() {
-  const requestId = new URLSearchParams(window.location.search).get('relocationRequest');
-  if (!requestId) return;
-  try {
-    const response = await fetch(`/api/relocations/mine/${encodeURIComponent(requestId)}`, { credentials: 'same-origin' });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not load your relocation quote.');
-    const request = result.request;
-    if (request.status !== 'accepted' || !request.quote || new Date(request.quote.expiresAt) <= new Date()) {
-      throw new Error('This relocation quote is no longer available. Review your request.');
-    }
-    const service = BookingState.catalog.coreServices.find(item => String(item._id) === String(request.serviceId));
-    if (!service) throw new Error('Aircon Relocation is no longer available.');
-    if (BookingState.selectedServices.some(item => String(item.relocation?.requestId) === String(request._id))) return;
-    if (BookingState.selectedServices.length) throw new Error('Complete or clear your current booking before continuing with this relocation quote.');
-    BookingState.selectedBrand = request.unit.brand;
-    BookingState.applianceType = request.unit.airconType;
-    BookingState.applianceTypeName = request.unit.airconType;
-    addServiceToBooking(service, 1, {
-      hp: request.unit.hp, price: request.quote.total,
-      durationMinutes: request.quote.durationMinutes,
-      airconType: request.unit.airconType, airconTypeName: request.unit.airconType,
-      relocation: {
-        scope: 'custom_quote', requestId: request._id, assetId: request.assetId || null,
-        from: request.from, to: request.to,
-        model: request.unit.model || '', serialNumber: request.unit.serialNumber || '',
-      },
-    });
-    saveBookingProgress();
-    const banner = document.createElement('div');
-    banner.className = 'alert alert-info mb-3';
-    banner.textContent = 'Your accepted relocation quote was added. Pin the current aircon address, choose a schedule, and submit the required payment for staff verification. No technician is assigned yet.';
-    document.getElementById('bookingContainer')?.prepend(banner);
-    history.replaceState({}, '', '/services');
-  } catch (error) {
-    showError(error.message);
-  }
-}
 
-/**
- * Inject CSS styles for scrollable container layout
- */
 function injectTransitionStyles() {
   const styleId = 'booking-transition-styles';
   if (document.getElementById(styleId)) return;
@@ -1727,18 +1691,14 @@ function showTechnicianChangeNotification(technicianName) {
 /**
  * Show specific step with completed steps visibility
  */
-function syncServiceScheduleCopy(customQuote = false) {
-  const project = !customQuote && bookingRequiresProjectSchedule();
-  const scheduleTitle = document.getElementById('serviceScheduleTitle');
-  const scheduleIntro = document.getElementById('serviceScheduleIntro');
-  const scheduleLead = document.getElementById('serviceScheduleLead');
-  if (scheduleTitle) scheduleTitle.textContent = customQuote ? 'Choose a Preferred Date' : project ? 'Choose Project Dates' : 'Choose a Date and Time';
-  if (scheduleIntro) scheduleIntro.textContent = customQuote
-    ? 'Choose a preferred date for your relocation request.'
-    : project ? 'Choose when the project can start and when you would like it finished.' : 'Tell us when you want the service.';
-  if (scheduleLead) scheduleLead.textContent = customQuote
-    ? 'Choose a preferred date for staff review. This does not reserve a technician or require payment.'
-    : project ? 'Select a start and end date. Our team will confirm the work plan.' : 'Pick a date, then choose a start time. We will assign an available technician for you.';
+function syncServiceScheduleCopy() {
+  const project = bookingRequiresProjectSchedule();
+  const title = document.getElementById('serviceScheduleTitle');
+  const intro = document.getElementById('serviceScheduleIntro');
+  const lead = document.getElementById('serviceScheduleLead');
+  if (title) title.textContent = project ? 'Choose Project Dates' : 'Choose a Date and Time';
+  if (intro) intro.textContent = project ? 'Choose when the project can start and when you would like it finished.' : 'Tell us when you want the service.';
+  if (lead) lead.textContent = project ? 'Select a start and end date. Our team will confirm the work plan.' : 'Pick a date, then choose a start time. We will assign an available technician for you.';
 }
 
 function showStep(stepNumber) {
@@ -1751,11 +1711,6 @@ function showStep(stepNumber) {
     void refreshBookingReward().catch(() => {});
     return false;
   }
-  if (requestedStep > 4 && pendingRelocationQuoteItem()) {
-    showError('Send the relocation request after choosing a preferred date. Staff will send a quote before checkout.');
-    return false;
-  }
-
   const prevStep = Number(BookingState.currentStep) || 1;
   if (requestedStep > prevStep && typeof getBookingStepIssue === 'function') {
     for (let prerequisiteStep = 1; prerequisiteStep < requestedStep; prerequisiteStep += 1) {
@@ -1847,12 +1802,7 @@ function showStep(stepNumber) {
   // Load content for specific steps
   if (stepNumber === 4) {
     reconcileBookingScheduleAfterServiceChange();
-    const customQuote = Boolean(pendingRelocationQuoteItem());
-    document.getElementById('manualCalendar')?.classList.toggle('relocation-quote-schedule', customQuote);
-    const preferredDateSection = document.getElementById('relocationPreferredDateSection');
-    preferredDateSection?.classList.toggle('d-none', !customQuote);
-    document.getElementById('serviceScheduleHours')?.classList.toggle('d-none', customQuote);
-    syncServiceScheduleCopy(customQuote);
+    syncServiceScheduleCopy();
     bookingDebug('🔧 Initializing Step 4 scheduling...');
     setTimeout(() => {
       if (BookingState.currentStep !== 4) return;
@@ -1861,12 +1811,6 @@ function showStep(stepNumber) {
 
       if (suggestedWrapper) suggestedWrapper.classList.add('d-none');
       if (manualCalendar) manualCalendar.classList.remove('d-none');
-
-      if (customQuote) {
-        renderManualCalendar();
-        syncScheduleNextAction();
-        return;
-      }
 
       initializeSchedulingModes();
 
@@ -3234,7 +3178,7 @@ function initializeMapInternal(mapContainer) {
       showError('Choose a service location within Nueva Ecija.');
       return;
     }
-    if (placingRelocationDestination && pendingRelocationQuoteItem()) {
+    if (placingRelocationDestination && differentAddressRelocationItem()) {
       placingRelocationDestination = false;
       relocationLocationController()?.pin(lat, lng);
       return;
@@ -4201,11 +4145,11 @@ function syncLocationContinueAction() {
   const label = document.getElementById('locationContinueLabel');
   const eyebrow = document.getElementById('locationNextEyebrow');
   const message = document.getElementById('locationNextMessage');
-  const quoteItem = pendingRelocationQuoteItem();
-  const needsDestination = Boolean(quoteItem &&
-    String(quoteItem.relocation?.to?.address || '').trim().length < 8);
-  const needsDestinationPin = Boolean(quoteItem && !needsDestination &&
-    !isWithinPhilippinesMapBounds(Number(quoteItem.relocation?.to?.lat), Number(quoteItem.relocation?.to?.lng)));
+  const moveItem = differentAddressRelocationItem();
+  const needsDestination = Boolean(moveItem &&
+    String(moveItem.relocation?.to?.address || '').trim().length < 8);
+  const needsDestinationPin = Boolean(moveItem && !needsDestination &&
+    !isWithinPhilippinesMapBounds(Number(moveItem.relocation?.to?.lat), Number(moveItem.relocation?.to?.lng)));
 
   action.classList.toggle('is-visible', isLocationStepActive);
   action.setAttribute('aria-hidden', String(!isLocationStepActive));
@@ -4230,7 +4174,7 @@ function syncLocationContinueAction() {
     return;
   }
 
-  if (!routeReady && !quoteItem) {
+  if (!routeReady) {
     action.classList.add('is-checking');
     action.classList.remove('is-ready');
     if (eyebrow) eyebrow.textContent = 'Location selected';
@@ -4262,10 +4206,10 @@ function syncLocationContinueAction() {
   action.classList.remove('is-checking');
   action.classList.add('is-ready');
   if (eyebrow) eyebrow.textContent = 'Location ready';
-  if (message) message.textContent = quoteItem
-    ? 'Origin and destination ready for staff review.'
+  if (message) message.textContent = moveItem
+    ? 'Both locations are ready. Choose an available date and time next.'
     : `Travel fee ${fareText} · ${distanceText}`;
-  if (fareDetailsButton) fareDetailsButton.hidden = Boolean(quoteItem);
+  if (fareDetailsButton) fareDetailsButton.hidden = Boolean(moveItem);
   if (label) label.textContent = 'Continue to Schedule';
   if (button) button.disabled = false;
   if (becameReady) {
@@ -4320,17 +4264,17 @@ window.continueServiceBookingFromMap = function() {
     document.querySelector('#servicePinConfirm button')?.focus({ preventScroll: true });
     return;
   }
-  if (!routeReady && !pendingRelocationQuoteItem()) {
+  if (!routeReady) {
     showError('Please wait for the route and travel fare to finish calculating.');
     return;
   }
-  if (pendingRelocationQuoteItem() &&
-      String(pendingRelocationQuoteItem().relocation?.to?.address || '').trim().length < 8) {
+  if (differentAddressRelocationItem() &&
+      String(differentAddressRelocationItem().relocation?.to?.address || '').trim().length < 8) {
     presentBookingStepIssue(getBookingStepIssue(3));
     return;
   }
-  if (pendingRelocationQuoteItem() &&
-      !isWithinPhilippinesMapBounds(Number(pendingRelocationQuoteItem().relocation?.to?.lat), Number(pendingRelocationQuoteItem().relocation?.to?.lng))) {
+  if (differentAddressRelocationItem() &&
+      !isWithinPhilippinesMapBounds(Number(differentAddressRelocationItem().relocation?.to?.lat), Number(differentAddressRelocationItem().relocation?.to?.lng))) {
     presentBookingStepIssue(getBookingStepIssue(3));
     return;
   }
@@ -6115,6 +6059,7 @@ function renderRepairServices() {
       changed: draft => { BookingState.repairDraft = draft; scheduleBookingProgressSave(); },
       review: openSelectedServiceSummary, next: () => advanceToNextStep(),
       commit: (row, editingId) => {
+        window.ApplianceServices.assertStandaloneServices(BookingState.selectedServices.filter(item => String(item.id) !== String(editingId)).concat(row));
         const index = BookingState.selectedServices.findIndex(item => String(item.id || item._id || '') === String(editingId));
         if (index >= 0) BookingState.selectedServices.splice(index, 1, row); else BookingState.selectedServices.push(row);
         updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
@@ -6186,13 +6131,9 @@ function isAirconRelocationService(service) {
   return service?.slug === 'aircon-relocation' || /^aircon relocation$/i.test(String(service?.name || '').trim());
 }
 
-function hasAcceptedRelocationQuote() {
-  return (BookingState.selectedServices || []).some(item => item.relocation?.scope === 'custom_quote');
-}
-
-function pendingRelocationQuoteItem() {
+function differentAddressRelocationItem() {
   return (BookingState.selectedServices || []).find(item =>
-    item.relocation?.scope === 'custom_quote' && !item.relocation?.requestId);
+    item.relocation?.scope === 'different_address');
 }
 
 function activeRelocationItem() {
@@ -6202,7 +6143,7 @@ function activeRelocationItem() {
 function syncRelocationMapSummary() {
   const item = activeRelocationItem();
   const move = item?.relocation;
-  const separateDestination = move?.scope === 'custom_quote';
+  const separateDestination = move?.scope === 'different_address';
   const sharedProperty = move?.scope === 'same_property';
   const title = document.getElementById('serviceLocationStepTitle');
   if (title) title.textContent = separateDestination ? 'Relocation locations' : sharedProperty ? 'Current aircon property' : 'Service location';
@@ -6248,7 +6189,7 @@ function syncRelocationMapSummary() {
 
 function setRelocationDestinationPin(lat, lng) {
   const item = activeRelocationItem();
-  if (item?.relocation?.scope !== 'custom_quote') return;
+  if (item?.relocation?.scope !== 'different_address') return;
   const address = String(item.relocation.to?.address || '').trim() || (Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6));
   if (address.length < 8 || !isWithinPhilippinesMapBounds(lat, lng)) return;
   item.relocation.to = { ...item.relocation.to, address, lat, lng };
@@ -6295,11 +6236,11 @@ let relocationLocationsController = null;
 function relocationLocationController() {
   if (!relocationLocationsController && window.RelocationBookingLocations && document.getElementById('relocationDestinationAddress')) {
     relocationLocationsController = window.RelocationBookingLocations.createController({
-      document, fetch: (...args) => fetch(...args),
+      document, contains: isWithinPhilippinesMapBounds, fetch: (...args) => fetch(...args),
       getItem: () => { const item = activeRelocationItem(); return item?.relocation?.requestId ? null : item; },
       getOrigin: () => BookingState.customerLocation,
       setPin: setRelocationDestinationPin,
-      setTarget: target => { placingRelocationDestination = target === 'to' && Boolean(pendingRelocationQuoteItem()); },
+      setTarget: target => { placingRelocationDestination = target === 'to' && Boolean(differentAddressRelocationItem()); },
       isLocationStep: () => BookingState.currentStep === 3,
       clearPin: () => {
         if (BookingState.map) {
@@ -6316,7 +6257,7 @@ function relocationLocationController() {
 function searchRelocationDestination() { return relocationLocationController()?.search(); }
 function syncRelocationDestination() {
   relocationLocationController()?.sync();
-  const item = pendingRelocationQuoteItem();
+  const item = differentAddressRelocationItem();
   document.getElementById('mapInfoPanel')?.classList.toggle('d-none', Boolean(item));
   syncRelocationMapSummary();
   const destination = activeRelocationItem()?.relocation?.to;
@@ -6324,7 +6265,7 @@ function syncRelocationDestination() {
 }
 
 function bookingTravelFare() {
-  return hasAcceptedRelocationQuote() ? 0 : (Number(BookingState.travelFare ?? BookingState.fare ?? 0) || 0);
+  return Number(BookingState.travelFare ?? BookingState.fare ?? 0) || 0;
 }
 
 function createServiceCard(service, type) {
@@ -6380,7 +6321,7 @@ function createServiceCard(service, type) {
   const serviceName = escapeCardText(service.name || 'Service');
   const serviceDescription = escapeCardText(
     (isAirconRelocationService(service)
-      ? 'Move an aircon to a nearby position on the same property. Distant moves or another address need a custom quote.'
+      ? 'Move one aircon on the same property or to another address. Book relocation separately from other services.'
       : service.description || service.summary) ||
     (type === 'repair'
       ? 'Tell us what is wrong so the technician can prepare.'
@@ -7217,7 +7158,7 @@ function showCombinedQuantityHpModal(service) {
     }
 
   } else {
-    // Relocation between properties needs a separate route and transport quote.
+    // Relocation uses normal pricing and reserves one service for one aircon.
     if (pricingNoteEl) {
       if (isAirconRelocationService(service)) {
         pricingNoteEl.innerHTML = `
@@ -7229,7 +7170,7 @@ function showCombinedQuantityHpModal(service) {
               <fieldset id="relocationScopeChoice">
                 <legend class="small fw-semibold mb-1">Choose the move location</legend>
                 <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small mb-2"><input type="radio" name="relocationScope" value="same_property"> Nearby position on the same property</label>
-                <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small"><input type="radio" name="relocationScope" value="custom_quote"> Distant position or another address</label>
+                <label class="d-flex align-items-center gap-2 rounded border bg-white p-2 small"><input type="radio" name="relocationScope" value="different_address"> Distant position or another address</label>
               </fieldset>
               <label class="form-label small fw-semibold mt-3" for="relocationAsset">Select a saved aircon (optional)</label>
               <select class="form-select" id="relocationAsset" aria-describedby="relocationAssetHelp"><option value="">My aircon is not listed</option></select>
@@ -7243,8 +7184,8 @@ function showCombinedQuantityHpModal(service) {
                 <input class="form-control" id="relocationToPosition" maxlength="500" placeholder="e.g. Bedroom, ground floor">
                 <div class="row g-2 mt-1"><div class="col-sm-6"><label class="form-label small fw-semibold" for="relocationSameModel">Model (optional)</label><input class="form-control" id="relocationSameModel" maxlength="80" placeholder="Unit model"></div><div class="col-sm-6"><label class="form-label small fw-semibold" for="relocationSameSerial">Serial number (optional)</label><input class="form-control" id="relocationSameSerial" maxlength="100" placeholder="Unit serial number"></div></div>
               </div>
-              <div id="relocationCustomQuote" class="mt-3 d-none">
-                <p class="small text-muted mb-2">Custom Quote Required. You will enter the current and new addresses in the location step, then choose a preferred date. Staff will review the move before any payment or technician assignment.</p>
+              <div id="relocationDifferentAddress" class="mt-3 d-none">
+                <p class="small text-muted mb-2">Pin the current and new addresses in the next step. Then choose an available date and time, review the catalog price and complete payment.</p>
                 <label class="form-label small fw-semibold" for="relocationModel">Model (optional)</label>
                 <input class="form-control mb-2" id="relocationModel" maxlength="80" placeholder="Model from the unit label, if known">
                 <label class="form-label small fw-semibold" for="relocationSerial">Serial number (optional)</label>
@@ -7256,20 +7197,20 @@ function showCombinedQuantityHpModal(service) {
           </div>`;
         pricingNoteEl.querySelectorAll('input[name="relocationScope"]').forEach(input => {
           input.addEventListener('change', () => {
-            const needsCustomQuote = input.checked && input.value === 'custom_quote';
-            document.getElementById('relocationCustomQuote')?.classList.toggle('d-none', !needsCustomQuote);
+            const differentAddress = input.checked && input.value === 'different_address';
+            document.getElementById('relocationDifferentAddress')?.classList.toggle('d-none', !differentAddress);
             document.getElementById('relocationSameProperty')?.classList.toggle('d-none', input.value !== 'same_property');
-            if (modalSubtitle) modalSubtitle.textContent = needsCustomQuote
-              ? 'Share any unit details you know. Staff can verify the rest before quoting.'
+            if (modalSubtitle) modalSubtitle.textContent = differentAddress
+              ? 'Choose the brand, aircon type, and HP to get the right price.'
               : 'Choose the brand, aircon type, and HP to get the right price.';
-            if (needsCustomQuote && BookingState.unitAssistanceMode) {
+            if (differentAddress && BookingState.unitAssistanceMode) {
               BookingState.unitAssistanceMode = false;
               document.getElementById('unitAssistancePanel')?.classList.add('d-none');
               const brandSection = document.getElementById('brandSection');
               if (brandSection) brandSection.style.display = 'block';
               document.getElementById('cfgBackToType')?.classList.add('d-none');
             }
-            if (!needsCustomQuote && document.getElementById('brandInput')?.value === '__unknown__') {
+            if (!differentAddress && document.getElementById('brandInput')?.value === '__unknown__') {
               showUnitAssistancePanel(1);
             }
             updateCombinedPrice();
@@ -7706,48 +7647,6 @@ async function submitUnitAssistanceRequest(service, done) {
   }
 }
 
-async function submitRelocationQuoteRequest() {
-  const item = pendingRelocationQuoteItem();
-  if (!item) return false;
-  if (BookingState.relocationQuoteSubmitting) return false;
-  const fromAddress = String(BookingState.customerLocation?.address || '').trim();
-  const toAddress = String(item.relocation?.to?.address || '').trim();
-  const preferredDate = serializeBookingDate(BookingState.selectedDate || BookingState.scheduleDate);
-  if (fromAddress.length < 8 || toAddress.length < 8 || !preferredDate || !window.RelocationBookingLocations.validPoint(BookingState.customerLocation) || !window.RelocationBookingLocations.validPoint(item.relocation.to)) {
-    showError('Confirm the current and new addresses and choose a preferred date.');
-    return false;
-  }
-  BookingState.relocationQuoteSubmitting = true;
-  try {
-    const response = await fetch('/api/relocations', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        serviceId: item.serviceId, scope: 'custom_quote',
-        assetId: item.relocation.assetId || null,
-        from: { address: fromAddress, lat: BookingState.customerLocation?.lat, lng: BookingState.customerLocation?.lng, details: item.relocation.from?.details || '' },
-        to: { address: toAddress, lat: item.relocation.to?.lat, lng: item.relocation.to?.lng, details: item.relocation.to?.details || '' }, preferredDate,
-        unit: {
-          brand: item.brand === "I don't know" ? '' : (item.brand || ''),
-          airconType: item.airconType || '',
-          hp: item.hp || null,
-          model: item.relocation.model || '',
-          serialNumber: item.relocation.serialNumber || '',
-        },
-        notes: item.relocation.notes || '',
-      }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Could not submit the relocation request.');
-    clearBookingProgress();
-    window.location.assign('/relocation-requests');
-    return true;
-  } catch (error) {
-    BookingState.relocationQuoteSubmitting = false;
-    showError(error.message);
-    return false;
-  }
-}
 
 function selectSavedRelocationHp(airconType, container) {
   const savedHp = Number(document.getElementById('relocationAsset')?.dataset.savedHp);
@@ -7772,7 +7671,6 @@ function applySavedRelocationAsset(asset) {
   const savedHp = capacityUnit === 'HP' ? Number.parseFloat(String(equipment.capacity || '')) : NaN;
   if (assetSelect) assetSelect.dataset.savedHp = Number.isFinite(savedHp) && savedHp > 0 ? String(savedHp) : '';
   if (assetSelect) assetSelect.dataset.savedType = String(equipment.applianceType || equipment.applianceTypeName || '').trim();
-  const customQuote = document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
 
   for (const [id, value] of [
     ['relocationSameModel', equipment.model], ['relocationModel', equipment.model],
@@ -7793,7 +7691,7 @@ function applySavedRelocationAsset(asset) {
     showBrandConfigurationStep(container);
     if (status) {
       status.textContent = asset
-        ? (customQuote ? 'No brand is recorded for this aircon. Choose it if known, or continue so staff can check.' : 'No brand is recorded for this aircon. Choose the brand below.')
+        ? 'No brand is recorded for this aircon. Choose the brand below.'
         : '';
       status.classList.toggle('d-none', !asset);
     }
@@ -7810,9 +7708,7 @@ function applySavedRelocationAsset(asset) {
 
   if (!catalogType) {
     if (status) {
-      status.textContent = customQuote
-        ? `${brand} is filled from your saved aircon. Add the type and HP if known, or continue to locations.`
-        : `${brand} is filled from your saved aircon. Choose its aircon type below; we will reuse its saved HP if available.`;
+      status.textContent = `${brand} is filled from your saved aircon. Choose its aircon type below; we will reuse its saved HP if available.`;
       status.classList.remove('d-none');
     }
     return;
@@ -7831,9 +7727,7 @@ function applySavedRelocationAsset(asset) {
   if (status) {
     status.textContent = prefilledHp
       ? `${brand}, ${catalogType.name}, and ${savedHp} HP were filled from your saved aircon. Review the estimate and move positions.`
-      : customQuote
-        ? `${brand} and ${catalogType.name} were filled from your saved aircon. Add HP if known, or continue to locations.`
-        : `${brand} and ${catalogType.name} were filled from your saved aircon. Choose the HP below.`;
+      : `${brand} and ${catalogType.name} were filled from your saved aircon. Choose the HP below.`;
     status.classList.remove('d-none');
   }
   syncConfigurationPrimaryAction();
@@ -7943,24 +7837,6 @@ function syncConfigurationPrimaryAction() {
   if (confirmQuantitySelection._isProcessing) {
     button.disabled = true;
     return;
-  }
-  if (isAirconRelocationService(service)) {
-    const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
-    const priceLabel = document.getElementById('priceLabel');
-    const priceValue = document.getElementById('quantityModalEstimatedPrice');
-    const priceSub = document.getElementById('cfgPriceSub');
-    if (priceLabel) priceLabel.textContent = scope === 'custom_quote' ? 'Custom quote' : 'Same-property estimate';
-    if (priceSub) priceSub.textContent = scope === 'custom_quote' ? 'Staff will review both locations' : 'Updates as you choose';
-    if (scope === 'custom_quote' && priceValue) priceValue.textContent = 'After review';
-    if (scope !== 'same_property') {
-      button.disabled = scope !== 'custom_quote';
-      button.innerHTML = scope === 'custom_quote'
-        ? '<i class="bi bi-arrow-right me-2"></i>Continue to locations'
-        : '<i class="bi bi-geo-alt me-2"></i>Choose the move location';
-      button.style.setProperty('opacity', scope === 'custom_quote' ? '1' : '0.58', 'important');
-      button.style.setProperty('cursor', scope === 'custom_quote' ? 'pointer' : 'not-allowed', 'important');
-      return;
-    }
   }
   if (BookingState.unitAssistanceMode) {
     const needsHp = BookingState.unitAssistanceKind === 'hp_quote';
@@ -8110,13 +7986,6 @@ function showBrandSection(service) {
       if (select.value === '__unknown__') {
         BookingState.selectedBrand = "I don't know";
         if (custom) { custom.classList.add('d-none'); custom.value = ''; }
-        if (isAirconRelocationService(BookingState.currentService) &&
-            document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote') {
-          BookingState.unitAssistanceMode = false;
-          document.getElementById('unitAssistancePanel')?.classList.add('d-none');
-          syncConfigurationPrimaryAction();
-          return;
-        }
         showUnitAssistancePanel(1);
         return;
       }
@@ -8842,9 +8711,7 @@ function resetModalForNextUse() {
  * Show enterprise-level modal with proper cleanup
  */
 function handleServiceConfigurationPrimaryAction() {
-  const customRelocationQuote = isAirconRelocationService(BookingState.currentService)
-    && document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
-  if (usesAirconTypeWizard() && !BookingState.unitAssistanceMode && !customRelocationQuote) {
+  if (usesAirconTypeWizard() && !BookingState.unitAssistanceMode) {
     if (BookingState.configurationStep === 1) {
       BookingState.selectedBrand = configuredServiceBrand();
       if (BookingState.selectedBrand) advanceFromBrandSelection();
@@ -10320,38 +10187,12 @@ function confirmQuantitySelection() {
       }
     }
   }
-  const customRelocationQuote = service && isAirconRelocationService(service) &&
-    document.querySelector('input[name="relocationScope"]:checked')?.value === 'custom_quote';
   if (service && isAirconRelocationService(service)) {
     const scope = document.querySelector('input[name="relocationScope"]:checked')?.value;
-    if (scope === 'custom_quote') {
-      if (BookingState.selectedServices.length) {
-        showModalError('Request a distant relocation quote on its own. Complete or clear your current booking first.');
-        resetProcessingFlag();
-        return;
-      }
-      if (Number(DOM.quantityModalInput?.value || 1) !== 1) {
-        showModalError('Request one aircon relocation at a time.');
-        resetProcessingFlag();
-        return;
-      }
+    if (!['same_property', 'different_address'].includes(scope) || scope === 'same_property' &&
+        ((document.getElementById('relocationFromPosition')?.value || '').trim().length < 2 || (document.getElementById('relocationToPosition')?.value || '').trim().length < 2)) {
+      showModalError('Choose the move option and describe both positions for a nearby move.'); resetProcessingFlag(); return;
     }
-    if (!customRelocationQuote && scope !== 'same_property') {
-      showModalError('Choose where the aircon is moving before continuing.');
-      resetProcessingFlag();
-      return;
-    }
-    if (!customRelocationQuote && ((document.getElementById('relocationFromPosition')?.value || '').trim().length < 2 ||
-        (document.getElementById('relocationToPosition')?.value || '').trim().length < 2)) {
-      showModalError('Describe the current and new aircon positions.');
-      resetProcessingFlag();
-      return;
-    }
-  }
-  if (hasAcceptedRelocationQuote()) {
-    showModalError('Finish or remove the selected relocation before adding another service.');
-    resetProcessingFlag();
-    return;
   }
   if (BookingState.unitAssistanceMode) {
     if (!service) { showModalError('Choose a service first.'); resetProcessingFlag(); return; }
@@ -10385,22 +10226,7 @@ function confirmQuantitySelection() {
     }
   }
 
-  if (customRelocationQuote) {
-    addServiceToBooking(service, 1, {
-      price: 0,
-      hp: BookingState.selectedHps?.[0]?.hp || null,
-      airconType: BookingState.selectedAirconType?.type || '',
-      airconTypeName: BookingState.selectedAirconType?.name || '',
-      relocation: {
-        scope: 'custom_quote',
-        assetId: document.getElementById('relocationAsset')?.value || null,
-        from: {}, to: {},
-        model: document.getElementById('relocationModel')?.value.trim() || '',
-        serialNumber: document.getElementById('relocationSerial')?.value.trim() || '',
-        notes: document.getElementById('relocationNotes')?.value.trim() || '',
-      },
-    });
-  } else if (isAirconService) {
+  if (isAirconService) {
 
     // Refresh selected brand from the DOM (select or custom input)
     BookingState.selectedBrand = configuredServiceBrand();
@@ -10517,7 +10343,7 @@ function confirmQuantitySelection() {
           airconType: hpSelection.airconType,
           airconTypeName: hpSelection.airconTypeName,
           relocation: isAirconRelocationService(service) ? {
-            scope: 'same_property',
+            scope: document.querySelector('input[name="relocationScope"]:checked')?.value,
             assetId: document.getElementById('relocationAsset')?.value || null,
             from: { details: document.getElementById('relocationFromPosition')?.value.trim() || '' },
             to: { details: document.getElementById('relocationToPosition')?.value.trim() || '' },
@@ -10616,13 +10442,7 @@ function confirmQuantitySelection() {
 
   }
 
-  if (customRelocationQuote) {
-    revealNextBookingAction();
-    showBookingToast('Relocation request started. Next: pin the current address and enter the new address.')
-      .then(resetProcessingFlag, resetProcessingFlag);
-  } else {
-    showServiceAddedConfirmation(service.name).then(resetProcessingFlag, resetProcessingFlag);
-  }
+  showServiceAddedConfirmation(service.name).then(resetProcessingFlag, resetProcessingFlag);
 }
 
 /**
@@ -10694,10 +10514,8 @@ function commitCoreAppliance(rows, editingGroupId) {
     }
     replacement.assistanceRequestId = original.assistanceRequestId;
   }
-  const existing = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId);
-  if (existing.some(item => item.relocation?.scope === 'custom_quote')) throw new Error('Finish or remove the selected relocation before adding another service.');
-  if (rows.some(item => item.relocation?.scope === 'custom_quote') && (existing.length || rows.length !== 1)) throw new Error('A move to another address needs its own quote. Complete or remove other services first.');
   const next = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId).concat(rows);
+  window.ApplianceServices.assertStandaloneServices(next);
   window.ApplianceServices.unitCount(next);
   BookingState.selectedServices = next;
   BookingState.editingServiceId = null;
@@ -10709,10 +10527,6 @@ function addServiceToBooking(service, quantity, hpData = null) {
     quantity: quantity,
     hpData: hpData
   });
-  if (hasAcceptedRelocationQuote() && !hpData?.relocation?.requestId) {
-    showError('Finish or remove the selected relocation before adding another service.');
-    return;
-  }
   if (Number(quantity || 1) > remainingBookingUnits()) {
     showError(`Cannot add more than ${MAX_BOOKING_UNITS} units`);
     return;
@@ -10748,6 +10562,9 @@ function addServiceToBooking(service, quantity, hpData = null) {
     diagnosisNotes: null
   };
 
+
+  try { window.ApplianceServices.assertStandaloneServices(BookingState.selectedServices.filter(item => item.id !== BookingState.editingServiceId).concat(serviceItem)); }
+  catch (error) { showError(error.message); return; }
 
   // Replace an edited item only after its new configuration is valid. Closing
   // the configurator therefore keeps the customer's previous choice intact.
@@ -10870,7 +10687,7 @@ function getBookingStepIssue(stepNumber) {
       };
     }
 
-    if (!routeReady && !pendingRelocationQuoteItem()) {
+    if (!routeReady) {
       return {
         step: 3,
         title: 'Location Confirmation in Progress',
@@ -10879,8 +10696,8 @@ function getBookingStepIssue(stepNumber) {
         focusSelector: '#serviceCheckoutMapCard'
       };
     }
-    if (pendingRelocationQuoteItem() &&
-        String(pendingRelocationQuoteItem().relocation?.to?.address || '').trim().length < 8) {
+    if (differentAddressRelocationItem() &&
+        String(differentAddressRelocationItem().relocation?.to?.address || '').trim().length < 8) {
       return {
         step: 3,
         title: 'Enter the New Address',
@@ -10889,8 +10706,8 @@ function getBookingStepIssue(stepNumber) {
         focusSelector: '#relocationDestinationAddress'
       };
     }
-    if (pendingRelocationQuoteItem() &&
-        !isWithinPhilippinesMapBounds(Number(pendingRelocationQuoteItem().relocation?.to?.lat), Number(pendingRelocationQuoteItem().relocation?.to?.lng))) {
+    if (differentAddressRelocationItem() &&
+        !isWithinPhilippinesMapBounds(Number(differentAddressRelocationItem().relocation?.to?.lat), Number(differentAddressRelocationItem().relocation?.to?.lng))) {
       return {
         step: 3,
         title: 'Show the New Address on the Map',
@@ -10903,23 +10720,8 @@ function getBookingStepIssue(stepNumber) {
 
   if (stepNumber === 4) {
     const calendar = typeof EnterpriseCalendar !== 'undefined' ? EnterpriseCalendar : null;
-    const isProject = !pendingRelocationQuoteItem() && bookingRequiresProjectSchedule();
+    const isProject = bookingRequiresProjectSchedule();
     const selectedDate = BookingState.selectedDate || BookingState.scheduleDate;
-
-    const preferredDate = selectedDate ? new Date(selectedDate) : null;
-    const earliestDate = new Date();
-    earliestDate.setHours(0, 0, 0, 0);
-    if (pendingRelocationQuoteItem() &&
-        (!preferredDate || Number.isNaN(preferredDate.getTime()) || preferredDate < earliestDate)) {
-      return {
-        step: 4,
-        title: 'Choose a Preferred Date',
-        message: 'Choose the date you would prefer for the move. Staff will confirm availability after reviewing the locations.',
-        confirmButtonText: 'Choose Date',
-        focusSelector: '#calendarGrid'
-      };
-    }
-    if (pendingRelocationQuoteItem()) return null;
 
     if (isProject) {
       const projectSchedule = BookingState.projectScheduling;
@@ -11023,8 +10825,7 @@ function syncScheduleNextAction(highlight = false) {
   if (action.parentElement !== document.body) document.body.appendChild(action);
 
   const calendar = window.EnterpriseCalendar;
-  const awaitingQuote = Boolean(pendingRelocationQuoteItem());
-  const isProject = !awaitingQuote && bookingRequiresProjectSchedule();
+  const isProject = bookingRequiresProjectSchedule();
   const start = formatScheduleActionDate(BookingState.selectedDate || BookingState.scheduleDate);
   const end = isProject ? formatScheduleActionDate(
     BookingState.projectScheduling?.endDate || calendar?.getSelectedEndDate?.()
@@ -11038,12 +10839,12 @@ function syncScheduleNextAction(highlight = false) {
 
   summary.textContent = isProject
     ? (start ? `${start}${end ? ` – ${end}` : ' · choose an end date'}` : 'Choose your project dates')
-    : (start ? (awaitingQuote ? start : `${start}${time ? ` · ${time}` : ' · choose a start time'}`) : (awaitingQuote ? 'Choose a preferred date' : 'Choose a date and time'));
+    : (start ? `${start}${time ? ' · ' + time : ' · choose a start time'}` : 'Choose a date and time');
   hint.textContent = ready
-    ? (awaitingQuote ? 'Staff will review both addresses and send a quote. No payment is due now.' : 'Ready to check your booking details.')
+    ? 'Ready to check your booking details.'
     : (isProject
       ? (start && end ? 'Wait for the date check, or choose a different date range.' : 'Choose a start and end date to continue.')
-      : (awaitingQuote ? 'Select a preferred date for staff review.' : 'Select an available date, then a start time.'));
+      : 'Select an available date, then a start time.');
   const wasVisible = action.classList.contains('is-visible');
   action.classList.toggle('is-ready', ready);
   action.classList.toggle('is-visible', visible);
@@ -11056,10 +10857,8 @@ function syncScheduleNextAction(highlight = false) {
   } else if (!visible) {
     action.classList.remove('just-became-ready');
   }
-  button.disabled = !visible || BookingState.relocationQuoteSubmitting === true;
-  button.innerHTML = awaitingQuote
-    ? 'Send Quote Request <i class="bi bi-arrow-right" aria-hidden="true"></i>'
-    : 'Review Booking <i class="bi bi-arrow-right" aria-hidden="true"></i>';
+  button.disabled = !visible;
+  button.innerHTML = 'Review Booking <i class="bi bi-arrow-right" aria-hidden="true"></i>';
 }
 window.syncScheduleNextAction = syncScheduleNextAction;
 
@@ -11095,7 +10894,7 @@ async function continueFromSchedule() {
   }
 
   const calendar = window.EnterpriseCalendar;
-  const isProject = !pendingRelocationQuoteItem() && bookingRequiresProjectSchedule();
+  const isProject = bookingRequiresProjectSchedule();
   if (isProject) {
     const verdict = calendar?.getWindowVerdict?.() || BookingState.projectScheduling?.windowVerdict;
     if (verdict?.sufficient !== true) {
@@ -11106,7 +10905,6 @@ async function continueFromSchedule() {
   const button = document.getElementById('scheduleNextButton');
   if (button) button.disabled = true;
   try {
-    if (pendingRelocationQuoteItem()) return await submitRelocationQuoteRequest();
     // A saved time may have been taken while the customer was on Review.
     if (!isProject && calendar?.getSelectedSlot?.() && typeof calendar.validateSelectedSlot === 'function') {
       const available = await calendar.validateSelectedSlot();
@@ -11291,7 +11089,6 @@ window.navigateServiceGuide = navigateServiceGuide;
 
 function updateBookingCartChrome() {
   const count = BookingState.selectedServices.length;
-  const needsQuote = Boolean(pendingRelocationQuoteItem());
   const total = BookingState.selectedServices.reduce((sum, service) => sum + (Number(service.totalPrice) || 0), 0);
   const countCopy = document.getElementById('selectedServiceCountText');
   const mobileCount = document.getElementById('mobileSelectedServiceCount');
@@ -11302,9 +11099,9 @@ function updateBookingCartChrome() {
 
   if (countCopy) countCopy.textContent = count === 0
     ? 'No service selected'
-    : (needsQuote ? 'Continue to the locations and preferred date for staff review.' : 'Check the details and estimated price before you continue.');
+    : 'Check the details and estimated price before you continue.';
   if (mobileCount) mobileCount.textContent = `${selectedUnitTotal()} / 40 appliances in your booking`;
-  if (mobileTotal) mobileTotal.textContent = needsQuote ? 'Custom quote' : formatBookingPrice(total);
+  if (mobileTotal) mobileTotal.textContent = formatBookingPrice(total);
   syncBookingActionBarLayer();
   if (reviewButton) {
     reviewButton.classList.toggle('has-selection', count > 0);
@@ -11498,11 +11295,9 @@ function updateSelectedServicesDisplay() {
   const relocationItem = BookingState.selectedServices.find(isAirconRelocationService);
   if (relocationHint) {
     relocationHint.classList.toggle('d-none', !relocationItem);
-    if (relocationItem) relocationHint.textContent = relocationItem.relocation?.scope === 'custom_quote'
-      ? (relocationItem.relocation.requestId
-        ? `Pin the aircon's current address: ${relocationItem.relocation.from?.address || 'the From address on your quote'}. The accepted quote already includes transport and travel.`
-        : 'Pin the aircon’s current address, then show the new address on the map. Staff will quote the move before any payment or assignment.')
-      : 'Pin the unit’s current address. The standard estimate applies only when the new position is nearby on the same property.';
+    if (relocationItem) relocationHint.textContent = relocationItem.relocation?.scope === 'different_address'
+      ? 'Pin the current and new addresses, then choose an available date and time and complete payment.'
+      : 'Pin the property where the aircon will move. Your current and new positions are saved with the booking.';
   }
 
   if (BookingState.selectedServices.length === 0) {
@@ -11531,8 +11326,8 @@ function updateSelectedServicesDisplay() {
       const move = service.relocation;
       const routeDetails = move?.scope && move.requestId
         ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || move.from?.address || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || move.to?.address || 'New position')}</div>`
-        : move?.scope === 'custom_quote'
-          ? `<div class="selected-service-details mt-1">Enter both addresses and a preferred date in the next steps.</div>`
+        : move?.scope === 'different_address'
+          ? `<div class="selected-service-details mt-1">Pin both addresses, then choose a date and time in the next steps.</div>`
           : move?.scope
             ? `<div class="selected-service-details mt-1"><strong>From:</strong> ${esc(move.from?.details || 'Current position')}<br><strong>To:</strong> ${esc(move.to?.details || 'New position')}</div>` : '';
 
@@ -11545,10 +11340,10 @@ function updateSelectedServicesDisplay() {
             ${routeDetails}
             <div class="selected-service-details">${details.join(' <span aria-hidden="true">•</span> ')}</div>
           </div>
-          <div class="selected-service-price"><span>${move?.scope === 'custom_quote' ? (move.requestId ? 'Approved quote' : 'Staff review') : 'Estimate'}</span><strong>${move?.scope === 'custom_quote' && !move.requestId ? 'Custom quote' : formatBookingPrice(service.totalPrice)}</strong></div>
+          <div class="selected-service-price"><span>Estimate</span><strong>${formatBookingPrice(service.totalPrice)}</strong></div>
         </div>
         <div class="selected-service-actions">
-          ${move?.scope === 'custom_quote' ? (move.requestId ? '<a class="selected-service-edit" href="/relocation-requests"><i class="bi bi-file-text" aria-hidden="true"></i> View quote</a>' : service.applianceGroupId ? `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}">Change</button>` : '') : `<button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>`}
+          <button type="button" class="selected-service-edit" onclick="editSelectedService(${idx})" aria-label="Change ${esc(service.name)}"><i class="bi bi-pencil" aria-hidden="true"></i> Change</button>
           <button type="button" class="remove-service-btn" data-service-id="${service.id}" aria-label="Remove ${esc(service.name)}">
             <i class="bi bi-trash3" aria-hidden="true"></i> Remove
           </button>
@@ -11582,7 +11377,7 @@ function updateSelectedServicesDisplay() {
 
   const totalPricingSection = document.getElementById('totalPricingSection');
   if (totalPricingSection) {
-    if (BookingState.selectedServices.length > 0 && !pendingRelocationQuoteItem()) {
+    if (BookingState.selectedServices.length > 0) {
       totalPricingSection.classList.remove('d-none');
     } else {
       totalPricingSection.classList.add('d-none');
@@ -11629,7 +11424,7 @@ function updatePricingDisplay() {
 
   DOM.totalEstimatedPrice.textContent = `₱${total.toLocaleString()}`;
 
-  if (BookingState.selectedServices.length > 0 && !pendingRelocationQuoteItem()) {
+  if (BookingState.selectedServices.length > 0) {
     DOM.totalPricingSection.classList.remove('d-none');
   } else {
     DOM.totalPricingSection.classList.add('d-none');
@@ -12209,7 +12004,7 @@ async function renderManualCalendar() {
     <div class="ent-calendar">
       <div class="ent-cal-loading">
         <div class="spinner-border" role="status"></div>
-        <span>${pendingRelocationQuoteItem() ? 'Loading preferred dates...' : 'Retrieving available dates...'}</span>
+        <span>${'Retrieving available dates...'}</span>
       </div>
     </div>
   `;
@@ -12232,7 +12027,7 @@ async function renderManualCalendar() {
         duration: serviceDuration / totalQuantity,
         quantity: totalQuantity,
         totalEstimatedMinutes: totalEstimatedMinutes,
-        mode: pendingRelocationQuoteItem() ? 'preferred' : bookingRequiresProjectSchedule() ? 'project' : 'appointment',
+        mode: bookingRequiresProjectSchedule() ? 'project' : 'appointment',
         travelTime: travelDuration,
         showCommercialProjects: false,
         // Keep the chosen date/time in view and reveal the Review Booking
@@ -12242,7 +12037,7 @@ async function renderManualCalendar() {
       if (renderId !== bookingCalendarRenderId) return;
       // The policy arrives during calendar initialization. Rebuild once if
       // it changed the classification of a restored booking draft.
-      if (!pendingRelocationQuoteItem() && EnterpriseCalendar.isProjectMode() !== bookingRequiresProjectSchedule()) {
+      if (EnterpriseCalendar.isProjectMode() !== bookingRequiresProjectSchedule()) {
         reconcileBookingScheduleAfterServiceChange();
         syncServiceScheduleCopy();
         return renderManualCalendar();

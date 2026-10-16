@@ -112,7 +112,7 @@ const bookingSchema = new mongoose.Schema({
     repairIssue: String, // Individual repair issue description
     model: { type: String, trim: true, maxlength: 50 },
     relocation: {
-      scope: { type: String, enum: ['same_property', 'custom_quote'] },
+      scope: { type: String, enum: ['same_property', 'different_address', 'custom_quote'] },
       requestId: { type: mongoose.Schema.Types.ObjectId, ref: 'RelocationRequest', default: null },
       assetId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomerAsset', default: null },
       from: { address: String, details: String, lat: Number, lng: Number },

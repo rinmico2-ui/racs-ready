@@ -16,7 +16,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
   engine.invalidateProjectThresholdCache();
   t.mock.method(SiteSetting, 'findOne', () => query({ value: threshold }));
   const customerId = new mongoose.Types.ObjectId();
-  const calls = { capacity: [], windows: [], writes: [], projects: [] };
+  const calls = { capacity: [], windows: [], writes: [], projects: [], payments: [] };
   class Booking {
     constructor(data) { Object.assign(this, data); this._id = new mongoose.Types.ObjectId(); }
     static findOne() { return query(null); }
@@ -43,6 +43,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
       getProjectWindowAvailability: async input => { calls.windows.push(input); return { sufficient, totals: { totalAvailableHours: 80, workableDays: 5 } }; },
       reserveProjectCapacity: async () => {} },
     '../utils/mailer': {}, '../utils/notify': { createNotification: async () => {} },
+    '../utils/relocationBookingPolicy': pure('relocationBookingPolicy'),
     '../utils/coreServicePricing': pure('coreServicePricing'), '../utils/bookingServiceItems': pure('bookingServiceItems'),
     '../utils/bookingUnitLimit': pure('bookingUnitLimit'), '../utils/projectServiceChange': {}, '../utils/audit': {},
     '../utils/projectPaymentReview': pure('projectPaymentReview'),
@@ -56,7 +57,7 @@ function fixture(t, { duration = 180, inspection = 90, threshold = 8, sufficient
     '../utils/paymentProofStorage': { discardTemporaryPaymentProof: async () => {} },
     '../utils/repairInspectionPricing': { resolveRepairInspectionFees: async services => services.map(item => item.type === 'repair' ? { fee: 500 } : null) },
     '../utils/mongoWriteSupport': { isUnsupportedMongoWriteFeature: () => false },
-    '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking }) => { calls.writes.push(booking); return booking; } },
+    '../utils/bookingSubmissionWrite': { persistBookingSubmission: async ({ booking, payment }) => { calls.writes.push(booking); calls.payments.push(payment); return booking; } },
     '../utils/loyaltyRewards': { rewardFor: async () => null, assertQuote() {}, round: value => value },
     '../public/js/appliance-services': require('../public/js/appliance-services'),
     '../public/js/nueva-ecija-coverage': require('../public/js/nueva-ecija-coverage'),
@@ -236,4 +237,50 @@ test('core and repair bookings accept optional models while both reject malforme
     const repair = await fixture(t).call({ services: [{ serviceId: 'repair-id', type: 'repair', brand: 'Carrier', model, name: 'Aircon repair', unitType: 'Split Aircon', hp: 1, quantity: 1, problemDescription: 'Aircon is not cooling properly' }], startTime: '08:00' });
     assert.equal(repair.code, 201, repair.body?.error); assert.equal(repair.calls.writes[0].services[0].model, null);
   }
+});
+
+const relocationCatalog = [{ _id: 'core-id', slug: 'aircon-relocation', name: 'Aircon Relocation', active: true, isAirconService: true,
+  airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1600, durationMinutes: 120 }] }] }];
+const relocationItem = scope => ({ serviceId: 'core-id', type: 'core', applianceKind: 'aircon', brand: 'Carrier', hp: 1,
+  airconType: 'split', quantity: 1, unitPrice: 1600, totalPrice: 1, duration: 1,
+  relocation: { scope, from: { details: 'Living room', lat: 1, lng: 1 }, to: { details: 'Bedroom', address: 'Palayan, Nueva Ecija', lat: 15.54, lng: 121.08 } } });
+for (const scope of ['same_property', 'different_address']) {
+  test(`${scope} relocation creates a normal appointment and payment at the catalog price`, async t => {
+    const f = fixture(t, { catalogOverride: relocationCatalog });
+    const result = await f.call({ services: [relocationItem(scope)], startTime: '08:00', projectScheduling: undefined });
+    assert.equal(result.code, 201, result.body?.error);
+    const booking = f.calls.writes[0], row = booking.services[0];
+    assert.equal(row.unitPrice, 1600); assert.equal(row.totalPrice, 1600); assert.equal(row.duration, 120);
+    assert.equal(row.relocation.scope, scope); assert.equal(row.relocation.from.lat, 15.4863);
+    assert.equal(row.relocation.to.lat, scope === 'same_property' ? 15.4863 : 15.54);
+    assert.equal(f.calls.payments.length, 1); assert.ok(f.calls.payments[0]);
+    assert.equal(row.relocation.requestId, undefined); assert.equal(f.calls.projects.length, 0); assert.ok(f.calls.capacity.length >= 1);
+  });
+  test(`${scope} relocation rejects another service even if relocation metadata and name are omitted`, async t => {
+    const f = fixture(t, { catalogOverride: relocationCatalog });
+    const first = relocationItem(scope); delete first.relocation; first.name = 'Not relocation';
+    const result = await f.call({ services: [first, { ...first }], startTime: '08:00' });
+    assert.equal(result.code, 400); assert.match(result.body.error, /on its own/); assert.equal(f.calls.writes.length, 0);
+  });
+  test(`${scope} relocation rejects stale or manipulated prices and never saves a quote`, async t => {
+    const f = fixture(t, { catalogOverride: relocationCatalog });
+    const result = await f.call({ services: [{ ...relocationItem(scope), unitPrice: 0 }], startTime: '08:00' });
+    assert.equal(result.code, 409); assert.equal(f.calls.writes.length, 0);
+  });
+}
+test('another-address relocation rejects absent pins, identical pins, outside-coverage pins and legacy quote requests', async t => {
+  const f = fixture(t, { catalogOverride: relocationCatalog });
+  for (const change of [{ scope: 'custom_quote' }, { requestId: '507f1f77bcf86cd799439011' }, { to: {} },
+    { to: { address: 'Unpinned destination', lat: null, lng: null } },
+    { to: { address: 'Same property address', lat: 15.4863, lng: 120.9671 } },
+    { to: { address: 'Outside Nueva Ecija', lat: 14.6, lng: 121 } }]) {
+    const item = relocationItem('different_address'); Object.assign(item.relocation, change);
+    const result = await f.call({ services: [item], startTime: '08:00' });
+    assert.equal(result.code, 400, JSON.stringify(change)); assert.equal(f.calls.writes.length, 0);
+  }
+});
+test('relocation needs a real appointment start time before payment is stored', async t => {
+  const f = fixture(t, { catalogOverride: relocationCatalog });
+  const result = await f.call({ services: [relocationItem('different_address')], projectScheduling: undefined });
+  assert.equal(result.code, 400); assert.equal(f.calls.writes.length, 0);
 });

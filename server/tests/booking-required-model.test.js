@@ -35,7 +35,7 @@ test('repair steps accept blank models but block invalid values when supplied', 
 });
 
 test('the verified model is carried from an accepted identification request into regular checkout', async () => {
-  const source = read('public/js/services-multi.js'), start = source.indexOf('async function openAcceptedUnitAssistance('), end = source.indexOf('async function openAcceptedRelocation(', start);
+  const source = read('public/js/services-multi.js'), start = source.indexOf('async function openAcceptedUnitAssistance('), end = source.indexOf('function injectTransitionStyles(', start);
   const catalog = { _id: 'clean', name: 'Cleaning', isAirconService: true, airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 500, durationMinutes: 60 }] }] };
   const request = { _id: 'synthetic-request', status: 'accepted', applianceKind: 'aircon', serviceId: 'clean', model: 'IDENTIFIED-123', quantity: 1,
     quote: { brand: 'Carrier', airconType: 'split', hp: 1, unitPrice: 500, expiresAt: new Date(Date.now() + 3600000) } };

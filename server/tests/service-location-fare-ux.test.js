@@ -34,7 +34,7 @@ test("confirmed location copy keeps the address, fee, and pin instruction withou
 });
 
 test("sticky next action shows the fare and links back to its breakdown", () => {
-  assert.match(script, /if \(message\) message\.textContent = quoteItem[\s\S]*?`Travel fee \$\{fareText\} · \$\{distanceText\}`/);
+  assert.match(script, /if \(message\) message\.textContent = moveItem[\s\S]*?`Travel fee \$\{fareText\} · \$\{distanceText\}`/);
   assert.match(script, /function showServiceTravelDetails\(\)[\s\S]*?panel\.scrollIntoView/);
   assert.match(script, /function confirmServiceAddressPin\(\)[\s\S]*?showServiceTravelDetails\(\)/);
   assert.match(styles, /\.location-fare-details\[hidden\] \{ display: none; \}/);
@@ -76,7 +76,7 @@ test("the fixed action shows the calculated fare only for a confirmed pin", () =
   };
   const sync = vm.runInNewContext(`(${source})`, {
     BookingState: { currentStep: 3, customerLocation: location },
-    pendingRelocationQuoteItem: () => null,
+    differentAddressRelocationItem: () => null,
     relocationLocationController: () => null,
     document: { body, getElementById: id => elements[id] },
     window: { clearTimeout() {}, setTimeout: () => 1 },

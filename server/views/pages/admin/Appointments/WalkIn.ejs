@@ -1575,7 +1575,7 @@
       }
 
       window.CoreApplianceBooking.mount(state.coreServices || [], {
-        state, embedded: true, allowQuotedRelocation: false,
+        state, embedded: true, allowDifferentAddressRelocation: false,
         commit(rows, editingGroupId) {
           const next = state.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId)
             .concat(rows.map(item => ({ ...item, duration: item.duration * item.quantity })));

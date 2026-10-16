@@ -1,5 +1,6 @@
 "use strict";
 
+const { normalizeRelocation, assertStandaloneServices } = require('./relocationBookingPolicy');
 const A = require("../public/js/appliance-services");
 const { resolveCoreServicePricing } = require("./coreServicePricing");
 
@@ -11,7 +12,7 @@ function resolveWalkInCoreSelection(catalog, requested) {
     if (requested.applianceGroupId) result.applianceGroupId = String(requested.applianceGroupId);
     if (A.isRelocation(catalog) && requested.applianceKind) {
       if (requested.relocation?.scope !== "same_property") {
-        throw new Error("A move to another address needs a relocation quote before a walk-in appointment can be created.");
+        throw new Error("For another address, use the service booking with both map pins.");
       }
       result.relocation = A.serviceLines([catalog], requested, [String(catalog._id)], result.applianceGroupId, requested.relocation)[0].relocation;
     }
@@ -23,15 +24,9 @@ function resolveWalkInCoreSelection(catalog, requested) {
 }
 
 function pinWalkInRelocations(items, location) {
+  assertStandaloneServices(items);
   for (const item of items) {
-    if (item.relocation?.scope !== "same_property") continue;
-    const lat = Number(location?.lat), lng = Number(location?.lng);
-    if (location?.lat == null || location?.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      throw Object.assign(new Error("Pin the property on the map before creating a nearby relocation appointment."), { status: 400 });
-    }
-    const property = { lat, lng, address: String(location.address || "") };
-    item.relocation.from = { ...item.relocation.from, ...property };
-    item.relocation.to = { ...item.relocation.to, ...property };
+    if (item.relocation) item.relocation = normalizeRelocation(item.relocation, location, item.quantity);
   }
 }
 

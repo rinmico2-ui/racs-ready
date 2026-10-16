@@ -131,7 +131,7 @@ test('staff confirms aircon repair HP before quoting and an accepted quote canno
 
 test('accepted repair identification resumes as a repair inspection with the verified model and problem', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../public/js/services-multi.js'), 'utf8');
-  const start = source.indexOf('async function openAcceptedUnitAssistance('), end = source.indexOf('async function openAcceptedRelocation(', start);
+  const start = source.indexOf('async function openAcceptedUnitAssistance('), end = source.indexOf('function injectTransitionStyles(', start);
   const request = { _id: requestId, requestType: 'repair', status: 'accepted', model: 'MODEL-123', quantity: 2, repair: { problemDescription: payload().problemDescription },
     quote: { brand: 'Carrier', unitType: 'Washing Machine', unitCategory: 'appliance', unitPrice: 500, durationMinutes: 90, expiresAt: new Date(Date.now() + 3600000) } };
   const state = { selectedServices: [] };

@@ -4,10 +4,11 @@ const fs = require('node:fs'), path = require('node:path'), vm = require('node:v
 const A = require('../public/js/appliance-services');
 const source = fs.readFileSync(path.join(__dirname, '../routes/bookingRoutesNew.js'), 'utf8');
 const start = source.indexOf('async function validatedServiceItems('), end = source.indexOf('\n/**', start);
-function fixture() {
+function fixture(coreCatalog) {
   let lookups = 0;
-  const context = { require, validateBookingUnitLimit: A.unitCount, bookingServices: booking => booking.services,
+  const context = { ...require('../utils/relocationBookingPolicy'), require, validateBookingUnitLimit: A.unitCount, bookingServices: booking => booking.services,
     validateRepairModel: require('../utils/repairModelPolicy').validateRepairModel,
+    CoreService: { findOne: () => ({ lean: async () => coreCatalog }) }, resolveCoreServicePricing: require('../utils/coreServicePricing').resolveCoreServicePricing,
     schedulingEngine: { MAX_BOOKING_UNITS: 40 }, getInspectionDurationMinutes: async () => 90,
     resolveRepairInspectionFees: async items => { lookups++; return items.map(item => {
       if (!['Washer', 'Dryer'].includes(item.unitType)) throw Error('Unsupported appliance');
@@ -61,3 +62,24 @@ test('unchanged historical repair choices remain usable while new unverified rep
   const fresh = { ...row(), _id: undefined, brand: "I don't know" };
   await assert.rejects(f.normalize([fresh], { services: [] }), /require a brand/);
 });
+
+const relocationCatalog = { _id: 'move', slug: 'aircon-relocation', name: 'Aircon Relocation', active: true, isAirconService: true,
+  airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1600, durationMinutes: 120 }] }] };
+const moveRow = scope => ({ _id: 'saved-relocation', serviceId: 'move', name: 'Aircon Relocation', type: 'core', quantity: 1,
+  applianceKind: 'aircon', brand: 'Carrier', hp: 1, airconType: 'split', unitPrice: 1600, duration: 120,
+  relocation: { scope, from: { details: 'Room A' }, to: { details: 'Room B', address: 'Palayan, Nueva Ecija', lat: 15.54, lng: 121.08 }, completedTasks: ['removal.disconnect'] } });
+for (const scope of ['same_property', 'different_address']) {
+  test(`editing ${scope} relocation preserves saved pins and checklist progress`, async () => {
+    const f = fixture(relocationCatalog), before = moveRow(scope);
+    const booking = { customerId: 'customer', services: [before], location: { address: 'Cabanatuan, Nueva Ecija', lat: 15.4863, lng: 120.9671 } };
+    const [saved] = await f.normalize([{ ...before, unitPrice: 1, relocation: { ...before.relocation, completedTasks: ['testing.all'] } }], booking);
+    assert.equal(saved.unitPrice, 1600); assert.equal(saved.relocation.scope, scope);
+    assert.equal(saved.relocation.from.lat, 15.4863); assert.equal(saved.relocation.to.lat, scope === 'same_property' ? 15.4863 : 15.54);
+    assert.deepEqual(Array.from(saved.relocation.completedTasks), ['removal.disconnect']);
+  });
+  test(`editing ${scope} relocation cannot add a repair, another service or another unit`, async () => {
+    const f = fixture(relocationCatalog), before = moveRow(scope), booking = { services: [before] };
+    await assert.rejects(f.normalize([before, row()], booking), /on its own/);
+    await assert.rejects(f.normalize([{ ...before, quantity: 2 }], booking), /one aircon/);
+  });
+}

@@ -40,17 +40,17 @@ test("unsupported appliances and incomplete HP selections remain validation erro
   assert.throws(() => resolveWalkInCoreSelection(catalog, { ...item, hp: null }), error => error.status === 400);
 });
 
-test("nearby relocation keeps both positions while moves needing a quote cannot be charged as ordinary appointments", () => {
+test("nearby relocation keeps both positions and a different-address move requires its map booking flow", () => {
   const moveCatalog = { ...catalog, slug: "aircon-relocation" };
   const move = { ...item, quantity: 1, relocation: { scope: "same_property", from: { details: "Living room" }, to: { details: "Bedroom" } } };
   const resolved = resolveWalkInCoreSelection(moveCatalog, move);
   assert.equal(resolved.relocation.from.details, "Living room");
   assert.equal(resolved.relocation.to.details, "Bedroom");
-  assert.throws(() => resolveWalkInCoreSelection(moveCatalog, { ...move, relocation: { scope: "custom_quote" } }), /relocation quote/);
+  assert.throws(() => resolveWalkInCoreSelection(moveCatalog, { ...move, relocation: { scope: "custom_quote" } }), /both map pins/);
 });
 
 test("nearby relocation saves the property pin with both room descriptions and requires valid map coordinates", () => {
-  const move = { relocation: { scope: "same_property", from: { details: "Living room", lat: 80 }, to: { details: "Bedroom", lng: 80 } } };
+  const move = { quantity: 1, relocation: { scope: "same_property", from: { details: "Living room", lat: 80 }, to: { details: "Bedroom", lng: 80 } } };
   pinWalkInRelocations([move], { lat: 15.37, lng: 120.96, address: "Customer property" });
   assert.deepEqual(move.relocation.from, { details: "Living room", lat: 15.37, lng: 120.96, address: "Customer property" });
   assert.deepEqual(move.relocation.to, { details: "Bedroom", lat: 15.37, lng: 120.96, address: "Customer property" });

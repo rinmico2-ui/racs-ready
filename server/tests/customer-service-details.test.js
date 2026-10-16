@@ -30,7 +30,7 @@ test('the actual booking input validation accepts core services without a model 
   const filename = path.join(__dirname, '../routes/bookingRoutesNew.js'), source = fs.readFileSync(filename, 'utf8');
   const start = source.indexOf('    let parsedServices = services;'), end = source.indexOf('    if (!location', start);
   assert.ok(start > 0 && end > start);
-  const context = { require, services: [], validateRepairModel: require('../utils/repairModelPolicy').validateRepairModel,
+  const context = { ...require('../utils/relocationBookingPolicy'), require, services: [], validateRepairModel: require('../utils/repairModelPolicy').validateRepairModel,
     schedulingEngine: { MAX_BOOKING_UNITS: 40 }, res: { status() { return this; }, json(body) { throw Error(body.error); } } };
   vm.runInNewContext('function validate(services) {' + source.slice(start, end) + '\nreturn parsedServices;}', context);
   assert.equal(context.validate([{ type: 'core', quantity: 1, brand: 'Carrier' }])[0].model, '');

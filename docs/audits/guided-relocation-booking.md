@@ -1,26 +1,22 @@
-# Guided relocation booking
+# Standalone relocation booking
 
-Aircon Relocation is selected with the other services in the appliance-first form. It reuses the entered brand, model, aircon type and HP. It does not open the legacy setup modal or reset those details.
+Aircon Relocation covers one aircon and is booked separately from every other core or repair service. The customer cannot select relocation while another service is selected, or select other services while relocation is selected. This applies across appliance groups, saved progress, booking edits and server submissions.
 
-Selecting relocation reveals two choices:
+The customer enters the brand, aircon type and HP, selects relocation, and chooses one move option:
 
-- **Nearby, on the same property:** the customer enters the current and new positions, then pins the property in the location step. The existing catalog price and duration apply. Both positions receive that property address and coordinates on the server. One aircon may have relocation and another service; it remains one physical unit.
-- **Another address or a distant position:** the customer selects only relocation and continues to the two-location map. The request is submitted for a staff quote after a preferred date is chosen. No payment, booking or technician assignment is created at this stage. The accepted quote still follows the existing reviewed booking flow.
+- **Nearby, on the same property:** enter the current and new positions, then pin that property. The server saves the same property coordinates with both room descriptions.
+- **A different address:** pin the current property and the destination. Both addresses and exact coordinates are required. The destination must be within Nueva Ecija.
 
-Each relocation request covers one aircon, matching the existing booking and quote rules. Customers with several aircons make separate relocation requests.
+Both options use the saved relocation catalog price and work duration for the selected type and HP. They continue through the normal availability calendar, appointment start time, price review and payment. The usual travel fee applies to the current property. No separate destination surcharge is invented. Staff configures the catalog price as for other core services.
 
-## Location step
+## Staff and technician workflow
 
-The current address is the existing service-address input and green pin. After a valid current point is selected, the map automatically targets the destination and enables its address field. Customers can explicitly switch between Current address and New address. Destination address suggestions appear while typing; choosing a suggestion places the orange pin. A map click can place the destination without requiring an address first. Reverse geocoding fills the address, while a manually entered address remains saved with its exact chosen pin.
+Relocation creates an ordinary service booking and payment record. It uses the existing admin payment, assignment and acceptance queues, technician preparation, dispatch and relocation work-order checklist. The work order recognizes `different_address` and displays both saved locations.
 
-Dragging the destination changes only its coordinates. The map fits both markers immediately. The current pin is retained. The dashed orange line connects the two points; it is not a driving-distance quote. Staff reviews transport costs in the existing quote workflow.
+Separate customer and staff relocation quotation navigation has been removed. Old page URLs redirect to booking lists. Quotation submission, assessment, pricing and acceptance endpoints return HTTP 410 with the normal booking link. Historical request records and authenticated reads remain for audit purposes. Historical quote-priced bookings keep their stored prices and work-order compatibility. No existing records are deleted or repriced by this change.
 
-Editing destination text removes the previous destination coordinates, marker and line until a new suggestion or pin is selected. Debounced requests are cancelled and versioned so an old response cannot replace newer text, a newer pin, or another relocation. Missing points prevent submission on both the client and request endpoint. Existing accepted quotes remain read-only in the destination step.
+Old quote-based checkout drafts are discarded rather than silently converted to a different price. New drafts retain their selected move option and map locations. Booking edits preserve saved checklist progress and enforce the same standalone rule; changing a historical quote-priced booking requires staff assistance.
 
-Aircon details and both points are saved in the relocation request, carried into the accepted booking, and used by the existing staff and technician relocation views. Nearby moves also persist both property coordinates directly in the booking instead of relying on a later fallback. No existing customer records were changed.
+## Validation
 
-## Verification
-
-Memory-only tests cover service selection, position requirements, one-unit limits, fixed catalog prices, quote isolation, map target changes, stale requests, autocomplete, manual points, shared-property points, endpoint validation and saved booking coordinates. Existing relocation work-order, checklist, ownership, map, scheduling and draft tests pass.
-
-Local browser checks at 1440, 390 and 320 pixels use the real customer wizard, real relocation map handlers and Leaflet with mocked address responses. They verify preserved aircon details, scope edits, both independent markers, autocomplete, map clicks, dragging and the actual quote-submission payload. They do not use MongoDB, send notifications or write live bookings.
+Regression tests exercise real booking creation and editing handlers with memory-only persistence, catalog repricing, quantity and combination restrictions, required pins, coverage, retired endpoints, scheduling and technician work orders. Browser checks use the real customer page, shared builders and Leaflet against local synthetic APIs at 1440 px and 390 px. Both move options reach the normal payment page without a quotation submission. These checks do not access the live database, charge money or send customer messages.

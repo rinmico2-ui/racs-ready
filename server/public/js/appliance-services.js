@@ -91,7 +91,14 @@
       hp: pricedByHp ? Number(selection.hp) : null, airconType: selectedType?.type || selection.airconType || null,
       airconTypeName: selectedType?.name || selection.airconTypeName || null };
   }
-  function isRelocation(service) { return service?.slug === 'aircon-relocation'; }
+  function isRelocation(service) {
+    return service?.slug === 'aircon-relocation' || Boolean(service?.relocation?.scope) || /^aircon relocation$/i.test(service?.name || '');
+  }
+  function assertStandaloneServices(rows) {
+    if ((rows || []).some(isRelocation) && (rows.length !== 1 || Number(rows[0].quantity) !== 1)) {
+      throw new Error('Aircon Relocation must be booked on its own for one aircon. Book other services separately.');
+    }
+  }
   function needsVerification(catalog, selection) {
     const supported = profile(catalog, selection.applianceKind || 'aircon');
     if (!supported) return false;
@@ -106,20 +113,20 @@
       let move;
       if (isRelocation(service)) {
         if (selection.applianceKind !== 'aircon' || Number(selection.quantity) !== 1) throw new Error('Book one aircon relocation at a time.');
-        if (!['same_property', 'custom_quote'].includes(relocation?.scope)) throw new Error('Choose where the aircon will move.');
-        if (relocation.scope === 'custom_quote' && serviceIds.length !== 1) throw new Error('A move to another address needs its own quote. Book other services separately.');
+        if (!['same_property', 'different_address'].includes(relocation?.scope)) throw new Error('Choose where the aircon will move.');
+        if (serviceIds.length !== 1) throw new Error('Aircon Relocation must be booked on its own. Book other services separately.');
         const from = String(relocation.from?.details || '').trim(), to = String(relocation.to?.details || '').trim();
         if (relocation.scope === 'same_property' && (from.length < 2 || to.length < 2)) throw new Error('Enter the current and new positions on the property.');
         move = { ...relocation, from: { ...(relocation.from || {}), details: from }, to: { ...(relocation.to || {}), details: to }, model: selection.model || '' };
       }
-      const pricing = move?.scope === 'custom_quote' ? { unitPrice: 0, duration: 0, hp: selection.hp, airconType: selection.airconType,
-        airconTypeName: service.airconTypes?.find(type => type.type === selection.airconType)?.name || selection.airconTypeName || selection.airconType } : price(service, selection);
+      const pricing = price(service, selection);
       return { ...selection, ...pricing, ...(move ? { relocation: move } : {}), id: `${groupId}_${id}`, applianceGroupId: groupId, serviceId: id, name: service.name,
         type: 'core', isAirconService: selection.applianceKind === 'aircon', totalPrice: pricing.unitPrice * Number(selection.quantity),
         applianceType: selection.applianceKind === 'aircon' ? pricing.airconType : selection.applianceKind,
         applianceTypeName: selection.applianceKind === 'aircon' ? pricing.airconTypeName : labels[selection.applianceKind] };
     });
     unitCount(rows);
+    assertStandaloneServices(rows);
     return rows;
   }
   function setQuantity(services, index, quantity) {
@@ -127,7 +134,9 @@
     if (!selected) throw new Error('Appliance not found.');
     if (selected.type === 'repair' && Number(quantity) !== Number(selected.quantity)) throw new Error('Add each repair appliance separately. Contact staff to change an existing repair quantity.');
     const sameAppliance = row => row === selected || selected.applianceGroupId && row.applianceGroupId === selected.applianceGroupId;
-    unitCount(services.map(row => sameAppliance(row) ? { ...row, quantity } : row));
+    const proposed = services.map(row => sameAppliance(row) ? { ...row, quantity } : row);
+    assertStandaloneServices(proposed);
+    unitCount(proposed);
     services.filter(sameAppliance).forEach(row => {
       const unitPrice = Number(row.unitPrice ?? Number(row.totalPrice) / row.quantity) || 0;
       row.quantity = quantity; row.unitPrice = unitPrice; row.totalPrice = unitPrice * quantity;
@@ -136,5 +145,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

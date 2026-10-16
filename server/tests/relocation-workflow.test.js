@@ -10,36 +10,11 @@ const { RELOCATION_STAGES, taskKeys, allTasksComplete } = require('../utils/relo
 
 const id = n => `507f1f77bcf86cd7994390${String(n).padStart(2, '0')}`;
 
-test('custom quote submission reuses the pinned origin and scheduled date without booking payment', async () => {
+test('customer relocation uses standard checkout and no separate quotation submission', () => {
   const script = fs.readFileSync(path.join(__dirname, '../public/js/services-multi.js'), 'utf8');
-  const view = fs.readFileSync(path.join(__dirname, '../views/pages/services.ejs'), 'utf8');
-  const implementation = script.slice(script.indexOf('async function submitRelocationQuoteRequest()'), script.indexOf('async function loadRelocationAssets()'));
-  assert.doesNotMatch(implementation, /relocationFromAddress|relocationPreferredDate|relocationToAddress/);
-  assert.doesNotMatch(view, /cfgUnknownBrandBtn/);
-  assert.match(view, /id="relocationDestinationAddress"/);
-
-  const calls = [];
-  const item = { serviceId: id(2), brand: "I don't know", hp: null,
-    relocation: { scope: 'custom_quote', to: { address: '123 New Street, Manila', lat: 14.6, lng: 121.0 }, notes: 'Second floor' } };
-  const context = {
-    BookingState: { customerLocation: { address: '45 Old Street, Quezon City', lat: 14.7, lng: 121.1 }, selectedDate: new Date('2027-01-20T00:00:00Z') },
-    pendingRelocationQuoteItem: () => item,
-    serializeBookingDate: date => date.toISOString(),
-    fetch: async (url, options) => { calls.push({ url, payload: JSON.parse(options.body) }); return { ok: true, json: async () => ({ id: id(3) }) }; },
-    clearBookingProgress: () => calls.push({ cleared: true }),
-    showError: message => { throw new Error(message); },
-    window: { RelocationBookingLocations: require('../public/js/relocation-booking-locations'), location: { assign: url => calls.push({ redirected: url }) } },
-  };
-  vm.runInNewContext(implementation, context);
-  assert.equal(await context.submitRelocationQuoteRequest(), true);
-  assert.equal(calls[0].url, '/api/relocations');
-  assert.equal(calls[0].payload.from.address, '45 Old Street, Quezon City');
-  assert.equal(calls[0].payload.to.address, '123 New Street, Manila');
-  assert.equal(calls[0].payload.from.lat, 14.7);
-  assert.equal(calls[0].payload.to.lng, 121.0);
-  assert.equal(calls[0].payload.preferredDate, '2027-01-20T00:00:00.000Z');
-  assert.equal(calls[0].payload.unit.brand, '');
-  assert.deepEqual(calls.slice(1), [{ cleared: true }, { redirected: '/relocation-requests' }]);
+  assert.doesNotMatch(script, /submitRelocationQuoteRequest|openAcceptedRelocation|pendingRelocationQuoteItem/);
+  assert.doesNotMatch(script, /fetch\('\/api\/relocations/);
+  assert.match(script, /requestBookingStepNavigation\(5\)/);
 });
 
 test('selecting a saved aircon reuses its brand and exact catalog type and HP', () => {
@@ -115,7 +90,7 @@ test('a relocation quote request requires both locations and starts before booki
   await assert.rejects(request.validate(), /address/i);
 });
 
-test('relocation preferred calendar selects a date without looking up or reserving time slots', async () => {
+test('legacy preferred calendar mode remains read-compatible without reserving time slots', async () => {
   const script = fs.readFileSync(path.join(__dirname, '../public/js/enterprise-calendar.js'), 'utf8');
   const requests = [];
   const handlers = [];
@@ -164,7 +139,7 @@ test('mapping a relocation destination keeps the current pin and updates the mov
   });
   const currentPin = marker([14.7, 121.1], {});
   const map = { removeLayer() {}, fitBounds() {}, setView() {} };
-  const item = { relocation: { scope: 'custom_quote', to: { address: '123 New Street, Manila' } } };
+  const item = { relocation: { scope: 'different_address', to: { address: '123 New Street, Manila' } } };
   const state = { map, userMarker: currentPin, userCoordinates: { lat: 14.7, lng: 121.1 } };
   const context = {
     BookingState: state, activeRelocationItem: () => item,

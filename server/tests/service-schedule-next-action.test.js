@@ -63,7 +63,7 @@ function setupScheduleAction(selectedTimeSlot, slotAvailable = true, pendingQuot
         }
       }
     },
-    getBookingStepIssue: () => state.selectedDate && (pendingQuote || state.selectedTimeSlot) ? null : { step: 4 },
+    getBookingStepIssue: () => state.selectedDate && state.selectedTimeSlot ? null : { step: 4 },
     bookingRequiresProjectSchedule: () => false,
     pendingRelocationQuoteItem: () => pendingQuote ? { relocation: { scope: 'custom_quote' } } : null,
     submitRelocationQuoteRequest: async () => { quoteCalls.push('sent'); return true; },
@@ -75,14 +75,16 @@ function setupScheduleAction(selectedTimeSlot, slotAvailable = true, pendingQuot
   return { context, state, navigated, quoteCalls, get: getElementById };
 }
 
-test("relocation quote uses the preferred date without booking or reserving a time", async () => {
-  const { context, navigated, quoteCalls, get } = setupScheduleAction(null, true, true);
+test("a different-address relocation needs a time and proceeds to normal review without a quote", async () => {
+  const { context, state, navigated, quoteCalls, get } = setupScheduleAction(null, true, true);
   context.syncScheduleNextAction();
-  assert.equal(get("scheduleNextButton").disabled, false);
-  assert.match(get("scheduleNextButton").innerHTML, /Send Quote Request/);
+  assert.equal(get("scheduleNextButton").disabled, true);
+  assert.equal(await context.continueFromSchedule(), false);
+  state.selectedTimeSlot = { startTime: '08:00' };
+  context.syncScheduleNextAction();
+  assert.match(get("scheduleNextButton").innerHTML, /Review Booking/);
   assert.equal(await context.continueFromSchedule(), true);
-  assert.deepEqual(quoteCalls, ['sent']);
-  assert.deepEqual(navigated, []);
+  assert.deepEqual(quoteCalls, []); assert.deepEqual(navigated, [5]);
 });
 
 test("returning to Schedule shows the saved date and a working Review Booking button", async () => {

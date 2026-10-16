@@ -8,7 +8,7 @@ const CLOSED_STATES = new Set(["cancelled", "rejected", "closed", "completed", "
 const rank = new Map(["in_progress", "on_site", "en_route", "accepted", "waiting_for_customer", "no_show_reported", "pending_acceptance", "completed"].map((status, index) => [status, index]));
 
 function isRelocationService(item) {
-  return ["same_property", "custom_quote"].includes(item?.relocation?.scope)
+  return ["same_property", "different_address", "custom_quote"].includes(item?.relocation?.scope)
     || /\baircon[\s_-]+relocation\b/i.test(String(item?.name || item?.serviceName || ""))
     || item?.slug === "aircon-relocation";
 }
@@ -55,7 +55,7 @@ function assignedRelocationItems(booking, assignments, technicianId) {
 function presentRelocationItem({ item, assignment, virtual }, booking) {
   const move = item.relocation || {};
   const { from, to, sameProperty } = relocationLocations(move, booking.location);
-  const legacy = !["same_property", "custom_quote"].includes(move.scope);
+  const legacy = !["same_property", "different_address", "custom_quote"].includes(move.scope);
   const type = item.airconType || item.applianceType || booking.applianceType || "";
   const stages = stagesForItem({ ...item, airconType: type });
   const keys = stages.flatMap(stage => stage.tasks.map(([key]) => `${stage.key}.${key}`));
