@@ -143,4 +143,5 @@ paymentSchema.index({ refundedAt: -1 }, { sparse: true });
 paymentSchema.index({ collectedBy: 1, status: 1, collectedAt: -1 });
 paymentSchema.index({ status: 1, resolvedAt: 1, recoveryFollowUpDate: 1 });
 
+paymentSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
 module.exports = mongoose.model("Payment", paymentSchema);

@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const BACKUP_NAME = /^(?:booking-order-reset|paid-payroll-reset|expense-reset)-\d{13}-[a-f0-9]{8}\.ejson(?:\.gz)?(?:\.sha256)?$/;
+const BACKUP_NAME = /^(?:booking-order-reset|paid-payroll-reset|expense-reset|transaction-history-seed)-\d{13}-[a-f0-9]{8}\.ejson(?:\.gz)?(?:\.sha256)?$/;
 
 function createResetBackupDownload({ directory = path.resolve(__dirname, "../../temp") } = {}) {
   return async function resetBackupDownload(req, res) {

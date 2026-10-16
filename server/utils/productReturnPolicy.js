@@ -139,7 +139,8 @@ function evaluateItem(sourceType, source, itemIndex, context, now = new Date()) 
   const { date, coverageType } = eligibleUntil(sourceType, source, item, context.returnDays);
   const paid = paidAmount(sourceType, source, context.payments);
   const validSale = sourceType === "order" ? source.status === "completed" : source.status === "completed";
-  const reason = !validSale ? "This sale must be completed first."
+  const reason = require('./demonstrationData').isDemonstration(source) ? 'Demonstration orders cannot be used for real returns or refunds.'
+    : !validSale ? "This sale must be completed first."
     : paid <= 0 ? "Payment must be confirmed first."
       : remaining <= 0 ? "All units are already in a return request or resolved return."
         : now > date ? "The recorded return or warranty period has ended. Contact the store for help."

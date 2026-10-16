@@ -287,4 +287,5 @@ assignmentSchema.statics.getDashboardCounts = async function (technicianId, work
   };
 };
 
+assignmentSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
 module.exports = mongoose.model("Assignment", assignmentSchema);
