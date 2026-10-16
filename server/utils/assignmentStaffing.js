@@ -1,6 +1,6 @@
 'use strict';
 
-const { ids, failure } = require('./standardJobTeam');
+const { ids, members, failure } = require('./standardJobTeam');
 
 // Company-approved planning defaults. Use catalog/service fields, never customer
 // instructions or AI-generated text, to decide the recommendation.
@@ -9,7 +9,7 @@ function staffingFor(source, job = {}) {
   const names = services.map(row => [row?.name, row?.serviceName, row?.category].filter(value => typeof value === 'string').join(' '));
   const pairedService = names.find(name => /\b(re[-\s]?)?(install(?:ation|ing)?|dismantl(?:e|ing)|relocat(?:e|ion|ing)|uninstall(?:ation)?)\b/i.test(name));
   const installation = source === 'order' && job.fulfillmentType === 'delivery_installation';
-  const existing = ids(job).length;
+  const existing = ids(job).length || (job.status === 'pending_reassignment' ? members(job).length : 0);
   const recommendedCount = Math.max(installation || pairedService ? 2 : 1, existing);
   const reason = existing > (installation || pairedService ? 2 : 1)
     ? `Keep the existing ${existing}-technician team when reassigning this job.`

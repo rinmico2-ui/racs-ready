@@ -217,6 +217,52 @@ test('installation acceptance waits for all members and a decline is visible wit
   await f.service.respond('order', orderId, lead, 'accept'); assert.equal(f.current.status, 'technician_assigned');
   await f.service.respond('order', orderId, support, 'accept'); assert.equal(f.current.status, 'technician_accepted');
 });
+test('extending a pending supporting invitation changes both saved deadlines without resetting primary acceptance', async () => {
+  const f=fixture();await f.assign();await f.service.respond('booking',bookingId,lead,'accept');
+  const old=f.current.technicianTeam[1].deadlineAt;
+  await f.service.extend('booking',bookingId,60,f.current.technicianTeam[1].assignmentId);
+  assert.equal(f.current.technicianTeam[0].status,'accepted');assert.equal(Number(f.current.technicianTeam[1].deadlineAt),Number(old)+3600000);
+  assert.equal(Number(f.store.assignments.get(f.current.technicianTeam[1].assignmentId).acceptanceDeadline),Number(old)+3600000);
+});
+test('invalid deadline extension rolls back the booking and every invitation', async () => {
+  const f=fixture();await f.assign();const before=copy(f.current);
+  await assert.rejects(f.service.extend('booking',bookingId,0,f.current.technicianTeam[1].assignmentId),/5 to 720/);
+  assert.deepEqual(f.current,before);
+});
+test('order extension updates all unanswered team deadlines and retains an accepted primary', async () => {
+  const f=fixture({source:'order'});await f.assign();await f.service.respond('order',orderId,lead,'accept');
+  const old=f.current.technicianTeam[1].deadlineAt;
+  await f.service.extend('order',orderId,60);
+  assert.equal(f.current.technicianTeam[0].status,'accepted');assert.equal(Number(f.current.technicianTeam[1].deadlineAt),Number(old)+3600000);
+  assert.equal(Number(f.current.technicianAcceptance.deadlineAt),Number(f.current.technicianTeam[1].deadlineAt));
+});
+test('returning a partially accepted team releases every current invitation together without changing money', async () => {
+  const f=fixture();await f.assign();await f.service.respond('booking',bookingId,lead,'accept');
+  await f.service.releaseBooking(bookingId,'Staff is selecting a different team',{_id:customer,name:'Staff'});
+  assert.equal(f.current.status,'pending_reassignment');assert.deepEqual(team.ids(f.current),[]);
+  assert.deepEqual(team.publicTeam(f.current),[]);assert.equal(require('../utils/assignmentStaffing').staffingFor('booking',f.current).recommendedCount,2);
+  assert.ok([...f.store.assignments.values()].every(row=>['expired','cancelled'].includes(row.status)));
+  assert.equal(f.current.amountPaid,f.job.amountPaid);
+});
+test('a started assignment blocks whole-team requeue even if the parent status is stale', async () => {
+  const f=fixture();await f.assign();[...f.store.assignments.values()][0].status='on_site';
+  await assert.rejects(f.service.releaseBooking(bookingId),/Work has started/);assert.equal(f.current.status,'assigned');
+});
+test('actual HTTP AI preparation allows an accepted primary while retaining the whole-team departure gate',async t=>{
+  const express=require('express'),middleware=require('../utils/standardTeamMiddleware');
+  const job={_id:bookingId,technicianId:lead,status:'inspection_scheduled',technicianTeam:[{technicianId:lead,status:'pending'},{technicianId:support,status:'pending'}]};
+  let actor=lead;
+  t.mock.method(Booking,'findById',()=>query(job));t.mock.method(require('../models/Technician'),'findOne',()=>query({_id:actor}));
+  const app=express();app.use(express.json());app.use((req,_res,next)=>{req.user={_id:customer};next();});app.use('/appointments/:id',middleware.booking);
+  app.post('/appointments/:id/:action',(_req,res)=>res.json({success:true}));app.post('/appointments/:id/ai-diagnose/verify',(_req,res)=>res.json({success:true}));
+  const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const post=path=>fetch(`http://127.0.0.1:${server.address().port}/appointments/${bookingId}/${path}`,{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+  assert.equal((await post('ai-diagnose')).status,409);
+  job.technicianTeam[0].status='accepted';
+  assert.equal((await post('ai-diagnose')).status,200);assert.equal((await post('ai-diagnose/verify')).status,200);
+  assert.equal((await post('en-route')).status,409);assert.equal((await post('complete-inspection')).status,409);
+  actor=support;assert.equal((await post('ai-diagnose')).status,403);
+});
 test('single-technician historical jobs and membership checks retain existing ownership', () => {
   assert.deepEqual(team.ids({ technicianId: lead }), [lead]);
   assert.equal(team.isPrimary({ technicianId: lead }, support), false);

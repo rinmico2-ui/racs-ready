@@ -63,7 +63,7 @@ function acceptServiceItems(job) {
     if (['pending', 'awaiting_assignment', 'assigned', 'scheduled'].includes(row.status)) row.status = 'accepted';
   }
 }
-function publicTeam(job) { return members(job).map(row => ({ technicianId: ref(row.technicianId), name: row.name, role: isPrimary(job, row.technicianId) ? 'primary' : 'support', status: row.status, respondedAt: row.respondedAt, deadlineAt: row.deadlineAt })); }
+function publicTeam(job) { return job?.technicianId ? members(job).map(row => ({ technicianId: ref(row.technicianId), name: row.name, role: isPrimary(job, row.technicianId) ? 'primary' : 'support', status: row.status, respondedAt: row.respondedAt, deadlineAt: row.deadlineAt })) : []; }
 function fields(mongoose) {
   return { technicianTeamSchedule: String, technicianTeam: { type: [new mongoose.Schema({
     technicianId: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician', required: true },

@@ -2788,6 +2788,11 @@ router.post("/:id/extend-deadline", authenticate, requireRole(["admin", "secreta
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found." });
     const timing = orderAttentionState(order);
+    if (order.technicianTeam?.length) {
+      const result = await require('../utils/standardJobTeamService').createService().extend('order', order._id, req.body?.minutes ?? 60);
+      await require('../utils/standardJobTeamService').publish(result, req).catch(() => {});
+      return res.json({ success: true, order: result.job });
+    }
     if (order.status !== "technician_assigned" || order.technicianAcceptance?.status !== "pending") {
       return res.status(409).json({ error: "Only unanswered assignments can have their deadline extended." });
     }

@@ -28,10 +28,15 @@ module.exports = async function standardTeamMiddleware(req, res, next) {
 module.exports.booking = async function bookingTeamGuard(req, res, next) {
   try {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || !require('mongoose').isValidObjectId(req.params.id)) return next();
-    const job = await require('../models/BookingService').findById(req.params.id).select('technicianId technicianTeam isProject').lean();
+    const job = await require('../models/BookingService').findById(req.params.id).select('technicianId technicianTeam isProject status archivedAt').lean();
     if (!team.members(job).length || job.isProject) return next();
     const tech = await require('../models/Technician').findOne({ user: req.user._id }).select('_id').lean();
     if (!tech || !team.isPrimary(job, tech._id)) return res.status(403).json({ error: 'The primary technician manages this job. Supporting technicians can add assignment notes.', code: 'PRIMARY_TECHNICIAN_REQUIRED' });
+    if (/^\/(?:ai-diagnose|ai-diagnose\/verify)\/?$/.test(req.path)) {
+      const entry = team.member(job, tech._id);
+      if (entry?.status !== 'accepted' || job.archivedAt || team.closed.has(job.status) || job.status === 'pending_reassignment') return res.status(409).json({ error: 'Accept your current assignment before reviewing AI preparation suggestions.', code: 'PRIMARY_ACCEPTANCE_REQUIRED' });
+      return next();
+    }
     if (!/cancel|decline|note/.test(req.path)) team.assertReady(job);
     next();
   } catch (error) { if (error.status) return res.status(error.status).json({ error: error.message, code: error.code }); next(error); }

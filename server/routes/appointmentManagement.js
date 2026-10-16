@@ -1386,9 +1386,10 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
     // acceptance and must therefore appear in this tab as well.
     const pendingAssignmentIds = await Assignment.find({ status: 'pending_acceptance' }).distinct('_id');
     const filter = {
+      archivedAt: null, isProject: { $ne: true }, sourceOrderId: null,
       $or: [
-        { status: 'assigned' },
-        { assignmentId: { $in: pendingAssignmentIds } },
+        { status: { $in: ['assigned', 'confirmed', 'inspection_scheduled', 'repair_scheduled'] }, technicianTeam: { $elemMatch: { status: 'pending' } } },
+        { 'technicianTeam.0': { $exists: false }, $or: [{ status: 'assigned' }, { assignmentId: { $in: pendingAssignmentIds } }] },
       ],
     };
     const [bookings, total] = await Promise.all([
@@ -1397,6 +1398,7 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
         .skip(skip)
         .limit(parseInt(limit))
         .populate('technicianId', 'name phone email')
+        .populate('technicianTeam.technicianId', 'name')
         .populate('assignmentId', 'acceptanceDeadline status assignedAt')
         .lean(),
       BookingService.countDocuments(filter),
@@ -1416,6 +1418,9 @@ router.get('/waiting-acceptance/list', requireRole(["admin", "secretary"]), asyn
         acceptanceDeadline: b.assignmentId?.acceptanceDeadline || null,
         assignmentId: b.assignmentId?._id || null,
         assignmentStatus: b.assignmentId?.status || null,
+        technicianTeam: require('../utils/standardJobTeam').members(b).map(row => ({ technicianId: require('../utils/standardJobTeam').ref(row.technicianId), assignmentId: row.assignmentId,
+          name: row.name || row.technicianId?.name || 'Technician', status: row.status, deadlineAt: row.deadlineAt, respondedAt: row.respondedAt,
+          role: require('../utils/standardJobTeam').isPrimary(b, row.technicianId) ? 'primary' : 'support' })),
         isPastDate: require('../utils/bookingDateTime').isAssignmentWindowExpired(b),
         technician: b.technicianId ? { _id: b.technicianId._id, name: b.technicianId.name, phone: b.technicianId.phone, email: b.technicianId.email } : null,
         address: b.location?.address || b.bookingLocation?.address || null,
@@ -1443,6 +1448,11 @@ router.post('/assignments/:assignmentId/extend-deadline', requireRole(["admin", 
     if (assignment.status !== 'pending_acceptance') return res.status(400).json({ error: 'Only pending acceptance can be extended' });
     if (newDeadline) return res.status(400).json({ error: 'Specify additional minutes from 5 to 720.' });
     const booking = await BookingService.findById(assignment.bookingId);
+    if (booking?.technicianTeam?.length) {
+      const result = await require('../utils/standardJobTeamService').createService().extend('booking', booking._id, minutes, assignmentId);
+      await require('../utils/standardJobTeamService').publish(result, req).catch(() => {});
+      return res.json({ success: true, booking: result.job });
+    }
     if (!booking || require('../utils/bookingDateTime').isAssignmentWindowExpired(booking)) return res.status(409).json({ error: 'Resolve the expired customer schedule before extending this assignment.' });
     const deadline = require('../utils/acceptanceDeadline').extendAcceptanceDeadline(assignment.acceptanceDeadline, minutes);
     const updated = await Assignment.findOneAndUpdate({ _id: assignment._id, status: 'pending_acceptance', acceptanceDeadline: assignment.acceptanceDeadline }, {
@@ -1468,6 +1478,12 @@ router.post('/:id/force-reassign', requireRole(["admin", "secretary"]), async (r
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid booking id' });
     const booking = await BookingService.findById(id);
     if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (booking.technicianTeam?.length) {
+      const result = await require('../utils/standardJobTeamService').createService().releaseBooking(id, req.body.reason, req.user);
+      await releaseReservedEquipment({ filter: { bookingId: booking._id }, actorId: req.user._id, reason: 'Released because the technician team was returned to the assignment queue', moduleName: 'booking reassignment' }).catch(error => console.warn('[team-requeue] Reservation cleanup will need review:', error.message));
+      await require('../utils/standardJobTeamService').publish(result, req).catch(() => {});
+      return res.json({ success: true, booking: result.job });
+    }
     if (!['assigned', 'inspection_scheduled', 'pending_reassignment'].includes(booking.status)) {
       return res.status(400).json({ error: `Cannot reassign from "${booking.status}" status` });
     }

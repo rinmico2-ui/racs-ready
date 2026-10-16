@@ -5,17 +5,74 @@
   const labels = { pending:'Needs inspection', staff_review:'Staff review', customer_review:'Your decision needed', approved:'Repair approved', declined:'Repair declined', completed:'Repaired' };
   let dialog, state, busy = false;
   async function request(path, body) {
-    const response = await fetch(path, { credentials:'same-origin', ...(body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {}) });
-    const data = await response.json();
+    let response;
+    try { response = await fetch(path, { credentials:'same-origin', signal:AbortSignal.timeout(45000), ...(body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {}) }); }
+    catch (error) { throw Error(error.name === 'TimeoutError' || error.name === 'AbortError' ? 'This request took too long. Refresh the latest record before trying again.' : 'Could not connect to the server. Please try again.'); }
+    const data = await response.json().catch(() => ({ error:'The server could not complete this request. Please try again.' }));
     if (!response.ok) throw new Error(data.error || data.message || 'Unable to update appliance repairs.');
     return data;
   }
   function partRow(part = {}) {
     return `<div class="ru-parts"><select aria-label="Repair part"><option value="">Other part (enter below)</option>${(state.parts || []).map(p => `<option value="${esc(p._id)}" ${String(p._id) === String(part.toolId) ? 'selected' : ''}>${esc(p.itemName)} · ${money(p.sellingPrice ?? p.costPrice)}</option>`).join('')}</select><input type="number" min="1" max="999" step="1" value="${Number(part.quantity || 1)}" aria-label="Part quantity"><input class="ru-part-cost" type="number" min="0" step=".01" value="${Number(part.cost || 0)}" aria-label="Other part price"><button type="button" class="ru-btn" data-remove-part aria-label="Remove part">×</button><input class="ru-part-name" maxlength="200" placeholder="Other part name" value="${esc(part.name)}" aria-label="Other part name"></div>`;
   }
+  function aiInspector(unit) {
+    return state.scope === 'booking' ? '<section class="ru-evidence"><strong>Diagnosis and quotation assistance</strong><p>Record your on-site findings, review the suggestions, then confirm the diagnoses and parts you actually need.</p><button type="button" class="ru-btn" data-unit-ai>Generate diagnostic suggestions</button><div data-unit-ai-result aria-live="polite"></div></section>' : '';
+  }
+  function quotePreview(form) {
+    const category = form.elements.laborCategory.value, fees = state.laborFees || {};
+    if (!Object.hasOwn(fees, category)) return showError('Official labor fees are unavailable. Refresh before preparing the quotation.');
+    let partsTotal = 0;
+    for (const row of form.querySelectorAll('.ru-parts')) {
+      const quantity = Number(row.querySelector('input[type=number]').value), cost = Number(row.querySelector('.ru-part-cost').value);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999 || !Number.isFinite(cost) || cost < 0) return showError('Enter a valid part quantity and price.');
+      partsTotal += quantity * cost;
+    }
+    form.querySelector('[data-quote-preview]').textContent = `Quotation draft: parts ${money(partsTotal)} + official labor ${money(fees[category])} = ${money(partsTotal + Number(fees[category]))}. Inspection fees are separate. Staff and customer approval are still required.`;
+  }
+  async function generateUnitAi(form) {
+    if (busy) return;
+    busy = true;
+    const button = form.querySelector('[data-unit-ai]'), panel = form.querySelector('[data-unit-ai-result]');
+    button.disabled = true; panel.textContent = 'Preparing diagnostic suggestions...';
+    try {
+      let report = state.aiReport;
+      if (!report?.summary) {
+        const data = await request(`/api/technician/appointments/${encodeURIComponent(state.id)}/ai-diagnose`, {});
+        const latest = await request(`/api/repair-units/${state.scope}/${state.id}`);
+        const previousUnit = state.units.find(unit => unit.key === form.dataset.key), latestUnit = latest.units.find(unit => unit.key === form.dataset.key);
+        if (!latestUnit || previousUnit?.review?.revision !== latestUnit.review?.revision || previousUnit?.review?.state !== latestUnit.review?.state) throw Error('This appliance changed while suggestions were loading. Reopen its latest inspection before continuing.');
+        state.version = latest.version; report = state.aiReport = data.technicianAssistant;
+      }
+      const unit = state.units.find(unit => unit.key === form.dataset.key);
+      if (!report?.summary) throw Error('Diagnostic suggestions are unavailable. You can continue with a manual diagnosis and quotation.');
+      const analysis = report.serviceAnalyses?.find(item => Number(item.serviceIndex) === Number(unit.serviceIndex)) || (state.units.length === 1 ? report : null);
+      if (!analysis) throw Error('No suggestions were returned for this appliance. You can enter the diagnosis and quotation manually.');
+      const text = item => typeof item === 'string' ? item : item?.cause || item?.name || item?.description || '';
+      const causes = (Array.isArray(analysis.probableCauses) ? analysis.probableCauses : []).map(text).filter(Boolean), parts = (Array.isArray(analysis.possibleParts) ? analysis.possibleParts : []).map(part => typeof part === 'string' ? { name: part } : part).filter(part => part?.name);
+      panel.innerHTML = `<p class="mt-2">${esc(analysis.summary || 'Confirm each suggestion against your on-site findings.')}</p><strong>Diagnoses confirmed on site</strong>${causes.map((cause,index)=>`<label class="d-block my-2"><input type="checkbox" data-ai-cause value="${index}"> ${esc(cause)}</label>`).join('') || '<p>Enter your diagnosis in the form below.</p>'}<strong>Parts confirmed as necessary</strong>${parts.map((part,index)=>`<label class="d-block my-2"><input type="checkbox" data-ai-part value="${index}"> ${esc(part.name)}</label>`).join('') || '<p>No parts suggested.</p>'}<button type="button" class="ru-btn" data-use-ai>Use confirmed selections and build quotation draft</button>`;
+      panel.querySelector('[data-use-ai]').onclick = () => {
+        const selected = [...panel.querySelectorAll('[data-ai-cause]:checked')].map(input => causes[Number(input.value)]).filter(Boolean);
+        if (!selected.length && !form.elements.diagnosis.value.trim()) return showError('Confirm an on-site diagnosis or enter your diagnosis before building the quotation draft.');
+        if (selected.length) form.elements.diagnosis.value = selected.join('; ');
+        const category = ({ low:'minor', minor:'minor', medium:'standard', moderate:'standard', high:'complex', specialist_required:'major' })[analysis.repairComplexity] || 'standard';
+        if (Object.hasOwn(state.laborFees || {}, category)) form.elements.laborCategory.value = category;
+        const unmatched = [];
+        for (const input of panel.querySelectorAll('[data-ai-part]:checked')) {
+          const part = parts[Number(input.value)];
+          if ([...form.querySelectorAll('.ru-part-name')].some(field => field.value.trim().toLowerCase() === String(part.name).trim().toLowerCase())) continue;
+          const catalog = (state.parts || []).find(item => item.itemName.trim().toLowerCase() === String(part.name).trim().toLowerCase());
+          if (!catalog) { unmatched.push(part.name); continue; }
+          form.querySelector('.ru-parts-list').insertAdjacentHTML('beforeend', partRow({ toolId:catalog?._id, name:part.name, quantity:1, cost:catalog ? catalog.sellingPrice ?? catalog.costPrice ?? 0 : 0 }));
+        }
+        bindParts(form); quotePreview(form);
+        if (unmatched.length) showError('No catalog match for: ' + unmatched.join(', ') + '. Add these parts manually with a confirmed supplier price.');
+      };
+    } catch (error) { panel.textContent = error.message; }
+    finally { busy = false; button.disabled = false; }
+  }
   function inspector(unit) {
     if (!state.canInspect || state.closed || state.needsSetup) return '';
-    if (['pending','staff_review'].includes(unit.review?.state || 'pending')) return `<form class="ru-inspect" data-key="${esc(unit.key)}"><div class="ru-grid"><label class="ru-field">Inspection findings<textarea name="findings" required minlength="10" maxlength="2000">${esc(unit.inspection?.findings)}</textarea></label><label class="ru-field">Diagnosis<textarea name="diagnosis" required minlength="5" maxlength="2000">${esc(unit.diagnosis?.summary)}</textarea></label><label class="ru-field">Labor category<select name="laborCategory">${Object.entries(state.laborFees || {}).map(([key,value]) => `<option value="${key}" ${unit.quotation?.laborCategory === key ? 'selected' : ''}>${key[0].toUpperCase()+key.slice(1)} · ${money(value)}</option>`).join('')}</select></label><label class="ru-field">Quote notes<input name="notes" maxlength="2000" value="${esc(unit.quotation?.notes)}"></label></div><div class="ru-parts-list">${(unit.quotation?.parts || []).map(partRow).join('')}</div><div class="ru-actions"><button class="ru-btn" type="button" data-add-part>Add part</button><button class="ru-btn ru-btn-primary" type="submit">Save inspection and price</button></div></form>`;
+    if (['pending','staff_review'].includes(unit.review?.state || 'pending')) return `<form class="ru-inspect" data-key="${esc(unit.key)}">${aiInspector(unit)}<div class="ru-grid"><label class="ru-field">Inspection findings<textarea name="findings" required minlength="10" maxlength="2000">${esc(unit.inspection?.findings)}</textarea></label><label class="ru-field">Diagnosis<textarea name="diagnosis" required minlength="5" maxlength="2000">${esc(unit.diagnosis?.summary)}</textarea></label><label class="ru-field">Labor category<select name="laborCategory">${Object.entries(state.laborFees || {}).map(([key,value]) => `<option value="${key}" ${unit.quotation?.laborCategory === key ? 'selected' : ''}>${key[0].toUpperCase()+key.slice(1)} · ${money(value)}</option>`).join('')}</select></label><label class="ru-field">Quote notes<input name="notes" maxlength="2000" value="${esc(unit.quotation?.notes)}"></label></div><div class="ru-parts-list">${(unit.quotation?.parts || []).map(partRow).join('')}</div><div class="ru-actions"><button class="ru-btn" type="button" data-add-part>Add part</button><button class="ru-btn" type="button" data-calculate-quote>Calculate quotation draft</button><button class="ru-btn ru-btn-primary" type="submit">Save inspection and price</button></div><div class="ru-evidence" data-quote-preview aria-live="polite"></div></form>`;
     if (unit.review?.state === 'approved' && state.scope === 'booking') return `<form class="ru-complete" data-key="${esc(unit.key)}"><label class="ru-field">Repair and tests performed<textarea name="notes" required minlength="10" maxlength="1000"></textarea></label><button class="ru-btn ru-btn-primary" type="submit">Mark this appliance repaired</button></form>`;
     return '';
   }
@@ -23,6 +80,7 @@
     const reviewed = state.units.filter(unit => unit.review?.state === 'customer_review');
     const allInspected = state.units.length && state.units.every(unit => unit.review?.state === 'staff_review');
     dialog.innerHTML = `<header class="ru-header"><div><h2>Appliance repairs</h2><p>Each appliance has its own findings, price, and decision.</p></div><button class="ru-close" aria-label="Close appliance repairs">×</button></header><div class="ru-body"><div class="ru-error" role="alert" hidden></div><div class="ru-toolbar"><span>${state.units.length} appliance${state.units.length === 1 ? '' : 's'}</span>${!state.closed && state.canInspect && allInspected ? '<button class="ru-btn ru-btn-primary" data-submit>Send inspections for staff review</button>' : ''}${!state.closed && state.submitted && allInspected && ['admin','secretary'].includes(state.role) && state.reviewStatus === 'pending' ? '<button class="ru-btn ru-btn-primary" data-review="approve">Send prices to customer</button><button class="ru-btn" data-review="reject">Return for changes</button><input id="ruReviewNotes" class="form-control" maxlength="1000" placeholder="Review notes / changes needed">' : ''}${!state.closed && state.role === 'customer' && reviewed.length ? '<button class="ru-btn" data-select-all>Select all waiting quotes</button><button class="ru-btn ru-btn-primary" data-decide="true">Approve selected repairs</button><button class="ru-btn" data-decide="false">Decline selected repairs</button>' : ''}</div>${state.units.map(unit => `<details class="ru-unit" ${state.units.length === 1 ? 'open' : ''}><summary><span>${state.role === 'customer' && unit.review?.state === 'customer_review' ? `<input class="ru-choose" type="checkbox" data-key="${esc(unit.key)}" aria-label="Select ${esc(unit.label)}">` : ''} <strong>${esc(unit.key)} · ${esc(unit.label)}</strong><br><small class="ru-muted">${esc([unit.brand,unit.model].filter(Boolean).join(' · '))}</small></span><span class="ru-status">${esc(labels[unit.review?.state || 'pending'])}</span>${unit.quotation ? `<span class="ru-price">${money(unit.quotation.totalCost)}</span>` : ''}</summary><div class="ru-unit-content"><p class="ru-evidence"><strong>Reported problem:</strong> ${esc(unit.problemDescription || 'Not recorded')}</p>${unit.inspection?.findings ? `<p class="ru-evidence"><strong>Findings:</strong> ${esc(unit.inspection.findings)}<br><strong>Diagnosis:</strong> ${esc(unit.diagnosis?.summary)}</p>` : ''}${unit.quotation ? `<p class="ru-evidence"><strong>Parts:</strong> ${(unit.quotation.parts || []).map(part => `${esc(part.name)} × ${part.quantity} (${money(part.cost * part.quantity)})`).join(', ') || 'None'}<br><strong>Labor:</strong> ${money(unit.quotation.laborCost)}<br><strong>Total:</strong> ${money(unit.quotation.totalCost)}</p>` : ''}${unit.completionNotes ? `<p class="ru-evidence"><strong>Repairs and tests:</strong> ${esc(unit.completionNotes)}</p>` : ''}${inspector(unit)}</div></details>`).join('')}</div><footer class="ru-footer">Inspection fees remain separate. Repair work starts after staff review and your approval.</footer>`;
+    if (state.blockedReason) { const hint=document.createElement('p');hint.className='ru-evidence';hint.textContent=state.blockedReason;dialog.querySelector('.ru-toolbar').after(hint); }
     dialog.querySelector('.ru-close').onclick = () => { if (!busy) dialog.close(); };
     if (state.needsSetup && (state.canInspect || ['admin', 'secretary'].includes(state.role))) {
       const button = document.createElement('button'); button.className = 'ru-btn ru-btn-primary'; button.textContent = 'Start individual appliance inspections';
@@ -40,6 +98,9 @@
     dialog.querySelectorAll('.ru-inspect').forEach(form => {
       form.querySelector('[data-add-part]').onclick = () => { form.querySelector('.ru-parts-list').insertAdjacentHTML('beforeend', partRow()); bindParts(form); };
       bindParts(form);
+      form.querySelector('[data-unit-ai]')?.addEventListener('click',()=>generateUnitAi(form));
+      form.querySelector('[data-calculate-quote]').onclick=()=>quotePreview(form);
+      form.addEventListener('input',()=>{if(form.querySelector('[data-quote-preview]').textContent)quotePreview(form);});
       form.onsubmit = event => {
         event.preventDefault();
         if (!form.reportValidity()) return;
