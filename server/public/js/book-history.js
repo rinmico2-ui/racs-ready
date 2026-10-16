@@ -653,6 +653,12 @@
 
   function requestBookingEditor(bookingId, focusTab, trigger) {
     if (bookingEditorOpening) return;
+    const booking = bookings.find(row => String(row._id) === String(bookingId));
+    const editPolicy = booking?.bookingEditPolicy || window.BookingEditPolicy.state(booking);
+    if (!editPolicy.canEdit) {
+      void Swal.fire({ icon: 'info', title: 'Booking edits locked', text: editPolicy.reason || 'This booking can no longer be edited. Contact staff for assistance.' });
+      return;
+    }
     bookingEditorOpening = true;
     bookingEditorTrigger = trigger || null;
     setBookingEditorLoading(true, bookingEditorTrigger);
@@ -1036,7 +1042,8 @@
         && b.proposedReschedule?.status === 'pending';
       const hasPendingReschedule = b.rescheduleRequest?.status === 'pending';
       const canRequestReschedule = CUSTOMER_RESCHEDULE_STATUSES.has(status) && !needsScheduleReview;
-      const canEditServices = ['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status);
+      const showEditServices = ['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status);
+      const editPolicy = b.bookingEditPolicy || window.BookingEditPolicy.state(b);
       const actions = [];
       const actionButton = (action, icon, title, description, tone = 'blue', disabled = false) => `
         <button type="button" class="bh-modal-action bh-modal-action--${tone}" data-booking-action="${action}" ${disabled ? 'disabled aria-disabled="true"' : ''}>
@@ -1045,7 +1052,7 @@
           <i class="bi ${disabled ? 'bi-hourglass-split' : 'bi-chevron-right'} bh-modal-action-arrow"></i>
         </button>`;
 
-      if (canEditServices) actions.push(actionButton('edit-services', 'bi-list-check', 'Edit Booking', 'Change services or quantities.'));
+      if (showEditServices) actions.push(actionButton('edit-services', 'bi-list-check', 'Edit Booking', editPolicy.canEdit ? 'Change services or quantities.' : editPolicy.reason, 'blue', !editPolicy.canEdit));
       if (canRequestReschedule) actions.push(actionButton(
         'reschedule',
         'bi-calendar-event',
@@ -1129,7 +1136,7 @@
 
     // Warm the shared catalog while the customer reviews the details. If they
     // choose Edit Booking, only the booking-specific service items remain to load.
-    if (['pending', 'payment_verified', 'confirmed', 'awaiting_assignment'].includes(status)) {
+    if ((b.bookingEditPolicy || window.BookingEditPolicy.state(b)).canEdit) {
       window.setTimeout(() => {
         loadBookingEditorCatalog().catch(error => console.warn('Booking editor catalog prefetch failed:', error));
       }, 0);
@@ -1217,6 +1224,7 @@
       ]);
       const state = await itemsResponse.json();
       if (!itemsResponse.ok) throw new Error(state.error || "Unable to load booking services");
+      if (state.policy?.mode === 'locked') throw new Error(state.policy.reason);
       const { catalog, categoriesData } = editorCatalog;
       const core = catalog.coreServices || [];
       const repair = catalog.repairs || [];

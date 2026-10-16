@@ -135,13 +135,13 @@ function withOrderPresentation(order) {
   return { ...withOrderAttentionState(withPayableOrderPricing(order)), ...orderUnitPreparationAttention(order) };
 }
 
-function presentOrderForRequest(req, order) {
+function presentOrderForRequest(req, order, technicianId) {
   const presented = withOrderPresentation(
     order && typeof order.toObject === "function" ? order.toObject() : order,
   );
   if (!["admin", "secretary"].includes(req.user?.role)) delete presented.cancellationStockReview;
   return req.user?.role === "technician"
-    ? presentTechnicianOrder(presented)
+    ? presentTechnicianOrder(presented, { technicianId })
     : presented;
 }
 
@@ -151,9 +151,9 @@ async function respondToOrderTeam(req, res, decision) {
     if (!job || !require('../utils/standardJobTeam').members(job).length) return false;
     const tech = await Technician.findOne({ user: req.user._id }).select('_id').lean();
     if (!tech) { res.status(403).json({ error: 'Technician account not found.' }); return true; }
-    const result = await require('../utils/standardJobTeamService').createService().respond('order', job._id, tech._id, decision, req.body.reason);
+    const result = await require('../utils/standardJobTeamService').createService().respond('order', job._id, tech._id, decision, req.body?.reason);
     await require('../utils/standardJobTeamService').publish({ source: 'order', ...result }, req).catch(() => {});
-    res.json({ success: true, order: presentOrderForRequest(req, result.job) }); return true;
+    res.json({ success: true, order: presentOrderForRequest(req, result.job, tech._id) }); return true;
   } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save your team response.' }); return true; }
 }
 
@@ -923,7 +923,7 @@ router.get("/technician/tasks", authenticate, requireRole("technician"), async (
     }
 
     const orders = await Order.find({
-      technicianId: tech._id,
+      ...require('../utils/standardJobTeam').scope(tech._id),
       isProject: { $ne: true },
       status: { $nin: ["cancelled", "completed"] },
     })
@@ -931,7 +931,7 @@ router.get("/technician/tasks", authenticate, requireRole("technician"), async (
       .sort({ "delivery.preferredDate": 1, createdAt: 1 })
       .lean();
 
-    res.json({ tasks: orders.map((order) => presentTechnicianOrder(withPayableOrderPricing(order))) });
+    res.json({ tasks: orders.map((order) => presentTechnicianOrder(withPayableOrderPricing(order), { technicianId: tech._id })) });
   } catch (err) {
     checkoutErrorResponse(res, err);
   }
@@ -953,7 +953,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     // intentionally outside that workspace, so both rows and KPIs share this
     // exact delivery/installation scope.
     const technicianOrderScope = {
-      technicianId: tech._id,
+      $and: [require('../utils/standardJobTeam').scope(tech._id)],
       isProject: { $ne: true },
       fulfillmentType: { $in: TECHNICIAN_ORDER_FULFILLMENT_TYPES },
     };
@@ -1038,7 +1038,7 @@ router.get("/technician/all", authenticate, requireRole("technician"), async (re
     );
 
     res.json({
-      orders: orders.map((order) => withOrderPresentation(order)).map(presentTechnicianOrder),
+      orders: orders.map((order) => presentTechnicianOrder(withOrderPresentation(order), { technicianId: tech._id })),
       total,
       page: parseInt(page),
       pages: Math.ceil(total / parseInt(limit)),
@@ -1472,8 +1472,10 @@ router.get("/:id", authenticate, async (req, res) => {
     const isOwner = Boolean(order.userId && String(order.userId) === String(req.user._id));
     const isStaff = ["admin", "secretary"].includes(req.user.role);
     let isAssignedTechnician = false;
+    let viewerTechnicianId;
     if (req.user.role === "technician") {
       const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
+      viewerTechnicianId = tech?._id;
       isAssignedTechnician = Boolean(
         tech && require('../utils/standardJobTeam').ids(order).includes(String(tech._id))
       );
@@ -1501,7 +1503,7 @@ router.get("/:id", authenticate, async (req, res) => {
     }
 
     if (req.user.role === "technician") {
-      return res.json({ order: presentTechnicianOrder(withOrderPresentation(order)) });
+      return res.json({ order: presentTechnicianOrder(withOrderPresentation(order), { technicianId: viewerTechnicianId }) });
     }
     res.set('Cache-Control', 'private, no-store');
     if (modalView) return res.json({ order: withOrderPresentation(order), photosDeferred: true });

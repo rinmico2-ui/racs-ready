@@ -54,7 +54,7 @@ const coreServiceSchema = new mongoose.Schema({
   // Catalog of aircon appliance types this service supports (display + enum key).
   // Drives the customer-side "Appliance Type" selector.
   applianceTypes: [{
-    type: { type: String, enum: ['split', 'window', 'cassette', 'floor_standing'] },
+    type: { type: String, enum: ['split', 'window', 'cassette', 'floor_standing', 'floor_mounted', 'split_suspended', 'central'] },
     name: { type: String } // e.g. "Split Type"
   }],
 

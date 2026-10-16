@@ -85,6 +85,7 @@ function normalizeCoreServicePayload(body) {
   }
   for (const group of groups) {
     if (!group || !Array.isArray(group.hpPricing)) invalid('Each aircon type needs a list of HP prices.');
+    if (payload.active !== false && !group.hpPricing.length) invalid('Add at least one priced HP tier for every enabled aircon type.');
     if (types.has(group.type)) invalid('Each aircon type can appear only once. Add more HP tiers to the existing type.');
     types.add(group.type);
   }

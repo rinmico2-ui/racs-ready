@@ -3412,7 +3412,7 @@
       aHtml += '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule.</div>';
     } else if(scheduleRecovery) {
       aHtml += '<div class="alert alert-warning mb-0 py-2 px-3" role="status"><i class="bi bi-lock-fill me-2"></i><strong>Awaiting reschedule</strong> — Accept and En Route are locked until operations updates the customer schedule.</div>';
-    } else if(s === 'technician_assigned' && (o.technicianTeam || []).some(member => String(member.technicianId) === String(o.technicianId?._id || o.technicianId) && member.status === 'accepted')) {
+    } else if(s === 'technician_assigned' && o.viewerAssignment?.status === 'accepted') {
       aHtml += '<div class="alert alert-info mb-0">Your assignment is accepted. Waiting for the other team members before departure.</div>';
     } else if(s === 'technician_assigned') {
       aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
@@ -3454,12 +3454,14 @@
         await Swal.fire({title:'Missed Schedule',text:'This order must be rescheduled by operations before you can accept it.',icon:'warning'});
         return;
       }
-      const res = await fetch('/api/orders/'+id+'/accept', {method:'POST'});
-      const data = await res.json();
-      if(!res.ok) throw new Error(data.error || "Failed to accept");
-      var acceptedOrder = _orders.find(o=>String(o._id)===String(id)) || {};
+      const res = await fetch('/api/orders/'+id+'/accept', {method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const data = await res.json().catch(() => ({ error: 'The server response could not be read. Refresh the order and try again.' }));
+      if(!res.ok || data.error) throw new Error(data.error || "Failed to accept");
+      var acceptedOrder = data.order || _orders.find(o=>String(o._id)===String(id)) || {};
       var acceptedDate = orderDateKey(acceptedOrder.delivery?.preferredDate);
-      if(data.preparationReview?.hasDelta) {
+      if(acceptedOrder.status === 'technician_assigned') {
+        await Swal.fire({title:'Assignment Accepted',text:'Your response is saved. The other assigned technicians must accept before the team can prepare for departure.',icon:'success'});
+      } else if(data.preparationReview?.hasDelta) {
         const result = await Swal.fire({title:"Order Accepted — Kit Update Required",html:'<div class="text-start small">This installation added new Daily Kit requirements:<br><strong>'+data.preparationReview.deltaItems.map(i=>esc(i.name)+' × '+Number(i.quantity||1)).join('<br>')+'</strong></div>',icon:"warning",showCancelButton:true,confirmButtonText:"Open Daily Preparation",cancelButtonText:"Review Later"});
         if(result.isConfirmed) openOrderDailyKit(acceptedDate);
       } else if(acceptedOrder.fulfillmentType === 'delivery_installation') {

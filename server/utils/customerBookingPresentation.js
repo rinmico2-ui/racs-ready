@@ -155,6 +155,7 @@ const CUSTOMER_HIDDEN_FIELDS = [
 
 function presentCustomerBooking(booking = {}) {
   const presented = enrichCustomerBooking(booking);
+  presented.bookingEditPolicy = require('../public/js/booking-edit-policy').state(presented);
   // Customer pages must compare against the same Manila service window used
   // by the server's scheduling and lifecycle rules.
   const scheduleWindowEnd = computeBookingEndDateTime(presented);

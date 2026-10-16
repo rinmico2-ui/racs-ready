@@ -18,14 +18,15 @@ function resolveCoreServicePricing(catalog, selection) {
     if (types.length) {
       selectedType = types.find(item => item.type === selection.airconType);
       if (!selectedType) throw new Error('Choose a supported aircon type before booking.');
-      tier = (selectedType.hpPricing || []).find(item => Number(item.hp) === hp);
+      tier = require('../public/js/appliance-services').airconHpOptions(catalog, selection.airconType).find(item => item.hp === hp);
     } else {
-      tier = legacyTiers.find(item => Number(item.hp) === hp);
+      tier = require('../public/js/appliance-services').airconHpOptions(catalog, selection.airconType).find(item => item.hp === hp);
     }
     if (!tier) throw new Error('This aircon type and HP combination is unavailable.');
   }
-  const unitPrice = Number(pricedByHp ? tier.price : catalog.basePrice);
-  if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('This service does not have a valid catalog price.');
+  const rawPrice = pricedByHp ? tier.price : catalog.basePrice;
+  const unitPrice = Number(rawPrice);
+  if (rawPrice == null || String(rawPrice).trim() === '' || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('This service does not have a valid catalog price.');
   const duration = Number((pricedByHp && tier.durationMinutes) || catalog.durationMinutes || catalog.durationRange?.max || 60);
   return {
     unitPrice,
