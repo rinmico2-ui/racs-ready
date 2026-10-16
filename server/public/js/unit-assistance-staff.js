@@ -238,9 +238,9 @@
     brand.value = request.quote?.brand || (request.brand?.toLowerCase() === "i don't know" ? "I don't know" : request.brand || '');
     brand.placeholder = 'Verified brand shown on the label';
     if (/^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim())) brand.value = '';
-    const model = text('input'); model.type = 'text'; model.required = true; model.maxLength = 50; model.value = request.model || '';
+    const model = text('input'); model.type = 'text'; model.required = !isRepair; model.maxLength = 50; model.value = request.model || '';
     model.placeholder = 'Model number shown on the unit label';
-    const validateModel = () => model.setCustomValidity(model.value.trim().length <= 50 && /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Enter a valid model number, up to 50 characters.');
+    const validateModel = () => model.setCustomValidity(isRepair && !model.value.trim() || model.value.trim().length <= 50 && /^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model.value.trim()) ? '' : 'Enter a valid model number, up to 50 characters.');
     model.addEventListener('input', validateModel);
     const type = text('select');
     type.required = !isRepair && kind === 'aircon' && Boolean(catalog.airconTypes?.length);
@@ -252,7 +252,7 @@
     verification.append(option('', 'Choose how you verified'), option('customer_contact', 'Confirmed with customer'), option('model_label', 'Checked model label'), option('site_visit', 'Checked during site visit'));
     verification.value = request.quote?.verificationMethod || '';
     grid.append(field('Brand *', brand, 'Confirm the brand with the customer or unit label.'));
-    grid.append(field('Model number *', model, 'Confirm the model before sending a quote. It is required for booking.'));
+    grid.append(field(isRepair ? 'Model number (optional)' : 'Model number *', model, isRepair ? 'Add the model if it can be read from the unit label.' : 'Confirm the model before sending a quote. It is required for booking.'));
     if (type.required) grid.append(field('Aircon type *', type));
     if (needsHp) grid.append(field(isRepair || kind === 'aircon' ? 'Aircon capacity (HP) *' : 'Compressor HP *', hp));
     const repairType = text('input'); repairType.type = 'text'; repairType.maxLength = 80; repairType.required = isRepair;
@@ -292,7 +292,7 @@
       try { pricing = isRepair ? { unitPrice: request.quote?.unitPrice ?? request.repair?.inspectionFee } : A.price(catalog, { applianceKind: kind, brand: brand.value.trim() || 'Price preview', airconType: type.value, hp: hp.value || null }); } catch (_) {}
       price.textContent = pricing ? `${pesos(pricing.unitPrice * Number(request.quantity))} total · ${pesos(pricing.unitPrice)} per unit` : 'Choose the verified type and HP';
       validateModel();
-      submit.disabled = !brand.value.trim() || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim()) || !model.value.trim() || Boolean(model.validationMessage) || !verification.value || !pricing || (type.required && !type.value) || (needsHp && !hp.value) || (isRepair && !repairType.value.trim());
+      submit.disabled = !brand.value.trim() || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(brand.value.trim()) || (model.required && !model.value.trim()) || Boolean(model.validationMessage) || !verification.value || !pricing || (type.required && !type.value) || (needsHp && !hp.value) || (isRepair && !repairType.value.trim());
     };
     const updateTiers = preferredHp => {
       hp.replaceChildren(option('', 'Choose HP'));

@@ -146,7 +146,7 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
     for (let index = 0; index < parsedServices.length; index += 1) {
       const service = parsedServices[index];
       if (!service || typeof service !== 'object' || Array.isArray(service)) return res.status(400).json({ error: 'Choose valid service details.' });
-      const modelResult = validateRepairModel(service?.model, { required: service?.type === 'repair' });
+      const modelResult = validateRepairModel(service?.model);
       if (!modelResult.valid) {
         return res.status(400).json({ error: `Service ${index + 1}: ${modelResult.error}` });
       }
@@ -1213,7 +1213,7 @@ async function validatedServiceItems(inputItems, booking) {
 
   return Promise.all(contexts.map(async ({ input, type, prior }) => {
     const Catalog = type === "repair" ? RepairService : CoreService;
-    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "", { required: type === 'repair' && (!prior || Boolean(prior.model)) });
+    const modelResult = validateRepairModel(Object.hasOwn(input, "model") ? input.model : prior?.model || "");
     if (!modelResult.valid) {
       const error = new Error(modelResult.error);
       error.status = 400;
@@ -1615,7 +1615,7 @@ router.post('/create-repair', (req, res, next) => {
     repairItems.forEach((item, index) => {
       if (item.unitType.length < 2) errors.push(`Appliance ${index + 1}: unit type is required`);
       if (item.brand.length < 2 || item.brand.length > 80 || /^(i don.t know|unknown|__unknown__|__other__)$/i.test(item.brand)) errors.push(`Appliance ${index + 1}: confirm the brand or ask staff to identify the unit before booking`);
-      const modelResult = validateRepairModel(item.model, { required: true });
+      const modelResult = validateRepairModel(item.model);
       if (!modelResult.valid) errors.push(`Appliance ${index + 1}: ${modelResult.error}`);
       else item.model = modelResult.value;
       if (item.problemDescription.length < 10) errors.push(`Appliance ${index + 1}: problem description must be at least 10 characters`);

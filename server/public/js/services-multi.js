@@ -458,7 +458,7 @@ function selectedUnitTotal() {
 }
 function repairModelValidationMessage(value) {
   const model = String(value || '').trim();
-  if (!model) return 'Model number is required.';
+  if (!model) return '';
   if (model.length > REPAIR_MODEL_MAX_LENGTH) return `Model number must be ${REPAIR_MODEL_MAX_LENGTH} characters or fewer.`;
   if (!SAFE_REPAIR_MODEL_PATTERN.test(model)) return 'Use letters, numbers, spaces, and . - _ / # ( ) + only.';
   return '';
@@ -8865,8 +8865,8 @@ function showServiceConfigurationModal(modalElement) {
   if (typeof bootstrap === 'undefined') return showModalError('The booking dialog could not load. Refresh this page and try again.');
   const body = modalElement.querySelector('.modal-body');
   if (body && !modalElement.querySelector('#legacyCoreModel')) {
-    const label = document.createElement('label'); label.className = 'form-label d-block mb-3'; label.textContent = 'Model number *';
-    const input = document.createElement('input'); input.id = 'legacyCoreModel'; input.className = 'form-control'; input.required = true; input.maxLength = 50; input.placeholder = 'Shown on the appliance label';
+    const label = document.createElement('label'); label.className = 'form-label d-block mb-3'; label.textContent = 'Model number (optional)';
+    const input = document.createElement('input'); input.id = 'legacyCoreModel'; input.className = 'form-control'; input.required = false; input.maxLength = 50; input.placeholder = 'Shown on the appliance label';
     label.appendChild(input); body.prepend(label);
   }
   const modelInput = modalElement.querySelector('#legacyCoreModel');
@@ -14853,7 +14853,7 @@ function syncRepairUnitHelp() {
   ['unitBrand', 'unitBrandCustom', 'unitModel'].forEach(id => {
     const input = document.getElementById(id);
     input.disabled = assisted;
-    input.required = !assisted && (id !== 'unitBrandCustom' || document.getElementById('unitBrand').value === '__other__');
+    input.required = !assisted && id !== 'unitModel' && (id !== 'unitBrandCustom' || document.getElementById('unitBrand').value === '__other__');
     if (assisted) { input.setCustomValidity(''); input.removeAttribute('aria-invalid'); }
   });
   document.getElementById('repairAddButton').textContent = repairNeedsIdentification() ? 'Review staff identification request' : 'Add Repair Request';
@@ -14964,7 +14964,7 @@ function refreshRepairGuide(activeStep = getRepairGuideStep()) {
     1: 'Step 1 of 5: Choose the appliance that needs repair.',
     2: 'Step 2 of 5: Choose the appliance type.',
     3: getSelectedRepairBrand()
-      ? 'Step 3 of 5: Enter the model number and check the number of units, then continue.'
+      ? 'Step 3 of 5: Add the model number if known and check the number of units, then continue.'
       : 'Step 3 of 5: Choose a brand or ask for help identifying the unit.',
     4: 'Step 4 of 5: Describe the problem. Choose any signs you noticed.',
     5: 'Step 5 of 5: Add a photo if you have one, or skip to review.'

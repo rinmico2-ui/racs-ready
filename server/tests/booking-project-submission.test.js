@@ -222,10 +222,10 @@ test('mixed core and repair groups share one combined project workload', async t
   assert.equal(calls.projects[0].unitGroups.length, 2); assert.equal(calls.projects[0].projectPhase, 'assessment');
 });
 
-test('repair bookings require models; core bookings omit them while both reject malformed supplied models', async t => {
+test('core and repair bookings accept optional models while both reject malformed supplied values', async t => {
   const f = fixture(t);
   for (const type of ['core', 'repair']) for (const model of [undefined, '', '   ', null, {}, ['TEST-123'], '<script>']) {
-    if (type === 'core' && (model == null || typeof model === 'string' && !model.trim())) continue;
+    if (model == null || typeof model === 'string' && !model.trim()) continue;
     const { code, body, calls } = await f.call({ services: [{ serviceId: 'core-id', type, quantity: 1, model }] });
     assert.equal(code, 400); assert.match(body.error, /model/i);
     assert.equal(calls.writes.length, 0); assert.equal(calls.capacity.length, 0); assert.equal(calls.windows.length, 0);
@@ -233,5 +233,7 @@ test('repair bookings require models; core bookings omit them while both reject 
   for (const model of [undefined, '', '   ', null]) {
     const result = await fixture(t, { duration: 60 }).call({ services: [{ serviceId: 'core-id', type: 'core', quantity: 1, unitPrice: 1000, model }], startTime: '08:00' });
     assert.equal(result.code, 201, result.body?.error); assert.equal(result.calls.writes[0].services[0].model, null);
+    const repair = await fixture(t).call({ services: [{ serviceId: 'repair-id', type: 'repair', brand: 'Carrier', model, name: 'Aircon repair', unitType: 'Split Aircon', hp: 1, quantity: 1, problemDescription: 'Aircon is not cooling properly' }], startTime: '08:00' });
+    assert.equal(repair.code, 201, repair.body?.error); assert.equal(repair.calls.writes[0].services[0].model, null);
   }
 });
