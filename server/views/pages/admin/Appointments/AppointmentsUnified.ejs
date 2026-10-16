@@ -1169,6 +1169,7 @@
         <button class="aj-pill" onclick="AU.Active.filterByStatus(this, 'on-the-way')"><span class="aj-pill-dot" style="background:#3b82f6;"></span><span class="aj-pill-text">En Route</span><span class="aj-pill-badge" id="pillOnWay">0</span></button>
         <button class="aj-pill" onclick="AU.Active.filterByStatus(this, 'arrived')"><span class="aj-pill-dot" style="background:#f59e0b;"></span><span class="aj-pill-text">Arrived</span><span class="aj-pill-badge" id="pillArrived">0</span></button>
         <button class="aj-pill" onclick="AU.Active.filterByStatus(this, 'in-progress')"><span class="aj-pill-dot" style="background:#8b5cf6;"></span><span class="aj-pill-text">In Progress</span><span class="aj-pill-badge" id="pillProgress">0</span></button>
+        <button class="aj-pill" onclick="AU.Active.filterByStatus(this, 'repair')"><span class="aj-pill-dot" style="background:#f97316;"></span><span class="aj-pill-text">Repairs</span><span class="aj-pill-badge" id="pillRepair">0</span></button>
       </div></div>
       <div class="row g-3 mb-4">
         <div class="col-lg-4 col-md-4">
@@ -1219,7 +1220,7 @@
                   <span class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0%</span>
                   <span class="kpi-percent-badge">Techs</span>
                 </div>
-                <small class="text-muted">On duty</small>
+                <small class="text-muted">Assigned to active jobs</small>
               </div>
               <div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);">
                 <i class="bi bi-people-fill text-white"></i>
@@ -1231,7 +1232,9 @@
       </div>
       <div class="au-table-card">
         <div class="au-table-header"><h6><i class="bi bi-list-ul me-2 text-primary"></i>Active Jobs</h6><span class="badge bg-primary" id="activeJobCount">0</span></div>
+        <div class="alert alert-danger m-3" id="activeLoadError" role="alert" hidden><span id="activeLoadErrorText"></span> <button type="button" class="btn btn-sm btn-outline-danger" onclick="AU.Active.load()">Try again</button></div>
         <div class="table-responsive workflow-record-table-shell"><table class="table rq-table mb-0 align-middle workflow-record-table"><thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Technician</th><th>Amount</th><th>Status</th><th class="text-center">Actions</th></tr></thead><tbody id="jobsContainer"><tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2"></div><div>Loading active jobs...</div></td></tr></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 p-3 border-top"><span class="small text-muted" id="activePageInfo"></span><div id="activePagination" class="d-flex gap-2" aria-label="Active jobs pages"></div></div>
       </div>
     </div>
 
@@ -3988,62 +3991,76 @@
 
   // â•â•â• ACTIVE â•â•â•
   AU.Active={};
-  var _actStatus='';
+  var _actStatus='',_actPage=1,_actRequest=0,_actController=null;
 
-  AU.Active.load=function(){
+  AU.Active.load=function(page){
+    _actPage=Math.max(1,Number(page)||_actPage);
+    var request=++_actRequest;
+    if(_actController)_actController.abort();
+    _actController=new AbortController();
     var searchEl=document.getElementById('activeSearchInput');
     var search=searchEl?searchEl.value:'';
-    Promise.all([
-      fetch(APPOINTMENTS_API+'/list?stage=active&status='+_actStatus+'&search='+encodeURIComponent(search)+'&limit=50').then(function(r){return r.json();}),
-      fetch(APPOINTMENTS_API+'/list?stage=active&limit=1000').then(function(r){return r.json();}).catch(function(){return{bookings:[]};})
-    ]).then(function(res){
-      AU.Active._updateCounts(res[1].bookings||[]);
-      var bookings=res[0].bookings||[];
-      if(_actStatus){ bookings=bookings.filter(function(b){return b.status===_actStatus;}); }
-      AU.Active.renderJobs(bookings);
-    }).catch(function(e){console.error(e);});
+    document.getElementById('activeLoadError').hidden=true;
+    return operationsFetchJson(APPOINTMENTS_API+'/list?stage=active&activeSummary=true&compact=true&status='+encodeURIComponent(_actStatus)+'&search='+encodeURIComponent(search)+'&limit=20&page='+_actPage,{signal:_actController.signal}).then(function(data){
+      if(request!==_actRequest)return;
+      if(data.pagination?.pages && _actPage>data.pagination.pages)return AU.Active.load(data.pagination.pages);
+      AU.Active._updateCounts(data.activeSummary||{});
+      AU.Active.renderJobs(data.bookings||[]);
+      AU.Active.renderPagination(data.pagination);
+    }).catch(function(error){
+      if(request!==_actRequest)return;
+      document.getElementById('activeLoadErrorText').textContent=error.message||'Could not load active jobs. Please try again.';
+      document.getElementById('activeLoadError').hidden=false;
+      if(document.getElementById('jobsContainer').querySelector('.spinner-border'))document.getElementById('jobsContainer').innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted">Active jobs could not be loaded.</td></tr>';
+    });
   };
 
-  AU.Active._updateCounts=function(bookings){
-    var counts={all:0,confirmed:0,'on-the-way':0,arrived:0,'in-progress':0};
-    bookings.forEach(function(b){counts.all++;if(counts[b.status]!==undefined)counts[b.status]++;});
-    document.getElementById('pillAll').textContent=counts.all;
-    document.getElementById('pillConfirmed').textContent=counts.confirmed;
-    document.getElementById('pillOnWay').textContent=counts['on-the-way'];
-    document.getElementById('pillArrived').textContent=counts.arrived;
-    document.getElementById('pillProgress').textContent=counts['in-progress'];
-    document.getElementById('activeStatTotal').textContent=counts.all;
-    document.getElementById('activeStatOngoing').textContent=counts['in-progress']+counts['on-the-way'];
-    document.getElementById('activeStatTechs').textContent=new Set(bookings.map(function(b){return b.technicianId;}).filter(Boolean)).size;
+  AU.Active._updateCounts=function(counts){
+    Object.entries({pillAll:'all',pillConfirmed:'confirmed',pillOnWay:'on-the-way',pillArrived:'arrived',pillProgress:'in-progress',pillRepair:'repair',activeStatTotal:'all',activeStatTechs:'technicians'}).forEach(function(entry){document.getElementById(entry[0]).textContent=counts[entry[1]]||0;});
+    document.getElementById('activeStatOngoing').textContent=(counts['in-progress']||0)+(counts['on-the-way']||0);
+    document.getElementById('tabActiveBadge').textContent=counts.all||'';
+  };
+
+  AU.Active.renderPagination=function(p){
+    p=p||{page:1,limit:20,total:0,pages:0};
+    _actPage=p.page;
+    document.getElementById('activeJobCount').textContent=p.total;
+    document.getElementById('activePageInfo').textContent='Showing '+(p.total?(p.page-1)*p.limit+1:0)+'-'+Math.min(p.page*p.limit,p.total)+' of '+p.total+' jobs';
+    document.getElementById('activePagination').innerHTML=p.pages>1?'<button type="button" class="btn btn-sm btn-outline-secondary" '+(p.page<=1?'disabled':'')+' onclick="AU.Active.load('+Math.max(1,p.page-1)+')">Previous</button><span class="small align-self-center">Page '+p.page+' of '+p.pages+'</span><button type="button" class="btn btn-sm btn-outline-secondary" '+(p.page>=p.pages?'disabled':'')+' onclick="AU.Active.load('+(p.page+1)+')">Next</button>':'';
   };
 
   AU.Active.filterByStatus=function(btn,status){
     _actStatus=status;
-    document.querySelectorAll('.aj-pill').forEach(function(p){p.classList.remove('active');});
+    document.querySelectorAll('#tab-active .aj-pill').forEach(function(p){p.classList.remove('active');});
     btn.classList.add('active');
-    AU.Active.load();
+    AU.Active.load(1);
   };
 
   AU.Active.renderJobs=function(bookings){
     var container=document.getElementById('jobsContainer');
     var countBadge=document.getElementById('activeJobCount');
     if(countBadge) countBadge.textContent=bookings?bookings.length:0;
-    if(!bookings||!bookings.length){container.innerHTML='<tr><td colspan="7" class="text-center py-5 text-muted"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No In Progress Jobs</h6><p>All clear \u2014 no jobs in this status</p></div></td></tr>';return;}
+    if(!bookings||!bookings.length){container.innerHTML='<tr><td colspan="7" class="text-center py-5 text-muted"><div class="au-empty-state"><div class="au-empty-state-icon"><i class="bi bi-lightning-charge"></i></div><h6>No matching active jobs</h6><p>Try All Active or a different search. Jobs awaiting technician acceptance appear in Waiting for Acceptance.</p></div></td></tr>';return;}
     container.innerHTML=bookings.map(function(b){
-      var dt=new Date(b.bookingDate).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var dt=b.bookingDate?new Date(b.bookingDate).toLocaleDateString('en-PH',{timeZone:'Asia/Manila',month:'short',day:'numeric'}):'Schedule pending';
       var sc=STATUS_CLASSES[b.status]||'st-pending';
       var svcName=b.service?b.service.name:((b.services&&b.services[0])?b.services[0].name:(b.serviceModel==='RepairService'||b.serviceType==='repair'?'Repair Service':'N/A'));
-      var techName=b.technician&&b.technician.name?b.technician.name:'';
+      var tech=bookingCurrentTechnician(b);
+      var techName=tech?.name||'';
+      var team=b.technicianId?(b.technicianTeam||[]):[];
+      var technicians=team.length?team.map(function(member){return '<div><strong>'+qEsc(member.name||'Technician')+'</strong><div class="small text-muted">'+(String(member.technicianId?._id||member.technicianId)===String(b.technicianId?._id||b.technicianId)?'Primary':'Supporting')+' / '+qEsc({pending:'Awaiting acceptance',accepted:'Accepted',declined:'Declined',expired:'Expired'}[member.status]||member.status||'Assigned')+'</div></div>';}).join(''):techName?'<strong>'+qEsc(techName)+'</strong>':'<span class="text-muted">Unassigned</span>';
       var ref=b.bookingReference||b.workOrderNumber||'N/A';
       var actions='<button class="btn btn-sm btn-primary" onclick="AU.Active.viewDetail(\''+b._id+'\')"><i class="bi bi-eye me-1"></i>View</button>';
       actions+='<button class="btn btn-sm btn-outline-info" onclick="AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);" title="Track"><i class="bi bi-geo-alt me-1"></i>Track</button>';
+      var needsResolution=bookingNeedsResolution(b);
+      if(needsResolution && APPOINTMENTS_CAN_RESOLVE)actions+='<a class="btn btn-sm btn-warning" href="'+qEsc(bookingResolutionUrl(b))+'">Resolve schedule</a>';
       return '<tr>'+
-        '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Active.viewDetail(\''+b._id+'\')">'+ref+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
-        '<td><strong>'+(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+(b.customer?b.customer.phone:'')+'</div></td>'+
-        '<td class="small">'+svcName+'</td>'+
-        '<td>'+(techName?'<strong>'+techName+'</strong>':'<span class="text-muted">Unassigned</span>')+'</td>'+
+        '<td><button class="btn btn-link p-0 text-decoration-none fw-bold workflow-record-ref" type="button" onclick="AU.Active.viewDetail(\''+b._id+'\')">'+qEsc(ref)+'</button><div class="small text-muted mt-1">'+dt+'</div></td>'+
+        '<td><strong>'+qEsc(b.customer?b.customer.name:'N/A')+'</strong><div class="small text-muted">'+qEsc(b.customer?b.customer.phone:'')+'</div></td>'+
+        '<td class="small">'+qEsc(svcName)+'</td>'+
+        '<td>'+technicians+'</td>'+
         '<td class="fw-bold text-nowrap">\u20B1'+(b.totalPrice||b.estimatedFee||0).toLocaleString()+'</td>'+
-        '<td><span class="st-badge '+sc+'">'+(STATUS_LABELS[b.status]||b.status)+'</span></td>'+
+        '<td><span class="st-badge '+sc+'">'+qEsc(STATUS_LABELS[b.status]||RQ_STATUS_LABELS[b.status]||b.status)+'</span>'+(needsResolution?'<div class="small text-danger mt-1">'+qEsc(bookingScheduleIssueLabel(b))+'</div>':'')+'</td>'+
         '<td><div class="d-flex flex-wrap justify-content-center gap-1">'+actions+'</div></td>'+
       '</tr>';
     }).join('');
@@ -4053,7 +4070,7 @@
     return AU.Pending.viewDetail(id,null,function(b,data,body,subtitle){
       var refText=b.bookingReference||b.workOrderNumber||'#'+b._id.toString().slice(-8).toUpperCase();
       document.getElementById('detailTitle').textContent='Job '+refText;
-      subtitle.textContent=refText;
+      subtitle.textContent=refText+' / '+bookingStatusLabel(b);
       var trackerSteps=[
         {key:'assigned',label:'Awaiting Acceptance',icon:'bi-hourglass-split'},
         {key:'confirmed',label:'Confirmed',icon:'bi-check-circle'},
@@ -4070,7 +4087,7 @@
         var isCurrent=step.key===b.status||(step.key==='confirmed'&&b.status==='scheduled');
         return '<div class="track-step '+(isDone?'done':'')+' '+(isCurrent?'current':'')+'"><div class="track-step-dot"><i class="bi '+step.icon+'"></i></div><span class="track-step-label">'+step.label+'</span></div>'+(i<trackerSteps.length-1?'<div class="track-step-line '+(isDone?'done':'')+'"></div>':'');
       }).join('')+'</div>';
-      body.innerHTML=trackerHTML+body.innerHTML;
+      body.innerHTML=(currentIdx>=0?trackerHTML:'')+body.innerHTML;
       var footer=document.createElement('div');footer.className='pm-footer';
       var trackHTML=(['in-progress','on-the-way','arrived','confirmed','scheduled'].indexOf(b.status)!==-1?'<button class="au-btn au-btn-primary" style="font-size:0.82rem;padding:8px 14px;" onclick="bootstrap.Modal.getInstance(document.getElementById(\'detailModal\')).hide();setTimeout(function(){AU.Active.trackOnMap(\''+b._id+'\');setTimeout(function(){if(window.startTrackingRefresh)startTrackingRefresh();},500);},300);"><i class="bi bi-geo-alt-fill me-1"></i>Track on Map</button>':'');
       footer.innerHTML=trackHTML+'<button class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>';
@@ -4341,7 +4358,7 @@
   var aqSearchEl=document.getElementById('aqSearchInput');
   if(aqSearchEl){var aqST;aqSearchEl.addEventListener('input',function(){clearTimeout(aqST);aqST=setTimeout(function(){AU.Queue.loadQueue(1);},300);});}
   var actSearchEl=document.getElementById('activeSearchInput');
-  if(actSearchEl){var actST;actSearchEl.addEventListener('input',function(){clearTimeout(actST);actST=setTimeout(function(){AU.Active.load();},400);});}
+  if(actSearchEl){var actST;actSearchEl.addEventListener('input',function(){clearTimeout(actST);actST=setTimeout(function(){AU.Active.load(1);},400);});}
 
   // ═══ EQUIPMENT ASSIGNMENT ═══
   AU.Equipment={_page:1,_search:'',_loading:false,_toolCache:[]};

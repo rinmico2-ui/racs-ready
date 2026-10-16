@@ -27,6 +27,7 @@ const { assignmentTimingState, isAssignmentWindowExpired, manilaDateKey, manilaD
 const { assertCompanyCapacity } = require('../utils/bookingPolicy');
 const { bookingCapacityLockKey, withOperationLock } = require('../utils/operationLock');
 const { listSortStages, bookingPendingFilters } = require('../utils/operationsListPolicy');
+const { activeBookingMatch, activeBookingSummary, activeBookingSummaryPipeline } = require('../utils/activeBookingPolicy');
 const { BOOKING_PHOTO_FIELDS, ASSIGNMENT_PHOTO_FIELDS, PAYMENT_PHOTO_FIELDS,
   exclude, currentAssignment, bookingPhotos } = require('../utils/operationsDetail');
 
@@ -166,6 +167,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
         status: 1, bookingDate: 1, preferredDate: 1, preferredTime: 1,
         selectedTimeLabel: 1, startTime: 1, endTime: 1, serviceDurationMinutes: 1,
         createdAt: 1, updatedAt: 1, paymentStatus: 1, totalPrice: 1, customerRating: 1,
+        archivedAt: 1, isProject: 1, sourceOrderId: 1,
       },
     }, {
       $facet: {
@@ -173,6 +175,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
           { $match: dateFilter },
           { $group: { _id: '$status', count: { $sum: 1 } } },
         ],
+        activeJobs: [{ $match: { ...activeBookingMatch(), ...dateFilter } }, { $count: 'count' }],
         todayBookings: [
           { $match: { createdAt: { $gte: todayStart, $lte: todayEnd } } },
           { $count: 'count' },
@@ -207,6 +210,7 @@ router.get('/flow-stats', requireRole(["admin", "secretary"]), async (req, res) 
       key,
       { ...stage, count: stage.statuses.reduce((sum, status) => sum + (statusCountMap.get(status) || 0), 0) },
     ]));
+    stats.ACTIVE_JOBS.count = dashboard.activeJobs?.[0]?.count || 0;
     const statusCounts = Object.fromEntries(allStatuses.map(status => [status, statusCountMap.get(status) || 0]));
     const todayBookings = dashboard.todayBookings?.[0]?.count || 0;
     const allTimeBookings = dashboard.allTimeBookings?.[0]?.count || 0;
@@ -251,6 +255,7 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     limit = Math.max(1, Math.min(parseInt(limit, 10) || 20, 100));
 
     let query = {};
+    const activeStage = ['active', 'active_jobs'].includes(String(stage || '').toLowerCase());
 
     // Stage-based filtering
     // "completed" includes both standard completed and repair-completed statuses
@@ -265,16 +270,8 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
       if (stageKey && FlowStages[stageKey]) {
         query.status = { $in: FlowStages[stageKey].statuses };
       }
-      // Exclude bookings from past dates in the active tab â€” these should
-      // have been expired/rescheduled by the overdue scheduler.
-      if (stageKey === 'ACTIVE_JOBS') {
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        if (!query.bookingDate) {
-          query.bookingDate = { $gte: todayStart };
-        }
-      }
     }
+    if (activeStage) query = activeBookingMatch(status);
     if (!query.status && status) {
       // Support comma-separated statuses (e.g., "awaiting_assignment,pending_reassignment")
       const statusList = status.split(',').map(s => s.trim()).filter(Boolean);
@@ -339,7 +336,8 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
         'totalPrice', 'estimatedFee', 'downpaymentAmount', 'paymentMethod', 'paymentStatus',
         'autoReschedulePending', 'priority', 'duration', 'createdAt', 'updatedAt',
         'isProject', 'projectScheduling.preferredStartDate',
-        'technicianId', 'proposedReschedule.status', 'proposedReschedule.date',
+        'technicianId', 'technicianTeam.technicianId', 'technicianTeam.name', 'technicianTeam.status',
+        'proposedReschedule.status', 'proposedReschedule.date',
         'rescheduleRequest.status', 'rescheduleRequest.requestedDate',
         'resolutionCases.issueType', 'resolutionCases.sourceStatus', 'resolutionCases.state',
       ];
@@ -354,12 +352,15 @@ router.get('/list', requireRole(["admin", "secretary"]), async (req, res) => {
     } else {
       pipeline.push({ $project: { _listDate: 0, _listUndated: 0, _listAmount: 0, _priorityRank: 0, completionProofFileId: 0 } });
     }
-    const [total, bookings] = await Promise.all([
+    const includeActiveSummary = activeStage && req.query.activeSummary === 'true';
+    const [total, bookings, activeTotals] = await Promise.all([
       BookingService.countDocuments(query),
       BookingService.aggregate(pipeline),
+      includeActiveSummary ? BookingService.aggregate(activeBookingSummaryPipeline({ ...query, status: activeBookingMatch().status })) : null,
     ]);
 
     res.json({
+      ...(includeActiveSummary ? { activeSummary: activeBookingSummary(activeTotals?.[0]) } : {}),
       bookings: bookings.map(booking => ({
         ...withBookingReviewState(booking),
         assignmentTiming: assignmentTimingState(booking),
