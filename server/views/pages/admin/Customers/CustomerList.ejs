@@ -1,6 +1,5 @@
 <%
   const resolvedCustomerApiBase = typeof customerApiBase === "string" ? customerApiBase : "/api/admin/customers";
-  const resolvedCustomerCanManage = typeof customerCanManage === "boolean" ? customerCanManage : true;
   const resolvedCustomerCanBlock = typeof customerCanBlock === "boolean" ? customerCanBlock : true;
   const resolvedCustomerCanUnblock = typeof customerCanUnblock === "boolean" ? customerCanUnblock : true;
 %>
@@ -246,7 +245,6 @@
 <script>
 (function(){
   const customerApiBase = <%- JSON.stringify(resolvedCustomerApiBase).replace(/</g, "\\u003c") %>;
-  const customerCanManage = <%- (JSON.stringify(resolvedCustomerCanManage)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   const customerCanBlock = <%- (JSON.stringify(resolvedCustomerCanBlock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   const customerCanUnblock = <%- (JSON.stringify(resolvedCustomerCanUnblock)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %>;
   var allCustomers = [];
@@ -550,9 +548,6 @@
           footer.innerHTML =
             (canAccountAction ? '<button class="btn ' + (c.blocked ? 'btn-success' : 'btn-outline-danger') + ' action-btn" data-action="' + (c.blocked ? 'unblock' : 'block') + '" data-id="' + c._id + '">' +
               '<i class="bi ' + (c.blocked ? 'bi-unlock' : 'bi-lock') + ' me-1"></i>' + (c.blocked ? 'Unblock Account' : 'Block Account') +
-            '</button>' : '') +
-            (customerCanManage && c.vip ? '<button class="btn btn-outline-warning action-btn" data-action="revoke_vip" data-id="' + c._id + '">' +
-              '<i class="bi bi-star me-1"></i>Revoke VIP' +
             '</button>' : '');
           if (customerApiBase === '/api/admin/customers') {
             var performanceLink = document.createElement('a');
