@@ -573,23 +573,13 @@ const EnterpriseCalendar = (() => {
           reasonText = holInfo.name;
           tooltipText = `Holiday: ${holInfo.name}`;
         } else if (availInfo && availInfo.availableSlots > 0) {
-          const now = new Date();
-          const currentMinutes = now.getHours() * 60 + now.getMinutes();
-          const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
-          const earliestMinutes = now.getMinutes() + minAdvance >= 60
-            ? (now.getHours() + Math.floor((now.getMinutes() + minAdvance) / 60)) * 60 + ((now.getMinutes() + minAdvance) % 60)
-            : currentMinutes + minAdvance;
-          const endOfDay = (typeof COMPANY_END_MINUTES !== 'undefined' && COMPANY_END_MINUTES) || 1020;
-          if (earliestMinutes >= endOfDay) {
-            cellClass += ' non-working';
-            reasonText = 'Closed Today';
-            tooltipText = 'Booking window for today has passed';
-          } else {
-            cellClass += availInfo.availableSlots <= 3 ? ' limited' : ' available';
-            clickable = true;
-            const count = availInfo.availableSlots;
-            tooltipText = `${count} start time${count !== 1 ? 's' : ''} available today`;
-          }
+          // The API already applies advance notice, configured work hours,
+          // holidays and capacity in Philippine time. A second browser cutoff
+          // must not hide a valid date using a hardcoded closing time.
+          cellClass += availInfo.availableSlots <= 3 ? ' limited' : ' available';
+          clickable = true;
+          const count = availInfo.availableSlots;
+          tooltipText = `${count} start time${count !== 1 ? 's' : ''} available today`;
         } else if (availInfo && availInfo.availableSlots === 0) {
           cellClass += ' full';
           reasonText = 'Fully booked';
