@@ -877,7 +877,8 @@ async function handleTimeSlots(req, res) {
       const activeStatuses = ['pending', 'payment_verified', 'awaiting_assignment', 'assigned', 'pending_reassignment', 'confirmed', 'scheduled', 'on-the-way', 'arrived', 'in-progress', 'repair_requested', 'inspection_scheduled', 'inspection_in_progress', 'repair_approved', 'ready_for_repair', 'repair_scheduled', 'repair_in_progress', 're-scheduled', 'reschedule-required', 'waiting-for-customer', 'no-show-reported', 'pending_inspection', 'awaiting_approval', 'waiting_parts', 'parts_reserved'];
 
       const existingBookings = await BookingService.find({
-        technicianId,
+        ...require('../utils/standardJobTeam').scope(technicianId),
+        ...(req._trustedExcludeBookingId ? { _id: { $ne: req._trustedExcludeBookingId } } : {}),
         bookingDate: { $gte: dayStart, $lte: dayEnd },
         status: { $in: activeStatuses },
       }).select('_id sourceOrderId startTime endTime serviceDurationMinutes travelTime').lean();
@@ -887,12 +888,15 @@ async function handleTimeSlots(req, res) {
         technicianId,
         status: { $in: ['accepted', 'en_route', 'on_site', 'in_progress', 'pending_acceptance'] },
         bookingDate: { $gte: dayStart, $lte: dayEnd },
+        ...(req._trustedExcludeBookingId ? { bookingId: { $ne: req._trustedExcludeBookingId } } : {}),
       }).select('startTime endTime serviceDurationMinutes').lean();
 
       // Build booked intervals
       const bookedIntervals = [];
+      const projectRows = await require('../utils/technicianProjectIntervals').technicianProjectIntervals(technicianId, requestedDateKey);
       const bufferTime = await getBufferMinutes();
       const orderRows = await loadActiveOrderCapacityRows(requestedDateKey, requestedDateKey, {
+        excludeOrderId: req._trustedExcludeOrderId,
         activeBookingIds: new Set(existingBookings.map(booking => String(booking._id))),
         activeLinkedOrderIds: new Set(existingBookings.map(booking => String(booking.sourceOrderId || '')).filter(Boolean)),
         bufferMinutes: bufferTime,
@@ -914,7 +918,7 @@ async function handleTimeSlots(req, res) {
         return NaN;
       }
 
-      for (const b of [...existingBookings, ...existingAssignments, ...orderRows.filter(row => String(row.technicianId || '') === String(technicianId))]) {
+      for (const b of [...existingBookings, ...existingAssignments, ...projectRows, ...orderRows.filter(row => String(row.technicianId || '') === String(technicianId))]) {
         const s = parseTimeStr(b.startTime);
         if (!Number.isFinite(s)) continue;
         const explicitEnd = parseTimeStr(b.endTime);
@@ -1042,7 +1046,7 @@ async function handleTimeSlots(req, res) {
       bookingDate: { $gte: dayStartUn, $lte: dayEndUn },
       status: { $in: activeStatues },
       ...(req._trustedExcludeBookingId ? { _id: { $ne: req._trustedExcludeBookingId } } : {}),
-    }).select('_id sourceOrderId technicianId startTime endTime serviceDurationMinutes travelTime').lean();
+    }).select('_id sourceOrderId technicianId technicianTeam startTime endTime serviceDurationMinutes travelTime').lean();
     const excludedBooking = req._trustedExcludeBookingId
       ? await BookingService.findById(req._trustedExcludeBookingId).select('sourceOrderId').lean()
       : null;
@@ -1085,7 +1089,7 @@ async function handleTimeSlots(req, res) {
     const techBookedIntervals = new Map(); // techId -> [{start, end}]
     const unassignedBookedIntervals = []; // each interval consumes one pooled technician
 
-    for (const b of [...dayBookings, ...orderRows]) {
+    for (const b of [...require('../utils/standardJobTeam').capacityRows(dayBookings), ...orderRows]) {
       const s = timeStrToMinutes(b.startTime);
       const e = bookingCapacityEnd(b);
       if (Number.isNaN(s) || !Number.isFinite(e) || e <= s) {

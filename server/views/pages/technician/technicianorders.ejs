@@ -3142,6 +3142,7 @@
       if(todayBadge) todayBadge.textContent = todayCount;
       updateKPIs(data.kpi||{});
       renderCurrentOrderView();
+      window.RACSJobTeams?.supportingOrders();
       if(_selectedId) {
         var found = _orders.find(o=>o._id===_selectedId);
         if(found) openDetailPanel(found);
@@ -3398,6 +3399,7 @@
     h += '</div></div></div>';
 
     document.getElementById('detailPanelContent').innerHTML = h;
+    window.RACSJobTeams?.display('order', o, document.getElementById('detailPanelContent'));
     document.getElementById('detailPanelContent').style.display = 'block';
     document.getElementById('detailPanelBody').scrollTop = 0;
     
@@ -3410,6 +3412,8 @@
       aHtml += '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule.</div>';
     } else if(scheduleRecovery) {
       aHtml += '<div class="alert alert-warning mb-0 py-2 px-3" role="status"><i class="bi bi-lock-fill me-2"></i><strong>Awaiting reschedule</strong> — Accept and En Route are locked until operations updates the customer schedule.</div>';
+    } else if(s === 'technician_assigned' && (o.technicianTeam || []).some(member => String(member.technicianId) === String(o.technicianId?._id || o.technicianId) && member.status === 'accepted')) {
+      aHtml += '<div class="alert alert-info mb-0">Your assignment is accepted. Waiting for the other team members before departure.</div>';
     } else if(s === 'technician_assigned') {
       aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
       aHtml += '<button class="to-btn to-btn-decline" data-action="decline" data-id="'+oid+'"><i class="bi bi-x-lg"></i>Decline</button>';

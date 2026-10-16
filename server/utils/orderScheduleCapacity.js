@@ -18,8 +18,9 @@ function orderCapacityInterval(order, bufferMinutes = 0) {
   const units = (order.items || []).reduce(
     (total, item) => total + Math.max(1, Number(item.quantity) || 1), 0,
   );
-  const workMinutes = order.fulfillmentType === "delivery_installation"
-    ? 60 * Math.max(1, units) : 60;
+  const remaining = Number(order.continuation?.remainingMinutes);
+  const workMinutes = order.continuation?.status === 'scheduled' && Number.isFinite(remaining) && remaining >= 15 && remaining <= 480
+    ? remaining : order.fulfillmentType === "delivery_installation" ? 60 * Math.max(1, units) : 60;
   const travelMinutes = Math.max(0, Number(order.routeDurationMin) || 30);
   const calculatedEnd = start + workMinutes + travelMinutes + Math.max(0, Number(bufferMinutes) || 0);
   const explicitEnd = timeParts.length > 1 ? parseAppointmentTime(timeParts[1]) : NaN;
@@ -58,7 +59,7 @@ async function loadActiveOrderCapacityRows(startDate, endDate, {
     fulfillmentType: { $in: ["delivery_only", "delivery_installation"] },
     status: { $in: ACTIVE_DELIVERY_STATUSES },
     "delivery.preferredDate": { $gte: queryStart, $lte: queryEnd },
-  }).select("_id bookingId technicianId fulfillmentType status delivery.preferredDate timeSlot items.quantity routeDurationMin").lean();
+  }).select("_id bookingId technicianId technicianTeam continuation fulfillmentType status delivery.preferredDate timeSlot items.quantity routeDurationMin").lean();
 
   const coveredBookingIds = new Set([...activeBookingIds].map(String));
   const coveredOrderIds = new Set([...activeLinkedOrderIds].map(String));
@@ -70,14 +71,15 @@ async function loadActiveOrderCapacityRows(startDate, endDate, {
     if (coveredOrderIds.has(String(order._id))
       || (order.bookingId && coveredBookingIds.has(String(order.bookingId)))) return [];
     const interval = orderCapacityInterval(order, bufferMinutes);
-    return [{
+    return require('./standardJobTeam').capacityRows([{
       _id: order._id,
       sourceOrderId: order._id,
       bookingDate: date,
       technicianId: order.technicianId || null,
+      technicianTeam: order.technicianTeam,
       startTime: interval.startTime,
       endTime: interval.endTime,
-    }];
+    }]);
   });
 }
 

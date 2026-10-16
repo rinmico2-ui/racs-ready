@@ -145,6 +145,18 @@ function presentOrderForRequest(req, order) {
     : presented;
 }
 
+async function respondToOrderTeam(req, res, decision) {
+  try {
+    const job = await Order.findById(req.params.id).lean();
+    if (!job || !require('../utils/standardJobTeam').members(job).length) return false;
+    const tech = await Technician.findOne({ user: req.user._id }).select('_id').lean();
+    if (!tech) { res.status(403).json({ error: 'Technician account not found.' }); return true; }
+    const result = await require('../utils/standardJobTeamService').createService().respond('order', job._id, tech._id, decision, req.body.reason);
+    await require('../utils/standardJobTeamService').publish({ source: 'order', ...result }, req).catch(() => {});
+    res.json({ success: true, order: presentOrderForRequest(req, result.job) }); return true;
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save your team response.' }); return true; }
+}
+
 // â”€â”€ Multer config for GCash receipt uploads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const gcashUploadDir = path.join(__dirname, "../public/uploads/gcash-receipts");
 if (!fs.existsSync(gcashUploadDir)) {
@@ -1165,8 +1177,7 @@ function emitOrderStatus(req, order, extra = {}) {
   };
   if (order.userId) io.to(`customer:${order.userId}`).emit("order:status-change", payload);
   io.to("admin-room").emit("order:status-change", payload);
-  const technicianId = order.technicianId?._id || order.technicianId;
-  if (technicianId) io.to(`tech:${technicianId}`).emit("order:status-change", payload);
+  for (const technicianId of require('../utils/standardJobTeam').ids(order)) io.to(`tech:${technicianId}`).emit("order:status-change", payload);
 }
 
 function orderKitTarget(order) {
@@ -1476,8 +1487,7 @@ router.get("/:id", authenticate, async (req, res) => {
     if (req.user.role === "technician") {
       const tech = await Technician.findOne({ user: req.user._id }).select("_id").lean();
       isAssignedTechnician = Boolean(
-        tech && order.technicianId &&
-        String(order.technicianId._id || order.technicianId) === String(tech._id)
+        tech && require('../utils/standardJobTeam').ids(order).includes(String(tech._id))
       );
     }
     if (!isOwner && !isStaff && !isAssignedTechnician) {
@@ -1580,6 +1590,7 @@ router.post("/:id/dispatch-ready", authenticate, requireRole(["admin", "secretar
  * POST /api/orders/:id/accept â€” Technician accepts their assigned order
  */
 router.post("/:id/accept", authenticate, requireRole("technician"), async (req, res) => {
+  if (await respondToOrderTeam(req, res, 'accept')) return;
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ error: "Order not found" });
@@ -1640,6 +1651,7 @@ router.post("/:id/accept", authenticate, requireRole("technician"), async (req, 
  * POST /api/orders/:id/decline â€” Technician declines their assigned order
  */
 router.post("/:id/decline", authenticate, requireRole("technician"), async (req, res) => {
+  if (await respondToOrderTeam(req, res, 'decline')) return;
   try {
     const { reason } = req.body;
     const order = await Order.findById(req.params.id);
@@ -1740,6 +1752,8 @@ router.patch("/:id/status", authenticate, async (req, res) => {
 
     let departureKit = null;
     if (status === "out_for_delivery") {
+      const teamState = require('../utils/standardJobTeam').readiness(order);
+      if (!teamState.ready) return res.status(409).json({ error: 'Every team member must accept before departure. ' + teamState.blockers.join('; '), code: 'TEAM_REVIEW_REQUIRED' });
       if (orderAttentionState(order).isPastDate) {
         return res.status(409).json({
           error: "This dispatch window has passed. Ask operations to confirm a new customer schedule before departure.",
@@ -2869,6 +2883,7 @@ router.post("/:id/requeue-assignment", authenticate, requireRole(["admin", "secr
  * Also creates BookingService for delivery_installation orders.
  */
 router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secretary"]), async (req, res) => {
+  if (Array.isArray(req.body.technicianIds)) return require('../utils/standardJobTeamService').assignmentResponse('order', req, res);
   try {
     const { id } = req.params;
     const { technicianId, scheduledDate, timeSlot, note, assignmentSource } = req.body;
@@ -2877,6 +2892,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.technicianTeam?.length) { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 
     // Use the scheduledDate if given, otherwise fall back to order's existing preferredDate

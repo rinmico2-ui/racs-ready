@@ -66,15 +66,15 @@ async function buildAssignmentPlan(bookings, options = {}) {
   const [schedules, leaves, existing, activeAssignments] = await Promise.all([
     TechnicianSchedule.find({ technicianId: { $in: techIds } }).lean(),
     LeaveRequest.find({ technicianId: { $in: techIds }, status:'approved', startDate:{ $lte:maxDate }, endDate:{ $gte:minDate } }).lean(),
-    BookingService.find({ technicianId:{ $in:techIds }, bookingDate:{ $gte:minDate,$lte:maxDate }, status:{ $in:ACTIVE_BOOKING_STATUSES } })
-      .select('_id technicianId bookingDate startTime endTime serviceDurationMinutes').lean(),
+    BookingService.find({ ...require('./standardJobTeam').scope({ $in:techIds }), bookingDate:{ $gte:minDate,$lte:maxDate }, status:{ $in:ACTIVE_BOOKING_STATUSES } })
+      .select('_id technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes').lean(),
     Assignment.find({technicianId:{$in:techIds},status:{$in:['pending_acceptance','accepted','en_route','on_site','in_progress']}}).select('technicianId').lean(),
   ]);
   const activeLoad=new Map();activeAssignments.forEach(a=>activeLoad.set(String(a.technicianId),(activeLoad.get(String(a.technicianId))||0)+1));
   const scheduleMap = new Map(schedules.map(s => [String(s.technicianId),s]));
   const allocations = new Map();
   techIds.forEach(id => allocations.set(String(id), []));
-  existing.forEach(b => allocations.get(String(b.technicianId))?.push({ ...bookingWindow(b), date:dateKey(b.bookingDate), bookingId:String(b._id), planned:false }));
+  require('./standardJobTeam').capacityRows(existing).forEach(b => allocations.get(String(b.technicianId))?.push({ ...bookingWindow(b), date:dateKey(b.bookingDate), bookingId:String(b._id), planned:false }));
 
   const result = [];
   for (const booking of rows) {
@@ -145,6 +145,10 @@ async function buildAssignmentPlan(bookings, options = {}) {
 async function createReviewedAssignment(bookingId, technicianId, actor, responseMinutes=30) {
   const booking=await BookingService.findById(bookingId);
   if (!booking || !['awaiting_assignment','pending_reassignment'].includes(booking.status)) throw new Error('Booking is no longer awaiting assignment');
+  if (booking.technicianTeam?.length) {
+    const result = await require('./standardJobTeamService').createService().assign('booking', bookingId, { technicianId: String(technicianId), technicianIds: [String(technicianId)] }, actor);
+    return { booking: result.job, assignment: result.assignment, technician: await Technician.findById(technicianId).lean() };
+  }
   if (isAssignmentWindowExpired(booking)) throw new Error('The technician-assignment window has expired. Please reschedule to a future date/time first.');
   const fresh=(await buildAssignmentPlan([booking],{reservePlan:false}))[0];
   const candidate=fresh?.candidates?.find(c=>c.technicianId===String(technicianId));

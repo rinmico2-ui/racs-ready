@@ -74,12 +74,12 @@ async function buildSchedulingContext(project, options={}) {
     TechnicianSchedule.find({technicianId:{$in:teamIds}}).lean(),
     LeaveRequest.find({technicianId:{$in:teamIds},status:"approved",startDate:{$lte:horizon},endDate:{$gte:start}}).lean(),
     NonWorkingDay.find({service:null,date:{$gte:start,$lte:horizon},active:{$ne:false}}).lean(),
-    BookingService.find({...(project.bookingId?{_id:{$ne:project.bookingId}}:{}),technicianId:{$in:teamIds},'continuation.status':{$ne:'pending'},bookingDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_BOOKINGS}}).select("technicianId bookingDate startTime endTime serviceDurationMinutes travelDurationMinutes bookingReference service.name").lean(),
+    BookingService.find({...(project.bookingId?{_id:{$ne:project.bookingId}}:{}),...require('./standardJobTeam').scope({$in:teamIds}),'continuation.status':{$ne:'pending'},bookingDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_BOOKINGS}}).select("technicianId technicianTeam bookingDate startTime endTime serviceDurationMinutes travelDurationMinutes bookingReference service.name").lean(),
     DailyAssignment.find({technicianId:{$in:teamIds},projectId:{$ne:project._id},planningOnly:{$ne:true},date:{$gte:start,$lte:horizon},status:{$ne:"skipped"}}).select("technicianId date startTime endTime allocatedMinutes workOrderId").lean(),
     EquipmentAssignment.find({projectId:{$ne:project._id},workDate:{$gte:start,$lte:horizon},status:{$in:ACTIVE_EQUIPMENT}}).select("equipmentId equipmentName workDate quantity").lean(),
     Tool.find({active:{$ne:false}}).select("_id itemName quantity reservedQuantity").lean(),
   ]);
-  return {start,target,horizon,teamIds:teamIds.map(String),schedules,leaves,holidays,bookings,otherAssignments,equipmentAssignments,tools};
+  return {start,target,horizon,teamIds:teamIds.map(String),schedules,leaves,holidays,bookings:require('./standardJobTeam').capacityRows(bookings),otherAssignments,equipmentAssignments,tools};
 }
 
 async function generateProjectSchedule(project, options={}) {

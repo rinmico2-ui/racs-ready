@@ -7006,6 +7006,8 @@
 
     function getWizardPageActions(pageId, a, allowMixedRepairActions = false) {
       if (!a) return '';
+      if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.assignmentActions(a);
+      if (a.status === 'accepted' && window.RACSJobTeams && !RACSJobTeams.ready(a.technicianTeam || a.bookingId?.technicianTeam)) return '<div class="alert alert-info mb-0">Waiting for every team member to accept. The whole team must accept before departure.</div>';
       if ((a.continuation || a.bookingId?.continuation)?.status === 'pending') return '<div class="alert alert-warning mb-0">This visit ended. Operations is arranging the next schedule. Completed work and payments remain recorded.</div>';
       const actions = getWizardPageActionsForVisit(pageId, a, allowMixedRepairActions);
       const canContinue = a.status === 'in_progress' && ['overview', 'core-service', 'repair-service', 'repair', 'inspection'].includes(pageId) && !actions.includes('data-continuation-request');
@@ -8557,6 +8559,7 @@ ${isRepair ? `
     };
 
     function renderCard(a, isCurrentJob) {
+      if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.supportCard(a);
       const date = a.bookingDate ? new Date(a.bookingDate).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const isToday = a.bookingDate && new Date(a.bookingDate).toDateString() === today.toDateString();
@@ -11987,6 +11990,7 @@ function preparationEscapeHtml(value) {
         } else {
           contentEl.innerHTML = panelsHtml;
         }
+        window.RACSJobTeams?.display('booking', a.bookingId, contentEl);
         if (activeTabBeforeRefresh && visiblePages.includes(activeTabBeforeRefresh)) {
           switchDetailTab(activeTabBeforeRefresh);
         } else {

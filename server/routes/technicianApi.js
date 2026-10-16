@@ -231,6 +231,8 @@ router.use((req, res, next) => {
   res.json = (payload) => sendJson(presentTechnicianApiPayload(payload));
   next();
 });
+router.use('/assignments/:id', require('../utils/standardTeamMiddleware'));
+router.use(['/appointments/:id', '/bookings/:id', '/repairs/:id'], require('../utils/standardTeamMiddleware').booking);
 
 router.get('/relocation-work-order/:bookingId', async (req, res, next) => {
   try {
@@ -3052,12 +3054,13 @@ router.get("/assignments", async (req, res, next) => {
     const BookingService = require("../models/BookingService");
     const bookingIds = items.map(a => a.bookingId).filter(Boolean);
     const bookings = await BookingService.find({ _id: { $in: bookingIds } })
-      .select("bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo maintenance.paymentOnSite")
+      .select("technicianId technicianTeam bookingReference workOrderNumber paymentMethod paymentStatus amountPaid balanceAmount balanceCollected downpaymentAmount totalPrice estimatedFee isMultiService services service status serviceType initialCost travelFare inspectionFeeCollected repairPaymentCollected repairPaymentAmount quotation airconType airconTypeName hp hpDescription quantity notes address location customerLocation serviceDurationMinutes description features customer.name customer.phone customer.address unitInfo maintenance.paymentOnSite")
       .lean();
     const bookingMap = new Map(bookings.map(b => [String(b._id), b]));
     for (const item of items) {
       const bk = bookingMap.get(String(item.bookingId));
       if (bk) {
+        item.technicianTeam = (bk.technicianTeam || []).map(row => ({ name: row.name, technicianId: row.technicianId, status: row.status, role: String(row.technicianId) === String(bk.technicianId) ? 'primary' : 'support' }));
         item.paymentMethod = bk.paymentMethod;
         item.paymentOnSite = bk.maintenance?.paymentOnSite === true;
         item.paymentStatus = bk.paymentStatus;
@@ -5420,6 +5423,7 @@ router.post("/available-jobs/:bookingId/accept", async (req, res, next) => {
 
     const booking = await BookingService.findById(bookingId);
     if (!booking) return res.status(404).json({ error: "Booking not found" });
+    if (booking.technicianTeam?.length) return res.status(409).json({ error: "Operations must review and reassign this technician team before work resumes.", code: "TEAM_REVIEW_REQUIRED" });
     if (booking.status !== "pending_reassignment") {
       return res.status(400).json({ error: "This booking is no longer available for acceptance." });
     }

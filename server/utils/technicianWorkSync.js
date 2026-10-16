@@ -3,7 +3,7 @@ const { manilaDateKey, parseAppointmentTime } = require("./bookingDateTime");
 const ref = value => String(value?._id || value || "");
 const HISTORY_STATUSES = new Set(["completed", "cancelled", "declined", "no_show", "no_show_reported", "expired"]);
 const UNAVAILABLE_BOOKING_STATUSES = new Set(["cancelled", "rejected", "closed", "expired", "completed", "repair_completed", "repair_declined", "reschedule-required", "reschedule_required", "re-scheduled", "pending_reassignment", "no-show", "no-show-reported", "no_show", "no_show_reported"]);
-const BOOKING_WORK_SELECT = "status archivedAt isProject sourceOrderId technicianId assignmentId bookingDate startTime repairSchedule services._id services.status services.technicianId services.assignmentId services.schedule";
+const BOOKING_WORK_SELECT = "status archivedAt isProject sourceOrderId technicianId assignmentId technicianTeam bookingDate startTime repairSchedule services._id services.status services.technicianId services.assignmentId services.schedule";
 
 function assignmentWorkDecision(assignment, booking, { includeProjects = false } = {}) {
   if (!booking) return { current: false, reason: "Booking no longer exists." };
@@ -12,12 +12,14 @@ function assignmentWorkDecision(assignment, booking, { includeProjects = false }
   if (!includeProjects && (booking.isProject || assignment.serviceType === "project")) return { current: false, reason: "Project work is managed in Projects." };
   if (HISTORY_STATUSES.has(assignment.status)) return { current: true, historical: true };
   if (UNAVAILABLE_BOOKING_STATUSES.has(booking.status)) return { current: false, reason: "Staff changed this booking. Refresh your jobs to see the current schedule." };
+  const teamMember = require('./standardJobTeam').member(booking, assignment.technicianId);
+  const teamAssignment = teamMember && ref(teamMember.assignmentId) === ref(assignment._id);
   const item = (booking.services || []).find(item =>
     (!assignment.serviceItemId || ref(item._id) === ref(assignment.serviceItemId))
     && ref(item.assignmentId) === ref(assignment._id) && ref(item.technicianId) === ref(assignment.technicianId));
   if (assignment.serviceItemId && !item) return { current: false, reason: "This service item was reassigned." };
   if (item && ["cancelled", "repair_declined", "completed", "repair_completed"].includes(item.status)) return { current: false, reason: "This service item is no longer active." };
-  if (!item && ((booking.assignmentId !== undefined && ref(booking.assignmentId) !== ref(assignment._id))
+  if (!item && !teamAssignment && ((booking.assignmentId !== undefined && ref(booking.assignmentId) !== ref(assignment._id))
     || (booking.technicianId !== undefined && ref(booking.technicianId) !== ref(assignment.technicianId)))) {
     return { current: false, reason: "This booking is no longer assigned to you." };
   }

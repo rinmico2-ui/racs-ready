@@ -42,6 +42,7 @@ const assignmentSchema = new mongoose.Schema(
       index: true,
     },
     serviceItemId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
+    crewRole: { type: String, enum: ['primary', 'support'], default: 'primary' },
     continuation: { type: require('../utils/workContinuationSchema')(mongoose), default: undefined },
 
     technicianId: {

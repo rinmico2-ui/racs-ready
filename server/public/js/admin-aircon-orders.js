@@ -1312,6 +1312,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       modalBody.innerHTML = html;
+      window.RACSJobTeams?.display('order', o, modalBody, true);
 
       let footerBtns = '';
       const isPickup = o.fulfillmentType === 'customer_pickup';
@@ -1661,7 +1662,17 @@ document.addEventListener("DOMContentLoaded", function () {
     '</div>';
   }
 
-  window._aoAssignTechnician = function (orderId, orderRefText, customerName, prefDate, prefTime) {
+  window._aoAssignTechnician = async function (orderId, orderRefText, customerName, prefDate, prefTime) {
+    if(window.RACSJobTeams) {
+      try {
+        const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not open this order.');
+        if (data.order?.fulfillmentType === 'delivery_installation' && !data.order.isProject) {
+          modal?.hide(); return RACSJobTeams.open('order',orderId,{onAssigned:()=>loadTab(currentTab)});
+        }
+      } catch (error) { return Swal.fire({ icon:'error', text:error.message }); }
+    }
     if (modal) modal.hide();
     _aoAssignTargetOrderId = orderId;
     _aoSelectedTechId = null;

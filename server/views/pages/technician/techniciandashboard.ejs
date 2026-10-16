@@ -815,6 +815,7 @@
   }
 
   function renderAssignmentCard(a, showActions, expenses) {
+    if (a.crewRole === 'support' && window.RACSJobTeams) return RACSJobTeams.supportCard(a);
     const statusColors = {
       pending_acceptance: 'bg-warning text-dark',
       accepted: 'bg-primary',

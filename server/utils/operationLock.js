@@ -72,7 +72,7 @@ function bookingCapacityLockKey(bookingDate) {
   }
   // Capacity conflicts cannot cross a calendar day in the current scheduler,
   // so day-level locking preserves parallelism across independent dates.
-  return `booking-capacity:${date.toISOString().slice(0, 10)}`;
+  return `booking-capacity:${require('./bookingDateTime').manilaDateKey(bookingDate)}`;
 }
 
 module.exports = { bookingCapacityLockKey, withOperationLock };

@@ -282,6 +282,7 @@ test('repair assignment saves promptly without waiting for optional external AI 
   vm.runInNewContext(source.slice(begin,end),{
     router:{post(_path,_role,fn){handler=fn;}},requireRole:()=>()=>{},BookingService:{findById:async()=>booking},BookingStatus:statuses,Assignment,
     isAssignmentWindowExpired:()=>false,manilaDateKey:dates.manilaDateKey,manilaDateTime:dates.manilaDateTime,
+    bookingCapacityLockKey: () => 'synthetic-capacity-lease', withOperationLock: async (_key, work) => work(),
     generateRepairRecommendations:async()=>{aiCalls++;throw new Error('Slow external provider');},console:{log(){},error(){}},
     require(name){if(name==='../utils/assignmentPlanner')return{buildAssignmentPlan:async()=>[{candidates:[{technicianId:userId,name:'Technician'}]}]};if(name==='../models/Technician')return technicians;if(name==='../utils/availability')return{resolveAvailabilityStatus:async()=> 'Assigned'};if(name==='../utils/notify')return{createNotification:async()=>{}};if(name==='../models/User')return{findById:()=>({lean:async()=>null})};if(name==='../utils/mailer')return{};throw new Error(name);},
   });
