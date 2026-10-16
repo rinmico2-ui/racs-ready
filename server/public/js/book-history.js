@@ -605,7 +605,7 @@
 
   function modelValidationMessage(value) {
     const model = String(value || '').trim();
-    if (!model) return 'Model number is required.';
+    if (!model) return '';
     if (model.length > 50 || !/^[A-Za-z0-9][A-Za-z0-9 ._/#()+-]*$/.test(model)) return 'Use up to 50 letters, numbers, spaces, and . - _ / # ( ) + only.';
     return '';
   }

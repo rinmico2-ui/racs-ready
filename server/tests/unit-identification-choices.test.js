@@ -15,15 +15,15 @@ test('staff identification never submits stale hidden brand, model, type or HP a
   context.editingId=null; assert.equal(context.selection().model,'','new core selections discard the old hidden draft model');
 });
 
-test('help choices cannot skip selection; repairs require a model while core details do not',()=>{
-  const fields={kind:{value:'aircon'},quantity:{value:'2',validity:{valid:true}},brand:{value:'Carrier',validity:{valid:true}},model:{value:'',validity:{valid:false}},airconType:{validity:{valid:true}},hp:{validity:{valid:true}}};
+test('help choices cannot skip selection; optional repair models still validate supplied values',()=>{
+  const fields={kind:{value:'aircon'},quantity:{value:'2',validity:{valid:true}},brand:{value:'Carrier',validity:{valid:true}},model:{value:'',validity:{valid:true}},airconType:{validity:{valid:true}},hp:{validity:{valid:true}}};
   const context=vm.createContext({detailsUnknown:false,helpOpen:true,hooks:{repair:true},aircon:()=>true,available:()=>40,field:name=>fields[name],selection:()=>({brand:'Carrier'})});
   vm.runInContext(fn(core,'detailsValid','  function closeConfirmation('),context);
   assert.equal(context.detailsValid(),false);
   context.detailsUnknown=true; assert.equal(context.detailsValid(),true);
   fields.quantity.validity.valid=false; assert.equal(context.detailsValid(),false);
   context.detailsUnknown=false; context.helpOpen=false; fields.quantity.validity.valid=true;
-  assert.equal(context.detailsValid(),false); fields.model.validity.valid=true; assert.equal(context.detailsValid(),true);
+  assert.equal(context.detailsValid(),true); fields.model.validity.valid=false; assert.equal(context.detailsValid(),false);
   fields.model.validity.valid=false; context.hooks.repair=false; assert.equal(context.detailsValid(),true);
 });
 

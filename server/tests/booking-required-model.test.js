@@ -3,7 +3,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { validateRepairModel } = require('../utils/repairModelPolicy');
 const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 
-test('dedicated repair checkout rejects blank and structured model values in single and multi-appliance requests', async () => {
+test('dedicated repair checkout rejects unsafe or structured model values in single and multi-appliance requests', async () => {
   const source = read('routes/bookingRoutesNew.js'), start = source.indexOf("router.post('/create-repair'"), next = source.indexOf('\nrouter.', start + 1);
   let handler;
   vm.runInNewContext(source.slice(start, next < 0 ? source.indexOf('\nmodule.exports', start) : next), {
@@ -11,7 +11,7 @@ test('dedicated repair checkout rejects blank and structured model values in sin
     schedulingEngine: { MAX_BOOKING_UNITS: 40, LARGE_SCALE_MIN_UNITS: 8 }, validateRepairModel,
     require: () => require('../public/js/nueva-ecija-coverage'), getGcashRecipientNumber: async () => 'configured', console: { log() {}, error() {} },
   });
-  for (const model of [undefined, '', '   ', null, {}, ['MODEL-123']]) for (const multi of [false, true]) {
+  for (const model of [{}, ['MODEL-123'], '<script>', 'A'.repeat(51)]) for (const multi of [false, true]) {
     const item = { unitType: 'Split Aircon', brand: 'Carrier', quantity: 1, model, problemDescription: 'Aircon does not cool properly.' };
     const body = { ...item, address: 'Synthetic test site', lat: '15', lng: '121', paymentMethod: 'cod', ...(multi ? { serviceItems: JSON.stringify([{ ...item, model: 'VALID-123' }, item]) } : {}) };
     let status = 200, result;
@@ -21,7 +21,7 @@ test('dedicated repair checkout rejects blank and structured model values in sin
   }
 });
 
-test('repair steps cannot advance with a blank, whitespace-only or invalid model', () => {
+test('repair steps accept blank models but block invalid values when supplied', () => {
   const source = read('public/js/services-multi.js'), nodes = { unitType: { value: 'Split Aircon' }, unitModel: { value: '' }, repairUnitQuantity: { value: '1' }, repairProblemDescription: { value: 'Aircon does not cool properly.' } };
   const modelFunction = source.slice(source.indexOf('function repairModelValidationMessage('), source.indexOf('function isLargeScaleSelection('));
   const guideFunction = source.slice(source.indexOf('function getRepairGuideStep('), source.indexOf('function refreshRepairGuide('));
@@ -29,7 +29,8 @@ test('repair steps cannot advance with a blank, whitespace-only or invalid model
     selectedRepairUnitCategory: () => 'aircon', getSelectedRepairBrand: () => 'Carrier', remainingBookingUnits: () => 40,
     repairNeedsIdentification: () => false, repairIdentificationState: { mode: 'manual' } };
   vm.createContext(context); vm.runInContext(modelFunction + guideFunction, context);
-  for (const model of ['', '  ', '<script>', 'A'.repeat(51)]) { nodes.unitModel.value = model; assert.equal(context.getRepairGuideStep(), 3); }
+  for (const model of ['<script>', 'A'.repeat(51)]) { nodes.unitModel.value = model; assert.equal(context.getRepairGuideStep(), 3); }
+  for (const model of ['', '  ']) { nodes.unitModel.value = model; assert.equal(context.getRepairGuideStep(), 5); }
   nodes.unitModel.value = 'MODEL-123'; assert.equal(context.getRepairGuideStep(), 5);
 });
 

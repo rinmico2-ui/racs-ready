@@ -81,10 +81,10 @@ test('booking-history repair assistance links only an open booking owned by the 
   assert.equal(linkedBooking.status, 'pending', 'requesting help does not apply a booking change');
 });
 
-test('staff repair verification requires a known brand and model and prices only inspection from the live catalog', async t => {
+test('staff repair verification requires a known brand and prices only inspection from the live catalog', async t => {
   const send = await serverFixture(t); await send('/', payload());
   const quote = { brand: 'Carrier', model: 'MODEL-123', unitType: 'Washing Machine', verificationMethod: 'model_label', unitPrice: 1 };
-  for (const change of [{ brand: "I don't know" }, { model: '' }, { unitType: 'Not in catalog' }, { verificationMethod: 'injected' }]) {
+  for (const change of [{ brand: "I don't know" }, { model: '<script>' }, { unitType: 'Not in catalog' }, { verificationMethod: 'injected' }]) {
     assert.equal((await send(`/staff/${requestId}/quote`, { ...quote, ...change })).status, 400);
   }
   assert.equal(records[0].status, 'pending');
@@ -97,6 +97,13 @@ test('staff repair verification requires a known brand and model and prices only
   assert.equal((await send(`/mine/${requestId}/decision`, { decision: 'accept' }, '68a000000000000000000099')).status, 409);
   assert.equal((await send(`/mine/${requestId}/decision`, { decision: 'accept' })).status, 200);
   assert.equal(records[0].status, 'accepted');
+});
+
+test('staff can confirm a repair inspection without a model number', async t => {
+  const send = await serverFixture(t); await send('/', payload());
+  const result = await send(`/staff/${requestId}/quote`, { brand: 'Carrier', model: '', unitType: 'Washing Machine', verificationMethod: 'customer_contact' });
+  assert.equal(result.status, 200); assert.equal(records[0].model, '');
+  assert.equal(records[0].status, 'quoted');
 });
 
 test('a repair quote cannot be reused with altered appliance details, quantity, fee, owner status or expiry', () => {

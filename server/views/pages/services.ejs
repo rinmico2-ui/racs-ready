@@ -1,7 +1,7 @@
 <link rel="stylesheet" href="/css/core-appliance-booking.css?v=20261016-simple-unit-details">
 <script src="/js/relocation-booking-locations.js?v=20261013-guided-relocation"></script>
 <script src="/js/appliance-services.js?v=20261016-simple-unit-details"></script>
-<script src="/js/core-appliance-booking.js?v=20261016-simple-unit-details"></script>
+<script src="/js/core-appliance-booking.js?v=20261016-optional-repair-model"></script>
 <script src="/js/repair-appliance-booking.js?v=20261016-simple-unit-details"></script>
 <link rel="stylesheet" href="/css/customer-payment.css?v=20260925-qr-actions-v4">
 <% const serviceStats = (typeof publicStats === 'object' && publicStats) ? publicStats : { servicesCompleted:0, satisfactionPercentage:0, activeTechnicians:0, averageRating:0 }; %>
@@ -437,8 +437,8 @@
                             <input type="text" class="form-control rp-input mt-2 d-none" id="unitBrandCustom" placeholder="Enter the brand" maxlength="80" aria-label="Other brand" />
                           </div>
                           <div class="col-md-6">
-                            <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model number <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="Example: 42KDPV48" required maxlength="50" autocomplete="off" spellcheck="false" aria-describedby="repairModelHelp repairModelCount repairModelError" aria-errormessage="repairModelError" />
+                            <label class="form-label rp-field-label" for="unitModel"><i class="bi bi-upc me-2 text-primary"></i>Model number <span class="text-muted">(optional)</span></label>
+                            <input type="text" class="form-control rp-input" id="unitModel" placeholder="Example: 42KDPV48" maxlength="50" autocomplete="off" spellcheck="false" aria-describedby="repairModelHelp repairModelCount repairModelError" aria-errormessage="repairModelError" />
                             <div class="repair-model-meta"><small id="repairModelHelp">Up to 50 characters. Use letters, numbers, spaces, and . - _ / # ( ) + only.</small><small id="repairModelCount">0 / 50</small></div>
                             <div id="repairModelError" class="payment-inline-error d-none" role="alert" aria-live="polite"></div>
                           </div>
@@ -2766,7 +2766,7 @@ body{font-family:var(--sv-f);background:#f8fafc;min-height:100vh}
 <link rel="stylesheet" href="/css/repair-units.css?v=20261013">
 <script src="/js/repair-unit-entry.js?v=20261013"></script>
 <script>
-  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261016-schedule-switch':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
+  (function(){var s=document.getElementById('coreServiceCards')||document.getElementById('repairServiceCards');var e=document.createElement('script');e.src=s?'/js/services-multi.js?v=20261016-optional-repair-model':'/js/services.js?v=20260925-gcash-real-qr-v2';if(!s)e.type='module';document.head.appendChild(e)})();
 </script>
 
 <script>

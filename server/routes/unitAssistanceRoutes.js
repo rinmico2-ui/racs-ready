@@ -179,7 +179,7 @@ router.post('/staff/:id/quote', staff, async (req, res) => {
     if (request.status !== 'pending' && (!request.quote?.quotedAt || String(req.body.expectedQuotedAt || '') !== request.quote.quotedAt.toISOString())) {
       return res.status(409).json({ error: 'This quote changed while you were editing. Refresh the queue before updating it.' });
     }
-    const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model, { required: true });
+    const modelResult = require('../utils/repairModelPolicy').validateRepairModel(Object.hasOwn(req.body, 'model') ? req.body.model : request.model, { required: request.requestType !== 'repair' });
     if (!modelResult.valid) return res.status(400).json({ error: modelResult.error });
     const isRepair = request.requestType === 'repair';
     const catalog = isRepair ? null : await CoreService.findOne({ _id: request.serviceId, active: true }).lean();

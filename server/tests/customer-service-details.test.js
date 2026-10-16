@@ -36,7 +36,8 @@ test('the actual booking input validation accepts core services without a model 
   assert.equal(context.validate([{ type: 'core', quantity: 1, brand: 'Carrier' }])[0].model, '');
   const repair = { ...aircon, model: 'MODEL-123', brand: 'Carrier' };
   assert.equal(context.validate([repair])[0].hp, 1);
-  assert.throws(() => context.validate([{ ...repair, model: '' }]), /Model number is required/);
+  for (const model of [undefined, null, '', '  ']) assert.equal(context.validate([{ ...repair, model }])[0].model, '');
+  for (const model of [{}, ['MODEL-123'], '<script>', 'A'.repeat(51)]) assert.throws(() => context.validate([{ ...repair, model }]), /model number/i);
   assert.throws(() => context.validate([{ ...repair, quantity: 2 }]), /separately/);
   assert.throws(() => context.validate([{ ...repair, hp: null }]), /Choose the aircon HP/);
   assert.throws(() => context.validate([null]), /valid service details/);

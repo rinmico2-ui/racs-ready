@@ -28,6 +28,16 @@ test('booking edit preserves saved inspection prices, evidence and unit workflow
   assert.equal(f.lookups(), 0); assert.equal(previous.model, 'MODEL-123');
 });
 
+test('repair booking edits can clear the optional model and preserve omitted saved models', async () => {
+  const f = fixture(), previous = row(), booking = { services: [previous] };
+  const [cleared] = await f.normalize([{ ...previous, model: '' }], booking);
+  assert.equal(cleared.model, ''); assert.equal(cleared.unitPrice, previous.unitPrice);
+  const input = { ...previous }; delete input.model;
+  const [preserved] = await f.normalize([input], booking);
+  assert.equal(preserved.model, previous.model);
+  await assert.rejects(f.normalize([{ ...previous, model: '<script>' }], booking), /model number/i);
+});
+
 test('changing an unstarted repair appliance uses its catalog inspection fee instead of silently retaining the old type', async () => {
   const f = fixture(), previous = row();
   const [result] = await f.normalize([{ ...previous, unitType: 'Dryer', applianceType: 'Dryer' }], { services: [previous] });
