@@ -167,6 +167,7 @@ async function reconcileMissingAftercare(now = new Date()) {
   const [bookings, orders] = await Promise.all([
     BookingService.find({
       status: { $in: ["completed", "repair_completed"] },
+      'demonstration.batch': { $exists: false },
       sourceOrderId: null,
       customerId: { $ne: null },
       $or: [
@@ -177,6 +178,7 @@ async function reconcileMissingAftercare(now = new Date()) {
     }).sort({ updatedAt: -1 }).limit(250),
     Order.find({
       status: "completed",
+      'demonstration.batch': { $exists: false },
       userId: { $ne: null },
       $or: [{ completedAt: { $gte: cutoff } }, { updatedAt: { $gte: cutoff } }],
     }).sort({ updatedAt: -1 }).limit(250),

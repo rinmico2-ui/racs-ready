@@ -79,14 +79,14 @@ async function completionHistories(customerIds) {
   const ids = customerIds.map(id => new mongoose.Types.ObjectId(String(id)));
   const [bookings, orders] = await Promise.all([
     BookingService.aggregate([
-      { $match: { customerId: { $in: ids }, sourceOrderId: null, status: { $in: COMPLETED }, refundStatus: { $ne: 'completed' } } },
+      { $match: { customerId: { $in: ids }, sourceOrderId: null, 'demonstration.batch': { $exists: false }, status: { $in: COMPLETED }, refundStatus: { $ne: 'completed' } } },
       { $lookup: { from: Order.collection.name, localField: '_id', foreignField: 'bookingId', pipeline: [{ $project: { _id: 1 } }, { $limit: 1 }], as: 'orders' } },
       { $match: { 'orders.0': { $exists: false } } },
       { $project: { customerId: 1, serviceIds: { $setUnion: [{ $map: { input: { $ifNull: ['$services', []] }, as: 'service', in: { $toString: '$$service.serviceId' } } }, [{ $toString: '$serviceId' }]] } } },
       { $group: { _id: '$customerId', bookings: { $push: { serviceIds: '$serviceIds' } } } },
     ]),
     Order.aggregate([
-      { $match: { userId: { $in: ids }, status: 'completed', refundStatus: { $ne: 'completed' },
+      { $match: { userId: { $in: ids }, 'demonstration.batch': { $exists: false }, status: 'completed', refundStatus: { $ne: 'completed' },
         $expr: { $or: [{ $lte: [{ $ifNull: ['$productRefundAmount', 0] }, 0] }, { $lt: [{ $ifNull: ['$productRefundAmount', 0] }, { $max: [0, { $subtract: [{ $ifNull: ['$subtotal', { $sum: '$items.totalPrice' }] }, { $ifNull: ['$discount', 0] }] }] }] }] } } },
       { $group: { _id: '$userId', orders: { $sum: 1 } } },
     ]),

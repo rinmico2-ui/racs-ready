@@ -78,10 +78,10 @@ function sourceItems(sourceType, source) {
 async function customerSource(sourceType, sourceId, customerId) {
   if (!mongoose.Types.ObjectId.isValid(sourceId)) return null;
   if (sourceType === "booking") {
-    return BookingService.findOne({ _id: sourceId, customerId }).lean();
+    return BookingService.findOne({ _id: sourceId, customerId, 'demonstration.batch': { $exists: false } }).lean();
   }
   if (sourceType === "order") {
-    return Order.findOne({ _id: sourceId, userId: customerId }).lean();
+    return Order.findOne({ _id: sourceId, userId: customerId, 'demonstration.batch': { $exists: false } }).lean();
   }
   return null;
 }

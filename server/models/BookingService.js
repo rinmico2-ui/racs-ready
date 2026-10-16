@@ -1489,4 +1489,5 @@ bookingSchema.index({ status: 1, "slaTracking.resolutionAt": -1 }); // Legacy re
 bookingSchema.index({ customerRating: 1, updatedAt: -1 }); // For service-rating analytics and legacy review reconciliation
 bookingSchema.index({ technicianId: 1, customerRating: 1, updatedAt: -1 }); // For technician quality reporting
 
+bookingSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
 module.exports = mongoose.model("BookingService", bookingSchema);

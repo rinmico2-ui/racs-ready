@@ -187,6 +187,7 @@ async function upsertAsset(seed, values) {
 }
 
 async function syncMaintenanceFromBooking(booking, options = {}) {
+  if (booking?.demonstration?.batch) return [];
   if (!booking || !["completed", "repair_completed"].includes(String(booking.status))) return [];
   // Installation orders mirror progress onto a linked booking. The order owns
   // those aircons and their maintenance cycles; the mirror is not another unit.
@@ -284,6 +285,7 @@ async function syncMaintenanceFromBooking(booking, options = {}) {
 }
 
 async function syncMaintenanceFromOrder(order, options = {}) {
+  if (order?.demonstration?.batch) return [];
   if (!order || String(order.status) !== "completed") return [];
   const policy = options.policy || await getAftercarePolicy();
   if (!policy.maintenance.ordersEnabled) return [];

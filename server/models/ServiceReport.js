@@ -153,4 +153,5 @@ serviceReportSchema.virtual("badgeClass").get(function () {
   return classes[this.status] || "bg-secondary";
 });
 
+serviceReportSchema.add(require('../utils/demonstrationData').demonstrationFields(mongoose));
 module.exports = mongoose.model("ServiceReport", serviceReportSchema);
