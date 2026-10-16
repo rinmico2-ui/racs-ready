@@ -477,27 +477,29 @@ function bookingRequiresProjectSchedule() {
   const configuredHours = Number(window.__bookingPolicy?.largeProjectThresholdHours);
   const thresholdMinutes = (Number.isFinite(configuredHours) && configuredHours > 0 ? configuredHours : 8) * 60;
   const serviceMinutes = selectedServiceMinutes();
-  // Preserve a restored project's range until the current policy loads. Once
-  // the policy arrives, the selected work becomes the sole source of truth.
-  if (!Number.isFinite(configuredHours) && BookingState.isProject && BookingState.projectScheduling) return true;
   return serviceMinutes > thresholdMinutes;
 }
 
 let bookingScheduleServiceSignature = null;
+let bookingCalendarRenderId = 0;
 function reconcileBookingScheduleAfterServiceChange() {
-  const signature = JSON.stringify((BookingState.selectedServices || []).map(service => [
-    service.id || service._id || service.serviceId,
-    Number(service.quantity) || 1,
-    Number(service.duration) || (service.type === 'repair' ? 90 : 60),
-  ]));
   const hasPendingRelocationQuote = (BookingState.selectedServices || []).some(service =>
     service.relocation?.scope === 'custom_quote' && !service.relocation?.requestId);
   const requiresProject = !hasPendingRelocationQuote && bookingRequiresProjectSchedule();
+  const mode = hasPendingRelocationQuote ? 'preferred' : requiresProject ? 'project' : 'appointment';
+  const signature = JSON.stringify([mode, selectedServiceMinutes(), (BookingState.selectedServices || []).map(service => [
+    service.id || service._id || service.serviceId,
+    service.serviceId,
+    service.type,
+    Number(service.quantity) || 1,
+    Number(service.duration) || (service.type === 'repair' ? 90 : 60),
+  ])]);
   const changed = bookingScheduleServiceSignature !== null && bookingScheduleServiceSignature !== signature;
   const wrongMode = Boolean(BookingState.isProject || BookingState.projectScheduling) !== requiresProject &&
     Boolean(BookingState.selectedDate || BookingState.scheduleDate || BookingState.selectedTimeSlot || BookingState.projectScheduling);
   bookingScheduleServiceSignature = signature;
   if (!changed && !wrongMode) return;
+  bookingCalendarRenderId++;
   BookingState.selectedDate = null;
   BookingState.scheduleDate = null;
   BookingState.selectedTimeSlot = null;
@@ -505,7 +507,12 @@ function reconcileBookingScheduleAfterServiceChange() {
   BookingState.scheduleTime = null;
   BookingState.projectScheduling = null;
   BookingState.isProject = false;
+  BookingState.selectedServiceId = BookingState.selectedServices[0]?.serviceId || null;
+  // The calendar owns dates, preferences and in-flight availability checks too.
+  // Invalidate it before an old project response can repopulate this booking.
+  window.EnterpriseCalendar?.invalidate?.({ mode });
   document.getElementById('timeSelection')?.classList.add('d-none');
+  syncServiceScheduleCopy(hasPendingRelocationQuote);
   syncScheduleNextAction();
   scheduleBookingProgressSave();
 }
@@ -597,7 +604,7 @@ function initMultiServiceBooking() {
 
     // Initialize booking state (restores from localStorage if available)
     initializeBookingState();
-    reconcileBookingScheduleAfterServiceChange();
+    if (!BookingState.draftRestored || window.__bookingPolicy) reconcileBookingScheduleAfterServiceChange();
 
     // Load services catalog
     const catalogReady = loadServicesCatalog();
@@ -1848,6 +1855,7 @@ function showStep(stepNumber) {
     syncServiceScheduleCopy(customQuote);
     bookingDebug('🔧 Initializing Step 4 scheduling...');
     setTimeout(() => {
+      if (BookingState.currentStep !== 4) return;
       const manualCalendar = document.getElementById('manualCalendar');
       const suggestedWrapper = document.getElementById('suggestedDates');
 
@@ -1876,6 +1884,7 @@ function showStep(stepNumber) {
       const maxAttempts = 5;
 
       const tryLoad = () => {
+        if (BookingState.currentStep !== 4) return;
         attempts += 1;
         const serviceId = BookingState?.selectedServiceId;
         const hasSelectedServices = Array.isArray(BookingState?.selectedServices) && BookingState.selectedServices.length > 0;
@@ -4951,6 +4960,11 @@ function setupCalendarTypeSelection() {
 async function loadAvailableDates(modeOverride = null) {
   // Allow caller to force mode deterministically (fixes Step 5 auto-render)
   // modeOverride: 'manual' | 'ai-suggested' | null
+  // The enterprise calendar fetches current capacity itself. Avoid a second,
+  // older request reopening a calendar after the customer has changed services.
+  if (modeOverride === 'manual' || (!modeOverride && BookingState.calendarType === 'manual')) {
+    return renderManualCalendar();
+  }
 
   // Try to get technician and service from BookingState first, then from global state
   const technicianId = (typeof BookingState !== 'undefined' && BookingState.selectedTechnicianId) ||
@@ -12170,6 +12184,8 @@ async function renderAISuggestedDates() {
  * Render Manual Calendar with proper month view
  */
 async function renderManualCalendar() {
+  reconcileBookingScheduleAfterServiceChange();
+  const renderId = ++bookingCalendarRenderId;
   const manualContainer = document.getElementById('manualCalendar');
   const calendarGrid = document.getElementById('calendarGrid');
   const suggestedContainer = document.getElementById('suggestedDates');
@@ -12212,7 +12228,7 @@ async function renderManualCalendar() {
       // Initialize enterprise calendar with per-unit duration and total quantity
       // Backend will calculate: capacityPerSlot = (duration × quantity) + travelTime + bufferTime
       await EnterpriseCalendar.init({
-        serviceId: BookingState.selectedServiceId,
+        serviceId: BookingState.selectedServices[0]?.serviceId || null,
         duration: serviceDuration / totalQuantity,
         quantity: totalQuantity,
         totalEstimatedMinutes: totalEstimatedMinutes,
@@ -12223,6 +12239,7 @@ async function renderManualCalendar() {
         // action instead of moving the customer forward without a click.
         onSelect: () => syncScheduleNextAction()
       });
+      if (renderId !== bookingCalendarRenderId) return;
       // The policy arrives during calendar initialization. Rebuild once if
       // it changed the classification of a restored booking draft.
       if (!pendingRelocationQuoteItem() && EnterpriseCalendar.isProjectMode() !== bookingRequiresProjectSchedule()) {
@@ -12238,6 +12255,7 @@ async function renderManualCalendar() {
     }, 100);
 
   } catch (error) {
+    if (renderId !== bookingCalendarRenderId) return;
     console.error('❌ Error rendering manual calendar:', error);
     calendarGrid.innerHTML = `
       <div class="ent-calendar">
