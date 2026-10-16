@@ -15,6 +15,32 @@
     return `<div class="job-team-summary"><strong>Assigned technicians</strong>${rows.map(row => `<div><span>${escape(row.name)}</span><small>${row.role === 'primary' ? 'Primary' : 'Supporting'} · ${escape(statusLabel(row.status))}</small></div>`).join('')}</div>`;
   }
   function ready(rows) { return !rows?.length || rows.every(row => row.status === 'accepted'); }
+  function recommendation(row) {
+    const staffing = row.staffing || { recommendedCount: 1, reason: 'Review the technician schedule before assigning.' };
+    const crew = row.recommendedTeam || (row.recommended ? [row.recommended] : []);
+    return `<div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended crew: ${escape(staffing.recommendedCount)} technician${staffing.recommendedCount === 1 ? '' : 's'}</div><p class="small text-muted mb-2 mt-1">${escape(staffing.reason)}</p>${crew.length ? crew.map((person, index) => `<div class="small"><strong>${escape(person.name)}</strong> <span class="text-muted">${index ? 'Supporting' : 'Primary'}</span></div>`).join('') + '<div class="small text-success mt-1">Available together for this appointment. Availability is checked again when assigning.</div>' : `<div class="small text-warning" role="status">${escape(row.issue || 'No complete crew is available. Review staffing or choose another schedule.')}</div>`}`;
+  }
+  function planPicker(row) {
+    if (!row.recommended) return recommendation(row);
+    const crew = row.recommendedTeam || [row.recommended];
+    return `<fieldset data-plan-picker><legend class="fs-6">${crew.length} technician${crew.length === 1 ? '' : 's'} recommended</legend><p class="small text-muted mb-2">${escape(row.staffing?.reason || '')} Uncheck everyone to skip this job.</p><div class="job-team-list" style="max-height:180px;overflow:auto">${(row.candidates || []).map(person => `<label class="job-team-person"><input type="checkbox" data-plan-member value="${escape(person.technicianId)}" ${crew.some(member => member.technicianId === person.technicianId) ? 'checked' : ''}><span>${escape(person.name)}<small>Score ${escape(person.score)}</small></span></label>`).join('')}</div><label class="small mt-2">Primary technician<select class="form-select form-select-sm" data-plan-primary>${crew.map(person => `<option value="${escape(person.technicianId)}">${escape(person.name)}</option>`).join('')}</select></label><div class="small text-danger mt-1" data-plan-error role="alert"></div></fieldset>`;
+  }
+  function planRow(row, index) {
+    const booking = !!row.bookingId, reference = row.bookingReference || row.orderReference || row.bookingId || row.orderId;
+    const date = new Date(row.bookingDate || row.scheduledDate), dateLabel = Number.isNaN(date.getTime()) ? 'Schedule needs review' : date.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', year: 'numeric', month: 'short', day: 'numeric' });
+    return `<article class="border rounded-3 p-3 mb-3" data-plan-index="${index}"><div class="row g-3"><div class="col-lg-4"><div class="small text-muted text-uppercase">${booking ? 'Booking' : 'Order'}</div><strong class="d-block">${escape(reference)}</strong><div class="small mt-1">${escape(row.customerName)}</div>${row.serviceName ? `<div class="small text-muted">${escape(row.serviceName)}</div>` : ''}<div class="small mt-2">${escape(dateLabel)}<br>${escape(row.startTime || row.timeSlot || '')} PHT</div></div><div class="col-lg-8">${planPicker(row)}</div></div></article>`;
+  }
+  function planSelection(container, row) {
+    const checked = [...container.querySelectorAll('[data-plan-member]:checked')].map(input => input.value);
+    const primary = container.querySelector('[data-plan-primary]');
+    if (!primary) return null;
+    const previous = primary.value;
+    primary.innerHTML = (row.candidates || []).filter(person => checked.includes(person.technicianId)).map(person => `<option value="${escape(person.technicianId)}">${escape(person.name)}</option>`).join('');
+    primary.value = checked.includes(previous) ? previous : checked[0] || '';
+    const invalid = checked.length && (checked.length < (row.staffing?.recommendedCount || 1) || checked.length > 10);
+    container.querySelector('[data-plan-error]').textContent = invalid ? `Select at least ${row.staffing?.recommendedCount || 1} technicians (up to 10), or uncheck everyone to skip.` : '';
+    return checked.length ? { technicianId: primary.value, technicianIds: checked, invalid: !!invalid } : null;
+  }
   let modal, requestId = 0;
   async function open(source, id, options = {}) {
     if (!['booking', 'order'].includes(source) || !validId(id)) return;
@@ -33,7 +59,8 @@
       schedule.addEventListener('change', () => { candidateRequest++; rows = []; list.textContent = 'Check availability for the new schedule.'; loading = true; refresh(); });
       schedule.querySelector('[data-check-team]').addEventListener('click', () => loadCandidates());
     }
-    let rows = [], loading = true, busy = false, candidateRequest = 0;
+    let rows = [], loading = true, busy = false, candidateRequest = 0, preselected = false;
+    const staffingHint = document.createElement('p'); staffingHint.className = 'alert alert-info small'; staffingHint.hidden = true; list.before(staffingHint);
     if (source === 'booking') {
       const refreshButton = document.createElement('button'); refreshButton.type = 'button'; refreshButton.className = 'btn btn-outline-secondary btn-sm mt-2'; refreshButton.textContent = 'Refresh availability'; refreshButton.addEventListener('click', () => loadCandidates()); list.after(refreshButton);
     }
@@ -76,11 +103,15 @@
       if (currentRequest !== requestId || sequence !== candidateRequest || !element.isConnected) return;
       if (source === 'order') { form.elements.scheduledDate.value = result.visit.date; form.elements.timeSlot.value = result.visit.time.split(/\s+-\s+/)[0]; }
       rows = result.candidates || [];
+      if (result.staffing) { staffingHint.hidden = false; staffingHint.textContent = `${result.staffing.recommendedCount} technician(s) recommended. ${result.staffing.reason} Staff can review the crew for this job.`; }
       list.innerHTML = rows.length ? `<div class="job-team-list">${rows.map(row => `<label class="job-team-person${row.available ? '' : ' unavailable'}"><input type="checkbox" name="member" value="${escape(row.technicianId)}" ${row.available ? '' : 'disabled'}><span><strong>${escape(row.name)}</strong><small>${escape(row.reason)}</small></span></label>`).join('')}</div>` : '<div class="alert alert-warning">No active technician accounts are available.</div>';
       if (result.team?.length > 1) form.elements.teamMode.value = 'multiple';
-      const currentIds = (result.team || []).map(row => row.technicianId);
+      const proposed = !preselected && options.recommendedTeam?.length ? options.recommendedTeam : result.team || [];
+      preselected = true;
+      if (proposed.length > 1) form.elements.teamMode.value = 'multiple';
+      const currentIds = proposed.map(row => row.technicianId);
       for (const input of form.querySelectorAll('[name=member]')) input.checked = !input.disabled && currentIds.includes(input.value);
-      primary.value = result.team?.find(row => row.role === 'primary')?.technicianId || '';
+      primary.value = proposed.find(row => row.role === 'primary')?.technicianId || proposed[0]?.technicianId || '';
       loading = false; refresh();
      } catch (failure) { if (sequence !== candidateRequest) return; list.textContent = ''; error.textContent = failure.message; }
     }
@@ -157,7 +188,7 @@
     try { await json(`/api/technician/assignments/${id}/${decision}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (window.TechnicianWorkUpdates) finish?.(true); else if (window._refreshTechnicianWork) await window._refreshTechnicianWork(); else location.reload(); }
     catch (failure) { finish?.(false); button.disabled = false; await Swal.fire({ icon: 'error', text: failure.message }); }
   }
-  window.RACSJobTeams = { open, note, orderNote, summary, ready, assignmentActions, supportCard, respondBooking, display, supportingOrders };
+  window.RACSJobTeams = { open, recommendation, planPicker, planRow, planSelection, note, orderNote, summary, ready, assignmentActions, supportCard, respondBooking, display, supportingOrders };
   supportingOrders();
   window.addEventListener('racs:work-refresh', supportingOrders);
   const styles = document.createElement('style'); styles.textContent = '.job-team-options{display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1rem}.job-team-options label{padding:.75rem;border:1px solid #cbd5e1;border-radius:10px}.job-team-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.5rem}.job-team-person{display:flex;gap:.75rem;padding:.85rem;border:1px solid #cbd5e1;border-radius:10px;align-items:start}.job-team-person:has(input:checked){border-color:#2563eb;background:#eff6ff}.job-team-person.unavailable{opacity:.6}.job-team-person small,.job-team-summary small{display:block;color:#64748b}.job-team-summary{padding:.85rem;background:#f8fafc;border-radius:10px;margin:.75rem 0}.job-team-summary>div{display:flex;justify-content:space-between;gap:1rem;padding:.35rem 0}'; document.head.append(styles);

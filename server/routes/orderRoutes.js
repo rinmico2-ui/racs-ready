@@ -1062,7 +1062,7 @@ router.get("/assignment-plan", authenticate, requireRole(["admin", "secretary"])
       status: { $in: requestedStatuses.length ? requestedStatuses : ["preparing_unit", "technician_declined"] },
       fulfillmentType: { $in: ["delivery_only", "delivery_installation"] },
       paymentStatus: { $in: ["paid", "partial", "verified", "remitted"] },
-      $or: [{ technicianId: null }, { technicianId: { $exists: false } }],
+      archivedAt: null, isProject: { $ne: true },
     }).sort({ "delivery.preferredDate": 1, timeSlot: 1 }).limit(200).lean();
     const eligibleOrders = orders.map(order => withOrderAttentionState(order)).filter(order => !order.isPastDate);
     const plan = await buildOrderAssignmentPlan(eligibleOrders);
@@ -2892,6 +2892,7 @@ router.post("/:id/assign-technician", authenticate, requireRole(["admin", "secre
 
     let order = await Order.findById(id);
     if (!order) return res.status(404).json({ error: "Order not found" });
+    if (assignmentSource === 'reviewed_plan' && order.fulfillmentType === 'delivery_installation') { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.technicianTeam?.length) { req.body.technicianIds = [String(technicianId)]; return require('../utils/standardJobTeamService').assignmentResponse('order', req, res); }
     if (order.isProject) return res.status(409).json({ error: "This installation is managed through its project crew and daily work plan.", code: "ORDER_PROJECT_WORKFLOW_REQUIRED" });
 

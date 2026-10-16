@@ -67,6 +67,10 @@ function createService(overrides = {}) {
       // Recheck while holding the same date lease as order and customer booking
       // capacity writes; the candidate list shown in the browser is advisory.
       const current = await load(source, id);
+      if (input.expectedSchedule && input.expectedSchedule !== team.scheduleKey(source, current)) throw team.failure('The appointment schedule changed. Refresh the assignment plan.', 409, 'ASSIGNMENT_SCHEDULE_CHANGED');
+      require('./assignmentStaffing').assertRecommendedCrew(source, current, input, technicianIds);
+      const reviewed = ['reviewed_plan', 'automatic'].includes(input.assignmentSource);
+      if (reviewed && !(source === 'booking' ? ['awaiting_assignment', 'pending_reassignment'] : ['preparing_unit', 'technician_declined']).includes(current.status)) throw team.failure('This job has already been assigned or changed. Refresh the plan.');
       const currentIds = team.ids(current);
       if (currentIds.length === technicianIds.length && team.ref(current.technicianId) === technicianIds[0] && technicianIds.every(id => currentIds.includes(id))
         && team.members(current).length && team.scheduleKey(source, current) === team.scheduleKey(source, { ...current.toObject?.() || current,
@@ -75,16 +79,19 @@ function createService(overrides = {}) {
         return { source, job: current, duplicate: true, assignment: source === 'booking' ? await deps.Assignment.findById(current.assignmentId) : null };
       }
       const availability = await candidates(source, current, input);
-      if (availability.visit.date !== visit.date) throw team.failure('The appointment date changed. Refresh before assigning.');
+      if (availability.visit.date !== visit.date || availability.visit.start !== visit.start || availability.visit.minutes !== visit.minutes) throw team.failure('The appointment schedule changed. Refresh before assigning.');
       for (const technicianId of technicianIds) if (!availability.candidates.some(row => row.technicianId === technicianId && row.available)) throw team.failure('A selected technician is no longer available. Refresh the team list.');
       return transaction(async session => {
         const job = await load(source, id, session);
+        if (reviewed && !(source === 'booking' ? ['awaiting_assignment', 'pending_reassignment'] : ['preparing_unit', 'technician_declined']).includes(job.status)) throw team.failure('This job has already been assigned or changed. Refresh the plan.');
         if (Number(new Date(job.updatedAt || 0)) !== Number(new Date(current.updatedAt || 0))) throw team.failure('This appointment changed. Refresh before assigning.');
         const allowed = source === 'booking' ? ['awaiting_assignment', 'pending_reassignment', 're-scheduled', 'assigned', 'confirmed', 'scheduled', 'inspection_scheduled', 'repair_scheduled', 'repair_approved'] : ['preparing_unit', 'technician_declined', 'technician_assigned', 'technician_accepted'];
         if (!allowed.includes(job.status)) throw team.failure('The team can only be changed before work starts.');
         if (source === 'order' && !['paid', 'partial', 'verified', 'remitted'].includes(job.paymentStatus)) throw team.failure('Verify payment before assigning the installation team.');
         const technicians = await deps.Technician.find({ _id: { $in: technicianIds }, active: { $ne: false }, archivedAt: null }).session(session).lean();
-        const deadlineAt = new Date(Date.now() + 30 * 60000);
+        require('./assignmentStaffing').assertRecommendedCrew(source, job, input, technicianIds);
+        const responseMinutes = Math.min(720, Math.max(5, Number(input.responseMinutes) || 30));
+        const deadlineAt = new Date(Date.now() + responseMinutes * 60000);
         const entries = technicianIds.map(technicianId => ({ technicianId, name: technicians.find(row => team.ref(row._id) === technicianId)?.name || 'Technician', status: 'pending', deadlineAt }));
         const primary = technicians.find(row => team.ref(row._id) === technicianIds[0]);
         if (!primary || technicians.length !== technicianIds.length) throw team.failure('A selected technician account changed. Refresh the list.');
@@ -102,14 +109,16 @@ function createService(overrides = {}) {
               serviceName: job.service?.name || (job.services || []).map(row => row.name).join(', ') || 'Service', serviceType: job.serviceType || 'core',
               servicePrice: entry === entries[0] ? job.totalPrice || 0 : 0, estimatedFee: entry === entries[0] ? job.totalPrice || 0 : 0,
               bookingDate: job.bookingDate, startTime: job.startTime, endTime: job.endTime, address: job.location?.address || '',
-              acceptanceDeadline: deadlineAt, status: 'pending_acceptance', notes: [{ text: String(input.notes || 'Assigned by staff').slice(0, 1000), by: actor._id, byName: actor.name || actor.email || 'Staff' }] });
+              acceptanceDeadline: deadlineAt, responseSLAMinutes: responseMinutes, status: 'pending_acceptance', notes: [{ text: String(input.notes || 'Assigned by staff').slice(0, 1000), by: actor?._id, byName: actor?.name || actor?.email || 'System' }] });
             await assignment.save({ session }); entry.assignmentId = assignment._id;
           }
           job.assignmentId = entries[0].assignmentId;
           job.status = repaired ? (['repair_scheduled', 'repair_approved'].includes(current.status) ? 'repair_scheduled' : 'inspection_scheduled') : 'assigned';
-          job.assignedAt = new Date(); job.assignedBy = actor._id;
+          job.assignedAt = new Date(); job.assignedBy = actor?._id;
+          job.autoReschedulePending = false; job.autoRescheduleAt = undefined; job.autoRescheduleReason = undefined;
+          if (input.assignmentSource === 'automatic') job.reassignmentCount = (job.reassignmentCount || 0) + 1;
           for (const row of job.services || []) if (!team.closed.has(row.status)) { row.technicianId = primary._id; row.technicianName = primary.name; row.assignmentId = job.assignmentId; }
-          job.recordStatusHistory?.({ fromStatus: current.status, toStatus: job.status, changedBy: actor._id, changedByModel: 'User', changedByName: actor.name || actor.email, reason: `Assigned ${entries.length} technician(s); primary: ${primary.name}` });
+          job.recordStatusHistory?.({ fromStatus: current.status, toStatus: job.status, changedBy: actor?._id, changedByModel: 'User', changedByName: actor?.name || actor?.email || 'System', reason: `Assigned ${entries.length} technician(s); primary: ${primary.name}. ${require('./assignmentStaffing').staffingFor(source, current).reason}` });
         } else {
           job.delivery ||= {}; job.delivery.preferredDate = manilaDateTime(availability.visit.date, 0); job.timeSlot = availability.visit.time;
           job.technicianAcceptance = { status: 'pending', deadlineAt };

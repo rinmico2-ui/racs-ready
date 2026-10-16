@@ -743,20 +743,7 @@ document.addEventListener("DOMContentLoaded", function () {
         element.innerHTML = '<div class="small text-muted"><i class="bi bi-info-circle me-1"></i>No recommendation is available for this order.</div>';
         return;
       }
-      if (!row.recommended) {
-        element.innerHTML = `<div class="small text-warning"><i class="bi bi-exclamation-triangle me-1"></i>${esc(row.issue || "No conflict-free technician is currently available.")}</div>`;
-        return;
-      }
-      const recommended = row.recommended;
-      const reasons = (recommended.reasons || []).slice(0, 4).map(reason => `<li>${esc(reason)}</li>`).join("");
-      element.innerHTML = `<div class="d-flex justify-content-between gap-3 flex-wrap">
-        <div>
-          <div class="small text-uppercase text-muted fw-bold"><i class="bi bi-stars text-warning me-1"></i>Recommended Technician</div>
-          <div class="fw-bold fs-6 mt-1">${esc(recommended.name)} <span class="badge bg-primary-subtle text-primary ms-1">Score ${esc(recommended.score)}</span></div>
-          <ul class="small text-muted mb-0 mt-1 ps-3">${reasons}</ul>
-        </div>
-        <button class="btn btn-sm btn-primary fw-semibold align-self-center" type="button" onclick="window._aoAssignRecommended('${esc(orderId)}')"><i class="bi bi-check2-circle me-1"></i>Assign Recommended</button>
-      </div>`;
+      element.innerHTML = RACSJobTeams.recommendation(row) + `<div class="d-flex flex-wrap gap-2 mt-3">${row.recommended ? `<button class="btn btn-sm btn-primary" type="button" onclick="window._aoAssignRecommended('${esc(orderId)}')">Assign recommended crew</button>` : ''}${row.fulfillmentType === 'delivery_installation' ? `<button class="btn btn-sm btn-outline-primary" type="button" onclick="window._aoReviewRecommended('${esc(orderId)}')">Review technicians</button>` : ''}</div>`;
     });
   }
 
@@ -787,15 +774,18 @@ document.addEventListener("DOMContentLoaded", function () {
     return toLocalDateStr(row.scheduledDate);
   }
 
-  async function submitReviewedOrderAssignment(row, technicianId) {
+  async function submitReviewedOrderAssignment(row, technicianId, technicianIds) {
     const data = await RACSRequest.json(`/api/orders/${encodeURIComponent(row.orderId)}/assign-technician`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         technicianId,
+        expectedSchedule: row.scheduleKey,
+        ...(row.fulfillmentType === 'delivery_installation' ? { technicianIds: technicianIds || (row.recommendedTeam || []).map(person => person.technicianId) } : {}),
         scheduledDate: assignmentPlanDate(row),
         timeSlot: row.timeSlot || '',
         note: 'Assigned from an admin-reviewed order assignment plan.',
+        notes: 'Assigned from an admin-reviewed order assignment plan. ' + (row.staffing?.reason || ''),
         assignmentSource: 'reviewed_plan',
       }),
     });
@@ -803,28 +793,27 @@ document.addEventListener("DOMContentLoaded", function () {
     return data;
   }
 
+  window._aoReviewRecommended = function(orderId) {
+    const row = assignQueueRecommendations[String(orderId)];
+    return RACSJobTeams.open('order', orderId, { recommendedTeam: row?.recommendedTeam, onAssigned: loadAssignTab });
+  };
+
   window._aoAssignRecommended = async function(orderId) {
     const row = assignQueueRecommendations[String(orderId)];
-    if (!row || !row.recommended) return;
-    const recommended = row.recommended;
-    const reasons = (recommended.reasons || []).slice(0, 4).map(reason => `• ${reason}`).join('\n');
+    if (!row?.recommended) return;
+    const crew = row.recommendedTeam || [row.recommended];
     const confirmation = await Swal.fire({
-      title: `Assign ${recommended.name}?`,
-      text: reasons || 'This technician is the highest-ranked eligible candidate.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Assign & Notify',
-      cancelButtonText: 'Cancel',
-      buttonsStyling: false,
-      customClass: { confirmButton: 'btn btn-primary px-4 me-2', cancelButton: 'btn btn-light border px-4', popup: 'rounded-4' },
+      title: `Assign ${crew.length} technician${crew.length === 1 ? '' : 's'}?`,
+      text: crew.map(person => person.name).join(' and ') + '. ' + row.staffing.reason + ' Every member must accept.',
+      icon: 'question', showCancelButton: true, confirmButtonText: 'Assign & Notify',
     });
     if (!confirmation.isConfirmed) return;
     try {
-      await submitReviewedOrderAssignment(row, recommended.technicianId);
-      Swal.fire({ title: 'Technician Assigned', text: `${recommended.name} was notified.`, icon: 'success', timer: 1700, showConfirmButton: false, customClass: { popup: 'rounded-4' } });
+      await submitReviewedOrderAssignment(row, crew[0].technicianId, crew.map(person => person.technicianId));
+      await Swal.fire({ title: 'Crew assigned', text: 'Each selected technician was notified and must accept.', icon: 'success', timer: 1700, showConfirmButton: false });
       await loadAssignTab();
     } catch (error) {
-      Swal.fire({ title: 'Assignment Failed', text: error.message, icon: 'error', customClass: { popup: 'rounded-4' } });
+      Swal.fire({ title: 'Assignment Failed', text: error.message, icon: 'error' });
     }
   };
 
@@ -836,30 +825,27 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById('aoConfirmBulkPlan').disabled = true;
       return;
     }
-    body.innerHTML = `<div class="table-responsive"><table class="table align-middle">
-      <thead><tr><th>Order</th><th>Schedule</th><th>Recommended Assignment</th><th>Why</th></tr></thead>
-      <tbody>${assignQueuePlan.map((row, index) => {
-        if (!row.candidates || !row.candidates.length) {
-          return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(fmtTime(row.timeSlot))} PHT</small></td><td colspan="2"><span class="badge bg-warning text-dark">No eligible technician</span></td></tr>`;
-        }
-        const options = row.candidates.map((candidate, candidateIndex) => `<option value="${esc(candidate.technicianId)}" ${candidateIndex === 0 ? 'selected' : ''}>${esc(candidate.name)}${candidateIndex === 0 ? ' ★' : ''} — score ${esc(candidate.score)}</option>`).join("");
-        const reasons = (row.recommended.reasons || []).slice(0, 3).map(reason => `<div><i class="bi bi-check2 text-success"></i> ${esc(reason)}</div>`).join("");
-        return `<tr><td><strong>${esc(row.orderReference || row.orderId)}</strong><br><small>${esc(row.customerName)} · ${esc(FULFILL_LABELS[row.fulfillmentType] || row.fulfillmentType)}</small></td><td>${fmtDate(row.scheduledDate)}<br><small>${esc(fmtTime(row.timeSlot))} PHT</small></td><td><select class="form-select form-select-sm ao-bulk-tech-select" data-index="${index}">${options}</select></td><td class="small text-muted">${reasons}</td></tr>`;
-      }).join("")}</tbody></table></div>`;
-    body.querySelectorAll('.ao-bulk-tech-select').forEach(select => select.addEventListener('change', renderOrderBulkSummary));
-    document.getElementById('aoConfirmBulkPlan').disabled = !body.querySelector('.ao-bulk-tech-select');
+    body.innerHTML = assignQueuePlan.map((row, index) => RACSJobTeams.planRow(row, index)).join('');
+    body.onchange = renderOrderBulkSummary;
     renderOrderBulkSummary();
   }
 
+  function orderPlanSelections() {
+    return Array.from(document.querySelectorAll('#aoBulkPlanBody [data-plan-index]')).map(element => {
+      const row = assignQueuePlan[Number(element.dataset.planIndex)];
+      const selection = RACSJobTeams.planSelection(element, row);
+      return selection ? { row, ...selection } : null;
+    }).filter(Boolean);
+  }
+
   function renderOrderBulkSummary() {
-    const groups = {};
-    document.querySelectorAll('.ao-bulk-tech-select').forEach(select => {
-      const row = assignQueuePlan[Number(select.dataset.index)];
-      const candidate = (row.candidates || []).find(item => item.technicianId === select.value);
-      if (!candidate) return;
-      (groups[candidate.name] ||= []).push(row.orderReference || row.orderId);
-    });
-    document.getElementById('aoBulkPlanSummary').innerHTML = Object.entries(groups).map(([name, references]) => `<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><div class="fw-bold"><i class="bi bi-person-check-fill text-primary me-1"></i>${esc(name)}</div><div class="small text-muted mt-1">${references.map(esc).join(' · ')}</div><span class="badge bg-primary-subtle text-primary mt-2">${references.length} order${references.length === 1 ? '' : 's'}</span></div></div>`).join("");
+    const groups = {}, selections = orderPlanSelections();
+    for (const selection of selections) for (const id of selection.technicianIds) {
+      const person = selection.row.candidates.find(candidate => candidate.technicianId === id);
+      (groups[id] ||= { name: person.name, references: [] }).references.push(selection.row.orderReference || selection.row.orderId);
+    }
+    document.getElementById('aoBulkPlanSummary').innerHTML = Object.values(groups).map(group => `<div class="col-md-4"><div class="border rounded-3 p-3 h-100"><strong>${esc(group.name)}</strong><div class="small text-muted mt-1">${group.references.map(esc).join(' / ')}</div></div></div>`).join('');
+    document.getElementById('aoConfirmBulkPlan').disabled = !selections.length || selections.some(selection => selection.invalid);
   }
 
   async function openOrderBulkPlan() {
@@ -877,11 +863,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function confirmOrderBulkPlan() {
-    const assignments = Array.from(document.querySelectorAll('.ao-bulk-tech-select')).map(select => ({
-      row: assignQueuePlan[Number(select.dataset.index)],
-      technicianId: select.value,
-    })).filter(item => item.row && item.technicianId);
-    if (!assignments.length) return;
+    const assignments = orderPlanSelections();
+    if (!assignments.length || assignments.some(selection => selection.invalid)) return;
     const button = document.getElementById('aoConfirmBulkPlan');
     const original = button.innerHTML;
     button.disabled = true;
@@ -890,7 +873,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const failures = [];
     for (const assignment of assignments) {
       try {
-        await submitReviewedOrderAssignment(assignment.row, assignment.technicianId);
+        await submitReviewedOrderAssignment(assignment.row, assignment.technicianId, assignment.technicianIds);
         assigned += 1;
       } catch (error) {
         failures.push(`${assignment.row.orderReference || assignment.row.orderId}: ${error.message}`);
@@ -901,7 +884,7 @@ document.addEventListener("DOMContentLoaded", function () {
     button.innerHTML = original;
     await Swal.fire({
       title: failures.length ? 'Assignment Plan Partially Processed' : 'Assignment Plan Completed',
-      html: `<strong>${assigned}</strong> assigned${failures.length ? `<br><strong>${failures.length}</strong> need review` : ''}`,
+      html: `<strong>${assigned}</strong> assigned${failures.length ? `<br><strong>${failures.length}</strong> need review<p class=\"small mt-2\">${failures.slice(0, 3).map(esc).join('<br>')}</p>` : ''}`,
       icon: failures.length ? 'warning' : 'success',
       customClass: { popup: 'rounded-4' },
     });

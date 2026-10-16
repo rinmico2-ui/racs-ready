@@ -9,9 +9,11 @@ const Technician = require("../models/Technician");
 const TechnicianSchedule = require("../models/TechnicianSchedule");
 const LeaveRequest = require("../models/LeaveRequest");
 const Assignment = require("../models/Assignment");
+const Order = require('../models/Order');
+const DailyAssignment = require('../models/DailyAssignment');
 const { bookingWindow, buildAssignmentPlan } = require("../utils/assignmentPlanner");
 
-const query = rows => ({ select() { return this; }, lean: async () => rows });
+const query = rows => ({ select() { return this; }, populate() { return this; }, lean: async () => rows });
 
 test("assignment planner keeps every eligible technician, not only the top five", async () => {
   const originals = [
@@ -20,8 +22,9 @@ test("assignment planner keeps every eligible technician, not only the top five"
     [LeaveRequest, LeaveRequest.find],
     [BookingService, BookingService.find],
     [Assignment, Assignment.find],
+    [Order, Order.find], [DailyAssignment, DailyAssignment.find],
   ];
-  const technicians = Array.from({ length: 7 }, (_, i) => ({ _id: `tech-${i + 1}`, name: `Technician ${i + 1}`, active: true }));
+  const technicians = Array.from({ length: 7 }, (_, i) => ({ _id: `tech-${i + 1}`, name: `Technician ${i + 1}`, active: true, user: { role: 'technician', active: true } }));
   try {
     Technician.find = () => query(technicians);
     TechnicianSchedule.find = () => query(technicians.map((tech, i) => ({
@@ -31,6 +34,7 @@ test("assignment planner keeps every eligible technician, not only the top five"
     LeaveRequest.find = () => query([]);
     BookingService.find = () => query([]);
     Assignment.find = () => query([]);
+    Order.find = () => query([]); DailyAssignment.find = () => query([]);
 
     const [plan] = await buildAssignmentPlan([{
       _id: "booking-1",
