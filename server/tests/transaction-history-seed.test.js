@@ -82,6 +82,12 @@ function databaseFixture() {
     bookingservices: [{ _id: oid(8000), status: 'completed', notes: 'Real existing work' }], orders: [{ _id: oid(8001), status: 'completed' }],
     payments: [], assignments: [], servicereports: [], activitylogs: [], notifications: [], emailoutboxes: [], payrolls: [{ _id: oid(8002), status: 'paid' }] };
   const clone = value => mongoose.mongo.BSON.EJSON.parse(recovery.serialize(value), { relaxed: true });
+  // Exercise the real driver encoding and MongoDB's storage rule: _id is first.
+  // An EJSON-only clone misses the field-order change made by the server.
+  const storedRecord = record => {
+    const { _id, ...fields } = mongoose.mongo.BSON.deserialize(mongoose.mongo.BSON.serialize(record));
+    return { _id, ...fields };
+  };
   const same = (left, right) => String(left) === String(right);
   function matches(row, filter = {}) {
     return Object.entries(filter).every(([field, value]) => {
@@ -112,8 +118,8 @@ function databaseFixture() {
         toArray: async () => clone(rows().filter(row => matches(row, filter)).sort((a, b) => String(a._id).localeCompare(String(b._id))).slice(0, maximum).map(row => project(row, options?.projection))) }; },
       findOne: async filter => clone(rows().find(row => matches(row, filter)) || null),
       aggregate(stages) { assert.equal(name, 'users'); const fields = stages.find(stage => stage.$project).$project; return { toArray: async () => clone(rows().filter(row => matches(row, stages[0].$match)).map(row => project(row, fields))) }; },
-      async insertMany(records) { write(); if (records.some(record => rows().some(row => same(row._id, record._id)))) throw Error('Duplicate fixture key'); state[name] = [...rows(), ...clone(records)]; },
-      async insertOne(record) { write(); state[name] = [...rows(), clone(record)]; },
+      async insertMany(records) { write(); if (records.some(record => rows().some(row => same(row._id, record._id)))) throw Error('Duplicate fixture key'); state[name] = [...rows(), ...records.map(storedRecord)]; },
+      async insertOne(record) { write(); state[name] = [...rows(), storedRecord(record)]; },
     };
   } };
   const client = { startSession() { return { async withTransaction(action) {
@@ -145,9 +151,12 @@ test('prepare writes checksummed private recovery files and never sends mail or 
 });
 test('apply and verify reconcile exact inserts, preserve real records and stock, and repeat runs do not add duplicates', async t => {
   const f = databaseFixture(), original = f.clone(f.state);
-  const prepared = await seed.previewSeed({ db: f.db, config: { count: 20 }, now, prepare: true, directory: privateDirectory(t) });
+  const prepared = await seed.previewSeed({ db: f.db, config: { count: 1000 }, now, prepare: true, directory: privateDirectory(t) });
   const result = await seed.applySeed({ db: f.db, client: f.client, backupFile: prepared.backup, now });
   assert.equal(result.mode, 'seeded'); assert.equal(result.atomic, true); assert.equal(result.reconciliation.matches, true);
+  assert.equal(result.primaryTransactions, 1000);
+  assert.deepEqual(result.services, { completed: 400, cancelled: 100, repair: 125 });
+  assert.deepEqual(result.orders, { completed: 400, cancelled: 100 });
   assert.equal(f.state.bookingservices.find(row => String(row._id) === String(oid(8000))).notes, 'Real existing work');
   for (const key of ['users', 'technicians', 'inventories', 'payrolls', 'notifications', 'emailoutboxes']) assert.deepEqual(f.state[key], original[key]);
   const writes = f.writes;
@@ -167,6 +176,58 @@ test('changed verification, stale preparation, a corrupt recovery file and trans
   assert.deepEqual(f.state, before);
   f.standalone(); await assert.rejects(seed.applySeed({ db: f.db, client: f.client, backupFile: prepared.backup, now }), /Transactions are not supported/);
   fs.appendFileSync(prepared.backup, 'corrupt'); await assert.rejects(seed.applySeed({ db: f.db, client: f.client, backupFile: prepared.backup, now }), /checksum/);
+});
+
+test('verification accepts stored object field order but rejects changed amounts, dates, links, arrays and missing or extra records', async t => {
+  const f = databaseFixture(), prepared = await seed.previewSeed({ db: f.db, config: { count: 20 }, now, prepare: true, directory: privateDirectory(t) });
+  await seed.applySeed({ db: f.db, client: f.client, backupFile: prepared.backup, now });
+  const verify = () => seed.applySeed({ db: f.db, client: f.client, backupFile: prepared.backup, now, verifyOnly: true });
+  const booking = f.state.bookingservices.find(row => row.demonstration && row.services[0].units.length > 1);
+  booking.services[0].schedule = Object.fromEntries(Object.entries(booking.services[0].schedule).reverse());
+  booking.customer = Object.fromEntries(Object.entries(booking.customer).reverse());
+  assert.equal((await verify()).mode, 'verified');
+  for (const [field, replacement] of [['totalPrice', booking.totalPrice + 1], ['totalPrice', String(booking.totalPrice)], ['completedAt', new Date(booking.completedAt.getTime() + 1)], ['customerId', oid(9999)]]) {
+    const previous = booking[field]; booking[field] = replacement;
+    await assert.rejects(verify(), /bookingservices changed or is incomplete/);
+    booking[field] = previous;
+  }
+  booking.services[0].units.reverse();
+  await assert.rejects(verify(), /bookingservices changed or is incomplete/);
+  booking.services[0].units.reverse();
+  const removed = f.state.bookingservices.pop();
+  await assert.rejects(verify(), /bookingservices changed or is incomplete/);
+  f.state.bookingservices.push(removed);
+  const extra = { ...f.clone(booking), _id: oid(9999) };
+  f.state.bookingservices.push(extra);
+  await assert.rejects(verify(), /bookingservices changed or is incomplete/);
+  f.state.bookingservices.pop();
+  assert.equal((await verify()).mode, 'verified');
+});
+
+test('a verification mismatch inside apply aborts the whole insertion and preserves pre-existing data', async t => {
+  const f = databaseFixture(), before = f.clone(f.state);
+  const prepared = await seed.previewSeed({ db: f.db, config: { count: 20 }, now, prepare: true, directory: privateDirectory(t) });
+  const client = { startSession() {
+    const session = f.client.startSession(), transaction = session.withTransaction;
+    session.withTransaction = action => transaction.call(session, async () => {
+      const collection = f.db.collection;
+      f.db.collection = name => {
+        const api = collection(name);
+        if (name === 'servicereports') {
+          const insert = api.insertMany;
+          api.insertMany = async records => {
+            await insert(records);
+            f.state.bookingservices.find(row => row.demonstration).totalPrice += 1;
+          };
+        }
+        return api;
+      };
+      try { await action(); } finally { f.db.collection = collection; }
+    });
+    return session;
+  } };
+  await assert.rejects(seed.applySeed({ db: f.db, client, backupFile: prepared.backup, now }), /bookingservices changed or is incomplete/);
+  assert.deepEqual(f.state, before);
 });
 test('demonstration records do not generate aftercare assets, reminders, or real product returns', async () => {
   const lifecycle = require('../utils/maintenanceLifecycle');

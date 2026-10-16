@@ -92,3 +92,9 @@ Maintenance mode is not changed or required: this is an atomic insertion of term
 The default batch key is `history-demo-2022-2026-v1`. Its IDs are deterministic and a unique completion marker prevents a second insertion. A repeated preview reports `already-applied`; a repeated apply verifies the existing batch and does not write another copy. Verification fails if seeded records have subsequently changed, rather than overwriting them or adding replacements.
 
 Changing the batch key intentionally creates an additional batch. Do not change it just to get past an error. This tool never runs the older booking/order deletion or reset scripts.
+
+## Verification field-order fix
+
+The original verifier could report `Seed verification failed: bookingservices changed or is incomplete.` because MongoDB places `_id` first in stored documents. The corrected verifier compares field-order-independent Extended JSON while retaining exact value, type, date, reference, array order and record-count checks. The private recovery-file and source-snapshot checksums retain their original format.
+
+This error is raised inside the transaction before commit, so the failed insertion is aborted. After deploying the fix, open a new application terminal and run `--prepare` again. Download the new preparation and checksum, then apply and verify using that new exact path. Keep the default batch key: it prevents a second insertion if the batch is already present. Do not delete existing transactions or disable verification to retry.
