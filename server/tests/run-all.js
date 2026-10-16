@@ -7,7 +7,8 @@ const testFiles = fs
   .readdirSync(testDirectory)
   .filter((name) => name.endsWith(".test.js"))
   .sort()
-  .map((name) => path.join(testDirectory, name));
+  // Relative paths keep the full suite below Windows' command-line limit.
+  .map((name) => path.relative(process.cwd(), path.join(testDirectory, name)));
 
 if (!testFiles.length) {
   console.error("No test files were found.");
