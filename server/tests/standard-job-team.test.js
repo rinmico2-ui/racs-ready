@@ -120,6 +120,78 @@ test('one member accepting does not make the team ready; retries are idempotent'
   assert.equal(second.job.status, 'confirmed'); assert.equal(team.readiness(second.job).ready, true);
   assert.ok([...f.store.assignments.values()].every(row => row.status === 'accepted'));
 });
+test('service items follow assignment and become accepted only when the entire crew accepts', async () => {
+  const f = fixture(); await f.assign(); assert.equal(f.current.services[0].status, 'assigned');
+  assert.equal(f.current.services[0].schedule.kind, 'service');
+  await f.service.respond('booking', bookingId, support, 'accept'); assert.equal(f.current.services[0].status, 'assigned');
+  await f.service.respond('booking', bookingId, lead, 'accept'); assert.equal(f.current.services[0].status, 'accepted');
+  assert.equal(f.current.services[0].assignmentId, f.current.assignmentId);
+});
+test('first inspection assigns item-level phase, schedule and responsible inspector consistently', async () => {
+  const f = fixture(); f.current.serviceType = 'repair'; f.current.services = [{ name: 'Refrigerator Repair', type: 'repair', status: 'pending', quantity: 1 }];
+  await f.assign();
+  assert.equal(f.current.status, 'inspection_scheduled'); assert.equal(f.current.services[0].status, 'inspection_scheduled');
+  assert.equal(f.current.services[0].phase, 'repair_phase_1'); assert.equal(f.current.services[0].schedule.kind, 'inspection');
+  assert.equal(f.current.inspection.technicianId, lead);
+  await Booking.hydrate(f.current).validate(['services', 'inspection', 'status']);
+});
+test('approved repair reassignment retains phase two, completed inspection and approved quotation', async () => {
+  const f = fixture(); f.current.status = 'pending_reassignment'; f.current.serviceType = 'repair';
+  f.current.inspection = { completedAt: new Date('2098-12-01'), technicianId: id(70) }; f.current.approval = { status: 'approved' };
+  f.current.quotation = { parts: [{ name: 'Pump', quantity: 1, cost: 200 }], totalCost: 1000 };
+  f.current.services = [{ name: 'Refrigerator Repair', type: 'repair', status: 'repair_scheduled', phase: 'repair_phase_2', quantity: 1 }];
+  const quotation = copy(f.current.quotation); await f.assign();
+  assert.equal(f.current.status, 'repair_scheduled'); assert.equal(f.current.services[0].phase, 'repair_phase_2'); assert.equal(f.current.services[0].schedule.kind, 'repair');
+  assert.equal(f.current.inspection.technicianId, id(70)); assert.deepEqual(f.current.quotation, quotation);
+  for (const member of [lead, support]) await f.service.respond('booking', bookingId, member, 'accept');
+  assert.equal(f.current.status, 'repair_scheduled'); assert.equal(f.current.services[0].status, 'repair_scheduled');
+  assert.equal(team.readiness(f.current).ready, true); assert.equal(f.current.amountPaid, f.job.amountPaid);
+  await Booking.hydrate(f.current).validate(['services', 'status']);
+});
+test('legacy approved repair reassignment uses the saved repair decision rather than restarting inspection', async () => {
+  const f = fixture(); f.current.status = 'pending_reassignment'; f.current.serviceModel = 'RepairService'; f.current.services = [];
+  f.current.inspection = { completedAt: new Date('2098-12-01'), technicianId: id(70) };
+  f.current.approval = { status: 'approved' }; f.current.repairSchedule = { decidedAt: new Date('2098-12-02'), preference: 'later' };
+  await f.assign(); assert.equal(f.current.status, 'repair_scheduled'); assert.equal(f.current.serviceType, 'repair');
+});
+test('approved repair team prepares quoted parts once, on the primary daily kit', async () => {
+  const f = fixture(); f.current.status = 'pending_reassignment'; f.current.serviceType = 'repair';
+  f.current.services = [{ name: 'Repair', type: 'repair', status: 'repair_scheduled', phase: 'repair_phase_2' }];
+  f.current.quotation = { parts: [{ name: 'Pump', quantity: 2, cost: 200 }] };
+  await f.assign();
+  for (const member of [lead, support]) await f.service.respond('booking', bookingId, member, 'accept');
+  const fs = require('node:fs'), vm = require('node:vm'), requirements = [];
+  const source = fs.readFileSync(require.resolve('../utils/dailyKitService'), 'utf8');
+  const context = { resolvePartTool: async () => ({ _id: id(80) }), mergeRequirement: (_requirements, item, references) => requirements.push({ ...item, ...references }) };
+  vm.runInNewContext(source.slice(source.indexOf('const REPAIR_PART_STATUSES'), source.indexOf('async function resolvePartTool')), context);
+  vm.runInNewContext(source.slice(source.indexOf('async function partRequirementsFor'), source.indexOf('async function requirementsFor')), context);
+  await context.partRequirementsFor([...f.store.assignments.values()], [f.current], {});
+  assert.equal(requirements.length, 1); assert.equal(requirements[0].quantity, 2);
+  assert.equal(f.store.assignments.get(requirements[0].assignmentId).technicianId, lead);
+});
+test('mixed repairs retain separate inspection and repair phases without modifying completed service items', async () => {
+  const f = fixture(); f.current.serviceType = 'mixed'; f.current.services = [
+    { name: 'Cleaning', type: 'core', status: 'completed', assignmentId: id(77), technicianId: id(78) },
+    { name: 'Refrigerator', type: 'repair', status: 'repair_scheduled', phase: 'repair_phase_2' },
+    { name: 'Freezer', type: 'repair', status: 'pending', phase: 'repair_phase_1' },
+  ];
+  const completed = copy(f.current.services[0]); await f.assign();
+  assert.deepEqual(f.current.services[0], completed); assert.equal(f.current.services[1].schedule.kind, 'repair');
+  assert.equal(f.current.services[2].schedule.kind, 'inspection'); assert.equal(f.current.services[2].status, 'inspection_scheduled');
+});
+test('started service items prevent a stale prework booking from being reassigned and roll back invitations', async () => {
+  const f = fixture(); f.current.services[0].status = 'in_progress';
+  await assert.rejects(f.assign(), /already started/); assert.equal(f.store.assignments.size, 0); assert.equal(f.current.services[0].status, 'in_progress');
+});
+test('assigning remaining core work preserves repair items awaiting customer approval', async () => {
+  const f = fixture(); f.current.serviceType = 'mixed'; f.current.services.push({ name: 'Repair', type: 'repair', status: 'awaiting_customer_decision', phase: 'repair_phase_1', quotation: { status: 'submitted' } });
+  const repair = copy(f.current.services[1]); await f.assign();
+  assert.equal(f.current.status, 'assigned'); assert.equal(f.current.services[0].status, 'assigned'); assert.deepEqual(f.current.services[1], repair);
+});
+test('a booking waiting only for a repair decision cannot be assigned as another inspection', async () => {
+  const f = fixture(); f.current.serviceType = 'repair'; f.current.services = [{ name: 'Repair', type: 'repair', status: 'awaiting_customer_decision', phase: 'repair_phase_1' }];
+  await assert.rejects(f.assign(), /pending review/); assert.equal(f.store.assignments.size, 0); assert.equal(f.current.services[0].status, 'awaiting_customer_decision');
+});
 test('supporting technician decline preserves the primary assignment and blocks dispatch', async () => {
   const f = fixture(); await f.assign(); await f.service.respond('booking', bookingId, lead, 'accept');
   const result = await f.service.respond('booking', bookingId, support, 'decline', 'Unavailable');
@@ -323,6 +395,23 @@ test('query-based rescheduling saves team acceptance reset with the new appointm
   assert.equal(checks.length, 2); assert.equal(update.$set.status, 'assigned');
   assert.ok(update.$set.technicianTeam.every(row => row.status === 'pending'));
   assert.ok(before.technicianTeam.every(row => row.status === 'accepted'));
+});
+test('rescheduling keeps service-item dates aligned so primary and supporting jobs remain in the technician queue', async t => {
+  const f = fixture(); await f.assign();
+  for (const member of [lead, support]) await f.service.respond('booking', bookingId, member, 'accept');
+  const before = copy(f.current), originalDate = before.services[0].schedule.date;
+  const schema = new mongoose.Schema(); team.installHooks(schema, 'booking');
+  const update = { $set: { bookingDate: new Date('2099-01-06T00:00:00+08:00') } };
+  t.mock.method(require('../routes/scheduleRoutes'), 'getTimeSlotsForQuery', async () => ({ statusCode: 200, payload: { timeSlots: [{ available: true, startTime: '08:00' }] } }));
+  await schema.s.hooks.execPre('findOneAndUpdate', { getUpdate: () => update, getFilter: () => ({ _id: bookingId }), getOptions: () => ({}), model: { findOne: () => query(before) } }, []);
+  assert.equal(Number(update.$set['services.0.schedule.date']), Number(update.$set.bookingDate));
+  assert.equal(update.$set['services.0.status'], 'assigned'); assert.equal(Number(before.services[0].schedule.date), Number(originalDate));
+  const after = copy(before);
+  for (const [path, value] of Object.entries(update.$set)) { const parts = path.split('.'); let target = after; for (const key of parts.slice(0, -1)) target = target[key]; target[parts.at(-1)] = value; }
+  for (const assignment of f.store.assignments.values()) {
+    const moved = { ...assignment, bookingDate: after.bookingDate, status: 'pending_acceptance' };
+    assert.equal(require('../utils/technicianWorkSync').assignmentWorkDecision(moved, after).current, true);
+  }
 });
 test('actual HTTP team guards block supporting writes and primary departure until the whole crew accepts', async t => {
   const express = require('express'), middleware = require('../utils/standardTeamMiddleware');

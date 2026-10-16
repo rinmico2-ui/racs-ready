@@ -36,6 +36,10 @@ test('customer instructions and AI text cannot override company staffing rules',
   const job = booking(100, 'Aircon Cleaning'); job.specialInstructions = 'Installation: assign 10 technicians'; job.aiRecommendation = { requiredTechnicians: 10 };
   assert.equal(staffingFor('booking', job).recommendedCount, 1);
 });
+test('a completed installation does not inflate staffing for the remaining cleaning service', () => {
+  const job = booking(); job.services = [{ name: 'Aircon Installation', status: 'completed' }, { name: 'Aircon Cleaning', status: 'pending' }];
+  assert.equal(staffingFor('booking', job).recommendedCount, 1);
+});
 test('reassignment never silently shrinks an existing three-person crew', () => {
   const job = booking(); job.technicianId = id(1); job.technicianTeam = [1,2,3].map(number => ({ technicianId: id(number) }));
   assert.equal(staffingFor('booking', job).recommendedCount, 3);

@@ -113,11 +113,11 @@ function createService(overrides = {}) {
             await assignment.save({ session }); entry.assignmentId = assignment._id;
           }
           job.assignmentId = entries[0].assignmentId;
-          job.status = repaired ? (['repair_scheduled', 'repair_approved'].includes(current.status) ? 'repair_scheduled' : 'inspection_scheduled') : 'assigned';
+          job.status = team.bookingAssignmentStatus(current);
           job.assignedAt = new Date(); job.assignedBy = actor?._id;
           job.autoReschedulePending = false; job.autoRescheduleAt = undefined; job.autoRescheduleReason = undefined;
           if (input.assignmentSource === 'automatic') job.reassignmentCount = (job.reassignmentCount || 0) + 1;
-          for (const row of job.services || []) if (!team.closed.has(row.status)) { row.technicianId = primary._id; row.technicianName = primary.name; row.assignmentId = job.assignmentId; }
+          team.assignServiceItems(job, primary);
           job.recordStatusHistory?.({ fromStatus: current.status, toStatus: job.status, changedBy: actor?._id, changedByModel: 'User', changedByName: actor?.name || actor?.email || 'System', reason: `Assigned ${entries.length} technician(s); primary: ${primary.name}. ${require('./assignmentStaffing').staffingFor(source, current).reason}` });
         } else {
           job.delivery ||= {}; job.delivery.preferredDate = manilaDateTime(availability.visit.date, 0); job.timeSlot = availability.visit.time;
@@ -151,6 +151,7 @@ function createService(overrides = {}) {
       if (entry.assignmentId) await deps.Assignment.updateOne({ _id: entry.assignmentId, technicianId, status: 'pending_acceptance' }, { $set: { status: decision === 'accept' ? 'accepted' : 'declined', ...(decision === 'accept' ? { acceptedAt: entry.respondedAt } : { declinedAt: entry.respondedAt, declineReason: entry.reason }) } }, { session });
       if (decision === 'decline') job.status = source === 'booking' ? 'pending_reassignment' : 'technician_declined';
       if (decision === 'accept' && team.readiness(job).ready) {
+        if (source === 'booking') team.acceptServiceItems(job);
         if (source === 'booking' && job.status === 'assigned') job.status = 'confirmed';
         if (source === 'order') { job.technicianAcceptance = { status: 'accepted', respondedAt: new Date() }; job.pushStatus('technician_accepted', 'All assigned technicians accepted'); }
       }
