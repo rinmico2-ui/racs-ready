@@ -80,8 +80,9 @@ test('standard repair keeps separate appliance decisions and produces only the a
   assert.ifError((await f.call('decide','customer',{decisions:[{key:'G1-U001',approved:true,revision:1},{key:'G1-U002',approved:false,revision:1}]})).error);
   assert.equal(f.booking.status,'repair_approved');assert.equal(f.booking.quotation.totalCost,300);assert.equal(f.booking.services[0].quotation.totalCost,300);
   assert.equal(f.booking.services[0].units[1].repairReview.state,'declined');
-  f.booking.status='repair_in_progress';assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Capacitor replaced; cooling and electrical tests passed.'})).error);
+  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Capacitor replaced; cooling and electrical tests passed.'})).error);
   assert.equal(f.booking.services[0].units[0].repairReview.state,'completed');
+  assert.equal((await f.call(null)).result.readyForCompletion, true);
 });
 test('accepted repair remains read-only before Start Work, including after arrival',async t=>{
   const f=fixture(t,true); f.booking.status='arrived';
@@ -121,6 +122,29 @@ test('declined appliance is removed from work-order quantity and its daily alloc
 test('cancelled repair requests reject changes',async t=>{
   const f=fixture(t);f.booking.status='cancelled';assert.equal((await f.call('inspect','technician',{key:'G1-U001',parts:[]})).error.status,409);assert.equal(f.writes.length,0);
 });
+
+test('on-site AI assistance uses only the selected appliance findings without saving or approving a quotation', async t => {
+  const f = fixture(t, true); let target;
+  f.booking.services[0].units[1].problemDescription = 'The upstairs appliance is not cooling.';
+  t.mock.method(require('../utils/aiTechnicianAssistant'), 'generateAssistantReport', async input => { target = input; return { technicianAssistant: { summary: 'Check the capacitor against the measured reading.', probableCauses: [{ cause: 'Capacitor fault' }], possibleParts: [{ name: 'Capacitor' }] } }; });
+  const handler = router.stack.find(layer => layer.route?.path === '/:scope/:id/ai-diagnostic').route.stack.at(-1).handle;
+  const req = { params: { scope: 'booking', id: String(f.booking._id) }, user: { role: 'technician', _id: f.techUser }, body: { key: 'G1-U002', findings: 'Measured capacitor is below the rated capacitance.' } };
+  let response, error; await handler(req, { json: value => { response = value; } }, value => { error = value; });
+  assert.ifError(error); assert.match(target.problemDescription, /upstairs appliance/); assert.match(target.problemDescription, /Measured capacitor/);
+  assert.equal(response.technicianAssistant.possibleParts[0].name, 'Capacitor'); assert.equal(f.writes.length, 0);
+  assert.notEqual(f.booking.approval?.status, 'approved');
+});
+
+test('AI diagnostic suggestions require Start Work and submitted quotations remain locked until returned by staff', async t => {
+  const f = fixture(t, true); let calls = 0;
+  t.mock.method(require('../utils/aiTechnicianAssistant'), 'generateAssistantReport', async () => { calls++; return {}; });
+  t.mock.method(Assignment, 'findOne', () => query({ status: 'on_site', technicianId: f.techId, bookingId: f.booking._id })); f.booking.status = 'arrived';
+  const handler = router.stack.find(layer => layer.route?.path === '/:scope/:id/ai-diagnostic').route.stack.at(-1).handle;
+  let error; await handler({ params: { scope: 'booking', id: String(f.booking._id) }, user: { role: 'technician', _id: f.techUser }, body: { key: 'G1-U001', findings: 'Measured capacitor is below the rated capacitance.' } }, { json() {} }, value => { error = value; });
+  assert.equal(error.status, 409); assert.equal(calls, 0);
+  t.mock.method(Assignment, 'findOne', () => query({ status: 'in_progress', technicianId: f.techId, bookingId: f.booking._id })); f.booking.status = 'inspection_in_progress';
+  await f.inspections(); assert.equal((await f.call('inspect', 'technician', { key: 'G1-U001', findings: 'Changed findings after sending the quotation.', diagnosis: 'Changed diagnosis', parts: [] })).error.status, 409);
+});
 test('older technician actions cannot skip customer decisions or individual repair completion',async t=>{
   const f=fixture(t,true),guard=require('../utils/repairUnitLegacyGuard');
   async function check(action) { let result,passed=false;await guard({method:'POST',path:`/appointments/${f.booking._id}/${action}`,body:{}},{status(code){result={code};return this;},json(body){result.body=body;}},()=>{passed=true;});return{result,passed}; }
@@ -128,8 +152,8 @@ test('older technician actions cannot skip customer decisions or individual repa
   assert.equal((await check('technician-schedule-later')).result.code,409);
   await f.inspections();assert.ifError((await f.call('review','admin',{action:'approve'})).error);
   assert.ifError((await f.call('decide','customer',{decisions:[{key:'G1-U001',approved:true,revision:1},{key:'G1-U002',approved:false,revision:1}]})).error);
-  assert.equal((await check('start-repair')).passed,true);
+  assert.equal((await check('start-repair')).result.body.code,'REPAIR_WORK_PLAN_REQUIRED');
   assert.equal((await check('complete-repair')).result.code,409);
-  f.booking.status='repair_in_progress';assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Replaced capacitor and passed the cooling test.'})).error);
+  f.booking.status='repair_in_progress';f.booking.repairExecution={status:'in_progress'};assert.ifError((await f.call('complete','technician',{key:'G1-U001',notes:'Replaced capacitor and passed the cooling test.'})).error);
   assert.equal((await check('complete-repair')).passed,true);
 });

@@ -254,6 +254,7 @@
     updateTotal();
   }
   function updateTotal() {
+    syncProblemSuggestions();
     const assisted = helpOpen || detailsUnknown;
     host.querySelector('[data-unit-details]').hidden = assisted;
     host.querySelector('[data-details-required]').hidden = assisted;
@@ -387,6 +388,11 @@
       const notes = field('assistanceNotes'); notes.required = true; notes.minLength = 10; notes.maxLength = 500; notes.placeholder = 'Tell us what happened, in at least 10 characters.';
       notes.parentElement.firstChild.textContent = 'Problem description * ';
       notes.parentElement.querySelector('.cab-optional')?.remove();
+      if (hooks.problemSuggestions) {
+        const suggestions = document.createElement('div');
+        suggestions.className = 'cab-problem-suggestions'; suggestions.dataset.problemSuggestions = '';
+        notes.parentElement.before(suggestions);
+      }
       field('assistancePhotos').closest('label').hidden = options.photos === false;
     }
     host.addEventListener('change', event => {
@@ -416,6 +422,15 @@
     host.addEventListener('focusout', advanceCompletedRepairDetails);
     field('quantity').addEventListener('blur', () => { syncLimit(true); updateTotal(); });
     host.addEventListener('click', event => {
+      const symptom = event.target.closest('[data-problem-suggestion]');
+      if (symptom && hooks.repair) {
+        const choice = hooks.problemSuggestions?.(selection()).find(row => row.text === symptom.dataset.problemSuggestion);
+        if (choice) {
+          const notes = field('assistanceNotes');
+          try { notes.value = hooks.toggleProblem(notes.value, choice.text, notes.maxLength); notes.dispatchEvent(new Event('input', { bubbles: true })); notes.focus({ preventScroll: true }); }
+          catch (error) { message(error.message, true); }
+        }
+      }
       const review = event.target.closest('[data-booking-review]');
       if (review && host.contains(review)) hooks.review?.(event);
       if (event.target.closest('[data-unit-help]')) chooseHelp(helpOpen ? 'manual' : 'choice');
@@ -496,6 +511,16 @@
     host.querySelector('[data-submit]').textContent = 'Save changes'; host.querySelector('[data-cancel]').hidden = false; host.querySelector('[data-quantity-feedback]').textContent = ''; setStep(2); message('Changes apply to all services for this appliance.');
   }
   function sync() { if (!mounted) return; updateTotal(); if (saved) { host.querySelector('[data-saved-total]').textContent = `${A.unitCount(hooks.state.selectedServices)} / 40 appliances in your booking`; host.querySelector('[data-address]').disabled = !hooks.state.selectedServices.length; } }
+  function syncProblemSuggestions() {
+    const container = host.querySelector('[data-problem-suggestions]');
+    if (!container || !hooks.problemSuggestions) return;
+    const lines = field('assistanceNotes').value.split('\n').map(line => line.trim());
+    const choices = hooks.problemSuggestions(selection());
+    const signature = JSON.stringify([choices, lines]);
+    if (container.dataset.signature === signature) return;
+    container.dataset.signature = signature;
+    container.innerHTML = '<p class="cab-note">Common problems: choose any that apply, then add details below. These are symptoms, not a diagnosis.</p><div role="group" aria-label="Suggested appliance problems">' + choices.map(choice => `<button type="button" data-problem-suggestion="${escape(choice.text)}" aria-pressed="${lines.includes(choice.text)}">${escape(choice.label)}</button>`).join('') + '</div>';
+  }
   function pending() {
     return mounted && !saved && Boolean(editingId || helpOpen || detailsUnknown || hooks.repair && field('kind').value || field('brand').value.trim() || hooks.repair && field('model').value.trim() || field('airconType').value || field('hp').value || field('compressorHp').value || Number(field('quantity').value) !== 1 || host.querySelector('[name="service"]:checked'));
   }

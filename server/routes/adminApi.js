@@ -5182,17 +5182,16 @@ router.get("/repair-scheduling-queue", async (req, res, next) => {
           }
         }
 
-        return {
-          ...p,
-          currentStock,
-          needsProcurement: currentStock < qty,
-        };
+        const partKey = p.toolId ? `id:${String(p.toolId)}` : `name:${String(p.name || p.itemName || '').trim().toLowerCase()}`;
+        const receivedLocally = (b.localPurchase || []).filter(purchase => purchase.quotationKey === partKey
+          && require('../utils/standardRepairVisit').purchaseReceived(purchase)).reduce((sum, purchase) => sum + Number(purchase.quantity || 0), 0);
+        return { ...p, currentStock: currentStock + receivedLocally, receivedLocally, needsProcurement: currentStock + receivedLocally < qty };
       }));
 
       // Auto-correct stale waiting_parts status: if all parts are in stock,
       // transition to repair_approved so the booking can be scheduled
       let effectiveStatus = b.status;
-      if (b.status === 'waiting_parts' && hasParts) {
+      if (b.status === 'waiting_parts' && hasParts && b.approval?.status === 'approved') {
         const allPartsInStock = enrichedParts.every(p => (p.currentStock || 0) >= (p.quantity || 1));
         const noActiveProcurement = !partsReq || partsReq.items.every(i => i.status === 'received');
         if (allPartsInStock && noActiveProcurement) {
@@ -6436,7 +6435,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
     // (either reserved for this booking, or currently in inventory). Check
     // actual current stock as the source of truth — do not rely solely on
     // possibly-stale PartsRequest item statuses.
-    const quotationParts = (booking.quotation?.parts || []).filter(part => part?.name);
+    const quotationParts = require('../utils/standardRepairVisit').approvedParts(booking);
     if (quotationParts.length > 0) {
       const Tool = require("../models/Tool");
       const reservations = await StockReservation.find({
@@ -6452,7 +6451,10 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
 
       const unavailableParts = [];
       for (const part of quotationParts) {
-        const qty = Number(part.quantity) || 1;
+        const externallyReceived = (booking.localPurchase || []).filter(purchase => purchase.quotationKey === part.key
+          && require('../utils/standardRepairVisit').purchaseReceived(purchase)).reduce((sum, purchase) => sum + Number(purchase.quantity || 0), 0);
+        const qty = Math.max(0, (Number(part.quantity) || 1) - externallyReceived);
+        if (!qty) continue;
 
         // 1. Check reservation for this specific booking+tool
         if (part.toolId && (reservedByTool.get(String(part.toolId)) || 0) >= qty) {
@@ -6470,7 +6472,7 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
         }
 
         // 3. Fall back to name-matching against active inventory
-        if (!inStock) {
+        if (!inStock && !booking.repairUnitTracking) {
           const partName = String(part.name || '').trim().toLowerCase();
           if (partName) {
             const escaped = partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -6509,6 +6511,18 @@ router.post("/repair-scheduling-queue/:id/assign", async (req, res, next) => {
           code: "PARTS_NOT_READY",
         });
       }
+    }
+
+    if (booking.repairUnitTracking && !booking.isProject) {
+      const team = require('../utils/standardJobTeam');
+      const technicianIds = [...new Set([String(technicianId), ...team.ids(booking).filter(member => member !== team.ref(booking.technicianId))])];
+      const result = await require('../utils/standardJobTeamService').createService().assign('booking', id,
+        { technicianId: String(technicianId), technicianIds, scheduledDate, timeSlot: scheduledTime || '09:00', notes: notes || '' }, req.user, { repairVisit: true });
+      await require('../utils/standardJobTeamService').publish(result, req).catch(() => {});
+      await require('../utils/notify').createNotification({ type: 'system', userId: booking.customerId, title: 'Repair visit scheduled',
+        message: `Your repair follow-up is scheduled for ${scheduledDate} at ${scheduledTime || '09:00'} (Philippine time).`,
+        referenceId: booking._id, referenceModel: 'BookingService', link: '/book-history', io: req.app.get('io') }).catch(() => {});
+      return res.json({ success: true, booking: result.job, assignment: result.assignment, message: 'Repair visit scheduled. Every assigned technician must accept the new visit.' });
     }
 
     const tech = await Technician.findById(technicianId).populate("user", "name email").lean();

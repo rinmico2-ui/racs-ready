@@ -296,3 +296,24 @@ test("extra changes cannot race queued physical checks", async () => {
   assert.equal(h.api.state.mutatingItem, false);
   h.respond(0); await settle();
 });
+
+test('support-only Daily Preparation displays shared packing status without editable controls or confirmation', () => {
+  const h = harness();
+  const payload = { kit: { status: 'draft', items: [] }, jobDetails: [], sharedKits: [{ readOnly: true, primaryName: '<Primary>', status: 'draft', jobs: [{ reference: 'JOB-1', serviceName: 'Aircon Cleaning' }],
+    items: [{ name: 'Pump <safe>', quantity: 1, unit: 'pc', preparedChecked: true, checkoutStatus: 'pending' }], deltaItems: [] }] };
+  h.api.state.payload = payload; h.api.render(payload);
+  assert.match(h.html(), /Shared team kits/); assert.match(h.html(), /Packed/);
+  assert.match(h.html(), /&lt;Primary&gt;/); assert.match(h.html(), /Pump &lt;safe&gt;/);
+  assert.doesNotMatch(h.html(), /data-odk-check-item|data-odk-action|odkAddExtra|type="checkbox"/);
+  assert.equal(h.nodes.odkConfirm.style.display, 'none'); assert.equal(h.nodes.odkConfirm.disabled, true);
+  assert.match(h.nodes.odkFooterHint.textContent, /View only/); assert.equal(h.requests.length, 0);
+});
+
+test('a technician can prepare their own primary jobs while viewing a different primary shared kit', () => {
+  const h = harness();
+  h.api.state.payload.sharedKits = [{ primaryName: 'Other primary', status: 'confirmed', jobs: [], items: [{ name: 'Shared ladder', quantity: 1, checkoutStatus: 'checked_out' }] }];
+  h.api.render(h.api.state.payload);
+  assert.match(h.html(), /Shared ladder/); assert.match(h.html(), /data-odk-check-item="a"/);
+  assert.doesNotMatch(h.html(), /data-odk-check-item="Shared ladder"/);
+  assert.equal(h.nodes.odkConfirm.style.display, '');
+});

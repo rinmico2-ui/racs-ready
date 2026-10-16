@@ -234,6 +234,7 @@ router.use((req, res, next) => {
 });
 router.use('/assignments/:id', require('../utils/standardTeamMiddleware'));
 router.use(['/appointments/:id', '/bookings/:id', '/repairs/:id'], require('../utils/standardTeamMiddleware').booking);
+router.use('/appointments/:id/repair-workflow', require('./standardRepairWorkflowRoutes'));
 
 router.get('/relocation-work-order/:bookingId', async (req, res, next) => {
   try {
@@ -9655,7 +9656,7 @@ router.get("/daily-kit/upcoming", async (req, res, next) => {
     const end = new Date(start.getTime() + 61 * 86400000);
     const [assignments, orders, projects] = await Promise.all([
       Assignment.find({ technicianId: tech._id, status: { $in: ACTIVE_ASSIGNMENT_STATUSES }, bookingDate: { $gte: start, $lt: end } }).select("bookingDate").lean(),
-      Order.find({ technicianId: tech._id, fulfillmentType: "delivery_installation", status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES }, "delivery.preferredDate": { $gte: start, $lt: end } }).select("delivery.preferredDate").lean(),
+      Order.find({ ...require('../utils/standardJobTeam').scope(tech._id), fulfillmentType: "delivery_installation", status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES }, "delivery.preferredDate": { $gte: start, $lt: end } }).select("delivery.preferredDate").lean(),
       DailyAssignment.find({ technicianId: tech._id, planningOnly: { $ne: true }, status: { $in: ["pending", "in_progress"] }, date: { $gte: start, $lt: end } }).select("date").lean(),
     ]);
     const counts = new Map();
@@ -9761,12 +9762,8 @@ router.get("/daily-kit", async (req, res, next) => {
       }
     }
 
-    return res.json({
-      success: true,
-      kit: kit.toObject(),
-      jobDetails,
-      aiContingencySuggestions,
-    });
+    const sharedKits = await require('../utils/sharedStandardDailyKits').createService().read(tech._id, req.query.date || new Date());
+    return res.json({ success: true, kit: kit.toObject(), jobDetails, aiContingencySuggestions, sharedKits });
   } catch (err) { next(err); }
 });
 

@@ -7,6 +7,6 @@ function repairWorkAccess(booking, technicianId, assignment) {
     if (!team.readiness(booking).ready) return { canInspect: false, reason: 'Every assigned technician must accept before on-site work starts.' };
   }
   const started = assignment?.status === 'in_progress' || ['in-progress', 'inspection_in_progress', 'repair_in_progress'].includes(booking.status);
-  return { canInspect: started, reason: started ? '' : 'Start Work after arriving at the customer site to record findings and generate a quotation.' };
+  return { canInspect: started, canComplete: started && booking.repairExecution?.status === 'in_progress', reason: started ? '' : 'Start Work after arriving at the customer site to record findings and generate a quotation.' };
 }
 module.exports = { repairWorkAccess };

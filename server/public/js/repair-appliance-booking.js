@@ -20,6 +20,24 @@
           kind: `repair_${category.slug}_${unit.value}` })));
   }
   const identity = row => String(row.id || row._id || '');
+  function problemSuggestions(unit) {
+    const cooling = /aircon|air conditioning|refrigerator|freezer/i.test(`${unit?.category || ''} ${unit?.value || ''}`);
+    const washing = /washing|washer|dryer/i.test(unit?.value || '');
+    return [...(cooling ? [{ label: 'Not cooling', text: 'The appliance is not cooling.' }] : []),
+      ...(washing ? [{ label: 'Not spinning', text: 'The appliance is not spinning.' }, { label: 'Not draining', text: 'The appliance is not draining water.' }] : []),
+      { label: 'Will not turn on', text: 'The appliance will not turn on.' },
+      { label: 'Unusual noise', text: 'The appliance is making unusual noises.' },
+      { label: 'Water leaking', text: 'Water is leaking from the appliance.' },
+      { label: 'Error code', text: 'The appliance is showing an error code.' },
+      { label: 'Turns off by itself', text: 'The appliance turns off by itself.' }];
+  }
+  function toggleProblem(description, suggestion, limit = 500) {
+    const current = String(description || ''), lines = current.split('\n');
+    if (lines.some(line => line.trim() === suggestion)) return lines.filter(line => line.trim() !== suggestion).join('\n');
+    const next = current ? `${current}${current.endsWith('\n') ? '' : '\n'}${suggestion}` : suggestion;
+    if (next.length > limit) throw Error(`Keep the problem description within ${limit} characters before adding another suggestion.`);
+    return next;
+  }
   function create() {
     let builder, hooks, units = [], selectedCategory = '';
     const field = name => hooks.host.querySelector(`[name="${name}"]`);
@@ -73,6 +91,7 @@
       };
       builder = window.CoreApplianceBooking.create();
       builder.mount([service], { ...options, repair: true, adapter, applianceChoices: choiceMarkup(), syncApplianceChoices: syncChoices,
+        problemSuggestions: selected => problemSuggestions(selectedUnit(selected.applianceKind)), toggleProblem,
         isAirconKind: kind => selectedUnit(kind)?.category === 'aircon', airconTypeFor: kind => selectedUnit(kind)?.category === 'aircon' ? selectedUnit(kind).value : null,
         state: { get selectedServices() { return options.state.selectedServices; }, applianceDraft: options.draft || null },
         kindFor: row => units.find(unit => unit.value === row.unitType && (!row.unitCategory || row.unitCategory === unit.category))?.kind || '', serviceIdFor: () => service._id,
@@ -119,5 +138,5 @@
     return { mount, edit, sync: () => builder?.sync(), pending: () => builder?.pending() || false,
       start: () => builder?.start(), reset: () => builder?.reset() };
   }
-  return { create, catalog };
+  return { create, catalog, problemSuggestions, toggleProblem };
 });

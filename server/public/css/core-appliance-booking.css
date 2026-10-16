@@ -180,3 +180,4 @@ body:has(#serviceSelection:not(.d-none) #repair-tab.active):has(#repairAppliance
   .cab-detail-card .cab-fields { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .cab-unit-help .cab-secondary { width: 100%; white-space: normal; }
 }
+.cab-problem-suggestions{margin:18px 0}.cab-problem-suggestions .cab-note{margin-bottom:10px}.cab-problem-suggestions [role="group"]{display:flex;flex-wrap:wrap;gap:8px}.cab-problem-suggestions button{min-height:44px;padding:9px 13px;border:1px solid #d2ded6;border-radius:22px;background:#fff;color:#385244;font-size:.78rem;line-height:1.4;text-align:left}.cab-problem-suggestions button[aria-pressed="true"]{background:#edf7f0;border-color:var(--cab-green);color:var(--cab-green);box-shadow:inset 0 0 0 1px var(--cab-green)}.cab-problem-suggestions button:focus-visible{outline:3px solid #b6dcca;outline-offset:2px}

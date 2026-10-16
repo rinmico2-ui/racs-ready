@@ -926,8 +926,12 @@ async function handleTimeSlots(req, res) {
       const now = new Date();
 
       const timeSlots = [];
-      for (let slotStart = workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
+      // Internal on-site repair checks may test the current minute. Public
+      // query parameters cannot enable this mode or bypass advance notice.
+      const ongoingStart = req._trustedOngoingStart;
+      for (let slotStart = ongoingStart ?? workStartMin; slotStart < workEndMin; slotStart += SLOT_INTERVAL) {
         const slotEnd = slotStart + capacityPerSlot;
+        if (ongoingStart != null && (slotStart !== ongoingStart || slotStart < workStartMin || slotEnd > workEndMin)) break;
         if (overtimeMinutesForWindow(slotStart, slotEnd, workStartMin, workEndMin) === null) continue;
 
         if (!manilaSlotTiming(requestedDateKey, slotStart, {
@@ -1203,6 +1207,9 @@ function schedulingResult(handler, query, trustedExclusions = {}) {
       _trustedExcludeBookingId: trustedExclusions.excludeBookingId || null,
       _trustedExistingAppointment: trustedExclusions.existingAppointment === true
         && Boolean(trustedExclusions.excludeBookingId || trustedExclusions.excludeOrderId),
+      _trustedOngoingStart: trustedExclusions.existingAppointment === true && trustedExclusions.excludeBookingId
+        && Number.isInteger(trustedExclusions.ongoingStartMinutes) && trustedExclusions.ongoingStartMinutes >= 0 && trustedExclusions.ongoingStartMinutes < 1440
+        ? trustedExclusions.ongoingStartMinutes : undefined,
     }, response)).catch(reject);
   });
 }

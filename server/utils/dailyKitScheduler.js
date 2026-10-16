@@ -17,14 +17,8 @@ function generationPipeline(collections, now = new Date()) {
       automaticSyncedAt: existing ? { $cond: [{ $eq: [{ $type: '$automaticSyncedAt' }, 'date'] }, '$automaticSyncedAt', null] } : { $literal: null } } },
   ];
   return [
-    ...rows('bookingDate', { status: { $in: ACTIVE_ASSIGNMENT_STATUSES }, serviceType: { $ne: 'project' } }),
+    ...rows('bookingDate', { status: { $in: ACTIVE_ASSIGNMENT_STATUSES }, serviceType: { $ne: 'project' }, crewRole: { $ne: 'support' } }),
     { $unionWith: { coll: collections.orders, pipeline: rows('delivery.preferredDate', { isProject: { $ne: true }, fulfillmentType: 'delivery_installation', status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES } }) } },
-    { $unionWith: { coll: collections.orders, pipeline: [
-      { $match: { isProject: { $ne: true }, fulfillmentType: 'delivery_installation', status: { $in: ACTIVE_INSTALLATION_ORDER_STATUSES }, 'technicianTeam.1': { $exists: true }, 'delivery.preferredDate': { $gte: start, $lt: end } } },
-      { $unwind: '$technicianTeam' },
-      { $set: { technicianId: '$technicianTeam.technicianId' } },
-      ...rows('delivery.preferredDate', {}),
-    ] } },
     { $unionWith: { coll: collections.dailyAssignments, pipeline: rows('date', { planningOnly: { $ne: true }, status: { $in: ['pending', 'in_progress'] } }) } },
     // Old kit targets also need a refresh after reassignment, rescheduling or
     // cancellation. The canonical sync preserves already-issued custody rows.

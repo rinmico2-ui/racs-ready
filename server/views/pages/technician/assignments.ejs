@@ -7008,13 +7008,13 @@
     function renderDailyPreparationCard(a) {
       if (a.serviceType === 'project' || !['pending_acceptance','accepted','en_route','on_site','in_progress'].includes(a.status)) return '';
       const schedule = window.RACSVisitSchedule.state(a);
-      const status = a.status === 'pending_acceptance' ? 'Accept your assignment to prepare this visit.' : !schedule.ready ? schedule.error : a.equipmentCheckedOut ? 'Preparation confirmed. Review your kit before departure.' : 'Review and confirm the equipment and consumables for this visit before going En Route.';
-      return `<section class="booking-detail-card" data-visit-daily-preparation><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-briefcase"></i>Daily Preparation</h6></div><div class="booking-detail-card-body"><p class="small mb-2">${status}</p><p class="small text-muted mb-2">Work date: ${schedule.scheduledDate || 'Schedule pending'} (Philippine time). Future kits are previews; confirm preparation on the work date.</p>${a.crewRole === 'support' ? '<p class="small text-muted">The primary technician manages shared job equipment. Review your personal daily kit.</p>' : ''}${dailyPreparationButton(a)}</div></section>`;
+      const status = a.status === 'pending_acceptance' ? 'Accept your assignment to view preparation for this visit.' : a.crewRole === 'support' ? 'View the shared daily kit. The primary technician packs and confirms it for the team.' : !schedule.ready ? schedule.error : a.equipmentCheckedOut ? 'Preparation confirmed. Review your kit before departure.' : 'Review and confirm the equipment and consumables for this visit before going En Route.';
+      return `<section class="booking-detail-card" data-visit-daily-preparation><div class="booking-detail-card-head"><h6 class="booking-detail-card-title"><i class="bi bi-briefcase"></i>Daily Preparation</h6></div><div class="booking-detail-card-body"><p class="small mb-2">${status}</p><p class="small text-muted mb-2">Work date: ${schedule.scheduledDate || 'Schedule pending'} (Philippine time). Future kits are previews; confirm preparation on the work date.</p>${a.crewRole === 'support' ? '<p class="small text-muted">The primary technician prepares the shared daily kit. You can view its packing and confirmation status.</p>' : ''}${dailyPreparationButton(a)}</div></section>`;
     }
 
     function dailyPreparationButton(a, compact = false) {
       const date = window.RACSVisitSchedule.dateKey(a.bookingDate || a.bookingId?.bookingDate);
-      return `<button type="button" class="btn ${compact ? 'btn-sm ' : ''}btn-outline-success" onclick="openDailyKitModal('${date}')"><i class="bi bi-briefcase me-1"></i>Open Daily Preparation</button>`;
+      return `<button type="button" class="btn ${compact ? 'btn-sm ' : ''}btn-outline-success" onclick="openDailyKitModal('${date}')"><i class="bi bi-briefcase me-1"></i>${a.crewRole === 'support' ? 'View shared daily kit' : 'Open Daily Preparation'}</button>`;
     }
 
     function repairDepartureActions(a, compact = false) {
@@ -18656,6 +18656,7 @@ function preparationEscapeHtml(value) {
 })();
 </script>
 <script src="/js/technician-work-updates.js?v=20261016-coordinated-refresh"></script>
-<link rel="stylesheet" href="/css/repair-units.css?v=20261013">
-<script src="/js/repair-units.js?v=20261016-diagnostic-quote-v2"></script>
+<link rel="stylesheet" href="/css/repair-units.css?v=20261017-clean-repair-flow">
+<script src="/js/repair-units.js?v=20261017-clean-repair-flow"></script>
+<script src="/js/repair-visit.js?v=20261017-clean-repair-flow"></script>
 <script>window.addEventListener('repair-units:updated', () => { window.__loadProjectWork?.(); if(window._currentDetailId) window.refreshOpenAssignmentDetail?.(); });</script>

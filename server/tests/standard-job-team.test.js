@@ -21,7 +21,7 @@ function fixture({ source = 'booking', unavailable, failWrite = 0, standalone = 
   function model(name, RealModel) {
     return class extends Document {
       static findById(key) { const value = store[name].get(String(key)); return query(value ? new this(value) : null); }
-      static find() { return query([...store[name].values()].map(row => new this(row))); }
+      static find(filter = {}) { return query([...store[name].values()].filter(row => !filter.status?.$nin?.includes(row.status)).map(row => new this(row))); }
       static async updateOne(filter, update) { const record = store[name].get(String(filter._id)); if (!record || filter.status && typeof filter.status === 'string' && record.status !== filter.status) return { matchedCount: 0 }; Object.assign(record, copy(update.$set || {})); return { matchedCount: 1 }; }
       async save() {
         if (++writes === failWrite) throw Error('Synthetic write failure');
@@ -394,6 +394,24 @@ test('supporting service and installation kits do not duplicate shared equipment
   const rows = await context.requirementsFor([{ _id: id(101), bookingId, crewRole: 'support' }], [{ _id: bookingId, quotation: { parts: [{ name: 'Pump', quantity: 1 }] } }],
     [{ _id: orderId, technicianId: lead, technicianTeam: [{ technicianId: lead }, { technicianId: support }] }], [], [], support);
   assert.equal(rows.length, 0);
+});
+
+test('repair follow-up scheduling creates fresh crew invitations and preserves approved unit quotations', async () => {
+  const f = fixture(); await f.assign();
+  const job = f.current, oldAssignmentId = job.assignmentId;
+  job.serviceType = 'repair'; job.status = 'repair_approved'; job.repairUnitTracking = true;
+  job.inspection = { completedAt: new Date() }; job.approval = { status: 'approved' }; job.quotationReview = { status: 'approved' };
+  job.repairExecution = { status: 'deferred', repairMinutes: 120 };
+  job.services = [{ name: 'Repair inspection', type: 'repair', status: 'repair_approved', quantity: 1, units: [{ unitIndex: 1, repairReview: { state: 'approved' }, quotation: { totalCost: 900, parts: [] } }] }];
+  for (const row of f.store.assignments.values()) row.status = 'completed';
+  const result = await f.service.assign('booking', bookingId, { technicianId: lead, technicianIds: [lead, support], scheduledDate: '2099-01-06', timeSlot: '08:00' }, { _id: id(9), role: 'admin' }, { repairVisit: true });
+  assert.equal(result.job.status, 'repair_scheduled'); assert.notEqual(result.job.assignmentId, oldAssignmentId);
+  assert.equal(require('../utils/bookingDateTime').manilaDateKey(result.job.bookingDate), '2099-01-06');
+  assert.equal(result.job.repairExecution.status, undefined); assert.equal(result.job.services[0].status, 'repair_scheduled');
+  assert.equal(result.job.services[0].units[0].quotation.totalCost, 900);
+  assert.ok(result.job.technicianTeam.every(member => member.status === 'pending'));
+  for (const member of result.job.technicianTeam) assert.equal(f.store.assignments.get(member.assignmentId).status, 'pending_acceptance');
+  assert.equal(f.store.assignments.get(oldAssignmentId).status, 'completed');
 });
 test('retrying the same team assignment preserves invitations instead of sending new ones', async () => {
   const f = fixture(); const first = await f.assign(); const retry = await f.assign();
