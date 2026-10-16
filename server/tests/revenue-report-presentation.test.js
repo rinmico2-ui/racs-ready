@@ -38,7 +38,7 @@ test('deferred report retains product charts and uses the server CSV action afte
 });
 
 test("revenue report starts with four decision KPIs", () => {
-  for (const metric of ["Completed sales", "Payments after refunds", "Profit after expenses", "Unpaid balance"]) {
+  for (const metric of ["Completed sales", "Money received", "Profit after expenses", "Unpaid balance"]) {
     assert.match(revenueTemplate, new RegExp(metric));
   }
   assert.match(revenueCss, /#kpiGrid\s*>\s*\.kpi-enterprise:nth-child\(1\)/);
