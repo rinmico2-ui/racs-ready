@@ -231,10 +231,7 @@ async function handleAvailableDates(req, res) {
 
     // ── 7. Minimum advance booking notice ─────────────────────────────────
     const minAdvanceMinutes = await getMinAdvanceMinutes();
-    const earliestAllowed = earliestAllowedDateTime(minAdvanceMinutes);
-    const earliestAllowedMinutes = earliestAllowed.getHours() * 60 + earliestAllowed.getMinutes();
-    const earliestAllowedDate = new Date(earliestAllowed);
-    earliestAllowedDate.setHours(0, 0, 0, 0);
+    const earliestAllowedDateKey = manilaDateKey(earliestAllowedDateTime(minAdvanceMinutes));
 
     // ── 7b. Load approved leave requests for the 60-day window ────────────
     const leaveRecords = await LeaveRequest.find({
@@ -278,7 +275,7 @@ async function handleAvailableDates(req, res) {
       const dayOfWeek = checkDate.getUTCDay();
 
       if (nonWorkingDateSet.has(dateKey)) { debugSkipHoliday++; continue; }
-      if (checkDate.getTime() < earliestAllowedDate.getTime()) { debugSkipAdvance++; continue; }
+      if (dateKey < earliestAllowedDateKey) { debugSkipAdvance++; continue; }
 
       const dayBookings = bookingMap.get(dateKey) || new Map();
       const dayUnassigned = unassignedBookingMap.get(dateKey) || [];
@@ -374,9 +371,9 @@ async function handleAvailableDates(req, res) {
 
       // Today: skip the day entirely if advance notice blocks all windows
       if (i === 0) {
-        if (earliestAllowedMinutes >= dayEndMin) {
-          debugSkipAdvance++; continue;
-        }
+        // Each candidate already passed manilaSlotTiming above. Rechecking
+        // host-local hours here would incorrectly close the Philippine day
+        // while a UTC-hosted server is still on the previous evening.
         if (dayTotalAvailable === 0) { debugSkipAdvance++; continue; }
       }
 
