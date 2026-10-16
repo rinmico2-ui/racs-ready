@@ -28,7 +28,7 @@ const TERMINAL_BOOKING_STATUSES = [
   "warranty_claim",
   "closed",
 ];
-const TERMINAL_SERVICE_STATUSES = ["completed", "cancelled", "repair_declined"];
+const TERMINAL_SERVICE_STATUSES = ["completed", "cancelled", "repair_declined", "repair_completed"];
 const TERMINAL_ORDER_STATUSES = ["completed", "cancelled"];
 const TERMINAL_PROJECT_STATUSES = ["completed", "closed", "cancelled"];
 
@@ -64,9 +64,11 @@ async function findStaffArchiveBlockers(technicianId, modelOverrides = {}) {
       status: { $nin: TERMINAL_ASSIGNMENT_STATUSES },
     }),
     BookingService.countDocuments({
+      status: { $nin: TERMINAL_BOOKING_STATUSES },
       $or: [
-        { technicianId, status: { $nin: TERMINAL_BOOKING_STATUSES } },
-        { "technician._id": technicianId, status: { $nin: TERMINAL_BOOKING_STATUSES } },
+        { technicianId },
+        { "technician._id": technicianId },
+        { technicianTeam: { $elemMatch: { technicianId, status: { $in: ["pending", "accepted"] } } } },
         {
           services: {
             $elemMatch: {
@@ -78,7 +80,11 @@ async function findStaffArchiveBlockers(technicianId, modelOverrides = {}) {
       ],
     }),
     Order.countDocuments({
-      $or: [{ technicianId }, { "technician._id": technicianId }],
+      $or: [
+        { technicianId },
+        { "technician._id": technicianId },
+        { technicianTeam: { $elemMatch: { technicianId, status: { $in: ["pending", "accepted"] } } } },
+      ],
       status: { $nin: TERMINAL_ORDER_STATUSES },
     }),
     Project.countDocuments({
