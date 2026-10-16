@@ -1,6 +1,7 @@
 'use strict';
 // This command has no write mode. Automatic collection/index creation is disabled
 // before loading models, and customer contact/evidence fields are not requested.
+let stage = 'configuration';
 async function main() {
   require('dotenv').config({quiet:true});
   const mongoose=require('mongoose');mongoose.set('autoIndex',false);mongoose.set('autoCreate',false);
@@ -12,7 +13,12 @@ async function main() {
   if(!process.env.MONGODB_URI)throw Error('Database configuration is missing.');
   const connection=buildMongoConnectionUri(process.env.MONGODB_URI,{directHosts:process.env.MONGODB_DIRECT_HOSTS,replicaSet:process.env.MONGODB_REPLICA_SET,authSource:process.env.MONGODB_AUTH_SOURCE});
   try {
+    stage = 'database_connection';
     await mongoose.connect(disableRetryableWritesForDirectConnection(connection.uri),{serverSelectionTimeoutMS:8000,maxPoolSize:2,autoIndex:false,autoCreate:false});
+    // The application registers User at startup; the standalone audit must do
+    // so as well before revenue analytics populates payroll employee records.
+    require('../models/User');
+    stage = 'read_only_record_scan';
     const models={Booking:require('../models/BookingService'),Order:require('../models/Order'),Payment:require('../models/Payment'),WalkInSale:require('../models/WalkInSale'),ProductRefund:require('../models/ProductRefund'),Inventory:require('../models/Inventory'),HVACProduct:require('../models/HVACProduct'),Tool:require('../models/Tool'),Rating:require('../models/Rating')};
     const read=async(model,fields)=>{
       // Raw collection reads cannot trigger save/update hooks or schema casting.
@@ -32,9 +38,12 @@ async function main() {
       read(models.Tool,{...scope,active:1,type:1,inventoryClass:1,quantity:1,reservedQuantity:1,minStockLevel:1,assignable:1,assetStatus:1,assetCondition:1}),
       read(models.Rating,{targetType:1,targetId:1,score:1,moderationStatus:1}),
     ]);
+    stage = 'project_pricing';
     const projectPricing=await require('../utils/revenueRecognition').buildProjectPricingMap(bookings.filter(row=>row.isProject));
     const report=require('../utils/reportDataAudit').auditReportRecords({bookings,orders,payments,posSales,productRefunds,inventory,products,tools,ratings,projectPricing,startDate:period.start,endDate:period.end});
+    stage = 'revenue_calculation';
     const live=await require('../utils/revenueAnalytics').buildRevenueAnalytics({from:dates.dateKey(period.start),to:dates.dateKey(period.end)});
+    report.tabConsistency = live.analytics.consistency;
     const explanation=live.analytics.reconciliation;
     report.explanation=explanation ? {cashBreakdown:explanation.cashBreakdown,unmatchedPaymentRecordsInPeriod:explanation.unmatchedPaymentRecords,unmatchedCollectionsInPeriod:explanation.unmatchedCollections,requestedWorkValue:explanation.requestedValue,paymentsAppliedToRequestedWork:explanation.appliedPayments,unpaidOnRequestedWork:explanation.unpaidBalance,paidStatusMismatchCount:explanation.paidStatusMismatchCount} : null;
     report.reconciliation={completedSalesDifference:Math.round((live.analytics.recognizedRevenue-report.totals.completedSalesAfterPeriodRefunds)*100)/100,refundDifference:Math.round((live.analytics.refunds-report.totals.completedRefunds)*100)/100,netCollectionsDifference:Math.round((live.analytics.netCollections-report.totals.paymentsAfterRefunds)*100)/100};
@@ -48,6 +57,7 @@ async function main() {
 if(require.main===module)main().catch(error=>{
   // Connection errors may contain credentials/hostnames. Never print raw errors.
   const safe=/^(Use only|Choose valid|Reporting date|Database configuration|Audit document)/.test(error.message)?error.message:'The read-only audit could not finish. Check database access and server logs without sharing credentials.';
-  console.error(JSON.stringify({mode:'read-only',completed:false,error:safe}));process.exitCode=1;
+  const knownNames = new Set(['MissingSchemaError', 'MongoServerSelectionError', 'MongoNetworkError', 'CastError', 'ValidationError', 'ReferenceError', 'TypeError']);
+  console.error(JSON.stringify({mode:'read-only',completed:false,stage,errorType:knownNames.has(error.name)?error.name:'Error',error:safe}));process.exitCode=1;
 });
 module.exports={main};

@@ -72,6 +72,12 @@
   }
   function render(A) {
     report=A||{};page=1;costPage=1;
+    const consistency = get('revenueConsistency');
+    if (consistency) {
+      const failed = A.consistency && !A.consistency.matches;
+      consistency.className = failed ? 'alert alert-danger small' : 'd-none';
+      consistency.textContent = failed ? 'Some report breakdowns do not reconcile. Refresh the report and ask an administrator to run the read-only data audit before using these totals.' : '';
+    }
     updateCostCategories();
     if(A.recognizedRevenue!==undefined || A.reconciliation?.netSales!==undefined) {
       const costs=A.reconciliation||{},direct=Number(costs.savedDirectCosts??A.totalPartsCost??0),expenses=Number(costs.approvedExpenses??A.approvedExpenseTotal??0),payroll=Number(costs.payroll??A.payrollCost??0);

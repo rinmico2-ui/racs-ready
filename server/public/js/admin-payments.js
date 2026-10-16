@@ -19,6 +19,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const gatewayFilter = document.getElementById("paymentsGatewayFilter");
   const gatewayStatusFilter = document.getElementById("paymentsGatewayStatusFilter");
   const dateFilter = document.getElementById("paymentsDateFilter");
+  const fromDate = document.getElementById('paymentsFromDate');
+  const toDate = document.getElementById('paymentsToDate');
+  const manilaKey = value => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(value);
+  const todayParts = manilaKey(new Date()).split('-').map(Number);
+  if (fromDate) fromDate.value = urlParams.get('from') || manilaKey(new Date(Date.UTC(todayParts[0], todayParts[1] - 12, 1)));
+  if (toDate) toDate.value = urlParams.get('to') || manilaKey(new Date());
   const filterBtn = document.getElementById("paymentsFilterBtn");
 
   const tbody = document.getElementById("paymentsTableBody");
@@ -125,12 +131,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const method = normalizeMethod(p.method);
         const amount = formatCurrency(p.amount || 0);
         let status = p.status || "pending";
-        const submittedAtRaw = p.submittedAt || p.createdAt || p.bookingCreatedAt;
+        const submittedAtRaw = p.activityAt || p.collectedAt || p.verifiedAt || p.completedAt || p.submittedAt || p.createdAt || p.bookingCreatedAt;
         const date = submittedAtRaw
-          ? new Date(submittedAtRaw).toLocaleDateString("en-PH")
+          ? new Date(submittedAtRaw).toLocaleDateString("en-PH", { timeZone: 'Asia/Manila' })
           : "-";
         const time = submittedAtRaw
-          ? new Date(submittedAtRaw).toLocaleTimeString("en-PH", { hour: '2-digit', minute: '2-digit' })
+          ? new Date(submittedAtRaw).toLocaleTimeString("en-PH", { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' })
           : "";
         // convert completed to paid for table display
         if (String(status).toLowerCase() === "completed") {
@@ -231,6 +237,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function statusBadgeMarkup(status) {
     const s = String(status || "pending").toLowerCase();
+    const labels = { payment_collected: 'COLLECTED BY TECHNICIAN', waiting_for_remittance: 'AWAITING REMITTANCE',
+      remitted: 'REMITTED · AWAITING VERIFICATION', rejected: 'REMITTANCE REJECTED', unaccounted: 'UNACCOUNTED', refunded: 'REFUNDED' };
+    if (labels[s]) return { text: labels[s], style: 'background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;' };
     if (["paid", "succeeded", "completed", "verified"].includes(s)) {
       // unify completed/verified with paid for display
       return { text: "✅ PAID", style: "background:#ecfdf3;color:#047857;border:1px solid #86efac;" };
@@ -297,7 +306,7 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!payment) throw new Error("Missing payment details");
 
       // display badge according to booking's payment status where available
-      const badge = statusBadgeMarkup(payment.bookingPaymentStatus || payment.status);
+      const badge = statusBadgeMarkup(payment.status);
       if (detailsBookingReference) detailsBookingReference.textContent = payment.bookingReference || "-";
       if (detailsBookingStatus) detailsBookingStatus.textContent = payment.bookingStatus || "-";
       
@@ -307,9 +316,9 @@ document.addEventListener("DOMContentLoaded", function () {
         modalTitleEl.textContent = isOrder ? "Order & Payment Details" : "Booking & Payment Details";
       }
       // update buttons now that we know if booking/payment is already paid
-      const paidFlag = String(payment.bookingPaymentStatus || payment.status || "").toLowerCase() === "paid" ||
-        String(payment.status || "").toLowerCase() === "completed";
+      const paidFlag = ['paid', 'verified', 'completed', 'refunded'].includes(String(payment.status || '').toLowerCase());
       configureButtons(paidFlag, payment.method, String(payment.status || "").toLowerCase());
+      if (payment.collectedBy) configureButtons(true, payment.method, payment.status);
       if (detailsStatusBadge) {
         detailsStatusBadge.textContent = badge.text;
         detailsStatusBadge.setAttribute("style", `${badge.style}font-size:.78rem;font-weight:700;`);
@@ -324,14 +333,19 @@ document.addEventListener("DOMContentLoaded", function () {
       if (detailsDate) detailsDate.textContent = bookingDate;
       if (detailsTime) detailsTime.textContent = payment.selectedTimeLabel || "-";
       if (detailsLocation) detailsLocation.textContent = payment.locationAddress || "-";
-      if (detailsMethod) detailsMethod.textContent = normalizeMethod(payment.bookingPaymentMethod || payment.method);
+      if (detailsMethod) detailsMethod.textContent = normalizeMethod(payment.method);
       if (detailsGcashNumber) detailsGcashNumber.textContent = payment.gcashNumber || "-";
       if (detailsReference) detailsReference.textContent = payment.gcashReference || payment.reference || "-";
       if (detailsTravelFare) detailsTravelFare.textContent = formatCurrency(payment.travelFare || 0);
-      if (detailsDownpayment) detailsDownpayment.textContent = formatCurrency(payment.downpaymentAmount || payment.amount || 0);
+      if (detailsDownpayment) detailsDownpayment.textContent = formatCurrency(payment.amount || 0);
       if (detailsEstimatedFee) detailsEstimatedFee.textContent = formatCurrency(payment.estimatedFee || 0);
-      if (detailsIssue) detailsIssue.textContent = payment.issueDescription || "-";
+      if (detailsIssue) detailsIssue.textContent = payment.issueDescription || 'No appliance issue was recorded for this work.';
       if (detailsNotes) detailsNotes.textContent = payment.notes || "-";
+      const setText = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value || '—'; };
+      setText('detailsCollector', payment.collectedByName || (payment.collectedBy ? 'Technician (name unavailable)' : 'No technician collection recorded'));
+      setText('detailsCollectedAt', payment.collectedAt ? new Date(payment.collectedAt).toLocaleString('en-PH', { timeZone: 'Asia/Manila' }) : '');
+      setText('detailsCollectionNotes', payment.collectionNotes);
+      setText('detailsSpecialInstructions', payment.specialInstructions);
 
       const proofUrl = payment.proofUrl || "";
       if (detailsProofLink && detailsNoProof) {
@@ -360,365 +374,96 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  function updateStats(items) {
-    const rows = Array.isArray(items) ? items : [];
-    const total = rows.length;
-    const paidRows = rows.filter((p) => ["paid","completed", "verified"].includes(String(p.status || "").toLowerCase()));
-    const collected = paidRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const pendingRows = rows.filter((p) => String(p.status || "").toLowerCase() === "pending");
-    const pending = pendingRows.length;
-    const pendingAmount = pendingRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const failedRows = rows.filter((p) => String(p.status || "").toLowerCase() === "failed");
-    const failed = failedRows.length;
-    const failedAmount = failedRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    const partialRows = rows.filter((p) => String(p.status || "").toLowerCase() === "partial");
-    const partial = partialRows.length;
-    const partialAmount = partialRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
-    if (statTotalTx) statTotalTx.textContent = total.toLocaleString("en-PH");
-    if (statCollected) statCollected.textContent = formatCurrency(collected);
-    if (statPending) statPending.textContent = pending.toLocaleString("en-PH");
-    if (statFailed) statFailed.textContent = failed.toLocaleString("en-PH");
-
-    // Update Executive KPIs
-    const kpiTotalRevenue = document.getElementById("kpiTotalRevenue");
-    const kpiMonthlyRevenue = document.getElementById("kpiMonthlyRevenue");
-    const kpiCollectionRate = document.getElementById("kpiCollectionRate");
-    const kpiPendingAmount = document.getElementById("kpiPendingAmount");
-    const kpiSuccessRate = document.getElementById("kpiSuccessRate");
-    const kpiFailedCount = document.getElementById("kpiFailedCount");
-    const kpiAvgTransaction = document.getElementById("kpiAvgTransaction");
-    const kpiTotalTransactions = document.getElementById("kpiTotalTransactions");
-
-    if (kpiTotalRevenue) kpiTotalRevenue.textContent = formatCurrency(collected);
-    if (kpiMonthlyRevenue) kpiMonthlyRevenue.textContent = formatCurrency(collected);
-    
-    const collectionRate = total > 0 ? ((paidRows.length / total) * 100).toFixed(1) : 0;
-    if (kpiCollectionRate) kpiCollectionRate.textContent = collectionRate;
-    if (kpiPendingAmount) kpiPendingAmount.textContent = formatCurrency(pendingAmount);
-
-    const successRate = total > 0 ? (((paidRows.length + partialRows.length) / total) * 100).toFixed(1) : 0;
-    if (kpiSuccessRate) kpiSuccessRate.textContent = successRate;
-    if (kpiFailedCount) kpiFailedCount.textContent = failed;
-
-    const avgTransaction = paidRows.length > 0 ? (collected / paidRows.length) : 0;
-    if (kpiAvgTransaction) kpiAvgTransaction.textContent = formatCurrency(avgTransaction);
-    if (kpiTotalTransactions) kpiTotalTransactions.textContent = total;
-
-    // Payment Methods Breakdown
-    const gcashRows = rows.filter((p) => String(p.method || "").toLowerCase() === "gcash");
-    const cashRows = rows.filter((p) => String(p.method || "").toLowerCase() === "cod");
-    const bankRows = rows.filter((p) => String(p.method || "").toLowerCase() === "bank");
-
-    const kpiGcashCount = document.getElementById("kpiGcashCount");
-    const kpiGcashPercent = document.getElementById("kpiGcashPercent");
-    const kpiCashCount = document.getElementById("kpiCashCount");
-    const kpiCashPercent = document.getElementById("kpiCashPercent");
-    const kpiBankCount = document.getElementById("kpiBankCount");
-    const kpiBankPercent = document.getElementById("kpiBankPercent");
-
-    if (kpiGcashCount) kpiGcashCount.textContent = gcashRows.length;
-    if (kpiGcashPercent) kpiGcashPercent.textContent = total > 0 ? ((gcashRows.length / total) * 100).toFixed(0) + "%" : "0%";
-    if (kpiCashCount) kpiCashCount.textContent = cashRows.length;
-    if (kpiCashPercent) kpiCashPercent.textContent = total > 0 ? ((cashRows.length / total) * 100).toFixed(0) + "%" : "0%";
-    if (kpiBankCount) kpiBankCount.textContent = bankRows.length;
-    if (kpiBankPercent) kpiBankPercent.textContent = total > 0 ? ((bankRows.length / total) * 100).toFixed(0) + "%" : "0%";
-
-    // Outstanding Amounts
-    const kpiPendingCount = document.getElementById("kpiPendingCount");
-    const kpiPendingValue = document.getElementById("kpiPendingValue");
-    const kpiPartialCount = document.getElementById("kpiPartialCount");
-    const kpiPartialValue = document.getElementById("kpiPartialValue");
-    const kpiFailedCountDetail = document.getElementById("kpiFailedCountDetail");
-    const kpiFailedValue = document.getElementById("kpiFailedValue");
-
-    if (kpiPendingCount) kpiPendingCount.textContent = pending;
-    if (kpiPendingValue) kpiPendingValue.textContent = formatCurrency(pendingAmount);
-    if (kpiPartialCount) kpiPartialCount.textContent = partial;
-    if (kpiPartialValue) kpiPartialValue.textContent = formatCurrency(partialAmount);
-    if (kpiFailedCountDetail) kpiFailedCountDetail.textContent = failed;
-    if (kpiFailedValue) kpiFailedValue.textContent = formatCurrency(failedAmount);
-
-    // Performance Metrics
-    const amounts = rows.map(p => Number(p.amount || 0)).filter(a => a > 0);
-    const avgDailyRevenue = amounts.length > 0 ? (collected / 30) : 0; // Assuming 30-day period
-    const highestTxn = amounts.length > 0 ? Math.max(...amounts) : 0;
-    const lowestTxn = amounts.length > 0 ? Math.min(...amounts) : 0;
-
-    const kpiAvgDailyRevenue = document.getElementById("kpiAvgDailyRevenue");
-    const kpiHighestTxn = document.getElementById("kpiHighestTxn");
-    const kpiLowestTxn = document.getElementById("kpiLowestTxn");
-
-    if (kpiAvgDailyRevenue) kpiAvgDailyRevenue.textContent = formatCurrency(avgDailyRevenue);
-    if (kpiHighestTxn) kpiHighestTxn.textContent = formatCurrency(highestTxn);
-    if (kpiLowestTxn) kpiLowestTxn.textContent = formatCurrency(lowestTxn);
-
-    // Update status overview bars
-    const paidPercent = total > 0 ? ((paidRows.length / total) * 100).toFixed(1) : 0;
-    const pendingPercent = total > 0 ? ((pending / total) * 100).toFixed(1) : 0;
-    const partialPercent = total > 0 ? ((partial / total) * 100).toFixed(1) : 0;
-    const failedPercent = total > 0 ? ((failed / total) * 100).toFixed(1) : 0;
-
-    const paidPercentEl = document.getElementById("paidPercent");
-    const paidBarEl = document.getElementById("paidBar");
-    const paidCountEl = document.getElementById("paidCount");
-    if (paidPercentEl) paidPercentEl.textContent = paidPercent + "%";
-    if (paidBarEl) paidBarEl.style.width = paidPercent + "%";
-    if (paidCountEl) paidCountEl.textContent = paidRows.length + " transactions";
-
-    const pendingPercentEl = document.getElementById("pendingPercent");
-    const pendingBarEl = document.getElementById("pendingBar");
-    const pendingCountEl = document.getElementById("pendingCount");
-    if (pendingPercentEl) pendingPercentEl.textContent = pendingPercent + "%";
-    if (pendingBarEl) pendingBarEl.style.width = pendingPercent + "%";
-    if (pendingCountEl) pendingCountEl.textContent = pending + " transactions";
-
-    const partialPercentEl = document.getElementById("partialPercent");
-    const partialBarEl = document.getElementById("partialBar");
-    const partialCountEl = document.getElementById("partialCount");
-    if (partialPercentEl) partialPercentEl.textContent = partialPercent + "%";
-    if (partialBarEl) partialBarEl.style.width = partialPercent + "%";
-    if (partialCountEl) partialCountEl.textContent = partial + " transactions";
-
-    const failedPercentEl = document.getElementById("failedPercent");
-    const failedBarEl = document.getElementById("failedBar");
-    const failedCountEl = document.getElementById("failedCount");
-    if (failedPercentEl) failedPercentEl.textContent = failedPercent + "%";
-    if (failedBarEl) failedBarEl.style.width = failedPercent + "%";
-    if (failedCountEl) failedCountEl.textContent = failed + " transactions";
-
-    // Update pagination info
-    const paginationInfo = document.getElementById("paymentsPaginationInfo");
-    if (paginationInfo) paginationInfo.textContent = `Showing ${rows.length} of ${total} transactions`;
-
-    // Update charts
-    updateCharts(rows);
-  }
-
-  let paymentTrendChart = null;
-  let paymentMethodChart = null;
-
-  function updateCharts(items) {
-    const rows = Array.isArray(items) ? items : [];
-
-    // Payment Trend Chart (last 30 days)
-    const trendCanvas = document.getElementById("chartPaymentTrend");
-    if (trendCanvas && typeof Chart !== "undefined") {
-      const ctx = trendCanvas.getContext("2d");
-      
-      // Generate last 30 days
-      const days = [];
-      const dailyAmounts = [];
-      const dailyCounts = [];
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().slice(0, 10);
-        days.push(date.toLocaleDateString("en-PH", { month: "short", day: "numeric" }));
-        
-        const dayPayments = rows.filter(p => {
-          const pDate = new Date(p.submittedAt || p.createdAt || p.bookingCreatedAt);
-          return pDate.toISOString().slice(0, 10) === dateStr;
-        });
-        dailyAmounts.push(dayPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0));
-        dailyCounts.push(dayPayments.length);
-      }
-
-      if (paymentTrendChart) paymentTrendChart.destroy();
-      paymentTrendChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: days,
-          datasets: [{
-            label: "Revenue",
-            data: dailyAmounts,
-            borderColor: "#2563eb",
-            backgroundColor: "rgba(37, 99, 235, 0.1)",
-            fill: true,
-            tension: 0.4,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { grid: { display: false }, ticks: { maxTicksLimit: 7, font: { size: 10 } } },
-            y: { grid: { color: "#f1f5f9" }, ticks: { font: { size: 10 }, callback: v => "₱" + (v/1000).toFixed(0) + "k" } }
-          }
-        }
-      });
-
-      // Update trend stats
-      const totalAmount = dailyAmounts.reduce((a, b) => a + b, 0);
-      const avgAmount = dailyAmounts.length > 0 ? totalAmount / dailyAmounts.length : 0;
-      const peakAmount = Math.max(...dailyAmounts);
-      const peakIndex = dailyAmounts.indexOf(peakAmount);
-      const firstHalf = dailyAmounts.slice(0, 15).reduce((a, b) => a + b, 0);
-      const secondHalf = dailyAmounts.slice(15).reduce((a, b) => a + b, 0);
-      const growth = firstHalf > 0 ? (((secondHalf - firstHalf) / firstHalf) * 100).toFixed(1) : 0;
-
-      const paymentAvgEl = document.getElementById("paymentAvg");
-      const paymentPeakEl = document.getElementById("paymentPeak");
-      const paymentGrowthEl = document.getElementById("paymentGrowth");
-      if (paymentAvgEl) paymentAvgEl.textContent = "₱" + Math.round(avgAmount).toLocaleString();
-      if (paymentPeakEl) paymentPeakEl.textContent = days[peakIndex] || "--";
-      if (paymentGrowthEl) paymentGrowthEl.textContent = (growth >= 0 ? "+" : "") + growth + "%";
+  let ledgerPage = 1, ledgerPages = 1, listController = null, debounceTimer;
+  let paymentTrendChart = null, paymentMethodChart = null;
+  const put = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = value; };
+  function updateStats(summary) {
+    const S = summary || {}, statuses = S.statuses || {}, total = Number(S.total || 0);
+    const group = keys => keys.reduce((sum, key) => ({ count: sum.count + Number(statuses[key]?.count || 0), amount: sum.amount + Number(statuses[key]?.amount || 0) }), { count: 0, amount: 0 });
+    const confirmed = group(['paid', 'verified', 'refunded']);
+    const pending = group(['pending']);
+    const held = group(['payment_collected', 'waiting_for_remittance', 'remitted', 'partial']);
+    const failed = group(['failed', 'rejected', 'unaccounted']);
+    put('statTotalTx', total.toLocaleString('en-PH'));
+    put('statCollected', formatCurrency(S.grossCollections));
+    put('statPending', pending.count);
+    put('statFailed', failed.count);
+    put('kpiTotalRevenue', formatCurrency(S.grossCollections));
+    put('kpiMonthlyRevenue', formatCurrency(S.monthlyCollections));
+    put('kpiCollectionRate', total ? (100 * S.collectedRecords / total).toFixed(1) : '0.0');
+    put('kpiPendingAmount', formatCurrency(pending.amount));
+    put('kpiSuccessRate', total ? (100 * confirmed.count / total).toFixed(1) : '0.0');
+    put('kpiFailedCount', failed.count);
+    put('kpiAvgTransaction', formatCurrency(S.collectedRecords ? S.grossCollections / S.collectedRecords : 0));
+    put('kpiTotalTransactions', total);
+    put('kpiPendingCount', pending.count); put('kpiPendingValue', formatCurrency(pending.amount));
+    put('kpiPartialCount', held.count); put('kpiPartialValue', formatCurrency(held.amount));
+    put('kpiFailedCountDetail', failed.count); put('kpiFailedValue', formatCurrency(failed.amount));
+    put('kpiHighestTxn', formatCurrency(S.highest)); put('kpiLowestTxn', formatCurrency(S.lowest));
+    put('paymentsRefundTotal', formatCurrency(S.refunds)); put('paymentsNetTotal', formatCurrency(S.netCollections));
+    for (const [prefix, value] of [['paid', confirmed], ['pending', pending], ['partial', held], ['failed', failed]]) {
+      const percent = total ? 100 * value.count / total : 0;
+      put(prefix + 'Percent', percent.toFixed(1) + '%'); put(prefix + 'Count', value.count + ' records');
+      const bar = document.getElementById(prefix + 'Bar'); if (bar) bar.style.width = percent + '%';
     }
-
-    // Payment Method Distribution Chart
-    const methodCanvas = document.getElementById("chartPaymentMethod");
-    if (methodCanvas && typeof Chart !== "undefined") {
-      const ctx = methodCanvas.getContext("2d");
-      
-      const methodCounts = {};
-      rows.forEach(p => {
-        const method = normalizeMethod(p.method);
-        methodCounts[method] = (methodCounts[method] || 0) + 1;
-      });
-
-      const labels = Object.keys(methodCounts);
-      const data = Object.values(methodCounts);
-      const colors = ["#2563eb", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444"];
-
-      if (paymentMethodChart) paymentMethodChart.destroy();
-      paymentMethodChart = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: labels.length ? labels : ["No Data"],
-          datasets: [{
-            data: data.length ? data : [1],
-            backgroundColor: data.length ? colors.slice(0, labels.length) : ["#e2e8f0"],
-            borderWidth: 0,
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "65%",
-          plugins: {
-            legend: { position: "right", labels: { boxWidth: 12, padding: 16, font: { size: 11 } } }
-          }
-        }
-      });
+    const trend = S.trend || [], values = trend.map(row => Number(row.amount || 0));
+    const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+    put('kpiAvgDailyRevenue', formatCurrency(average)); put('paymentAvg', formatCurrency(average));
+    const peak = Math.max(0, ...values), peakIndex = values.indexOf(peak);
+    put('paymentPeak', peak > 0 ? trend[peakIndex].date : 'No collections');
+    const first = values.slice(0, 15).reduce((sum, value) => sum + value, 0), last = values.slice(15).reduce((sum, value) => sum + value, 0);
+    put('paymentGrowth', first > 0 ? ((last - first) / first * 100).toFixed(1) + '%' : 'N/A');
+    if (typeof Chart === 'undefined') return;
+    const trendCanvas = document.getElementById('chartPaymentTrend');
+    if (trendCanvas) {
+      paymentTrendChart?.destroy();
+      paymentTrendChart = new Chart(trendCanvas, { type: 'line', data: { labels: trend.map(row => row.date), datasets: [{ label: 'Payments received', data: values, borderColor: '#2563eb', tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+    }
+    const methodCanvas = document.getElementById('chartPaymentMethod');
+    if (methodCanvas) {
+      paymentMethodChart?.destroy();
+      const methods = Object.entries(S.methods || {});
+      paymentMethodChart = new Chart(methodCanvas, { type: 'doughnut', data: { labels: methods.map(([method]) => normalizeMethod(method)), datasets: [{ label: 'Collected amount', data: methods.map(([, value]) => value), backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
     }
   }
-
-  function applyClientFilters(items) {
-    const q = String(searchInput?.value || "").trim().toLowerCase();
-    const status = String(statusFilter?.value || "all").toLowerCase();
-    const method = String(methodFilter?.value || "all").toLowerCase();
-    const gateway = String(gatewayFilter?.value || "all").toLowerCase();
-    const gatewayStatus = String(gatewayStatusFilter?.value || "all").toLowerCase();
-    const date = String(dateFilter?.value || "").trim();
-
-    return items.filter((p) => {
-      const haystack = [
-        p._id,
-        p.bookingId,
-        p.bookingReference,
-        p.bookingStatus,
-        p.serviceName,
-        p.reference,
-        p.customerName,
-        p.customerEmail,
-      ]
-        .map((x) => String(x || "").toLowerCase())
-        .join(" ");
-      if (q && !haystack.includes(q)) return false;
-
-      if (status !== "all") {
-        let st = String(p.status || p.bookingPaymentStatus || "").toLowerCase();
-        if (st === "completed") st = "paid"; // treat legacy completed as paid
-        if (st !== status) return false;
-      }
-      if (method !== "all" && String(p.method || "").toLowerCase() !== method) return false;
-      if (gateway !== "all" && String(p.gateway || "").toLowerCase() !== gateway) return false;
-      if (gatewayStatus !== "all" && String(p.gatewayStatus || "").toLowerCase() !== gatewayStatus) return false;
-
-      if (date) {
-        const submittedDate = p.submittedAt
-          ? new Date(p.submittedAt).toISOString().slice(0, 10)
-          : "";
-        if (submittedDate !== date) return false;
-      }
-
-      return true;
-    });
-  }
-
-  let cache = [];
-
   async function loadPayments() {
-    if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5">
-        <div style="color:#94a3b8;">
-          <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
-          <div style="font-size:0.85rem;">Loading payment records...</div>
-        </div>
-      </td></tr>`;
+    listController?.abort();
+    const controller = new AbortController(); listController = controller;
+    const query = new URLSearchParams({ view: 'ledger', page: String(ledgerPage), pageSize: '25' });
+    for (const [key, element] of [['search', searchInput], ['status', statusFilter], ['method', methodFilter], ['gateway', gatewayFilter], ['gatewayStatus', gatewayStatusFilter], ['date', dateFilter]]) {
+      const value = String(element?.value || '').trim(); if (value && value.toLowerCase() !== 'all') query.set(key, key === 'search' ? value : value.toLowerCase());
     }
-
+    if (highlightedBookingId) query.set('bookingId', highlightedBookingId);
+    if (highlightedOrderId) query.set('orderId', highlightedOrderId);
+    if (fromDate?.value) query.set('from', fromDate.value);
+    if (toDate?.value) query.set('to', toDate.value);
+    if (tbody) tbody.setAttribute('aria-busy', 'true');
     try {
-      const res = await fetch(paymentsApiBase + '?view=list', {
-        credentials: "same-origin",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error("Failed to fetch payment list");
-
-      const data = await res.json();
-      cache = Array.isArray(data.payments) ? data.payments : [];
-      cache.sort((a, b) => {
-        const da = new Date(a.submittedAt || a.bookingCreatedAt || 0).getTime();
-        const db = new Date(b.submittedAt || b.bookingCreatedAt || 0).getTime();
-        return db - da;
-      });
-      const visible = applyClientFilters(cache);
-      renderRows(visible);
-      updateStats(visible);
-    } catch (err) {
-      console.warn("admin-payments: failed to load", err && err.message);
-      if (tbody) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5">
-          <div style="color:#ef4444;">
-            <i class="bi bi-exclamation-triangle" style="font-size:2rem;display:block;margin-bottom:12px;"></i>
-            <div style="font-weight:600;margin-bottom:4px;">Failed to load payments</div>
-            <div style="font-size:0.8rem;color:#94a3b8;">Please check your connection and try again</div>
-            <button class="btn btn-sm btn-outline-primary mt-3" onclick="location.reload()">
-              <i class="bi bi-arrow-clockwise me-1"></i>Retry
-            </button>
-          </div>
-        </td></tr>`;
-      }
-    }
+      const data = await RACSRequest.json(paymentsApiBase + '?' + query, { signal: controller.signal });
+      if (listController !== controller) return;
+      if (!Array.isArray(data.payments) || !data.summary || !data.pagination) throw Error('The payment ledger returned an incomplete response. Please refresh.');
+      ledgerPages = data.pagination.totalPages;
+      if (ledgerPage > ledgerPages) { ledgerPage = ledgerPages; return loadPayments(); }
+      renderRows(data.payments); updateStats(data.summary);
+      put('paymentsPaginationInfo', `Showing ${data.pagination.total ? (ledgerPage - 1) * data.pagination.pageSize + 1 : 0}–${Math.min(ledgerPage * data.pagination.pageSize, data.pagination.total)} of ${data.pagination.total} records`);
+      put('paymentsPage', ledgerPage + ' / ' + ledgerPages);
+      const periodLabel = data.period ? `${manilaKey(new Date(data.period.from))} – ${manilaKey(new Date(data.period.to))} · Philippine time. ` : '';
+      put('paymentsLedgerBasis', periodLabel + data.basis);
+      document.getElementById('paymentsPrevious').disabled = ledgerPage <= 1;
+      document.getElementById('paymentsNext').disabled = ledgerPage >= ledgerPages;
+    } catch (error) {
+      if (error.name === 'AbortError' || listController !== controller) return;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger" role="alert">${escapeHtml(error.message)} <button type="button" id="retryPaymentLedger" class="btn btn-sm btn-outline-primary">Retry</button></td></tr>`;
+      put('paymentsLedgerBasis', 'The payment ledger could not refresh. Any totals still shown are from the previous successful request.');
+    } finally { if (listController === controller) { listController = null; tbody?.removeAttribute('aria-busy'); } }
   }
-
-  if (filterBtn) {
-    filterBtn.addEventListener("click", function () {
-      const visible = applyClientFilters(cache);
-      renderRows(visible);
-      updateStats(visible);
-    });
-  }
-
-  [searchInput, statusFilter, methodFilter, gatewayFilter, gatewayStatusFilter, dateFilter]
-    .filter(Boolean)
-    .forEach((el) => {
-      el.addEventListener("change", function () {
-        const visible = applyClientFilters(cache);
-        renderRows(visible);
-        updateStats(visible);
-      });
-      if (el === searchInput) {
-        el.addEventListener("input", function () {
-          const visible = applyClientFilters(cache);
-          renderRows(visible);
-          updateStats(visible);
-        });
-      }
-    });
+  function resetFilters() { ledgerPage = 1; clearTimeout(debounceTimer); loadPayments(); }
+  filterBtn?.addEventListener('click', resetFilters);
+  searchInput?.addEventListener('input', () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(resetFilters, 300); });
+  [statusFilter, methodFilter, gatewayFilter, gatewayStatusFilter, dateFilter, fromDate, toDate].filter(Boolean).forEach(node => node.addEventListener('change', resetFilters));
+  document.getElementById('paymentsPrevious')?.addEventListener('click', () => { if (ledgerPage > 1) { ledgerPage--; loadPayments(); } });
+  document.getElementById('paymentsNext')?.addEventListener('click', () => { if (ledgerPage < ledgerPages) { ledgerPage++; loadPayments(); } });
+  tbody?.addEventListener('click', event => { if (event.target.closest('#retryPaymentLedger')) loadPayments(); });
 
   if (tbody) {
     tbody.addEventListener("click", function (event) {

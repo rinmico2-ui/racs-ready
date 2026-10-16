@@ -135,7 +135,7 @@ async function buildServiceCostAnalytics(bookings, options = {}) {
     const equipment = (assignmentMap.get(id) || []).map(item => ({ name: item.equipmentName, technician: item.technicianId?.name || [item.technicianId?.firstName, item.technicianId?.lastName].filter(Boolean).join(" ") || booking.technician?.name || "Unassigned", quantity: Number(item.quantity || 1), status: item.status, checkoutStatus: item.checkedOutAt ? "Checked out" : item.status === "reserved" ? "Reserved" : "Not checked out", returnStatus: item.returnedAt || item.status === "returned" ? "Returned" : ["damaged", "lost"].includes(item.status) ? item.status : "Outstanding" }));
 
     // Local purchases (bought from external shop by technician)
-    const localPurchases = (booking.localPurchase || []).map(lp => ({
+    const localPurchases = (booking.localPurchase || []).filter(lp => lp.purchaseByType !== 'customer').map(lp => ({
       partName: lp.partName,
       quotedCustomerPrice: Number(lp.quotedCustomerPrice || 0),
       actualPurchaseCost: Number(lp.actualPurchaseCost || 0),

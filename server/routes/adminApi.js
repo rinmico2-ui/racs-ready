@@ -8399,7 +8399,7 @@ router.get("/reports/revenue", async (req, res, next) => {
     const analytics = require("../utils/revenueCostDetails").revenueAnalyticsForRole(result.analytics, req.user?.role);
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
     res.set("Server-Timing", `revenue-analytics;dur=${durationMs.toFixed(1)}`);
-    res.set("Cache-Control", "private, max-age=15, stale-while-revalidate=30");
+    res.set("Cache-Control", "private, no-store");
     res.vary("Cookie");
     if (req.query.format === 'csv') return require('../utils/reportCsv').sendReportCsv(res, 'revenue', analytics, filters);
     if (req.query.format === 'pdf') return await require('../utils/reportPdf').sendReportPdf(res, 'revenue', analytics, filters);
