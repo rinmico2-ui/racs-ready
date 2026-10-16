@@ -7,22 +7,24 @@ function fn(source, name, end) { const start=source.indexOf('  function '+name+'
 
 test('staff identification never submits stale hidden brand, model, type or HP as confirmed details',()=>{
   const fields={kind:{value:'aircon'},quantity:{value:'2'},brand:{value:'Old brand'},model:{value:'OLD-MODEL'},hp:{value:'3'},airconType:{value:'split'}};
-  const context=vm.createContext({detailsUnknown:true,field:name=>fields[name],Number});
+  const context=vm.createContext({detailsUnknown:true,hooks:{},editingId:'saved-appliance',aircon:()=>true,field:name=>fields[name],Number});
   vm.runInContext(fn(core,'selection','  function draft('),context);
   assert.deepEqual(JSON.parse(JSON.stringify(context.selection())),{applianceKind:'aircon',quantity:2,brand:"I don't know",model:'',airconType:null,hp:null});
   context.detailsUnknown=false;
   assert.equal(context.selection().model,'OLD-MODEL'); assert.equal(context.selection().hp,3);
+  context.editingId=null; assert.equal(context.selection().model,'','new core selections discard the old hidden draft model');
 });
 
-test('help choices cannot skip selection; staff mode validates quantity while normal booking still requires a model',()=>{
+test('help choices cannot skip selection; repairs require a model while core details do not',()=>{
   const fields={kind:{value:'aircon'},quantity:{value:'2',validity:{valid:true}},brand:{value:'Carrier',validity:{valid:true}},model:{value:'',validity:{valid:false}},airconType:{validity:{valid:true}},hp:{validity:{valid:true}}};
-  const context=vm.createContext({detailsUnknown:false,helpOpen:true,available:()=>40,field:name=>fields[name],selection:()=>({brand:'Carrier'})});
+  const context=vm.createContext({detailsUnknown:false,helpOpen:true,hooks:{repair:true},aircon:()=>true,available:()=>40,field:name=>fields[name],selection:()=>({brand:'Carrier'})});
   vm.runInContext(fn(core,'detailsValid','  function closeConfirmation('),context);
   assert.equal(context.detailsValid(),false);
   context.detailsUnknown=true; assert.equal(context.detailsValid(),true);
   fields.quantity.validity.valid=false; assert.equal(context.detailsValid(),false);
   context.detailsUnknown=false; context.helpOpen=false; fields.quantity.validity.valid=true;
   assert.equal(context.detailsValid(),false); fields.model.validity.valid=true; assert.equal(context.detailsValid(),true);
+  fields.model.validity.valid=false; context.hooks.repair=false; assert.equal(context.detailsValid(),true);
 });
 
 test('choosing staff goes to Services without sending a request and choosing AI only opens guidance',()=>{
@@ -73,7 +75,7 @@ test('opening identification during an AI reply does not interrupt or duplicate 
 
 test('brand selections resolve Other to the typed brand and staff mode discards both hidden values',()=>{
   const fields={kind:{value:'aircon'},quantity:{value:'1'},brand:{value:'__other__'},brandCustom:{value:'Custom HVAC'},model:{value:'MODEL-123'},hp:{value:'1'},airconType:{value:'split'}};
-  const context=vm.createContext({detailsUnknown:false,field:name=>fields[name],Number});
+  const context=vm.createContext({detailsUnknown:false,hooks:{},editingId:null,aircon:()=>true,field:name=>fields[name],Number});
   vm.runInContext(fn(core,'selection','  function draft('),context);
   assert.equal(context.selection().brand,'Custom HVAC');
   fields.brand.value='Carrier';assert.equal(context.selection().brand,'Carrier');

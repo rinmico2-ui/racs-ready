@@ -6,6 +6,17 @@
   'use strict';
   const kinds = ['aircon', 'refrigerator', 'freezer'];
   const labels = { aircon: 'Aircon', refrigerator: 'Refrigerator', freezer: 'Freezer' };
+  const repairHpValues = Object.freeze([0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7.5, 10]);
+  const isRepairAircon = item => item?.unitCategory === 'aircon' || /^repair_aircon_/.test(item?.applianceKind || '') || /aircon|air condition/i.test(item?.unitType || item?.applianceType || '');
+  function repairDetails(item, { prior, allowLegacyHp = false } = {}) {
+    const quantity = Number(item.quantity);
+    if (!['string', 'number'].includes(typeof item.quantity) || !Number.isInteger(quantity) || quantity < 1 || quantity > 40 || quantity !== 1 && quantity !== Number(prior?.quantity)) throw new Error('Add each repair appliance separately. Repair entries cover one appliance.');
+    if (!isRepairAircon(item)) return { quantity, hp: null, hpDescription: null };
+    const unchangedLegacyHp = allowLegacyHp && prior && isRepairAircon(prior) && prior.hp == null && (item.hp == null || item.hp === '') && item.unitType === prior.unitType;
+    if (unchangedLegacyHp) return { quantity, hp: null, hpDescription: null };
+    if (!['number', 'string'].includes(typeof item.hp) || !repairHpValues.includes(Number(item.hp))) throw new Error('Choose the aircon HP, or ask staff to identify your unit.');
+    return { quantity, hp: Number(item.hp), hpDescription: `${Number(item.hp)} HP` };
+  }
   function parseHp(value) {
     const text = String(value ?? '').trim(), parts = text.split('/');
     if (!text || parts.length > 2 || !parts.every(part => /^\d+(?:\.\d+)?$/.test(part.trim()))) return NaN;
@@ -114,6 +125,7 @@
   function setQuantity(services, index, quantity) {
     const selected = services[index];
     if (!selected) throw new Error('Appliance not found.');
+    if (selected.type === 'repair' && Number(quantity) !== Number(selected.quantity)) throw new Error('Add each repair appliance separately. Contact staff to change an existing repair quantity.');
     const sameAppliance = row => row === selected || selected.applianceGroupId && row.applianceGroupId === selected.applianceGroupId;
     unitCount(services.map(row => sameAppliance(row) ? { ...row, quantity } : row));
     services.filter(sameAppliance).forEach(row => {
@@ -124,5 +136,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, needsVerification };
+  return { kinds, labels, profiles, profile, price, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

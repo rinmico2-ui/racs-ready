@@ -33,11 +33,11 @@ function fixture() {
 }
 test('repair uses the shared builder with catalog inspection fees and produces repair rows without Core grouping', () => {
   const f = fixture(), options = f.captured.options;
-  const selected = { applianceKind: options.adapter.kinds[0], brand: 'Carrier', model: 'MODEL-123', quantity: 2 };
+  const selected = { applianceKind: options.adapter.kinds[0], brand: 'Carrier', model: 'MODEL-123', quantity: 1, hp: 1 };
   const rows = options.adapter.serviceLines([], selected);
-  assert.equal(rows[0].unitPrice, 700); assert.equal(rows[0].totalPrice, 1400); assert.equal(rows[0].duration, 120);
+  assert.equal(rows[0].unitPrice, 700); assert.equal(rows[0].totalPrice, 700); assert.equal(rows[0].duration, 120); assert.equal(rows[0].hp, 1);
   assert.equal(rows[0].type, 'repair'); assert.equal(rows[0].applianceGroupId, undefined); assert.equal(rows[0].applianceKind, undefined);
-  assert.equal(rows[0].problemDescription, f.fields.assistanceNotes.value); assert.equal(base.unitCount(rows), 2);
+  assert.equal(rows[0].problemDescription, f.fields.assistanceNotes.value); assert.equal(base.unitCount(rows), 1);
   options.commit(rows, null); assert.equal(f.writes.length, 1); assert.equal(f.writes[0][0].model, 'MODEL-123');
 });
 test('repair staff requests carry the selected appliance and problem without hidden model, brand or Core service fields', async () => {
@@ -52,7 +52,7 @@ test('repair staff requests carry the selected appliance and problem without hid
 test('repair editing retains only that saved appliance photos and a new appliance cannot inherit them', () => {
   const f = fixture(), options = f.captured.options;
   f.state.selectedServices.push({ id: 'repair-old', type: 'repair', unitType: 'Split Aircon', photos: ['saved-photo.jpg'], quantity: 1 });
-  const selected = { applianceKind: options.adapter.kinds[0], brand: 'Carrier', model: 'MODEL-123', quantity: 1 };
+  const selected = { applianceKind: options.adapter.kinds[0], brand: 'Carrier', model: 'MODEL-123', quantity: 1, hp: 1 };
   assert.deepEqual(Array.from(options.adapter.serviceLines([], selected, [], 'repair-old')[0].photos), ['saved-photo.jpg']);
   assert.equal(options.adapter.serviceLines([], selected, [], 'appliance-new')[0].photos.length, 0);
 });

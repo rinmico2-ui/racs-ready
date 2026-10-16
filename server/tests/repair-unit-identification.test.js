@@ -12,7 +12,8 @@ mock('../utils/rateLimitIdentity', { authenticatedOrIpKey: () => customerId });
 mock('../models/CoreService', { findOne: () => { throw Error('Repair identification must not use a Core service'); } });
 mock('../models/BookingService', { findOne: filter => query(linkedBooking && String(filter._id) === linkedBooking._id && String(filter.customerId) === linkedBooking.customerId ? linkedBooking : null) });
 mock('../models/SiteSetting', { findOne: () => query({ value: fee }) });
-mock('../models/ServiceCategory', { find: () => query([{ name: 'Appliances', slug: 'appliance', active: true, unitTypes: [{ value: 'Washing Machine', label: 'Washing Machine' }, { value: 'Dryer', label: 'Dryer', inspectionFee: 700 }] }]) });
+mock('../models/ServiceCategory', { find: () => query([{ name: 'Appliances', slug: 'appliance', active: true, unitTypes: [{ value: 'Washing Machine', label: 'Washing Machine' }, { value: 'Dryer', label: 'Dryer', inspectionFee: 700 }] },
+  { name: 'Air Conditioning', slug: 'aircon', active: true, unitTypes: [{ value: 'Split Type Aircon', label: 'Split Type Aircon', inspectionFee: 650 }] }]) });
 mock('../utils/bookingPolicy', { getInspectionDurationMinutes: async () => 90 });
 const matches = (row, filter) => Object.entries(filter).every(([key, value]) => {
   const actual = key.split('.').reduce((target, part) => target?.[part], row);
@@ -33,7 +34,7 @@ mock('../utils/notify', { createNotification: async () => {} });
 const policy = require('../utils/repairIdentificationPolicy');
 const app = express(); app.use(express.json()); app.use('/api/unit-assistance', require('../routes/unitAssistanceRoutes'));
 const payload = () => ({ requestType: 'repair', repairUnitCategory: 'appliance', repairUnitType: 'Washing Machine',
-  problemDescription: 'The machine will not spin or drain.', quantity: 2, clientRequestId: 'repair-identification-test-01' });
+  problemDescription: 'The machine will not spin or drain.', quantity: 1, clientRequestId: 'repair-identification-test-01' });
 async function serverFixture(t) {
   records = []; fee = 500; linkedBooking = null;
   const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
@@ -59,7 +60,7 @@ test('repair identification supports non-Core appliances, ignores stale hidden d
 
 test('repair identification rejects unsupported catalog values, invalid quantities and malformed problems before saving', async t => {
   const send = await serverFixture(t);
-  for (const change of [{ repairUnitCategory: 'fake' }, { repairUnitType: 'Not in catalog' }, { quantity: 0 }, { quantity: 41 },
+  for (const change of [{ repairUnitCategory: 'fake' }, { repairUnitType: 'Not in catalog' }, { quantity: 0 }, { quantity: 2 }, { quantity: 41 },
     { quantity: {} }, { problemDescription: {} }, { problemDescription: 'short' }, { requestType: 'injected' }]) {
     assert.equal((await send('/', { ...payload(), ...change })).status, 400);
   }
@@ -105,6 +106,20 @@ test('a repair quote cannot be reused with altered appliance details, quantity, 
   assert.equal(policy.repairQuoteMatches(request, item), true);
   for (const change of [{ brand: 'Other' }, { model: 'OTHER' }, { unitType: 'Dryer' }, { unitCategory: 'aircon' }, { quantity: 3 }, { unitPrice: 1 }]) assert.equal(policy.repairQuoteMatches(request, { ...item, ...change }), false);
   for (const change of [{ status: 'pending' }, { requestType: 'core' }, { bookingId: 'already-used' }, { existingBookingId: 'existing' }, { quote: { ...request.quote, expiresAt: new Date(0) } }]) assert.equal(policy.repairQuoteMatches({ ...request, ...change }, item), false);
+});
+
+test('staff confirms aircon repair HP before quoting and an accepted quote cannot be reused with another HP', async t => {
+  const send = await serverFixture(t);
+  assert.equal((await send('/', { ...payload(), repairUnitCategory: 'aircon', repairUnitType: 'Split Type Aircon' })).status, 201);
+  assert.equal(records[0].applianceKind, 'aircon');
+  const body = { brand: 'Carrier', model: 'MODEL-123', unitType: 'Split Type Aircon', verificationMethod: 'model_label' };
+  for (const hp of [undefined, '', {}, 999]) assert.equal((await send(`/staff/${requestId}/quote`, { ...body, hp })).status, 400);
+  assert.equal((await send(`/staff/${requestId}/quote`, { ...body, hp: 3 })).status, 200);
+  assert.equal(records[0].quote.hp, 3); assert.equal(records[0].quote.unitPrice, 650);
+  assert.equal((await send(`/mine/${requestId}/decision`, { decision: 'accept' })).status, 200);
+  const request = records[0], item = { ...request.quote, quantity: 1, model: request.model };
+  assert.equal(policy.repairQuoteMatches(request, item), true);
+  assert.equal(policy.repairQuoteMatches(request, { ...item, hp: 1 }), false);
 });
 
 test('accepted repair identification resumes as a repair inspection with the verified model and problem', async () => {

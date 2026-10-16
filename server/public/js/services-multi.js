@@ -676,7 +676,8 @@ async function openAcceptedUnitAssistance() {
         unitType: request.quote.unitType, unitCategory: request.quote.unitCategory, applianceType: request.quote.unitType, applianceTypeName: request.quote.unitType,
         brand: request.quote.brand, model: request.model, quantity: request.quantity, repairIssue: request.repair.problemDescription, problemDescription: request.repair.problemDescription,
         unitPrice: request.quote.unitPrice, totalPrice: request.quote.unitPrice * request.quantity, initialCost: request.quote.unitPrice,
-        duration: request.quote.durationMinutes, hp: null, airconType: null, icon: 'bi-tools', photos: [], units: [] });
+        duration: request.quote.durationMinutes, hp: request.quote.hp ?? null, hpDescription: request.quote.hp ? `${request.quote.hp} HP` : null,
+        airconType: request.quote.airconType ?? null, icon: 'bi-tools', photos: [], units: [] });
       updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
       history.replaceState({}, '', '/services');
       showBookingToast('Verified repair details and inspection fee added. Review your booking, then choose the address and schedule.');

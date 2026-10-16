@@ -1471,9 +1471,10 @@
             ${problem ? `<p class="bh-editor-cart-problem"><i class="bi bi-chat-square-text"></i>${escapeHtml(problem)}</p>` : ''}
             <div class="bh-editor-cart-item-bottom">
               <div class="bh-editor-item-price"><span>Estimated price</span><strong>${lineTotal ? `₱${lineTotal.toLocaleString()}` : 'Price on quote'}</strong></div>
-              <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}">
+              ${row.type === 'repair' ? `<small>${quantity} appliance${quantity === 1 ? '' : 's'}</small>` : ''}
+              <div class="bh-editor-stepper" role="group" aria-label="Quantity for ${escapeHtml(svcName)}" ${row.type === 'repair' ? 'hidden' : ''}>
                 <button type="button" class="bh-item-qty-minus" data-index="${index}" aria-label="Decrease ${escapeHtml(svcName)} quantity" ${quantity <= 1 ? 'disabled' : ''}><i class="bi bi-dash"></i></button>
-                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="${itemMax}" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity">
+                <input type="number" class="bh-item-qty-input" data-index="${index}" value="${quantity}" min="1" max="${itemMax}" step="1" inputmode="numeric" autocomplete="off" aria-label="${escapeHtml(svcName)} quantity" ${row.type === 'repair' ? 'disabled' : ''}>
                 <button type="button" class="bh-item-qty-plus" data-index="${index}" aria-label="Increase ${escapeHtml(svcName)} quantity" ${quantity >= itemMax ? 'disabled' : ''}><i class="bi bi-plus"></i></button>
               </div>
             </div>

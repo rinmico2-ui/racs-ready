@@ -53,7 +53,8 @@
         if (!unit) throw Error('Choose an available repair appliance.');
         const override = unit.inspectionFee == null || unit.inspectionFee === '' ? NaN : Number(unit.inspectionFee);
         const unitPrice = Number.isFinite(override) && override >= 0 ? override : Number(options.defaultInspectionFee ?? 500);
-        return { unitPrice, totalPrice: unitPrice * Number(selected.quantity), duration: Number(options.inspectionDuration) || 90, hp: null, airconType: null };
+        return { unitPrice, totalPrice: unitPrice * Number(selected.quantity), duration: Number(options.inspectionDuration) || 90,
+          hp: unit.category === 'aircon' && selected.hp != null ? Number(selected.hp) : null, airconType: unit.category === 'aircon' ? unit.value : null };
       };
       const adapter = { ...base, kinds: units.map(unit => unit.kind), labels: Object.fromEntries(units.map(unit => [unit.kind, unit.label])),
         profile: (_service, kind) => selectedUnit(kind) ? { pricingMode: 'fixed', enabled: true } : null,
@@ -62,15 +63,17 @@
         serviceLines: (_catalog, selected, _ids, editingId) => {
           const unit = selectedUnit(selected.applianceKind), price = pricing(selected);
           const prior = options.state.selectedServices.find(row => identity(row) === String(editingId));
+          const details = base.repairDetails({ ...selected, unitType: unit.value, unitCategory: unit.category }, { prior });
           return [{ type: 'repair', serviceId: null, id: `repair-${crypto.randomUUID()}`, name: `${selected.brand} ${unit.label}`,
             brand: selected.brand, model: selected.model, quantity: selected.quantity, unitType: unit.value, unitCategory: unit.category,
-            applianceType: unit.value, applianceTypeName: unit.label, hp: null, airconType: null, ...price,
+            applianceType: unit.value, applianceTypeName: unit.label, ...price, ...details,
             initialCost: price.unitPrice, problemDescription: field('assistanceNotes').value.trim(), repairIssue: field('assistanceNotes').value.trim(),
             photos: field('assistancePhotos').files.length ? Array.from(field('assistancePhotos').files) : [...(prior?.photos || [])] }];
         },
       };
       builder = window.CoreApplianceBooking.create();
       builder.mount([service], { ...options, repair: true, adapter, applianceChoices: choiceMarkup(), syncApplianceChoices: syncChoices,
+        isAirconKind: kind => selectedUnit(kind)?.category === 'aircon', airconTypeFor: kind => selectedUnit(kind)?.category === 'aircon' ? selectedUnit(kind).value : null,
         state: { get selectedServices() { return options.state.selectedServices; }, applianceDraft: options.draft || null },
         kindFor: row => units.find(unit => unit.value === row.unitType && (!row.unitCategory || row.unitCategory === unit.category))?.kind || '', serviceIdFor: () => service._id,
         validate: selected => {
