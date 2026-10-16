@@ -1290,8 +1290,8 @@
       const ranking = ((A.serviceProfitability || {}).rows || []).slice(0, 8).reverse();
       charts.serviceProfitRanking = new Chart(serviceRankingEl, {
         type: 'bar',
-        data: { labels: ranking.map(row => row.serviceName), datasets: [{ label: 'Known gross profit', data: ranking.map(row => row.grossProfit), backgroundColor: ranking.map(row => Number(row.grossProfit||0) >= 0 ? '#0f766e' : '#dc2626'), borderRadius: 5 }] },
-        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { callback: value => pesoFmt(value), font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false }, tooltip: tooltipFmt } }
+        data: { labels: ranking.map(row => row.serviceName), datasets: [{ label: 'Profit before expenses', data: ranking.map(row => row.grossProfit), backgroundColor: ranking.map(row => Number(row.grossProfit||0) >= 0 ? '#0f766e' : '#dc2626'), borderRadius: 5 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { callback: value => pesoFmt(value), font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${peso(ctx.parsed.x)}` } } } }
       });
     }
 

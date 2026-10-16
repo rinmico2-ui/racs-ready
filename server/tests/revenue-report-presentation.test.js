@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const ejs = require("ejs");
+const vm = require("node:vm");
 
 const reportsDirectory = path.join(__dirname, "..", "views", "pages", "admin", "Reports");
 const revenuePath = path.join(reportsDirectory, "RevenueReports.ejs");
@@ -84,6 +85,32 @@ test("revenue report provides service portfolio decisions and a disclosed foreca
   assert.match(revenueTemplate, /How shared costs are split:/);
   assert.match(revenueTemplate, /Missing costs can change the result/);
   assert.match(revenueTemplate, /planning estimate/);
+});
+
+test("horizontal service profit tooltips show the plotted peso amount rather than the category index", () => {
+  const configurations = new Map();
+  class Chart {
+    static defaults = { font: {} };
+    constructor(canvas, config) { configurations.set(canvas.id, config); }
+  }
+  const context = { Chart, charts: {}, chartConfigs: {}, destroyCharts() {},
+    document: { querySelectorAll: () => [], getElementById: id => ({ id }) },
+    window: { RACSRevenueReconciliation: { salesView: value => value, serviceCost: () => 0 } },
+    peso: value => '₱' + Number(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) };
+  const start = revenueTemplate.indexOf('  function updateCharts(A) {');
+  const end = revenueTemplate.indexOf('  function renderSparklines(A)', start);
+  assert.ok(start > 0 && end > start);
+  vm.runInNewContext(revenueTemplate.slice(start, end), context);
+  const rows = Array.from({ length: 13 }, (_, index) => ({ serviceName: 'Service ' + index, grossProfit: 12345.67 - index * 100 }));
+  context.updateCharts({ serviceProfitability: { rows } });
+  const chart = configurations.get('serviceProfitRanking'), dataset = chart.data.datasets[0];
+  assert.equal(chart.options.indexAxis, 'y');
+  assert.equal(chart.data.labels[7], 'Service 0');
+  assert.equal(dataset.data[7], 12345.67);
+  const label = chart.options.plugins.tooltip.callbacks.label;
+  assert.equal(label({ dataset, parsed: { x: dataset.data[7], y: 7 } }), 'Profit before expenses: ₱12,345.67');
+  assert.equal(label({ dataset, parsed: { x: 0, y: 7 } }), 'Profit before expenses: ₱0.00');
+  assert.equal(label({ dataset, parsed: { x: -247.35, y: 7 } }), 'Profit before expenses: ₱-247.35');
 });
 
 test("POS analytics includes sellable inventory categories and excludes company equipment", () => {
