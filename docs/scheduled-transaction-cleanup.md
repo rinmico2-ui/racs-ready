@@ -1,4 +1,4 @@
-# Delete bookings and orders scheduled October 15–20, 2026
+# Delete bookings and orders scheduled October 15–21, 2026
 
 This operator-only command is separate from the previous whole-database reset.
 It never runs during deployment or application startup. It creates no seed data.
@@ -17,7 +17,7 @@ terminal. Preview works while maintenance is disabled:
 
 ```sh
 cd /app
-node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-20
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21
 ```
 
 This reads records and prints aggregate deletion counts, payment amounts by
@@ -36,6 +36,21 @@ equipment custody, pending returns and active stock reservations also block it.
 Settle or release these through their normal workflows first. Past test-custody
 exceptions from the whole-database reset are not carried into this operation.
 
+On October 17, the owner confirmed that the following live-preview records are
+**test entries only, with nothing physically taken**:
+
+- Equipment: `6ad1109a0444f9852ad6c52e`, `6ad1109a0444f9852ad6c52f`,
+  `6ad1109a0444f9852ad6c530`.
+- Daily kit: `6ad110780444f9852ad6c460`.
+
+Only the exact October 15-21 range acknowledges these records. The preview,
+private recovery artifact, completion marker and audit event record this exception.
+Other issued equipment, unsettled kits, shared outside-range dependencies and
+pending returns still block cleanup. Even an acknowledged equipment reservation
+must be released through the normal workflow first, so that its stock hold is
+not stranded. The exception does not mark anything physically returned, replenish
+inventory or reconstruct counts changed by earlier tests.
+
 ## 2. Prepare recovery files
 
 Enable Maintenance Mode at `/admin/settings/system`. Stop staff activity and
@@ -43,7 +58,7 @@ close other staff tabs; admin users can still write during maintenance. Wait
 30 seconds for the maintenance cache to expire, then run:
 
 ```sh
-node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-20 --prepare
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --prepare
 ```
 
 Proceed only when the output says `mode: prepared`, `blockers: []` and
@@ -62,7 +77,7 @@ Within 30 minutes of preparation, substitute the **exact** `backup` path printed
 in step 2:
 
 ```sh
-node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-20 --apply --backup /app/temp/EXACT-FILE.ejson.gz
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --apply --backup /app/temp/EXACT-FILE.ejson.gz
 ```
 
 The command verifies the backup and rechecks the selected records and their
@@ -89,7 +104,7 @@ Enable maintenance and stop staff writes again. Use the same dates and the saved
 private recovery file:
 
 ```sh
-node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-20 --restore --backup /app/temp/EXACT-FILE.ejson.gz
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --restore --backup /app/temp/EXACT-FILE.ejson.gz
 ```
 
 Recovery restores exact backed-up documents in one transaction, preserving the

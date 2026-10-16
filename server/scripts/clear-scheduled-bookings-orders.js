@@ -24,7 +24,7 @@ function parseArguments(args) {
 
 async function main(args) {
   if (args.length === 1 && args[0] === "--help") {
-    console.log("Read-only preview: node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-20\nPrepare private recovery files: same command plus --prepare\nDelete prepared records: same dates plus --apply --backup /app/temp/EXACT-FILE.ejson.gz\nRestore: same dates plus --restore --backup /app/temp/EXACT-FILE.ejson.gz\nDates are inclusive Philippine appointment/delivery/pickup dates. Preparing/applying requires maintenance. Nothing runs automatically on deployment. See docs/scheduled-transaction-cleanup.md.");
+    console.log("Read-only preview: node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21\nPrepare private recovery files: same command plus --prepare\nDelete prepared records: same dates plus --apply --backup /app/temp/EXACT-FILE.ejson.gz\nRestore: same dates plus --restore --backup /app/temp/EXACT-FILE.ejson.gz\nDates are inclusive Philippine appointment/delivery/pickup dates. Preparing/applying requires maintenance. Nothing runs automatically on deployment. See docs/scheduled-transaction-cleanup.md.");
     return;
   }
   const options = parseArguments(args);
