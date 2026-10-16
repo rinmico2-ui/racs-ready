@@ -17,6 +17,7 @@ const {
   staffLifecycleState,
   findStaffArchiveBlockers,
 } = require("../utils/staffLifecycle");
+const { writeStaffLifecycle } = require("../utils/staffLifecycleWrite");
 const {
   normalizeLifecycleReason,
   archiveRecord,
@@ -1474,10 +1475,10 @@ exports.previewStaffArchive = async (req, res, next) => {
 
 exports.archiveStaff = async (req, res, next) => {
   try {
-    const record = await resolveManagedStaff(req.params.id);
+    let record = await resolveManagedStaff(req.params.id);
     if (!record) return res.status(404).json({ error: "Staff member not found" });
 
-    if (record.user?.archivedAt || (!record.user && record.technician.archivedAt)) {
+    if ([record.user, record.technician].filter(Boolean).every(staff => staff.archivedAt && staff.active === false)) {
       return res.json({ message: "Staff member is already archived", staff: managedStaffResponse(record) });
     }
     const reason = normalizeArchiveReason(req.body && req.body.reason);
@@ -1491,32 +1492,8 @@ exports.archiveStaff = async (req, res, next) => {
       });
     }
 
-    const now = new Date();
     const actorId = req.user._id;
-    const lifecycleEvent = { action: "archived", at: now, by: actorId, reason };
-
-    if (record.user) {
-      record.user.active = false;
-      record.user.archivedAt = now;
-      record.user.archivedBy = actorId;
-      record.user.archiveReason = reason;
-      record.user.currentSessionId = require("crypto").randomUUID();
-      record.user.staffLifecycleHistory.push(lifecycleEvent);
-    }
-    if (record.technician) {
-      record.technician.active = false;
-      record.technician.availabilityStatus = "Offline";
-      record.technician.archivedAt = now;
-      record.technician.archivedBy = actorId;
-      record.technician.archiveReason = reason;
-      record.technician.staffLifecycleHistory.push(lifecycleEvent);
-    }
-    await Promise.all([
-      record.user ? record.user.validate() : null,
-      record.technician ? record.technician.validate() : null,
-    ]);
-    if (record.user) await record.user.save({ validateBeforeSave: false });
-    if (record.technician) await record.technician.save({ validateBeforeSave: false });
+    record = await writeStaffLifecycle(record, { action: "archived", actorId, reason });
 
     await logAction(actorId, record.user?._id || null, "staff.archive", req, {
       entityType: record.kind === "user" ? "User" : "Technician",
@@ -1532,8 +1509,8 @@ exports.archiveStaff = async (req, res, next) => {
       staff: managedStaffResponse(record),
     });
   } catch (err) {
-    if (err && err.statusCode) {
-      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    if (err && (err.statusCode || err.status)) {
+      return res.status(err.statusCode || err.status).json({ error: err.message, code: err.code });
     }
     next(err);
   }
@@ -1541,41 +1518,17 @@ exports.archiveStaff = async (req, res, next) => {
 
 exports.restoreStaff = async (req, res, next) => {
   try {
-    const record = await resolveManagedStaff(req.params.id);
+    let record = await resolveManagedStaff(req.params.id);
     if (!record) return res.status(404).json({ error: "Staff member not found" });
-    if (staffLifecycleState(record.user || record.technician) === "active") {
+    if ([record.user, record.technician].filter(Boolean).every(staff => staffLifecycleState(staff) === "active")) {
       return res.json({ message: "Staff member is already active", staff: managedStaffResponse(record) });
     }
     const reason = String((req.body && req.body.reason) || "Restored by administrator")
       .trim()
       .replace(/\s+/g, " ")
       .slice(0, 500);
-    const now = new Date();
     const actorId = req.user._id;
-    const lifecycleEvent = { action: "restored", at: now, by: actorId, reason };
-
-    if (record.user) {
-      record.user.active = true;
-      record.user.archivedAt = null;
-      record.user.archivedBy = null;
-      record.user.archiveReason = "";
-      record.user.currentSessionId = require("crypto").randomUUID();
-      record.user.staffLifecycleHistory.push(lifecycleEvent);
-    }
-    if (record.technician) {
-      record.technician.active = true;
-      record.technician.availabilityStatus = "Offline";
-      record.technician.archivedAt = null;
-      record.technician.archivedBy = null;
-      record.technician.archiveReason = "";
-      record.technician.staffLifecycleHistory.push(lifecycleEvent);
-    }
-    await Promise.all([
-      record.user ? record.user.validate() : null,
-      record.technician ? record.technician.validate() : null,
-    ]);
-    if (record.user) await record.user.save({ validateBeforeSave: false });
-    if (record.technician) await record.technician.save({ validateBeforeSave: false });
+    record = await writeStaffLifecycle(record, { action: "restored", actorId, reason });
 
     await logAction(actorId, record.user?._id || null, "staff.restore", req, {
       entityType: record.kind === "user" ? "User" : "Technician",
@@ -1585,6 +1538,9 @@ exports.restoreStaff = async (req, res, next) => {
     });
     res.json({ message: "Staff member restored", staff: managedStaffResponse(record) });
   } catch (err) {
+    if (err && (err.statusCode || err.status)) {
+      return res.status(err.statusCode || err.status).json({ error: err.message, code: err.code });
+    }
     next(err);
   }
 };

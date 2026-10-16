@@ -58,6 +58,12 @@ test("archive preflight reports every unfinished-work category", async () => {
   ]);
   assert.deepEqual(queries.assignments.status.$nin, ["completed", "cancelled", "declined", "expired", "no_show"]);
   assert.deepEqual(queries.orders.status.$nin, ["completed", "cancelled"]);
+  for (const query of [queries.bookings, queries.orders]) {
+    const team = query.$or.find(clause => clause.technicianTeam)?.technicianTeam.$elemMatch;
+    assert.equal(team.technicianId, "tech-1");
+    assert.deepEqual(team.status.$in, ["pending", "accepted"]);
+    assert.ok(query.status.$nin.includes("completed"));
+  }
 });
 
 test("staff schemas persist archive metadata and lifecycle history", () => {
