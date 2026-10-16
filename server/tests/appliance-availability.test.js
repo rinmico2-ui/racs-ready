@@ -14,11 +14,19 @@ test('aircon availability follows airconTypes tiers and reports missing tiers', 
   const found = A.availability(aircon, { applianceKind: 'aircon', airconType: 'split', hp: 1, quantity: 1, brand: 'Samsung' });
   assert.equal(found.available, true); assert.equal(found.hpNeeded, undefined);
   assert.equal(found.pricing.unitPrice, 1200); assert.equal(found.pricing.duration, 90);
-  for (const selection of [{ airconType: 'cassette', hp: 1 }, { airconType: 'split', hp: 3 }, { airconType: 'split', hp: null }]) {
+  for (const selection of [{ airconType: 'central', hp: 1 }, { airconType: 'split', hp: 3 }, { airconType: 'split', hp: null }]) {
     const state = A.availability(aircon, { applianceKind: 'aircon', airconType: selection.airconType, hp: selection.hp, quantity: 1, brand: 'Samsung' });
     assert.equal(state.available, false, JSON.stringify(selection));
     assert.equal(state.pricing, undefined, JSON.stringify(selection));
     assert.equal(state.hpNeeded, false, `aircon selections already pin the HP up front: ${selection.airconType}`);
+  }
+});
+
+test('missing suspended and cassette rates use exact saved split prices and work times', () => {
+  for (const type of ['split_suspended','cassette']) {
+    const state=A.availability(aircon,{applianceKind:'aircon',airconType:type,hp:1,quantity:1});
+    assert.equal(state.available,true);assert.equal(state.pricing.unitPrice,1200);assert.equal(state.pricing.duration,90);
+    assert.equal(state.pricing.airconType,type);
   }
 });
 

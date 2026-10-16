@@ -63,11 +63,23 @@
     if (total > 40) throw new Error('A booking can contain at most 40 appliances.');
     return total;
   }
-  function airconHpOptions(catalog, airconType) {
+  const sharedSplitTypes = Object.freeze({ split_suspended: 'Split Suspended', cassette: 'Cassette Type' });
+  const catalogValue = value => typeof value?.toObject === 'function' ? value.toObject() : value;
+  function airconHpOptions(catalog, airconType, { inheritSplit = true } = {}) {
     const types = Array.isArray(catalog?.airconTypes) ? catalog.airconTypes : [];
-    // Legacy HP tables apply only when no type-specific catalog exists. A
-    // missing cassette/suspended table must not offer split-type HP choices.
-    const tiers = types.length ? types.find(row => row.type === airconType)?.hpPricing || [] : catalog?.hpPricing || [];
+    const own = (types.length ? types.find(row => row.type === airconType)?.hpPricing || [] : catalog?.hpPricing || []).map(catalogValue);
+    // Company rule: a missing suspended/cassette rate uses this service's
+    // exact saved split rate and work time. A separate saved rate always wins.
+    // Never estimate a capacity, use another service, or hide an invalid rate.
+    const tiers = [...own];
+    if (inheritSplit && types.length && catalog?.isAirconService && Object.hasOwn(sharedSplitTypes, airconType)) {
+      for (const row of airconHpOptions(catalog, 'split', { inheritSplit: false })) {
+        const existing = own.find(item => Number(item?.hp) === row.hp);
+        if (!existing || existing.price == null || String(existing.price).trim() === '') {
+          tiers.push({ ...row, pricingSource: 'split' });
+        }
+      }
+    }
     const seen = new Set();
     return tiers.filter(row => {
       const hp = Number(row?.hp), amount = Number(row?.price);
@@ -75,6 +87,15 @@
         || !Number.isFinite(amount) || amount < 0 || seen.has(hp)) return false;
       seen.add(hp); return true;
     }).map(row => ({ ...row, hp: Number(row.hp), price: Number(row.price) })).sort((a, b) => a.hp - b.hp);
+  }
+  function effectiveAirconTypes(catalog) {
+    const types = (catalog?.airconTypes || []).map(type => ({ ...catalogValue(type), hpPricing: type.type ? airconHpOptions(catalog, type.type) : (type.hpPricing || []).map(catalogValue) }));
+    if (catalog?.isAirconService && airconHpOptions(catalog, 'split', { inheritSplit: false }).length) {
+      for (const [type, name] of Object.entries(sharedSplitTypes)) {
+        if (!types.some(row => row.type === type)) types.push({ type, name, hpPricing: airconHpOptions(catalog, type) });
+      }
+    }
+    return types;
   }
   function unitPrice(catalog, selection) {
     if (!catalog || catalog.active === false) throw new Error('This service is unavailable.');
@@ -98,7 +119,7 @@
     }
     const types = catalog.airconTypes || [], tiers = catalog.hpPricing || [];
     const pricedByHp = catalog.isAirconService && (types.length || tiers.length);
-    const selectedType = types.find(row => row.type === selection.airconType);
+    const selectedType = effectiveAirconTypes(catalog).find(row => row.type === selection.airconType);
     const tier = airconHpOptions(catalog, selection.airconType).find(row => row.hp === Number(selection.hp));
     if (pricedByHp && (!tier || !(Number(selection.hp) > 0))) throw new Error('This aircon type and HP combination is unavailable. Staff must configure its price.');
     const rawPrice = pricedByHp ? tier.price : catalog.basePrice;
@@ -133,7 +154,7 @@
     if (!supported) return false;
     if (selection.applianceKind && selection.applianceKind !== 'aircon') return supported.pricingMode === 'hp' && !Number.isFinite(parseHp(selection.hp));
     return Boolean(catalog.isAirconService && (catalog.airconTypes?.length || catalog.hpPricing?.length) &&
-      (catalog.airconTypes?.length && !catalog.airconTypes.some(row => row.type === selection.airconType) || !Number.isFinite(parseHp(selection.hp))));
+      (catalog.airconTypes?.length && !effectiveAirconTypes(catalog).some(row => row.type === selection.airconType) || !Number.isFinite(parseHp(selection.hp))));
   }
   function serviceLines(catalog, selection, serviceIds, groupId, relocation) {
     if (!serviceIds.length || new Set(serviceIds).size !== serviceIds.length) throw new Error('Choose at least one service, without duplicates.');
@@ -174,5 +195,5 @@
   function remainingUnits(services, editingGroupId) {
     return Math.max(0, 40 - unitCount((services || []).filter(row => !editingGroupId || row.applianceGroupId !== editingGroupId)));
   }
-  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
+  return { kinds, labels, profiles, profile, price, unitPrice, availability, airconHpOptions, effectiveAirconTypes, airconHpValues, unitCount, serviceLines, setQuantity, remainingUnits, parseHp, formatHp, isRelocation, assertStandaloneServices, needsVerification, repairHpValues, isRepairAircon, repairDetails };
 });

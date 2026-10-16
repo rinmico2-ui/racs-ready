@@ -45,6 +45,24 @@ test('unitemized legacy mixed bookings retain their saved original charges', () 
   assert.equal(bill.initialBookingTotal,3500);assert.equal(bill.amountDue,3000);
 });
 
+test('core full payment skips collection despite stale balance and collection flags', () => {
+  const bill=pricing.balance({serviceType:'core',totalPrice:3000,amountPaid:3000,balanceAmount:3000,balanceCollected:false});
+  assert.equal(bill.paidInFull,true);assert.equal(bill.amountDue,0);
+});
+
+test('full first-visit payment does not prepay a new repair quotation', () => {
+  const booking=mixed(),bill=pricing.balance(booking);
+  assert.equal(pricing.summary(booking).settled,true);assert.equal(bill.total,4380);
+  assert.equal(bill.amountDue,2630);assert.equal(bill.paidInFull,false);
+  booking.amountPaid=4380;booking.balanceCollected=false;booking.repairPaymentCollected=false;
+  assert.equal(pricing.balance(booking).paidInFull,true);assert.equal(pricing.balance(booking).amountDue,0);
+});
+
+test('stale collected flags and unverified payment submissions cannot hide a remaining balance', () => {
+  const bill=pricing.balance({serviceType:'core',totalPrice:3000,amountPaid:200,balanceAmount:0,balanceCollected:true,downpaymentAmount:3000});
+  assert.equal(bill.amountDue,2800);assert.equal(bill.paidInFull,false);
+});
+
 function fixture() {
   const store={booking:{...mixed(),amountPaid:50,serviceType:'repair',initialCost:500,totalInitialCost:550,services:[mixed().services[1]]},payments:[]};
   let failSave=false,tail=Promise.resolve();

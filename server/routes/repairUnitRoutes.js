@@ -63,6 +63,8 @@ function view(document, req, technician, assignment) {
   const access = req.user.role === 'technician' && !document.unitGroups ? repairWorkAccess(document, technician?._id, assignment) : null;
   return {
     scope: document.unitGroups ? 'project' : 'booking', id: document._id, version: document.__v || 0,
+    reference: document.bookingReference || document.projectCode || document.workOrderNumber || '',
+    payment: !document.unitGroups ? require('../public/js/repair-visit-payment').balance(document) : undefined,
     phase: document.projectPhase, reviewStatus: document.quotationReview?.status,
     submitted: document.unitGroups ? !!document.inspectionReport?.submittedAt && document.projectPhase === 'quotation_review' : !!document.inspection?.completedAt,
     needsSetup: !!document.unitGroups && !document.repairUnitTracking && document.projectPhase === 'execution' && !document.completedUnits,

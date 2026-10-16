@@ -39,5 +39,15 @@
       initialBookingTotal, phaseOneTarget, amountPaid, amountDue, credited: Math.min(amountPaid, phaseOneTarget),
       coreServiceAmount: corePending ? 0 : amount(Math.max(0, initialBookingTotal - inspectionTarget)), settled: amountDue <= 0.01 };
   }
-  return { summary };
+  function balance(booking) {
+    const bill = summary(booking);
+    const hasRepair = ['repair','mixed'].includes(booking?.serviceType) || (booking?.services || []).some(item => item.type === 'repair');
+    const repairTotal = hasRepair ? amount(booking?.quotation?.totalCost) : 0;
+    const total = hasRepair ? amount(bill.initialBookingTotal + repairTotal)
+      : amount(booking?.totalPrice ?? booking?.estimatedFee ?? booking?.servicePrice ?? booking?.initialCost);
+    const amountPaid = amount(booking?.amountPaid);
+    const amountDue = amount(Math.max(0,total-amountPaid));
+    return { total, amountPaid, amountDue, paidInFull: amountDue <= 0.01, repairTotal, firstVisitTotal: bill.initialBookingTotal };
+  }
+  return { summary, balance };
 });

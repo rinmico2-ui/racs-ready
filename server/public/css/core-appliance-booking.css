@@ -181,3 +181,9 @@ body:has(#serviceSelection:not(.d-none) #repair-tab.active):has(#repairAppliance
   .cab-unit-help .cab-secondary { width: 100%; white-space: normal; }
 }
 .cab-problem-suggestions{margin:18px 0}.cab-problem-suggestions .cab-note{margin-bottom:10px}.cab-problem-suggestions [role="group"]{display:flex;flex-wrap:wrap;gap:8px}.cab-problem-suggestions button{min-height:44px;padding:9px 13px;border:1px solid #d2ded6;border-radius:22px;background:#fff;color:#385244;font-size:.78rem;line-height:1.4;text-align:left}.cab-problem-suggestions button[aria-pressed="true"]{background:#edf7f0;border-color:var(--cab-green);color:var(--cab-green);box-shadow:inset 0 0 0 1px var(--cab-green)}.cab-problem-suggestions button:focus-visible{outline:3px solid #b6dcca;outline-offset:2px}
+.cab-repair-type > span > strong{display:block;font-size:.83rem;font-weight:600;line-height:1.5}
+.cab-repair-type-fee{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:5px;font-size:.72rem;color:var(--cab-muted)}
+.cab-repair-type-fee b{font-weight:700;color:var(--cab-green)}
+.cab-inspection-price{display:flex;align-items:center;gap:20px;padding:16px 18px;margin:0 0 22px;border:1px solid #cfe2d6;border-radius:10px;background:#f1f8f4}
+.cab-inspection-price > div{min-width:150px;flex-shrink:0}.cab-inspection-price span{display:block;font-size:.74rem;line-height:1.5;color:#466653}.cab-inspection-price strong{display:block;margin-top:5px;font-size:1.2rem;line-height:1.5;color:#175d3b}.cab-inspection-price p{margin:0;font-size:.75rem;line-height:1.65;color:#61766a}
+@container(max-width:690px){.cab-inspection-price{flex-direction:column;align-items:flex-start;gap:8px;padding:14px}.cab-inspection-price strong{font-size:1.1rem}.cab-inspection-price > div{min-width:0}}

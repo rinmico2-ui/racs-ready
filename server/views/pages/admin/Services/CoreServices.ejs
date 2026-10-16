@@ -1262,7 +1262,7 @@
 
 </div>
 
-<script src="/js/appliance-services.js?v=20261017-availability"></script>
+<script src="/js/appliance-services.js?v=20261017-catalog-pricing"></script>
 <script src="/js/core-service-appliance-editor.js?v=20261013-compressor-hp"></script>
 <script>
   document.addEventListener('DOMContentLoaded', function() {
@@ -1383,7 +1383,7 @@
                   <td><input type="number" min="0.01" step="any" required class="form-control form-control-sm" placeholder="e.g. 0.75" value="${hpObj.hp ?? ''}" aria-label="Horsepower" oninput="updateHP(${i}, ${j}, 'hp', this.value)"></td>
                   <td><div class="input-group input-group-sm"><span class="input-group-text">₱</span><input type="number" min="0" step="0.01" required class="form-control form-control-sm" placeholder="0.00" value="${hpObj.price ?? ''}" aria-label="Price per unit" oninput="updateHP(${i}, ${j}, 'price', this.value)"></div></td>
                   <td><div class="input-group input-group-sm"><input type="number" min="1" step="1" class="form-control form-control-sm" placeholder="Min" value="${hpObj.durationMinutes ?? ''}" oninput="updateHP(${i}, ${j}, 'durationMinutes', this.value)"><span class="input-group-text">m</span></div></td>
-                  <td><input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)"></td>
+                  <td>${hpObj.pricingSource === 'split' ? '<span class="badge bg-light text-primary mb-1">Split-type rate</span>' : ''}<input type="text" class="form-control form-control-sm" placeholder="Optional notes" value="${hpObj.description||''}" oninput="updateHP(${i}, ${j}, 'description', this.value)"></td>
                   <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeHP(${i}, ${j})" aria-label="Remove HP tier"><i class="bi bi-trash3"></i></button></td>
                 </tr>`;
         });
@@ -1409,7 +1409,8 @@
             <button type="button" class="core-type-remove" onclick="removeAC(${i})" aria-label="Remove aircon type"><i class="bi bi-trash3"></i></button>
           </div>
           <div class="card-body p-3">
-            ${missingHp.length ? `<div class="alert alert-warning py-2 small" role="status">Missing prices: ${missingHp.join(', ')} HP. Add approved prices so customers can book these capacities.</div>` : '<div class="alert alert-success py-2 small" role="status">Prices cover 0.5 to 5 HP, including 0.75 HP.</div>'}
+            ${ac.hpPricing.some(row => row.pricingSource === 'split') ? '<div class="alert alert-info py-2 small" role="status">Missing suspended and cassette rates use the saved Split Type prices and work times. These rows are prefilled below. Saving creates separate prices for this type.</div>' : ''}
+            ${missingHp.length ? `<div class="alert alert-warning py-2 small" role="status">No price available: ${missingHp.join(', ')} HP. Enter company prices for these capacities before customers can book them.</div>` : '<div class="alert alert-success py-2 small" role="status">Prices cover 0.5 to 5 HP, including 0.75 HP.</div>'}
             <div class="mb-2">
               <label class="form-label modal-label mb-1">Display Name</label>
               <input type="text" class="form-control" placeholder="Display name" value="${displayName}" oninput="updateAC(${i}, 'name', this.value)">
@@ -1471,7 +1472,7 @@
         form.active.checked = !!data.active;
         form.active.disabled = !!data.archivedAt;
         document.getElementById('coreArchivedHint').classList.toggle('d-none', !data.archivedAt);
-        currentAirconTypes = JSON.parse(JSON.stringify(data.airconTypes || []));
+        currentAirconTypes = window.ApplianceServices.effectiveAirconTypes(data);
         setWarrantyPolicy(data.warrantyPolicy);
         warrantyDaysTouched = true;
         // Show existing image

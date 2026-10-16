@@ -109,7 +109,7 @@ function createService(overrides = {}) {
     }
     const direct = await windowFor(0), local = parts.some(part => part.missing > 0) ? await windowFor(purchaseMinutes) : direct;
     return { ...state, version: booking.__v || 0, reference: booking.bookingReference || booking.workOrderNumber || team.ref(booking._id).slice(-6),
-      date, visitDate, reasons, visitReasons, firstVisitPayment: visitPayment.summary(booking), repairMinutes, purchaseMinutes, parts, direct, local,
+      date, visitDate, reasons, visitReasons, firstVisitPayment: visitPayment.summary(booking), payment: visitPayment.balance(booking), repairMinutes, purchaseMinutes, parts, direct, local,
       canStart: checkTime && !reasons.length && direct.available && toolsReady && parts.every(part => part.missing === 0) && booking.repairExecution?.status !== 'in_progress',
       requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason: toolsReady ? '' : readiness.error || 'Some required tools are not issued or are no longer at the site.',
       approvalReady: approvalReady(booking), execution: booking.repairExecution || null,
@@ -233,7 +233,7 @@ function createService(overrides = {}) {
   return { read, act };
 }
 function present(plan) {
-  const { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
-  return { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
+  const { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, payment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason } = plan;
+  return { version, reference, date, visitDate, reasons, visitReasons, firstVisitPayment, payment, repairMinutes, purchaseMinutes, parts, direct, local, canStart, approvalReady, execution, purchases, requiresOnSiteConsent, confirmedQuotationTotal, tools, toolsReady, toolReason };
 }
 module.exports = { createService, present, partCoverage, approvedParts, approvalReady, duration, purchaseReceived };
