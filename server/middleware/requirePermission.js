@@ -215,6 +215,7 @@ function requiredPermissionForRequest(user, req) {
   const read = isReadRequest(req);
 
   if (user.role === "secretary") {
+    if (path === "/admin/technicians/leaves") return "technicians.view";
     if (path === "/secretary/maintenance" || path === "/api/maintenance/badge") return "appointments.view";
     if (path.startsWith("/api/maintenance/admin/")) {
       const preview = /^\/api\/maintenance\/admin\/schedules\/[^/]+\/booking-preview$/.test(path) && req.method === "POST";
@@ -254,6 +255,7 @@ function requiredPermissionForRequest(user, req) {
       if (action === "unblock") return "accounts.unblock";
       return "customers.manage";
     }
+    if (path.startsWith("/api/secretary/leave-requests")) return read ? "technicians.view" : "technicians.manage";
     if (path.startsWith("/api/secretary/technician-schedules") || path.startsWith("/api/secretary/dayoffs")) return read ? "technicians.view" : "technicians.manage";
     if (path.startsWith("/api/secretary/technicians")) return "technicians.view";
     if (path.startsWith("/api/secretary/staff")) return "staff.view";

@@ -179,13 +179,13 @@
         <div class="modal-body">
           <div class="row g-3">
             <div class="col-sm-6">
-              <label class="form-label fw-semibold">Start Date *</label>
+              <label for="leaveStart" class="form-label fw-semibold">Start Date *</label>
               <input type="date" class="form-control" id="leaveStart" required min="">
             </div>
             <div class="col-sm-6">
-              <label class="form-label fw-semibold">End Date</label>
-              <input type="date" class="form-control" id="leaveEnd" min="">
-              <small class="text-muted">Leave blank for single day</small>
+              <label for="leaveEnd" class="form-label fw-semibold">End Date</label>
+              <input type="date" class="form-control" id="leaveEnd" min="" aria-describedby="leaveEndHelp">
+              <small id="leaveEndHelp" class="text-muted">Choose the start date or a later date. Leave blank for a single day.</small>
             </div>
             <div class="col-12">
               <label class="form-label fw-semibold">Reason</label>
@@ -771,9 +771,21 @@
   // ── Init ──────────────────────────────────────────────────────────────
   document.getElementById('todayDate').textContent = new Date().toLocaleString('en-PH', { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
   document.getElementById('detailDate').textContent = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  const leaveToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
-  document.getElementById('leaveStart').min = leaveToday;
-  document.getElementById('leaveEnd').min = leaveToday;
+  const leaveStart = document.getElementById('leaveStart');
+  const leaveEnd = document.getElementById('leaveEnd');
+  function syncLeaveDates() {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date());
+    leaveStart.min = today;
+    leaveEnd.min = leaveStart.value && leaveStart.value > today ? leaveStart.value : today;
+    // Preserve an entered end date, but make earlier dates invalid until corrected.
+    leaveEnd.setCustomValidity(leaveEnd.value && leaveEnd.value < leaveEnd.min
+      ? 'End date must be on or after the start date and cannot be in the past.' : '');
+  }
+  leaveStart.addEventListener('input', syncLeaveDates);
+  leaveStart.addEventListener('change', syncLeaveDates);
+  leaveEnd.addEventListener('input', syncLeaveDates);
+  leaveEnd.addEventListener('change', syncLeaveDates);
+  syncLeaveDates();
 
   // ── Load Status ───────────────────────────────────────────────────────
   async function loadStatus() {
@@ -1174,15 +1186,22 @@
   window.openLeaveModal = function() {
     document.getElementById('leaveForm').reset();
     FormFeedback.clear(document.getElementById('leaveForm'));
-    new bootstrap.Modal(document.getElementById('leaveModal')).show();
+    syncLeaveDates();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('leaveModal')).show();
   };
 
   window.submitLeave = async function(e) {
     e.preventDefault();
+    syncLeaveDates();
+    const form = document.getElementById('leaveForm');
+    if (!form.reportValidity() || form.dataset.submitting === 'true') return;
     const start = document.getElementById('leaveStart').value;
     const end = document.getElementById('leaveEnd').value || start;
     const reason = document.getElementById('leaveReason').value;
 
+    const submitButton = form.querySelector('[type="submit"]');
+    form.dataset.submitting = 'true';
+    if (submitButton) submitButton.disabled = true;
     try {
       FormFeedback.clear(document.getElementById('leaveForm'));
       await RACSRequest.json('/api/technician/leave-requests', {
@@ -1196,6 +1215,9 @@
       loadLeaves();
     } catch(e) {
       FormFeedback.show(document.getElementById('leaveForm'), e, { startDate:'leaveStart', endDate:'leaveEnd', reason:'leaveReason' });
+    } finally {
+      delete form.dataset.submitting;
+      if (submitButton) submitButton.disabled = false;
     }
   };
 

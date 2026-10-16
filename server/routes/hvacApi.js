@@ -66,9 +66,9 @@ function productImageUpload(req, res, next) {
 
 // Shared HVAC inventory API. RBAC middleware separately enforces
 // inventory.view versus inventory.manage for secretary requests.
-router.use(auth.authenticate);
-router.use(auth.requireRole(["admin", "secretary"]));
-router.use((req, res, next) => {
+// This router shares /api/secretary with other workflows. Inventory permissions
+// must apply only to HVAC routes, not to leave requests that follow this mount.
+router.use('/hvac', auth.authenticate, auth.requireRole(["admin", "secretary"]), (req, res, next) => {
   if (req.user.role === "admin") return next();
   const permission = ["GET", "HEAD", "OPTIONS"].includes(req.method)
     ? "inventory.view"

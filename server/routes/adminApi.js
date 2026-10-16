@@ -2029,86 +2029,11 @@ router.put("/settings/store-open-hours", async (req, res, next) => {
 });
 
 // â”€â”€â”€ Leave Requests (admin review) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const LeaveRequest = require("../models/LeaveRequest");
+const leaveRequests = require('../controllers/leaveRequestController');
+router.get('/leave-requests', requirePermission('technicians.view'), leaveRequests.list);
+router.patch('/leave-requests/:id', requirePermission('technicians.manage'), leaveRequests.review);
 
-/**
- * GET  /api/admin/leave-requests          list all leave requests
- * Query params: ?status=pending|approved|rejected|all  ?technicianId=<id>
- */
-router.get("/leave-requests", async (req, res, next) => {
-  try {
-    const q = req.query || {};
-    const filter = {};
-    if (q.status && q.status !== "all") filter.status = q.status;
-    if (q.technicianId && mongoose.Types.ObjectId.isValid(q.technicianId)) {
-      filter.technicianId = q.technicianId;
-    }
-    const items = await LeaveRequest.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(500)
-      .lean();
-    return res.json({ items, count: items.length });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * PATCH /api/admin/leave-requests/:id     approve or reject a leave request
- * Body: { status: "approved"|"rejected", adminNote?: string }
- */
-router.patch("/leave-requests/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid id" });
-    }
-
-    const leave = await LeaveRequest.findById(id);
-    if (!leave) return res.status(404).json({ error: "Leave request not found" });
-
-    const { status, adminNote } = req.body;
-    if (!["approved", "rejected", "pending"].includes(status)) {
-      return res.status(400).json({ error: "Status must be 'approved' or 'rejected'" });
-    }
-
-    leave.status = status;
-    leave.adminNote = String(adminNote || "").trim().slice(0, 500);
-    leave.reviewedBy = req.user._id;
-    leave.reviewedAt = new Date();
-    await leave.save();
-
-    // Notify technician of leave decision
-    const { createNotification } = require("../utils/notify");
-    const io = req.app.get("io");
-    const isApproved = status === "approved";
-    await createNotification({
-      type: isApproved ? "leave_approved" : "leave_rejected",
-      title: isApproved ? "Leave Approved" : "Leave Rejected",
-      message: isApproved
-        ? `Your leave request from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} has been approved.`
-        : `Your leave request from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()} was not approved.${leave.adminNote ? " Reason: " + leave.adminNote : ""}`,
-      userId: leave.technicianId,
-      role: "technician",
-      referenceId: leave._id,
-      referenceModel: "LeaveRequest",
-      link: "/technician/attendance",
-      priority: isApproved ? "normal" : "high",
-      io,
-    });
-
-    await logAction(req.user._id, leave.technicianId, `leave.${status}`, req, {
-      leaveId: id,
-      adminNote: leave.adminNote,
-    });
-
-    return res.json({ message: `Leave request ${status}`, leave });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// â”€â”€â”€ Roles & Permissions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Roles and permissions
 router.get("/roles", requirePermission("roles.view"), admin.listRoles);
 router.get("/roles/:id", requirePermission("roles.view"), admin.getRole);
 router.patch("/roles/:id", requirePermission("roles.manage"), admin.updateRolePermissions);
