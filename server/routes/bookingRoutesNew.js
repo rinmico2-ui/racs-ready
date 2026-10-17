@@ -70,6 +70,7 @@ const bookingSubmissionLimiter = rateLimit({
  */
 router.post('/loyalty-quote', async (req, res, next) => {
   try {
+    require('../public/js/appliance-services').assertSingleServiceType(req.body.services);
     const lines = await loyaltyRewards.serviceLines(req.body.services);
     const excluded = req.body.isProject === true;
     const reward = await loyaltyRewards.rewardFor(req.user._id, 'services', lines, excluded);
@@ -138,6 +139,8 @@ router.post('/create-new', bookingSubmissionLimiter, bookingSubmissionUpload, as
       return res.status(400).json({ error: 'At least one service is required' });
     }
     if (parsedServices.length > 320) return res.status(400).json({ error: 'Choose up to 320 service items across a maximum of 40 appliances.' });
+    try { require('../public/js/appliance-services').assertSingleServiceType(parsedServices); }
+    catch (error) { return res.status(400).json({ error:error.message, code:error.code }); }
     if (parsedServices.some(item => item?.type === 'repair' && item.relocation)) {
       return res.status(400).json({ error: 'Relocation details are only valid for Aircon Relocation.' });
     }

@@ -566,6 +566,16 @@ const bookingSchema = new mongoose.Schema({
     repairMinutes: Number, purchaseMinutes: Number, plannedEndTime: String,
     reason: { type: String, maxlength: 1000 },
   },
+  repairToolDecisions: [{
+    toolKey: { type: String, required: true, maxlength: 220 },
+    toolName: { type: String, required: true, maxlength: 160 },
+    assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
+    workDate: { type: String, required: true },
+    status: { type: String, enum: ['not_required', 'required'], required: true },
+    reason: { type: String, required: true, minlength: 5, maxlength: 500 },
+    recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    recordedAt: { type: Date, required: true },
+  }],
 
   // lifecycle of a booking across the system.
   //   Core Service statuses:

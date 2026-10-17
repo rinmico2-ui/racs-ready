@@ -287,6 +287,8 @@ function restoreBookingProgress() {
 
 function getRestorableBookingStep() {
   let step = normalizeBookingStep(BookingState.currentStep, 1);
+  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+  catch (_) { return 2; }
   if (step > 2 && (!Array.isArray(BookingState.selectedServices) || BookingState.selectedServices.length === 0)) {
     return 2;
   }
@@ -680,6 +682,7 @@ async function openAcceptedUnitAssistance() {
     }
     if (request.requestType === 'repair') {
       if (BookingState.selectedServices.some(item => String(item.assistanceRequestId) === String(request._id))) return;
+      window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices.concat({ type:'repair' }));
       if (selectedUnitTotal() + Number(request.quantity) > MAX_BOOKING_UNITS) throw new Error('Remove another appliance before adding this verified repair request.');
       const pricing = repairUnitPricing(request.quote.unitType, request.quote.unitCategory);
       if (Number(pricing.inspectionFee) !== Number(request.quote.unitPrice)) throw new Error('The inspection fee changed. Ask staff for an updated quote before booking.');
@@ -6065,12 +6068,7 @@ function renderRepairServices() {
       draft: BookingState.repairDraft, assistance: requestCoreUnitAssistance,
       changed: draft => { BookingState.repairDraft = draft; scheduleBookingProgressSave(); },
       review: openSelectedServiceSummary, next: () => advanceToNextStep(),
-      commit: (row, editingId) => {
-        window.ApplianceServices.assertStandaloneServices(BookingState.selectedServices.filter(item => String(item.id) !== String(editingId)).concat(row));
-        const index = BookingState.selectedServices.findIndex(item => String(item.id || item._id || '') === String(editingId));
-        if (index >= 0) BookingState.selectedServices.splice(index, 1, row); else BookingState.selectedServices.push(row);
-        updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
-      } });
+      commit: commitRepairAppliance });
     return;
   }
 
@@ -10524,10 +10522,19 @@ function commitCoreAppliance(rows, editingGroupId) {
     replacement.assistanceRequestId = original.assistanceRequestId;
   }
   const next = BookingState.selectedServices.filter(item => !editingGroupId || item.applianceGroupId !== editingGroupId).concat(rows);
+  window.ApplianceServices.assertSingleServiceType(next);
   window.ApplianceServices.assertStandaloneServices(next);
   window.ApplianceServices.unitCount(next);
   BookingState.selectedServices = next;
   BookingState.editingServiceId = null;
+  updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
+}
+function commitRepairAppliance(row, editingId) {
+  const next = BookingState.selectedServices.filter(item => String(item.id || item._id || '') !== String(editingId)).concat(row);
+  window.ApplianceServices.assertSingleServiceType(next);
+  window.ApplianceServices.assertStandaloneServices(next);
+  const index = BookingState.selectedServices.findIndex(item => String(item.id || item._id || '') === String(editingId));
+  if (index >= 0) BookingState.selectedServices.splice(index, 1, row); else BookingState.selectedServices.push(row);
   updateSelectedServicesDisplay(); updatePricingDisplay(); updateContinueButtonState(); saveBookingProgress();
 }
 function addServiceToBooking(service, quantity, hpData = null) {
@@ -10572,7 +10579,11 @@ function addServiceToBooking(service, quantity, hpData = null) {
   };
 
 
-  try { window.ApplianceServices.assertStandaloneServices(BookingState.selectedServices.filter(item => item.id !== BookingState.editingServiceId).concat(serviceItem)); }
+  try {
+    const next = BookingState.selectedServices.filter(item => item.id !== BookingState.editingServiceId).concat(serviceItem);
+    window.ApplianceServices.assertSingleServiceType(next);
+    window.ApplianceServices.assertStandaloneServices(next);
+  }
   catch (error) { showError(error.message); return; }
 
   // Replace an edited item only after its new configuration is valid. Closing
@@ -10640,6 +10651,10 @@ function advanceToNextStep() {
 }
 
 function getBookingStepIssue(stepNumber) {
+  if (stepNumber === 2) {
+    try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+    catch (error) { return { step:2, title:'Choose one service category', message:error.message, focusSelector:'#selectedServicesSummary' }; }
+  }
   if (stepNumber === 2 && document.getElementById('repair-tab')?.classList.contains('active') && window.RepairApplianceBooking?.pending()) {
     return { step: 2, title: 'Finish your appliance setup', message: 'Finish adding this repair appliance or cancel your changes before continuing.', focusSelector: '#repairApplianceBuilder [data-panel]:not([hidden]) h3' };
   }
@@ -11292,7 +11307,27 @@ function editSelectedService(index) {
 }
 window.editSelectedService = editSelectedService;
 
+function syncCustomerServiceTypeChoice() {
+  let type = null, mixed = false;
+  try { type = window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+  catch (_) { mixed = true; }
+  for (const category of ['core', 'repair']) {
+    const tab = document.getElementById(`${category}-tab`);
+    if (!tab) continue;
+    tab.disabled = Boolean(type && category !== type);
+    tab.title = tab.disabled ? 'Remove the added services before switching category, or submit a separate booking.' : '';
+  }
+  const hint = document.getElementById('serviceTypePolicy');
+  if (hint) hint.textContent = mixed
+    ? 'This saved selection combines Core and Repair. Remove one category and book it separately.'
+    : type ? `This booking is for ${type === 'core' ? 'Core Services' : 'Repair Service'}. Book the other category separately, or remove the added services to switch.`
+      : 'Choose Core Services or Repair Service for this booking. Book the other category separately.';
+  const tab = type && document.getElementById(`${type}-tab`);
+  if (tab && !tab.classList.contains('active')) window.bootstrap?.Tab?.getOrCreateInstance?.(tab)?.show();
+}
+
 function updateSelectedServicesDisplay() {
+  syncCustomerServiceTypeChoice();
   reconcileBookingScheduleAfterServiceChange();
   window.CoreApplianceBooking?.sync();
   window.RepairApplianceBooking?.sync();
@@ -14004,6 +14039,8 @@ function validateBookingData() {
   if (!BookingState.selectedServices || BookingState.selectedServices.length === 0) {
     return { valid: false, error: 'Choose at least one service.', step: 2 };
   }
+  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
+  catch (error) { return { valid:false, error:error.message, step:2 }; }
   if (selectedUnitTotal() > MAX_BOOKING_UNITS) {
     return { valid: false, error: `A booking can contain at most ${MAX_BOOKING_UNITS} units across all Core and Repair services.`, step: 2 };
   }

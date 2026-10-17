@@ -159,6 +159,132 @@ test('a pending or returned required tool cannot be used even when the daily kit
   const f = fixture(); f.store.kit.items = [{ category: 'equipment', source: 'standard', name: 'Multimeter', checkoutStatus: 'returned' }];
   assert.equal((await f.read()).toolsReady, false); await assert.rejects(f.act('start'), /tools/);
 });
+
+test('Repair now accepts a recorded alternative tool or a reviewed not-required recommendation', async () => {
+  for (const status of ['confirmed_available', 'not_required']) {
+    const f = fixture();
+    f.store.kit.items = [{ category:'equipment', source:'standard', name:'Vacuum pump', checkoutStatus:'exception',
+      resolution:{ status, source:status === 'confirmed_available' ? 'Technician personal pump' : null, resolvedBy:actorId, resolvedAt:now },
+      exception:{ approved:true, approvedBy:actorId } }];
+    const plan = await f.read();
+    assert.equal(plan.toolsReady, true);
+    assert.equal(plan.canStart, true);
+    await f.act('start');
+    assert.equal(f.store.booking.repairExecution.status, 'in_progress');
+  }
+});
+
+test('Repair now lists newly requested tools and waits for their actual preparation', async () => {
+  const f = fixture();
+  f.store.kit.hasDelta = true;
+  f.store.kit.deltaItems = [{ category:'equipment', source:'manual', name:'Vacuum pump', bookingIds:[bookingId], checkoutStatus:'pending' }];
+  let plan = await f.read();
+  assert.equal(plan.tools.length, 1);
+  assert.equal(plan.tools[0].name, 'Vacuum pump');
+  assert.equal(plan.tools[0].ready, false);
+  await assert.rejects(f.act('start'), { status:409 });
+  f.store.kit.items.push({ ...f.store.kit.deltaItems[0], checkoutStatus:'checked_out' });
+  f.store.kit.deltaItems = []; f.store.kit.hasDelta = false;
+  plan = await f.read();
+  assert.equal(plan.toolsReady, true);
+  await f.act('start');
+  assert.equal(f.store.booking.repairExecution.status, 'in_progress');
+});
+
+test('an unapproved tool exception or pending equipment return cannot enable Repair now', async () => {
+  for (const extra of [
+    { checkoutStatus:'exception', resolution:{status:'confirmed_available'}, exception:{approved:false} },
+    { checkoutStatus:'checked_out', returnPendingQuantity:1 },
+  ]) {
+    const f = fixture();
+    f.store.kit.items = [{ category:'equipment', source:'standard', name:'Vacuum pump', ...extra }];
+    assert.equal((await f.read()).canStart, false);
+    await assert.rejects(f.act('start'), { status:409 });
+  }
+});
+
+function missingTool(f) {
+  f.store.kit.items.push({ toolId, category:'equipment', source:'standard', name:'Vacuum pump', checkoutStatus:'returned' });
+  return { key:`equipment:${toolId}`, notRequired:true, reason:'This electrical repair does not open the refrigerant circuit.' };
+}
+
+test('the primary can mark a tool not required for this repair and proceed without changing stock or custody', async () => {
+  const f = fixture(), input = missingTool(f), before = structuredClone(f.store.kit);
+  assert.equal((await f.read()).canStart, false);
+  await f.act('tool-decision', input);
+  const plan = await f.read();
+  assert.equal(plan.tools[0].notRequired, true);
+  assert.equal(plan.tools[0].decisionReason, input.reason);
+  assert.equal(plan.canStart, true);
+  const decision = f.store.booking.repairToolDecisions[0];
+  assert.equal(decision.recordedBy, actorId); assert.equal(decision.assignmentId, assignmentId);
+  assert.equal(decision.workDate, date); assert.equal(decision.status, 'not_required');
+  assert.equal(f.store.booking.status, 'repair_approved');
+  assert.deepEqual(f.store.kit, before);
+  assert.ok(!f.calls.some(row => row[0] === 'assignment-write'));
+  await f.act('start');
+  assert.equal(f.store.booking.repairExecution.status, 'in_progress');
+  assert.deepEqual(f.store.kit, before);
+});
+
+test('unneeded equipment additions do not block issued repair parts or change the day kit', async () => {
+  const f = fixture({ part:true });
+  f.store.kit.items = [{ category:'repair_part', name:'Capacitor', toolId, bookingIds:[bookingId], checkoutStatus:'issued', quantityIssued:1 }];
+  f.store.kit.hasDelta = true;
+  f.store.kit.deltaItems = [{ toolId:id(8), category:'equipment', source:'standard', name:'Vacuum pump', checkoutStatus:'pending' }];
+  const before = structuredClone(f.store.kit);
+  await f.act('tool-decision', { key:`equipment:${id(8)}`, notRequired:true, reason:'The tested fault needs only a capacitor replacement.' });
+  const plan = await f.read();
+  assert.equal(plan.canStart, true); assert.equal(plan.parts[0].available, 1);
+  assert.deepEqual(f.store.kit, before);
+});
+
+test('a tool marked required again blocks Repair now until it is ready', async () => {
+  const f = fixture(), input = missingTool(f);
+  await f.act('tool-decision', input);
+  await f.act('tool-decision', { ...input, notRequired:false, reason:'Further inspection shows evacuation is needed.' });
+  assert.equal((await f.read()).toolsReady, false);
+  await assert.rejects(f.act('start'), { status:409 });
+});
+
+test('tool decisions never exempt missing repair parts, an unprepared kit or another crew member schedule', async () => {
+  for (const block of ['part', 'kit', 'crew']) {
+    const f = fixture({ part:block === 'part' }), input = missingTool(f);
+    await f.act('tool-decision', input);
+    if (block === 'kit') f.store.kit.status = 'draft';
+    if (block === 'crew') f.blocked.add(support);
+    assert.equal((await f.read()).canStart, false);
+    await assert.rejects(f.act('start'), { status:409 });
+  }
+});
+
+test('a previous repair visit tool decision does not carry into a new assignment', async () => {
+  const f = fixture(), input = missingTool(f);
+  await f.act('tool-decision', input);
+  f.store.assignment._id = id(9); f.store.booking.assignmentId = id(9);
+  assert.equal((await f.read()).toolsReady, false);
+});
+
+test('unknown items, parts, short reasons, stale versions and supporting technicians cannot waive tools', async () => {
+  for (const change of [{ key:'equipment:unknown' }, { key:`id:${toolId}` }, { reason:'' }, { notRequired:'true' }, { version:99 }]) {
+    const f = fixture(), input = missingTool(f);
+    await assert.rejects(f.act('tool-decision', { ...input, ...change }));
+    assert.equal(f.store.booking.repairToolDecisions, undefined);
+  }
+  const f = fixture(), input = missingTool(f);
+  await assert.rejects(f.api.act(bookingId, { _id:support }, actorId, 'tool-decision', { version:0, ...input }), { status:403 });
+});
+
+test('repair tool decisions are retained by the booking schema', async () => {
+  const f = fixture(), input = missingTool(f);
+  await f.act('tool-decision', input);
+  const Booking = require('../models/BookingService');
+  const booking = new Booking({ ...f.store.booking, paymentMethod:'other' });
+  await booking.validate();
+  assert.equal(booking.repairToolDecisions[0].toolKey, input.key);
+  assert.equal(booking.repairToolDecisions[0].reason, input.reason);
+  assert.equal(String(booking.repairToolDecisions[0].recordedBy), actorId);
+});
 test('damaged, missing, and pending-return parts do not count as usable parts at the site', async () => {
   for (const field of ['quantityDamaged', 'quantityMissing', 'returnPendingQuantity']) {
     const f = fixture({ part: true });

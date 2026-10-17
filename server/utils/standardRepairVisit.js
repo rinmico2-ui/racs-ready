@@ -5,6 +5,7 @@ const visitPayment = require('../public/js/repair-visit-payment');
 const { manilaDateKey, manilaDateTime, parseAppointmentTime } = require('./bookingDateTime');
 const fail = (message, status = 409, code = 'REPAIR_VISIT_BLOCKED') => Object.assign(new Error(message), { status, code });
 const keyFor = part => part.toolId ? `id:${team.ref(part.toolId)}` : `name:${String(part.name || '').trim().toLowerCase()}`;
+const toolKeyFor = item => `equipment:${team.ref(item.toolId) || String(item.name || '').trim().toLowerCase()}`;
 const purchaseReceived = purchase => purchase.purchaseByType === 'customer' ? purchase.purchaseStatus === 'verified'
   : purchase.purchaseStatus === 'receipt_uploaded' && Boolean(purchase.receiptUrl) && Number(purchase.actualPurchaseCost) > 0;
 const formatTime = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
@@ -86,10 +87,29 @@ function createService(overrides = {}) {
     const reasons = [...visitReasons], visitDate = manilaDateKey(assignment.bookingDate);
     if (visitDate !== date) reasons.push('Repair work can continue only on this visit\'s scheduled Philippine date. You can request a return visit.');
     const kit = await deps.Kit.findOne({ technicianId, workDate: { $gte: manilaDateTime(date, 0), $lt: manilaDateTime(date, 1440) } }).session(state.session || null).lean();
-    const parts = approvalReady(pricedBooking) ? partCoverage(pricedBooking, kit) : [];
-    const readiness = require('./dailyKitService').dailyKitReadiness(kit);
-    const tools = (kit?.items || []).filter(item => item.category === 'equipment' && (item.source === 'standard' || (item.bookingIds || []).concat(item.issuedBookingIds || []).some(id => team.ref(id) === team.ref(booking._id))))
-      .map(item => ({ name: item.name, ready: ['issued', 'checked_out', 'in_custody', 'standard_kit'].includes(item.checkoutStatus) }));
+    const decisions = new Map((booking.repairToolDecisions || [])
+      .filter(row => row.workDate === date && team.ref(row.assignmentId) === team.ref(assignment._id))
+      .map(row => [row.toolKey, row]));
+    const notRequiredForVisit = item => item.category === 'equipment' && decisions.get(toolKeyFor(item))?.status === 'not_required';
+    const visitKit = kit && { ...kit, items:(kit.items || []).filter(item => !notRequiredForVisit(item)),
+      deltaItems:(kit.deltaItems || []).filter(item => !notRequiredForVisit(item)) };
+    // Unneeded equipment additions do not block this repair visit. The saved
+    // kit and its physical checkout/return records retain their own state.
+    if (visitKit?.hasDelta && kit.deltaItems?.length && !visitKit.deltaItems.length) visitKit.hasDelta = false;
+    const readiness = require('./dailyKitService').dailyKitReadiness(visitKit);
+    const parts = approvalReady(pricedBooking) ? partCoverage(pricedBooking, visitKit) : [];
+    const tools = [...(kit?.items || []), ...(kit?.deltaItems || [])]
+      .filter(item => item.category === 'equipment' && (item.source === 'standard' || (item.bookingIds || []).concat(item.issuedBookingIds || []).some(id => team.ref(id) === team.ref(booking._id))))
+      .map(item => {
+        const decision = decisions.get(toolKeyFor(item));
+        const reviewed = item.checkoutStatus === 'exception' && item.exception?.approved === true
+          && ['confirmed_available', 'not_required'].includes(item.resolution?.status);
+        const notRequired = decision?.status === 'not_required' || reviewed && item.resolution.status === 'not_required';
+        const ready = notRequired || reviewed || (['issued', 'checked_out', 'in_custody', 'standard_kit'].includes(item.checkoutStatus)
+          && !Number(item.returnPendingQuantity || 0));
+        return { key:toolKeyFor(item), name:item.name, ready, notRequired, decisionReason:decision?.status === 'not_required' ? decision.reason : '',
+          detail:notRequired ? 'Not required for this repair' : reviewed ? `Alternative: ${item.resolution.source || 'Recorded equipment alternative'}` : ready ? 'At site' : 'Not ready' };
+      });
     const toolsReady = readiness.ready && tools.every(tool => tool.ready);
     const minute = Math.ceil((now.getTime() - manilaDateTime(date, 0).getTime()) / 60000);
     const ids = team.ids(booking).length ? team.ids(booking) : [team.ref(technicianId)];
@@ -118,7 +138,7 @@ function createService(overrides = {}) {
   }
   async function read(id, technicianId, input = {}) { return inspect(await load(id, technicianId), technicianId, input, { checkTime: !['choice', 'later', 'cancel'].includes(input.mode) }); }
   async function act(id, technician, actorId, action, input) {
-    if (!['start', 'defer', 'cancel-repair', 'plan-purchase', 'receipt', 'verify-customer-part'].includes(action)) throw fail('Unknown repair action.', 400);
+    if (!['start', 'defer', 'cancel-repair', 'plan-purchase', 'receipt', 'verify-customer-part', 'tool-decision'].includes(action)) throw fail('Unknown repair action.', 400);
     const date = manilaDateKey(deps.now());
     return deps.lock(`repair-visit:${id}`, () => deps.lock(require('./operationLock').bookingCapacityLockKey(date), async () => {
       const session = await deps.mongoose.startSession();
@@ -139,7 +159,18 @@ function createService(overrides = {}) {
           units.recordOnSiteDecision(booking, input, { technicianId: technician._id, actorId, now, cancel: action === 'cancel-repair' });
           for (const key of ['services', 'quotation', 'quotationReview', 'approval', 'balanceAmount', 'status']) set[key] = booking[key];
         }
-        if (action === 'plan-purchase') {
+        if (action === 'tool-decision') {
+          if (booking.repairExecution?.status === 'in_progress') throw fail('Tool requirements cannot change after repair work has started.');
+          const tool = plan.tools.find(row => row.key === input.key);
+          if (!tool || typeof input.notRequired !== 'boolean') throw fail('Choose an equipment item from this repair work plan.', 400);
+          const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+          if (reason.length < 5 || reason.length > 500) throw fail('Explain the tool decision in 5 to 500 characters.', 400);
+          const decision = { toolKey:tool.key, toolName:tool.name, assignmentId:assignment._id, workDate:date,
+            status:input.notRequired ? 'not_required' : 'required', reason, recordedBy:actorId, recordedAt:now };
+          set.repairToolDecisions = [...(booking.repairToolDecisions || []).filter(row => !(row.toolKey === tool.key
+            && row.workDate === date && team.ref(row.assignmentId) === team.ref(assignment._id))), decision];
+          notification = `${tool.name} marked ${input.notRequired ? 'not required for this repair' : 'required again'}: ${reason}`;
+        } else if (action === 'plan-purchase') {
           if (!plan.local.available) throw fail(plan.local.reason);
           if (input.customerAgreed !== true || input.supplierCanProvide !== true || typeof input.supplierName !== 'string' || input.supplierName.trim().length < 2 || input.supplierName.length > 160) throw fail('Record customer consent, the nearby supplier name, and confirmed part availability.', 400);
           if (!['technician', 'customer'].includes(input.purchaseBy)) throw fail('Choose who will buy the part.', 400);
