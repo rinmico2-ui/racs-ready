@@ -116,10 +116,15 @@ const apply = (f, backup, extra = {}) => cleanup.apply({ ...f, backupFile: backu
 
 test("date cleanup CLI requires explicit valid dates and a backup for destructive modes", () => {
   const args = ["--from", config.from, "--to", config.to];
-  assert.deepEqual(parseArguments(args), { mode: "preview", config, backupFile: undefined });
+  assert.deepEqual(parseArguments(args), { mode: "preview", config, backupFile: undefined, rerun: false });
   assert.equal(parseArguments([...args, "--apply", "--backup", "private.ejson.gz"]).mode, "apply");
   assert.equal(parseArguments([...args, "--compare", "--backup", "private.ejson.gz"]).mode, "compare");
+  assert.equal(parseArguments([...args, "--rerun"]).rerun, true);
+  assert.equal(parseArguments([...args, "--rerun", "--apply", "--backup", "private.ejson.gz"]).rerun, true);
   for (const tail of [["--apply"], ["--restore"], ["--compare"], ["--compare", "--prepare"], ["--apply", "--prepare"], ["--backup", "x"], ["--from", config.from], ["--all"]]) assert.throws(() => parseArguments([...args, ...tail]));
+  assert.throws(() => parseArguments([...args, "--rerun", "--restore", "--backup", "private.ejson.gz"]));
+  assert.throws(() => parseArguments([...args, "--rerun", "--compare", "--backup", "private.ejson.gz"]));
+  assert.throws(() => parseArguments([...args, "--rerun", "--rerun"]));
   for (const [from, to] of [["2026-02-30", config.to], [config.to, config.from], ["2026-09-01", config.to], ["2026-10-15T00:00:00Z", config.to]]) assert.throws(() => cleanup.configuration(from, to));
   assert.throws(() => parseArguments([]));
 });
@@ -281,6 +286,54 @@ test("a repeated range cleanup preserves new transactions created after the firs
   assert.equal((await prepare(t, f)).mode, "already-applied");
   await assert.rejects(apply(f, backup), /already ran/);
   assert.equal(f.writes, writes); assert.deepEqual(f.state, before);
+});
+
+test("an explicit rerun lets preview and preparation re-evaluate an already applied range", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  await apply(f, backup);
+  f.state.bookingservices.push({ _id: oid(), bookingDate: new Date("2026-10-18"), bookingReference: "BOOKING-RERUN", status: "confirmed" });
+  const writesAfterApply = f.writes;
+  const preview = await cleanup.preview({ ...f, rerun: true });
+  assert.equal(preview.mode, "dry-run"); assert.equal(preview.rerun, true); assert.equal(preview.databaseChanges, 0);
+  assert.equal(preview.scheduledBookings, 1);
+  const prepared = await prepare(t, { ...f, rerun: true });
+  assert.equal(prepared.mode, "prepared"); assert.equal(prepared.rerun, true);
+  assert.equal(prepared.scheduledBookings, 1);
+  assert.deepEqual(f.state.bookingservices.map(row => row.bookingReference).sort(), ["BOOKING-FIXTURE-21", "BOOKING-RERUN"]);
+  assert.equal(f.writes, writesAfterApply);
+});
+
+test("a rerun pass deletes only the new transaction and refreshes the completion marker", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  await apply(f, backup);
+  const freshBooking = { _id: oid(), bookingDate: new Date("2026-10-18"), bookingReference: "BOOKING-RERUN", status: "confirmed" };
+  f.state.bookingservices.push(freshBooking);
+  f.state.payments.push({ _id: oid(), bookingId: freshBooking._id, amount: 75, status: "pending" });
+  const later = new Date("2026-10-18T03:00:00Z");
+  const fresh = await prepare(t, { ...f, rerun: true, now: later });
+  const result = await apply(f, fresh, { rerun: true, now: later });
+  assert.equal(result.mode, "deleted"); assert.equal(result.rerun, true);
+  assert.deepEqual(f.state.bookingservices.map(row => row._id), [f.outside._id]);
+  assert.equal(f.state.payments.length, 1);
+  assert.equal(f.state.activitylogs.length, 3);
+  assert.equal(f.state.activitylogs.at(-1).action, "SCHEDULED_TRANSACTIONS_REMOVED");
+  const marker = f.state.sitesettings.find(row => row.key === cleanup.operationKey(config));
+  assert.equal(marker.value.restoredAt, undefined);
+  assert.equal(marker.value.appliedAt.getTime(), later.getTime());
+  assert.equal(marker.value.backupSha256, result.backupSha256);
+  assert.equal((await cleanup.preview(f)).mode, "already-applied");
+  await assert.rejects(apply(f, fresh, { now: later }), /already ran/);
+});
+
+test("a rerun still refuses stale preparations with changed records and preserves the state", async t => {
+  const f = fixture(), backup = await prepare(t, f);
+  await apply(f, backup);
+  f.state.bookingservices.push({ _id: oid(), bookingDate: new Date("2026-10-19"), status: "cancelled" });
+  const prepared = await prepare(t, { ...f, rerun: true });
+  f.state.bookingservices.at(-1).status = "confirmed";
+  const before = clone(f.state);
+  await assert.rejects(apply(f, prepared, { rerun: true }), /changed after preparation/);
+  assert.deepEqual(f.state, before);
 });
 
 test("changed selected records, new selected transactions and new linked payments invalidate preparation", async t => {

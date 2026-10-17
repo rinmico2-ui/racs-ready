@@ -4,12 +4,15 @@ const mongoose = require("mongoose");
 const cleanup = require("../utils/scheduledTransactionCleanup");
 
 function parseArguments(args) {
-  let mode = "preview", from, to, backupFile, modeSet = false;
+  let mode = "preview", from, to, backupFile, modeSet = false, rerun = false;
   for (let index = 0; index < args.length; index++) {
     const value = args[index];
     if (["--preview", "--prepare", "--compare", "--apply", "--restore"].includes(value)) {
       if (modeSet) throw Error("Choose one cleanup mode.");
       mode = value.slice(2); modeSet = true;
+    } else if (value === "--rerun") {
+      if (rerun) throw Error("Do not repeat cleanup arguments.");
+      rerun = true;
     } else if (["--from", "--to", "--backup"].includes(value) && args[index + 1] && !args[index + 1].startsWith("--")) {
       const input = args[++index];
       if (value === "--from" && !from) from = input;
@@ -19,12 +22,13 @@ function parseArguments(args) {
     } else throw Error("Unknown or incomplete cleanup argument. Use --help.");
   }
   if (["compare", "apply", "restore"].includes(mode) !== Boolean(backupFile)) throw Error("Only --compare, --apply or --restore requires --backup FILE.");
-  return { mode, config: cleanup.configuration(from, to), backupFile };
+  if (rerun && ["compare", "restore"].includes(mode)) throw Error("--rerun works only with --preview, --prepare or --apply.");
+  return { mode, config: cleanup.configuration(from, to), backupFile, rerun };
 }
 
 async function main(args) {
   if (args.length === 1 && args[0] === "--help") {
-    console.log("Read-only preview: node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21\nPrepare private recovery files: same command plus --prepare\nCompare without deleting: same dates plus --compare --backup /app/temp/EXACT-FILE.ejson.gz\nDelete prepared records: same dates plus --apply --backup /app/temp/EXACT-FILE.ejson.gz\nRestore: same dates plus --restore --backup /app/temp/EXACT-FILE.ejson.gz\nDates are inclusive Philippine appointment/delivery/pickup dates. Preparing/applying requires maintenance. Nothing runs automatically on deployment. See docs/scheduled-transaction-cleanup.md.");
+    console.log("Read-only preview: node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21\nPrepare private recovery files: same command plus --prepare\nCompare without deleting: same dates plus --compare --backup /app/temp/EXACT-FILE.ejson.gz\nDelete prepared records: same dates plus --apply --backup /app/temp/EXACT-FILE.ejson.gz\nRestore: same dates plus --restore --backup /app/temp/EXACT-FILE.ejson.gz\nRe-run a range whose cleanup already ran (deletes only transactions created after the previous apply): add --rerun to --preview, --prepare or --apply\nDates are inclusive Philippine appointment/delivery/pickup dates. Preparing/applying requires maintenance. Nothing runs automatically on deployment. See docs/scheduled-transaction-cleanup.md.");
     return;
   }
   const options = parseArguments(args);

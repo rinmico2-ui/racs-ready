@@ -238,22 +238,25 @@ async function requireTransactions(db) {
   if (!hello.setName && hello.msg !== "isdbgrid") throw Error("Cleanup requires a MongoDB replica set or sharded cluster. No standalone fallback is allowed.");
 }
 
-async function preview({ db, config, decryptEmail }) {
+async function preview({ db, config, decryptEmail, rerun }) {
   const marker = await db.collection("sitesettings").findOne({ key: operationKey(config) });
-  if (marker && !marker.value.restoredAt) return { mode: "already-applied", operation: operationKey(config), databaseChanges: 0 };
+  if (marker && !marker.value.restoredAt) {
+    if (rerun) return { ...plan(await snapshot(db, config, undefined, { decryptEmail }), config), databaseChanges: 0, rerun: true };
+    return { mode: "already-applied", operation: operationKey(config), databaseChanges: 0 };
+  }
   return { ...plan(await snapshot(db, config, undefined, { decryptEmail }), config), databaseChanges: 0 };
 }
 
-async function prepare({ db, config, decryptEmail, backupDirectory, now = new Date() }) {
+async function prepare({ db, config, decryptEmail, backupDirectory, now = new Date(), rerun }) {
   const marker = await db.collection("sitesettings").findOne({ key: operationKey(config) });
-  if (marker && !marker.value.restoredAt) return { mode: "already-applied", operation: operationKey(config), databaseChanges: 0 };
+  if (marker && !marker.value.restoredAt && !rerun) return { mode: "already-applied", operation: operationKey(config), databaseChanges: 0 };
   await requireMaintenance(db);
   const original = await snapshot(db, config, undefined, { decryptEmail }), summary = plan(original, config);
   if (summary.blockers.length) return { ...summary, mode: "blocked", databaseChanges: 0 };
   if (!original.remove.bookingservices.length && !original.remove.orders.length) return { ...summary, mode: "nothing-to-delete", databaseChanges: 0 };
   const prepared = await recovery.writeResetBackup({ operation: OPERATION, schemaVersion: 1, database: db.databaseName, config,
     preparedAt: now, original, seed: {}, acknowledgedTestCustody: summary.acknowledgedTestCustody }, backupDirectory);
-  return { ...summary, ...prepared, mode: "prepared", databaseChanges: 0,
+  return { ...summary, ...prepared, mode: "prepared", databaseChanges: 0, ...(rerun && marker ? { rerun: true } : {}),
     next: "Download the private backup and checksum before applying this exact prepared scope. Maintenance is unchanged." };
 }
 
@@ -307,7 +310,7 @@ async function compare({ db, config, backupFile, decryptEmail }) {
     changes: snapshotDifferences(artifact.original, current), databaseChanges: 0 };
 }
 
-async function apply({ db, client, config, backupFile, decryptEmail, restore = false, now = new Date() }) {
+async function apply({ db, client, config, backupFile, decryptEmail, restore = false, rerun = false, now = new Date() }) {
   const { artifact, backupSha256 } = await recovery.readResetBackup(backupFile);
   validateBackup(artifact, db, config);
   if (!restore && (now - artifact.preparedAt < 0 || now - artifact.preparedAt > 30 * 60000)) throw Error("Prepared cleanup expired. Prepare a fresh backup.");
@@ -330,7 +333,7 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
         for (const [name, rows] of Object.entries(artifact.original.remove)) if (rows.length) await db.collection(name).insertMany(rows, { session });
         await db.collection("sitesettings").updateOne({ key }, { $set: { "value.restoredAt": now } }, { session });
       } else {
-        if (marker && !marker.value.restoredAt) throw Error("This date-range cleanup already ran. No later records will be deleted.");
+        if (marker && !marker.value.restoredAt && !rerun) throw Error("This date-range cleanup already ran. No later records will be deleted.");
         const current = await snapshot(db, config, session, { decryptEmail });
         if (recovery.digest(current) !== artifact.originalSnapshotHash) throw Object.assign(
           Error("Selected records or dependencies changed after preparation. No changes made; prepare again."),
@@ -353,8 +356,10 @@ async function apply({ db, client, config, backupFile, decryptEmail, restore = f
     error.message += ` Verified recovery backup retained at ${backupFile}.`;
     throw error;
   } finally { await session.endSession(); }
-  return { ...summary, mode: restore ? "restored" : "deleted", atomic: true, backup: backupFile, backupSha256,
-    maintenanceChanged: false, message: "Only the prepared bookings/orders and their linked records were changed. No seeding or physical stock changes. Allow 30 seconds for report caches, then refresh." };
+  return { ...summary, mode: restore ? "restored" : "deleted", atomic: true, backup: backupFile, backupSha256, maintenanceChanged: false,
+    ...(rerun && !restore ? { rerun: true,
+      message: "Rerun pass: only transactions created after the previous apply were changed. The completion marker was refreshed in the same transaction. Allow 30 seconds for report caches, then refresh." } : {
+      message: "Only the prepared bookings/orders and their linked records were changed. No seeding or physical stock changes. Allow 30 seconds for report caches, then refresh." }) };
 }
 
 module.exports = { OPERATION, TEST_CUSTODY_ACKNOWLEDGEMENT, MODEL_NAMES, configuration, operationKey, orderDate, valuesAt, registry, links, selectRecords, snapshot, snapshotDifferences, plan, preview, prepare, compare, apply };

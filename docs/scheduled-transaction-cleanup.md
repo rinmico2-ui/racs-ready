@@ -130,6 +130,29 @@ added back, and paid transactions are not refunded. Deleting the selected
 financial records changes the corresponding reports. Historical seed manifests
 are retained; this cleanup does not replace deleted demonstration transactions.
 
+## Re-running the same range
+
+The completion marker normally stops `--preview`, `--prepare` and `--apply` for
+a range whose cleanup already ran, so bookings or orders created **after** the
+apply step are never deleted automatically. To clear a second batch inside the
+same range, add `--rerun` to the read-only and destructive steps:
+
+```sh
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --rerun
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --rerun --prepare
+node server/scripts/clear-scheduled-bookings-orders.js --from 2026-10-15 --to 2026-10-21 --rerun --apply --backup /app/temp/EXACT-FILE.ejson.gz
+```
+
+`--rerun` does not bypass any other safeguard. Maintenance mode is still
+required for prepare and apply; a fresh preparation is always written (existing
+checkmarks in this guide apply unchanged); a changed snapshot still aborts with
+no changes. The rerun pass deletes only the records currently matching the
+range snapshot, refreshes the completion marker in the same transaction, and
+writes a second `SCHEDULED_TRANSACTIONS_REMOVED` audit event. Shared
+dependencies, unsettled custody, open returns or a changed test-custody
+acknowledgement still block the rerun. `--rerun` cannot combine with
+`--compare` or `--restore`.
+
 ## Recovery
 
 Enable maintenance and stop staff writes again. Use the same dates and the saved
