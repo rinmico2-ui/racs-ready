@@ -27,7 +27,7 @@ test("strict date parsing rejects JavaScript-normalized dates", () => {
   assert.equal(parseDateOnly("2026-08-31").getDate(), 31);
 });
 
-test("pickup checkout requires a future open store day", () => {
+test("pickup checkout requires an available open store day", () => {
   const valid = validateCheckoutSelection({
     fulfillmentType: "customer_pickup",
     paymentMethod: "cash_onsite",
@@ -47,8 +47,8 @@ test("order dates follow the Manila calendar across the UTC midnight boundary", 
   assert.throws(() => validateCheckoutSelection({
     fulfillmentType: "customer_pickup",
     paymentMethod: "cash_onsite",
-    pickupDate: "2026-08-30",
-  }, { storeHours: HOURS, now: afterManilaMidnight }), /future pickup date/i);
+    pickupDate: "2026-08-29",
+  }, { storeHours: HOURS, now: afterManilaMidnight }), /today or a later/i);
 });
 
 test("delivery and installation checkout requires server-usable contact, location, date, and time", () => {

@@ -1916,24 +1916,13 @@
 
   <!-- SweetAlert2 for Premium Modals -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="/js/checkout-calendar.js?v=20261014-checkout-draft-context"></script>
+  <script src="/js/order-schedule-policy.js?v=20261017-same-day-orders"></script>
+  <script src="/js/checkout-calendar.js?v=20261017-same-day-orders"></script>
   <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
-  <script src="/js/order-checkout-errors.js?v=20260925-valid-date-v3"></script>
+  <script src="/js/order-checkout-errors.js?v=20261017-same-day-orders"></script>
   <script src="/js/order-route-map.js?v=20261009-visible-route"></script>
   <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
   <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
-
-  <script>
-    window.CustomerStoreHours.load()
-      .then(function (hours) {
-        var label = document.getElementById('directStoreHoursInfo');
-        if (label) label.textContent = 'Store pickup hours: ' + window.CustomerStoreHours.format(hours);
-      })
-      .catch(function () {
-        var label = document.getElementById('directStoreHoursInfo');
-        if (label) label.textContent = 'Choose an open pickup date. Store hours could not be loaded.';
-      });
-  </script>
 
   <script>
     (function () {
@@ -2075,6 +2064,31 @@
       let leafletMap = null;
       let leafletMarker = null;
       let fpDatePickup = null;
+      let _storeHoursData = null;
+
+      function applyPickupCalendarHours() {
+        if (!fpDatePickup) return;
+        fpDatePickup.set('disable', [function(date) {
+          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+          return !window.OrderSchedulePolicy.isPickupAvailable(key, _storeHoursData, window.__bookingPolicy?.minAdvanceNoticeMinutes);
+        }]);
+      }
+
+      async function fetchPickupPolicy() {
+        const label = document.getElementById('directStoreHoursInfo');
+        try {
+          const [hours, policy] = await Promise.all([
+            window.CustomerStoreHours.load(), window.RACSRequest.json('/api/schedule/booking-policy')
+          ]);
+          _storeHoursData = hours;
+          window.__bookingPolicy = policy;
+          if (label) label.textContent = 'Store pickup hours: ' + window.CustomerStoreHours.format(hours);
+        } catch (_) {
+          _storeHoursData = null;
+          if (label) label.textContent = 'Store pickup hours could not be checked. Reopen checkout to try again.';
+        }
+        applyPickupCalendarHours();
+      }
       let checkoutCalendar = null;
       let _routeDistanceKm = 0;
       let _routeDurationMin = 0;
@@ -2515,11 +2529,12 @@
         }
 
         // Set min date for date pickers via Flatpickr for pickup
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        await fetchPickupPolicy();
+        if (generation !== _directCheckoutGeneration) return;
+        const minPickupDate = window.OrderSchedulePolicy.todayKey();
 
         const fpConfig = {
-          minDate: tomorrow,
+          minDate: minPickupDate,
           dateFormat: "Y-m-d",
           altInput: true,
           altFormat: "F j, Y",
@@ -2532,8 +2547,10 @@
         if (!fpDatePickup) {
           fpDatePickup = flatpickr("#wizardPickupDate", fpConfig);
         } else {
+          fpDatePickup.set('minDate', minPickupDate);
           fpDatePickup.clear();
         }
+        applyPickupCalendarHours();
 
         const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('productOrderModal'));
         modal.show();
@@ -2646,14 +2663,14 @@
               await guideDirectCheckoutIssue('Search for your address or put the pin on your house.', 'Check the map pin', '#wizardMap');
               return;
             }
-            if (!window.OrderCheckoutErrors.isFutureDate(date) || !timeSlot) { await guideDirectCheckoutIssue('Choose an open date after today, then a start time.', 'Choose a date and time', '#checkoutCalendarContainer'); return; }
+            if (!window.OrderCheckoutErrors.isOrderDate(date) || !timeSlot) { await guideDirectCheckoutIssue('Choose today or a later open date, then a start time.', 'Choose a date and time', '#checkoutCalendarContainer'); return; }
             if (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, timeSlot))) {
               await guideDirectCheckoutIssue('That time is no longer available. Please choose another one.', 'Choose another time', '#checkoutCalendarContainer');
               return;
             }
           } else {
             const pickupDate = document.getElementById('wizardPickupDate').value;
-            if (!window.OrderCheckoutErrors.isFutureDate(pickupDate)) { await guideDirectCheckoutIssue('Choose an available pickup date after today.', 'Choose a pickup date', '#wizardPickupDate'); return; }
+            if (!window.OrderSchedulePolicy.isPickupAvailable(pickupDate, _storeHoursData, window.__bookingPolicy?.minAdvanceNoticeMinutes)) { await guideDirectCheckoutIssue('Choose an open pickup date with enough advance notice before closing.', 'Choose a pickup date', '#wizardPickupDate'); return; }
           }
         }
         if (currentStep === 4) {
@@ -3330,19 +3347,19 @@
             return;
           }
         }
-        if (selectedFulfillment === 'customer_pickup' && !window.OrderCheckoutErrors.isFutureDate(document.getElementById('wizardPickupDate')?.value)) {
+        if (selectedFulfillment === 'customer_pickup' && !window.OrderSchedulePolicy.isPickupAvailable(document.getElementById('wizardPickupDate')?.value, _storeHoursData, window.__bookingPolicy?.minAdvanceNoticeMinutes)) {
           currentStep = 3;
           updateWizardUI();
-          await guideDirectCheckoutIssue('Choose an available pickup date after today.', 'Check the pickup date', '#wizardPickupDate');
+          await guideDirectCheckoutIssue('Choose an open pickup date with enough advance notice before closing.', 'Check the pickup date', '#wizardPickupDate');
           return;
         }
         if (selectedFulfillment !== 'customer_pickup') {
           const date = document.getElementById('wizardDate')?.value;
           const time = document.getElementById('wizardTimeSlot')?.value;
-          if (!window.OrderCheckoutErrors.isFutureDate(date) || !time || (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, time)))) {
+          if (!window.OrderCheckoutErrors.isOrderDate(date) || !time || (checkoutCalendar && !(await checkoutCalendar.validateSelectedSlot(date, time)))) {
             currentStep = 3;
             updateWizardUI();
-            await guideDirectCheckoutIssue('Choose an available date after today and a start time before placing your order.', 'Check the delivery schedule', '#checkoutCalendarContainer');
+            await guideDirectCheckoutIssue('Choose an available date and start time. Same-day orders need advance notice and an available team.', 'Check the delivery schedule', '#checkoutCalendarContainer');
             return;
           }
         }

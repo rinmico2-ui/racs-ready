@@ -42,7 +42,7 @@ const { getAftercarePolicy, warrantyRuleForOrder } = require("../utils/aftercare
 const { getOrderCheckoutSettings } = require("../utils/orderCheckoutSettings");
 const loyaltyRewards = require('../utils/loyaltyRewards');
 const { bookingCapacityLockKey, withOperationLock } = require("../utils/operationLock");
-const { getBufferMinutesSync } = require("../utils/bookingPolicy");
+const { getBufferMinutesSync, getMinAdvanceMinutes } = require("../utils/bookingPolicy");
 const { orderCapacityEndTime } = require("../utils/orderScheduleCapacity");
 const { buildOrderAssignmentPlan } = require("../utils/orderAssignmentPlanner");
 const { orderFulfillmentScopeFilter } = require("../utils/orderFulfillmentScope");
@@ -638,10 +638,11 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
     const installationPlan = await require('../utils/orderInstallationProject').installationWorkload(requestedItems, fulfillmentType);
     const cartItemIds = parseCartItemIds(body.cartItemIds);
 
-    const [settings, downpaymentPercentage, gcashRecipientNumber] = await Promise.all([
+    const [settings, downpaymentPercentage, gcashRecipientNumber, minAdvanceNoticeMinutes] = await Promise.all([
       getOrderCheckoutSettings(),
       getDownpaymentPercentage(),
       getGcashRecipientNumber(),
+      getMinAdvanceMinutes(),
     ]);
     const selection = validateCheckoutSelection({
       fulfillmentType,
@@ -650,7 +651,7 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       pickupDate,
       timeSlot,
       projectScheduling: body.projectScheduling,
-    }, { storeHours: settings.storeHours, isProject: installationPlan.isProject });
+    }, { storeHours: settings.storeHours, isProject: installationPlan.isProject, minAdvanceNoticeMinutes });
     if (["cod", "gcash_full"].includes(selection.paymentMethod) && normalizedPaymentChannel === "gcash" && !gcashRecipientNumber) {
       throw new OrderCheckoutError(
         "GCash checkout is temporarily unavailable. Please choose another available payment option or contact the store.",
@@ -741,7 +742,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
       const requestedSlot = selection.timeSlot.toLowerCase();
       const available = slotCheck.statusCode < 400
         && Array.isArray(slotCheck.payload?.timeSlots)
-        && slotCheck.payload.timeSlots.some(slot => String(slot.startTime || "").trim().toLowerCase() === requestedSlot);
+        && slotCheck.payload.timeSlots.some(slot => slot.available === true && slot.isPast !== true
+          && String(slot.startTime || "").trim().toLowerCase() === requestedSlot);
       if (!available) {
         throw new OrderCheckoutError(
           slotCheck.payload?.message || "This delivery time is no longer available. Choose another schedule.",
@@ -861,7 +863,8 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         const selected = selection.timeSlot.toLowerCase();
         const stillAvailable = freshSlots.statusCode < 400
           && Array.isArray(freshSlots.payload?.timeSlots)
-          && freshSlots.payload.timeSlots.some(slot => String(slot.startTime || "").trim().toLowerCase() === selected);
+          && freshSlots.payload.timeSlots.some(slot => slot.available === true && slot.isPast !== true
+            && String(slot.startTime || "").trim().toLowerCase() === selected);
         if (!stillAvailable) throw new OrderCheckoutError(
           freshSlots.payload?.message || "This delivery time was just taken. Choose another schedule.",
           409, "ORDER_SLOT_UNAVAILABLE",
@@ -869,6 +872,9 @@ router.post("/", authenticate, requireRole("customer"), checkoutLimiter, receive
         await commitOrder();
       });
     } else {
+      // Receipt upload and pricing work may take long enough to cross today's
+      // pickup cutoff. Recheck immediately before writing the order.
+      validatePickupDate(pickupDate, settings.storeHours, new Date(), await getMinAdvanceMinutes());
       await commitOrder();
     }
 
@@ -2394,7 +2400,7 @@ router.post("/:id/reschedule-request", authenticate, async (req, res) => {
     let requestedDateValue;
     if (pickupRequest) {
       const settings = await getOrderCheckoutSettings();
-      requestedDateValue = validatePickupDate(requestedDate, settings.storeHours);
+      requestedDateValue = validatePickupDate(requestedDate, settings.storeHours, new Date(), await getMinAdvanceMinutes());
     } else {
       requestedDateValue = parseDateOnly(requestedDate);
       if (!requestedDateValue) return res.status(400).json({ error: "Choose a valid delivery date." });
@@ -2679,7 +2685,7 @@ async function saveResolutionOrderSchedule(req, res) {
     if (isPickup) {
       try {
         const settings = await getOrderCheckoutSettings();
-        validatePickupDate(scheduledDate, settings.storeHours);
+        validatePickupDate(scheduledDate, settings.storeHours, new Date(), await getMinAdvanceMinutes());
       } catch (error) {
         if (error instanceof OrderCheckoutError) {
           return res.status(error.status || 400).json({ error: error.message, code: error.code });

@@ -19,7 +19,7 @@ class CheckoutCalendar {
         }, options);
 
         this.state = {
-            activeMonth: new Date(),
+            activeMonth: new Date(`${window.OrderSchedulePolicy.todayKey()}T00:00:00`),
             selectedDate: null,
             selectedTimeSlot: null,
             duration: Math.max(30, Number(this.options.duration) || 60),
@@ -214,7 +214,7 @@ class CheckoutCalendar {
                     <h6 id="coCalLabel">Month Year</h6>
                     <button type="button" class="co-cal-nav-btn" id="coCalNext"><i class="bi bi-chevron-right"></i></button>
                 </div>
-                <p class="co-cal-mode"><span class="mode-dot"></span><span>Choose an open date, then pick a start time.</span></p>
+                <p class="co-cal-mode"><span class="mode-dot"></span><span>Choose an open date, then a start time. Times are Philippine time. Same-day orders need advance notice and an available team.</span></p>
                 <div class="co-cal-legend">
                     <div class="co-cal-legend-item available"><span class="co-cal-legend-dot available" aria-hidden="true"></span>Available</div>
                     <div class="co-cal-legend-item limited"><span class="co-cal-legend-dot limited" aria-hidden="true"></span>Few times left</div>
@@ -364,7 +364,7 @@ class CheckoutCalendar {
         const month = this.state.activeMonth.getMonth();
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date(); today.setHours(0,0,0,0);
+        const todayKey = window.OrderSchedulePolicy.todayKey();
         const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
         this.dom.label.textContent = `${MONTHS[month]} ${year}`;
@@ -382,7 +382,7 @@ class CheckoutCalendar {
             return;
         }
 
-        const currentMonth = new Date();
+        const currentMonth = new Date(`${todayKey}T00:00:00`);
         currentMonth.setDate(1);
         currentMonth.setHours(0,0,0,0);
         this.dom.prevBtn.disabled = this.state.activeMonth <= currentMonth;
@@ -394,10 +394,10 @@ class CheckoutCalendar {
 
         const holMap = {};
         (this.holidaysData?.holidays || []).forEach(h => {
-            holMap[this._formatKey(new Date(h.date))] = { type: 'holiday', name: h.name || 'Holiday' };
+            holMap[window.OrderSchedulePolicy.todayKey(h.date)] = { type: 'holiday', name: h.name || 'Holiday' };
         });
         (this.holidaysData?.nonWorkingDays || []).forEach(n => {
-            const key = this._formatKey(new Date(n.date));
+            const key = window.OrderSchedulePolicy.todayKey(n.date);
             if (!holMap[key]) holMap[key] = { type: 'non-working', name: n.reason || 'Non-working day' };
         });
 
@@ -409,10 +409,8 @@ class CheckoutCalendar {
         for (let day = 1; day <= daysInMonth; day++) {
             const dateObj = new Date(year, month, day);
             const key = this._formatKey(dateObj);
-            // Product checkout requires a future delivery date. Today is not
-            // selectable even if the shared availability API reports capacity.
-            const isPast = key <= this._formatKey(today);
-            const isToday = key === this._formatKey(today);
+            const isPast = key < todayKey;
+            const isToday = key === todayKey;
             const holInfo = holMap[key];
             const availInfo = availMap[key];
 
@@ -424,49 +422,11 @@ class CheckoutCalendar {
 
             if (isPast) {
                 cellClass += ' past';
-                tooltipText = isToday ? 'Choose a future date' : 'Past date';
-            } else if (isToday) {
-                // TODAY takes precedence over everything else.
-                // The server may still report today as having slots even though
-                // the working hours have passed, so we label it clearly.
-                if (holInfo && holInfo.type === 'holiday') {
-                    cellClass += ' holiday';
-                    reasonText = holInfo.name;
-                    tooltipText = `Holiday: ${holInfo.name}`;
-                } else if (availInfo && availInfo.availableSlots > 0) {
-                    // Slots remain on paper, but if the booking window has passed
-                    // they are no longer bookable — show as closed.
-                    const now = new Date();
-                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                    const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
-                    const earliestMinutes = now.getMinutes() + minAdvance >= 60
-                        ? (now.getHours() + Math.floor((now.getMinutes() + minAdvance) / 60)) * 60 + ((now.getMinutes() + minAdvance) % 60)
-                        : currentMinutes + minAdvance;
-                    const endOfDay = (typeof COMPANY_END_MINUTES !== 'undefined' && COMPANY_END_MINUTES) || 1020;
-                    if (earliestMinutes >= endOfDay) {
-                        cellClass += ' non-working';
-                        reasonText = 'Closed Today';
-                        tooltipText = 'Booking window for today has passed';
-                    } else {
-                        cellClass += availInfo.availableSlots <= 3 ? ' limited' : ' available';
-                        clickable = true;
-                        const count = availInfo.availableSlots;
-                        slotsText = count <= 3 ? 'Few left' : 'Open';
-                        tooltipText = 'Open for booking today';
-                    }
-                } else if (availInfo && availInfo.availableSlots === 0) {
-                    cellClass += ' full';
-                    reasonText = 'Fully booked';
-                    tooltipText = 'All slots for today are booked';
-                } else if (holInfo) {
-                    cellClass += ' non-working';
-                    reasonText = 'Closed Today';
-                    tooltipText = 'No remaining slots for today';
-                } else {
-                    cellClass += ' non-working';
-                    reasonText = 'Closed Today';
-                    tooltipText = 'No remaining slots for today';
-                }
+                tooltipText = 'Past date';
+            } else if (holInfo) {
+                cellClass += ` ${holInfo.type}`;
+                reasonText = holInfo.name;
+                tooltipText = holInfo.name;
             } else if (availInfo) {
                 if (availInfo.availableSlots === 0) {
                     cellClass += ' full';
@@ -484,20 +444,10 @@ class CheckoutCalendar {
                     slotsText = 'Open';
                     tooltipText = 'Open for booking';
                 }
-            } else if (holInfo) {
-                if (holInfo.type === 'holiday') {
-                    cellClass += ' holiday';
-                    reasonText = holInfo.name;
-                    tooltipText = `Holiday: ${holInfo.name}`;
-                } else {
-                    cellClass += ' non-working';
-                    reasonText = 'Non-Working Day';
-                    tooltipText = `Non-Working: ${holInfo.name}`;
-                }
             } else {
                 cellClass += ' non-working';
-                reasonText = 'Non-Working Day';
-                tooltipText = 'Not a working day';
+                reasonText = isToday ? 'No times left' : 'Non-Working Day';
+                tooltipText = isToday ? 'No remaining start times with the required notice' : 'Not a working day';
             }
 
             if (this.state.selectedDate && key === this._formatKey(this.state.selectedDate)) {
@@ -526,10 +476,13 @@ class CheckoutCalendar {
     }
 
     selectDate(dateStr, silent = false, restoredTime = '') {
-        const today = new Date(); today.setHours(0,0,0,0);
+        if (!window.OrderSchedulePolicy.isOrderDate(dateStr)) {
+            this._resetScheduleSelection();
+            this.render();
+            return;
+        }
         const parts = dateStr.split('-');
         const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        if (dateObj <= today) return;
         this.state.selectedDate = dateObj;
         this.state.selectedTimeSlot = restoredTime ? { startTime: restoredTime, label: restoredTime, startMinutes: this._timeToMinutes(restoredTime) } : null;
         this.dom.nextAction.hidden = true;
@@ -593,26 +546,10 @@ class CheckoutCalendar {
             }
 
             if (data.timeSlots && data.timeSlots.length > 0) {
-                const now = new Date();
-                const isToday = dateStr === formatDateKey(now);
-                const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                const bufferMinutes = 30;
-                const cutoff = currentMinutes + bufferMinutes;
-                const minAdvance = (window.__bookingPolicy && window.__bookingPolicy.minAdvanceNoticeMinutes) || 120;
-                const earliestMs = now.getTime() + minAdvance * 60000;
-                const earliestDate = new Date(earliestMs);
-                let earliestMinutes = 0;
-                if (isToday) {
-                    if (earliestDate.toDateString() === date.toDateString()) {
-                        earliestMinutes = earliestDate.getHours() * 60 + earliestDate.getMinutes();
-                    } else {
-                        earliestMinutes = 24 * 60;
-                    }
-                }
-
+                const minAdvance = data.minAdvanceNoticeMinutes ?? window.__bookingPolicy?.minAdvanceNoticeMinutes;
                 const slots = data.timeSlots.map(slot => {
                     const slotMin = this._timeToMinutes(slot.startTime);
-                    const isPast = isToday && (slotMin < cutoff || slotMin < earliestMinutes);
+                    const isPast = slot.isPast === true || !window.OrderSchedulePolicy.isSlotBookable(dateStr, slotMin, minAdvance);
                     const available = slot.available === true && !isPast;
                     const isUnavailable = !available && !isPast;
                     return {
@@ -756,7 +693,9 @@ class CheckoutCalendar {
             if (!response.ok) throw new Error('Schedule validation failed');
             const data = await response.json();
             if (requestId !== (this._timeRequestId || 0)) return false;
-            const stillAvailable = Array.isArray(data.timeSlots) && data.timeSlots.some(slot =>
+            const stillAvailable = !data.blocked && window.OrderSchedulePolicy.isSlotBookable(
+                dateStr, selectedMinutes, data.minAdvanceNoticeMinutes ?? window.__bookingPolicy?.minAdvanceNoticeMinutes
+            ) && Array.isArray(data.timeSlots) && data.timeSlots.some(slot =>
                 slot.available === true && !slot.isPast && this._timeToMinutes(slot.startTime) === selectedMinutes
             );
             if (stillAvailable) {

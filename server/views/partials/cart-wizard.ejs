@@ -1284,10 +1284,11 @@
   </div>
 </div>
 
-<script src="/js/checkout-calendar.js?v=20261014-checkout-draft-context"></script>
+<script src="/js/order-schedule-policy.js?v=20261017-same-day-orders"></script>
+<script src="/js/checkout-calendar.js?v=20261017-same-day-orders"></script>
 <script src="/js/large-order-checkout.js?v=20261014-checkout-draft-context"></script>
 <script src="/js/customer-store-hours.js?v=20260925-v1"></script>
-<script src="/js/order-checkout-errors.js?v=20261014-project-orders-20260925-valid-date-v3"></script>
+<script src="/js/order-checkout-errors.js?v=20261017-same-day-orders"></script>
 <script src="/js/order-route-map.js?v=20261009-visible-route"></script>
 <script src="/js/gcash-qr-actions.js?v=20260925-bundled-qr-v2"></script>
 <script src="/js/gcash-sender-input.js?v=20260925-v1"></script>
@@ -1636,8 +1637,10 @@
         renderStoreHoursInfo();
         applyPickupCalendarHours();
       } catch(e) {
+        _storeHoursData = null;
+        applyPickupCalendarHours();
         const el = document.getElementById('storeHoursInfo');
-        if (el) el.textContent = 'Choose an open pickup date below. Store hours could not be loaded.';
+        if (el) el.textContent = 'Store pickup hours could not be checked. Reopen checkout to try again.';
       }
     }
 
@@ -1648,10 +1651,10 @@
     }
 
     function applyPickupCalendarHours() {
-      if (!fpDatePickup || !_storeHoursData) return;
+      if (!fpDatePickup) return;
       fpDatePickup.set('disable', [function(date) {
-        const row = _storeHoursData.find(function(item) { return Number(item.dayOfWeek) === date.getDay(); });
-        return !row || !row.open || Number(row.endMinutes) <= Number(row.startMinutes);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        return !window.OrderSchedulePolicy.isPickupAvailable(key, _storeHoursData, window.__bookingPolicy?.minAdvanceNoticeMinutes);
       }]);
     }
 
@@ -1839,6 +1842,7 @@
       const estDuration = Math.max(60, totalQty * 60); // 60 min per unit, min 60
       try {
         const policy = await window.RACSRequest.json('/api/schedule/booking-policy');
+        window.__bookingPolicy = policy;
         installationThresholdHours = Number(policy.largeProjectThresholdHours) || 8;
       } catch (_) { installationThresholdHours = Number(window.__bookingPolicy?.largeProjectThresholdHours) || 8; }
       if (generation !== _cartCheckoutGeneration) return;
@@ -1864,14 +1868,12 @@
       }
 
       // Fetch store hours for pickup
-      fetchStoreHours();
+      await fetchStoreHours();
+      if (generation !== _cartCheckoutGeneration) return;
 
       // Set min date for date pickers via Flatpickr for pickup
-      // Disable today and past dates — only allow tomorrow onwards
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const minPickupDate = new Date(today);
-      minPickupDate.setDate(minPickupDate.getDate() + 1);
+      // Philippine dates apply even when the customer's device is elsewhere.
+      const minPickupDate = window.OrderSchedulePolicy.todayKey();
 
       const fpConfig = {
         minDate: minPickupDate,
@@ -1928,11 +1930,11 @@
       }
 
       if (step === 2 && selectedFulfillment === 'customer_pickup') {
-        if (!window.OrderCheckoutErrors.isFutureDate(document.getElementById('wizardPickupDate').value.trim())) {
+        if (!window.OrderSchedulePolicy.isPickupAvailable(document.getElementById('wizardPickupDate').value.trim(), _storeHoursData, window.__bookingPolicy?.minAdvanceNoticeMinutes)) {
           return {
             step: 2,
             title: 'Choose a Pickup Date',
-            message: 'Choose an available store pickup date after today.',
+            message: 'Choose an open pickup date with enough advance notice before the store closes.',
             confirmButtonText: 'Choose Pickup Date',
             focusSelector: '#wizardPickupDate'
           };
@@ -1977,11 +1979,11 @@
         }
         const projectIssue = orderProjectCheckout?.issue();
         if (projectIssue) return projectIssue;
-        if (!window.OrderCheckoutErrors.isFutureDate(date) && !orderProjectCheckout?.active) {
+        if (!window.OrderCheckoutErrors.isOrderDate(date) && !orderProjectCheckout?.active) {
           return {
             step: 2,
             title: 'Choose a Delivery Date',
-            message: 'Choose an available date after today for delivery and installation.',
+            message: 'Choose today or a later available date for delivery and installation.',
             confirmButtonText: 'Choose Date',
             focusSelector: '#checkoutCalendarContainer'
           };

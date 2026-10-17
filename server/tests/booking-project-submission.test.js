@@ -213,14 +213,29 @@ test('a workload exactly at the hours threshold remains a standard appointment',
   assert.equal(calls.capacity.length, 2);
 });
 
-test('mixed core and repair groups share one combined project workload', async t => {
+test('customers cannot submit Core and Repair together as a project', async t => {
   const { code, body, calls } = await fixture(t, { duration: 90 }).call({ services: [
     { serviceId: 'core-id', type: 'core', quantity: 5, unitPrice: 1000 },
     { serviceId: 'repair-id', brand: 'Carrier', model: 'TEST-123', name: 'Aircon repair', unitType: 'Split Aircon', hp: 3, type: 'repair', quantity: 1, problemDescription: 'Aircon is not cooling properly' },
   ] });
-  assert.equal(code, 201, body?.error); assert.equal(body.isProject, true);
-  assert.equal(calls.windows[0].requiredHours, 9); assert.equal(calls.windows[0].totalUnits, 6);
-  assert.equal(calls.projects[0].unitGroups.length, 2); assert.equal(calls.projects[0].projectPhase, 'assessment');
+  assert.equal(code, 400);
+  assert.equal(body.code, 'MIXED_SERVICE_BOOKING_NOT_ALLOWED');
+  assert.match(body.error, /separately/i);
+  assert.equal(calls.writes.length, 0); assert.equal(calls.payments.length, 0);
+  assert.equal(calls.windows.length, 0); assert.equal(calls.projects.length, 0);
+  assert.equal(calls.capacity.length, 0);
+});
+
+test('mixed standard bookings and stringified submissions fail before pricing or payment writes', async t => {
+  for (const stringified of [false, true]) {
+    const f = fixture(t);
+    const services = [{ serviceId:'core-id', quantity:1 }, { serviceId:'repair-id', type:'repair', quantity:1 }];
+    const result = await f.call({ services:stringified ? JSON.stringify(services) : services, projectScheduling:undefined, startTime:'08:00' });
+    assert.equal(result.code, 400);
+    assert.equal(result.body.code, 'MIXED_SERVICE_BOOKING_NOT_ALLOWED');
+    assert.equal(f.calls.writes.length, 0); assert.equal(f.calls.payments.length, 0);
+    assert.equal(f.calls.capacity.length, 0); assert.equal(f.calls.windows.length, 0);
+  }
 });
 
 test('core and repair bookings accept optional models while both reject malformed supplied values', async t => {

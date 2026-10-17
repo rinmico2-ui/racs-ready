@@ -76,5 +76,8 @@
     return dateKey > `${values.year}-${values.month}-${values.day}`;
   }
 
-  window.OrderCheckoutErrors = { issueFor, isFutureDate };
+  window.OrderCheckoutErrors = {
+    issueFor, isFutureDate,
+    isOrderDate: (key, now) => window.OrderSchedulePolicy.isOrderDate(key, now),
+  };
 })();

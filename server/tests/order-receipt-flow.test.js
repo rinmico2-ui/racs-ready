@@ -111,7 +111,7 @@ test("customer delivery receipt upload survives temporary-file removal and reach
     "../utils/loyaltyRewards": { ...loyaltyRewards, rewardFor: async () => null, assertQuote() {} },
     "../utils/enterpriseSchedulingEngine": { isLargeProject: async () => false },
     "../utils/operationLock": { bookingCapacityLockKey: date => `booking-capacity:${String(date).slice(0, 10)}`, withOperationLock: async (_key, work) => work() },
-    "./scheduleRoutes": { getTimeSlotsForQuery: async () => ({ statusCode: 200, payload: { timeSlots: [{ startTime: "09:00 AM" }] } }) },
+    "./scheduleRoutes": { getTimeSlotsForQuery: async () => ({ statusCode: 200, payload: { timeSlots: [{ startTime: "09:00 AM", available: true }] } }) },
   };
   const routePath = path.join(__dirname, "../routes/orderRoutes.js");
   const nativeRequire = createRequire(routePath);
