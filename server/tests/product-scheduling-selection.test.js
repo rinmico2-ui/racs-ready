@@ -35,7 +35,10 @@ test("calendar never invents available times when the scheduling API fails", () 
   assert.doesNotMatch(calendar, /using fallback|const startMin = 480|reservedCount > 0/);
 });
 
-test("product calendar never offers today when the order API requires a future date", () => {
-  assert.match(calendar, /const isPast = key <= this\._formatKey\(today\)/);
-  assert.match(calendar, /if \(dateObj <= today\) return/);
+test("both checkouts load the shared Manila scheduling policy before their calendar", () => {
+  for (const wizard of [cart, direct]) {
+    assert.ok(wizard.indexOf('/js/order-schedule-policy.js?v=') < wizard.indexOf('/js/checkout-calendar.js?v='));
+    assert.match(wizard, /const minPickupDate = window\.OrderSchedulePolicy\.todayKey\(\)/);
+    assert.match(wizard, /OrderSchedulePolicy\.isPickupAvailable/);
+  }
 });

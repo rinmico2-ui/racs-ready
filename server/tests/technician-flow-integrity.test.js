@@ -36,6 +36,24 @@ test("proof completion commits consumables with the booking instead of consuming
   assert.match(dailyKitService, /assignmentId,[\s\S]*bookingId,[\s\S]*quantityUsed: usage\.quantity/);
 });
 
+test("final proof of completion cannot prematurely close a mixed repair plus core booking", () => {
+  const start = technicianApi.indexOf('router.post("/assignments/:id/proof-of-completion"');
+  const end = technicianApi.indexOf("// ═════════════════════════════════════════════════════════════════════════════", start);
+  const route = technicianApi.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  // Mixed bookings are detected the same way as the other technician endpoints.
+  assert.match(route, /isMixedBooking = booking\.serviceType === "mixed"[\s\S]*?type === "core"[\s\S]*?type === "repair"/);
+  // Open Core or Repair items must block the shared completion proof.
+  assert.match(route, /if \(isMixedBooking\) \{[\s\S]*?openItems\.length[\s\S]*?code: "MIXED_WORK_OPEN"/);
+  // The open-work guard runs before the proof photo is stored or consumed.
+  const guardAt = route.indexOf('code: "MIXED_WORK_OPEN"');
+  const storageAt = route.indexOf("storeCompletionProof(req.file");
+  assert.ok(guardAt > -1 && storageAt > guardAt);
+  // Repair children completed by the booking-level Repair endpoint are
+  // reconciled inside the same transaction as the completion commit.
+  assert.match(route, /if \(isMixedBooking && hasRepairCompletionEvidence\) \{[\s\S]*?Reconciled from existing repair completion evidence[\s\S]*?reconciliationBook\.save\(\)/);
+});
+
 test("large-scale work orders cannot skip travel and arrival stages", () => {
   assert.match(projectRoutes, /woTransition\(\["accepted", "partially_completed"\], "en_route"/);
   assert.match(projectRoutes, /woTransition\(\["en_route"\], "arrived"/);

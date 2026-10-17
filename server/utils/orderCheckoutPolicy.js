@@ -1,5 +1,6 @@
 const axios = require("axios");
 const { manilaDateKey } = require("./bookingDateTime");
+const orderSchedule = require('../public/js/order-schedule-policy');
 
 // Existing delivery-only orders remain readable, but new checkouts must end
 // in either professional installation or an explicit store pickup.
@@ -89,9 +90,9 @@ function validateCheckoutItems(items) {
   return normalized;
 }
 
-function isFutureBusinessDate(date, now = new Date()) {
+function isOrderBusinessDate(date, now = new Date()) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return false;
-  return manilaDateKey(date) > manilaDateKey(now);
+  return orderSchedule.isOrderDate(manilaDateKey(date), now);
 }
 
 function normalizeStoreHours(value) {
@@ -104,20 +105,23 @@ function normalizeStoreHours(value) {
   }));
 }
 
-function validatePickupDate(value, storeHours, now = new Date()) {
+function validatePickupDate(value, storeHours, now = new Date(), minAdvanceNoticeMinutes = 120) {
   const date = parseDateOnly(value);
-  if (!date || !isFutureBusinessDate(date, now)) {
-    throw new OrderCheckoutError("Choose a valid future pickup date.", 400, "ORDER_PICKUP_DATE_INVALID");
+  if (!date || !isOrderBusinessDate(date, now)) {
+    throw new OrderCheckoutError("Choose today or a later available pickup date.", 400, "ORDER_PICKUP_DATE_INVALID");
   }
   const hours = normalizeStoreHours(storeHours);
   const day = hours.find(row => row.dayOfWeek === date.getUTCDay());
   if (!day?.open || day.endMinutes <= day.startMinutes) {
     throw new OrderCheckoutError("The store is closed on the selected pickup date.", 409, "ORDER_PICKUP_STORE_CLOSED");
   }
+  if (!orderSchedule.isPickupAvailable(manilaDateKey(date), hours, minAdvanceNoticeMinutes, now)) {
+    throw new OrderCheckoutError("There is not enough notice before the store closes. Choose another pickup date.", 409, "ORDER_PICKUP_STORE_CLOSED");
+  }
   return date;
 }
 
-function validateCheckoutSelection(input, { storeHours, now = new Date(), isProject = false } = {}) {
+function validateCheckoutSelection(input, { storeHours, now = new Date(), isProject = false, minAdvanceNoticeMinutes = 120 } = {}) {
   const fulfillmentType = String(input?.fulfillmentType || "").trim();
   const paymentMethod = String(input?.paymentMethod || "").trim();
   if (!FULFILLMENT_TYPES.has(fulfillmentType)) {
@@ -133,7 +137,7 @@ function validateCheckoutSelection(input, { storeHours, now = new Date(), isProj
     return {
       fulfillmentType,
       paymentMethod,
-      pickupDate: validatePickupDate(input.pickupDate, storeHours, now),
+      pickupDate: validatePickupDate(input.pickupDate, storeHours, now, minAdvanceNoticeMinutes),
       delivery: null,
       timeSlot: null,
     };
@@ -162,8 +166,8 @@ function validateCheckoutSelection(input, { storeHours, now = new Date(), isProj
   if (!/^[+\d().\-\s]+$/.test(contactNumber) || contactDigits.length < 7 || contactDigits.length > 15) {
     throw new OrderCheckoutError("Enter a valid delivery contact number.", 400, "ORDER_CONTACT_INVALID");
   }
-  if (!preferredDate || !isFutureBusinessDate(preferredDate, now)) {
-    throw new OrderCheckoutError("Choose a valid future delivery date.", 400, "ORDER_DELIVERY_DATE_INVALID");
+  if (!preferredDate || !isOrderBusinessDate(preferredDate, now)) {
+    throw new OrderCheckoutError("Choose today or a later available delivery date.", 400, "ORDER_DELIVERY_DATE_INVALID");
   }
   if (!timeSlot && !isProject) {
     throw new OrderCheckoutError("Choose an available delivery time.", 400, "ORDER_TIME_REQUIRED");

@@ -12,6 +12,7 @@ const cart = read("views/partials/cart-wizard.ejs");
 const direct = read("views/partials/aircons.ejs");
 
 const context = { window: {} };
+vm.runInNewContext(read('public/js/order-schedule-policy.js'), context);
 vm.runInNewContext(guidance, context);
 
 test("order API errors take customers to the relevant checkout step and field", () => {
@@ -41,15 +42,20 @@ test("both checkouts use server error codes and recheck client-required fields",
   assert.match(direct, /OrderCheckoutErrors\?\.issueFor\(data, 'direct'\)/);
   assert.match(direct, /if \(addr\.length < 8\)/);
   assert.match(direct, /contactDigits\.length < 7 \|\| contactDigits\.length > 15/);
-  assert.match(cart, /OrderCheckoutErrors\.isFutureDate\(date\)/);
-  assert.match(direct, /OrderCheckoutErrors\.isFutureDate\(date\)/);
+  assert.match(cart, /OrderCheckoutErrors\.isOrderDate\(date\)/);
+  assert.match(direct, /OrderCheckoutErrors\.isOrderDate\(date\)/);
 });
 
-test("the client uses the same future-date rule as the Manila order API", () => {
+test("standard orders allow today in Manila while planned projects still require future dates", () => {
   const now = new Date('2026-09-25T16:30:00.000Z'); // Sep 26 in Manila
   const isFutureDate = context.window.OrderCheckoutErrors.isFutureDate;
   assert.equal(isFutureDate('2026-09-25', now), false);
   assert.equal(isFutureDate('2026-09-26', now), false);
   assert.equal(isFutureDate('2026-09-27', now), true);
   assert.equal(isFutureDate('2026-02-30', now), false);
+  const isOrderDate = context.window.OrderCheckoutErrors.isOrderDate;
+  assert.equal(isOrderDate('2026-09-25', now), false);
+  assert.equal(isOrderDate('2026-09-26', now), true);
+  assert.equal(isOrderDate('2026-09-27', now), true);
+  assert.equal(isOrderDate('2026-02-30', now), false);
 });

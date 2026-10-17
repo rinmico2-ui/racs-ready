@@ -6167,6 +6167,30 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         return res.status(409).json({ error: "Collect the remaining balance before completing this job.", code: "BOOKING_BALANCE_REQUIRED", balanceAmount: amountDue });
       }
 
+      // A mixed booking shares one visit between independent Core and Repair
+      // workstreams. Final completion proof may only close the job when every
+      // Core item is completed and every Repair item is finished — repair
+      // work keeps its own completion path in the Repair Service tab.
+      const isMixedBooking = booking.serviceType === "mixed"
+        || ((booking.services || []).some(item => item.type === "core")
+          && (booking.services || []).some(item => item.type === "repair"));
+      const hasRepairCompletionEvidence = Boolean(booking.repairCompletion?.completedAt)
+        || ["repair_completed", "under_warranty"].includes(booking.status);
+      if (isMixedBooking) {
+        const openItems = (booking.services || []).filter(row =>
+          row.type === "core"
+            ? row.status !== "completed"
+            : !["completed", "repair_declined", "cancelled"].includes(row.status) && !hasRepairCompletionEvidence
+        );
+        if (openItems.length) {
+          return res.status(409).json({
+            error: `Finish the remaining service work (${openItems.map(row => row.name || (row.type === "core" ? "Core service" : "Repair service")).join(", ")}) before submitting final completion proof. Complete Repair from the Repair Service tab.`,
+            code: "MIXED_WORK_OPEN",
+            openItems: openItems.map(row => ({ itemId: row._id, name: row.name || null, type: row.type, status: row.status })),
+          });
+        }
+      }
+
       let consumableUsage = [];
       try {
         consumableUsage = req.body.consumables ? JSON.parse(req.body.consumables) : [];
@@ -6216,6 +6240,25 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         const currentPayments = await require('../models/Payment').find({ bookingId: assignment.bookingId }).session(completionSession).lean();
         if (require('../utils/paymentSummary').outstandingBookingBalance(currentBooking, currentPayments) > 0.01) {
           throw Object.assign(new Error('Collect the remaining balance before completing this job.'), { status: 409 });
+        }
+        // Mixed bookings completed through the booking-level Repair endpoint
+        // reconcile their Repair children here so the item lifecycle matches
+        // the booking completion evidence, mirroring the Core item endpoints.
+        if (isMixedBooking && hasRepairCompletionEvidence) {
+          const reconciliationBook = await BookingService.findById(assignment.bookingId).session(completionSession);
+          for (const repairItem of (reconciliationBook.services || []).filter(row => row.type === "repair" && !["completed", "repair_declined", "cancelled"].includes(row.status))) {
+            repairItem.status = "completed";
+            repairItem.phase = "repair_phase_2";
+            repairItem.statusHistory = repairItem.statusHistory || [];
+            repairItem.statusHistory.push({
+              status: "completed",
+              changedAt: completedAt,
+              changedBy: tech._id,
+              changedByName: tech.name || "Technician",
+              reason: "Reconciled from existing repair completion evidence",
+            });
+          }
+          await reconciliationBook.save();
         }
         await recordBookingConsumableUsage({
           technicianId: tech._id,
