@@ -17,7 +17,10 @@ function declaration(name) {
 }
 function ui(rows) {
   const state = {selectedServices:structuredClone(rows), editingServiceId:null, currentStep:5};
-  const elements = Object.fromEntries(['core-tab', 'repair-tab', 'serviceTypePolicy'].map(id=>[id,{disabled:false,classList:{contains:()=>false}}]));
+  const elements = Object.fromEntries(['core-tab', 'repair-tab', 'core-services', 'repair-services', 'coreServiceSelection', 'repairServiceSelection', 'serviceTypePolicy'].map(id=>[id,{
+    disabled:false,dataset:{},attributes:{},events:{},classList:{contains:()=>false},
+    setAttribute(name,value){this.attributes[name]=value;},addEventListener(name,callback){this.events[name]=callback;},
+  }]));
   const errors = [], saves = [];
   const context = {BookingState:state, window:{ApplianceServices:policy}, document:{getElementById:id=>elements[id]||null},
     normalizeBookingStep:value=>value, bookingDebug(){}, remainingBookingUnits:()=>40, MAX_BOOKING_UNITS:40,
@@ -82,6 +85,25 @@ test('choosing a category disables the other tab until all added services are re
   f.state.selectedServices=[repair]; f.context.syncCustomerServiceTypeChoice();
   assert.equal(f.elements['core-tab'].disabled,true);
   assert.equal(f.elements['repair-tab'].disabled,false);
+});
+
+test('Core and Repair each disable the opposite form and cancel attempts to open its tab', () => {
+  for (const [selected,blocked] of [[core,'repair'],[repair,'core']]) {
+    const f=ui([selected]); f.context.syncCustomerServiceTypeChoice();
+    assert.equal(f.elements[`${blocked}ServiceSelection`].disabled,true);
+    assert.equal(f.elements[`${selected.type}ServiceSelection`].disabled,false);
+    assert.equal(f.elements[`${blocked}-services`].inert,true);
+    assert.equal(f.elements[`${blocked}-tab`].attributes['aria-disabled'],'true');
+    let prevented=false;
+    f.elements[`${blocked}-tab`].events['show.bs.tab']({preventDefault(){prevented=true;}});
+    assert.equal(prevented,true);
+    f.state.selectedServices=[]; f.context.syncCustomerServiceTypeChoice();
+    assert.equal(f.elements[`${blocked}ServiceSelection`].disabled,false);
+    assert.equal(f.elements[`${blocked}-services`].inert,false);
+    prevented=false;
+    f.elements[`${blocked}-tab`].events['show.bs.tab']({preventDefault(){prevented=true;}});
+    assert.equal(prevented,false);
+  }
 });
 
 test('older mixed drafts return to service selection and cannot continue or submit until corrected', () => {

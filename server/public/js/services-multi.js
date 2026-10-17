@@ -11312,9 +11312,22 @@ function syncCustomerServiceTypeChoice() {
   try { type = window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices); }
   catch (_) { mixed = true; }
   for (const category of ['core', 'repair']) {
+    const blocked = Boolean(type && category !== type);
+    const selection = document.getElementById(`${category}ServiceSelection`);
+    if (selection) selection.disabled = blocked;
+    const pane = document.getElementById(`${category}-services`);
+    if (pane) {
+      pane.inert = blocked;
+      pane.setAttribute('aria-disabled', String(blocked));
+    }
     const tab = document.getElementById(`${category}-tab`);
     if (!tab) continue;
-    tab.disabled = Boolean(type && category !== type);
+    tab.disabled = blocked;
+    tab.setAttribute('aria-disabled', String(blocked));
+    if (!tab.dataset.serviceTypeLockBound) {
+      tab.dataset.serviceTypeLockBound = 'true';
+      tab.addEventListener('show.bs.tab', event => { if (tab.disabled) event.preventDefault(); });
+    }
     tab.title = tab.disabled ? 'Remove the added services before switching category, or submit a separate booking.' : '';
   }
   const hint = document.getElementById('serviceTypePolicy');
