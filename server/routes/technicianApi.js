@@ -461,8 +461,6 @@ router.patch("/appointments/:id/core-items/batch", async (req, res, next) => {
     }
     const isMixedBooking = booking.serviceType === "mixed"
       || (booking.services.some(row => row.type === "core") && booking.services.some(row => row.type === "repair"));
-    const hasRepairCompletionEvidence = Boolean(booking.repairCompletion?.completedAt)
-      || ["repair_completed", "under_warranty"].includes(booking.status);
 
     // For starting: only pending-type statuses
     // For completing: only in_progress
@@ -475,6 +473,7 @@ router.patch("/appointments/:id/core-items/batch", async (req, res, next) => {
       status: { $in: ["in_progress", "completed"] },
     });
 
+    // Core actions leave Repair status, phase and history to its own workflow.
     let updatedCount = 0;
     for (const item of booking.services) {
       if (item.type !== "core") continue;
@@ -500,21 +499,6 @@ router.patch("/appointments/:id/core-items/batch", async (req, res, next) => {
         reason: String(req.body.reason || `Core service ${targetStatus === 'in_progress' ? 'started' : 'completed'} by technician (batch)`),
       });
 
-      // Reconcile repair items when completing core
-      if (targetStatus === "completed" && isMixedBooking && hasRepairCompletionEvidence) {
-        for (const repairItem of booking.services.filter(row => row.type === "repair" && row.status !== "completed")) {
-          repairItem.status = "completed";
-          repairItem.phase = "repair_phase_2";
-          repairItem.statusHistory = repairItem.statusHistory || [];
-          repairItem.statusHistory.push({
-            status: "completed",
-            changedAt: new Date(),
-            changedBy: technician._id,
-            changedByName: technician.name,
-            reason: "Reconciled from existing repair completion evidence",
-          });
-        }
-      }
       updatedCount++;
     }
 
@@ -602,8 +586,6 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
     if (String(item.technicianId || booking.technicianId || "") !== String(technician._id)) return res.status(403).json({ error: "This service item is not assigned to you." });
     const isMixedBooking = booking.serviceType === "mixed"
       || (booking.services.some(row => row.type === "core") && booking.services.some(row => row.type === "repair"));
-    const hasRepairCompletionEvidence = Boolean(booking.repairCompletion?.completedAt)
-      || ["repair_completed", "under_warranty"].includes(booking.status);
     const nextStatus = String(req.body.status || "");
     const allowed = new Set([
       "accepted", "en_route", "arrived", "in_progress", "completed", "on_hold",
@@ -635,8 +617,7 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
     if (!transitionAllowed) return res.status(409).json({ error: `Cannot move this service item from ${item.status} to ${nextStatus}.` });
     const wouldFinishMixedBooking = isMixedBooking && nextStatus === 'completed'
       && booking.services.every(row => String(row._id) === String(item._id)
-        || ['completed', 'cancelled', 'repair_declined'].includes(row.status)
-        || (row.type === 'repair' && hasRepairCompletionEvidence));
+        || ['completed', 'cancelled', 'repair_declined'].includes(row.status));
     const unpaidBookingBalance = Math.max(0, Number(booking.balanceAmount) || 0);
     if (wouldFinishMixedBooking && unpaidBookingBalance > 0 && !booking.balanceCollected) {
       return res.status(409).json({
@@ -650,23 +631,8 @@ router.patch("/appointments/:id/service-items/:itemId/status", async (req, res, 
     item.statusHistory = item.statusHistory || [];
     item.statusHistory.push({ status: nextStatus, changedAt: new Date(), changedBy: technician._id, changedByName: technician.name, reason: String(req.body.reason || "Technician workflow update") });
 
-    // Reconcile mixed records completed by the older booking-level Repair
-    // endpoint, which did not persist completion on each Repair child item.
-    if (nextStatus === "completed" && item.type === "core" && isMixedBooking && hasRepairCompletionEvidence) {
-      for (const repairItem of booking.services.filter(row => row.type === "repair" && row.status !== "completed")) {
-        repairItem.status = "completed";
-        repairItem.phase = "repair_phase_2";
-        repairItem.statusHistory = repairItem.statusHistory || [];
-        repairItem.statusHistory.push({
-          status: "completed",
-          changedAt: new Date(),
-          changedBy: technician._id,
-          changedByName: technician.name,
-          reason: "Reconciled from existing repair completion evidence",
-        });
-      }
-    }
-
+    // Each service owns its progress. Booking-level Repair evidence must not
+    // complete another item when the technician updates Core work.
     const allServicesCompleted = nextStatus === "completed" && booking.services.every(row =>
       row.status === "completed" || (isMixedBooking && ["repair_declined", "cancelled"].includes(row.status))
     );
@@ -6174,13 +6140,11 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
       const isMixedBooking = booking.serviceType === "mixed"
         || ((booking.services || []).some(item => item.type === "core")
           && (booking.services || []).some(item => item.type === "repair"));
-      const hasRepairCompletionEvidence = Boolean(booking.repairCompletion?.completedAt)
-        || ["repair_completed", "under_warranty"].includes(booking.status);
       if (isMixedBooking) {
         const openItems = (booking.services || []).filter(row =>
           row.type === "core"
             ? row.status !== "completed"
-            : !["completed", "repair_declined", "cancelled"].includes(row.status) && !hasRepairCompletionEvidence
+            : !["completed", "repair_declined", "cancelled"].includes(row.status)
         );
         if (openItems.length) {
           return res.status(409).json({
@@ -6240,25 +6204,6 @@ router.post("/assignments/:id/proof-of-completion", auth.authenticate, async (re
         const currentPayments = await require('../models/Payment').find({ bookingId: assignment.bookingId }).session(completionSession).lean();
         if (require('../utils/paymentSummary').outstandingBookingBalance(currentBooking, currentPayments) > 0.01) {
           throw Object.assign(new Error('Collect the remaining balance before completing this job.'), { status: 409 });
-        }
-        // Mixed bookings completed through the booking-level Repair endpoint
-        // reconcile their Repair children here so the item lifecycle matches
-        // the booking completion evidence, mirroring the Core item endpoints.
-        if (isMixedBooking && hasRepairCompletionEvidence) {
-          const reconciliationBook = await BookingService.findById(assignment.bookingId).session(completionSession);
-          for (const repairItem of (reconciliationBook.services || []).filter(row => row.type === "repair" && !["completed", "repair_declined", "cancelled"].includes(row.status))) {
-            repairItem.status = "completed";
-            repairItem.phase = "repair_phase_2";
-            repairItem.statusHistory = repairItem.statusHistory || [];
-            repairItem.statusHistory.push({
-              status: "completed",
-              changedAt: completedAt,
-              changedBy: tech._id,
-              changedByName: tech.name || "Technician",
-              reason: "Reconciled from existing repair completion evidence",
-            });
-          }
-          await reconciliationBook.save();
         }
         await recordBookingConsumableUsage({
           technicianId: tech._id,
@@ -10444,9 +10389,9 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
     const bookingStatusMap = {
       // on_site: "arrived" works for both phases
       on_site: "arrived",
-      // in_progress: Phase 1 → stay at whatever it was (inspection_scheduled)
-      //              Phase 2 → repair_in_progress
-      in_progress: isPhase1 ? null : "repair_in_progress",
+      // Mixed Start Work opens the shared visit. Repair starts explicitly
+      // from its own tab, including return visits after inspection.
+      in_progress: isMixedBooking || isPhase1 ? null : "repair_in_progress",
       completed: "repair_completed",
       cancelled: "pending_reassignment",
     };
@@ -10464,20 +10409,6 @@ router.post("/repairs/:bookingId/status", async (req, res, next) => {
         changedByName: tech.name,
         timestamp: now,
       });
-      if (newBookingStatus === "repair_in_progress" && isMixedBooking) {
-        for (const item of booking.services.filter(row => row.type === "repair" && !["completed", "repair_declined", "cancelled"].includes(row.status))) {
-          item.status = "repair_in_progress";
-          item.phase = "repair_phase_2";
-          item.statusHistory = item.statusHistory || [];
-          item.statusHistory.push({
-            status: "repair_in_progress",
-            changedAt: now,
-            changedBy: tech._id,
-            changedByName: tech.name || "Technician",
-            reason: "Phase 2 Repair work started",
-          });
-        }
-      }
       if (newStatus === "completed") {
         booking.completedAt = now;
         // Fulfill stock reservations

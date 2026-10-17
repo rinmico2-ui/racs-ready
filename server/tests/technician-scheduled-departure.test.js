@@ -50,6 +50,30 @@ function fixture({date='2026-10-18',type='repair',status='accepted',ready=true,b
   return{assignment,booking,calls,call};
 }
 
+test('starting a mixed return visit preserves Core and Repair progress after inspection', async () => {
+  const f = fixture({ date:'2026-10-16', type:'mixed', status:'on_site', bookingStatus:'repair_approved' });
+  f.booking.inspection = { completedAt: new Date('2026-10-15T02:00:00Z') };
+  f.booking.services = [
+    { _id:id(5), type:'core', status:'arrived', phase:'core' },
+    { _id:id(6), type:'repair', status:'repair_approved', phase:'repair_phase_1' },
+  ];
+  const before = structuredClone(f.booking.services);
+  const response = await f.call('status', 'in_progress');
+  assert.equal(response.statusCode, 200);
+  assert.equal(f.assignment.status, 'in_progress');
+  assert.deepEqual(f.booking.services, before);
+  assert.equal(f.booking.status, 'repair_approved');
+});
+
+test('starting a repair-only return visit still starts its approved repair', async () => {
+  const f = fixture({ date:'2026-10-16', type:'repair', status:'on_site', bookingStatus:'repair_approved' });
+  f.booking.inspection = { completedAt: new Date('2026-10-15T02:00:00Z') };
+  const response = await f.call('status', 'in_progress');
+  assert.equal(response.statusCode, 200);
+  assert.equal(f.assignment.status, 'in_progress');
+  assert.equal(f.booking.status, 'repair_in_progress');
+});
+
 test('actual core, repair and mixed departure handlers reject future dates before kit or stock operations',async()=>{
   for(const type of ['core','repair','mixed'])for(const endpoint of type==='core'?['generic']:['generic','repair']) {
     const f=fixture({type});const response=await f.call(endpoint);

@@ -49,9 +49,6 @@ test("final proof of completion cannot prematurely close a mixed repair plus cor
   const guardAt = route.indexOf('code: "MIXED_WORK_OPEN"');
   const storageAt = route.indexOf("storeCompletionProof(req.file");
   assert.ok(guardAt > -1 && storageAt > guardAt);
-  // Repair children completed by the booking-level Repair endpoint are
-  // reconciled inside the same transaction as the completion commit.
-  assert.match(route, /if \(isMixedBooking && hasRepairCompletionEvidence\) \{[\s\S]*?Reconciled from existing repair completion evidence[\s\S]*?reconciliationBook\.save\(\)/);
 });
 
 test("large-scale work orders cannot skip travel and arrival stages", () => {
