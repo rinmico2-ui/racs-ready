@@ -5992,7 +5992,7 @@ function renderCoreServices() {
       guide.hidden = document.getElementById('core-tab')?.classList.contains('active') !== false;
       document.getElementById("serviceTabs")?.addEventListener("shown.bs.tab", event => { guide.hidden = event.target.id === "core-tab"; });
     }
-    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep(), review: openSelectedServiceSummary,
+    window.CoreApplianceBooking.mount(BookingState.catalog.coreServices, { state: BookingState, multiUnit: true, commit: commitCoreAppliance, openLegacy: service => showCombinedQuantityHpModal(service), count: selectedUnitTotal, next: () => advanceToNextStep(), review: openSelectedServiceSummary,
       assistance: requestCoreUnitAssistance, changed: draft => { BookingState.applianceDraft = draft; scheduleBookingProgressSave(); } });
     return;
   }

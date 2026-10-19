@@ -133,6 +133,33 @@ test('two core services on four appliances keep four physical units and use comb
   assert.equal(calls.writes[0].services[0].applianceGroupId, 'appliance_shared_test'); assert.equal(calls.writes[0].services[1].model, 'Nexus');
   assert.equal(calls.writes[0].totalPrice, 8000);
 });
+test('the multi-aircon customer form saves distinct details and services at authoritative catalog prices', async t => {
+  const catalog = [{ _id: 'core-id', name: 'Cleaning', active: true, isAirconService: true, airconTypes: [
+    { type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 500, durationMinutes: 60 }, { hp: 2, price: 800, durationMinutes: 90 }] },
+    { type: 'window', name: 'Window Type', hpPricing: [{ hp: 1.5, price: 650, durationMinutes: 75 }] },
+  ] }, { _id: 'recharge-id', name: 'Refrigerant recharge', active: true, isAirconService: true, airconTypes: [
+    { type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1000, durationMinutes: 90 }, { hp: 2, price: 1400, durationMinutes: 120 }] },
+  ] }];
+  const form = require('../public/js/core-appliance-batch').createModel(catalog);
+  form.sync({ applianceKind: 'aircon', brand: 'Carrier', airconType: 'split', hp: 1, quantity: 3 });
+  form.setDetailsMode('individual'); form.setDetail(1, 'hp', 2);
+  form.setDetail(2, 'brand', 'Midea'); form.setDetail(2, 'airconType', 'window'); form.setDetail(2, 'hp', 1.5);
+  form.selectService('core-id', true); form.setServicesMode('individual'); form.selectService('recharge-id', true, 1);
+  const rows = form.rows();
+  const { code, body, calls } = await fixture(t, { catalogOverride: catalog }).call({ services: rows, startTime: '08:00', projectScheduling: undefined });
+  assert.equal(code, 201, body?.error); assert.equal(body.isProject, false);
+  const saved = calls.writes[0];
+  assert.equal(saved.quantity, 3); assert.equal(saved.services.length, 4);
+  assert.equal(saved.totalPrice, 3350); assert.equal(saved.serviceDurationMinutes, 345);
+  assert.deepEqual(Array.from(saved.services, row => [row.brand, row.airconType, row.hp, row.quantity, row.unitPrice]), [
+    ['Carrier', 'split', 1, 1, 500], ['Carrier', 'split', 2, 1, 800],
+    ['Carrier', 'split', 2, 1, 1400], ['Midea', 'window', 1.5, 1, 650],
+  ]);
+  assert.deepEqual(Array.from(saved.services, row => row.applianceGroupId), rows.map(row => row.applianceGroupId));
+  assert.equal(new Set(saved.services.map(row => row.applianceGroupId)).size, 3);
+  assert.equal(calls.payments.length, 1);
+});
+
 test('shared appliances with longer combined work still use the multi-day project flow', async t => {
   const catalog = ['core-id', 'second-id'].map(_id => ({ _id, name: 'Core service', active: true, isAirconService: true,
     airconTypes: [{ type: 'split', name: 'Split Type', hpPricing: [{ hp: 1, price: 1000, durationMinutes: 90 }] }] }));

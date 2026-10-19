@@ -135,7 +135,7 @@ test('accepted repair identification resumes as a repair inspection with the ver
   const request = { _id: requestId, requestType: 'repair', status: 'accepted', model: 'MODEL-123', quantity: 2, repair: { problemDescription: payload().problemDescription },
     quote: { brand: 'Carrier', unitType: 'Washing Machine', unitCategory: 'appliance', unitPrice: 500, durationMinutes: 90, expiresAt: new Date(Date.now() + 3600000) } };
   const state = { selectedServices: [] };
-  const context = { window: { location: { search: `?assistanceId=${requestId}` } }, URLSearchParams, BookingState: state, MAX_BOOKING_UNITS: 40,
+  const context = { window: { location: { search: `?assistanceId=${requestId}` }, ApplianceServices: require('../public/js/appliance-services') }, URLSearchParams, BookingState: state, MAX_BOOKING_UNITS: 40,
     fetch: async () => ({ ok: true, json: async () => ({ request }) }), selectedUnitTotal: () => 0,
     repairUnitPricing: () => ({ inspectionFee: 500 }), updateSelectedServicesDisplay() {}, updatePricingDisplay() {}, updateContinueButtonState() {}, saveBookingProgress() {}, history: { replaceState() {} }, showBookingToast() {}, showError(error) { throw Error(error); } };
   vm.runInNewContext(source.slice(start, end), context); await context.openAcceptedUnitAssistance(); await context.openAcceptedUnitAssistance();

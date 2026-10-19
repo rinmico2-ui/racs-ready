@@ -1,0 +1,85 @@
+.cab-batch-enabled .cab-quantity { border-top: 0; padding: 18px; margin: 18px 0 0; border: 1px solid #dde7e1; border-radius: 12px; background: #f8fbf9; }
+.cab-batch-enabled .cab-quantity p { max-width: 320px; }
+.cab-batch-enabled .cab-limit { margin-bottom: 18px; }
+.cab-batch-choice { min-width: 0; margin: 0 0 20px; padding: 0; border: 0; }
+.cab-batch-choice legend { float: none; width: auto; margin: 0 0 10px; font-size: .85rem; font-weight: 650; color: #253f31; line-height: 1.5; }
+.cab-batch-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.cab-batch-switch label { position: relative; min-width: 0; cursor: pointer; }
+.cab-batch-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.cab-batch-switch label > span { display: flex; flex-direction: column; gap: 5px; height: 100%; min-height: 76px; padding: 13px; border: 1px solid #d5e1d9; border-radius: 10px; background: #fff; }
+.cab-batch-switch strong { font-size: .8rem; color: #385244; line-height: 1.5; }
+.cab-batch-switch small { font-size: .7rem; color: #657b6c; line-height: 1.5; }
+.cab-batch-switch input:checked + span { background: #eef8f1; border-color: #268255; box-shadow: inset 0 0 0 1px #268255; }
+.cab-batch-switch input:checked + span strong { color: #176741; }
+.cab-batch-switch input:focus-visible + span { outline: 3px solid #a4d2b7; outline-offset: 3px; }
+.cab-batch-choice > .cab-note { margin: 11px 0 0; }
+.cab-batch-tools { padding: 15px; margin-bottom: 14px; border: 1px solid #dce7df; border-radius: 11px; background: #f7faf8; }
+.cab-batch-tools strong { font-size: .8rem; color: #294b36; }
+.cab-batch-tools p { margin: 4px 0 12px; color: #637a6b; font-size: .72rem; line-height: 1.5; }
+.cab-batch-copy { display: flex; gap: 7px; flex-wrap: wrap; }
+.cab-batch-copy button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 1px solid #cfded4; border-radius: 8px; background: #fff; color: #276343; font-size: .73rem; font-weight: 600; }
+.cab-batch-copy button:disabled { color: #7c8d82; background: #f0f4f1; border-color: #e0e7e2; cursor: default; }
+.cab-batch-copy button:not(:disabled):hover { border-color: #268255; background: #edf8f1; }
+.cab-batch-unit { margin-bottom: 12px; padding: 17px; border: 1px solid #dce6df; border-radius: 12px; background: #fff; }
+.cab-batch-unit-head, .cab-batch-unit-head > div { display: flex; align-items: center; gap: 8px; }
+.cab-batch-unit-head { justify-content: space-between; flex-wrap: wrap; margin-bottom: 17px; }
+.cab-batch-unit-head h4, .cab-batch-service-head h4 { margin: 0; font-size: .87rem; font-weight: 650; color: #294432; line-height: 1.5; }
+.cab-batch-unit-number { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: #edf4ef; color: #346f4c; font-size: .73rem; font-weight: 650; }
+.cab-batch-completion { border-radius: 20px; padding: 4px 8px; background: #f3f5f4; color: #6a7970; font-size: .63rem; line-height: 1.5; }
+.cab-batch-completion.is-ready { color: #23623f; background: #eaf6ee; }
+.cab-batch-unit-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+.cab-batch-unit-fields > label:first-child, .cab-batch-unit-fields [data-custom-brand] { grid-column: 1 / -1; }
+.cab-batch-unit-fields label, .cab-batch-model label { min-width: 0; font-size: .75rem; font-weight: 600; line-height: 1.5; color: #385244; }
+.cab-batch-unit-fields :is(input,select), .cab-batch-model input { display: block; width: 100%; min-width: 0; min-height: 46px; margin-top: 6px; padding: 10px; border: 1px solid #cbd9d0; border-radius: 8px; color: #263f30; background: #fff; font-size: .85rem; }
+.cab-batch-unit-fields select:disabled { background: #f3f6f4; color: #78897e; }
+.cab-batch-unit-foot { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 13px; margin-top: 17px; border-top: 1px solid #edf1ee; }
+.cab-batch-model { flex: 1 1 150px; min-width: 0; }
+.cab-batch-model summary { font-size: .7rem; line-height: 1.7; color: #587261; cursor: pointer; }
+.cab-batch-model summary span { color: #7a8e80; }
+.cab-batch-model input { max-width: 280px; }
+.cab-batch-help { padding: 0; min-height: 24px; border: 0; background: transparent; color: #376b4c; font-size: .7rem; line-height: 1.7; }
+.cab-batch-help i { margin-right: 4px; }
+.cab-batch-status { margin: 10px 0 0; font-size: .74rem; color: #296d44; line-height: 1.6; overflow-wrap: anywhere; }
+.cab-batch-status:empty { display: none; }
+.cab-batch-status.is-error { color: #ad3244; }
+.cab-batch-quote { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid #e6ede8; }
+.cab-batch-quote > div { min-width: 0; }
+.cab-batch-quote strong { display: block; font-size: .76rem; color: #385244; line-height: 1.5; }
+.cab-batch-quote small { display: block; margin-top: 3px; font-size: .65rem; color: #657b6c; line-height: 1.5; }
+.cab-batch-quote > b { color: #176741; font-size: 1rem; line-height: 1.5; white-space: nowrap; }
+.cab-batch-services > .cab-batch-choice { margin-top: 18px; }
+.cab-batch-service { display: flex; align-items: flex-start; gap: 10px; padding: 14px; margin-top: 9px; min-width: 0; border: 1px solid #d9e4dc; border-radius: 10px; background: #fff; cursor: pointer; }
+.cab-batch-service:has(input:checked) { border-color: #298357; background: #f3faf5; }
+.cab-batch-service > input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; accent-color: #19734a; }
+.cab-batch-service > span { flex: 1; min-width: 0; }
+.cab-batch-service strong { display: block; color: #2d4535; font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
+.cab-batch-service small { display: block; margin-top: 5px; font-size: .68rem; color: #667e6d; font-weight: 400; line-height: 1.6; }
+.cab-batch-service > b { flex: 0 0 auto; max-width: 43%; color: #19623e; text-align: right; font-size: .8rem; line-height: 1.5; overflow-wrap: anywhere; }
+.cab-batch-service.is-unavailable { background: #f7f9f8; cursor: default; }
+.cab-batch-service.is-unavailable > b { color: #7c8d81; font-weight: 500; }
+.cab-batch-unit-services { margin-top: 16px; padding: 15px; border: 1px solid #dce6df; border-radius: 12px; background: #fbfdfb; }
+.cab-batch-service-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.cab-batch-service-head > div { min-width: 0; }
+.cab-batch-service-head p { margin: 4px 0 0; font-size: .7rem; color: #67816f; line-height: 1.6; overflow-wrap: anywhere; }
+.cab-batch-service-head > span { flex-shrink: 0; color: #19663e; font-size: .87rem; font-weight: 650; line-height: 1.6; }
+.cab-batch-enabled [data-core-batch] :is(button, input, select, summary):focus-visible { outline: 3px solid #a4d2b7; outline-offset: 3px; }
+.cab-batch-enabled [data-core-batch][hidden], .cab-batch-enabled [data-core-batch] [hidden] { display: none !important; }
+@container (min-width: 820px) {
+  .cab-batch-unit-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cab-batch-unit-fields > label:first-child { grid-column: auto; }
+  .cab-batch-unit-fields [data-custom-brand] { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (max-width: 575px) {
+  body:has(#serviceSelection:not(.d-none) #coreApplianceBuilder.cab-batch-active [data-wizard]:not([hidden])) .racs-ai-chatbot:not(.chat-open) { bottom: calc(var(--core-booking-actions-height, 210px) + 24px); }
+  .cab-batch-enabled .cab-quantity { padding: 14px; align-items: flex-start; flex-direction: column; gap: 12px; }
+  .cab-batch-enabled .cab-quantity > div:first-child { width: 100%; }
+  .cab-batch-enabled .cab-stepper { align-self: flex-start; }
+  .cab-batch-unit { padding: 14px; }
+  .cab-batch-unit-fields :is(input,select), .cab-batch-model input { font-size: 16px; }
+  .cab-batch-copy { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .cab-batch-copy button { min-height: 44px; padding: 8px 4px; font-size: .68rem; gap: 4px; }
+  .cab-batch-copy button i { display: none; }
+  .cab-batch-unit-services { padding: 12px; }
+  .cab-batch-service { padding: 12px; flex-wrap: wrap; }
+  .cab-batch-service > b { max-width: none; margin-left: 28px; flex-basis: calc(100% - 28px); text-align: left; }
+}

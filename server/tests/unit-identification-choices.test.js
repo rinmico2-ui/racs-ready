@@ -17,7 +17,7 @@ test('staff identification never submits stale hidden brand, model, type or HP a
 
 test('help choices cannot skip selection; optional repair models still validate supplied values',()=>{
   const fields={kind:{value:'aircon'},quantity:{value:'2',validity:{valid:true}},brand:{value:'Carrier',validity:{valid:true}},model:{value:'',validity:{valid:true}},airconType:{validity:{valid:true}},hp:{validity:{valid:true}}};
-  const context=vm.createContext({detailsUnknown:false,helpOpen:true,hooks:{repair:true},aircon:()=>true,available:()=>40,field:name=>fields[name],selection:()=>({brand:'Carrier'})});
+  const context=vm.createContext({batch:null,detailsUnknown:false,helpOpen:true,hooks:{repair:true},aircon:()=>true,available:()=>40,field:name=>fields[name],selection:()=>({brand:'Carrier'})});
   vm.runInContext(fn(core,'detailsValid','  function closeConfirmation('),context);
   assert.equal(context.detailsValid(),false);
   context.detailsUnknown=true; assert.equal(context.detailsValid(),true);
