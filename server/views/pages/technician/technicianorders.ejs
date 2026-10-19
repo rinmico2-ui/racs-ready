@@ -3414,6 +3414,8 @@
       aHtml += '<div class="alert alert-warning mb-0 py-2 px-3" role="status"><i class="bi bi-lock-fill me-2"></i><strong>Awaiting reschedule</strong> — Accept and En Route are locked until operations updates the customer schedule.</div>';
     } else if(s === 'technician_assigned' && o.viewerAssignment?.status === 'accepted') {
       aHtml += '<div class="alert alert-info mb-0">Your assignment is accepted. Waiting for the other team members before departure.</div>';
+    } else if(s === 'technician_assigned' && o.viewerAssignment?.isResponseExpired) {
+      aHtml += '<div class="alert alert-warning mb-0" role="status"><strong>Response deadline passed.</strong> Ask admin or secretary to extend your response deadline or review the assigned team.</div>';
     } else if(s === 'technician_assigned') {
       aHtml += '<button class="to-btn to-btn-accept" data-action="accept" data-id="'+oid+'"><i class="bi bi-check-lg"></i>Accept</button>';
       aHtml += '<button class="to-btn to-btn-decline" data-action="decline" data-id="'+oid+'"><i class="bi bi-x-lg"></i>Decline</button>';

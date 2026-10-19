@@ -30,6 +30,14 @@ function createService(overrides = {}) {
     if (!date || !Number.isFinite(start) || manilaDateTime(date, start) <= new Date()) throw team.failure('Choose a future appointment before assigning technicians.');
     return { date, start, time, minutes, travel: Math.max(0, Number(job.travelDuration || job.travelTime || job.routeDurationMin) || 30) };
   }
+  function responseSchedule(source, job) {
+    if (source !== 'order') return schedule(source, job);
+    if (job.continuation?.status === 'pending') throw team.failure('Operations must schedule the continuation before work resumes.', 409, 'CONTINUATION_PENDING');
+    // Existing invitations stay actionable during the delivery's dispatch grace.
+    const timing = require('./orderAttention').orderAttentionState(job);
+    if (!job.delivery?.preferredDate || !timing.scheduledStartAt) throw team.failure('Operations must confirm the delivery date and time before you can respond.', 409, 'ORDER_SCHEDULE_REQUIRED');
+    if (timing.isPastDate) throw team.failure('This delivery schedule has passed. Operations must confirm a new customer schedule before acceptance.', 409, 'ORDER_SCHEDULE_PASSED');
+  }
   async function candidates(source, job, input = {}) {
     const visit = schedule(source, job, input);
     const technicians = await deps.roster({ Technician: deps.Technician });
@@ -161,8 +169,10 @@ function createService(overrides = {}) {
       if (!['accept', 'decline'].includes(decision)) throw team.failure('Choose accept or decline.', 400);
       if (typeof reason !== 'string' || reason.length > 500) throw team.failure('The response reason must be text of up to 500 characters.', 400);
       if (entry.status === (decision === 'accept' ? 'accepted' : 'declined')) return { job, duplicate: true, response: true };
-      if (entry.status !== 'pending' || entry.deadlineAt && entry.deadlineAt <= new Date() || team.closed.has(job.status)) throw team.failure('This assignment response is no longer available. Ask Operations to review the team.');
-      schedule(source, job);
+      if (entry.status !== 'pending' || team.closed.has(job.status) || source !== 'order' && entry.deadlineAt && entry.deadlineAt <= new Date()) throw team.failure('This assignment response is no longer available. Ask Operations to review the team.');
+      if (source === 'order' && !['technician_assigned', 'technician_declined'].includes(job.status)) throw team.failure('This order is no longer waiting for team responses. Refresh your orders.');
+      responseSchedule(source, job);
+      if (entry.deadlineAt && entry.deadlineAt <= new Date()) throw team.failure('Your assignment response deadline has passed. Ask Operations to extend the deadline or review the team.', 409, 'TEAM_RESPONSE_EXPIRED');
       entry.status = decision === 'accept' ? 'accepted' : 'declined'; entry.respondedAt = new Date(); entry.reason = String(reason).trim().slice(0, 500);
       if (entry.assignmentId) await deps.Assignment.updateOne({ _id: entry.assignmentId, technicianId, status: 'pending_acceptance' }, { $set: { status: decision === 'accept' ? 'accepted' : 'declined', ...(decision === 'accept' ? { acceptedAt: entry.respondedAt } : { declinedAt: entry.respondedAt, declineReason: entry.reason }) } }, { session });
       if (decision === 'decline') job.status = source === 'booking' ? 'pending_reassignment' : 'technician_declined';
@@ -186,7 +196,7 @@ function createService(overrides = {}) {
   }
   async function extend(source, id, minutes, assignmentId) {
     return deps.lock(`job-team:${source}:${id}`, () => transaction(async session => {
-      const job = await load(source, id, session); schedule(source, job);
+      const job = await load(source, id, session); responseSchedule(source, job);
       if (!['assigned', 'confirmed', 'inspection_scheduled', 'repair_scheduled', 'technician_assigned'].includes(job.status)) throw team.failure('This job is no longer waiting for acceptance.');
       const pending = team.members(job).filter(row => row.status === 'pending' && (source === 'order' || team.ref(row.assignmentId) === String(assignmentId)));
       if (!pending.length) throw team.failure('This assignment has already been answered. Refresh the page.');
@@ -219,17 +229,20 @@ function createService(overrides = {}) {
 async function publish(result, req) {
   const { source, job } = result, io = req.app.get('io') || global.io;
   if (result.duplicate) return;
+  const reference = { referenceId: job._id, referenceModel: source === 'booking' ? 'BookingService' : 'Order' };
   for (const row of team.members(job)) {
     if (!result.response) {
-      const tech = await require('../models/Technician').findById(row.technicianId).select('user').lean();
-      await require('./notify').createNotification({ role: 'technician', userId: tech?.user || row.technicianId, title: 'Job team assigned', message: `${job.bookingReference || job.orderReference || 'Your job'}: please accept your ${team.isPrimary(job, row.technicianId) ? 'primary' : 'supporting'} assignment.`, link: source === 'booking' ? '/technician/assignments' : '/technician/orders', io });
+      await require('./notify').createNotification({ type: 'assignment_new', ...reference,
+        role: 'technician', userId: row.technicianId, title: 'Job team assigned', message: `${job.bookingReference || job.orderReference || 'Your job'}: please accept your ${team.isPrimary(job, row.technicianId) ? 'primary' : 'supporting'} assignment.`, link: source === 'booking' ? '/technician/assignments' : '/technician/orders', io });
     }
     io?.to(`tech:${row.technicianId}`).emit(source === 'booking' ? 'assignment:new' : 'order:assigned', { bookingId: source === 'booking' ? job._id : undefined, orderId: source === 'order' ? job._id : undefined });
   }
   io?.to('admin-room').emit(source === 'booking' ? 'booking:updated' : 'order:status-change', { bookingId: source === 'booking' ? job._id : undefined, orderId: source === 'order' ? job._id : undefined, status: job.status });
   const owner = source === 'booking' ? job.customerId : job.userId;
-  if (result.response && result.decision === 'decline') await require('./notify').createNotification({ role: 'admin', title: 'Technician team needs review', message: `${job.bookingReference || job.orderReference}: a technician declined. Review the team before dispatch.`, link: source === 'booking' ? '/admin/appointments?tab=queue' : '/admin/appointments/orders', io });
-  if (owner && !result.response) await require('./notify').createNotification({ role: 'customer', userId: owner, title: 'Your service team', message: `${job.bookingReference || job.orderReference}: ${team.members(job).map(row => row.name).join(', ')}.`, link: source === 'booking' ? '/book-history' : '/my-orders', io });
+  if (result.response && result.decision === 'decline') await require('./notify').createNotification({ type: 'assignment_declined', ...reference,
+    role: 'admin', title: 'Technician team needs review', message: `${job.bookingReference || job.orderReference}: a technician declined. Review the team before dispatch.`, link: source === 'booking' ? '/admin/appointments?tab=queue' : '/admin/appointments/orders', io });
+  if (owner && !result.response) await require('./notify').createNotification({ type: 'assignment_update', ...reference,
+    userId: owner, title: 'Your service team', message: `${job.bookingReference || job.orderReference}: ${team.members(job).map(row => row.name).join(', ')}.`, link: source === 'booking' ? '/book-history' : '/my-orders', io });
 }
 async function assignmentResponse(source, req, res) {
   try {

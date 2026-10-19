@@ -11324,6 +11324,13 @@ function syncCustomerServiceTypeChoice() {
     if (!tab) continue;
     tab.disabled = blocked;
     tab.setAttribute('aria-disabled', String(blocked));
+    const description = tab.querySelector('.service-type-copy small');
+    if (description) {
+      if (tab.dataset.serviceTypeDescription === undefined) tab.dataset.serviceTypeDescription = description.textContent;
+      description.textContent = blocked
+        ? `Blocked while ${type === 'core' ? 'Core' : 'Repair'} services are added.`
+        : tab.dataset.serviceTypeDescription;
+    }
     if (!tab.dataset.serviceTypeLockBound) {
       tab.dataset.serviceTypeLockBound = 'true';
       tab.addEventListener('show.bs.tab', event => { if (tab.disabled) event.preventDefault(); });
@@ -15136,6 +15143,8 @@ function repairItemIsComplete(item) {
 }
 
 function addCurrentRepairItem() {
+  try { window.ApplianceServices.assertSingleServiceType(BookingState.selectedServices.concat({ type: 'repair' })); }
+  catch (error) { return showAlert(error.message, 'warning'); }
   if (repairNeedsIdentification()) return reviewRepairIdentification();
   if (repairIdentificationState.mode !== 'manual') { goToRepairGuideStep(3); return repairIdentificationMessage('Choose staff assistance or enter the unit details before continuing.'); }
   const item = getCurrentRepairItem();

@@ -99,6 +99,38 @@ for (const endpoint of ['single', 'batch']) {
     assert.equal(f.calls.assignmentUpdates.length, 0);
   });
 
+  for (const evidence of [false, true]) {
+    test(`${endpoint}: Core can finish before Repair starts${evidence ? ' even with old completion evidence' : ''}`, async () => {
+      const f = fixture({ coreStatus: 'arrived', repairStatus: 'arrived', evidence });
+      const repairBefore = snapshot(f.booking.services[1]);
+      assert.equal((await f.update(endpoint, 'in_progress')).statusCode, 200);
+
+      const completed = await f.update(endpoint, 'completed');
+      assert.equal(completed.statusCode, 200);
+      assert.equal(completed.body.allServicesCompleted, false);
+      assert.equal(f.booking.services[0].status, 'completed');
+      assert.equal(f.booking.status, 'in-progress');
+      assert.deepEqual(snapshot(f.booking.services[1]), repairBefore);
+      assert.equal(f.calls.saves.length, 2);
+      assert.equal(f.calls.assignmentUpdates.length, 0);
+
+      const proof = await f.submitProof();
+      assert.equal(proof.statusCode, 409);
+      assert.equal(proof.body.code, 'MIXED_WORK_OPEN');
+      assert.equal(proof.body.openItems[0].status, 'arrived');
+      assert.equal(f.calls.proofStores, 0);
+      assert.equal(f.calls.saves.length, 2);
+      assert.equal(f.calls.assignmentUpdates.length, 0);
+      assert.deepEqual(snapshot(f.booking.services[1]), repairBefore);
+
+      const inspection = await f.update('single', 'inspection_in_progress', id(4));
+      assert.equal(inspection.statusCode, 200);
+      assert.equal(f.booking.services[1].status, 'inspection_in_progress');
+      assert.equal(f.booking.services[0].status, 'completed');
+      assert.equal(f.calls.assignmentUpdates.length, 0);
+    });
+  }
+
   for (const state of [
     { repairStatus: 'inspection_in_progress' },
     { repairStatus: 'repair_in_progress', evidence: true, balance: 0 },

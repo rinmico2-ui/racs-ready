@@ -2046,6 +2046,7 @@ router.post('/:id/service-change-requests', async (req, res) => {
 
     const beforeServices = bookingServices(booking);
     const proposedServices = await validatedServiceItems(req.body.services, booking);
+    require('../public/js/appliance-services').assertSingleServiceType(proposedServices);
     const summary = summarizeChanges(beforeServices, proposedServices);
     const inspectionDuration = await getInspectionDurationMinutes();
     const totalUnits = validateBookingUnitLimit(proposedServices);

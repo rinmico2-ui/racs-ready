@@ -133,6 +133,7 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       enum: [
         "BookingService",
+        "Order",
         "Assignment",
         "Expense",
         "LeaveRequest",

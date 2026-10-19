@@ -154,7 +154,7 @@ async function respondToOrderTeam(req, res, decision) {
     const result = await require('../utils/standardJobTeamService').createService().respond('order', job._id, tech._id, decision, req.body?.reason);
     await require('../utils/standardJobTeamService').publish({ source: 'order', ...result }, req).catch(() => {});
     res.json({ success: true, order: presentOrderForRequest(req, result.job, tech._id) }); return true;
-  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save your team response.' }); return true; }
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Could not save your team response.', code: error.code }); return true; }
 }
 
 // â”€â”€ Multer config for GCash receipt uploads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1125,7 +1125,7 @@ router.post("/:id/refund-request", authenticate, requireRole("customer"), refund
 router.use("/:id", authenticate, async (req, res, next) => {
   if (!require("mongoose").Types.ObjectId.isValid(req.params.id)) return next();
   try {
-    const order = await Order.findById(req.params.id).select("userId technicianId").lean();
+    const order = await Order.findById(req.params.id).select("userId technicianId technicianTeam.technicianId").lean();
     if (!order) return res.status(404).json({ error: "Order not found" });
     if (["admin", "secretary"].includes(req.user.role)) return next();
     if (req.user.role === "customer" && String(order.userId || "") === String(req.user._id)) {
@@ -1133,7 +1133,7 @@ router.use("/:id", authenticate, async (req, res, next) => {
     }
     if (req.user.role === "technician") {
       const technician = await Technician.findOne({ user: req.user._id }).select("_id").lean();
-      if (technician && String(order.technicianId || "") === String(technician._id)) {
+      if (technician && require('../utils/standardJobTeam').ids(order).includes(String(technician._id))) {
         return next();
       }
     }
@@ -2823,7 +2823,7 @@ router.post("/:id/requeue-assignment", authenticate, requireRole(["admin", "secr
     }
     if (!assignmentTiming.isAcceptanceOverdue) {
       return res.status(409).json({
-        error: `The technician still has time to respond. Requeue becomes available after the ${assignmentTiming.responseMinutes}-minute response window.`,
+        error: "The technician still has time to respond. Requeue becomes available after the technician response deadline.",
         code: "ORDER_ACCEPTANCE_WINDOW_ACTIVE",
         acceptanceDeadlineAt: assignmentTiming.acceptanceDeadlineAt,
       });

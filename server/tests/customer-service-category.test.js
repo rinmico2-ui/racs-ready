@@ -19,6 +19,8 @@ function ui(rows) {
   const state = {selectedServices:structuredClone(rows), editingServiceId:null, currentStep:5};
   const elements = Object.fromEntries(['core-tab', 'repair-tab', 'core-services', 'repair-services', 'coreServiceSelection', 'repairServiceSelection', 'serviceTypePolicy'].map(id=>[id,{
     disabled:false,dataset:{},attributes:{},events:{},classList:{contains:()=>false},
+    description:{textContent:id==='core-tab'?'Cleaning, installation and maintenance':'Inspection, diagnosis and repairs'},
+    querySelector(selector){return selector==='.service-type-copy small'?this.description:null;},
     setAttribute(name,value){this.attributes[name]=value;},addEventListener(name,callback){this.events[name]=callback;},
   }]));
   const errors = [], saves = [];
@@ -26,8 +28,9 @@ function ui(rows) {
     normalizeBookingStep:value=>value, bookingDebug(){}, remainingBookingUnits:()=>40, MAX_BOOKING_UNITS:40,
     generateUniqueId:()=> 'new-service', isRepairBookingService:item=>item.type==='repair', bookingServiceIcon:()=> 'bi-tools',
     showError:message=>errors.push(message), updateSelectedServicesDisplay(){}, updatePricingDisplay(){},
+    showAlert:message=>errors.push(message), showBookingToast(){}, DOM:{}, reconcileBookingScheduleAfterServiceChange(){},
     updateContinueButtonState(){}, updateRepairIssueDisplay(){}, saveBookingProgress:()=>saves.push(true)};
-  vm.runInNewContext(['commitCoreAppliance','commitRepairAppliance','addServiceToBooking','getBookingStepIssue','getRestorableBookingStep','validateBookingData','syncCustomerServiceTypeChoice'].map(declaration).join('\n'), context);
+  vm.runInNewContext(['commitCoreAppliance','commitRepairAppliance','addServiceToBooking','getBookingStepIssue','getRestorableBookingStep','validateBookingData','syncCustomerServiceTypeChoice','updateSelectedServicesDisplay','removeService','addCurrentRepairItem'].map(declaration).join('\n'), context);
   return {state,elements,errors,saves,context};
 }
 
@@ -104,6 +107,49 @@ test('Core and Repair each disable the opposite form and cancel attempts to open
     f.elements[`${blocked}-tab`].events['show.bs.tab']({preventDefault(){prevented=true;}});
     assert.equal(prevented,false);
   }
+});
+
+test('adding Core immediately explains the Repair block and removing only one of several Core services keeps it blocked', () => {
+  const f = ui([]);
+  f.context.commitCoreAppliance([core]);
+  assert.equal(f.elements['repair-tab'].disabled, true);
+  assert.equal(f.elements.repairServiceSelection.disabled, true);
+  assert.equal(f.elements['repair-services'].inert, true);
+  assert.match(f.elements['repair-tab'].description.textContent, /Blocked while Core/);
+  f.context.commitCoreAppliance([{...core,id:'core-2'}]);
+  f.context.removeService(core.id);
+  assert.equal(f.elements['repair-tab'].disabled, true);
+  f.context.removeService('core-2');
+  assert.equal(f.elements['repair-tab'].disabled, false);
+  assert.equal(f.elements.repairServiceSelection.disabled, false);
+  assert.equal(f.elements['repair-services'].inert, false);
+  assert.equal(f.elements['repair-tab'].description.textContent, 'Inspection, diagnosis and repairs');
+});
+
+test('adding Repair immediately blocks Core and removing it restores the Core description and controls', () => {
+  const f = ui([]);
+  f.context.commitRepairAppliance(repair);
+  assert.equal(f.elements['core-tab'].disabled, true);
+  assert.equal(f.elements.coreServiceSelection.disabled, true);
+  assert.match(f.elements['core-tab'].description.textContent, /Blocked while Repair/);
+  f.context.removeService(repair.id);
+  assert.equal(f.elements['core-tab'].disabled, false);
+  assert.equal(f.elements.coreServiceSelection.disabled, false);
+  assert.equal(f.elements['core-tab'].description.textContent, 'Cleaning, installation and maintenance');
+});
+
+test('the older Repair form cannot add a repair or start identification when Core has already been added', () => {
+  const f = ui([core]);
+  f.context.repairNeedsIdentification = () => assert.fail('A blocked Repair form must not open identification');
+  f.context.addCurrentRepairItem();
+  assert.match(f.errors[0], /separately/);
+  assert.deepEqual(f.state.selectedServices, [core]);
+  assert.equal(f.saves.length, 0);
+  const allowed = ui([repair]); let opened = false;
+  allowed.context.repairNeedsIdentification = () => true;
+  allowed.context.reviewRepairIdentification = () => { opened = true; };
+  allowed.context.addCurrentRepairItem();
+  assert.equal(opened, true);
 });
 
 test('older mixed drafts return to service selection and cannot continue or submit until corrected', () => {

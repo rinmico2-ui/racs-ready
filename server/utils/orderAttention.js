@@ -65,14 +65,24 @@ function technicianAcceptanceState(order, now = new Date()) {
     : null;
   const extended = order?.status === "technician_assigned" && order?.technicianAcceptance?.deadlineAt
     ? new Date(order.technicianAcceptance.deadlineAt) : null;
-  const deadline = extended && defaultDeadline && extended > defaultDeadline ? extended : defaultDeadline;
+  const hasTeam = Boolean(order?.technicianId && order?.technicianTeam?.length);
+  const pendingDeadlines = order?.status === "technician_assigned" && hasTeam
+    ? order.technicianTeam.filter(member => member.status === "pending" && member.deadlineAt)
+      .map(member => new Date(member.deadlineAt).getTime()).filter(Number.isFinite)
+    : [];
+  // Each team invitation has its own saved deadline, which can be shorter than
+  // the legacy two-hour SLA. Staff must see the same cutoff used by responses.
+  const deadline = hasTeam
+    ? (pendingDeadlines.length ? new Date(Math.min(...pendingDeadlines)) : extended || defaultDeadline)
+    : extended && defaultDeadline && extended > defaultDeadline ? extended : defaultDeadline;
   const reference = now instanceof Date ? now : new Date(now);
   return {
     responseMinutes: TECHNICIAN_RESPONSE_MINUTES,
     assignedAt: assignedAt ? assignedAt.toISOString() : null,
     acceptanceDeadlineAt: deadline ? deadline.toISOString() : null,
     isAcceptanceOverdue: Boolean(
-      deadline && !Number.isNaN(reference.getTime()) && reference.getTime() > deadline.getTime()
+      deadline && !Number.isNaN(reference.getTime())
+        && (hasTeam ? reference.getTime() >= deadline.getTime() : reference.getTime() > deadline.getTime())
     ),
   };
 }

@@ -217,6 +217,83 @@ test('installation acceptance waits for all members and a decline is visible wit
   await f.service.respond('order', orderId, lead, 'accept'); assert.equal(f.current.status, 'technician_assigned');
   await f.service.respond('order', orderId, support, 'accept'); assert.equal(f.current.status, 'technician_accepted');
 });
+
+test('order team members can accept at the scheduled start and through the displayed Manila grace period', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-04T23:55:00Z') });
+  const f = fixture({ source: 'order' });
+  await f.assign({ technicianId: lead, technicianIds: [lead, support], responseMinutes: 120 });
+  t.mock.timers.setTime(new Date('2099-01-05T00:00:00Z').getTime());
+  await f.service.respond('order', orderId, lead, 'accept');
+  assert.equal(f.current.status, 'technician_assigned');
+  t.mock.timers.setTime(new Date('2099-01-05T00:30:00Z').getTime());
+  await f.service.respond('order', orderId, support, 'accept');
+  assert.equal(f.current.status, 'technician_accepted');
+  assert.equal(f.current.total, f.job.total);
+  assert.equal(team.readiness(f.current).ready, true);
+});
+
+test('order acceptance still rejects a passed schedule without changing any response', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-04T23:55:00Z') });
+  const f = fixture({ source: 'order' });
+  await f.assign({ technicianId: lead, technicianIds: [lead, support], responseMinutes: 120 });
+  const before = copy(f.current);
+  t.mock.timers.setTime(new Date('2099-01-05T00:30:00.001Z').getTime());
+  await assert.rejects(f.service.respond('order', orderId, lead, 'accept'), error => error.code === 'ORDER_SCHEDULE_PASSED');
+  assert.deepEqual(f.current, before);
+});
+
+test('existing order time ranges use the same acceptance cutoff as the technician page', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-04T23:55:00Z') });
+  for (const timeSlot of ['08:00-09:00', '8:00 AM - 9:00 AM']) {
+    t.mock.timers.setTime(new Date('2099-01-04T23:55:00Z').getTime());
+    const f = fixture({ source: 'order' }); await f.assign();
+    f.current.timeSlot = timeSlot;
+    t.mock.timers.setTime(new Date('2099-01-05T00:10:00Z').getTime());
+    await f.service.respond('order', orderId, support, 'accept');
+    assert.equal(f.current.technicianTeam[1].status, 'accepted');
+    assert.equal(f.current.technicianTeam[0].status, 'pending');
+  }
+});
+
+test('an incomplete customer schedule cannot be accepted or extended', async () => {
+  for (const missing of ['date', 'time']) {
+    const f = fixture({ source: 'order' }); await f.assign();
+    if (missing === 'date') f.current.delivery.preferredDate = null;
+    else f.current.timeSlot = null;
+    const before = copy(f.current);
+    await assert.rejects(f.service.respond('order', orderId, lead, 'accept'), error => error.code === 'ORDER_SCHEDULE_REQUIRED');
+    await assert.rejects(f.service.extend('order', orderId, 60), error => error.code === 'ORDER_SCHEDULE_REQUIRED');
+    assert.deepEqual(f.current, before);
+  }
+});
+
+test('operations can extend an expired order response within the customer schedule grace period', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-04T23:50:00Z') });
+  const f = fixture({ source: 'order' }); await f.assign();
+  await f.service.respond('order', orderId, lead, 'accept');
+  t.mock.timers.setTime(new Date('2099-01-05T00:20:00Z').getTime());
+  await assert.rejects(f.service.respond('order', orderId, support, 'accept'), error => error.code === 'TEAM_RESPONSE_EXPIRED');
+  await f.service.extend('order', orderId, 60);
+  await f.service.respond('order', orderId, support, 'accept');
+  assert.equal(f.current.status, 'technician_accepted');
+  assert.equal(f.current.technicianTeam[0].status, 'accepted');
+});
+
+test('the grace period does not allow staff to assign a new order team after its appointment starts', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2099-01-05T00:00:00Z') });
+  const f = fixture({ source: 'order' });
+  await assert.rejects(f.assign(), /future appointment/);
+  assert.equal(f.current.status, 'preparing_unit');
+  assert.equal(f.current.technicianId, undefined);
+});
+
+test('an unscheduled continuation cannot be accepted using the previous order appointment', async () => {
+  const f = fixture({ source: 'order' }); await f.assign();
+  f.current.continuation = { status: 'pending' };
+  const before = copy(f.current);
+  await assert.rejects(f.service.respond('order', orderId, lead, 'accept'), error => error.code === 'CONTINUATION_PENDING');
+  assert.deepEqual(f.current, before);
+});
 test('extending a pending supporting invitation changes both saved deadlines without resetting primary acceptance', async () => {
   const f=fixture();await f.assign();await f.service.respond('booking',bookingId,lead,'accept');
   const old=f.current.technicianTeam[1].deadlineAt;

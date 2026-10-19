@@ -100,3 +100,34 @@ test("technician response SLA is separate from the customer schedule cutoff", ()
   assert.equal(state.isPastDate, false);
   assert.equal(state.acceptanceDeadlineAt, "2026-08-25T02:00:00.000Z");
 });
+
+test("team response timing uses the actual member deadline instead of the legacy two-hour SLA", () => {
+  const order = {
+    status: "technician_assigned", technicianId: "lead", fulfillmentType: "delivery_installation",
+    delivery: { preferredDate: "2026-08-26" }, timeSlot: "09:00",
+    statusHistory: [{ status: "technician_assigned", timestamp: "2026-08-25T00:00:00Z" }],
+    technicianAcceptance: { status: "pending", deadlineAt: "2026-08-25T00:30:00Z" },
+    technicianTeam: [
+      { technicianId: "lead", status: "pending", deadlineAt: "2026-08-25T00:30:00Z" },
+      { technicianId: "support", status: "pending", deadlineAt: "2026-08-25T00:45:00Z" },
+    ],
+  };
+  const atDeadline = orderAttentionState(order, new Date("2026-08-25T00:30:00Z"));
+  assert.equal(atDeadline.acceptanceDeadlineAt, "2026-08-25T00:30:00.000Z");
+  assert.equal(atDeadline.isAcceptanceOverdue, true);
+  assert.equal(atDeadline.isPastDate, false);
+  order.technicianTeam[0].status = "accepted";
+  const supporting = orderAttentionState(order, new Date("2026-08-25T00:40:00Z"));
+  assert.equal(supporting.acceptanceDeadlineAt, "2026-08-25T00:45:00.000Z");
+  assert.equal(supporting.isAcceptanceOverdue, false);
+});
+
+test("a stored team response deadline works even when assignment history is missing", () => {
+  const state = orderAttentionState({
+    status: "technician_assigned", technicianId: "lead", fulfillmentType: "delivery_installation",
+    delivery: { preferredDate: "2026-08-26" }, timeSlot: "09:00",
+    technicianTeam: [{ technicianId: "lead", status: "pending", deadlineAt: "2026-08-25T00:30:00Z" }],
+  }, new Date("2026-08-25T01:00:00Z"));
+  assert.equal(state.acceptanceDeadlineAt, "2026-08-25T00:30:00.000Z");
+  assert.equal(state.isAcceptanceOverdue, true);
+});

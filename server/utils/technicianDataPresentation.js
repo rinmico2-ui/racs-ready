@@ -57,7 +57,7 @@ function presentTechnicianBooking(value) {
   return booking;
 }
 
-function presentTechnicianOrder(value, { technicianId } = {}) {
+function presentTechnicianOrder(value, { technicianId, now = new Date() } = {}) {
   const source = plain(value);
   if (!source || typeof source !== "object") return source;
   const order = { ...source };
@@ -66,7 +66,9 @@ function presentTechnicianOrder(value, { technicianId } = {}) {
     const member = require('./standardJobTeam').member(order, technicianId);
     order.viewerAssignment = { technicianId: String(technicianId),
       status: member?.status || order.technicianAcceptance?.status || 'pending',
-      role: member?.role || 'primary' };
+      role: member?.role || 'primary',
+      ...(member ? { deadlineAt: member.deadlineAt || null,
+        isResponseExpired: member.status === 'expired' || Boolean(member.status === 'pending' && member.deadlineAt && new Date(member.deadlineAt) <= now) } : {}) };
   }
 
   delete order.paymentId;

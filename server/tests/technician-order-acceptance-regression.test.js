@@ -62,6 +62,35 @@ test('the presenter derives the logged-in member state and removes a stored or f
   assert.equal(presentTechnicianOrder(order).viewerAssignment, undefined);
 });
 
+test('each technician sees their own response deadline, and accepted members never become expired', () => {
+  const order = job();
+  order.technicianTeam[0].deadlineAt = new Date('2035-01-01T00:15:00Z');
+  order.technicianTeam[1].deadlineAt = new Date('2035-01-01T00:30:00Z');
+  const before = new Date('2035-01-01T00:29:59.999Z');
+  assert.equal(presentTechnicianOrder(order, { technicianId: support, now: before }).viewerAssignment.isResponseExpired, false);
+  const now = new Date('2035-01-01T00:30:00Z');
+  const expired = presentTechnicianOrder(order, { technicianId: support, now }).viewerAssignment;
+  assert.equal(expired.isResponseExpired, true);
+  assert.equal(expired.status, 'pending');
+  assert.equal(expired.deadlineAt.toISOString(), '2035-01-01T00:30:00.000Z');
+  assert.equal(presentTechnicianOrder(order, { technicianId: lead, now }).viewerAssignment.isResponseExpired, false);
+  order.technicianTeam[1].deadlineAt = new Date('2035-01-01T01:30:00Z');
+  assert.equal(presentTechnicianOrder(order, { technicianId: support, now }).viewerAssignment.isResponseExpired, false);
+});
+
+test('an expired response returns its specific recovery message and code to the technician', async t => {
+  t.mock.method(Order, 'findById', () => query(job()));
+  t.mock.method(Technician, 'findOne', () => query({ _id: support }));
+  t.mock.method(service, 'createService', () => ({ async respond() {
+    throw Object.assign(Error('Your assignment response deadline has passed. Ask Operations to extend the deadline or review the team.'), { status: 409, code: 'TEAM_RESPONSE_EXPIRED' });
+  } }));
+  const res = response(); await handler('/:id/accept')({ params: { id: orderId }, user: { _id: id(4), role: 'technician' } }, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'TEAM_RESPONSE_EXPIRED');
+  assert.match(res.body.error, /extend the deadline/);
+  assert.equal(res.body.success, undefined);
+});
+
 const view = fs.readFileSync(path.join(__dirname, '../views/pages/technician/technicianorders.ejs'), 'utf8');
 test('a supporting member can accept after the primary has accepted; an accepted viewer sees the waiting message', () => {
   const start = view.indexOf("    var aHtml = '';");
@@ -71,6 +100,16 @@ test('a supporting member can accept after the primary has accepted; an accepted
   assert.match(render('pending'), /data-action="accept"/);
   assert.doesNotMatch(render('accepted'), /data-action="accept"/);
   assert.match(render('accepted'), /Waiting for the other team members/);
+});
+
+test('an expired invitation explains how to recover instead of presenting an unusable Accept button', () => {
+  const start = view.indexOf("    var aHtml = '';");
+  const code = view.slice(start, view.indexOf('    var actDiv =', start)) + '\naHtml;';
+  const html = vm.runInNewContext(code, { o: { ...job(), viewerAssignment: { status: 'pending', isResponseExpired: true } }, esc: String,
+    scheduleRecovery: false, installReady: false, dispatchReady: false, preparationDate: '2035-01-02' });
+  assert.match(html, /Response deadline passed/);
+  assert.match(html, /Ask admin or secretary to extend/);
+  assert.doesNotMatch(html, /data-action="accept"|data-action="decline"/);
 });
 
 test('the Accept button sends JSON and waits for team acceptance before opening daily preparation', async () => {
